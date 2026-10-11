@@ -443,5 +443,24 @@
   "reference": [
    "labs/mod-1-7/reference/nosql_lab.py"
   ]
+ },
+ "mod-2-6": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-6/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-6/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-6/warehouse_lab.py"
+  ],
+  "reference": [
+   "labs/mod-2-6/reference/warehouse_lab.py"
+  ]
  }
 }

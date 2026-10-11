@@ -6995,6 +6995,497 @@ window.CURRICULUM_DATA = [
      }
     ],
     "idPending": false
+   },
+   {
+    "id": "mod-2-6",
+    "number": "2.6",
+    "title": {
+     "id": "Cloud Data Warehouse: Cara Kerja Snowflake, BigQuery, dan Redshift",
+     "en": "Cloud Data Warehouses: How Snowflake, BigQuery and Redshift Work"
+    },
+    "duration": {
+     "id": "2 minggu",
+     "en": "2 weeks"
+    },
+    "summary": {
+     "id": "Pahami apa yang terjadi di dalam cloud data warehouse: penyimpanan kolumnar yang dipotong menjadi micro-partition beserta statistiknya, komputasi paralel, distribusi dan join, harga berbasis pemindaian dan berbasis waktu, bulk loading, caching, dan konkurensi. Anda memodelkan setiap mekanisme dalam Python murni dan mengukur bagaimana tata letak mengubah pekerjaan yang dilakukan sebuah query.",
+     "en": "Understand what happens inside a cloud data warehouse: columnar storage cut into micro-partitions with statistics, parallel compute, distribution and joins, scan-based and time-based pricing, bulk loading, caching and concurrency. You model each mechanism in plain Python and measure how layout changes the work a query does."
+    },
+    "whyTutorialsLie": {
+     "id": "Setiap lowongan menyebut Snowflake, BigQuery, atau Redshift, dan setiap bootcamp menunjukkannya dalam demo klik-klik. Tanpa memahami mekanismenya Anda tidak bisa menjelaskan mengapa satu query berbiaya sepuluh kali query lain, bagaimana menata tabel, atau bagaimana memuat data dengan benar.",
+     "en": "Every job post says Snowflake, BigQuery or Redshift, and every bootcamp shows one in a click-through demo. Without the mechanism you cannot explain why one query costs ten times another, how to lay out a table, or how to load data correctly."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan apa itu cloud data warehouse, dan apa bedanya dengan database operasional dan dengan lakehouse",
+      "en": "Explain what a cloud data warehouse is, and how it differs from an operational database and from a lakehouse"
+     },
+     {
+      "id": "Menjelaskan micro-partition, zone map, partition pruning, dan clustering, serta mengukur bagaimana tata letak mengubah jumlah data yang dibaca sebuah query",
+      "en": "Explain micro-partitions, zone maps, partition pruning and clustering, and measure how layout changes the amount of data a query reads"
+     },
+     {
+      "id": "Menjelaskan paralelisme MPP, gaya distribusi, dan mengapa join yang co-located tidak memindahkan data",
+      "en": "Explain MPP parallelism, distribution styles and why a co-located join moves no data"
+     },
+     {
+      "id": "Memperkirakan dan mengurangi biaya sebuah query pada harga berbasis pemindaian dan berbasis waktu",
+      "en": "Estimate and reduce the cost of a query under scan-based and time-based pricing"
+     },
+     {
+      "id": "Memuat data secara bulk dengan file berukuran tepat, serta menjelaskan result caching, konkurensi, dan antrean",
+      "en": "Load data in bulk with well-sized files, and explain result caching, concurrency and queueing"
+     },
+     {
+      "id": "Membandingkan Snowflake, BigQuery, dan Redshift secara akurat, dan memilih antara warehouse dan lakehouse",
+      "en": "Compare Snowflake, BigQuery and Redshift accurately, and choose between a warehouse and a lakehouse"
+     }
+    ],
+    "prerequisites": {
+     "id": "Modul 1.4 (pemodelan dimensional), 2.1 (penyimpanan kolumnar dan Parquet), dan 3.4 (dasar FinOps) membantu. Lab ini memakai Python murni dan tidak butuh akun cloud.",
+     "en": "Modules 1.4 (dimensional modeling), 2.1 (columnar storage and Parquet) and 3.4 (FinOps basics) help. The lab is plain Python and needs no cloud account."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Apa itu cloud data warehouse",
+       "en": "What a cloud data warehouse is"
+      },
+      "body": {
+       "id": "Database operasional (Modul 0.1) dibuat untuk membaca dan menulis beberapa baris dengan sangat cepat bagi banyak pengguna. **Data warehouse** dibuat untuk pekerjaan yang berlawanan: **memindai data dalam jumlah sangat besar dan mengagregasinya** untuk beberapa analis dan dashboard. SQL yang sama, mesin yang berbeda.\n\nDua gagasan membuatnya cepat, dan Anda sudah mengenal keduanya. **Penyimpanan kolumnar** (Modul 2.1) menyimpan tiap kolom bersama, sehingga query yang butuh tiga dari lima puluh kolom hanya membaca ketiganya, dan nilai yang mirip terkompresi dengan baik. **Massively parallel processing (MPP)** membagi satu query ke banyak mesin, masing-masing mengerjakan irisan datanya sendiri, lalu menggabungkan hasil parsial.\n\nCloud warehouse menambah gagasan ketiga: **pisahkan penyimpanan dari komputasi**. Data tinggal di object storage cloud yang murah dan tahan lama; komputasi adalah sekumpulan mesin yang Anda nyalakan, ukur, dan hentikan secara mandiri. Sepuluh tim bisa mengkueri data yang sama dengan sepuluh klaster komputasi terpisah yang tidak saling memperlambat, dan Anda membayar komputasi hanya selama berjalan. Tiga nama yang paling sering Anda temui:\n\n| | Snowflake | BigQuery | Redshift |\n|---|---|---|---|\n| Komputasi | **Virtual warehouse** yang Anda ukur dan suspend | **Serverless**: Google mengalokasikan \"slot\" per query | Sebuah **klaster** (node RA3) atau Redshift Serverless |\n| Penyimpanan | Object storage cloud, dikelola sebagai micro-partition | Penyimpanan kolumnar Google (Capacitor), dikelola | Penyimpanan terkelola (RA3) atau disk lokal |\n| Tuas biaya utama | Detik waktu warehouse (credit) | Byte yang dipindai (on-demand) atau slot yang dicadangkan | Jam node, atau waktu komputasi serverless |\n| Alat tata letak | Clustering key | Partitioning dan clustering | Sort key dan distribution key |\n\n(Detail produk berubah; cek dokumentasi terkini sebelum mengandalkan sebuah detail.)\n\n**Lakehouse** (Modul 2.2) menyimpan data dalam file terbuka seperti Parquet di object storage, dengan format tabel (Iceberg, Delta) yang menyediakan transaksi, dan membiarkan beberapa mesin mengkuerinya, termasuk DuckDB, Spark, dan semakin sering, warehouse itu sendiri (tabel eksternal atau Iceberg). Warehouse menyimpan data dalam format terkelola miliknya. Bedanya adalah siapa yang mengendalikan format data dan mesinnya; mekanisme dalam modul ini berlaku untuk keduanya.\n\nDi mana posisinya: data mentah mendarat di object storage (Modul 2.2, 3.4), alat seperti dbt (Modul 2.3) membangun tabel yang dimodelkan di dalam warehouse, dan analis serta alat BI mengkuerinya. Semua yang Anda pelajari tentang grain, dimensi, dan fakta (Modul 1.4) adalah cara tabel-tabel itu seharusnya dibentuk.",
+       "en": "An operational database (Module 0.1) is built to read and write a few rows very quickly for many users. A **data warehouse** is built for the opposite job: **scan huge amounts of data and aggregate it** for a few analysts and dashboards. The same SQL, a different engine.\n\nTwo ideas make that fast, and you already know both. **Columnar storage** (Module 2.1) keeps each column together, so a query that needs three of fifty columns reads only those, and similar values compress well. **Massively parallel processing (MPP)** splits one query across many machines, each working on its own slice of the data, and merges the partial results.\n\nCloud warehouses add a third idea: **separate storage from compute**. Data lives on cheap, durable cloud object storage; compute is a set of machines you start, size and stop independently. You can have ten teams querying the same data with ten separate compute clusters that never slow one another down, and you pay for compute only while it runs. The three names you will meet most:\n\n| | Snowflake | BigQuery | Redshift |\n|---|---|---|---|\n| Compute | **Virtual warehouses** you size and suspend | **Serverless**: Google allocates \"slots\" per query | A **cluster** (RA3 nodes) or Redshift Serverless |\n| Storage | Cloud object storage, managed as micro-partitions | Google's columnar storage (Capacitor), managed | Managed storage (RA3) or local disks |\n| Main cost lever | Seconds of warehouse time (credits) | Bytes scanned (on-demand) or reserved slots | Node hours, or serverless compute time |\n| Layout tools | Clustering keys | Partitioning and clustering | Sort keys and distribution keys |\n\n(Product details change; check the current documentation before relying on a detail.)\n\nA **lakehouse** (Module 2.2) keeps data in open files such as Parquet on object storage, with a table format (Iceberg, Delta) providing transactions, and lets several engines query it, including DuckDB, Spark and, increasingly, the warehouses themselves (external or Iceberg tables). A warehouse keeps data in its own managed format. The difference is who controls the data format and the engine; the mechanisms in this module apply to both.\n\nWhere it fits: raw data lands in object storage (Modules 2.2, 3.4), a tool such as dbt (Module 2.3) builds modelled tables inside the warehouse, and analysts and BI tools query those. Everything you learned about grain, dimensions and facts (Module 1.4) is how those tables should be shaped."
+      }
+     },
+     {
+      "title": {
+       "id": "Cara data disimpan: micro-partition, zone map, dan pruning",
+       "en": "How data is stored: micro-partitions, zone maps and pruning"
+      },
+      "body": {
+       "id": "Warehouse tidak menyimpan tabel sebagai satu file besar. Ia memotongnya menjadi banyak **micro-partition** (nama Snowflake; BigQuery dan Redshift punya padanannya), masing-masing memuat irisan baris dalam bentuk kolumnar, biasanya puluhan hingga ratusan megabyte. Untuk setiap partisi dan setiap kolom ia mencatat **statistik** yang murah: nilai terkecil dan terbesar, sebuah **zone map**. Ini tinggal di metadata, sehingga membacanya nyaris tanpa biaya.\n\nSekarang jalankan `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`. Untuk setiap partisi mesin memeriksa statistiknya: jika tanggal terbesar partisi itu sebelum 1 Maret, atau yang terkecil setelah 7 Maret, **tidak ada baris di dalamnya yang bisa cocok**, sehingga ia dilewati tanpa dibuka. Ini **partition pruning**, dan ia alasan terbesar mengapa query warehouse bisa menyentuh 3% tabel, bukan seluruhnya. Lab mengimplementasikannya: `build_micro_partitions`, `prune`, dan `scan`.\n\n**Ia hanya bekerja jika nilai yang mirip disimpan bersama.** Generator di lab (`make_rows` di file tes, dipanggil di sini dengan 100.000 baris) membuat pesanan sepanjang 365 hari dalam urutan acak. Dipotong menjadi 100 partisi berisi 1.000 baris, setiap partisi berisi pesanan dari hampir setiap hari, sehingga min-nya di awal tahun dan max-nya di akhir: **semua 100 partisi cocok** dengan filter satu minggu. Urutkan baris yang sama menurut `order_date` lebih dulu lalu potong lagi: **3 partisi** cocok. Data sama, query sama, 1.874 baris hasil yang sama, **sepertigapuluh pekerjaan**. `average_overlap` di lab mengukurnya: 100,0 partisi saling tumpang tindih pada tata letak acak, 3,0 pada yang ter-cluster.\n\nPengurutan itulah yang dimaksud **clustering**. Di Snowflake Anda mendefinisikan **clustering key** dan layanan menjaga tabel tetap kira-kira terurut seiring data tiba. Di BigQuery Anda **mempartisi** tabel menurut kolom tanggal atau integer (partisi adalah satuan yang bisa dilewati sepenuhnya) dan **men-cluster**-nya menurut hingga empat kolom lain yang diurutkan di dalam tiap partisi. Di Redshift **sort key** mengurutkan baris di disk agar zone map bekerja. Prinsipnya sama: **pilih kolom yang paling sering Anda filter, dan jaga data terurut menurutnya**.\n\nAturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JOIN` (tanggal lebih dulu untuk data event); kolom berkardinalitas sangat tinggi (id unik) kurang baik di-cluster untuk filter rentang; dan terlalu banyak partisi mungil, seperti pada masalah file kecil di Modul 3.0, menambah overhead. Clustering membutuhkan biaya pemeliharaan, jadi ia untung pada tabel **besar** yang difilter berulang kali.\n\nPenghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.",
+       "en": "A warehouse does not store a table as one big file. It cuts it into many **micro-partitions** (Snowflake's name; BigQuery and Redshift have equivalents), each holding a slice of the rows in columnar form, typically tens to hundreds of megabytes. For every partition and every column it records cheap **statistics**: the smallest and the largest value, a **zone map**. These live in metadata, so reading them costs almost nothing.\n\nNow run `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`. For each partition the engine checks its statistics: if the partition's largest date is before March 1, or its smallest is after March 7, **no row in it can match**, so it is skipped without being opened. This is **partition pruning**, and it is the single biggest reason a warehouse query can touch 3% of a table instead of all of it. The lab implements it: `build_micro_partitions`, `prune`, and `scan`.\n\n**It only works if similar values are stored together.** The lab's generator (`make_rows` in the test file, called here with 100,000 rows) makes orders across 365 days in random order. Cut into 100 partitions of 1,000 rows, every partition holds orders from almost every day, so its min is early in the year and its max late: **all 100 partitions match** the one-week filter. Sort the same rows by `order_date` first and cut them again: **3 partitions** match. Same data, same query, same 1,874 result rows, **a thirtieth of the work**. The lab's `average_overlap` measures it: 100.0 partitions overlapping each other in the random layout, 3.0 in the clustered one.\n\nThat sorting is what **clustering** means. In Snowflake you define a **clustering key** and the service keeps the table roughly sorted as data arrives. In BigQuery you **partition** a table by a date or integer column (a partition is a unit that can be skipped completely) and **cluster** it by up to four more columns that are sorted within each partition. In Redshift a **sort key** orders rows on disk so that zone maps work. The principle is shared: **pick the columns you filter by most often, and keep data ordered by them**.\n\nRules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN` (dates first for event data); a column with extremely high cardinality (a unique id) clusters poorly for range filters; and too many tiny partitions, as in the small-files problem of Module 3.0, add overhead. Clustering costs maintenance, so it pays off on **large** tables that are filtered repeatedly.\n\nThe second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away."
+      }
+     },
+     {
+      "title": {
+       "id": "Komputasi: kerja paralel, distribusi, dan join",
+       "en": "Compute: parallel work, distribution and joins"
+      },
+      "body": {
+       "id": "**MPP.** Warehouse menyebar tabel ke banyak node komputasi (Redshift menyebut unit pekerja per node **slice**), dan setiap node memindai bagiannya sendiri secara paralel; hasilnya digabung di koordinator (leader node Redshift). Lebih banyak node berarti lebih banyak paralelisme, sampai ada sesuatu yang harus dipindahkan antar node.\n\n**Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle**, seperti di Modul 3.0). Redshift membiarkan Anda memilih **gaya distribusi** per tabel:\n\n- **KEY**: baris dengan nilai kolom pilihan yang sama masuk ke node yang sama (seperti `distribute(..., style=\"key\")` di lab).\n- **EVEN**: baris dibagikan round-robin; seimbang, tetapi join butuh perpindahan data.\n- **ALL**: setiap node menyimpan salinan penuh; ideal untuk tabel dimensi kecil.\n- **AUTO**: layanan yang memutuskan dan bisa mengubahnya seiring tabel tumbuh.\n\n`join_rows_moved` di lab menangkap aturannya: jika kedua tabel didistribusikan menurut join key maka join-nya **co-located dan tidak memindahkan baris**; jika satu sisi adalah tabel kecil yang direplikasi (ALL), juga tidak ada baris; jika hanya satu sisi berada pada join key, sisi lainnya didistribusikan ulang; jika tidak ada, keduanya di-shuffle ulang. Karena itu tabel fakta besar didistribusikan pada join key yang paling umum dan dimensi kecil direplikasi. Snowflake dan BigQuery membuat pilihan ini otomatis, jadi Anda menyetel lebih sedikit, tetapi biaya yang sama ada di dalam mesin, dan Anda melihatnya sebagai waktu yang dihabiskan di langkah \"repartition\" atau \"shuffle\" pada query profile.\n\n**Skew** juga muncul di sini: jika satu nilai key (pelanggan dengan separuh dari semua pesanan) jatuh di satu node, node itu mengerjakan separuh pekerjaan sementara yang lain menunggu. Cari langkah yang tidak seimbang pada query profile.\n\n**Mengukur komputasi.** Di Snowflake sebuah **virtual warehouse** hadir dalam ukuran (X-Small, Small, Medium, ...); setiap naik satu ukuran menggandakan mesin dan credit per jam. Warehouse yang lebih besar sering menyelesaikan query berat lebih cepat dengan total biaya kurang lebih sama, tetapi tidak memberi manfaat bagi query yang sudah kecil; auto-suspend (Modul 3.4) menjaga waktu menganggur tetap murah. BigQuery mengalokasikan **slot** (satuan komputasi) per query secara otomatis, atau Anda mencadangkan jumlah tetap. Klaster Redshift provisioned diukur dalam node; Redshift Serverless menskala sesuai kebutuhan.",
+       "en": "**MPP.** A warehouse spreads a table over many compute nodes (Redshift calls the per-node worker units **slices**), and every node scans its own part in parallel; the results are combined on a coordinator (Redshift's leader node). More nodes mean more parallelism, until something must be moved between them.\n\n**Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle**, as in Module 3.0). Redshift lets you choose a **distribution style** per table:\n\n- **KEY**: rows with the same value of a chosen column go to the same node (like the lab's `distribute(..., style=\"key\")`).\n- **EVEN**: rows are dealt out round-robin; balanced, but joins need data movement.\n- **ALL**: every node holds a full copy; ideal for small dimension tables.\n- **AUTO**: the service decides and may change it as the table grows.\n\nThe lab's `join_rows_moved` captures the rules: if both tables are distributed by the join key the join is **co-located and moves no rows**; if one side is a small replicated table (ALL), also no rows; if only one side is on the join key, the other is redistributed; if neither is, both are reshuffled. This is why a big fact table is distributed on its most common join key and small dimensions are replicated. Snowflake and BigQuery make these choices automatically, so you tune less, but the same cost exists inside the engine, and you see it as time spent in a \"repartition\" or \"shuffle\" step of the query profile.\n\n**Skew** also appears here: if one key value (a customer with half of all orders) lands on one node, that node does half the work while others wait. Look for unbalanced steps in the query profile.\n\n**Sizing compute.** In Snowflake a **virtual warehouse** comes in sizes (X-Small, Small, Medium, ...); each size up doubles the machines and the credits per hour. A bigger warehouse often finishes a heavy query faster for roughly the same total cost, but gives no benefit to a query that is already small; auto-suspend (Module 3.4) keeps idle time cheap. BigQuery allocates **slots** (units of compute) per query automatically, or you reserve a fixed number. Redshift provisioned clusters are sized in nodes; Redshift Serverless scales on demand."
+      }
+     },
+     {
+      "title": {
+       "id": "Biaya: harga berbasis pemindaian dan berbasis waktu",
+       "en": "Cost: scan-based and time-based pricing"
+      },
+      "body": {
+       "id": "Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 memperkenalkan keduanya).\n\n**Berbasis pemindaian** (BigQuery on-demand): Anda membayar per **byte yang diproses** setiap query, beberapa dolar per terabyte (cek harga terkini). `query_cost(bytes_billed, price_per_tb)` di lab adalah rumus itu. Semua dalam pelajaran 2 karenanya adalah uang: partition pruning dan pemilihan kolom memangkas byte secara langsung. Sebuah query bisa **diperkirakan sebelum dijalankan** (dry run BigQuery melaporkan byte-nya), dan batas keras bisa dipasang pada byte maksimum yang ditagih sebuah query sehingga kesalahan gagal, bukan menagih.\n\n**Berbasis waktu** (Snowflake, Redshift, BigQuery dengan kapasitas cadangan): Anda membayar komputasi **selama ia menyala**, berapa pun yang dipindainya. Di sini penghematan dari pruning adalah *waktu*: query yang lebih cepat menahan warehouse lebih sebentar dan membiarkannya suspend lebih cepat.\n\nIlustrasi dengan harga contoh lab $5 per TB. Sebuah tile dashboard refresh setiap 15 menit (96 kali sehari) dan, pada tabel tanpa cluster, memindai 2 TB setiap kali: 96 × 2 × $5 = **$960 sehari**. Jika clustering dan pemilihan kolom mengurangi pemindaian menjadi 3% (seperti pengukuran lab), tile yang sama berbiaya **$28,80 sehari**. Teks query tidak berubah; tata letaknya yang berubah.\n\n**Cache** mengurangi biaya. **Result cache** mengembalikan jawaban tersimpan ketika query yang sama dijalankan lagi dan tabel di bawahnya tidak berubah (BigQuery dan Snowflake sama-sama melakukannya untuk waktu terbatas, dan hasil cache tidak ditagih untuk pemindaian). `ResultCache` di lab memperlihatkan logikanya: key-nya adalah SQL yang dinormalisasi ditambah versi setiap tabel, sehingga perubahan pada tabel mana pun membatalkan hasil. Warehouse juga meng-cache data di node komputasi, sehingga query yang diulang lebih cepat pada kali kedua. **Materialized view** dan tabel pra-agregasi (dibangun dengan dbt, Modul 2.3) menyimpan hasil agregasi berat sehingga dashboard membaca tabel kecil, bukan memindai fakta.\n\nPenyimpanan juga ada biayanya. **Time travel** (mengkueri atau memulihkan data pada saat sebelumnya) menyimpan data lama selama jendela retensi, yang Anda bayar penyimpanannya: bawaan Snowflake satu hari (hingga 90 pada edisi tertentu); BigQuery tujuh hari. Retensi panjang pada tabel besar yang sering ditulis ulang bisa membengkak.",
+       "en": "Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 introduced both).\n\n**Scan-based** (BigQuery on-demand): you pay per **byte processed** by each query, a few dollars per terabyte (check current prices). The lab's `query_cost(bytes_billed, price_per_tb)` is that formula. Everything in lesson 2 is therefore money: partition pruning and column selection cut the bytes directly. A query can be **estimated before it runs** (BigQuery's dry run reports the bytes), and a hard limit can be set on a query's maximum bytes billed so a mistake fails instead of billing.\n\n**Time-based** (Snowflake, Redshift, BigQuery with reserved capacity): you pay for compute **while it is on**, regardless of how much it scans. Here the saving from pruning is *time*: a faster query holds the warehouse less and lets it suspend sooner.\n\nAn illustration with the lab's example price of $5 per TB. A dashboard tile refreshes every 15 minutes (96 times a day) and, on an unclustered table, scans 2 TB each time: 96 × 2 × $5 = **$960 a day**. If clustering and column selection reduce the scan to 3% (as in the lab's measurement), the same tile costs **$28.80 a day**. The query text did not change; the layout did.\n\n**Caches** reduce cost. A **result cache** returns the stored answer when the same query is run again and the underlying tables have not changed (BigQuery and Snowflake both do this for a limited time, and cached results are not billed for scanning). The lab's `ResultCache` shows the logic: the key is the normalised SQL plus the version of every table, so a change to any table invalidates the result. Warehouses also cache data on compute nodes, so a repeated query is faster the second time. **Materialised views** and pre-aggregated tables (built with dbt, Module 2.3) store the results of heavy aggregations so dashboards read small tables instead of scanning facts.\n\nStorage has costs too. **Time travel** (query or restore data as of an earlier moment) keeps old data for a retention window, which you pay to store: Snowflake's default is one day (up to 90 on some editions); BigQuery's is seven days. Long retention on large, frequently rewritten tables adds up."
+      }
+     },
+     {
+      "title": {
+       "id": "Memuat data: bulk, bukan baris demi baris",
+       "en": "Loading data: bulk, not row by row"
+      },
+      "body": {
+       "id": "Warehouse dibuat untuk **bulk load**, bukan menyisipkan satu baris pada satu waktu seperti aplikasi. Jalur standarnya: taruh file di object storage, lalu minta warehouse memuatnya: Snowflake `COPY INTO` dari sebuah **stage** (dan Snowpipe untuk pemuatan kontinu), **load job** BigQuery dari Cloud Storage, `COPY` Redshift dari S3. Mereka membaca file secara paralel, memvalidasi, mengonversi, dan menulis micro-partition.\n\n**Ukuran file penting.** Panduan Snowflake adalah file berukuran sekitar **100 hingga 250 MB terkompresi**, karena file yang sangat kecil menambah overhead per file (masalah file kecil lagi) dan satu file raksasa tidak bisa dibaca paralel. Panduan Redshift adalah jumlah file yang merupakan **kelipatan jumlah slice**, agar setiap slice memuat pekerjaan yang sama banyak. `plan_load_files` di lab menggabungkan keduanya: untuk pemuatan 10 GiB pada klaster dengan 16 slice ia merencanakan **48 file** berukuran sekitar 213 MiB (kelipatan 16, dan di bawah 250 MiB).\n\nPraktik lain:\n\n- Pilih format kolumnar terkompresi seperti **Parquet** untuk pemuatan; pakai CSV hanya bila terpaksa, dan waspadai kutipan, encoding, dan nilai kotor dari Modul 0.1.\n- **Muat ke tabel staging lebih dulu**, validasi, lalu **MERGE** ke tabel akhir, sehingga pemuatan yang diulang tidak pernah membuat duplikat (idempotensi, Modul 1.2; model inkremental dbt, Modul 2.3).\n- Untuk pembaruan kecil yang sering, pilih micro-batch (tiap menit) daripada streaming insert tingkat baris, yang lebih mahal dan di beberapa sistem terbatas.\n- **Tabel eksternal** membiarkan warehouse mengkueri file di object storage tanpa memuatnya (Redshift Spectrum, tabel eksternal BigQuery, tabel eksternal dan Iceberg Snowflake): fleksibel, tetapi biasanya lebih lambat daripada data yang dimuat karena tidak ada statistik warehouse dan tidak ada clustering.\n- **Unloading** (`COPY INTO` ke bucket, `UNLOAD`, `EXPORT DATA`) menulis hasil query kembali ke object storage untuk sistem lain.\n\nCatat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, jumlah baris, dan baris yang ditolak. Merekonsiliasi jumlah antara sumber dan warehouse (Modul 2.5) adalah pemeriksaan kualitas data termurah yang ada.",
+       "en": "A warehouse is built for **bulk loads**, not for inserting one row at a time as an application does. The standard path is: land files in object storage, then tell the warehouse to load them: Snowflake `COPY INTO` from a **stage** (and Snowpipe for continuous loading), BigQuery **load jobs** from Cloud Storage, Redshift `COPY` from S3. They read files in parallel, validate, convert and write micro-partitions.\n\n**File sizing matters.** Snowflake's guidance is files of roughly **100 to 250 MB compressed**, because very small files add per-file overhead (the small-files problem again) and one huge file cannot be read in parallel. Redshift's guidance is a number of files that is a **multiple of the number of slices**, so that every slice loads the same amount of work. The lab's `plan_load_files` combines both: for a 10 GiB load on a cluster with 16 slices it plans **48 files** of about 213 MiB each (a multiple of 16, and under 250 MiB).\n\nOther practices:\n\n- Prefer a columnar, compressed format such as **Parquet** for loads; use CSV only when you must, and then watch quoting, encoding and the dirty values of Module 0.1.\n- **Load into a staging table first**, validate, then **MERGE** into the final table, so that a retried load never creates duplicates (idempotence, Module 1.2; dbt incremental models, Module 2.3).\n- For small, frequent updates prefer micro-batches (every minute) to row-level streaming inserts, which are more expensive and, in some systems, limited.\n- **External tables** let a warehouse query files in object storage without loading them (Redshift Spectrum, BigQuery external tables, Snowflake external and Iceberg tables): flexible, but usually slower than loaded data because there are no warehouse statistics and no clustering.\n- **Unloading** (`COPY INTO` a bucket, `UNLOAD`, `EXPORT DATA`) writes query results back to object storage for other systems.\n\nRecord **where every load came from and when**: file names, load ids, row counts and rejected rows. Reconciling counts between source and warehouse (Module 2.5) is the cheapest data quality check there is."
+      }
+     },
+     {
+      "title": {
+       "id": "Konkurensi, tata kelola, dan memilih",
+       "en": "Concurrency, governance, and choosing"
+      },
+      "body": {
+       "id": "**Konkurensi.** Warehouse punya komputasi terbatas. Ketika query yang datang lebih banyak daripada yang bisa dijalankan sekaligus, sisanya **mengantre**. `simulate_queue` di lab memperlihatkannya: lima job 10 detik pada dua slot selesai pada detik 10, 10, 20, 20, dan 30, jadi pengguna terakhir menunggu 20 detik sebelum job-nya bahkan mulai. Obatnya sama di mana-mana: isolasi beban kerja pada komputasi terpisah (satu warehouse untuk ETL, satu untuk dashboard, satu untuk analis), pakai fitur multi-cluster atau auto-scaling untuk lonjakan, dan perpendek query berat dengan alat tata letak di atas. Isolasi juga membuat tagihan bisa dibebankan ke sebuah tim (Modul 3.4).\n\n**Tata kelola.** Data engineer mengatur akses, bukan hanya tabel. Bagian-bagian umumnya: **role** dengan hak akses yang diberikan kepada role, bukan kepada orang (hierarki role Snowflake, IAM BigQuery, grup dan role Redshift); **column masking** dan **row access policy** agar analis melihat email yang disamarkan atau hanya baris wilayahnya; **enkripsi** saat disimpan dan dikirim (warehouse menanganinya; Anda mengelola kebijakan key); dan **audit log** tentang siapa mengkueri apa. Data pribadi butuh perhatian ekstra (Modul 3.5, permintaan penghapusan).\n\nDua fitur yang akan Anda dengar: **zero-copy cloning** (Snowflake) membuat salinan tabel atau database sebagai metadata, yang hanya memakan penyimpanan untuk perubahan, ideal untuk lingkungan uji; dan **secure data sharing** membiarkan akun lain mengkueri data Anda tanpa menyalin.\n\n**Memilih.** Tidak ada pemenang universal. Ringkasan yang adil:\n\n| | Kekuatan | Waspadai |\n|---|---|---|\n| **Snowflake** | Mudah dijalankan, isolasi kuat dengan virtual warehouse, lintas cloud, berbagi data | Kontrol biaya butuh disiplin (warehouse menganggur, ukuran) |\n| **BigQuery** | Tanpa server, kuat untuk pemindaian sangat besar, terintegrasi erat dengan Google Cloud | Kejutan biaya berbasis pemindaian; partisi dan cluster dengan benar |\n| **Redshift** | Integrasi AWS mendalam, biaya terprediksi pada beban stabil | Lebih banyak penyetelan (distribution dan sort key), ukuran klaster |\n| **Lakehouse** (Spark, Trino, DuckDB pada Iceberg/Delta) | Format terbuka, tanpa lock-in, satu salinan data untuk banyak mesin | Lebih banyak yang dioperasikan sendiri, fitur tata kelola bawaan lebih sedikit |\n\nDalam praktik, pilihan sering ditentukan oleh penyedia cloud perusahaan dan kontrak yang ada. Yang berpindah di antara semuanya adalah yang Anda pelajari di sini: **tata letak** (pruning), **byte dan waktu** (biaya), **perpindahan** (distribusi dan shuffle), **bulk loading**, dan **isolasi**.\n\nPertanyaan yang kini bisa Anda jawab: \"Mengapa query ini mahal?\" (ia memindai banyak partisi atau kolom; lihat partisi yang dipindai dan byte yang ditagih). \"Bagaimana membuatnya lebih murah?\" (filter pada kolom clustering atau partisi, pilih hanya kolom yang perlu, pra-agregasi). \"Apa beda harga Snowflake dan BigQuery?\" (waktu komputasi versus byte yang dipindai). \"Mengapa ukuran file 100 hingga 250 MB?\" (paralelisme tanpa overhead per file).",
+       "en": "**Concurrency.** A warehouse has finite compute. When more queries arrive than it can run at once, the extra ones **queue**. The lab's `simulate_queue` shows it: five 10-second jobs on two slots finish at 10, 10, 20, 20 and 30 seconds, so the last user waits 20 seconds before the job even starts. The cures are the same everywhere: isolate workloads on separate compute (a warehouse for ETL, one for dashboards, one for analysts), use multi-cluster or auto-scaling features for bursts, and make heavy queries shorter with the layout tools above. Isolation also makes the bill attributable to a team (Module 3.4).\n\n**Governance.** Data engineers set up access, not just tables. The common pieces: **roles** with privileges granted to roles rather than to people (Snowflake's role hierarchy, BigQuery IAM, Redshift groups and roles); **column masking** and **row access policies** so that analysts see masked emails or only their region's rows; **encryption** at rest and in transit (the warehouse handles it; you manage the keys policy); and **audit logs** of who queried what. Personal data needs extra care (Module 3.5, deletion requests).\n\nTwo features you will hear about: **zero-copy cloning** (Snowflake) creates a copy of a table or database as metadata, which costs storage only for changes, ideal for test environments; and **secure data sharing** lets another account query your data without copying it.\n\n**Choosing.** There is no universal winner. A fair summary:\n\n| | Strong points | Watch out for |\n|---|---|---|\n| **Snowflake** | Easy to run, strong isolation with virtual warehouses, cross-cloud, sharing | Cost control needs discipline (idle warehouses, size) |\n| **BigQuery** | No servers, strong on very large scans, tight Google Cloud integration | Scan-based cost surprises; partition and cluster properly |\n| **Redshift** | Deep AWS integration, predictable cost on steady load | More tuning (distribution and sort keys), cluster sizing |\n| **Lakehouse** (Spark, Trino, DuckDB on Iceberg/Delta) | Open formats, no lock-in, one copy of data for many engines | More to operate yourself, fewer built-in governance tools |\n\nIn practice the choice is often made by the company's cloud provider and existing contracts. What transfers between all of them is what you learned here: **layout** (pruning), **bytes and time** (cost), **movement** (distribution and shuffles), **bulk loading**, and **isolation**.\n\nQuestions you can now answer: \"Why is this query expensive?\" (it scans many partitions or columns; look at partitions scanned and bytes billed). \"How do I make it cheaper?\" (filter on the clustering or partition column, select only needed columns, pre-aggregate). \"What is the difference between Snowflake and BigQuery pricing?\" (compute time versus bytes scanned). \"Why file sizes of 100 to 250 MB?\" (parallelism without per-file overhead)."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: bagaimana warehouse menghemat pekerjaan",
+      "en": "Lab: how a warehouse saves work"
+     },
+     "description": {
+      "id": "Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.",
+      "en": "Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data."
+     },
+     "steps": {
+      "id": "1. Baca `labs/mod-2-6/warehouse_lab.py` dari atas ke bawah. `value_bytes` sudah disediakan; yang lain punya docstring yang merupakan spesifikasi dan menyebut pelajarannya.\n2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP fungsi:\n\n```bash\npytest labs/mod-2-6/test_lab.py -v\npytest labs/mod-2-6/test_lab.py -v -k \"Prune or Scan\"          # satu kelompok pada satu waktu\n```\n\n3. **Partisi dulu.** Tulis `build_micro_partitions` dan cetak `min` dan `max` kolom `order_date` untuk tiga partisi pertama pada tata letak acak dan yang ter-cluster. Katakan dengan lantang mengapa yang satu bisa dilewati dan yang lain tidak.\n4. **Scan dan biaya.** Setelah `scan` lulus, jalankan pada kedua tata letak dengan filter satu minggu dan dengan satu kolom dan lima kolom. Tulis keempat angka (partisi dipindai, byte ditagih) dalam tabel, dan hitung biaya dolarnya dengan `query_cost`.\n5. **Distribusi.** Tebak `join_rows_moved` untuk lima kombinasi distribusi sebelum Anda mengimplementasikannya, lalu bandingkan dengan tes.\n6. **Pemuatan, caching, dan antrean.** Rencanakan file untuk pemuatan 10 GiB pada 16 slice, lalu ubah jumlah slice menjadi 12 dan 20 dan tebak jumlah file.\n7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Read `labs/mod-2-6/warehouse_lab.py` from top to bottom. `value_bytes` is provided; everything else has a docstring that is the specification and names the lesson.\n2. Work in file order and run the tests after EACH function:\n\n```bash\npytest labs/mod-2-6/test_lab.py -v\npytest labs/mod-2-6/test_lab.py -v -k \"Prune or Scan\"          # one group at a time\n```\n\n3. **Partitions first.** Write `build_micro_partitions` and print the `min` and `max` of the `order_date` column for the first three partitions of a random layout and of a clustered one. Say out loud why one of them can be skipped and the other cannot.\n4. **Scan and cost.** After `scan` passes, run it on both layouts with a one-week filter and with one column and five columns. Write the four numbers (partitions scanned, bytes billed) in a table, and compute the dollar cost with `query_cost`.\n5. **Distribution.** Predict `join_rows_moved` for five combinations of distribution before you implement it, then compare with the tests.\n6. **Loading, caching and queueing.** Plan the files for a 10 GiB load on 16 slices, then change the number of slices to 12 and 20 and predict the file count.\n7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-2-6` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "```bash\npytest labs/mod-2-6/test_lab.py -v\npython3 scripts/prove.py mod-2-6\n```\n\nJalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "```bash\npytest labs/mod-2-6/test_lab.py -v\npython3 scripts/prove.py mod-2-6\n```\n\nKnown-good run: prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-2-6/warehouse_lab.py",
+       "name": "warehouse_lab.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan fungsi TODO dan ResultCache",
+        "en": "Your working file: implement the TODO functions and the ResultCache"
+       },
+       "code": "\"\"\"Lab 2.6: how a cloud data warehouse saves work, in plain Python (no cloud account needed).\n\nImplement the pieces in order and run the tests after each:    pytest labs/mod-2-6/test_lab.py -v\nA \"row\" is a dict such as {\"order_date\": \"2026-03-01\", \"customer_id\": 7, \"status\": \"paid\", \"total\": 150000}.\nDeterministic: no randomness inside your code. The lessons explain what each piece models.\n\"\"\"\nimport zlib  # noqa: F401  (distribute needs it)\n\nMiB = 1024 * 1024\n\n\ndef value_bytes(value):\n    \"\"\"(Provided.) Rough stored size of one value: numbers 8 bytes, text its UTF-8 length, missing (None) 0.\"\"\"\n    if value is None:\n        return 0\n    if isinstance(value, (int, float)):\n        return 8\n    return len(str(value).encode(\"utf-8\"))\n\n\ndef build_micro_partitions(rows, target_rows, cluster_key=None):\n    \"\"\"Cut rows into micro-partitions of at most `target_rows` rows, each with \"zone map\" statistics.   (lesson 2)\n\n    If `cluster_key` is given, first sort the rows by that column (this is what clustering does). Keep the order otherwise.\n    Return a list of dicts: {\"rows\": [...], \"min\": {column: smallest value in this partition}, \"max\": {column: largest value}} for EVERY column.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement build_micro_partitions\")\n\ndef prune(partitions, column, low, high):\n    \"\"\"Return the indexes of the partitions that MIGHT contain rows with low <= column <= high, judging only by their min/max statistics.   (lesson 2)\n\n    A partition can be skipped when its max is below `low` or its min is above `high`. Partitions are never opened here.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement prune\")\n\ndef scan(partitions, column, low, high, columns):\n    \"\"\"Run: SELECT <columns> WHERE low <= column <= high.   (lessons 2 and 4)\n\n    Open only the partitions that prune() keeps. Return (rows, stats):\n      rows  = the matching rows, each as a dict containing ONLY the requested `columns`, in partition order\n      stats = {\"partitions_total\", \"partitions_scanned\", \"rows_read\" (all rows of scanned partitions),\n               \"bytes_billed\" (sum of value_bytes over the requested `columns` only, for every row of the scanned partitions)}\n    Columnar storage means unrequested columns cost nothing.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement scan\")\n\ndef query_cost(bytes_billed, price_per_tb=5.0):\n    \"\"\"Dollar cost of a scan-priced engine: bytes_billed / 1e12 * price_per_tb.   (lesson 4; the default price is only an example, check current prices)\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement query_cost\")\n\ndef average_overlap(partitions, column):\n    \"\"\"A clustering quality measure: for every partition count the partitions (including itself) whose [min, max] range of `column` overlaps its own range, then average.   (lesson 2)\n\n    1.0 would mean no partition overlaps any other (perfectly clustered); a value near len(partitions) means every partition overlaps all the others (random order).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement average_overlap\")\n\ndef distribute(rows, key, nodes, style):\n    \"\"\"Place rows on `nodes` compute nodes (numbered 0..nodes-1) and return {node: [rows]}.   (lesson 3: distribution styles)\n\n    style \"key\":  node = zlib.crc32(str(row[key]).encode(\"utf-8\")) % nodes     (same key value, same node)\n    style \"even\": row number i goes to node i % nodes (round robin)\n    style \"all\":  every node gets a full copy of every row\n    Any other style: raise ValueError(f\"unknown distribution style: {style}\")\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement distribute\")\n\ndef join_rows_moved(left_rows, right_rows, join_key, left_dist, right_dist):\n    \"\"\"How many rows must cross the network for an equi-join on `join_key`?   (lesson 3)\n\n    `left_dist` and `right_dist` are (style, key) tuples, e.g. (\"key\", \"customer_id\") or (\"all\", None).\n      - if either side is \"all\" (a full copy everywhere): 0\n      - both sides distributed by \"key\" on the join key: 0 (co-located join)\n      - only the left side is distributed by the join key: the right side must be redistributed: right_rows\n      - only the right side is: left_rows\n      - otherwise both must be reshuffled: left_rows + right_rows\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement join_rows_moved\")\n\ndef plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB):\n    \"\"\"Plan the file sizes for a bulk load. Return a list of file sizes in bytes that add up to total_bytes.   (lesson 5)\n\n    - total_bytes <= max_bytes: one file [total_bytes].\n    - otherwise: the smallest number of files n with total_bytes / n <= max_bytes, then rounded UP to a multiple of `slices`\n      (so every parallel loader gets the same number of files). Sizes differ by at most 1 byte: the first (total_bytes % n) files get one extra byte.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement plan_load_files\")\n\n\nclass ResultCache:\n    \"\"\"A warehouse result cache (lesson 5): identical query + unchanged data = no recomputation.\n\n    run(sql, table_versions, compute): `table_versions` is a dict {table: version} (a version changes when the table changes).\n    The cache key is the SQL with whitespace collapsed and lower-cased, plus the table versions.\n    If the key was seen before return (cached_result, True) without calling compute(); otherwise call compute() once,\n    remember the result, and return (result, False).\n    \"\"\"\n\n    def __init__(self):\n        raise NotImplementedError(\"TODO: implement ResultCache\")\n\n    def run(self, sql, table_versions, compute):\n        raise NotImplementedError(\"TODO: implement ResultCache.run\")\n\ndef simulate_queue(jobs, slots):\n    \"\"\"FIFO scheduling of jobs on `slots` parallel slots; all jobs arrive at time 0.   (lesson 6)\n\n    `jobs` is [(name, duration_seconds)]. Each job starts on the slot that becomes free first (the lowest slot number if tied).\n    Return {name: (start, finish)} as floats.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement simulate_queue\")"
+      },
+      {
+       "path": "labs/mod-2-6/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-42 tes yang memeriksa pekerjaan Anda",
+        "en": "The 42 tests that check your work"
+       },
+       "code": "\"\"\"Tests for Lab 2.6.   pip install pytest && pytest labs/mod-2-6/test_lab.py -v\"\"\"\nimport datetime as dt\nimport random\nimport sys\nimport zlib\nfrom pathlib import Path\n\nimport pytest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\n\nlab = labtools.load(__file__, \"warehouse_lab.py\")\nMiB = 1024 * 1024\n\n\ndef make_rows(n=20000, seed=7):\n    rng = random.Random(seed)\n    days = [(dt.date(2026, 1, 1) + dt.timedelta(days=i)).isoformat() for i in range(365)]\n    return [{\"order_date\": rng.choice(days), \"customer_id\": rng.randint(1, 5000), \"status\": rng.choice([\"paid\", \"shipped\", \"cancelled\"]),\n             \"total\": rng.randint(10000, 500000), \"note\": \"x\" * 20} for _ in range(n)]\n\n\nROWS = make_rows()\n\n\nclass TestMicroPartitions:\n    def test_partitions_hold_at_most_target_rows_and_lose_nothing(self):\n        parts = lab.build_micro_partitions(ROWS, 1000)\n        assert len(parts) == 20 and all(len(p[\"rows\"]) <= 1000 for p in parts)\n        assert sum(len(p[\"rows\"]) for p in parts) == len(ROWS)\n\n    def test_last_partition_takes_the_remainder(self):\n        parts = lab.build_micro_partitions(ROWS[:2500], 1000)\n        assert [len(p[\"rows\"]) for p in parts] == [1000, 1000, 500]\n\n    def test_zone_maps_are_the_true_min_and_max_of_every_column(self):\n        for p in lab.build_micro_partitions(ROWS, 700):\n            for col in ROWS[0]:\n                values = [r[col] for r in p[\"rows\"]]\n                assert p[\"min\"][col] == min(values) and p[\"max\"][col] == max(values)\n\n    def test_without_a_cluster_key_the_order_is_kept(self):\n        parts = lab.build_micro_partitions(ROWS[:100], 40)\n        assert [r for p in parts for r in p[\"rows\"]] == ROWS[:100]\n\n    def test_with_a_cluster_key_the_rows_are_sorted_by_it(self):\n        parts = lab.build_micro_partitions(ROWS, 1000, cluster_key=\"order_date\")\n        flat = [r[\"order_date\"] for p in parts for r in p[\"rows\"]]\n        assert flat == sorted(flat)\n\n    def test_the_input_list_is_not_modified(self):\n        copy = list(ROWS[:500])\n        lab.build_micro_partitions(copy, 100, cluster_key=\"total\")\n        assert copy == ROWS[:500]\n\n\nclass TestPrune:\n    PARTS = [\n        {\"rows\": [], \"min\": {\"d\": 1}, \"max\": {\"d\": 10}},\n        {\"rows\": [], \"min\": {\"d\": 11}, \"max\": {\"d\": 20}},\n        {\"rows\": [], \"min\": {\"d\": 21}, \"max\": {\"d\": 30}},\n    ]\n\n    def test_keeps_only_overlapping_partitions(self):\n        assert lab.prune(self.PARTS, \"d\", 12, 15) == [1]\n        assert lab.prune(self.PARTS, \"d\", 10, 11) == [0, 1]\n\n    def test_a_range_outside_everything_prunes_everything(self):\n        assert lab.prune(self.PARTS, \"d\", 100, 200) == []\n\n    def test_bounds_are_inclusive(self):\n        assert lab.prune(self.PARTS, \"d\", 20, 20) == [1] and lab.prune(self.PARTS, \"d\", 21, 21) == [2]\n\n\nclass TestScan:\n    def brute(self, lo, hi, cols):\n        return [{c: r[c] for c in cols} for r in ROWS if lo <= r[\"order_date\"] <= hi]\n\n    @pytest.mark.parametrize(\"clustered\", [False, True])\n    def test_the_answer_is_correct_whatever_the_layout(self, clustered):\n        parts = lab.build_micro_partitions(ROWS, 500, cluster_key=\"order_date\" if clustered else None)\n        rows, _ = lab.scan(parts, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"customer_id\", \"total\"])\n        expected = self.brute(\"2026-03-01\", \"2026-03-07\", [\"customer_id\", \"total\"])\n        assert sorted(map(str, rows)) == sorted(map(str, expected))\n\n    def test_only_requested_columns_come_back(self):\n        parts = lab.build_micro_partitions(ROWS, 500)\n        rows, _ = lab.scan(parts, \"order_date\", \"2026-03-01\", \"2026-03-02\", [\"status\"])\n        assert rows and all(set(r) == {\"status\"} for r in rows)\n\n    def test_clustering_makes_a_filter_scan_a_few_partitions_instead_of_all(self):\n        random_parts = lab.build_micro_partitions(ROWS, 200)\n        clustered = lab.build_micro_partitions(ROWS, 200, cluster_key=\"order_date\")\n        _, s1 = lab.scan(random_parts, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"total\"])\n        _, s2 = lab.scan(clustered, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"total\"])\n        assert s1[\"partitions_total\"] == s2[\"partitions_total\"] == 100\n        assert s1[\"partitions_scanned\"] > 90 and s2[\"partitions_scanned\"] <= 4\n\n    def test_fewer_partitions_means_fewer_bytes_billed(self):\n        random_parts = lab.build_micro_partitions(ROWS, 200)\n        clustered = lab.build_micro_partitions(ROWS, 200, cluster_key=\"order_date\")\n        _, s1 = lab.scan(random_parts, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"total\"])\n        _, s2 = lab.scan(clustered, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"total\"])\n        assert s2[\"bytes_billed\"] * 20 < s1[\"bytes_billed\"]\n\n    def test_selecting_fewer_columns_bills_fewer_bytes(self):\n        parts = lab.build_micro_partitions(ROWS, 200, cluster_key=\"order_date\")\n        _, one = lab.scan(parts, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"total\"])\n        _, five = lab.scan(parts, \"order_date\", \"2026-03-01\", \"2026-03-07\", [\"order_date\", \"customer_id\", \"status\", \"total\", \"note\"])\n        assert one[\"rows_read\"] == five[\"rows_read\"] and five[\"bytes_billed\"] > 5 * one[\"bytes_billed\"]\n\n    def test_bytes_billed_is_exact_for_a_tiny_example(self):\n        rows = [{\"d\": 1, \"name\": \"ab\"}, {\"d\": 2, \"name\": \"cde\"}, {\"d\": 9, \"name\": \"zzzz\"}]\n        parts = lab.build_micro_partitions(rows, 2, cluster_key=\"d\")\n        _, st = lab.scan(parts, \"d\", 1, 2, [\"name\"])\n        assert st == {\"partitions_total\": 2, \"partitions_scanned\": 1, \"rows_read\": 2, \"bytes_billed\": 5}\n\n    def test_query_cost(self):\n        assert lab.query_cost(10 * 10**12) == pytest.approx(50.0)\n        assert lab.query_cost(10**12, price_per_tb=6.25) == pytest.approx(6.25)\n\n\nclass TestClusteringQuality:\n    def test_random_order_overlaps_almost_everything(self):\n        parts = lab.build_micro_partitions(ROWS, 200)\n        assert lab.average_overlap(parts, \"order_date\") > 90\n\n    def test_clustered_data_barely_overlaps(self):\n        parts = lab.build_micro_partitions(ROWS, 200, cluster_key=\"order_date\")\n        assert lab.average_overlap(parts, \"order_date\") < 4\n\n    def test_a_single_partition_overlaps_only_itself(self):\n        assert lab.average_overlap(lab.build_micro_partitions(ROWS[:50], 100), \"total\") == 1.0\n\n\nclass TestDistribution:\n    def test_key_distribution_keeps_equal_keys_together(self):\n        placed = lab.distribute(ROWS[:3000], \"customer_id\", 4, \"key\")\n        home = {}\n        for node, rows in placed.items():\n            for r in rows:\n                assert home.setdefault(r[\"customer_id\"], node) == node\n        assert home[ROWS[0][\"customer_id\"]] == zlib.crc32(str(ROWS[0][\"customer_id\"]).encode()) % 4\n\n    def test_even_distribution_is_balanced(self):\n        placed = lab.distribute(ROWS[:1001], \"customer_id\", 4, \"even\")\n        assert sorted(len(v) for v in placed.values()) == [250, 250, 250, 251]\n\n    def test_all_distribution_copies_everything_everywhere(self):\n        placed = lab.distribute(ROWS[:10], \"customer_id\", 3, \"all\")\n        assert all(len(v) == 10 for v in placed.values())\n\n    def test_no_row_is_lost_with_key_or_even(self):\n        for style in (\"key\", \"even\"):\n            placed = lab.distribute(ROWS[:777], \"customer_id\", 5, style)\n            assert sum(len(v) for v in placed.values()) == 777 and set(placed) == set(range(5))\n\n    def test_unknown_style_is_an_error(self):\n        with pytest.raises(ValueError, match=\"unknown distribution style: random\"):\n            lab.distribute(ROWS[:5], \"customer_id\", 2, \"random\")\n\n\nclass TestJoinMovement:\n    def test_co_located_join_moves_nothing(self):\n        assert lab.join_rows_moved(1000, 500, \"customer_id\", (\"key\", \"customer_id\"), (\"key\", \"customer_id\")) == 0\n\n    def test_a_replicated_small_table_moves_nothing(self):\n        assert lab.join_rows_moved(1_000_000, 50, \"customer_id\", (\"even\", None), (\"all\", None)) == 0\n        assert lab.join_rows_moved(50, 1_000_000, \"customer_id\", (\"all\", None), (\"even\", None)) == 0\n\n    def test_only_one_side_on_the_join_key_moves_the_other_side(self):\n        assert lab.join_rows_moved(1000, 500, \"customer_id\", (\"key\", \"customer_id\"), (\"even\", None)) == 500\n        assert lab.join_rows_moved(1000, 500, \"customer_id\", (\"even\", None), (\"key\", \"customer_id\")) == 1000\n\n    def test_distributed_by_a_different_key_does_not_help(self):\n        assert lab.join_rows_moved(1000, 500, \"customer_id\", (\"key\", \"order_id\"), (\"key\", \"order_id\")) == 1500\n\n    def test_nothing_aligned_moves_both_sides(self):\n        assert lab.join_rows_moved(1000, 500, \"customer_id\", (\"even\", None), (\"even\", None)) == 1500\n\n\nclass TestLoadPlanning:\n    def test_a_small_load_is_one_file(self):\n        assert lab.plan_load_files(80 * MiB, slices=16) == [80 * MiB]\n        assert lab.plan_load_files(250 * MiB, slices=16) == [250 * MiB]\n\n    def test_a_big_load_uses_a_multiple_of_the_slices(self):\n        files = lab.plan_load_files(10 * 1024 * MiB, slices=16)\n        assert len(files) == 48 and len(files) % 16 == 0 and sum(files) == 10 * 1024 * MiB\n        assert max(files) <= 250 * MiB and max(files) - min(files) <= 1\n\n    def test_uneven_totals_spread_the_remainder(self):\n        files = lab.plan_load_files(1_000_000_007, slices=4, max_bytes=100_000_000)\n        assert sum(files) == 1_000_000_007 and len(files) == 12 and max(files) - min(files) == 1\n\n    def test_one_slice_needs_no_rounding(self):\n        assert len(lab.plan_load_files(600 * MiB, slices=1)) == 3\n\n\nclass TestResultCache:\n    def test_second_identical_query_is_a_cache_hit(self):\n        calls = []\n        cache = lab.ResultCache()\n        compute = lambda: calls.append(1) or [(\"paid\", 3)]  # noqa: E731\n        assert cache.run(\"SELECT status, count(*) FROM orders GROUP BY 1\", {\"orders\": 1}, compute) == ([(\"paid\", 3)], False)\n        assert cache.run(\"SELECT status, count(*) FROM orders GROUP BY 1\", {\"orders\": 1}, compute) == ([(\"paid\", 3)], True)\n        assert len(calls) == 1\n\n    def test_whitespace_and_case_do_not_matter(self):\n        cache = lab.ResultCache()\n        cache.run(\"SELECT  1\\n FROM t\", {\"t\": 1}, lambda: \"r\")\n        assert cache.run(\"select 1 from   T\", {\"t\": 1}, lambda: \"other\")[1] is True\n\n    def test_a_changed_table_invalidates_the_result(self):\n        cache = lab.ResultCache()\n        cache.run(\"SELECT 1 FROM t\", {\"t\": 1}, lambda: \"old\")\n        assert cache.run(\"SELECT 1 FROM t\", {\"t\": 2}, lambda: \"new\") == (\"new\", False)\n\n    def test_different_queries_are_cached_separately(self):\n        cache = lab.ResultCache()\n        cache.run(\"SELECT 1\", {}, lambda: \"a\")\n        assert cache.run(\"SELECT 2\", {}, lambda: \"b\") == (\"b\", False)\n\n\nclass TestQueueing:\n    JOBS = [(\"a\", 10), (\"b\", 10), (\"c\", 10), (\"d\", 10), (\"e\", 10)]\n\n    def test_two_slots(self):\n        r = lab.simulate_queue(self.JOBS, 2)\n        assert r[\"a\"] == (0, 10) and r[\"b\"] == (0, 10) and r[\"c\"] == (10, 20) and r[\"d\"] == (10, 20) and r[\"e\"] == (20, 30)\n\n    def test_one_slot_runs_one_after_another(self):\n        r = lab.simulate_queue(self.JOBS, 1)\n        assert r[\"e\"] == (40, 50)\n\n    def test_more_slots_than_jobs_means_no_waiting(self):\n        r = lab.simulate_queue(self.JOBS, 8)\n        assert all(start == 0 for start, _ in r.values())\n\n    def test_a_long_job_does_not_block_the_other_slot(self):\n        r = lab.simulate_queue([(\"long\", 100), (\"s1\", 5), (\"s2\", 5), (\"s3\", 5)], 2)\n        assert r[\"s1\"] == (0, 5) and r[\"s2\"] == (5, 10) and r[\"s3\"] == (10, 15)"
+      },
+      {
+       "path": "labs/mod-2-6/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pytest",
+        "en": "pytest"
+       },
+       "code": "pytest>=8"
+      },
+      {
+       "path": "labs/mod-2-6/reference/warehouse_lab.py",
+       "name": "warehouse_lab.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try first!)"
+       },
+       "code": "\"\"\"Reference solution for Lab 2.6: how a cloud data warehouse saves work (pure Python).\"\"\"\nimport zlib\n\nMiB = 1024 * 1024\n\n\ndef value_bytes(value):\n    \"\"\"Rough stored size of one value: numbers 8 bytes, text its UTF-8 length, missing 0.\"\"\"\n    if value is None:\n        return 0\n    if isinstance(value, (int, float)):\n        return 8\n    return len(str(value).encode(\"utf-8\"))\n\n\n# ------------------------------------------------------------------ micro-partitions and pruning\ndef build_micro_partitions(rows, target_rows, cluster_key=None):\n    ordered = sorted(rows, key=lambda r: r[cluster_key]) if cluster_key else list(rows)\n    partitions = []\n    for start in range(0, len(ordered), target_rows):\n        chunk = ordered[start:start + target_rows]\n        columns = chunk[0].keys()\n        partitions.append({\n            \"rows\": chunk,\n            \"min\": {c: min(r[c] for r in chunk) for c in columns},\n            \"max\": {c: max(r[c] for r in chunk) for c in columns},\n        })\n    return partitions\n\n\ndef prune(partitions, column, low, high):\n    return [i for i, p in enumerate(partitions) if p[\"max\"][column] >= low and p[\"min\"][column] <= high]\n\n\ndef scan(partitions, column, low, high, columns):\n    keep = prune(partitions, column, low, high)\n    out, rows_read, bytes_read = [], 0, 0\n    for i in keep:\n        for row in partitions[i][\"rows\"]:\n            rows_read += 1\n            bytes_read += sum(value_bytes(row[c]) for c in columns)\n            if low <= row[column] <= high:\n                out.append({c: row[c] for c in columns})\n    return out, {\"partitions_total\": len(partitions), \"partitions_scanned\": len(keep), \"rows_read\": rows_read, \"bytes_billed\": bytes_read}\n\n\ndef query_cost(bytes_billed, price_per_tb=5.0):\n    return bytes_billed / 1e12 * price_per_tb\n\n\ndef average_overlap(partitions, column):\n    total = 0\n    for p in partitions:\n        total += sum(1 for q in partitions if q[\"max\"][column] >= p[\"min\"][column] and q[\"min\"][column] <= p[\"max\"][column])\n    return total / len(partitions)\n\n\n# ------------------------------------------------------------------ distribution and joins (MPP)\ndef distribute(rows, key, nodes, style):\n    placed = {n: [] for n in range(nodes)}\n    for i, row in enumerate(rows):\n        if style == \"key\":\n            placed[zlib.crc32(str(row[key]).encode(\"utf-8\")) % nodes].append(row)\n        elif style == \"even\":\n            placed[i % nodes].append(row)\n        elif style == \"all\":\n            for n in placed:\n                placed[n].append(row)\n        else:\n            raise ValueError(f\"unknown distribution style: {style}\")\n    return placed\n\n\ndef join_rows_moved(left_rows, right_rows, join_key, left_dist, right_dist):\n    \"\"\"left_dist/right_dist are (style, key). Rows that must cross the network for an equi-join on join_key.\"\"\"\n    (ls, lk), (rs, rk) = left_dist, right_dist\n    if rs == \"all\" or ls == \"all\":\n        return 0\n    left_ok = ls == \"key\" and lk == join_key\n    right_ok = rs == \"key\" and rk == join_key\n    if left_ok and right_ok:\n        return 0\n    if left_ok:\n        return right_rows\n    if right_ok:\n        return left_rows\n    return left_rows + right_rows\n\n\n# ------------------------------------------------------------------ loading\ndef plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB):\n    if total_bytes <= max_bytes:\n        return [total_bytes]\n    n = -(-total_bytes // max_bytes)\n    n = -(-n // slices) * slices\n    base, extra = divmod(total_bytes, n)\n    return [base + (1 if i < extra else 0) for i in range(n)]\n\n\n# ------------------------------------------------------------------ result cache and queueing\nclass ResultCache:\n    def __init__(self):\n        self._cache = {}\n\n    @staticmethod\n    def _key(sql, table_versions):\n        return (\" \".join(sql.split()).lower(), tuple(sorted(table_versions.items())))\n\n    def run(self, sql, table_versions, compute):\n        key = self._key(sql, table_versions)\n        if key in self._cache:\n            return self._cache[key], True\n        result = compute()\n        self._cache[key] = result\n        return result, False\n\n\ndef simulate_queue(jobs, slots):\n    \"\"\"jobs [(name, duration_s)] all arriving at time 0, FIFO. Return {name: (start, finish)}.\"\"\"\n    free = [0.0] * slots\n    out = {}\n    for name, duration in jobs:\n        i = min(range(slots), key=lambda s: (free[s], s))\n        start = free[i]\n        free[i] = start + duration\n        out[name] = (start, free[i])\n    return out"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 42 tes lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri**",
+       "en": "All 42 tests pass **on your own computer, run from your own terminal**"
+      },
+      {
+       "id": "Anda bisa menjelaskan, dengan angka hasil ukuran Anda sendiri, mengapa clustering mengubah partisi yang dipindai dan byte yang ditagih",
+       "en": "You can explain, with your own measured numbers, why clustering changes the partitions scanned and the bytes billed"
+      },
+      {
+       "id": "Anda bisa menjelaskan apa itu join co-located dan mana dari lima kombinasi distribusi yang butuh perpindahan data terbanyak",
+       "en": "You can explain what a co-located join is and which of the five distribution combinations needs the most data movement"
+      },
+      {
+       "id": "Anda bisa menjelaskan cara menentukan ukuran file pemuatan dan mengapa jumlah file harus sesuai dengan jumlah slice",
+       "en": "You can explain how to size load files and why the number of files should match the slices"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Dashboard yang memindai seluruh tabel setiap lima belas menit",
+      "en": "The dashboard that scanned the whole table every fifteen minutes"
+     },
+     "scenario": {
+      "id": "Dashboard eksekutif sebuah perusahaan punya dua belas tile, masing-masing didukung query pada tabel events 20 TB di warehouse berharga pemindaian. Tabel dimuat sesuai urutan event tiba dan tidak dipartisi. Setiap tile memfilter \"7 hari terakhir\" dan menampilkan dua kolom, tetapi query ditulis `SELECT * FROM events WHERE event_date >= ...` oleh seorang analis yang menyalin template, dan dashboard di-refresh setiap 15 menit.\n\nTidak ada yang lambat, karena warehouse-nya besar, jadi tidak ada yang menyadarinya selama sebulan. Lalu bagian keuangan bertanya mengapa tagihan warehouse menjadi tiga kali lipat. Item termahal dalam riwayat query adalah dua belas query dashboard itu sendiri, masing-masing ditagih karena memindai sebagian besar tabel di setiap refresh.",
+      "en": "A company's executive dashboard has twelve tiles, each backed by a query on a 20 TB events table in a scan-priced warehouse. The table was loaded in the order events arrived and has no partitioning. Each tile filters on \"the last 7 days\" and shows two columns, but the queries are written `SELECT * FROM events WHERE event_date >= ...` by an analyst who copied a template, and the dashboard refreshes every 15 minutes.\n\nNothing is slow, because the warehouse is large, so nobody notices for a month. Then finance asks why the warehouse bill tripled. The most expensive items in the query history are the dashboard's own twelve queries, each billed for scanning most of the table every refresh."
+     },
+     "breakageReason": {
+      "id": "Tiga kesalahan tata letak dan query saling mengalikan. Tabel tidak **dipartisi atau di-cluster menurut `event_date`**, sehingga filter tanggal tidak bisa memangkas partisi (tata letak acak di lab memindai 100 dari 100 partisi; yang ter-cluster 3 dari 100). `SELECT *` membaca **semua kolom**, bukan dua yang dibutuhkan (kelima kolom di lab ditagih 6,6 kali byte satu kolom). Dan **laju refresh** mengulang pemborosan itu 96 kali sehari. Dengan harga contoh lab, tile yang memindai 2 TB per refresh berbiaya 96 × 2 × $5 = $960 sehari; pada 3% dari itu berbiaya $28,80.\n\nTidak ada yang melihatnya lebih awal karena dashboard berfungsi dan cepat; biaya hanya terlihat di faktur bulanan, tanpa anggaran atau alert per query (Modul 3.4).",
+      "en": "Three layout and query mistakes multiplied. The table was not **partitioned or clustered by `event_date`**, so the date filter could not prune partitions (the lab's random layout scanned 100 of 100 partitions; the clustered one 3 of 100). `SELECT *` read **all columns** instead of the two needed (the lab's five columns billed 6.6 times the bytes of one). And the **refresh rate** repeated the waste 96 times a day. With the lab's example price, a tile scanning 2 TB per refresh costs 96 × 2 × $5 = $960 a day; at 3% of that it costs $28.80.\n\nNobody saw it earlier because the dashboards worked and were fast; cost was visible only on the monthly invoice, with no per-query budget or alert (Module 3.4)."
+     },
+     "fixGuide": {
+      "id": "1. **Partisi tabel menurut `event_date` dan cluster menurut kolom filter paling umum**, lalu verifikasi dengan query plan bahwa partisi yang dipindai turun menjadi beberapa persen.\n2. Ganti `SELECT *` dengan kolom yang dibutuhkan, dan tetapkan kebijakan: lint query saat review, dan **wajibkan filter partisi** pada tabel besar sehingga query tanpa filter gagal, bukan menagih (`require_partition_filter` BigQuery).\n3. Taruh **tabel ringkasan** (misalnya hitungan harian per jenis event, dibangun dengan dbt) di belakang dashboard, sehingga tile membaca ribuan baris, bukan terabyte, dan turunkan laju refresh bila datanya tidak berubah.\n4. Andalkan **result caching** dan cache bawaan alat BI untuk query yang identik.\n5. Tambahkan **anggaran dan batas byte per query**, kelompokkan query per dashboard dengan label atau tag, dan tinjau sepuluh query termahal setiap minggu.",
+      "en": "1. **Partition the table by `event_date` and cluster it by the most common filter columns**, then verify with the query plan that partitions scanned fall to a few percent.\n2. Replace `SELECT *` with the needed columns, and set a policy: lint queries in review, and **require a partition filter** on large tables so an unfiltered query fails instead of billing (BigQuery's `require_partition_filter`).\n3. Put a **summary table** (for example daily counts per event type, built by dbt) behind the dashboard, so tiles read thousands of rows instead of terabytes, and lower the refresh rate where the data does not change.\n4. Rely on **result caching** and on the BI tool's own cache for identical queries.\n5. Add a **budget and a per-query byte limit**, group queries by dashboard with labels or tags, and review the top ten most expensive queries every week."
+     },
+     "defensivePattern": {
+      "id": "Di warehouse, biaya adalah jumlah data yang disentuh sebuah query. Tata letak, pilihan kolom, dan laju refresh yang menentukannya, bukan kecerdikan SQL-nya.",
+      "en": "In a warehouse, cost is the amount of data a query touches. Layout, column choice and refresh rate decide it, not the SQL's cleverness."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "Mengapa warehouse bisa melewati sebagian besar partisi untuk `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`?",
+       "en": "Why can a warehouse skip most of the partitions for `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`?"
+      },
+      "options": [
+       {
+        "id": "Ia menyimpan index setiap id pesanan dan memakainya untuk menemukan data tujuh hari itu secara langsung",
+        "en": "It keeps an index of every order id and uses it to find the seven days of data directly"
+       },
+       {
+        "id": "Ia menghapus tanggal lain dari tabel selama query berjalan, sehingga hanya tersisa satu minggu",
+        "en": "It deletes the other dates from the table while the query runs, so only a week remains"
+       },
+       {
+        "id": "Setiap partisi menyimpan tanggal min dan max, jadi partisi yang tak mungkin cocok tidak dibuka",
+        "en": "Each partition stores its min and max date, so partitions that cannot match are never opened"
+       },
+       {
+        "id": "Ia mengompresi tiap hari ke filenya sendiri, dan file hari lain diabaikan oleh sistem file",
+        "en": "It compresses each day into its own file, and files of other days are ignored by the file system"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Zone map (min dan max per partisi dan kolom) memungkinkan mesin membuktikan bahwa sebuah partisi tidak berisi yang cocok. Ini hanya bekerja baik jika data di-cluster menurut kolom filter.",
+       "en": "Zone maps (min and max per partition and column) let the engine prove that a partition holds no match. This only works well if the data is clustered by the filter column."
+      }
+     },
+     {
+      "question": {
+       "id": "Query yang sama memindai 100 dari 100 partisi pada satu tata letak dan 3 dari 100 pada yang lain. Apa yang paling mungkin berbeda?",
+       "en": "The same query scanned 100 of 100 partitions on one layout and 3 of 100 on another. What most likely differs?"
+      },
+      "options": [
+       {
+        "id": "Tata letak pertama memakai format file lebih cepat yang perlu membaca lebih banyak partisi agar lebih cepat",
+        "en": "The first layout uses a faster file format that needs to read more partitions to be quicker"
+       },
+       {
+        "id": "Tata letak kedua di-cluster menurut kolom filter, jadi nilai yang mirip berada di partisi yang sama",
+        "en": "The second layout is clustered by the filter column, so similar values share partitions"
+       },
+       {
+        "id": "Tata letak kedua punya lebih sedikit baris, karena pruning hanya berlaku bila tabelnya sangat kecil",
+        "en": "The second layout has fewer rows, since pruning only applies when a table is very small in size"
+       },
+       {
+        "id": "Tata letak pertama terkompresi, dan partisi terkompresi selalu harus dibaca penuh",
+        "en": "The first layout is compressed, and compressed partitions must always be read in full"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Urutan acak memberi setiap partisi rentang min-max yang lebar, sehingga semuanya beririsan dengan filter. Mengurutkan menurut kolom filter membuat rentang sempit dan sebagian besar tidak beririsan.",
+       "en": "Random order gives every partition a wide min-max range, so all of them overlap the filter. Sorting by the filter column makes ranges narrow and mostly non-overlapping."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa `SELECT *` sering jauh lebih mahal daripada memilih dua kolom di warehouse kolumnar?",
+       "en": "Why does `SELECT *` often cost much more than selecting two columns in a columnar warehouse?"
+      },
+      "options": [
+       {
+        "id": "Warehouse mengonversi setiap kolom menjadi teks sebelum mengembalikan baris ke aplikasi klien",
+        "en": "The warehouse converts every column to text before it returns the rows to the client application"
+       },
+       {
+        "id": "Penyimpanan kolumnar hanya membaca kolom yang Anda sebut, jadi `SELECT *` membayar byte setiap kolom",
+        "en": "A columnar store reads only the columns you name, so `SELECT *` pays for the bytes of every column"
+       },
+       {
+        "id": "`SELECT *` tidak bisa memakai result cache, yang membuat setiap query menghitung ulang datanya dari sumber",
+        "en": "`SELECT *` cannot use the result cache, which makes every query recompute its data from the source"
+       },
+       {
+        "id": "Hasil yang lebar selalu dikirim ke klien lewat koneksi jaringan yang lebih lambat daripada yang sempit",
+        "en": "Wide result sets are always sent to the client through a slower network connection than narrow ones"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Di lab, satu kolom ditagih 24.000 byte dibanding 158.041 untuk lima kolom pada tabel ter-cluster yang sama.",
+       "en": "In the lab, one column billed 24,000 bytes against 158,041 for five columns on the same clustered table."
+      }
+     },
+     {
+      "question": {
+       "id": "Dua tabel besar di-join pada `customer_id`. Pengaturan mana yang memindahkan baris paling sedikit lewat jaringan?",
+       "en": "Two large tables are joined on `customer_id`. Which setup moves the fewest rows across the network?"
+      },
+      "options": [
+       {
+        "id": "Kedua tabel disebar merata secara round-robin, sehingga setiap node mendapat jumlah baris yang sama",
+        "en": "Both tables spread evenly in round-robin order, so every node gets the same number of rows"
+       },
+       {
+        "id": "Kedua tabel didistribusikan menurut `order_id`, karena ia key unik yang ada di keduanya",
+        "en": "Both tables distributed by `order_id`, since it is a unique key that is present in both of them"
+       },
+       {
+        "id": "Kedua tabel didistribusikan menurut `customer_id`, jadi baris yang cocok sudah ada di satu node",
+        "en": "Both tables distributed by `customer_id`, so the matching rows already sit on the same node"
+       },
+       {
+        "id": "Kedua tabel direplikasi ke setiap node, karena salinan selalu lebih murah daripada tata letak lain",
+        "en": "Both tables replicated to every node, because copies are always cheaper than any other layout"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Join co-located tidak memindahkan apa pun. Mereplikasi dimensi kecil juga membantu, tetapi salinan tabel besar di mana-mana memakan penyimpanan dan waktu pemuatan.",
+       "en": "Co-located joins move nothing. Replicating a small dimension helps too, but a copy of a large table everywhere costs storage and load time."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa arti bahwa cloud warehouse memisahkan penyimpanan dari komputasi?",
+       "en": "What does it mean that a cloud warehouse separates storage from compute?"
+      },
+      "options": [
+       {
+        "id": "Data disimpan di pusat data berbeda untuk setiap pengguna, dan tiap pengguna membayar penyimpanan terpisah",
+        "en": "Data is stored in a different data centre for every user, and each user pays for storage separately"
+       },
+       {
+        "id": "Warehouse bisa menyimpan data tetapi tidak bisa menjalankan query, jadi produk lain harus dipasang untuk mengkuerinya nanti",
+        "en": "The warehouse can store data but cannot run queries, so another product must be installed to query it"
+       },
+       {
+        "id": "Data berada di penyimpanan bersama yang murah, sementara klaster komputasi dinyalakan, diukur, dan dihentikan sendiri",
+        "en": "Data sits in cheap shared storage, while compute clusters are started, sized and stopped separately"
+       },
+       {
+        "id": "Komputasi selalu berjalan di mesin yang sama dengan data, itu sebabnya query tidak butuh jaringan sama sekali",
+        "en": "Compute always runs on the same machines as the data, which is why queries need no network at all"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Klaster komputasi independen bisa mengkueri data yang sama tanpa saling memperlambat, dan Anda membayar komputasi hanya saat berjalan.",
+       "en": "Independent compute clusters can query the same data without slowing each other, and you pay for compute only while it runs."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa merencanakan file bulk load sekitar 100 hingga 250 MB, dan jumlah file yang sesuai dengan slice?",
+       "en": "Why plan bulk-load files of roughly 100 to 250 MB, and a number of files that matches the slices?"
+      },
+      "options": [
+       {
+        "id": "File yang lebih besar ditolak setiap warehouse, dan file yang lebih kecil sama sekali tidak bisa dikompresi",
+        "en": "Larger files are rejected by every warehouse, and smaller files cannot be compressed in any way"
+       },
+       {
+        "id": "Ia menyeimbangkan overhead per file dengan paralelisme, dan memberi tiap loader pekerjaan yang sama banyak",
+        "en": "It balances per-file overhead against parallelism, and gives each loader the same amount of work"
+       },
+       {
+        "id": "Ukuran file menentukan clustering key, dan jumlah file menentukan harga per terabyte yang disimpan",
+        "en": "The file size sets the clustering key, and the number of files sets the price per terabyte stored"
+       },
+       {
+        "id": "Warehouse hanya bisa membaca satu file pada satu waktu, jadi banyak file diperlukan agar pemuatan maju",
+        "en": "Warehouses can read only one file at a time, so many files are needed to make the load progress"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "File mungil menambah overhead (masalah file kecil); satu file raksasa tidak bisa dimuat paralel; jumlah yang merupakan kelipatan slice menjaga semuanya sibuk.",
+       "en": "Tiny files add overhead (the small-files problem); one huge file cannot be loaded in parallel; a count that is a multiple of the slices keeps all of them busy."
+      }
+     },
+     {
+      "question": {
+       "id": "Result cache mengembalikan jawaban tersimpan untuk query yang diulang. Kapan ia TIDAK boleh dipakai?",
+       "en": "A result cache returns the saved answer for a repeated query. When must it NOT be used?"
+      },
+      "options": [
+       {
+        "id": "Ketika teks query memakai huruf kapital, bukan huruf kecil, pada kata kuncinya",
+        "en": "When the query text uses upper case letters instead of lower case letters in its keywords"
+       },
+       {
+        "id": "Ketika dua analis menjalankan query itu berturutan di warehouse yang sama dalam beberapa menit",
+        "en": "When two analysts run the query one after the other in the same warehouse within a few minutes"
+       },
+       {
+        "id": "Ketika tabel mana pun yang dibaca query itu sudah berubah sejak jawaban tersebut disimpan",
+        "en": "When any table the query reads has changed in the meantime since the answer was saved earlier"
+       },
+       {
+        "id": "Ketika query mengembalikan lebih dari sepuluh baris ke aplikasi klien yang memintanya",
+        "en": "When the query returns more than ten rows to the client application that asked for it"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Key cache adalah SQL yang dinormalisasi ditambah versi setiap tabel yang dibacanya. Tabel yang berubah mengubah key-nya, sehingga jawaban lama tidak dipakai lagi.",
+       "en": "The cache key is the normalised SQL plus the version of every table it reads. A changed table changes the key, so the old answer is not reused."
+      }
+     },
+     {
+      "question": {
+       "id": "Lima query 10 detik tiba bersamaan pada dua slot. Kapan yang terakhir selesai, dan apa obat standar untuk antrean panjang?",
+       "en": "Five 10-second queries arrive together on two slots. When does the last one finish, and what is the standard cure for long waits?"
+      },
+      "options": [
+       {
+        "id": "Pada detik 10; tidak perlu obat, karena setiap warehouse menjalankan semua query secara bersamaan",
+        "en": "At 10 seconds; no cure is needed, because every warehouse runs all queries at the same time"
+       },
+       {
+        "id": "Pada detik 50; obatnya membeli satu query lebih besar yang menjalankan kelima job dalam satu batch",
+        "en": "At 50 seconds; the cure is to buy a larger single query that runs all five jobs in a single batch"
+       },
+       {
+        "id": "Pada detik 30; isolasikan beban kerja, skalakan keluar untuk lonjakan, dan perpendek query berat",
+        "en": "At 30 seconds; isolate workloads on separate compute, scale out for bursts, shorten heavy queries"
+       },
+       {
+        "id": "Pada detik 20; obatnya menghapus hasil lama, karena antrean disebabkan penyimpanan yang penuh",
+        "en": "At 20 seconds; the cure is to delete old results, because queueing is caused by storage that is full"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Dua slot menjalankan dua job pada satu waktu: 10, 10, 20, 20, 30 detik. Isolasi, auto-scaling, dan tata letak yang lebih baik mengurangi waktu tunggu.",
+       "en": "Two slots run two jobs at a time: 10, 10, 20, 20, 30 seconds. Isolation, auto-scaling and better layout reduce waiting."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "Dokumentasi Snowflake: micro-partition dan data clustering",
+       "en": "Snowflake documentation: micro-partitions and data clustering"
+      },
+      "url": "https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi BigQuery: tabel berpartisi dan ter-cluster",
+       "en": "BigQuery documentation: partitioned and clustered tables"
+      },
+      "url": "https://cloud.google.com/bigquery/docs/partitioned-tables"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Amazon Redshift: gaya distribusi",
+       "en": "Amazon Redshift documentation: distribution styles"
+      },
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_choosing_dist_sort.html"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Snowflake: menyiapkan file data untuk dimuat",
+       "en": "Snowflake documentation: preparing data files for loading"
+      },
+      "url": "https://docs.snowflake.com/en/user-guide/data-load-considerations-prepare"
+     },
+     {
+      "label": {
+       "id": "Amazon Redshift: praktik terbaik memuat data",
+       "en": "Amazon Redshift: best practices for loading data"
+      },
+      "url": "https://docs.aws.amazon.com/redshift/latest/dg/c_loading-data-best-practices.html"
+     },
+     {
+      "label": {
+       "id": "BigQuery: memperkirakan dan mengendalikan biaya",
+       "en": "BigQuery: estimating and controlling costs"
+      },
+      "url": "https://cloud.google.com/bigquery/docs/best-practices-costs"
+     }
+    ],
+    "idPending": false
    }
   ]
  },
