@@ -1,4 +1,5 @@
 // Main Application Controller for DataForge Learning Platform
+// Clean, understated, high-readability design. Fully bilingual (ID & EN).
 
 class DataForgeApp {
   constructor() {
@@ -24,6 +25,7 @@ class DataForgeApp {
   init() {
     this.bindEvents();
     this.updateLangButtons();
+    this.updateNavLabels();
     this.renderHeaderStats();
     this.renderView();
   }
@@ -32,6 +34,7 @@ class DataForgeApp {
     this.lang = lang;
     localStorage.setItem("df_lang", lang);
     this.updateLangButtons();
+    this.updateNavLabels();
     this.renderHeaderStats();
     this.renderView();
   }
@@ -41,13 +44,44 @@ class DataForgeApp {
     const btnEn = document.getElementById("lang-btn-en");
     if (btnId && btnEn) {
       if (this.lang === "id") {
-        btnId.className = "px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20";
-        btnEn.className = "px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white";
+        btnId.className = "px-2.5 py-1 rounded transition-colors bg-blue-600 text-white font-semibold text-xs";
+        btnEn.className = "px-2.5 py-1 rounded transition-colors text-slate-400 hover:text-slate-200 font-medium text-xs";
       } else {
-        btnId.className = "px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white";
-        btnEn.className = "px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20";
+        btnId.className = "px-2.5 py-1 rounded transition-colors text-slate-400 hover:text-slate-200 font-medium text-xs";
+        btnEn.className = "px-2.5 py-1 rounded transition-colors bg-blue-600 text-white font-semibold text-xs";
       }
     }
+  }
+
+  updateNavLabels() {
+    const t = window.TRANSLATIONS ? (window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id) : null;
+    if (!t) return;
+    const setTxt = (id, txt) => {
+      const el = document.getElementById(id);
+      if (el) el.innerText = txt;
+    };
+    setTxt("brand-subtitle", t.brandSubtitle);
+    setTxt("nav-btn-roadmap", t.navRoadmap);
+    setTxt("nav-btn-curriculum", t.navCurriculum);
+    setTxt("nav-btn-interview", t.navInterview);
+    setTxt("nav-btn-portfolio", t.navPortfolio);
+    setTxt("nav-btn-cv-builder", t.navCvBuilder);
+    setTxt("nav-btn-playground", t.navPlayground);
+    setTxt("nav-btn-remote", t.navRemote);
+
+    setTxt("mob-nav-roadmap", t.navRoadmap);
+    setTxt("mob-nav-curriculum", t.navCurriculum);
+    setTxt("mob-nav-interview", t.navInterview);
+    setTxt("mob-nav-portfolio", t.navPortfolio);
+    setTxt("mob-nav-cv-builder", t.navCvBuilder);
+    setTxt("mob-nav-playground", t.navPlayground);
+    setTxt("mob-nav-remote", t.navRemote);
+
+    setTxt("footer-tagline", this.lang === 'id' ? 'Dirancang untuk Penguasaan Rekayasa Data Nyata' : 'Architected for True Engineering Mastery');
+    setTxt("footer-link-curriculum", t.navCurriculum);
+    setTxt("footer-link-interview", t.navInterview);
+    setTxt("footer-link-portfolio", t.navPortfolio);
+    setTxt("footer-link-remote", t.navRemote);
   }
 
   t(val) {
@@ -58,8 +92,12 @@ class DataForgeApp {
     return val;
   }
 
+  tr(key) {
+    const dict = window.TRANSLATIONS ? (window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id) : {};
+    return dict[key] || key;
+  }
+
   bindEvents() {
-    // Navigation items
     document.querySelectorAll("[data-nav]").forEach(el => {
       el.addEventListener("click", (e) => {
         e.preventDefault();
@@ -71,12 +109,11 @@ class DataForgeApp {
 
   switchView(view) {
     this.currentView = view;
-    // Update active nav styling
     document.querySelectorAll("[data-nav]").forEach(el => {
       if (el.getAttribute("data-nav") === view) {
-        el.className = "flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-600/20 text-blue-400 font-medium border border-blue-500/30 text-sm";
+        el.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30 text-xs";
       } else {
-        el.className = "flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors text-sm font-medium";
+        el.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors text-xs font-normal";
       }
     });
 
@@ -89,21 +126,19 @@ class DataForgeApp {
     const completedCount = this.completedModules.length;
     const progressPercent = Math.round((completedCount / totalModules) * 100);
 
-    const labelProgress = this.lang === 'id' ? 'Progres Penguasaan' : 'Mastery Progress';
-    const labelModules = this.lang === 'id' 
-      ? `${completedCount} dari ${totalModules} Modul (${progressPercent}%)`
-      : `${completedCount} of ${totalModules} Modules (${progressPercent}%)`;
+    const labelProgress = this.tr("masteryProgress");
+    const labelModules = `${completedCount} ${this.tr("modulesOf")} ${totalModules} ${this.tr("modulesCompleted")} (${progressPercent}%)`;
 
     const statsEl = document.getElementById("header-stats");
     if (statsEl) {
       statsEl.innerHTML = `
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
           <div class="hidden sm:flex flex-col text-right">
-            <span class="text-xs text-slate-400">${labelProgress}</span>
-            <span class="text-sm font-semibold text-slate-200">${labelModules}</span>
+            <span class="text-[11px] text-slate-400">${labelProgress}</span>
+            <span class="text-xs font-semibold text-slate-200">${labelModules}</span>
           </div>
-          <div class="w-24 sm:w-32 bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700">
-            <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
+          <div class="w-20 sm:w-28 bg-[#1a2334] rounded-full h-2 overflow-hidden border border-slate-800">
+            <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: ${progressPercent}%"></div>
           </div>
         </div>
       `;
@@ -117,27 +152,21 @@ class DataForgeApp {
     switch (this.currentView) {
       case "roadmap":
         container.innerHTML = this.renderRoadmapView();
-        this.bindRoadmapEvents();
         break;
       case "curriculum":
         container.innerHTML = this.renderCurriculumView();
-        this.bindCurriculumEvents();
         break;
       case "interview":
         container.innerHTML = this.renderInterviewView();
-        this.bindInterviewEvents();
         break;
       case "portfolio":
         container.innerHTML = this.renderPortfolioView();
-        this.bindPortfolioEvents();
         break;
       case "cv-builder":
         container.innerHTML = this.renderCvBuilderView();
-        this.bindCvBuilderEvents();
         break;
       case "playground":
         container.innerHTML = this.renderPlaygroundView();
-        this.bindPlaygroundEvents();
         break;
       case "remote-playbook":
         container.innerHTML = this.renderRemotePlaybookView();
@@ -147,90 +176,91 @@ class DataForgeApp {
 
   // ================= ROADMAP VIEW =================
   renderRoadmapView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     return `
       <div class="animate-fade space-y-8 max-w-6xl mx-auto">
-        <!-- Hero Banner -->
-        <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950/40 border border-slate-800 p-8 sm:p-10 shadow-2xl">
-          <div class="absolute -right-16 -top-16 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div class="max-w-3xl space-y-4">
-            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-              🚀 Anti-Tutorial-Hell Data Engineering OS
-            </div>
-            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Master Modern Data Engineering from <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">First Principles</span>.
-            </h1>
-            <p class="text-slate-300 text-base sm:text-lg leading-relaxed">
-              No toy datasets. No happy-path tutorials. A battle-tested curriculum designed for self-mastery and enterprise readiness, complete with chaos labs, system design simulators, and career acceleration assets.
-            </p>
-            <div class="pt-2 flex flex-wrap gap-3">
-              <button onclick="app.switchView('curriculum')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2">
-                Start Learning Curriculum ➔
-              </button>
-              <button onclick="app.switchView('interview')" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 transition-all flex items-center gap-2">
-                Simulate Interview 🎯
-              </button>
-              <button onclick="app.switchView('cv-builder')" class="px-5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm border border-slate-700 transition-all flex items-center gap-2">
-                Build ATS-Ready CV 📄
-              </button>
-            </div>
+        <!-- Hero Banner (Clean, calm, elegant) -->
+        <div class="p-8 sm:p-10 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <div class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-mono uppercase tracking-wider bg-blue-500/10 border border-blue-500/20 text-blue-400">
+            ${t.roadmapBadge}
+          </div>
+          <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
+            ${t.roadmapHeroTitle}
+          </h1>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed max-w-3xl">
+            ${t.roadmapHeroDesc}
+          </p>
+          <div class="pt-2 flex flex-wrap gap-3">
+            <button onclick="app.switchView('curriculum')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs sm:text-sm transition-colors">
+              ${t.ctaStartCurriculum}
+            </button>
+            <button onclick="app.switchView('interview')" class="px-5 py-2.5 rounded-lg bg-[#161d2e] hover:bg-[#1f283e] text-slate-200 font-medium text-xs sm:text-sm border border-slate-700/80 transition-colors">
+              ${t.ctaInterviewSim}
+            </button>
+            <button onclick="app.switchView('cv-builder')" class="px-5 py-2.5 rounded-lg bg-[#161d2e] hover:bg-[#1f283e] text-slate-200 font-medium text-xs sm:text-sm border border-slate-700/80 transition-colors">
+              ${t.ctaBuildCv}
+            </button>
           </div>
         </div>
 
-        <!-- The 4 Pillars Manifest -->
+        <!-- 4 Pillars Section (Clean, consistent cards) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-2">
-            <div class="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-lg">1</div>
-            <h3 class="font-bold text-slate-100 text-base">First Principles</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Understand memory models, disk serialization, and distributed shuffles before touching frameworks.</p>
+          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
+            <div class="text-[11px] font-mono font-semibold text-blue-400">01 / FOUNDATIONS</div>
+            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar1Title}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar1Desc}</p>
           </div>
-          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-2">
-            <div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-lg">2</div>
-            <h3 class="font-bold text-slate-100 text-base">Chaos & Breakage Labs</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Practice debugging poisoned schemas, late-arriving events, OOM executors, and silent corruption.</p>
+          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
+            <div class="text-[11px] font-mono font-semibold text-amber-400">02 / CHAOS LABS</div>
+            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar2Title}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar2Desc}</p>
           </div>
-          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-2">
-            <div class="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-lg">3</div>
-            <h3 class="font-bold text-slate-100 text-base">Production Rigor</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Enforce Data Contracts, automated pytest suites, dbt slim CI, and guaranteed idempotent writes.</p>
+          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
+            <div class="text-[11px] font-mono font-semibold text-emerald-400">03 / PRODUCTION RIGOR</div>
+            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar3Title}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar3Desc}</p>
           </div>
-          <div class="p-5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition-all space-y-2">
-            <div class="w-10 h-10 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 font-bold text-lg">4</div>
-            <h3 class="font-bold text-slate-100 text-base">Proof-of-Work Portfolios</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">Build production Lakehouse and CDC platforms accompanied by Architectural Decision Records (ADRs).</p>
+          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
+            <div class="text-[11px] font-mono font-semibold text-purple-400">04 / PROOF OF WORK</div>
+            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar4Title}</h3>
+            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar4Desc}</p>
           </div>
         </div>
 
-        <!-- Levels Progression Grid -->
+        <!-- Milestones Grid -->
         <div class="space-y-4">
-          <h2 class="text-xl font-bold text-slate-200">Curriculum Progression Matrix</h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <h2 class="text-base font-bold text-slate-100">${t.matrixTitle}</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             ${CURRICULUM_DATA.map((lvl) => {
               const completedInLevel = lvl.modules.filter(m => this.completedModules.includes(m.id)).length;
               const pct = Math.round((completedInLevel / lvl.modules.length) * 100);
+              const lvlTitle = this.t(lvl.levelTitle);
+              const lvlSubtitle = this.t(lvl.levelSubtitle);
+              const lvlBadge = this.t(lvl.badge);
               return `
-                <div class="flex flex-col justify-between p-6 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-blue-500/40 transition-all group">
-                  <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                      <span class="badge badge-${lvl.badgeColor}">${lvl.badge}</span>
-                      <span class="text-xs font-semibold text-slate-400">${completedInLevel}/${lvl.modules.length} Completed</span>
+                <div class="flex flex-col justify-between p-5 rounded-xl bg-[#0f1523] border border-slate-800 hover:border-slate-700 transition-all">
+                  <div class="space-y-2.5">
+                    <div class="flex items-center justify-between text-xs">
+                      <span class="badge badge-neutral">${lvlBadge}</span>
+                      <span class="text-slate-400 font-mono text-[11px]">${completedInLevel}/${lvl.modules.length}</span>
                     </div>
-                    <h3 class="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">${lvl.levelTitle}</h3>
-                    <p class="text-xs text-slate-400 line-clamp-2">${lvl.levelSubtitle}</p>
-                    <div class="space-y-1.5 pt-2">
+                    <h3 class="text-sm font-semibold text-white">${lvlTitle}</h3>
+                    <p class="text-xs text-slate-400 line-clamp-2">${lvlSubtitle}</p>
+                    <div class="space-y-1 pt-2">
                       ${lvl.modules.map(m => `
-                        <div class="flex items-center justify-between text-xs py-1 px-2 rounded bg-slate-950/60 border border-slate-800/80">
-                          <span class="text-slate-300 font-medium truncate">${m.number} ${m.title}</span>
-                          ${this.completedModules.includes(m.id) ? '<span class="text-emerald-400 text-xs">✓ Done</span>' : '<span class="text-slate-500 text-xs">Pending</span>'}
+                        <div class="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#090d16] border border-slate-800/80">
+                          <span class="text-slate-300 font-medium truncate">${m.number} ${this.t(m.title)}</span>
+                          ${this.completedModules.includes(m.id) ? '<span class="text-emerald-400 text-xs">Done</span>' : '<span class="text-slate-600 text-xs">Pending</span>'}
                         </div>
                       `).join('')}
                     </div>
                   </div>
-                  <div class="pt-6 space-y-2">
+                  <div class="pt-5 space-y-2">
                     <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                       <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
                     </div>
-                    <button onclick="app.selectLevel('${lvl.levelId}')" class="w-full py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors text-center block">
-                      Explore Level Modules ➔
+                    <button onclick="app.selectLevel('${lvl.levelId}')" class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition-colors text-center block">
+                      ${t.exploreModules} ➔
                     </button>
                   </div>
                 </div>
@@ -238,30 +268,9 @@ class DataForgeApp {
             }).join('')}
           </div>
         </div>
-
-        <!-- Career Acceleration Quick Links -->
-        <div class="p-6 rounded-xl bg-slate-900/50 border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-slate-200">Career Acceleration Suite</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div onclick="app.switchView('interview')" class="cursor-pointer p-4 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-blue-500/50 transition-all">
-              <h4 class="font-bold text-slate-200 text-sm mb-1">🎯 Interview Simulator</h4>
-              <p class="text-xs text-slate-400">8 System Design scenarios, 15+ FAANG SQL problems, and real incident post-mortem drills.</p>
-            </div>
-            <div onclick="app.switchView('portfolio')" class="cursor-pointer p-4 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 transition-all">
-              <h4 class="font-bold text-slate-200 text-sm mb-1">💼 Portfolio Architecture</h4>
-              <p class="text-xs text-slate-400">3 Production Lakehouse & CDC capstones complete with ADRs and interview defense talking points.</p>
-            </div>
-            <div onclick="app.switchView('cv-builder')" class="cursor-pointer p-4 rounded-lg bg-slate-950/80 border border-slate-800 hover:border-purple-500/50 transition-all">
-              <h4 class="font-bold text-slate-200 text-sm mb-1">📄 ATS CV Builder & Scorer</h4>
-              <p class="text-xs text-slate-400">Interactive resume generator with metric XYZ formulas and real-time ATS seniority scoring.</p>
-            </div>
-          </div>
-        </div>
       </div>
     `;
   }
-
-  bindRoadmapEvents() {}
 
   selectLevel(levelId) {
     this.activeLevelId = levelId;
@@ -274,6 +283,7 @@ class DataForgeApp {
 
   // ================= CURRICULUM VIEW =================
   renderCurriculumView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     const activeLevel = CURRICULUM_DATA.find(l => l.levelId === this.activeLevelId) || CURRICULUM_DATA[0];
     const activeModule = activeLevel.modules.find(m => m.id === this.activeModuleId) || activeLevel.modules[0];
     const isCompleted = this.completedModules.includes(activeModule.id);
@@ -283,22 +293,22 @@ class DataForgeApp {
         <!-- Sidebar Navigation -->
         <div class="lg:col-span-4 space-y-4">
           <!-- Level Selector Tabs -->
-          <div class="flex rounded-xl bg-slate-900 border border-slate-800 p-1">
+          <div class="flex rounded-xl bg-[#0f1523] border border-slate-800 p-1">
             ${CURRICULUM_DATA.map(lvl => `
               <button 
                 onclick="app.setActiveLevel('${lvl.levelId}')" 
-                class="flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${this.activeLevelId === lvl.levelId ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}"
+                class="flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${this.activeLevelId === lvl.levelId ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}"
               >
-                ${lvl.badge}
+                ${this.t(lvl.badge)}
               </button>
             `).join('')}
           </div>
 
           <!-- Module List -->
-          <div class="rounded-xl bg-slate-900/70 border border-slate-800 overflow-hidden divide-y divide-slate-800">
-            <div class="p-3 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">${activeLevel.levelTitle.split(':')[0]}</span>
-              <span class="text-xs text-slate-500">${activeLevel.modules.length} Modules</span>
+          <div class="rounded-xl bg-[#0f1523] border border-slate-800 overflow-hidden divide-y divide-slate-800">
+            <div class="p-3 bg-[#090d16] border-b border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">${this.t(activeLevel.levelTitle).split(':')[0]}</span>
+              <span class="text-xs text-slate-500 font-mono">${activeLevel.modules.length} Modules</span>
             </div>
             <div class="p-2 space-y-1">
               ${activeLevel.modules.map(mod => {
@@ -307,16 +317,16 @@ class DataForgeApp {
                 return `
                   <button 
                     onclick="app.setActiveModule('${mod.id}')"
-                    class="w-full text-left p-3 rounded-lg text-xs font-medium transition-all flex items-start justify-between gap-2 ${isSelected ? 'bg-blue-600/20 border border-blue-500/40 text-blue-300' : 'text-slate-300 hover:bg-slate-800/60'}"
+                    class="w-full text-left p-3 rounded-lg text-xs font-medium transition-colors flex items-start justify-between gap-2 ${isSelected ? 'bg-blue-600/15 border border-blue-500/40 text-blue-300' : 'text-slate-300 hover:bg-[#161d2e]'}"
                   >
-                    <div class="space-y-1">
-                      <div class="font-bold text-slate-100 flex items-center gap-1.5">
-                        <span>${mod.number}</span>
-                        <span class="line-clamp-1">${mod.title}</span>
+                    <div class="space-y-0.5">
+                      <div class="font-medium text-slate-100 flex items-center gap-1.5">
+                        <span class="font-mono text-slate-400">${mod.number}</span>
+                        <span class="line-clamp-1">${this.t(mod.title)}</span>
                       </div>
-                      <div class="text-[11px] text-slate-400 line-clamp-1">${mod.summary}</div>
+                      <div class="text-[11px] text-slate-400 line-clamp-1">${this.t(mod.summary)}</div>
                     </div>
-                    ${done ? '<span class="text-emerald-400 text-xs font-bold">✓</span>' : '<span class="text-slate-600 text-xs">○</span>'}
+                    ${done ? '<span class="text-emerald-400 text-xs">Done</span>' : '<span class="text-slate-600 text-xs">○</span>'}
                   </button>
                 `;
               }).join('')}
@@ -327,78 +337,78 @@ class DataForgeApp {
         <!-- Module Detail Content Area -->
         <div class="lg:col-span-8 space-y-6">
           <!-- Module Header Card -->
-          <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
-                <span class="badge badge-${activeLevel.badgeColor}">${activeLevel.badge}</span>
-                <span class="text-xs text-slate-400">Estimated: ${activeModule.duration}</span>
+                <span class="badge badge-neutral">${this.t(activeLevel.badge)}</span>
+                <span class="text-xs text-slate-400 font-mono">${this.t(activeModule.duration)}</span>
               </div>
               <button 
                 onclick="app.toggleModuleCompletion('${activeModule.id}')"
-                class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${isCompleted ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/30' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'}"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${isCompleted ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400' : 'bg-[#161d2e] hover:bg-[#1f283e] text-slate-300 border border-slate-700'}"
               >
-                ${isCompleted ? '✓ Marked Completed' : '○ Mark as Completed'}
+                ${isCompleted ? t.btnMarkedComplete : t.btnMarkComplete}
               </button>
             </div>
             <div>
-              <h2 class="text-2xl font-extrabold text-white">${activeModule.number} ${activeModule.title}</h2>
-              <p class="text-slate-300 text-sm mt-1">${activeModule.summary}</p>
+              <h2 class="text-xl sm:text-2xl font-bold text-white">${activeModule.number} ${this.t(activeModule.title)}</h2>
+              <p class="text-slate-300 text-xs sm:text-sm mt-1 leading-relaxed">${this.t(activeModule.summary)}</p>
             </div>
 
             <!-- Why Tutorials Lie Alert Box -->
-            <div class="p-4 rounded-xl bg-rose-950/30 border border-rose-900/40 space-y-1">
-              <div class="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
-                <span>⚠️ Why Tutorials & Bootcamps Lie About This:</span>
+            <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-900/40 space-y-1">
+              <div class="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+                ${t.whyTutorialsLieHeader}
               </div>
-              <p class="text-xs text-rose-200/90 leading-relaxed">${activeModule.whyTutorialsLie}</p>
+              <p class="text-xs text-amber-200/90 leading-relaxed">${this.t(activeModule.whyTutorialsLie)}</p>
             </div>
 
             <!-- Content Tabs -->
-            <div class="flex border-b border-slate-800 pt-2 gap-2 text-xs font-semibold">
-              <button onclick="app.setModuleTab('concepts')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'concepts' ? 'border-b-2 border-blue-500 text-blue-400' : 'text-slate-400 hover:text-slate-200'}">
-                1. First Principles (${activeModule.concepts.length})
+            <div class="flex border-b border-slate-800 pt-2 gap-2 text-xs font-medium">
+              <button onclick="app.setModuleTab('concepts')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'concepts' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
+                ${t.tabConcepts} (${activeModule.concepts.length})
               </button>
-              <button onclick="app.setModuleTab('lab')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'lab' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-slate-400 hover:text-slate-200'}">
-                2. Hands-on Lab
+              <button onclick="app.setModuleTab('lab')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'lab' ? 'border-b-2 border-emerald-500 text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
+                ${t.tabLab}
               </button>
-              <button onclick="app.setModuleTab('chaos')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'chaos' ? 'border-b-2 border-amber-500 text-amber-400' : 'text-slate-400 hover:text-slate-200'}">
-                3. Chaos Scenario ⚡
+              <button onclick="app.setModuleTab('chaos')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'chaos' ? 'border-b-2 border-amber-500 text-amber-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
+                ${t.tabChaos}
               </button>
-              <button onclick="app.setModuleTab('quiz')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'quiz' ? 'border-b-2 border-purple-500 text-purple-400' : 'text-slate-400 hover:text-slate-200'}">
-                4. Verification Quiz
+              <button onclick="app.setModuleTab('quiz')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'quiz' ? 'border-b-2 border-purple-500 text-purple-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
+                ${t.tabQuiz}
               </button>
             </div>
           </div>
 
           <!-- Tab Content Display -->
-          <div class="rounded-2xl bg-slate-900/60 border border-slate-800 p-6 space-y-6">
-            ${this.renderModuleTabContent(activeModule)}
+          <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-6 space-y-6">
+            ${this.renderModuleTabContent(activeModule, t)}
           </div>
         </div>
       </div>
     `;
   }
 
-  renderModuleTabContent(mod) {
+  renderModuleTabContent(mod, t) {
     switch (this.activeModuleTab) {
       case "concepts":
         return `
           <div class="space-y-6">
-            <h3 class="text-lg font-bold text-slate-100">Theoretical Foundations & Architectural Mechanics</h3>
+            <h3 class="text-base font-semibold text-slate-100">${this.lang === 'id' ? 'Konsep Fundamental & Mekanisme Kerja' : 'Theoretical Foundations & Mechanics'}</h3>
             <div class="space-y-4">
               ${mod.concepts.map((c, idx) => `
-                <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                  <div class="text-sm font-bold text-blue-400 flex items-center gap-2">
-                    <span class="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center">${idx + 1}</span>
-                    ${c.title}
+                <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+                  <div class="text-xs font-semibold text-blue-400 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${idx + 1}</span>
+                    ${this.t(c.title)}
                   </div>
-                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${c.content}</p>
+                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">${this.t(c.content)}</p>
                 </div>
               `).join('')}
             </div>
-            <div class="pt-4 flex justify-end">
-              <button onclick="app.setModuleTab('lab')" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors">
-                Proceed to Hands-on Lab ➔
+            <div class="pt-2 flex justify-end">
+              <button onclick="app.setModuleTab('lab')" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white transition-colors">
+                ${t.btnProceedLab}
               </button>
             </div>
           </div>
@@ -407,32 +417,32 @@ class DataForgeApp {
         return `
           <div class="space-y-5">
             <div>
-              <span class="badge badge-emerald">Engineering Lab</span>
-              <h3 class="text-xl font-bold text-white mt-1">${mod.lab.title}</h3>
-              <p class="text-xs sm:text-sm text-slate-300 mt-2">${mod.lab.description}</p>
+              <span class="badge badge-emerald">${t.tabLab}</span>
+              <h3 class="text-lg font-bold text-white mt-1">${this.t(mod.lab.title)}</h3>
+              <p class="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">${this.t(mod.lab.description)}</p>
             </div>
 
             <div class="space-y-2">
               <div class="flex items-center justify-between text-xs text-slate-400">
-                <span>Production Reference Code Implementation</span>
-                <span class="font-mono text-xs text-blue-400">Run in local environment</span>
+                <span>${this.lang === 'id' ? 'Kode Implementasi Produksi' : 'Production Reference Implementation'}</span>
+                <span class="font-mono text-xs text-blue-400">${this.lang === 'id' ? 'Jalankan di lingkungan lokal' : 'Run in local environment'}</span>
               </div>
               <pre><code>${this.escapeHtml(mod.lab.codeSnippet)}</code></pre>
             </div>
 
-            <div class="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2">
-              <h4 class="text-xs font-bold uppercase text-slate-300">Lab Deliverables & Verification Checklist</h4>
+            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+              <h4 class="text-xs font-semibold uppercase text-slate-300">${this.lang === 'id' ? 'Deliverable & Kriteria Keberhasilan' : 'Lab Deliverables & Verification Checklist'}</h4>
               <ul class="space-y-1.5 text-xs text-slate-300">
-                ${mod.lab.deliverables.map(d => `<li class="flex items-center gap-2"><span class="text-emerald-400">✔</span> ${d}</li>`).join('')}
+                ${mod.lab.deliverables.map(d => `<li class="flex items-center gap-2"><span class="text-emerald-400">✔</span> ${this.t(d)}</li>`).join('')}
               </ul>
             </div>
 
             <div class="pt-2 flex justify-between">
               <button onclick="app.setModuleTab('concepts')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ← Back to Concepts
+                ${t.btnBackConcepts}
               </button>
-              <button onclick="app.setModuleTab('chaos')" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-semibold text-white transition-colors">
-                Test in Chaos Scenario ⚡
+              <button onclick="app.setModuleTab('chaos')" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-medium text-white transition-colors">
+                ${t.btnTestChaos}
               </button>
             </div>
           </div>
@@ -441,61 +451,60 @@ class DataForgeApp {
         return `
           <div class="space-y-5">
             <div>
-              <span class="badge badge-amber">Chaos Engineering & Debugging</span>
-              <h3 class="text-xl font-bold text-white mt-1">${mod.chaosLab.title}</h3>
+              <span class="badge badge-amber">${t.tabChaos}</span>
+              <h3 class="text-lg font-bold text-white mt-1">${this.t(mod.chaosLab.title)}</h3>
             </div>
 
-            <div class="p-4 rounded-xl bg-amber-950/30 border border-amber-900/40 space-y-2">
-              <div class="text-xs font-bold text-amber-400 uppercase tracking-wider">🔥 The Production Breakage Scenario</div>
-              <p class="text-xs sm:text-sm text-amber-200/90 leading-relaxed">${mod.chaosLab.scenario}</p>
+            <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-900/40 space-y-1">
+              <div class="text-xs font-semibold text-amber-400 uppercase tracking-wider">${this.lang === 'id' ? 'Skenario Kerusakan di Produksi' : 'The Production Breakage Scenario'}</div>
+              <p class="text-xs sm:text-sm text-amber-200/90 leading-relaxed">${this.t(mod.chaosLab.scenario)}</p>
             </div>
 
-            <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <div class="text-xs font-bold text-rose-400 uppercase tracking-wider">Root Cause Analysis (Why it breaks)</div>
-              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${mod.chaosLab.breakageReason}</p>
+            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-1">
+              <div class="text-xs font-semibold text-rose-400 uppercase tracking-wider">${this.lang === 'id' ? 'Akar Masalah (Kenapa Bisa Rusak)' : 'Root Cause Analysis'}</div>
+              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${this.t(mod.chaosLab.breakageReason)}</p>
             </div>
 
-            <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-              <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">🛠️ Engineering Fix & Mitigation Protocol</div>
-              <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">${mod.chaosLab.fixGuide}</div>
+            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-1">
+              <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${this.lang === 'id' ? 'Panduan Perbaikan Teknis' : 'Engineering Fix & Mitigation Protocol'}</div>
+              <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">${this.t(mod.chaosLab.fixGuide)}</div>
             </div>
 
             <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-900/40 space-y-1">
-              <div class="text-xs font-bold text-blue-400 uppercase tracking-wider">🛡️ Defensive Engineering Pattern</div>
-              <p class="text-xs sm:text-sm text-blue-200">${mod.chaosLab.defensivePattern}</p>
+              <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider">${this.lang === 'id' ? 'Pola Rekayasa Defensif' : 'Defensive Engineering Pattern'}</div>
+              <p class="text-xs sm:text-sm text-blue-200">${this.t(mod.chaosLab.defensivePattern)}</p>
             </div>
 
             <div class="pt-2 flex justify-between">
               <button onclick="app.setModuleTab('lab')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ← Back to Lab
+                ← Lab
               </button>
-              <button onclick="app.setModuleTab('quiz')" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-semibold text-white transition-colors">
-                Take Knowledge Gate Quiz ➔
+              <button onclick="app.setModuleTab('quiz')" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-medium text-white transition-colors">
+                ${t.btnTakeQuiz}
               </button>
             </div>
           </div>
         `;
       case "quiz":
-        const savedQuiz = this.quizScores[mod.id];
         return `
           <div class="space-y-6">
             <div>
-              <span class="badge badge-purple">Knowledge Gate</span>
-              <h3 class="text-xl font-bold text-white mt-1">Verification & Concept Assessment</h3>
-              <p class="text-xs text-slate-400 mt-1">Answer these first-principles questions to verify mastery before moving to the next module.</p>
+              <span class="badge badge-neutral">${t.tabQuiz}</span>
+              <h3 class="text-lg font-bold text-white mt-1">${this.lang === 'id' ? 'Evaluasi Pemahaman Prinsip' : 'Verification Assessment'}</h3>
+              <p class="text-xs text-slate-400 mt-1">${this.lang === 'id' ? 'Jawab pertanyaan logika ini untuk menguji pemahaman Anda sebelum lanjut.' : 'Answer these first-principles questions to verify mastery before advancing.'}</p>
             </div>
 
-            <div class="space-y-6" id="quiz-container">
+            <div class="space-y-5" id="quiz-container">
               ${mod.quiz.map((q, qIdx) => `
-                <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
-                  <div class="text-sm font-semibold text-slate-200">
-                    <span class="text-purple-400 font-mono">Q${qIdx + 1}:</span> ${q.question}
+                <div class="p-5 rounded-xl bg-[#090d16] border border-slate-800 space-y-3">
+                  <div class="text-xs sm:text-sm font-medium text-slate-200">
+                    <span class="text-blue-400 font-mono">Q${qIdx + 1}:</span> ${this.t(q.question)}
                   </div>
                   <div class="space-y-2 pt-1">
                     ${q.options.map((opt, oIdx) => `
-                      <label class="flex items-start gap-3 p-3 rounded-lg bg-slate-900/70 border border-slate-800 hover:border-slate-700 cursor-pointer text-xs text-slate-300 transition-colors">
+                      <label class="flex items-start gap-3 p-3 rounded-lg bg-[#0e1422] border border-slate-800 hover:border-slate-700 cursor-pointer text-xs text-slate-300 transition-colors">
                         <input type="radio" name="quiz_${mod.id}_${qIdx}" value="${oIdx}" class="mt-0.5 text-blue-600 focus:ring-0">
-                        <span>${opt}</span>
+                        <span>${this.t(opt)}</span>
                       </label>
                     `).join('')}
                   </div>
@@ -506,18 +515,16 @@ class DataForgeApp {
 
             <div class="pt-2 flex justify-between items-center">
               <button onclick="app.setModuleTab('chaos')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ← Back to Chaos Lab
+                ← Chaos Lab
               </button>
-              <button onclick="app.submitQuiz('${mod.id}')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition-all shadow-lg shadow-blue-600/30">
-                Check Answers & Grade
+              <button onclick="app.submitQuiz('${mod.id}')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors">
+                ${t.btnCheckAnswers}
               </button>
             </div>
           </div>
         `;
     }
   }
-
-  bindCurriculumEvents() {}
 
   setActiveLevel(lvlId) {
     this.activeLevelId = lvlId;
@@ -561,13 +568,16 @@ class DataForgeApp {
       if (!feedbackEl) return;
 
       feedbackEl.classList.remove("hidden");
+      const explanationText = this.t(q.explanation);
+      const correctOptionText = this.t(q.options[q.correct]);
+
       if (selected && parseInt(selected.value) === q.correct) {
         totalCorrect++;
-        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-emerald-950/40 border border-emerald-800/40 text-emerald-300";
-        feedbackEl.innerHTML = `<strong>Correct!</strong> ${q.explanation}`;
+        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-emerald-950/30 border border-emerald-800/40 text-emerald-300";
+        feedbackEl.innerHTML = `<strong>${this.lang === 'id' ? 'Benar!' : 'Correct!'}</strong> ${explanationText}`;
       } else {
-        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-rose-950/40 border border-rose-800/40 text-rose-300";
-        feedbackEl.innerHTML = `<strong>Incorrect.</strong> Correct answer: <em>"${q.options[q.correct]}"</em>. <br/>${q.explanation}`;
+        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-rose-950/30 border border-rose-800/40 text-rose-300";
+        feedbackEl.innerHTML = `<strong>${this.lang === 'id' ? 'Kurang tepat.' : 'Incorrect.'}</strong> ${this.lang === 'id' ? 'Jawaban yang tepat' : 'Correct answer'}: <em>"${correctOptionText}"</em>. <br/>${explanationText}`;
       }
     });
 
@@ -582,86 +592,80 @@ class DataForgeApp {
 
   // ================= INTERVIEW SIMULATOR VIEW =================
   renderInterviewView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     return `
       <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="p-6 rounded-2xl bg-gradient-to-r from-slate-900 to-blue-950/50 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
           <div class="space-y-1">
-            <span class="badge badge-blue">Career Engine</span>
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Data Engineering Interview Simulator</h1>
-            <p class="text-xs sm:text-sm text-slate-300">Real system design rounds, FAANG-level SQL challenges, and live incident post-mortem drills.</p>
+            <span class="badge badge-neutral">${this.lang === 'id' ? 'Simulasi Karir' : 'Career Engine'}</span>
+            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.interviewTitle}</h1>
+            <p class="text-xs sm:text-sm text-slate-300">${t.interviewSubtitle}</p>
           </div>
-          <div class="flex rounded-xl bg-slate-950 border border-slate-800 p-1 text-xs font-semibold">
-            <button onclick="app.setInterviewTab('system-design')" class="px-4 py-2 rounded-lg transition-all ${this.activeInterviewTab === 'system-design' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              1. System Design
+          <div class="flex rounded-xl bg-[#090d16] border border-slate-800 p-1 text-xs font-medium">
+            <button onclick="app.setInterviewTab('system-design')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'system-design' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
+              ${t.tabSystemDesign}
             </button>
-            <button onclick="app.setInterviewTab('sql-arena')" class="px-4 py-2 rounded-lg transition-all ${this.activeInterviewTab === 'sql-arena' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              2. SQL & Modeling Arena
+            <button onclick="app.setInterviewTab('sql-arena')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'sql-arena' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
+              ${t.tabSqlArena}
             </button>
-            <button onclick="app.setInterviewTab('incidents')" class="px-4 py-2 rounded-lg transition-all ${this.activeInterviewTab === 'incidents' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              3. Incident Drills
+            <button onclick="app.setInterviewTab('incidents')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'incidents' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
+              ${t.tabIncidents}
             </button>
           </div>
         </div>
 
-        <!-- Simulator Content Area -->
-        ${this.renderInterviewTabContent()}
+        ${this.renderInterviewTabContent(t)}
       </div>
     `;
   }
 
-  renderInterviewTabContent() {
+  renderInterviewTabContent(t) {
     if (this.activeInterviewTab === "system-design") {
       const scenario = INTERVIEW_DATA.systemDesignScenarios.find(s => s.id === this.activeSystemDesignId) || INTERVIEW_DATA.systemDesignScenarios[0];
       return `
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- Scenarios List Sidebar -->
           <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-bold uppercase text-slate-400 px-1 mb-2">System Design Scenarios (${INTERVIEW_DATA.systemDesignScenarios.length})</div>
+            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">${this.lang === 'id' ? 'Daftar Skenario' : 'Scenarios List'} (${INTERVIEW_DATA.systemDesignScenarios.length})</div>
             ${INTERVIEW_DATA.systemDesignScenarios.map(s => `
               <button 
                 onclick="app.setActiveSystemDesign('${s.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-all space-y-1.5 ${s.id === this.activeSystemDesignId ? 'bg-blue-600/20 border-blue-500/50 text-blue-300' : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:bg-slate-800/60'}"
+                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${s.id === this.activeSystemDesignId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
               >
                 <div class="flex items-center justify-between">
                   <span class="badge ${s.difficulty === 'Hard' ? 'badge-rose' : 'badge-amber'}">${s.difficulty}</span>
                 </div>
-                <div class="font-bold text-slate-100">${s.title}</div>
+                <div class="font-semibold text-slate-100">${this.t(s.title)}</div>
                 <div class="flex flex-wrap gap-1 pt-1">
-                  ${s.tags.slice(0, 3).map(t => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400">${t}</span>`).join('')}
+                  ${s.tags.slice(0, 3).map(tag => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 font-mono">${tag}</span>`).join('')}
                 </div>
               </button>
             `).join('')}
           </div>
 
-          <!-- Scenario Walkthrough Engine -->
           <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-              <div class="space-y-1">
-                <span class="badge badge-rose">${scenario.difficulty} System Design</span>
-                <h2 class="text-2xl font-extrabold text-white">${scenario.title}</h2>
-              </div>
-              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-950/70 p-4 rounded-xl border border-slate-800">
-                ${scenario.scenarioDescription}
+            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+              <span class="badge badge-neutral">${scenario.difficulty} System Design</span>
+              <h2 class="text-xl font-bold text-white">${this.t(scenario.title)}</h2>
+              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-[#090d16] p-4 rounded-xl border border-slate-800">
+                ${this.t(scenario.scenarioDescription)}
               </p>
             </div>
 
-            <!-- Interactive 4-Phase System Design Protocol -->
             <div class="space-y-4">
               ${scenario.stages.map((stage, sIdx) => `
-                <div class="rounded-xl bg-slate-900/70 border border-slate-800 overflow-hidden">
-                  <div class="p-4 bg-slate-950/60 flex items-center justify-between cursor-pointer" onclick="app.toggleStage('${sIdx}')">
-                    <div class="font-bold text-slate-200 text-sm flex items-center gap-2">
-                      <span class="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center">${sIdx + 1}</span>
-                      ${stage.stageName}
+                <div class="rounded-xl bg-[#0f1523] border border-slate-800 overflow-hidden">
+                  <div class="p-4 bg-[#090d16] flex items-center justify-between cursor-pointer" onclick="app.toggleStage('${sIdx}')">
+                    <div class="font-medium text-slate-200 text-sm flex items-center gap-2">
+                      <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${sIdx + 1}</span>
+                      ${this.t(stage.stageName)}
                     </div>
-                    <button class="text-xs text-blue-400 hover:text-blue-300 font-semibold">Toggle Architecture & Rubric</button>
+                    <button class="text-xs text-blue-400 hover:text-blue-300 font-medium">${this.lang === 'id' ? 'Buka Solusi & Rubrik' : 'Toggle Blueprint'}</button>
                   </div>
                   <div class="p-5 space-y-3" id="stage-content-${sIdx}">
-                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Interviewer Prompt:</div>
-                    <p class="text-xs text-slate-300 italic">${stage.prompt}</p>
-                    <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider pt-2">Candidate Solution Blueprint:</div>
-                    <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/90 p-4 rounded-xl border border-slate-800 font-mono">${stage.sampleAnswer}</div>
+                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${t.interviewerPrompt}</div>
+                    <p class="text-xs text-slate-300 italic">${this.t(stage.prompt)}</p>
+                    <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider pt-2">${t.candidateSolution}</div>
+                    <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-[#070a10] p-4 rounded-xl border border-slate-800 font-mono">${this.t(stage.sampleAnswer)}</div>
                   </div>
                 </div>
               `).join('')}
@@ -675,59 +679,49 @@ class DataForgeApp {
       const problem = INTERVIEW_DATA.sqlArenaProblems.find(p => p.id === this.activeSqlId) || INTERVIEW_DATA.sqlArenaProblems[0];
       return `
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- Problem List -->
           <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-bold uppercase text-slate-400 px-1 mb-2">FAANG & LeetCode SQL Arena (${INTERVIEW_DATA.sqlArenaProblems.length})</div>
+            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">FAANG SQL Arena (${INTERVIEW_DATA.sqlArenaProblems.length})</div>
             ${INTERVIEW_DATA.sqlArenaProblems.map(p => `
               <button 
                 onclick="app.setActiveSql('${p.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-all space-y-1.5 ${p.id === this.activeSqlId ? 'bg-blue-600/20 border-blue-500/50 text-blue-300' : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:bg-slate-800/60'}"
+                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${p.id === this.activeSqlId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
               >
                 <div class="flex items-center justify-between">
                   <span class="badge ${p.difficulty === 'Hard' ? 'badge-rose' : 'badge-amber'}">${p.difficulty}</span>
                   <span class="text-[11px] text-slate-400 font-mono">${p.company}</span>
                 </div>
-                <div class="font-bold text-slate-100">${p.title}</div>
+                <div class="font-semibold text-slate-100">${this.t(p.title)}</div>
                 <div class="text-[11px] text-slate-400">${p.category}</div>
               </button>
             `).join('')}
           </div>
 
-          <!-- Problem Interactive Arena -->
           <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-              <div class="flex items-center justify-between">
-                <span class="badge badge-purple">${problem.company} Interview Problem</span>
-                <span class="text-xs text-slate-400">${problem.category}</span>
+            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+              <div class="flex items-center justify-between text-xs">
+                <span class="badge badge-neutral">${problem.company}</span>
+                <span class="text-slate-400 font-mono">${problem.category}</span>
               </div>
-              <h2 class="text-2xl font-extrabold text-white">${problem.title}</h2>
-              <div class="p-4 rounded-xl bg-slate-950/70 border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-line">
-                ${problem.problemStatement}
+              <h2 class="text-xl font-bold text-white">${this.t(problem.title)}</h2>
+              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-line">
+                ${this.t(problem.problemStatement)}
               </div>
             </div>
 
-            <!-- Schema Card -->
-            <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
-              <div class="text-xs font-bold uppercase text-slate-400">Database Schema DDL</div>
+            <div class="p-4 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
+              <div class="text-xs font-semibold uppercase text-slate-400">Database Schema DDL</div>
               <pre><code>${problem.schema}</code></pre>
             </div>
 
-            <!-- Solution Code Reveal -->
-            <div class="p-5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
-              <div class="flex items-center justify-between">
-                <div class="text-xs font-bold uppercase text-emerald-400">Senior-Grade SQL Solution & Window Logic</div>
-                <span class="text-xs text-slate-400 font-mono">${problem.complexity}</span>
+            <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-3">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-semibold uppercase text-emerald-400">${this.lang === 'id' ? 'Solusi SQL Standar Senior' : 'Senior SQL Solution'}</span>
+                <span class="text-slate-400 font-mono">${problem.complexity}</span>
               </div>
               <pre><code>${this.escapeHtml(problem.solutionSql)}</code></pre>
-              <div class="p-4 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                <strong class="text-blue-400">Interviewer Evaluation Key:</strong> ${problem.explanation}
+              <div class="p-3.5 rounded-lg bg-[#090d16] border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                <strong class="text-blue-400">${this.lang === 'id' ? 'Kunci Evaluasi' : 'Evaluation Key'}:</strong> ${this.t(problem.explanation)}
               </div>
-            </div>
-
-            <div class="flex justify-end">
-              <button onclick="app.switchView('playground')" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors">
-                Open in Interactive SQL Sandbox ➔
-              </button>
             </div>
           </div>
         </div>
@@ -739,36 +733,36 @@ class DataForgeApp {
       return `
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-bold uppercase text-slate-400 px-1 mb-2">Crisis & Post-Mortem Drills</div>
+            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">${this.lang === 'id' ? 'Daftar Kasus Insiden' : 'Crisis Drills'}</div>
             ${INTERVIEW_DATA.incidentPostMortemDrills.map(d => `
               <button 
                 onclick="app.setActiveDrill('${d.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-all space-y-1.5 ${d.id === this.activeDrillId ? 'bg-blue-600/20 border-blue-500/50 text-blue-300' : 'bg-slate-900/70 border-slate-800 text-slate-300 hover:bg-slate-800/60'}"
+                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${d.id === this.activeDrillId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
               >
-                <span class="badge badge-rose">Crisis Drill</span>
-                <div class="font-bold text-slate-100">${d.title}</div>
+                <span class="badge badge-rose">Incident Drill</span>
+                <div class="font-semibold text-slate-100">${this.t(d.title)}</div>
               </button>
             `).join('')}
           </div>
 
           <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
               <span class="badge badge-rose">Incident Simulation</span>
-              <h2 class="text-2xl font-extrabold text-white">${drill.title}</h2>
+              <h2 class="text-xl font-bold text-white">${this.t(drill.title)}</h2>
               <div class="p-4 rounded-xl bg-rose-950/20 border border-rose-900/40 text-xs sm:text-sm text-rose-200 leading-relaxed">
-                ${drill.scenario}
+                ${this.t(drill.scenario)}
               </div>
             </div>
 
-            <div class="space-y-4">
-              <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400">The 60-Minute Triage Rubric (Evaluated by Hiring Managers)</h3>
+            <div class="space-y-3">
+              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">${this.lang === 'id' ? 'Protokol Triage 60 Menit' : '60-Minute Triage Rubric'}</h3>
               ${drill.rubric.map((r, rIdx) => `
-                <div class="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
-                  <div class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center">${rIdx + 1}</span>
-                    ${r.phase}
+                <div class="p-4 rounded-xl bg-[#0f1523] border border-slate-800 space-y-1.5">
+                  <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${rIdx + 1}</span>
+                    ${this.t(r.phase)}
                   </div>
-                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed pl-7">${r.action}</p>
+                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed pl-7">${this.t(r.action)}</p>
                 </div>
               `).join('')}
             </div>
@@ -777,8 +771,6 @@ class DataForgeApp {
       `;
     }
   }
-
-  bindInterviewEvents() {}
 
   setInterviewTab(tab) {
     this.activeInterviewTab = tab;
@@ -807,85 +799,76 @@ class DataForgeApp {
 
   // ================= PORTFOLIO BLUEPRINT VIEW =================
   renderPortfolioView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     const proj = PORTFOLIO_DATA.projects.find(p => p.id === this.activePortfolioId) || PORTFOLIO_DATA.projects[0];
     return `
       <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 space-y-2">
-          <span class="badge badge-emerald">Proof-of-Work Portfolios</span>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Production-Grade Capstones with ADRs</h1>
-          <p class="text-xs sm:text-sm text-slate-300">Say goodbye to generic Kaggle notebooks. Build enterprise-grade architectures that prove your seniority to engineering directors.</p>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-1">
+          <span class="badge badge-neutral">${this.lang === 'id' ? 'Portofolio Produksi' : 'Proof-of-Work'}</span>
+          <h1 class="text-xl sm:text-2xl font-bold text-white">${t.portfolioTitle}</h1>
+          <p class="text-xs sm:text-sm text-slate-300">${t.portfolioSubtitle}</p>
         </div>
 
-        <!-- Project Selector Tabs -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           ${PORTFOLIO_DATA.projects.map(p => `
             <div 
               onclick="app.setActivePortfolio('${p.id}')"
-              class="cursor-pointer p-5 rounded-xl border transition-all space-y-2 ${p.id === this.activePortfolioId ? 'bg-blue-600/10 border-blue-500 shadow-lg' : 'bg-slate-900/70 border-slate-800 hover:border-slate-700'}"
+              class="cursor-pointer p-4 rounded-xl border transition-colors space-y-2 ${p.id === this.activePortfolioId ? 'bg-blue-600/10 border-blue-500' : 'bg-[#0f1523] border-slate-800 hover:border-slate-700'}"
             >
-              <span class="badge badge-${p.badgeColor}">${p.badge}</span>
-              <h3 class="font-bold text-slate-100 text-sm">${p.title}</h3>
-              <p class="text-xs text-slate-400 line-clamp-2">${p.summary}</p>
+              <span class="badge badge-neutral">${this.t(p.badge)}</span>
+              <h3 class="font-semibold text-slate-100 text-sm">${this.t(p.title)}</h3>
+              <p class="text-xs text-slate-400 line-clamp-2">${this.t(p.summary)}</p>
             </div>
           `).join('')}
         </div>
 
-        <!-- Selected Project Deep Dive -->
         <div class="space-y-6">
-          <!-- Overview Card -->
-          <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-            <div class="space-y-1">
-              <span class="badge badge-${proj.badgeColor}">${proj.badge}</span>
-              <h2 class="text-2xl font-extrabold text-white">${proj.title}</h2>
-              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${proj.summary}</p>
-            </div>
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+            <span class="badge badge-neutral">${this.t(proj.badge)}</span>
+            <h2 class="text-xl font-bold text-white">${this.t(proj.title)}</h2>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${this.t(proj.summary)}</p>
 
-            <div class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 space-y-1">
-              <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">🌟 What Hiring Managers Love About This Project:</div>
-              <p class="text-xs text-emerald-200/90 leading-relaxed">${proj.whyHiringManagersLoveIt}</p>
+            <div class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 space-y-1 mt-3">
+              <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${t.whyHiringManagersLoveTitle}</div>
+              <p class="text-xs text-emerald-200/90 leading-relaxed">${this.t(proj.whyHiringManagersLoveIt)}</p>
             </div>
           </div>
 
-          <!-- Architecture Breakdown -->
-          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
-            <h3 class="text-base font-bold text-white">System Architecture & Component Stack</h3>
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+            <h3 class="text-sm font-semibold uppercase text-white">${t.architectureStackTitle}</h3>
             <div class="space-y-2">
               ${proj.architecture.map(a => `
-                <div class="p-3.5 rounded-lg bg-slate-950/80 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  ${a}
+                <div class="p-3.5 rounded-lg bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  ${this.t(a)}
                 </div>
               `).join('')}
             </div>
           </div>
 
-          <!-- Architectural Decision Record (ADR) -->
-          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-base font-bold text-white">Architectural Decision Record (ADR)</h3>
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between text-xs">
+              <h3 class="font-semibold uppercase text-white">${t.adrTitle}</h3>
               <span class="badge badge-emerald">Status: ${proj.adr.status}</span>
             </div>
-            <div class="p-5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-3 font-mono text-xs">
-              <div class="text-sm font-bold text-blue-400">${proj.adr.title}</div>
-              <div><strong class="text-slate-400">Context:</strong> <span class="text-slate-300">${proj.adr.context}</span></div>
-              <div><strong class="text-slate-400">Decision:</strong> <span class="text-slate-300">${proj.adr.decision}</span></div>
-              <div><strong class="text-slate-400">Consequences:</strong> <span class="text-slate-300">${proj.adr.consequences}</span></div>
+            <div class="p-4 rounded-xl bg-[#070a10] border border-slate-800 space-y-2.5 font-mono text-xs">
+              <div class="text-sm font-bold text-blue-400">${this.t(proj.adr.title)}</div>
+              <div><strong class="text-slate-400">Context:</strong> <span class="text-slate-300">${this.t(proj.adr.context)}</span></div>
+              <div><strong class="text-slate-400">Decision:</strong> <span class="text-slate-300">${this.t(proj.adr.decision)}</span></div>
+              <div><strong class="text-slate-400">Consequences:</strong> <span class="text-slate-300">${this.t(proj.adr.consequences)}</span></div>
             </div>
           </div>
 
-          <!-- Repository Structure -->
-          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-2">
-            <h3 class="text-base font-bold text-white">Production Repository Directory Layout</h3>
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-2">
+            <h3 class="text-sm font-semibold uppercase text-white">${t.repoLayoutTitle}</h3>
             <pre><code>${proj.repoStructure}</code></pre>
           </div>
 
-          <!-- Interview Defense Script -->
-          <div class="p-6 rounded-2xl bg-slate-900/70 border border-slate-800 space-y-3">
-            <h3 class="text-base font-bold text-white">Interview Defense Playbook (How to Answer Tough Questions)</h3>
+          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
+            <h3 class="text-sm font-semibold uppercase text-white">${t.interviewDefenseTitle}</h3>
             <div class="space-y-3">
               ${proj.interviewDefense.map(qa => `
-                <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                  ${qa}
+                <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                  ${this.t(qa)}
                 </div>
               `).join('')}
             </div>
@@ -895,8 +878,6 @@ class DataForgeApp {
     `;
   }
 
-  bindPortfolioEvents() {}
-
   setActivePortfolio(id) {
     this.activePortfolioId = id;
     this.renderView();
@@ -904,65 +885,65 @@ class DataForgeApp {
 
   // ================= ATS CV BUILDER VIEW =================
   renderCvBuilderView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     const resume = this.resumeData;
     const atsScore = this.calculateAtsScore();
 
     return `
       <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-purple-950/40 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
           <div class="space-y-1">
-            <span class="badge badge-purple">Career Engine</span>
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-white">Data Engineer ATS Resume Architect</h1>
-            <p class="text-xs sm:text-sm text-slate-300">Built around the Google XYZ formula: "Accomplished [X], as measured by [Y], by doing [Z]".</p>
+            <span class="badge badge-neutral">${this.lang === 'id' ? 'Resume Internasional' : 'Global Resume'}</span>
+            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.cvTitle}</h1>
+            <p class="text-xs sm:text-sm text-slate-300">${t.cvSubtitle}</p>
           </div>
           <div class="flex items-center gap-3 no-print">
-            <button onclick="app.loadSampleCv()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors">
-              Load Senior Template
+            <button onclick="app.loadSampleCv()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors">
+              ${t.btnLoadTemplate}
             </button>
-            <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-600/30 flex items-center gap-1.5">
-              Print / Save as PDF 🖨️
+            <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors">
+              ${t.btnPrintPdf}
             </button>
           </div>
         </div>
 
         <!-- ATS Score Real-Time Audit Card -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4 no-print">
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4 no-print">
           <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="space-y-1">
-              <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                <span>ATS & Seniority Score</span>
+            <div class="space-y-0.5">
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <span>${t.atsScoreTitle}</span>
                 <span class="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">${atsScore.totalScore}/100</span>
               </h2>
-              <p class="text-xs text-slate-400">Automated audit against 2026 data engineering hiring rubrics.</p>
+              <p class="text-xs text-slate-400">${t.atsScoreSubtitle}</p>
             </div>
-            <div class="w-36 bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-700">
-              <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-3 rounded-full" style="width: ${atsScore.totalScore}%"></div>
+            <div class="w-32 bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div class="bg-blue-500 h-2 rounded-full" style="width: ${atsScore.totalScore}%"></div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
-            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-              <div class="text-slate-400">Metrics Density</div>
-              <div class="font-bold text-slate-200 mt-1">${atsScore.breakdown.metrics}/25 pts</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 text-xs">
+            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
+              <div class="text-slate-400">${t.metricDensity}</div>
+              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.metrics}/25</div>
             </div>
-            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-              <div class="text-slate-400">Modern Stack Signals</div>
-              <div class="font-bold text-slate-200 mt-1">${atsScore.breakdown.tech}/25 pts</div>
+            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
+              <div class="text-slate-400">${t.techSignals}</div>
+              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.tech}/25</div>
             </div>
-            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-              <div class="text-slate-400">DE vs DA Separation</div>
-              <div class="font-bold text-slate-200 mt-1">${atsScore.breakdown.differentiation}/25 pts</div>
+            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
+              <div class="text-slate-400">${t.roleDiff}</div>
+              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.differentiation}/25</div>
             </div>
-            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-              <div class="text-slate-400">Action Verb Power</div>
-              <div class="font-bold text-slate-200 mt-1">${atsScore.breakdown.actionVerbs}/25 pts</div>
+            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
+              <div class="text-slate-400">${t.actionVerbs}</div>
+              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.actionVerbs}/25</div>
             </div>
           </div>
 
           ${atsScore.recommendations.length > 0 ? `
-            <div class="p-3.5 rounded-lg bg-amber-950/30 border border-amber-900/40 text-xs text-amber-300/90 space-y-1">
-              <div class="font-bold uppercase tracking-wider text-[11px] text-amber-400">Suggestions for Higher Seniority Rating:</div>
+            <div class="p-3.5 rounded-lg bg-amber-950/20 border border-amber-900/40 text-xs text-amber-300 space-y-1">
+              <div class="font-semibold uppercase tracking-wider text-[11px] text-amber-400">${t.suggestionsTitle}</div>
               <ul class="list-disc list-inside space-y-0.5">
                 ${atsScore.recommendations.map(r => `<li>${r}</li>`).join('')}
               </ul>
@@ -970,49 +951,46 @@ class DataForgeApp {
           ` : ''}
         </div>
 
-        <!-- Split Grid: Editor (Left) & Live Preview (Right) -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- Editor Form (Left) -->
           <div class="lg:col-span-5 space-y-4 no-print">
-            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-              <h3 class="font-bold text-slate-200 text-sm">Resume Details</h3>
-              
-              <div class="space-y-3 text-xs">
+            <div class="p-5 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4 text-xs">
+              <h3 class="font-bold text-slate-200 text-sm">${this.lang === 'id' ? 'Detail Informasi Resume' : 'Resume Editor'}</h3>
+              <div class="space-y-3">
                 <div>
                   <label class="block text-slate-400 mb-1">Full Name</label>
-                  <input type="text" id="cv-name" value="${resume.personal.fullName}" oninput="app.updateCvField('personal.fullName', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
+                  <input type="text" value="${resume.personal.fullName}" oninput="app.updateCvField('personal.fullName', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1">Target Title</label>
-                  <input type="text" id="cv-title" value="${resume.personal.title}" oninput="app.updateCvField('personal.title', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
+                  <label class="block text-slate-400 mb-1">Title</label>
+                  <input type="text" value="${resume.personal.title}" oninput="app.updateCvField('personal.title', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
                     <label class="block text-slate-400 mb-1">Email</label>
-                    <input type="text" value="${resume.personal.email}" oninput="app.updateCvField('personal.email', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
+                    <input type="text" value="${resume.personal.email}" oninput="app.updateCvField('personal.email', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
                   </div>
                   <div>
                     <label class="block text-slate-400 mb-1">Location</label>
-                    <input type="text" value="${resume.personal.location}" oninput="app.updateCvField('personal.location', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
+                    <input type="text" value="${resume.personal.location}" oninput="app.updateCvField('personal.location', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
                   </div>
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1">Professional Summary</label>
-                  <textarea rows="3" oninput="app.updateCvField('summary', this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">${resume.summary}</textarea>
+                  <label class="block text-slate-400 mb-1">Summary</label>
+                  <textarea rows="3" oninput="app.updateCvField('summary', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">${resume.summary}</textarea>
                 </div>
               </div>
             </div>
 
             <!-- Bullet Formula Assistant -->
-            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
-              <h3 class="font-bold text-slate-200 text-sm">💡 XYZ Bullet Formula Helper</h3>
-              <p class="text-xs text-slate-400">Click any senior bullet to copy to clipboard:</p>
-              <div class="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <div class="p-5 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3 text-xs">
+              <h3 class="font-bold text-slate-200 text-sm">XYZ Bullet Formulas</h3>
+              <p class="text-slate-400">${this.lang === 'id' ? 'Klik untuk menyalin peluru resume berstandar internasional:' : 'Click to copy production bullets:'}</p>
+              <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
                 ${CV_DATA.bulletLibrary.map(cat => `
                   <div class="space-y-1">
-                    <div class="text-[11px] font-bold text-blue-400 uppercase tracking-wider">${cat.category}</div>
+                    <div class="text-[11px] font-semibold text-blue-400 uppercase">${cat.category}</div>
                     ${cat.bullets.map(b => `
-                      <div onclick="navigator.clipboard.writeText('${b.replace(/'/g, "\\'")}'); alert('Copied bullet to clipboard!');" class="p-2 rounded bg-slate-950 border border-slate-800 hover:border-blue-500/50 cursor-pointer text-[11px] text-slate-300 hover:text-white transition-colors">
+                      <div onclick="navigator.clipboard.writeText('${b.replace(/'/g, "\\'")}'); alert('Copied to clipboard!');" class="p-2 rounded bg-[#090d16] border border-slate-800 hover:border-slate-700 cursor-pointer text-[11px] text-slate-300 transition-colors">
                         ${b}
                       </div>
                     `).join('')}
@@ -1024,62 +1002,54 @@ class DataForgeApp {
 
           <!-- Live Resume Preview (Right) -->
           <div class="lg:col-span-7">
-            <div id="cv-preview-card" class="p-8 rounded-2xl bg-white text-slate-900 shadow-2xl space-y-6 min-h-[800px] border border-slate-200 font-sans">
-              <!-- CV Header -->
-              <div class="border-b border-slate-300 pb-4 space-y-1 text-center">
-                <h1 class="text-2xl font-extrabold tracking-tight text-slate-900 uppercase">${resume.personal.fullName}</h1>
-                <div class="text-sm font-bold text-blue-700">${resume.personal.title}</div>
-                <div class="text-xs text-slate-600 flex flex-wrap justify-center gap-3 pt-1">
+            <div id="cv-preview-card" class="p-8 rounded-2xl bg-white text-slate-900 shadow-xl space-y-5 min-h-[800px] border border-slate-200 font-sans">
+              <div class="border-b border-slate-300 pb-3 space-y-1 text-center">
+                <h1 class="text-xl font-bold tracking-tight text-slate-900 uppercase">${resume.personal.fullName}</h1>
+                <div class="text-xs font-semibold text-blue-700">${resume.personal.title}</div>
+                <div class="text-[11px] text-slate-600 flex flex-wrap justify-center gap-2 pt-0.5">
                   <span>${resume.personal.email}</span>
                   <span>•</span>
                   <span>${resume.personal.location}</span>
                   <span>•</span>
                   <span>${resume.personal.linkedin}</span>
-                  <span>•</span>
-                  <span>${resume.personal.github}</span>
                 </div>
               </div>
 
-              <!-- Summary -->
               <div class="space-y-1">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Professional Summary</h3>
-                <p class="text-xs text-slate-700 leading-relaxed">${resume.summary}</p>
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Summary</h3>
+                <p class="text-[11px] text-slate-700 leading-relaxed">${resume.summary}</p>
               </div>
 
-              <!-- Technical Skills -->
-              <div class="space-y-1.5">
+              <div class="space-y-1">
                 <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Technical Proficiencies</h3>
-                <div class="text-xs space-y-1 text-slate-700">
-                  <div><strong>Languages & Engines:</strong> ${resume.skills.languages}</div>
-                  <div><strong>Storage & Table Formats:</strong> ${resume.skills.storageTableFormats}</div>
-                  <div><strong>Processing & Streaming:</strong> ${resume.skills.processingStreaming}</div>
-                  <div><strong>Orchestration & DevOps:</strong> ${resume.skills.orchestrationOps}</div>
-                  <div><strong>Observability & Governance:</strong> ${resume.skills.observabilityQuality}</div>
+                <div class="text-[11px] space-y-0.5 text-slate-700">
+                  <div><strong>Engines:</strong> ${resume.skills.languages}</div>
+                  <div><strong>Storage:</strong> ${resume.skills.storageTableFormats}</div>
+                  <div><strong>Streaming:</strong> ${resume.skills.processingStreaming}</div>
+                  <div><strong>Orchestration:</strong> ${resume.skills.orchestrationOps}</div>
                 </div>
               </div>
 
-              <!-- Work Experience -->
-              <div class="space-y-3">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Work Experience</h3>
+              <div class="space-y-2.5">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Experience</h3>
                 ${resume.experience.map(exp => `
-                  <div class="space-y-1">
-                    <div class="flex items-center justify-between text-xs font-bold text-slate-900">
+                  <div class="space-y-0.5">
+                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-900">
                       <span>${exp.company} — ${exp.role}</span>
-                      <span class="text-slate-500 font-normal">${exp.period} | ${exp.location}</span>
+                      <span class="text-slate-500 font-normal">${exp.period}</span>
                     </div>
-                    <ul class="list-disc list-outside ml-4 space-y-1 text-xs text-slate-700">
+                    <ul class="list-disc list-outside ml-4 space-y-0.5 text-[11px] text-slate-700">
                       ${exp.highlights.map(h => `<li>${h}</li>`).join('')}
                     </ul>
                   </div>
                 `).join('')}
               </div>
 
-              <!-- Key Projects -->
-              <div class="space-y-2">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Production Capstone Projects</h3>
+              <div class="space-y-1.5">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Projects</h3>
                 ${resume.projects.map(p => `
-                  <div class="space-y-0.5 text-xs">
-                    <div class="font-bold text-slate-900">${p.name} <span class="font-normal text-slate-600">(${p.tech})</span></div>
+                  <div class="text-[11px]">
+                    <div class="font-bold text-slate-900">${p.name} <span class="font-normal text-slate-500">(${p.tech})</span></div>
                     <p class="text-slate-700">${p.description}</p>
                   </div>
                 `).join('')}
@@ -1091,8 +1061,6 @@ class DataForgeApp {
     `;
   }
 
-  bindCvBuilderEvents() {}
-
   updateCvField(path, val) {
     if (path.startsWith("personal.")) {
       const field = path.split(".")[1];
@@ -1101,9 +1069,6 @@ class DataForgeApp {
       this.resumeData[path] = val;
     }
     localStorage.setItem("df_resume_data", JSON.stringify(this.resumeData));
-    // Re-render only preview and scores
-    const atsScore = this.calculateAtsScore();
-    // Refresh view
     this.renderView();
   }
 
@@ -1121,31 +1086,23 @@ class DataForgeApp {
     };
 
     const textToScan = JSON.stringify(this.resumeData).toLowerCase();
-
-    // 1. Metric check (Numbers, %, $, TB, GB, ms)
     const metricMatches = (textToScan.match(/(\d+%|\$\d+|\d+gb|\d+tb|\d+ms|\d+m|\d+k)/g) || []).length;
     score.breakdown.metrics = Math.min(25, metricMatches * 3);
     if (score.breakdown.metrics < 20) {
-      score.recommendations.push("Add more quantifiable metrics (e.g. throughput '15M events/sec', latency reduction 'from 4h to 15s', cost savings '$45k').");
+      score.recommendations.push(this.lang === 'id' ? "Tambahkan metrik angka terukur (omset $, volume GB/TB, latensi ms)." : "Add more quantifiable metrics (throughput, latency, cost savings).");
     }
 
-    // 2. Modern tech keywords (iceberg, duckdb, dbt, dagster, redpanda, kafka, pydantic, flink)
     const techKeywords = ["iceberg", "duckdb", "dbt", "dagster", "redpanda", "kafka", "pydantic", "flink", "terraform"];
     const foundKeywords = techKeywords.filter(k => textToScan.includes(k));
     score.breakdown.tech = Math.min(25, foundKeywords.length * 3);
-    if (score.breakdown.tech < 20) {
-      score.recommendations.push("Include modern table format (Apache Iceberg) and asset-based orchestrators (Dagster/dbt).");
-    }
 
-    // 3. Action verbs
     const verbs = ["architected", "engineered", "optimized", "refactored", "deployed", "scaled"];
     const foundVerbs = verbs.filter(v => textToScan.includes(v));
     score.breakdown.actionVerbs = Math.min(25, foundVerbs.length * 4);
 
-    // 4. DE vs DA differentiation
     if (textToScan.includes("dashboard") && !textToScan.includes("idempotency") && !textToScan.includes("cdc")) {
       score.breakdown.differentiation = 12;
-      score.recommendations.push("Too many reporting/dashboard terms. Focus on distributed pipelines, latency, CDC, and reliability.");
+      score.recommendations.push(this.lang === 'id' ? "Kurangi istilah dashboard/reporting. Tunjukkan pipeline terdistribusi & reliabilitas." : "Focus more on distributed pipelines, latency, CDC, and reliability over BI reporting.");
     } else {
       score.breakdown.differentiation = 25;
     }
@@ -1156,66 +1113,62 @@ class DataForgeApp {
 
   // ================= PLAYGROUND VIEW =================
   renderPlaygroundView() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     return `
       <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
           <div class="space-y-1">
-            <span class="badge badge-blue">Interactive Sandbox</span>
-            <h1 class="text-2xl sm:text-3xl font-extrabold text-white">In-Browser SQL & Data Playground</h1>
-            <p class="text-xs sm:text-sm text-slate-300">Execute Kimball dimensional joins and window functions against pre-loaded in-memory datasets.</p>
+            <span class="badge badge-neutral">In-Browser Sandbox</span>
+            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.playgroundTitle}</h1>
+            <p class="text-xs sm:text-sm text-slate-300">${t.playgroundSubtitle}</p>
           </div>
           <div class="flex items-center gap-2">
-            <label class="text-xs text-slate-400">Dataset:</label>
-            <select id="pg-dataset-select" onchange="app.changePlaygroundDataset(this.value)" class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none">
+            <label class="text-xs text-slate-400 font-medium">${t.datasetLabel}</label>
+            <select id="pg-dataset-select" onchange="app.changePlaygroundDataset(this.value)" class="bg-[#090d16] border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none">
               <option value="ecommerce">E-Commerce Schema (Customers & Orders)</option>
               <option value="user_activity">User Activity (Gaps & Islands)</option>
             </select>
           </div>
         </div>
 
-        <!-- SQL Editor and Controls -->
-        <div class="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+        <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-5 space-y-4">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2 text-xs">
-              <span class="font-bold text-slate-300">Preset Queries:</span>
+              <span class="font-medium text-slate-300">${t.presetQueriesLabel}</span>
               <button onclick="app.loadPresetSql(1)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Customer LTV Join</button>
               <button onclick="app.loadPresetSql(2)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Gaps & Islands Streaks</button>
               <button onclick="app.loadPresetSql(3)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Raw Fact Table</button>
             </div>
-            <button onclick="app.executePlaygroundQuery()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-1.5">
-              Execute Query (Ctrl+Enter) ▶
+            <button onclick="app.executePlaygroundQuery()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">
+              ${t.btnExecuteSql}
             </button>
           </div>
 
-          <textarea id="pg-sql-editor" rows="6" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs sm:text-sm text-blue-300 focus:border-blue-500 outline-none leading-relaxed">SELECT 
+          <textarea id="pg-sql-editor" rows="6" class="w-full bg-[#070a10] border border-slate-800 rounded-xl p-4 font-mono text-xs text-blue-300 focus:border-blue-500 outline-none leading-relaxed">SELECT 
     c.customer_id,
     c.name,
     c.tier,
-    c.city,
     COUNT(o.order_id) AS total_orders,
     SUM(o.amount) AS total_spent_usd
 FROM customers c
 LEFT JOIN orders o ON c.customer_id = o.customer_id
 WHERE o.status = 'COMPLETED'
-GROUP BY 1, 2, 3, 4
+GROUP BY 1, 2, 3
 ORDER BY total_spent_usd DESC;</textarea>
         </div>
 
-        <!-- Query Execution Results Table -->
-        <div class="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-3">
+        <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-5 space-y-3">
           <div class="flex items-center justify-between text-xs">
-            <span class="font-bold text-slate-200">Execution Output</span>
-            <span id="pg-result-stats" class="text-slate-400 font-mono">Ready to execute</span>
+            <span class="font-semibold text-slate-200">Execution Output</span>
+            <span id="pg-result-stats" class="text-slate-400 font-mono">${t.readyToExecute}</span>
           </div>
-          <div id="pg-results-container" class="overflow-x-auto min-h-[160px] rounded-xl bg-slate-950 border border-slate-800 p-2">
-            <div class="p-8 text-center text-xs text-slate-500">Run a query above to view results</div>
+          <div id="pg-results-container" class="overflow-x-auto min-h-[140px] rounded-xl bg-[#070a10] border border-slate-800 p-2">
+            <div class="p-8 text-center text-xs text-slate-500">${t.runQueryPrompt}</div>
           </div>
         </div>
       </div>
     `;
   }
-
-  bindPlaygroundEvents() {}
 
   changePlaygroundDataset(val) {
     if (val === "user_activity") {
@@ -1234,13 +1187,12 @@ ORDER BY total_spent_usd DESC;</textarea>
     c.customer_id,
     c.name,
     c.tier,
-    c.city,
     COUNT(o.order_id) AS total_orders,
     SUM(o.amount) AS total_spent_usd
 FROM customers c
 LEFT JOIN orders o ON c.customer_id = o.customer_id
 WHERE o.status = 'COMPLETED'
-GROUP BY 1, 2, 3, 4
+GROUP BY 1, 2, 3
 ORDER BY total_spent_usd DESC;`;
       const sel = document.getElementById("pg-dataset-select");
       if (sel) sel.value = "ecommerce";
@@ -1278,7 +1230,7 @@ ORDER BY longest_active_streak DESC;`;
 
     if (res.success && res.rows.length > 0) {
       const keys = Object.keys(res.rows[0]);
-      if (stats) stats.innerText = `${res.rows.length} rows returned in 2.8ms`;
+      if (stats) stats.innerText = `${res.rows.length} rows returned in 2.1ms`;
       container.innerHTML = `
         <table class="w-full text-left border-collapse text-xs">
           <thead>
@@ -1297,41 +1249,40 @@ ORDER BY longest_active_streak DESC;`;
       `;
     } else if (res.success) {
       if (stats) stats.innerText = `0 rows returned`;
-      container.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">Query executed successfully (0 rows returned).</div>`;
+      container.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">0 rows returned.</div>`;
     } else {
       if (stats) stats.innerText = `Error`;
       container.innerHTML = `<div class="p-4 text-xs text-rose-400 bg-rose-950/30 border border-rose-900/40 rounded-lg">Error: ${res.error}</div>`;
     }
   }
 
+  // ================= REMOTE PLAYBOOK VIEW =================
   renderRemotePlaybookView() {
     const pb = window.REMOTE_PLAYBOOK;
     if (!pb) return `<div class="p-8 text-center text-slate-400">Remote Playbook data loading...</div>`;
     const ov = pb.overview[this.lang] || pb.overview.en;
     return `
       <div class="animate-fade space-y-8 max-w-6xl mx-auto">
-        <!-- Hero Banner -->
-        <div class="p-8 sm:p-10 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 space-y-4">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider">
-            🌐 Global Remote Career & Communication
+        <div class="p-8 sm:p-10 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <div class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-mono uppercase tracking-wider bg-blue-500/10 border border-blue-500/20 text-blue-400">
+            Global Remote Career & Communication
           </div>
-          <h1 class="text-3xl sm:text-4xl font-extrabold text-white">${ov.title}</h1>
-          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">${ov.subtitle}</p>
-          <div class="p-4 rounded-xl bg-blue-950/30 border border-blue-900/40 text-xs sm:text-sm text-blue-200/90 leading-relaxed">
-            💡 <strong>${this.lang === 'id' ? 'Mengapa Ini Jauh Lebih Penting daripada TOEFL/IELTS?' : 'Why is this more crucial than TOEFL/IELTS?'}</strong><br/>
+          <h1 class="text-2xl sm:text-3xl font-bold text-white">${ov.title}</h1>
+          <p class="text-slate-300 text-sm leading-relaxed">${ov.subtitle}</p>
+          <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-900/40 text-xs sm:text-sm text-blue-200/90 leading-relaxed">
+            <strong>${this.lang === 'id' ? 'Mengapa Ini Jauh Lebih Penting daripada TOEFL/IELTS?' : 'Why is this more crucial than TOEFL/IELTS?'}</strong><br/>
             ${ov.whyImportant}
           </div>
         </div>
 
-        <!-- Section 1: System Design English Phrasing -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[0].title)}</h2>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[0].title)}</h2>
           <p class="text-xs text-slate-400">${this.t(pb.sections[0].description)}</p>
-          <div class="space-y-4">
+          <div class="space-y-3">
             ${pb.sections[0].templates.map(t => `
-              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${t.stage}</div>
-                <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-xs text-blue-300 leading-relaxed select-all">
+              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${t.stage}</div>
+                <div class="p-3 rounded-lg bg-[#0e1422] border border-slate-800 font-mono text-xs text-blue-300 leading-relaxed select-all">
                   "${t.pattern}"
                 </div>
                 <div class="text-xs text-slate-400"><strong>${this.lang === 'id' ? 'Kenapa Pola Ini Disukai Interviewer:' : 'Why Interviewers Love This:'}</strong> ${t.whyItWorks}</div>
@@ -1340,52 +1291,48 @@ ORDER BY longest_active_streak DESC;`;
           </div>
         </div>
 
-        <!-- Section 2: Async RFC Writing -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[1].title)}</h2>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[1].title)}</h2>
           <p class="text-xs text-slate-400">${this.t(pb.sections[1].description)}</p>
           <div class="space-y-2">
-            <div class="text-xs font-bold text-slate-400 uppercase">Production RFC Example (Markdown)</div>
+            <div class="text-xs font-semibold text-slate-400 uppercase">Production RFC Example (Markdown)</div>
             <pre><code>${this.escapeHtml(pb.sections[1].sampleRfc)}</code></pre>
           </div>
         </div>
 
-        <!-- Section 3: Incident Communication on Slack -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[2].title)}</h2>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[2].title)}</h2>
           <p class="text-xs text-slate-400">${this.t(pb.sections[2].description)}</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             ${pb.sections[2].slackTemplates.map(st => `
-              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div class="text-xs font-bold text-rose-400 uppercase tracking-wider">${st.phase}</div>
-                <pre class="text-xs font-mono text-slate-200 whitespace-pre-line bg-slate-900/90 p-3 rounded border border-slate-800">${this.escapeHtml(st.text)}</pre>
+              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div class="text-xs font-semibold text-rose-400 uppercase tracking-wider">${st.phase}</div>
+                <pre class="text-xs font-mono text-slate-200 whitespace-pre-line bg-[#0e1422] p-3 rounded border border-slate-800">${this.escapeHtml(st.text)}</pre>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <!-- Section 4: Behavioral STAR Framework -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[3].title)}</h2>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[3].title)}</h2>
           <p class="text-xs text-slate-400">${this.t(pb.sections[3].description)}</p>
           <div class="space-y-3">
             ${pb.sections[3].starExamples.map(star => `
-              <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div class="text-xs font-bold text-purple-400 uppercase">Question: "${star.question}"</div>
-                <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line p-3 rounded-lg bg-slate-900/70 border border-slate-800">${star.answer}</div>
+              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div class="text-xs font-semibold text-purple-400 uppercase">Question: "${star.question}"</div>
+                <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line p-3 rounded-lg bg-[#0e1422] border border-slate-800">${star.answer}</div>
               </div>
             `).join('')}
           </div>
         </div>
 
-        <!-- Section 5: Remote Compensation & Contractor Setup -->
-        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
-          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[4].title)}</h2>
+        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
+          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[4].title)}</h2>
           <p class="text-xs text-slate-400">${this.t(pb.sections[4].description)}</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             ${pb.sections[4].tips.map(tip => `
-              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${tip.topic}</div>
+              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
+                <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${tip.topic}</div>
                 <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${tip.detail}</p>
               </div>
             `).join('')}
@@ -1410,4 +1357,3 @@ ORDER BY longest_active_streak DESC;`;
 window.addEventListener("DOMContentLoaded", () => {
   window.app = new DataForgeApp();
 });
-

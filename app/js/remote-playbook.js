@@ -140,3 +140,4 @@ If consumer lag exceeds 500k records during initial backfill, replication slots 
     }
   ]
 };
+

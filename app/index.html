@@ -33,61 +33,61 @@
     <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
       <!-- Brand Logo -->
       <div class="flex items-center gap-3 cursor-pointer" onclick="app.switchView('roadmap')">
-        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-emerald-400 flex items-center justify-center font-black text-white text-base shadow-lg shadow-blue-500/20">
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs tracking-wider">
           DF
         </div>
         <div>
-          <span class="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
-            DataForge <span class="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">2026 Core</span>
+          <span class="font-bold text-sm tracking-tight text-white flex items-center gap-2">
+            DataForge <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 border border-slate-700">Core</span>
           </span>
-          <p class="text-[11px] text-slate-400 -mt-0.5">The Anti-Tutorial-Hell DE Learning System</p>
+          <p class="text-[11px] text-slate-400 -mt-0.5" id="brand-subtitle">Hands-on Data Engineering</p>
         </div>
       </div>
 
       <!-- Navigation Pill Bar (Desktop) -->
-      <nav class="hidden md:flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
-        <button data-nav="roadmap" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          🚀 Roadmap
+      <nav class="hidden md:flex items-center gap-0.5 bg-[#0e1422] p-1 rounded-xl border border-slate-800 text-xs font-medium">
+        <button data-nav="roadmap" id="nav-btn-roadmap" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          Roadmap
         </button>
-        <button data-nav="curriculum" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          📚 Curriculum
+        <button data-nav="curriculum" id="nav-btn-curriculum" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          Curriculum
         </button>
-        <button data-nav="interview" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          🎯 Interview Sim
+        <button data-nav="interview" id="nav-btn-interview" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          Interview Sim
         </button>
-        <button data-nav="portfolio" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          💼 Portfolios
+        <button data-nav="portfolio" id="nav-btn-portfolio" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          Portfolios
         </button>
-        <button data-nav="cv-builder" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          📄 CV Builder
+        <button data-nav="cv-builder" id="nav-btn-cv-builder" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          ATS Resume
         </button>
-        <button data-nav="playground" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          💻 SQL Sandbox
+        <button data-nav="playground" id="nav-btn-playground" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          SQL Sandbox
         </button>
-        <button data-nav="remote-playbook" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
-          🌐 Remote English
+        <button data-nav="remote-playbook" id="nav-btn-remote" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          Remote Career
         </button>
       </nav>
 
       <!-- Language Toggle & Mastery Progress Meter -->
       <div class="flex items-center gap-3">
-        <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold" id="lang-toggle-box">
-          <button id="lang-btn-id" onclick="app.setLanguage('id')" class="px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20">🇮🇩 ID</button>
-          <button id="lang-btn-en" onclick="app.setLanguage('en')" class="px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white">🇬🇧 EN</button>
+        <div class="flex items-center bg-[#0e1422] border border-slate-800 rounded-lg p-0.5 text-xs font-semibold" id="lang-toggle-box">
+          <button id="lang-btn-id" onclick="app.setLanguage('id')" class="px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20">ID</button>
+          <button id="lang-btn-en" onclick="app.setLanguage('en')" class="px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white">EN</button>
         </div>
         <div id="header-stats"></div>
       </div>
     </div>
 
     <!-- Mobile Nav Bar -->
-    <div class="flex md:hidden items-center justify-around gap-1 pt-3 border-t border-slate-800/60 mt-2 text-[11px] font-semibold text-slate-400 overflow-x-auto">
-      <button data-nav="roadmap" class="px-2 py-1">Roadmap</button>
-      <button data-nav="curriculum" class="px-2 py-1">Curriculum</button>
-      <button data-nav="interview" class="px-2 py-1">Interviews</button>
-      <button data-nav="portfolio" class="px-2 py-1">Portfolios</button>
-      <button data-nav="cv-builder" class="px-2 py-1">CV</button>
-      <button data-nav="playground" class="px-2 py-1">SQL</button>
-      <button data-nav="remote-playbook" class="px-2 py-1">Remote</button>
+    <div class="flex md:hidden items-center justify-around gap-1 pt-2.5 border-t border-slate-800/80 mt-2 text-[11px] font-medium text-slate-400 overflow-x-auto">
+      <button data-nav="roadmap" id="mob-nav-roadmap" class="px-2 py-1">Roadmap</button>
+      <button data-nav="curriculum" id="mob-nav-curriculum" class="px-2 py-1">Curriculum</button>
+      <button data-nav="interview" id="mob-nav-interview" class="px-2 py-1">Interviews</button>
+      <button data-nav="portfolio" id="mob-nav-portfolio" class="px-2 py-1">Portfolios</button>
+      <button data-nav="cv-builder" id="mob-nav-cv-builder" class="px-2 py-1">Resume</button>
+      <button data-nav="playground" id="mob-nav-playground" class="px-2 py-1">SQL</button>
+      <button data-nav="remote-playbook" id="mob-nav-remote" class="px-2 py-1">Remote</button>
     </div>
   </header>
 
@@ -95,23 +95,24 @@
   <main id="main-content" class="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full"></main>
 
   <!-- Footer -->
-  <footer class="mt-auto border-t border-slate-800/80 bg-slate-950/70 px-4 sm:px-8 py-6 text-xs text-slate-500 no-print">
+  <footer class="mt-auto border-t border-slate-800/80 bg-[#090d16] px-4 sm:px-8 py-6 text-xs text-slate-500 no-print">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-2">
-        <span class="font-bold text-slate-400">DataForge Platform</span>
+        <span class="font-semibold text-slate-400">DataForge</span>
         <span>•</span>
-        <span>Architected for True Data Engineering Mastery</span>
+        <span id="footer-tagline">Architected for True Engineering Mastery</span>
       </div>
       <div class="flex items-center gap-4 text-slate-400">
-        <a href="#" onclick="app.switchView('curriculum'); return false;" class="hover:text-blue-400 transition-colors">Curriculum</a>
-        <a href="#" onclick="app.switchView('interview'); return false;" class="hover:text-blue-400 transition-colors">Interviews</a>
-        <a href="#" onclick="app.switchView('portfolio'); return false;" class="hover:text-blue-400 transition-colors">Portfolios</a>
-        <a href="#" onclick="app.switchView('remote-playbook'); return false;" class="hover:text-blue-400 transition-colors">Remote Guide</a>
+        <a href="#" onclick="app.switchView('curriculum'); return false;" id="footer-link-curriculum" class="hover:text-blue-400 transition-colors">Curriculum</a>
+        <a href="#" onclick="app.switchView('interview'); return false;" id="footer-link-interview" class="hover:text-blue-400 transition-colors">Interviews</a>
+        <a href="#" onclick="app.switchView('portfolio'); return false;" id="footer-link-portfolio" class="hover:text-blue-400 transition-colors">Portfolios</a>
+        <a href="#" onclick="app.switchView('remote-playbook'); return false;" id="footer-link-remote" class="hover:text-blue-400 transition-colors">Remote Guide</a>
       </div>
     </div>
   </footer>
 
   <!-- Application Scripts -->
+  <script src="js/translations.js"></script>
   <script src="js/curriculum-data.js"></script>
   <script src="js/interview-data.js"></script>
   <script src="js/portfolio-data.js"></script>

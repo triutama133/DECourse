@@ -4,7 +4,10 @@ window.CV_DATA = {
   formulaGuideline: {
     name: "The XYZ Impact Formula",
     formula: "Accomplished [X], as measured by [Y], by doing [Z]",
-    explanation: "Hiring managers and ATS filters look for measurable engineering outcomes, not passive job descriptions. Never write 'Responsible for data pipelines'. Instead, quantify the volume, latency reduction, cost savings, or reliability improvement.",
+    explanation: {
+      id: "Perekrut global dan filter ATS mencari dampak hasil rekayasa yang terukur, bukan sekadar daftar deskripsi tugas pasif. Jangan tulis 'Bertanggung jawab membuat pipeline data'. Sebutkan volume data, penurunan latensi, penghematan biaya server, atau peningkatan keandalan.",
+      en: "Hiring managers and ATS filters look for measurable engineering outcomes, not passive job descriptions. Never write 'Responsible for data pipelines'. Instead, quantify the volume, latency reduction, cost savings, or reliability improvement."
+    },
     examples: [
       {
         bad: "Responsible for creating ETL pipelines in Python and SQL.",
