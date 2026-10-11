@@ -249,7 +249,7 @@ Data skew adalah karakteristik intrinsik dari distribusi data, bukan kelemahan m
 ### Apa gejala paling jelas dari terjadinya data skew yang terlihat pada antarmuka web Spark UI?
 - [ ] Setiap task di dalam stage menunjukkan durasi eksekusi yang persis sama, dan stage tidak pernah selesai berjalan
 - [ ] Memori driver menunjukkan penggunaan yang sangat tinggi meskipun tidak ada perintah pengambilan data collect
-- [x] Segelintir task membutuhkan waktu jauh lebih lama dan membaca volume shuffle data jauh lebih besar daripada nilai median task lainnya
+- [x] Segelintir task memakan waktu jauh lebih lama dan membaca volume shuffle jauh melampaui median task lainnya
 - [ ] Jumlah total executor mendadak turun menjadi nol, dan aplikasi job berada dalam status menunggu tanpa batas
 
 > Total waktu penyelesaian suatu stage ditentukan oleh task yang paling lambat (straggler). Sebuah task yang memiliki metrik shuffle read size atau durasi waktu puluhan kali lipat dari median menandakan adanya hot key (skew).

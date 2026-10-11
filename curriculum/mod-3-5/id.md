@@ -221,9 +221,9 @@ Sebuah vektor hanya bermakna jika dipadukan dengan model yang memproduksinya. Se
 > Identitas unik potongan teks adalah pasangan (doc_id, content_hash). Potongan teks yang tidak berubah mempertahankan vektor lamanya dan hanya diperbarui nomor urut posisinya. Sebaliknya, metode fixed-size chunking akan menggeser seluruh batas potongan berikutnya dan memaksa re-embedding pada seluruh dokumen.
 
 ### Sebuah model embedding hosted digantikan oleh model generasi baru yang memiliki jumlah dimensi yang persis sama. Apa yang wajib dilakukan terhadap vektor lama di database?
-- [ ] Tidak perlu melakukan apa pun, karena jumlah dimensinya sama sehingga vektor lama dapat langsung dibandingkan dengan vektor baru
+- [ ] Tidak perlu melakukan apa pun, karena jumlah dimensi sama persis sehingga vektor lama dapat langsung dibandingkan dengan model yang baru
 - [x] Seluruh vektor wajib dihitung ulang (re-embedded) menggunakan model baru, karena vektor dari model yang berbeda tidak kompatibel
-- [ ] Cukup menormalisasi ulang panjang vektor ke satuan panjang 1, yang secara otomatis membuat vektor antar model menjadi kompatibel
+- [ ] Cukup menormalisasi ulang panjang setiap vektor ke satuan 1, sehingga secara otomatis vektor antar model langsung menjadi kompatibel
 - [ ] Menghapus seluruh vektor lama secara permanen karena asisten AI hanya dapat bekerja optimal menggunakan vektor model terbaru
 
 > Makna semantik dari setiap dimensi koordinat sepenuhnya ditentukan oleh arsitektur internal model. Mencampuradukkan dua model berbeda akan menghasilkan perbandingan acak tanpa pesan error. Lakukan re-embedding (blue/green), evaluasi akurasinya, lalu alihkan sistem.
@@ -239,7 +239,7 @@ Sebuah vektor hanya bermakna jika dipadukan dengan model yang memproduksinya. Se
 ### Apa perbedaan mendasar antara metrik ANN Recall dengan Retrieval Hit Rate?
 - [ ] Keduanya adalah metrik pengukuran yang sama persis dengan nama berbeda dan dapat digunakan bergantian untuk membandingkan model
 - [ ] Recall hanya diukur pada data pelatihan model, sedangkan hit rate hanya diukur pada lalu lintas produksi langsung
-- [x] Recall menguji apakah indeks menemukan vektor yang sama dengan pencarian eksak, sedangkan hit rate menguji apakah dokumen yang benar berhasil ditemukan
+- [x] Recall menguji kesamaan terhadap pencarian eksak, sedangkan hit rate menguji apakah dokumen yang tepat berhasil ditemukan
 - [ ] Hit rate mengukur kecepatan durasi query, sedangkan recall mengukur total jumlah vektor yang ditampung oleh indeks
 
 > Indeks ANN dengan recall sempurna yang berjalan di atas embedding model yang buruk tetap akan mengembalikan dokumen yang salah bagi pengguna. Recall tidak memerlukan label data manusia (cukup dibandingkan terhadap exact KNN); sedangkan hit rate membutuhkan dataset pertanyaan berlabel.

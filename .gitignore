@@ -19,6 +19,9 @@ Thumbs.db
 minio_data/
 postgres_data/
 
+# Scratch & temporary
+scratch/
+
 
 # dbt
 target/

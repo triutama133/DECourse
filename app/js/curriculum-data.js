@@ -6335,7 +6335,7 @@ window.CURRICULUM_DATA = [
         "en": "The driver shows a very high amount of memory used, even though there is no data collected"
        },
        {
-        "id": "Segelintir task membutuhkan waktu jauh lebih lama dan membaca volume shuffle data jauh lebih besar daripada nilai median task lainnya",
+        "id": "Segelintir task memakan waktu jauh lebih lama dan membaca volume shuffle jauh melampaui median task lainnya",
         "en": "A few tasks take far longer and read far more data than the median task of the same stage"
        },
        {
@@ -8436,7 +8436,7 @@ window.CURRICULUM_DATA = [
       },
       "options": [
        {
-        "id": "Tidak perlu melakukan apa pun, karena jumlah dimensinya sama sehingga vektor lama dapat langsung dibandingkan dengan vektor baru",
+        "id": "Tidak perlu melakukan apa pun, karena jumlah dimensi sama persis sehingga vektor lama dapat langsung dibandingkan dengan model yang baru",
         "en": "Nothing, because the dimension is the same, so the old vectors can be compared with the new ones"
        },
        {
@@ -8444,7 +8444,7 @@ window.CURRICULUM_DATA = [
         "en": "They should be re-embedded with the new model, because vectors of different models are not comparable"
        },
        {
-        "id": "Cukup menormalisasi ulang panjang vektor ke satuan panjang 1, yang secara otomatis membuat vektor antar model menjadi kompatibel",
+        "id": "Cukup menormalisasi ulang panjang setiap vektor ke satuan 1, sehingga secara otomatis vektor antar model langsung menjadi kompatibel",
         "en": "They should be normalised again to unit length, which makes vectors from different models compatible"
        },
        {
@@ -8502,7 +8502,7 @@ window.CURRICULUM_DATA = [
         "en": "Recall is measured only on the training data of the model, and the hit rate only on live production traffic"
        },
        {
-        "id": "Recall menguji apakah indeks menemukan vektor yang sama dengan pencarian eksak, sedangkan hit rate menguji apakah dokumen yang benar berhasil ditemukan",
+        "id": "Recall menguji kesamaan terhadap pencarian eksak, sedangkan hit rate menguji apakah dokumen yang tepat berhasil ditemukan",
         "en": "Recall asks if the index finds what exact search finds, while hit rate asks if the right document returns"
        },
        {
