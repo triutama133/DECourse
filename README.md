@@ -3,6 +3,8 @@
 A self-study data engineering course that runs in your browser: a curriculum with hands-on labs and "chaos" scenarios, a SQL sandbox with auto-checked challenges, interview practice, portfolio blueprints and a resume builder. UI languages: Indonesian and English.
 
 > **Status:** All 17 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes).
+> 
+> 💡 **New to Data Engineering?** Read the [Beginner Walkthrough / Panduan Belajar Pemula](WALKTHROUGH.md) for a complete zero-to-pro study guide and learning loop.
 
 ## Run it
 
