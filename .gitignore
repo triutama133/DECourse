@@ -17,3 +17,4 @@ Thumbs.db
 # Lab data volumes
 minio_data/
 postgres_data/
+

@@ -64,10 +64,19 @@
         <button data-nav="playground" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
           💻 SQL Sandbox
         </button>
+        <button data-nav="remote-playbook" class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors">
+          🌐 Remote English
+        </button>
       </nav>
 
-      <!-- Mastery Progress Meter -->
-      <div id="header-stats"></div>
+      <!-- Language Toggle & Mastery Progress Meter -->
+      <div class="flex items-center gap-3">
+        <div class="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold" id="lang-toggle-box">
+          <button id="lang-btn-id" onclick="app.setLanguage('id')" class="px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20">🇮🇩 ID</button>
+          <button id="lang-btn-en" onclick="app.setLanguage('en')" class="px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white">🇬🇧 EN</button>
+        </div>
+        <div id="header-stats"></div>
+      </div>
     </div>
 
     <!-- Mobile Nav Bar -->
@@ -78,6 +87,7 @@
       <button data-nav="portfolio" class="px-2 py-1">Portfolios</button>
       <button data-nav="cv-builder" class="px-2 py-1">CV</button>
       <button data-nav="playground" class="px-2 py-1">SQL</button>
+      <button data-nav="remote-playbook" class="px-2 py-1">Remote</button>
     </div>
   </header>
 
@@ -96,7 +106,7 @@
         <a href="#" onclick="app.switchView('curriculum'); return false;" class="hover:text-blue-400 transition-colors">Curriculum</a>
         <a href="#" onclick="app.switchView('interview'); return false;" class="hover:text-blue-400 transition-colors">Interviews</a>
         <a href="#" onclick="app.switchView('portfolio'); return false;" class="hover:text-blue-400 transition-colors">Portfolios</a>
-        <a href="#" onclick="app.switchView('cv-builder'); return false;" class="hover:text-blue-400 transition-colors">ATS CV</a>
+        <a href="#" onclick="app.switchView('remote-playbook'); return false;" class="hover:text-blue-400 transition-colors">Remote Guide</a>
       </div>
     </div>
   </footer>
@@ -107,6 +117,7 @@
   <script src="js/portfolio-data.js"></script>
   <script src="js/cv-data.js"></script>
   <script src="js/playground.js"></script>
+  <script src="js/remote-playbook.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

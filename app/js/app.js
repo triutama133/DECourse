@@ -16,14 +16,46 @@ class DataForgeApp {
     this.completedModules = JSON.parse(localStorage.getItem("df_completed_modules") || "[]");
     this.quizScores = JSON.parse(localStorage.getItem("df_quiz_scores") || "{}");
     this.resumeData = JSON.parse(localStorage.getItem("df_resume_data") || "null") || CV_DATA.sampleResume;
+    this.lang = localStorage.getItem("df_lang") || "id";
 
     this.init();
   }
 
   init() {
     this.bindEvents();
+    this.updateLangButtons();
     this.renderHeaderStats();
     this.renderView();
+  }
+
+  setLanguage(lang) {
+    this.lang = lang;
+    localStorage.setItem("df_lang", lang);
+    this.updateLangButtons();
+    this.renderHeaderStats();
+    this.renderView();
+  }
+
+  updateLangButtons() {
+    const btnId = document.getElementById("lang-btn-id");
+    const btnEn = document.getElementById("lang-btn-en");
+    if (btnId && btnEn) {
+      if (this.lang === "id") {
+        btnId.className = "px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20";
+        btnEn.className = "px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white";
+      } else {
+        btnId.className = "px-2.5 py-1 rounded transition-all text-slate-400 hover:text-white";
+        btnEn.className = "px-2.5 py-1 rounded transition-all text-blue-400 bg-blue-500/20";
+      }
+    }
+  }
+
+  t(val) {
+    if (!val) return "";
+    if (typeof val === "object") {
+      return val[this.lang] || val.id || val.en || "";
+    }
+    return val;
   }
 
   bindEvents() {
@@ -57,13 +89,18 @@ class DataForgeApp {
     const completedCount = this.completedModules.length;
     const progressPercent = Math.round((completedCount / totalModules) * 100);
 
+    const labelProgress = this.lang === 'id' ? 'Progres Penguasaan' : 'Mastery Progress';
+    const labelModules = this.lang === 'id' 
+      ? `${completedCount} dari ${totalModules} Modul (${progressPercent}%)`
+      : `${completedCount} of ${totalModules} Modules (${progressPercent}%)`;
+
     const statsEl = document.getElementById("header-stats");
     if (statsEl) {
       statsEl.innerHTML = `
         <div class="flex items-center gap-4">
           <div class="hidden sm:flex flex-col text-right">
-            <span class="text-xs text-slate-400">Mastery Progress</span>
-            <span class="text-sm font-semibold text-slate-200">${completedCount} of ${totalModules} Modules (${progressPercent}%)</span>
+            <span class="text-xs text-slate-400">${labelProgress}</span>
+            <span class="text-sm font-semibold text-slate-200">${labelModules}</span>
           </div>
           <div class="w-24 sm:w-32 bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700">
             <div class="bg-gradient-to-r from-blue-500 to-emerald-400 h-2.5 rounded-full transition-all duration-500" style="width: ${progressPercent}%"></div>
@@ -101,6 +138,9 @@ class DataForgeApp {
       case "playground":
         container.innerHTML = this.renderPlaygroundView();
         this.bindPlaygroundEvents();
+        break;
+      case "remote-playbook":
+        container.innerHTML = this.renderRemotePlaybookView();
         break;
     }
   }
@@ -1262,6 +1302,97 @@ ORDER BY longest_active_streak DESC;`;
       if (stats) stats.innerText = `Error`;
       container.innerHTML = `<div class="p-4 text-xs text-rose-400 bg-rose-950/30 border border-rose-900/40 rounded-lg">Error: ${res.error}</div>`;
     }
+  }
+
+  renderRemotePlaybookView() {
+    const pb = window.REMOTE_PLAYBOOK;
+    if (!pb) return `<div class="p-8 text-center text-slate-400">Remote Playbook data loading...</div>`;
+    const ov = pb.overview[this.lang] || pb.overview.en;
+    return `
+      <div class="animate-fade space-y-8 max-w-6xl mx-auto">
+        <!-- Hero Banner -->
+        <div class="p-8 sm:p-10 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 border border-slate-800 space-y-4">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider">
+            🌐 Global Remote Career & Communication
+          </div>
+          <h1 class="text-3xl sm:text-4xl font-extrabold text-white">${ov.title}</h1>
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">${ov.subtitle}</p>
+          <div class="p-4 rounded-xl bg-blue-950/30 border border-blue-900/40 text-xs sm:text-sm text-blue-200/90 leading-relaxed">
+            💡 <strong>${this.lang === 'id' ? 'Mengapa Ini Jauh Lebih Penting daripada TOEFL/IELTS?' : 'Why is this more crucial than TOEFL/IELTS?'}</strong><br/>
+            ${ov.whyImportant}
+          </div>
+        </div>
+
+        <!-- Section 1: System Design English Phrasing -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[0].title)}</h2>
+          <p class="text-xs text-slate-400">${this.t(pb.sections[0].description)}</p>
+          <div class="space-y-4">
+            ${pb.sections[0].templates.map(t => `
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${t.stage}</div>
+                <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-xs text-blue-300 leading-relaxed select-all">
+                  "${t.pattern}"
+                </div>
+                <div class="text-xs text-slate-400"><strong>${this.lang === 'id' ? 'Kenapa Pola Ini Disukai Interviewer:' : 'Why Interviewers Love This:'}</strong> ${t.whyItWorks}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Section 2: Async RFC Writing -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[1].title)}</h2>
+          <p class="text-xs text-slate-400">${this.t(pb.sections[1].description)}</p>
+          <div class="space-y-2">
+            <div class="text-xs font-bold text-slate-400 uppercase">Production RFC Example (Markdown)</div>
+            <pre><code>${this.escapeHtml(pb.sections[1].sampleRfc)}</code></pre>
+          </div>
+        </div>
+
+        <!-- Section 3: Incident Communication on Slack -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[2].title)}</h2>
+          <p class="text-xs text-slate-400">${this.t(pb.sections[2].description)}</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${pb.sections[2].slackTemplates.map(st => `
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-rose-400 uppercase tracking-wider">${st.phase}</div>
+                <pre class="text-xs font-mono text-slate-200 whitespace-pre-line bg-slate-900/90 p-3 rounded border border-slate-800">${this.escapeHtml(st.text)}</pre>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Section 4: Behavioral STAR Framework -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[3].title)}</h2>
+          <p class="text-xs text-slate-400">${this.t(pb.sections[3].description)}</p>
+          <div class="space-y-3">
+            ${pb.sections[3].starExamples.map(star => `
+              <div class="p-5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-purple-400 uppercase">Question: "${star.question}"</div>
+                <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line p-3 rounded-lg bg-slate-900/70 border border-slate-800">${star.answer}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Section 5: Remote Compensation & Contractor Setup -->
+        <div class="p-6 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
+          <h2 class="text-xl font-bold text-white">${this.t(pb.sections[4].title)}</h2>
+          <p class="text-xs text-slate-400">${this.t(pb.sections[4].description)}</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${pb.sections[4].tips.map(tip => `
+              <div class="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider">${tip.topic}</div>
+                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${tip.detail}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   escapeHtml(str) {
