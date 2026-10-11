@@ -1,1359 +1,890 @@
-// Main Application Controller for DataForge Learning Platform
-// Clean, understated, high-readability design. Fully bilingual (ID & EN).
+// DataForge application controller.
+// Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
+
+const VIEWS = ["roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "remote-playbook"];
+const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
+const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents"];
+
+function readStore(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+function writeStore(key, value) {
+  try {
+    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+  } catch (e) { /* storage unavailable (private mode): keep working in memory */ }
+}
 
 class DataForgeApp {
   constructor() {
     this.currentView = "roadmap";
     this.activeLevelId = "zero";
     this.activeModuleId = "mod-0-1";
-    this.activeModuleTab = "concepts"; // 'concepts' | 'lab' | 'chaos' | 'quiz'
-    this.activeInterviewTab = "system-design"; // 'system-design' | 'sql-arena' | 'incidents'
+    this.activeModuleTab = "concepts";
+    this.activeInterviewTab = "system-design";
     this.activeSystemDesignId = "sd-1";
     this.activeSqlId = "sql-1";
     this.activeDrillId = "drill-1";
     this.activePortfolioId = "proj-1";
-    
-    // User state in LocalStorage
-    this.completedModules = JSON.parse(localStorage.getItem("df_completed_modules") || "[]");
-    this.quizScores = JSON.parse(localStorage.getItem("df_quiz_scores") || "{}");
-    this.resumeData = JSON.parse(localStorage.getItem("df_resume_data") || "null") || CV_DATA.sampleResume;
-    this.lang = localStorage.getItem("df_lang") || "id";
 
-    this.init();
+    this.completedModules = readStore("df_completed_modules", []);
+    this.quizScores = readStore("df_quiz_scores", {});
+    this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+    const savedLang = readStore("df_lang", "id");
+    this.lang = savedLang === "en" ? "en" : "id";
+
+    this.quizOrder = {};      // moduleId -> shuffled option order (per page load)
+    this.sandbox = { datasetKey: "ecommerce", challengeId: null, status: "loading", message: null, result: null, hintOpen: false, solutionOpen: false };
+
+    this.renderChrome();
+    window.addEventListener("hashchange", () => this.readHash());
+    this.readHash();
   }
 
-  init() {
-    this.bindEvents();
-    this.updateLangButtons();
-    this.updateNavLabels();
-    this.renderHeaderStats();
+  // ---------- helpers ----------
+  t(val) {
+    if (!val) return "";
+    if (typeof val === "object") return val[this.lang] || val.id || val.en || "";
+    return val;
+  }
+  tr(key) {
+    const dict = (window.TRANSLATIONS && (window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id)) || {};
+    return dict[key] || key;
+  }
+  l(id, en) { return this.lang === "id" ? id : en; }
+
+  esc(str) {
+    if (str === undefined || str === null) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+  // Escape first, then allow only **bold** and `code`.
+  rich(str) {
+    return this.esc(this.t(str)).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  escapeHtml(s) { return this.esc(s); }
+
+  // Small Markdown renderer: paragraphs, lists, tables, fenced code, callouts, inline code/bold/italic/links.
+  // Everything is escaped before any tag is produced.
+  inline(s) {
+    return String(s).split(/(`[^`]+`)/).map((part) => {
+      if (part.length > 1 && part[0] === "`" && part[part.length - 1] === "`") return `<code>${this.esc(part.slice(1, -1))}</code>`;
+      return this.esc(part)
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![\w*])/g, "$1<em>$2</em>")
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    }).join("");
+  }
+  md(val) {
+    const src = this.t(val);
+    if (!src) return "";
+    const lines = String(src).replace(/\r\n/g, "\n").split("\n");
+    const out = [];
+    const isBullet = (l) => /^\s*[-*] /.test(l);
+    const isOrdered = (l) => /^\s*\d+\. /.test(l);
+    const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.trim() === "") { i++; continue; }
+      let m;
+      if ((m = line.match(/^```\s*(\S*)\s*$/))) {
+        const body = [];
+        i++;
+        while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
+        i++;
+        out.push(`<pre${m[1] ? ` data-lang="${this.esc(m[1])}"` : ""}><code>${this.esc(body.join("\n"))}</code></pre>`);
+      } else if ((m = line.match(/^(#{3,4}) (.+)$/))) {
+        out.push(`<h4 class="md-h">${this.inline(m[2])}</h4>`); i++;
+      } else if (/^---+\s*$/.test(line)) {
+        out.push("<hr>"); i++;
+      } else if (isTableRow(line) && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1]) && lines[i + 1].includes("-")) {
+        const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const head = cells(line);
+        i += 2;
+        const rows = [];
+        while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
+        out.push(`<div class="table-wrap"><table><thead><tr>${head.map((c) => `<th>${this.inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td style="white-space:normal">${this.inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+      } else if (/^> ?/.test(line)) {
+        const q = [];
+        while (i < lines.length && /^> ?/.test(lines[i])) q.push(lines[i++].replace(/^> ?/, ""));
+        const first = q[0] || "";
+        const kind = /^\*\*(Warning|Peringatan|Pitfall|Jebakan)/i.test(first) ? "danger" : /^\*\*(Tip|Saran)/i.test(first) ? "success" : "";
+        out.push(`<div class="callout ${kind}">${q.join("\n").split(/\n{2,}/).map((p) => `<p>${this.inline(p).replace(/\n/g, "<br>")}</p>`).join("")}</div>`);
+      } else if (isBullet(line) || isOrdered(line)) {
+        const ordered = isOrdered(line);
+        const start = ordered ? parseInt(line.match(/^\s*(\d+)\./)[1], 10) : 1;
+        const items = [];
+        while (i < lines.length && (ordered ? isOrdered(lines[i]) : isBullet(lines[i]))) {
+          const item = [lines[i].replace(/^\s*(?:[-*]|\d+\.) /, "")];
+          i++;
+          while (i < lines.length && lines[i].trim() !== "" && /^\s{2,}\S/.test(lines[i]) && !isBullet(lines[i]) && !isOrdered(lines[i])) item.push(lines[i++].trim());
+          items.push(item.join(" "));
+        }
+        const tag = ordered ? "ol" : "ul";
+        out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ""}>${items.map((it) => `<li>${this.inline(it)}</li>`).join("")}</${tag}>`);
+      } else {
+        const p = [];
+        while (i < lines.length && lines[i].trim() !== "" && !/^```/.test(lines[i]) && !/^#{3,4} /.test(lines[i]) && !isBullet(lines[i]) && !isOrdered(lines[i]) && !/^> ?/.test(lines[i]) && !isTableRow(lines[i])) p.push(lines[i++]);
+        if (!p.length) { p.push(lines[i++]); }
+        out.push(`<p>${p.map((x) => this.inline(x)).join("<br>")}</p>`);
+      }
+    }
+    return `<div class="md">${out.join("")}</div>`;
+  }
+
+  // ---------- routing ----------
+  readHash() {
+    const parts = (location.hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
+    const view = VIEWS.includes(parts[0]) ? parts[0] : "roadmap";
+    this.currentView = view;
+    if (view === "curriculum") {
+      const lvl = CURRICULUM_DATA.find((L) => L.modules.some((m) => m.id === parts[1]));
+      if (lvl) { this.activeLevelId = lvl.levelId; this.activeModuleId = parts[1]; }
+      this.activeModuleTab = MODULE_TABS.includes(parts[2]) ? parts[2] : "concepts";
+    }
+    if (view === "interview" && INTERVIEW_TABS.includes(parts[1])) this.activeInterviewTab = parts[1];
+    this.renderChrome();
     this.renderView();
+    window.scrollTo(0, 0);
+  }
+  go(view, ...rest) {
+    const hash = "#/" + [view, ...rest].join("/");
+    if (location.hash === hash) this.readHash(); else location.hash = hash;
+  }
+  switchView(view) { this.go(view); }
+
+  // ---------- chrome (header/nav/footer) ----------
+  renderChrome() {
+    const labels = {
+      "roadmap": this.tr("navRoadmap"), "curriculum": this.tr("navCurriculum"), "interview": this.tr("navInterview"),
+      "portfolio": this.tr("navPortfolio"), "cv-builder": this.tr("navCvBuilder"), "playground": this.tr("navPlayground"),
+      "remote-playbook": this.tr("navRemote")
+    };
+    document.getElementById("nav").innerHTML = VIEWS.map((v) =>
+      `<button class="${v === this.currentView ? "active" : ""}" onclick="app.go('${v}')">${this.esc(labels[v])}</button>`).join("");
+    document.documentElement.lang = this.lang;
+    document.getElementById("lang-btn-id").className = this.lang === "id" ? "active" : "";
+    document.getElementById("lang-btn-en").className = this.lang === "en" ? "active" : "";
+    document.getElementById("footer-tagline").textContent = this.l("DataForge: belajar data engineering dengan praktik langsung", "DataForge: learn data engineering by doing");
+    this.renderHeaderStats();
+  }
+
+  renderHeaderStats() {
+    const total = CURRICULUM_DATA.reduce((n, lvl) => n + lvl.modules.length, 0);
+    const done = this.completedModules.length;
+    const pct = Math.round((done / total) * 100);
+    document.getElementById("header-stats").innerHTML = `
+      <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
+      <div class="progress"><div style="width:${pct}%"></div></div>`;
   }
 
   setLanguage(lang) {
     this.lang = lang;
-    localStorage.setItem("df_lang", lang);
-    this.updateLangButtons();
-    this.updateNavLabels();
-    this.renderHeaderStats();
+    writeStore("df_lang", lang);
+    this.renderChrome();
     this.renderView();
-  }
-
-  updateLangButtons() {
-    const btnId = document.getElementById("lang-btn-id");
-    const btnEn = document.getElementById("lang-btn-en");
-    if (btnId && btnEn) {
-      if (this.lang === "id") {
-        btnId.className = "px-2.5 py-1 rounded transition-colors bg-blue-600 text-white font-semibold text-xs";
-        btnEn.className = "px-2.5 py-1 rounded transition-colors text-slate-400 hover:text-slate-200 font-medium text-xs";
-      } else {
-        btnId.className = "px-2.5 py-1 rounded transition-colors text-slate-400 hover:text-slate-200 font-medium text-xs";
-        btnEn.className = "px-2.5 py-1 rounded transition-colors bg-blue-600 text-white font-semibold text-xs";
-      }
-    }
-  }
-
-  updateNavLabels() {
-    const t = window.TRANSLATIONS ? (window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id) : null;
-    if (!t) return;
-    const setTxt = (id, txt) => {
-      const el = document.getElementById(id);
-      if (el) el.innerText = txt;
-    };
-    setTxt("brand-subtitle", t.brandSubtitle);
-    setTxt("nav-btn-roadmap", t.navRoadmap);
-    setTxt("nav-btn-curriculum", t.navCurriculum);
-    setTxt("nav-btn-interview", t.navInterview);
-    setTxt("nav-btn-portfolio", t.navPortfolio);
-    setTxt("nav-btn-cv-builder", t.navCvBuilder);
-    setTxt("nav-btn-playground", t.navPlayground);
-    setTxt("nav-btn-remote", t.navRemote);
-
-    setTxt("mob-nav-roadmap", t.navRoadmap);
-    setTxt("mob-nav-curriculum", t.navCurriculum);
-    setTxt("mob-nav-interview", t.navInterview);
-    setTxt("mob-nav-portfolio", t.navPortfolio);
-    setTxt("mob-nav-cv-builder", t.navCvBuilder);
-    setTxt("mob-nav-playground", t.navPlayground);
-    setTxt("mob-nav-remote", t.navRemote);
-
-    setTxt("footer-tagline", this.lang === 'id' ? 'Dirancang untuk Penguasaan Rekayasa Data Nyata' : 'Architected for True Engineering Mastery');
-    setTxt("footer-link-curriculum", t.navCurriculum);
-    setTxt("footer-link-interview", t.navInterview);
-    setTxt("footer-link-portfolio", t.navPortfolio);
-    setTxt("footer-link-remote", t.navRemote);
-  }
-
-  t(val) {
-    if (!val) return "";
-    if (typeof val === "object") {
-      return val[this.lang] || val.id || val.en || "";
-    }
-    return val;
-  }
-
-  tr(key) {
-    const dict = window.TRANSLATIONS ? (window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id) : {};
-    return dict[key] || key;
-  }
-
-  bindEvents() {
-    document.querySelectorAll("[data-nav]").forEach(el => {
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        const view = el.getAttribute("data-nav");
-        this.switchView(view);
-      });
-    });
-  }
-
-  switchView(view) {
-    this.currentView = view;
-    document.querySelectorAll("[data-nav]").forEach(el => {
-      if (el.getAttribute("data-nav") === view) {
-        el.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/30 text-xs";
-      } else {
-        el.className = "flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors text-xs font-normal";
-      }
-    });
-
-    this.renderView();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  renderHeaderStats() {
-    const totalModules = CURRICULUM_DATA.reduce((acc, lvl) => acc + lvl.modules.length, 0);
-    const completedCount = this.completedModules.length;
-    const progressPercent = Math.round((completedCount / totalModules) * 100);
-
-    const labelProgress = this.tr("masteryProgress");
-    const labelModules = `${completedCount} ${this.tr("modulesOf")} ${totalModules} ${this.tr("modulesCompleted")} (${progressPercent}%)`;
-
-    const statsEl = document.getElementById("header-stats");
-    if (statsEl) {
-      statsEl.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="hidden sm:flex flex-col text-right">
-            <span class="text-[11px] text-slate-400">${labelProgress}</span>
-            <span class="text-xs font-semibold text-slate-200">${labelModules}</span>
-          </div>
-          <div class="w-20 sm:w-28 bg-[#1a2334] rounded-full h-2 overflow-hidden border border-slate-800">
-            <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: ${progressPercent}%"></div>
-          </div>
-        </div>
-      `;
-    }
   }
 
   renderView() {
     const container = document.getElementById("main-content");
-    if (!container) return;
-
-    switch (this.currentView) {
-      case "roadmap":
-        container.innerHTML = this.renderRoadmapView();
-        break;
-      case "curriculum":
-        container.innerHTML = this.renderCurriculumView();
-        break;
-      case "interview":
-        container.innerHTML = this.renderInterviewView();
-        break;
-      case "portfolio":
-        container.innerHTML = this.renderPortfolioView();
-        break;
-      case "cv-builder":
-        container.innerHTML = this.renderCvBuilderView();
-        break;
-      case "playground":
-        container.innerHTML = this.renderPlaygroundView();
-        break;
-      case "remote-playbook":
-        container.innerHTML = this.renderRemotePlaybookView();
-        break;
-    }
+    const views = {
+      "roadmap": () => this.renderRoadmapView(),
+      "curriculum": () => this.renderCurriculumView(),
+      "interview": () => this.renderInterviewView(),
+      "portfolio": () => this.renderPortfolioView(),
+      "cv-builder": () => this.renderCvBuilderView(),
+      "playground": () => this.renderPlaygroundView(),
+      "remote-playbook": () => this.renderRemotePlaybookView()
+    };
+    container.innerHTML = views[this.currentView]();
+    if (this.currentView === "playground") this.afterPlaygroundRender();
   }
 
-  // ================= ROADMAP VIEW =================
+  // ================= ROADMAP =================
   renderRoadmapView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
+    const pillars = [1, 2, 3, 4].map((n) => `
+      <div class="card">
+        <h3>${t["pillar" + n + "Title"]}</h3>
+        <p class="muted" style="margin-top:6px">${t["pillar" + n + "Desc"]}</p>
+      </div>`).join("");
+    const levels = CURRICULUM_DATA.map((lvl) => {
+      const doneCount = lvl.modules.filter((m) => this.completedModules.includes(m.id)).length;
+      const pct = Math.round((doneCount / lvl.modules.length) * 100);
+      return `
+        <div class="card stack-sm" style="display:flex;flex-direction:column">
+          <div class="row between"><span class="chip">${this.esc(this.t(lvl.badge))}</span><span class="muted small">${doneCount}/${lvl.modules.length}</span></div>
+          <h3>${this.esc(this.t(lvl.levelTitle))}</h3>
+          <p class="muted small">${this.esc(this.t(lvl.levelSubtitle))}</p>
+          <ul style="list-style:none;flex:1" class="stack-sm">
+            ${lvl.modules.map((m) => `
+              <li class="row between small" style="flex-wrap:nowrap">
+                <a href="#/curriculum/${m.id}">${m.number} ${this.esc(this.t(m.title))}</a>
+                ${this.completedModules.includes(m.id) ? `<span class="state-done">${this.l("Selesai", "Done")}</span>` : ""}
+              </li>`).join("")}
+          </ul>
+          <div class="progress" style="margin-top:8px"><div style="width:${pct}%"></div></div>
+          <button class="btn btn-sm" onclick="app.selectLevel('${lvl.levelId}')">${t.exploreModules}</button>
+        </div>`;
+    }).join("");
     return `
-      <div class="animate-fade space-y-8 max-w-6xl mx-auto">
-        <!-- Hero Banner (Clean, calm, elegant) -->
-        <div class="p-8 sm:p-10 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <div class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-mono uppercase tracking-wider bg-blue-500/10 border border-blue-500/20 text-blue-400">
-            ${t.roadmapBadge}
-          </div>
-          <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
-            ${t.roadmapHeroTitle}
-          </h1>
-          <p class="text-slate-300 text-sm sm:text-base leading-relaxed max-w-3xl">
-            ${t.roadmapHeroDesc}
-          </p>
-          <div class="pt-2 flex flex-wrap gap-3">
-            <button onclick="app.switchView('curriculum')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs sm:text-sm transition-colors">
-              ${t.ctaStartCurriculum}
-            </button>
-            <button onclick="app.switchView('interview')" class="px-5 py-2.5 rounded-lg bg-[#161d2e] hover:bg-[#1f283e] text-slate-200 font-medium text-xs sm:text-sm border border-slate-700/80 transition-colors">
-              ${t.ctaInterviewSim}
-            </button>
-            <button onclick="app.switchView('cv-builder')" class="px-5 py-2.5 rounded-lg bg-[#161d2e] hover:bg-[#1f283e] text-slate-200 font-medium text-xs sm:text-sm border border-slate-700/80 transition-colors">
-              ${t.ctaBuildCv}
-            </button>
+      <div class="stack">
+        <div class="card stack-sm">
+          <span class="chip chip-blue">${t.roadmapBadge}</span>
+          <h1>${t.roadmapHeroTitle}</h1>
+          <p class="muted" style="max-width:720px;font-size:15px">${t.roadmapHeroDesc}</p>
+          <div class="row" style="padding-top:8px">
+            <button class="btn btn-primary" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
+            <button class="btn" onclick="app.go('interview')">${t.ctaInterviewSim}</button>
+            <button class="btn" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
           </div>
         </div>
-
-        <!-- 4 Pillars Section (Clean, consistent cards) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
-            <div class="text-[11px] font-mono font-semibold text-blue-400">01 / FOUNDATIONS</div>
-            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar1Title}</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar1Desc}</p>
-          </div>
-          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
-            <div class="text-[11px] font-mono font-semibold text-amber-400">02 / CHAOS LABS</div>
-            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar2Title}</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar2Desc}</p>
-          </div>
-          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
-            <div class="text-[11px] font-mono font-semibold text-emerald-400">03 / PRODUCTION RIGOR</div>
-            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar3Title}</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar3Desc}</p>
-          </div>
-          <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
-            <div class="text-[11px] font-mono font-semibold text-purple-400">04 / PROOF OF WORK</div>
-            <h3 class="font-semibold text-slate-100 text-sm">${t.pillar4Title}</h3>
-            <p class="text-xs text-slate-400 leading-relaxed">${t.pillar4Desc}</p>
-          </div>
-        </div>
-
-        <!-- Milestones Grid -->
-        <div class="space-y-4">
-          <h2 class="text-base font-bold text-slate-100">${t.matrixTitle}</h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            ${CURRICULUM_DATA.map((lvl) => {
-              const completedInLevel = lvl.modules.filter(m => this.completedModules.includes(m.id)).length;
-              const pct = Math.round((completedInLevel / lvl.modules.length) * 100);
-              const lvlTitle = this.t(lvl.levelTitle);
-              const lvlSubtitle = this.t(lvl.levelSubtitle);
-              const lvlBadge = this.t(lvl.badge);
-              return `
-                <div class="flex flex-col justify-between p-5 rounded-xl bg-[#0f1523] border border-slate-800 hover:border-slate-700 transition-all">
-                  <div class="space-y-2.5">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="badge badge-neutral">${lvlBadge}</span>
-                      <span class="text-slate-400 font-mono text-[11px]">${completedInLevel}/${lvl.modules.length}</span>
-                    </div>
-                    <h3 class="text-sm font-semibold text-white">${lvlTitle}</h3>
-                    <p class="text-xs text-slate-400 line-clamp-2">${lvlSubtitle}</p>
-                    <div class="space-y-1 pt-2">
-                      ${lvl.modules.map(m => `
-                        <div class="flex items-center justify-between text-xs py-1 px-2 rounded bg-[#090d16] border border-slate-800/80">
-                          <span class="text-slate-300 font-medium truncate">${m.number} ${this.t(m.title)}</span>
-                          ${this.completedModules.includes(m.id) ? '<span class="text-emerald-400 text-xs">Done</span>' : '<span class="text-slate-600 text-xs">Pending</span>'}
-                        </div>
-                      `).join('')}
-                    </div>
-                  </div>
-                  <div class="pt-5 space-y-2">
-                    <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${pct}%"></div>
-                    </div>
-                    <button onclick="app.selectLevel('${lvl.levelId}')" class="w-full py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition-colors text-center block">
-                      ${t.exploreModules} ➔
-                    </button>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      </div>
-    `;
+        <div class="grid cols-4">${pillars}</div>
+        <h2>${t.matrixTitle}</h2>
+        <div class="grid cols-4">${levels}</div>
+      </div>`;
   }
 
   selectLevel(levelId) {
-    this.activeLevelId = levelId;
-    const lvl = CURRICULUM_DATA.find(l => l.levelId === levelId);
-    if (lvl && lvl.modules.length > 0) {
-      this.activeModuleId = lvl.modules[0].id;
-    }
-    this.switchView("curriculum");
+    const lvl = CURRICULUM_DATA.find((l) => l.levelId === levelId);
+    if (!lvl || !lvl.modules.length) return;
+    this.go("curriculum", lvl.modules[0].id);
   }
 
-  // ================= CURRICULUM VIEW =================
+  // ================= CURRICULUM =================
   renderCurriculumView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
-    const activeLevel = CURRICULUM_DATA.find(l => l.levelId === this.activeLevelId) || CURRICULUM_DATA[0];
-    const activeModule = activeLevel.modules.find(m => m.id === this.activeModuleId) || activeLevel.modules[0];
-    const isCompleted = this.completedModules.includes(activeModule.id);
+    const level = CURRICULUM_DATA.find((l) => l.levelId === this.activeLevelId && l.modules.length) || CURRICULUM_DATA.find((l) => l.modules.length);
+    const mod = level.modules.find((m) => m.id === this.activeModuleId) || level.modules[0];
+    const done = this.completedModules.includes(mod.id);
+    const tabLabels = { concepts: t.tabConcepts, lab: t.tabLab, chaos: t.tabChaos, quiz: t.tabQuiz };
 
     return `
-      <div class="animate-fade grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-7xl mx-auto">
-        <!-- Sidebar Navigation -->
-        <div class="lg:col-span-4 space-y-4">
-          <!-- Level Selector Tabs -->
-          <div class="flex rounded-xl bg-[#0f1523] border border-slate-800 p-1">
-            ${CURRICULUM_DATA.map(lvl => `
-              <button 
-                onclick="app.setActiveLevel('${lvl.levelId}')" 
-                class="flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${this.activeLevelId === lvl.levelId ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}"
-              >
-                ${this.t(lvl.badge)}
-              </button>
-            `).join('')}
+      <div class="split">
+        <aside class="stack-sm">
+          <div class="segmented" style="display:flex">
+            ${CURRICULUM_DATA.filter((lvl) => lvl.modules.length).map((lvl) => `
+              <button style="flex:1" class="${lvl.levelId === level.levelId ? "active" : ""}" onclick="app.go('curriculum','${lvl.modules[0].id}')">${this.esc(this.t(lvl.badge))}</button>`).join("")}
           </div>
-
-          <!-- Module List -->
-          <div class="rounded-xl bg-[#0f1523] border border-slate-800 overflow-hidden divide-y divide-slate-800">
-            <div class="p-3 bg-[#090d16] border-b border-slate-800 flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">${this.t(activeLevel.levelTitle).split(':')[0]}</span>
-              <span class="text-xs text-slate-500 font-mono">${activeLevel.modules.length} Modules</span>
-            </div>
-            <div class="p-2 space-y-1">
-              ${activeLevel.modules.map(mod => {
-                const done = this.completedModules.includes(mod.id);
-                const isSelected = mod.id === this.activeModuleId;
-                return `
-                  <button 
-                    onclick="app.setActiveModule('${mod.id}')"
-                    class="w-full text-left p-3 rounded-lg text-xs font-medium transition-colors flex items-start justify-between gap-2 ${isSelected ? 'bg-blue-600/15 border border-blue-500/40 text-blue-300' : 'text-slate-300 hover:bg-[#161d2e]'}"
-                  >
-                    <div class="space-y-0.5">
-                      <div class="font-medium text-slate-100 flex items-center gap-1.5">
-                        <span class="font-mono text-slate-400">${mod.number}</span>
-                        <span class="line-clamp-1">${this.t(mod.title)}</span>
-                      </div>
-                      <div class="text-[11px] text-slate-400 line-clamp-1">${this.t(mod.summary)}</div>
-                    </div>
-                    ${done ? '<span class="text-emerald-400 text-xs">Done</span>' : '<span class="text-slate-600 text-xs">○</span>'}
-                  </button>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        </div>
-
-        <!-- Module Detail Content Area -->
-        <div class="lg:col-span-8 space-y-6">
-          <!-- Module Header Card -->
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <span class="badge badge-neutral">${this.t(activeLevel.badge)}</span>
-                <span class="text-xs text-slate-400 font-mono">${this.t(activeModule.duration)}</span>
+          <div class="muted small" style="padding:4px 2px">${this.esc(this.t(level.levelTitle))}</div>
+          ${level.modules.map((m) => `
+            <button class="item ${m.id === mod.id ? "active" : ""}" onclick="app.go('curriculum','${m.id}')">
+              <div class="module-row">
+                <div>
+                  <div class="item-title"><span class="module-num">${m.number}</span>${this.esc(this.t(m.title))}</div>
+                  <div class="item-meta">${this.esc(this.t(m.duration))}</div>
+                </div>
+                ${this.completedModules.includes(m.id) ? `<span class="state-done">${this.l("Selesai", "Done")}</span>` : ""}
               </div>
-              <button 
-                onclick="app.toggleModuleCompletion('${activeModule.id}')"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${isCompleted ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400' : 'bg-[#161d2e] hover:bg-[#1f283e] text-slate-300 border border-slate-700'}"
-              >
-                ${isCompleted ? t.btnMarkedComplete : t.btnMarkComplete}
-              </button>
-            </div>
-            <div>
-              <h2 class="text-xl sm:text-2xl font-bold text-white">${activeModule.number} ${this.t(activeModule.title)}</h2>
-              <p class="text-slate-300 text-xs sm:text-sm mt-1 leading-relaxed">${this.t(activeModule.summary)}</p>
-            </div>
+            </button>`).join("")}
+        </aside>
 
-            <!-- Why Tutorials Lie Alert Box -->
-            <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-900/40 space-y-1">
-              <div class="text-xs font-semibold text-amber-400 uppercase tracking-wider">
-                ${t.whyTutorialsLieHeader}
-              </div>
-              <p class="text-xs text-amber-200/90 leading-relaxed">${this.t(activeModule.whyTutorialsLie)}</p>
+        <section class="stack">
+          <div class="card stack-sm">
+            <div class="row between">
+              <span class="muted small">${this.esc(this.t(level.badge))} · ${this.esc(this.t(mod.duration))} · ~${this.readingMinutes(mod)} ${this.l("menit baca", "min read")}</span>
+              <button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
             </div>
-
-            <!-- Content Tabs -->
-            <div class="flex border-b border-slate-800 pt-2 gap-2 text-xs font-medium">
-              <button onclick="app.setModuleTab('concepts')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'concepts' ? 'border-b-2 border-blue-500 text-blue-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
-                ${t.tabConcepts} (${activeModule.concepts.length})
-              </button>
-              <button onclick="app.setModuleTab('lab')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'lab' ? 'border-b-2 border-emerald-500 text-emerald-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
-                ${t.tabLab}
-              </button>
-              <button onclick="app.setModuleTab('chaos')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'chaos' ? 'border-b-2 border-amber-500 text-amber-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
-                ${t.tabChaos}
-              </button>
-              <button onclick="app.setModuleTab('quiz')" class="pb-2.5 px-3 transition-colors ${this.activeModuleTab === 'quiz' ? 'border-b-2 border-purple-500 text-purple-400 font-semibold' : 'text-slate-400 hover:text-slate-200'}">
-                ${t.tabQuiz}
-              </button>
+            <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
+            <p class="muted">${this.esc(this.t(mod.summary))}</p>
+            ${mod.idPending && this.lang === "id" ? `<div class="callout"><p>Modul ini belum diterjemahkan ke bahasa Indonesia, jadi ditampilkan dalam bahasa Inggris.</p></div>` : ""}
+            <div class="callout neutral">
+              <div class="label">${t.whyTutorialsLieHeader}</div>
+              <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
             </div>
+            <div class="tabs">
+              ${MODULE_TABS.map((k) => `<button class="${this.activeModuleTab === k ? "active" : ""}" onclick="app.go('curriculum','${mod.id}','${k}')">${tabLabels[k]}</button>`).join("")}
+            </div>
+            <div class="stack" style="padding-top:8px">${this.renderModuleTabContent(mod, t)}</div>
           </div>
+        </section>
+      </div>`;
+  }
 
-          <!-- Tab Content Display -->
-          <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-6 space-y-6">
-            ${this.renderModuleTabContent(activeModule, t)}
-          </div>
-        </div>
-      </div>
-    `;
+  readingMinutes(mod) {
+    const w = mod.lessons.reduce((n, l) => n + (String(this.t(l.body)).match(/\S+/g) || []).length, 0);
+    return Math.max(1, Math.round(w / 200));
+  }
+
+  scrollToLesson(i) {
+    const el = document.getElementById(`lesson-${i}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   renderModuleTabContent(mod, t) {
-    switch (this.activeModuleTab) {
-      case "concepts":
-        return `
-          <div class="space-y-6">
-            <h3 class="text-base font-semibold text-slate-100">${this.lang === 'id' ? 'Konsep Fundamental & Mekanisme Kerja' : 'Theoretical Foundations & Mechanics'}</h3>
-            <div class="space-y-4">
-              ${mod.concepts.map((c, idx) => `
-                <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-                  <div class="text-xs font-semibold text-blue-400 flex items-center gap-2">
-                    <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${idx + 1}</span>
-                    ${this.t(c.title)}
-                  </div>
-                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">${this.t(c.content)}</p>
-                </div>
-              `).join('')}
-            </div>
-            <div class="pt-2 flex justify-end">
-              <button onclick="app.setModuleTab('lab')" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-medium text-white transition-colors">
-                ${t.btnProceedLab}
-              </button>
-            </div>
-          </div>
-        `;
-      case "lab":
-        return `
-          <div class="space-y-5">
-            <div>
-              <span class="badge badge-emerald">${t.tabLab}</span>
-              <h3 class="text-lg font-bold text-white mt-1">${this.t(mod.lab.title)}</h3>
-              <p class="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">${this.t(mod.lab.description)}</p>
-            </div>
+    const nav = (back, next) => `
+      <div class="row between">
+        ${back ? `<button class="btn btn-quiet" onclick="app.go('curriculum','${mod.id}','${back[0]}')">← ${back[1]}</button>` : "<span></span>"}
+        ${next ? `<button class="btn btn-primary" onclick="app.go('curriculum','${mod.id}','${next[0]}')">${next[1]} →</button>` : ""}
+      </div>`;
+    const plainTab = (k) => this.tr(k).replace(/^\d\.\s*/, "");
 
-            <div class="space-y-2">
-              <div class="flex items-center justify-between text-xs text-slate-400">
-                <span>${this.lang === 'id' ? 'Kode Implementasi Produksi' : 'Production Reference Implementation'}</span>
-                <span class="font-mono text-xs text-blue-400">${this.lang === 'id' ? 'Jalankan di lingkungan lokal' : 'Run in local environment'}</span>
-              </div>
-              <pre><code>${this.escapeHtml(mod.lab.codeSnippet)}</code></pre>
-            </div>
-
-            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-              <h4 class="text-xs font-semibold uppercase text-slate-300">${this.lang === 'id' ? 'Deliverable & Kriteria Keberhasilan' : 'Lab Deliverables & Verification Checklist'}</h4>
-              <ul class="space-y-1.5 text-xs text-slate-300">
-                ${mod.lab.deliverables.map(d => `<li class="flex items-center gap-2"><span class="text-emerald-400">✔</span> ${this.t(d)}</li>`).join('')}
-              </ul>
-            </div>
-
-            <div class="pt-2 flex justify-between">
-              <button onclick="app.setModuleTab('concepts')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ${t.btnBackConcepts}
-              </button>
-              <button onclick="app.setModuleTab('chaos')" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-xs font-medium text-white transition-colors">
-                ${t.btnTestChaos}
-              </button>
-            </div>
-          </div>
-        `;
-      case "chaos":
-        return `
-          <div class="space-y-5">
-            <div>
-              <span class="badge badge-amber">${t.tabChaos}</span>
-              <h3 class="text-lg font-bold text-white mt-1">${this.t(mod.chaosLab.title)}</h3>
-            </div>
-
-            <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-900/40 space-y-1">
-              <div class="text-xs font-semibold text-amber-400 uppercase tracking-wider">${this.lang === 'id' ? 'Skenario Kerusakan di Produksi' : 'The Production Breakage Scenario'}</div>
-              <p class="text-xs sm:text-sm text-amber-200/90 leading-relaxed">${this.t(mod.chaosLab.scenario)}</p>
-            </div>
-
-            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-1">
-              <div class="text-xs font-semibold text-rose-400 uppercase tracking-wider">${this.lang === 'id' ? 'Akar Masalah (Kenapa Bisa Rusak)' : 'Root Cause Analysis'}</div>
-              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${this.t(mod.chaosLab.breakageReason)}</p>
-            </div>
-
-            <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-1">
-              <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${this.lang === 'id' ? 'Panduan Perbaikan Teknis' : 'Engineering Fix & Mitigation Protocol'}</div>
-              <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">${this.t(mod.chaosLab.fixGuide)}</div>
-            </div>
-
-            <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-900/40 space-y-1">
-              <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider">${this.lang === 'id' ? 'Pola Rekayasa Defensif' : 'Defensive Engineering Pattern'}</div>
-              <p class="text-xs sm:text-sm text-blue-200">${this.t(mod.chaosLab.defensivePattern)}</p>
-            </div>
-
-            <div class="pt-2 flex justify-between">
-              <button onclick="app.setModuleTab('lab')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ← Lab
-              </button>
-              <button onclick="app.setModuleTab('quiz')" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-xs font-medium text-white transition-colors">
-                ${t.btnTakeQuiz}
-              </button>
-            </div>
-          </div>
-        `;
-      case "quiz":
-        return `
-          <div class="space-y-6">
-            <div>
-              <span class="badge badge-neutral">${t.tabQuiz}</span>
-              <h3 class="text-lg font-bold text-white mt-1">${this.lang === 'id' ? 'Evaluasi Pemahaman Prinsip' : 'Verification Assessment'}</h3>
-              <p class="text-xs text-slate-400 mt-1">${this.lang === 'id' ? 'Jawab pertanyaan logika ini untuk menguji pemahaman Anda sebelum lanjut.' : 'Answer these first-principles questions to verify mastery before advancing.'}</p>
-            </div>
-
-            <div class="space-y-5" id="quiz-container">
-              ${mod.quiz.map((q, qIdx) => `
-                <div class="p-5 rounded-xl bg-[#090d16] border border-slate-800 space-y-3">
-                  <div class="text-xs sm:text-sm font-medium text-slate-200">
-                    <span class="text-blue-400 font-mono">Q${qIdx + 1}:</span> ${this.t(q.question)}
-                  </div>
-                  <div class="space-y-2 pt-1">
-                    ${q.options.map((opt, oIdx) => `
-                      <label class="flex items-start gap-3 p-3 rounded-lg bg-[#0e1422] border border-slate-800 hover:border-slate-700 cursor-pointer text-xs text-slate-300 transition-colors">
-                        <input type="radio" name="quiz_${mod.id}_${qIdx}" value="${oIdx}" class="mt-0.5 text-blue-600 focus:ring-0">
-                        <span>${this.t(opt)}</span>
-                      </label>
-                    `).join('')}
-                  </div>
-                  <div id="quiz-feedback-${qIdx}" class="hidden p-3 rounded-lg text-xs leading-relaxed"></div>
-                </div>
-              `).join('')}
-            </div>
-
-            <div class="pt-2 flex justify-between items-center">
-              <button onclick="app.setModuleTab('chaos')" class="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-300 hover:bg-slate-700">
-                ← Chaos Lab
-              </button>
-              <button onclick="app.submitQuiz('${mod.id}')" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white transition-colors">
-                ${t.btnCheckAnswers}
-              </button>
-            </div>
-          </div>
-        `;
+    if (this.activeModuleTab === "concepts") {
+      return `
+        <div class="callout">
+          <div class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</div>
+          <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.esc(this.t(o))}</li>`).join("")}</ul>
+          ${mod.prerequisites && this.t(mod.prerequisites) ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(this.t(mod.prerequisites))}</p>` : ""}
+          <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
+        </div>
+        <div class="well">
+          <div class="label">${this.l("Isi materi", "In this module")}</div>
+          <ol class="toc">${mod.lessons.map((ls, i) => `<li><a href="javascript:void(0)" onclick="app.scrollToLesson(${i})">${this.esc(this.t(ls.title))}</a></li>`).join("")}</ol>
+        </div>
+        ${mod.lessons.map((ls, i) => `
+          <section class="lesson" id="lesson-${i}">
+            <h2 class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="number-dot" style="margin-top:2px">${i + 1}</span><span>${this.esc(this.t(ls.title))}</span></h2>
+            ${this.md(ls.body)}
+          </section>`).join("")}
+        ${mod.resources && mod.resources.length ? `<div class="well"><div class="label">${this.l("Bacaan lanjutan (dokumentasi resmi)", "Further reading (official docs)")}</div><ul style="margin-left:18px">${mod.resources.map((r) => `<li><a href="${this.esc(r.url)}" target="_blank" rel="noopener">${this.esc(this.t(r.label))}</a></li>`).join("")}</ul></div>` : ""}
+        ${nav(null, ["lab", plainTab("tabLab")])}`;
     }
-  }
-
-  setActiveLevel(lvlId) {
-    this.activeLevelId = lvlId;
-    const lvl = CURRICULUM_DATA.find(l => l.levelId === lvlId);
-    if (lvl && lvl.modules.length > 0) {
-      this.activeModuleId = lvl.modules[0].id;
+    if (this.activeModuleTab === "lab") {
+      const lab = mod.lab;
+      const hasSandbox = window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.some((c) => c.module === mod.id);
+      const kindLabel = { starter: this.l("Titik awal", "Starter"), reference: this.l("Solusi referensi", "Reference solution"), test: this.l("Tes", "Tests"), data: this.l("Data", "Data"), config: this.l("Konfigurasi", "Config") };
+      return `
+        <div>
+          <h2>${this.esc(this.t(lab.title))}</h2>
+          ${this.md(lab.description)}
+        </div>
+        ${hasSandbox ? `<div class="callout success"><p>${this.l("Sebagian lab ini bisa dikerjakan langsung di browser dengan pengecekan otomatis:", "Part of this lab can be done in your browser with automatic checking:")} <a href="#/playground">${this.l("buka SQL Sandbox", "open the SQL Sandbox")} →</a></p></div>` : ""}
+        <h3>${this.l("Langkah kerja", "Steps")}</h3>
+        ${this.md(lab.steps)}
+        ${lab.files.length ? `<h3>${this.l("File lab", "Lab files")}</h3>
+          <p class="muted small">${this.l("Semua file ada di folder repositori yang tertera. Yang di bawah ini persis file yang diuji.", "All files live in the repository folder shown. What you see below is exactly the code that was tested.")}</p>
+          ${lab.files.map((f) => `
+            <details class="file" ${f.kind === "starter" || f.kind === "test" ? "open" : ""}>
+              <summary><code>${this.esc(f.path)}</code> <span class="chip ${f.kind === "reference" ? "" : "chip-blue"}">${kindLabel[f.kind]}</span> <span class="muted small">${this.esc(this.t(f.label))}</span></summary>
+              ${f.kind === "reference" ? `<p class="small muted" style="margin:8px 0 0">${this.l("Coba kerjakan sendiri dulu. Buka ini untuk membandingkan.", "Try it yourself first. Open this to compare.")}</p>` : ""}
+              <pre><code>${this.esc(f.code)}</code></pre>
+            </details>`).join("")}` : ""}
+        ${lab.verify && this.t(lab.verify) ? `<h3>${this.l("Cara memeriksa hasil", "How to check your work")}</h3>${this.md(lab.verify)}` : ""}
+        <div class="callout">
+          <div class="label">${this.l("Selesai bila", "Done when")}</div>
+          <ul style="margin-left:18px">${lab.deliverables.map((d) => `<li>${this.esc(this.t(d))}</li>`).join("")}</ul>
+        </div>
+        ${nav(["concepts", plainTab("tabConcepts")], ["chaos", plainTab("tabChaos")])}`;
     }
-    this.renderView();
+    if (this.activeModuleTab === "chaos") {
+      const c = mod.chaosLab;
+      return `
+        <h2>${this.esc(this.t(c.title))}</h2>
+        <p class="muted">${this.l("Ini kegagalan yang benar-benar terjadi di produksi. Baca skenarionya, coba tebak penyebabnya sebelum membuka jawaban.", "This is a failure that really happens in production. Read the scenario and guess the cause before opening the answer.")}</p>
+        <div class="callout danger"><div class="label">${this.l("Skenario kerusakan di produksi", "The production breakage")}</div>${this.md(c.scenario)}</div>
+        <details class="file"><summary><strong>${this.l("Tampilkan akar masalah dan perbaikannya", "Show root cause and fix")}</strong></summary>
+          <div class="stack-sm" style="margin-top:12px">
+            <div class="well"><div class="label">${this.l("Akar masalah", "Root cause")}</div>${this.md(c.breakageReason)}</div>
+            <div class="well"><div class="label">${this.l("Cara memperbaiki", "How to fix it")}</div>${this.md(c.fixGuide)}</div>
+            <div class="callout success"><div class="label">${this.l("Pola defensif", "Defensive pattern")}</div>${this.md(c.defensivePattern)}</div>
+          </div>
+        </details>
+        ${nav(["lab", plainTab("tabLab")], ["quiz", plainTab("tabQuiz")])}`;
+    }
+    // quiz
+    const order = this.quizOrderFor(mod);
+    const last = this.quizScores[mod.id];
+    const need = Math.ceil(mod.quiz.length * 0.8);
+    return `
+      <div>
+        <h2>${this.l("Cek pemahaman", "Check your understanding")}</h2>
+        <p class="muted" style="margin-top:4px">${this.l(`Jawab minimal ${need} dari ${mod.quiz.length} dengan benar untuk menyelesaikan modul. Urutan pilihan diacak setiap kali halaman dimuat.`, `Answer at least ${need} of ${mod.quiz.length} correctly to complete the module. Answer order is shuffled on each page load.`)}
+          ${last ? ` · ${this.l("Skor terbaik", "Best score")}: ${last.best}/${last.total}` : ""}</p>
+      </div>
+      ${mod.quiz.map((q, qi) => `
+        <div class="well stack-sm">
+          <div><strong>${qi + 1}.</strong> ${this.inline(this.t(q.question))}</div>
+          ${order[qi].map((oi) => `
+            <label class="choice"><input type="radio" name="quiz_${mod.id}_${qi}" value="${oi}"><span>${this.inline(this.t(q.options[oi]))}</span></label>`).join("")}
+          <div id="quiz-feedback-${qi}" class="hidden feedback"></div>
+        </div>`).join("")}
+      <div class="row between">
+        <button class="btn btn-quiet" onclick="app.go('curriculum','${mod.id}','chaos')">← ${plainTab("tabChaos")}</button>
+        <button class="btn btn-primary" onclick="app.submitQuiz('${mod.id}')">${t.btnCheckAnswers}</button>
+      </div>
+      <div id="quiz-summary"></div>`;
   }
 
-  setActiveModule(modId) {
-    this.activeModuleId = modId;
-    this.renderView();
-  }
-
-  setModuleTab(tab) {
-    this.activeModuleTab = tab;
-    this.renderView();
+  quizOrderFor(mod) {
+    if (!this.quizOrder[mod.id]) {
+      this.quizOrder[mod.id] = mod.quiz.map((q) => {
+        const idx = q.options.map((_, i) => i);
+        for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+        return idx;
+      });
+    }
+    return this.quizOrder[mod.id];
   }
 
   toggleModuleCompletion(modId) {
-    if (this.completedModules.includes(modId)) {
-      this.completedModules = this.completedModules.filter(id => id !== modId);
-    } else {
-      this.completedModules.push(modId);
-    }
-    localStorage.setItem("df_completed_modules", JSON.stringify(this.completedModules));
+    this.completedModules = this.completedModules.includes(modId)
+      ? this.completedModules.filter((id) => id !== modId)
+      : [...this.completedModules, modId];
+    writeStore("df_completed_modules", this.completedModules);
     this.renderHeaderStats();
     this.renderView();
   }
 
   submitQuiz(modId) {
-    const activeLevel = CURRICULUM_DATA.find(l => l.levelId === this.activeLevelId);
-    const mod = activeLevel.modules.find(m => m.id === modId);
-    if (!mod) return;
-
-    let totalCorrect = 0;
-    mod.quiz.forEach((q, qIdx) => {
-      const selected = document.querySelector(`input[name="quiz_${modId}_${qIdx}"]:checked`);
-      const feedbackEl = document.getElementById(`quiz-feedback-${qIdx}`);
-      if (!feedbackEl) return;
-
-      feedbackEl.classList.remove("hidden");
-      const explanationText = this.t(q.explanation);
-      const correctOptionText = this.t(q.options[q.correct]);
-
-      if (selected && parseInt(selected.value) === q.correct) {
-        totalCorrect++;
-        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-emerald-950/30 border border-emerald-800/40 text-emerald-300";
-        feedbackEl.innerHTML = `<strong>${this.lang === 'id' ? 'Benar!' : 'Correct!'}</strong> ${explanationText}`;
-      } else {
-        feedbackEl.className = "p-3 rounded-lg text-xs leading-relaxed bg-rose-950/30 border border-rose-800/40 text-rose-300";
-        feedbackEl.innerHTML = `<strong>${this.lang === 'id' ? 'Kurang tepat.' : 'Incorrect.'}</strong> ${this.lang === 'id' ? 'Jawaban yang tepat' : 'Correct answer'}: <em>"${correctOptionText}"</em>. <br/>${explanationText}`;
-      }
+    const level = CURRICULUM_DATA.find((l) => l.modules.some((m) => m.id === modId));
+    const mod = level.modules.find((m) => m.id === modId);
+    let correct = 0;
+    mod.quiz.forEach((q, qi) => {
+      const picked = document.querySelector(`input[name="quiz_${modId}_${qi}"]:checked`);
+      const box = document.getElementById(`quiz-feedback-${qi}`);
+      if (!box) return;
+      box.classList.remove("hidden");
+      const ok = picked && parseInt(picked.value, 10) === q.correct;
+      if (ok) correct++;
+      box.className = "feedback " + (ok ? "ok" : "bad");
+      box.innerHTML = ok
+        ? `<strong>${this.l("Benar.", "Correct.")}</strong> ${this.inline(this.t(q.explanation))}`
+        : `<strong>${picked ? this.l("Belum tepat.", "Not quite.") : this.l("Belum dijawab.", "Not answered.")}</strong> ${this.l("Jawaban yang benar", "Correct answer")}: ${this.inline(this.t(q.options[q.correct]))}<br>${this.inline(this.t(q.explanation))}`;
     });
+    const prev = this.quizScores[modId];
+    this.quizScores[modId] = { best: Math.max(correct, prev ? prev.best : 0), total: mod.quiz.length };
+    writeStore("df_quiz_scores", this.quizScores);
 
-    if (totalCorrect === mod.quiz.length) {
-      if (!this.completedModules.includes(modId)) {
-        this.completedModules.push(modId);
-        localStorage.setItem("df_completed_modules", JSON.stringify(this.completedModules));
-        this.renderHeaderStats();
-      }
+    const need = Math.ceil(mod.quiz.length * 0.8);
+    const all = correct >= need;
+    if (all && !this.completedModules.includes(modId)) {
+      this.completedModules.push(modId);
+      writeStore("df_completed_modules", this.completedModules);
+      this.renderHeaderStats();
     }
+    const summary = document.getElementById("quiz-summary");
+    if (summary) summary.innerHTML = `<div class="callout ${all ? "success" : ""}"><strong>${correct}/${mod.quiz.length}</strong> ${all ? this.l("Modul ditandai selesai.", "Module marked complete.") : this.l(`Anda butuh minimal ${need}. Baca ulang materinya, lalu coba lagi.`, `You need at least ${need}. Re-read the lessons and try again.`)}</div>`;
   }
 
-  // ================= INTERVIEW SIMULATOR VIEW =================
+  // ================= INTERVIEW =================
   renderInterviewView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
+    const tabs = { "system-design": t.tabSystemDesign, "sql-arena": t.tabSqlArena, "incidents": t.tabIncidents };
     return `
-      <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <div class="space-y-1">
-            <span class="badge badge-neutral">${this.lang === 'id' ? 'Simulasi Karir' : 'Career Engine'}</span>
-            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.interviewTitle}</h1>
-            <p class="text-xs sm:text-sm text-slate-300">${t.interviewSubtitle}</p>
-          </div>
-          <div class="flex rounded-xl bg-[#090d16] border border-slate-800 p-1 text-xs font-medium">
-            <button onclick="app.setInterviewTab('system-design')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'system-design' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              ${t.tabSystemDesign}
-            </button>
-            <button onclick="app.setInterviewTab('sql-arena')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'sql-arena' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              ${t.tabSqlArena}
-            </button>
-            <button onclick="app.setInterviewTab('incidents')" class="px-3.5 py-1.5 rounded-lg transition-colors ${this.activeInterviewTab === 'incidents' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'}">
-              ${t.tabIncidents}
-            </button>
+      <div class="stack">
+        <div class="card row between">
+          <div><h1>${t.interviewTitle}</h1><p class="sub">${t.interviewSubtitle}</p></div>
+          <div class="segmented">
+            ${INTERVIEW_TABS.map((k) => `<button class="${this.activeInterviewTab === k ? "active" : ""}" onclick="app.go('interview','${k}')">${tabs[k]}</button>`).join("")}
           </div>
         </div>
-
         ${this.renderInterviewTabContent(t)}
-      </div>
-    `;
+      </div>`;
   }
 
   renderInterviewTabContent(t) {
+    const list = (title, items, activeId, handler, body) => `
+      <aside class="stack-sm">
+        <div class="label" style="padding:0 2px">${title} (${items.length})</div>
+        ${items.map((it) => `
+          <button class="item ${it.id === activeId ? "active" : ""}" onclick="app.${handler}('${it.id}')">${body(it)}</button>`).join("")}
+      </aside>`;
+
     if (this.activeInterviewTab === "system-design") {
-      const scenario = INTERVIEW_DATA.systemDesignScenarios.find(s => s.id === this.activeSystemDesignId) || INTERVIEW_DATA.systemDesignScenarios[0];
+      const all = INTERVIEW_DATA.systemDesignScenarios;
+      const s = all.find((x) => x.id === this.activeSystemDesignId) || all[0];
       return `
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">${this.lang === 'id' ? 'Daftar Skenario' : 'Scenarios List'} (${INTERVIEW_DATA.systemDesignScenarios.length})</div>
-            ${INTERVIEW_DATA.systemDesignScenarios.map(s => `
-              <button 
-                onclick="app.setActiveSystemDesign('${s.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${s.id === this.activeSystemDesignId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
-              >
-                <div class="flex items-center justify-between">
-                  <span class="badge ${s.difficulty === 'Hard' ? 'badge-rose' : 'badge-amber'}">${s.difficulty}</span>
-                </div>
-                <div class="font-semibold text-slate-100">${this.t(s.title)}</div>
-                <div class="flex flex-wrap gap-1 pt-1">
-                  ${s.tags.slice(0, 3).map(tag => `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-400 font-mono">${tag}</span>`).join('')}
-                </div>
-              </button>
-            `).join('')}
-          </div>
-
-          <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-              <span class="badge badge-neutral">${scenario.difficulty} System Design</span>
-              <h2 class="text-xl font-bold text-white">${this.t(scenario.title)}</h2>
-              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-[#090d16] p-4 rounded-xl border border-slate-800">
-                ${this.t(scenario.scenarioDescription)}
-              </p>
+        <div class="split">
+          ${list(this.l("Skenario", "Scenarios"), all, s.id, "setActiveSystemDesign", (x) => `
+            <div class="item-title">${this.esc(this.t(x.title))}</div>
+            <div class="item-meta">${x.difficulty} · ${x.tags.slice(0, 3).map((g) => this.esc(g)).join(", ")}</div>`)}
+          <section class="stack">
+            <div class="card stack-sm">
+              <span class="chip">${s.difficulty}</span>
+              <h2>${this.esc(this.t(s.title))}</h2>
+              <p class="well">${this.esc(this.t(s.scenarioDescription))}</p>
             </div>
-
-            <div class="space-y-4">
-              ${scenario.stages.map((stage, sIdx) => `
-                <div class="rounded-xl bg-[#0f1523] border border-slate-800 overflow-hidden">
-                  <div class="p-4 bg-[#090d16] flex items-center justify-between cursor-pointer" onclick="app.toggleStage('${sIdx}')">
-                    <div class="font-medium text-slate-200 text-sm flex items-center gap-2">
-                      <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${sIdx + 1}</span>
-                      ${this.t(stage.stageName)}
-                    </div>
-                    <button class="text-xs text-blue-400 hover:text-blue-300 font-medium">${this.lang === 'id' ? 'Buka Solusi & Rubrik' : 'Toggle Blueprint'}</button>
-                  </div>
-                  <div class="p-5 space-y-3" id="stage-content-${sIdx}">
-                    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">${t.interviewerPrompt}</div>
-                    <p class="text-xs text-slate-300 italic">${this.t(stage.prompt)}</p>
-                    <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider pt-2">${t.candidateSolution}</div>
-                    <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-[#070a10] p-4 rounded-xl border border-slate-800 font-mono">${this.t(stage.sampleAnswer)}</div>
-                  </div>
+            ${s.stages.map((stage, i) => `
+              <div class="card stack-sm">
+                <div class="row between">
+                  <h3 class="row" style="flex-wrap:nowrap"><span class="number-dot">${i + 1}</span>${this.esc(this.t(stage.stageName))}</h3>
+                  <button class="btn btn-sm btn-quiet" onclick="app.toggleStage(${i})">${this.l("Tampilkan / sembunyikan jawaban", "Show / hide sample answer")}</button>
                 </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      `;
+                <p class="muted"><em>${this.esc(this.t(stage.prompt))}</em></p>
+                <div id="stage-content-${i}" class="well">${this.md(this.t(stage.sampleAnswer))}</div>
+              </div>`).join("")}
+          </section>
+        </div>`;
     }
 
     if (this.activeInterviewTab === "sql-arena") {
-      const problem = INTERVIEW_DATA.sqlArenaProblems.find(p => p.id === this.activeSqlId) || INTERVIEW_DATA.sqlArenaProblems[0];
+      const all = INTERVIEW_DATA.sqlArenaProblems;
+      const p = all.find((x) => x.id === this.activeSqlId) || all[0];
       return `
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">FAANG SQL Arena (${INTERVIEW_DATA.sqlArenaProblems.length})</div>
-            ${INTERVIEW_DATA.sqlArenaProblems.map(p => `
-              <button 
-                onclick="app.setActiveSql('${p.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${p.id === this.activeSqlId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
-              >
-                <div class="flex items-center justify-between">
-                  <span class="badge ${p.difficulty === 'Hard' ? 'badge-rose' : 'badge-amber'}">${p.difficulty}</span>
-                  <span class="text-[11px] text-slate-400 font-mono">${p.company}</span>
-                </div>
-                <div class="font-semibold text-slate-100">${this.t(p.title)}</div>
-                <div class="text-[11px] text-slate-400">${p.category}</div>
-              </button>
-            `).join('')}
-          </div>
-
-          <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-              <div class="flex items-center justify-between text-xs">
-                <span class="badge badge-neutral">${problem.company}</span>
-                <span class="text-slate-400 font-mono">${problem.category}</span>
-              </div>
-              <h2 class="text-xl font-bold text-white">${this.t(problem.title)}</h2>
-              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-line">
-                ${this.t(problem.problemStatement)}
-              </div>
+        <div class="split">
+          ${list(this.l("Soal SQL", "SQL problems"), all, p.id, "setActiveSql", (x) => `
+            <div class="item-title">${this.esc(this.t(x.title))}</div>
+            <div class="item-meta">${x.difficulty} · ${this.esc(x.category)}</div>`)}
+          <section class="stack">
+            <div class="card stack-sm">
+              <div class="row between"><span class="chip">${this.esc(p.company)}</span><span class="muted small">${this.esc(p.category)}</span></div>
+              <h2>${this.esc(this.t(p.title))}</h2>
+              <div class="well">${this.md(p.problemStatement)}</div>
+              <div class="label">Schema</div>
+              <pre><code>${this.esc(p.schema)}</code></pre>
             </div>
-
-            <div class="p-4 rounded-xl bg-[#0f1523] border border-slate-800 space-y-2">
-              <div class="text-xs font-semibold uppercase text-slate-400">Database Schema DDL</div>
-              <pre><code>${problem.schema}</code></pre>
+            <div class="card stack-sm">
+              <div class="row between"><h3>${this.l("Solusi referensi", "Reference solution")}</h3><span class="muted small">${this.esc(p.complexity)}</span></div>
+              <p class="muted small">${this.l("Coba tulis sendiri dulu sebelum membaca. Solusi memakai sintaks PostgreSQL.", "Try writing it yourself before reading. The solution uses PostgreSQL syntax.")}</p>
+              <pre><code>${this.esc(this.t(p.solutionSql))}</code></pre>
+              <div class="callout"><div class="label">${this.l("Poin penilaian", "What interviewers look for")}</div>${this.md(p.explanation)}</div>
             </div>
-
-            <div class="p-5 rounded-xl bg-[#0f1523] border border-slate-800 space-y-3">
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-semibold uppercase text-emerald-400">${this.lang === 'id' ? 'Solusi SQL Standar Senior' : 'Senior SQL Solution'}</span>
-                <span class="text-slate-400 font-mono">${problem.complexity}</span>
-              </div>
-              <pre><code>${this.escapeHtml(problem.solutionSql)}</code></pre>
-              <div class="p-3.5 rounded-lg bg-[#090d16] border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                <strong class="text-blue-400">${this.lang === 'id' ? 'Kunci Evaluasi' : 'Evaluation Key'}:</strong> ${this.t(problem.explanation)}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+          </section>
+        </div>`;
     }
 
-    if (this.activeInterviewTab === "incidents") {
-      const drill = INTERVIEW_DATA.incidentPostMortemDrills.find(d => d.id === this.activeDrillId) || INTERVIEW_DATA.incidentPostMortemDrills[0];
-      return `
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div class="lg:col-span-4 space-y-2">
-            <div class="text-xs font-semibold uppercase text-slate-400 px-1 mb-2">${this.lang === 'id' ? 'Daftar Kasus Insiden' : 'Crisis Drills'}</div>
-            ${INTERVIEW_DATA.incidentPostMortemDrills.map(d => `
-              <button 
-                onclick="app.setActiveDrill('${d.id}')"
-                class="w-full text-left p-3.5 rounded-xl border text-xs font-medium transition-colors space-y-1.5 ${d.id === this.activeDrillId ? 'bg-blue-600/15 border-blue-500/50 text-blue-300' : 'bg-[#0f1523] border-slate-800 text-slate-300 hover:bg-[#161d2e]'}"
-              >
-                <span class="badge badge-rose">Incident Drill</span>
-                <div class="font-semibold text-slate-100">${this.t(d.title)}</div>
-              </button>
-            `).join('')}
+    const all = INTERVIEW_DATA.incidentPostMortemDrills;
+    const d = all.find((x) => x.id === this.activeDrillId) || all[0];
+    return `
+      <div class="split">
+        ${list(this.l("Kasus insiden", "Incident drills"), all, d.id, "setActiveDrill", (x) => `<div class="item-title">${this.esc(this.t(x.title))}</div>`)}
+        <section class="stack">
+          <div class="card stack-sm">
+            <h2>${this.esc(this.t(d.title))}</h2>
+            <div class="callout danger"><div class="label">${this.l("Skenario", "Scenario")}</div>${this.md(d.scenario)}</div>
           </div>
-
-          <div class="lg:col-span-8 space-y-6">
-            <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-              <span class="badge badge-rose">Incident Simulation</span>
-              <h2 class="text-xl font-bold text-white">${this.t(drill.title)}</h2>
-              <div class="p-4 rounded-xl bg-rose-950/20 border border-rose-900/40 text-xs sm:text-sm text-rose-200 leading-relaxed">
-                ${this.t(drill.scenario)}
-              </div>
-            </div>
-
-            <div class="space-y-3">
-              <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400">${this.lang === 'id' ? 'Protokol Triage 60 Menit' : '60-Minute Triage Rubric'}</h3>
-              ${drill.rubric.map((r, rIdx) => `
-                <div class="p-4 rounded-xl bg-[#0f1523] border border-slate-800 space-y-1.5">
-                  <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-5 h-5 rounded bg-blue-500/20 text-blue-400 text-xs flex items-center justify-center font-mono">${rIdx + 1}</span>
-                    ${this.t(r.phase)}
-                  </div>
-                  <p class="text-xs sm:text-sm text-slate-300 leading-relaxed pl-7">${this.t(r.action)}</p>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        </div>
-      `;
-    }
+          <h3>${this.l("Protokol triage 60 menit", "60-minute triage rubric")}</h3>
+          ${d.rubric.map((r, i) => `
+            <div class="card tight stack-sm">
+              <h3 class="row" style="flex-wrap:nowrap"><span class="number-dot">${i + 1}</span>${this.esc(this.t(r.phase))}</h3>
+              ${this.md(r.action)}
+            </div>`).join("")}
+        </section>
+      </div>`;
   }
 
-  setInterviewTab(tab) {
-    this.activeInterviewTab = tab;
-    this.renderView();
-  }
+  setActiveSystemDesign(id) { this.activeSystemDesignId = id; this.renderView(); }
+  setActiveSql(id) { this.activeSqlId = id; this.renderView(); }
+  setActiveDrill(id) { this.activeDrillId = id; this.renderView(); }
+  toggleStage(i) { const el = document.getElementById(`stage-content-${i}`); if (el) el.classList.toggle("hidden"); }
 
-  setActiveSystemDesign(id) {
-    this.activeSystemDesignId = id;
-    this.renderView();
-  }
-
-  setActiveSql(id) {
-    this.activeSqlId = id;
-    this.renderView();
-  }
-
-  setActiveDrill(id) {
-    this.activeDrillId = id;
-    this.renderView();
-  }
-
-  toggleStage(sIdx) {
-    const el = document.getElementById(`stage-content-${sIdx}`);
-    if (el) el.classList.toggle("hidden");
-  }
-
-  // ================= PORTFOLIO BLUEPRINT VIEW =================
+  // ================= PORTFOLIO =================
   renderPortfolioView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
-    const proj = PORTFOLIO_DATA.projects.find(p => p.id === this.activePortfolioId) || PORTFOLIO_DATA.projects[0];
+    const proj = PORTFOLIO_DATA.projects.find((p) => p.id === this.activePortfolioId) || PORTFOLIO_DATA.projects[0];
     return `
-      <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-1">
-          <span class="badge badge-neutral">${this.lang === 'id' ? 'Portofolio Produksi' : 'Proof-of-Work'}</span>
-          <h1 class="text-xl sm:text-2xl font-bold text-white">${t.portfolioTitle}</h1>
-          <p class="text-xs sm:text-sm text-slate-300">${t.portfolioSubtitle}</p>
+      <div class="stack">
+        <div class="card"><h1>${t.portfolioTitle}</h1><p class="sub">${t.portfolioSubtitle}</p></div>
+        <div class="grid cols-3">
+          ${PORTFOLIO_DATA.projects.map((p) => `
+            <button class="item ${p.id === proj.id ? "active" : ""}" onclick="app.setActivePortfolio('${p.id}')">
+              <span class="chip">${this.esc(this.t(p.badge))}</span>
+              <div class="item-title" style="margin-top:6px">${this.esc(this.t(p.title))}</div>
+              <div class="item-meta">${this.esc(this.t(p.summary))}</div>
+            </button>`).join("")}
         </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          ${PORTFOLIO_DATA.projects.map(p => `
-            <div 
-              onclick="app.setActivePortfolio('${p.id}')"
-              class="cursor-pointer p-4 rounded-xl border transition-colors space-y-2 ${p.id === this.activePortfolioId ? 'bg-blue-600/10 border-blue-500' : 'bg-[#0f1523] border-slate-800 hover:border-slate-700'}"
-            >
-              <span class="badge badge-neutral">${this.t(p.badge)}</span>
-              <h3 class="font-semibold text-slate-100 text-sm">${this.t(p.title)}</h3>
-              <p class="text-xs text-slate-400 line-clamp-2">${this.t(p.summary)}</p>
-            </div>
-          `).join('')}
+        <div class="card stack-sm">
+          <h2>${this.esc(this.t(proj.title))}</h2>
+          <p>${this.esc(this.t(proj.summary))}</p>
+          <div class="callout success"><div class="label">${t.whyHiringManagersLoveTitle}</div><p>${this.esc(this.t(proj.whyHiringManagersLoveIt))}</p></div>
         </div>
-
-        <div class="space-y-6">
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-            <span class="badge badge-neutral">${this.t(proj.badge)}</span>
-            <h2 class="text-xl font-bold text-white">${this.t(proj.title)}</h2>
-            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${this.t(proj.summary)}</p>
-
-            <div class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 space-y-1 mt-3">
-              <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${t.whyHiringManagersLoveTitle}</div>
-              <p class="text-xs text-emerald-200/90 leading-relaxed">${this.t(proj.whyHiringManagersLoveIt)}</p>
-            </div>
-          </div>
-
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-            <h3 class="text-sm font-semibold uppercase text-white">${t.architectureStackTitle}</h3>
-            <div class="space-y-2">
-              ${proj.architecture.map(a => `
-                <div class="p-3.5 rounded-lg bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed">
-                  ${this.t(a)}
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-            <div class="flex items-center justify-between text-xs">
-              <h3 class="font-semibold uppercase text-white">${t.adrTitle}</h3>
-              <span class="badge badge-emerald">Status: ${proj.adr.status}</span>
-            </div>
-            <div class="p-4 rounded-xl bg-[#070a10] border border-slate-800 space-y-2.5 font-mono text-xs">
-              <div class="text-sm font-bold text-blue-400">${this.t(proj.adr.title)}</div>
-              <div><strong class="text-slate-400">Context:</strong> <span class="text-slate-300">${this.t(proj.adr.context)}</span></div>
-              <div><strong class="text-slate-400">Decision:</strong> <span class="text-slate-300">${this.t(proj.adr.decision)}</span></div>
-              <div><strong class="text-slate-400">Consequences:</strong> <span class="text-slate-300">${this.t(proj.adr.consequences)}</span></div>
-            </div>
-          </div>
-
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-2">
-            <h3 class="text-sm font-semibold uppercase text-white">${t.repoLayoutTitle}</h3>
-            <pre><code>${proj.repoStructure}</code></pre>
-          </div>
-
-          <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3">
-            <h3 class="text-sm font-semibold uppercase text-white">${t.interviewDefenseTitle}</h3>
-            <div class="space-y-3">
-              ${proj.interviewDefense.map(qa => `
-                <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                  ${this.t(qa)}
-                </div>
-              `).join('')}
-            </div>
+        <div class="card stack-sm">
+          <h3>${t.architectureStackTitle}</h3>
+          ${proj.architecture.map((a) => `<div class="well">${this.esc(this.t(a))}</div>`).join("")}
+        </div>
+        <div class="card stack-sm">
+          <div class="row between"><h3>${t.adrTitle}</h3><span class="chip">Status: ${this.esc(proj.adr.status)}</span></div>
+          <div class="well stack-sm">
+            <strong>${this.esc(this.t(proj.adr.title))}</strong>
+            <p><span class="label">Context</span><br>${this.esc(this.t(proj.adr.context))}</p>
+            <p><span class="label">Decision</span><br>${this.esc(this.t(proj.adr.decision))}</p>
+            <p><span class="label">Consequences</span><br>${this.esc(this.t(proj.adr.consequences))}</p>
           </div>
         </div>
-      </div>
-    `;
+        <div class="card stack-sm"><h3>${t.repoLayoutTitle}</h3><pre><code>${this.esc(proj.repoStructure)}</code></pre></div>
+        <div class="card stack-sm">
+          <h3>${t.interviewDefenseTitle}</h3>
+          ${proj.interviewDefense.map((qa) => `<div class="well">${this.md(qa)}</div>`).join("")}
+        </div>
+      </div>`;
   }
+  setActivePortfolio(id) { this.activePortfolioId = id; this.renderView(); }
 
-  setActivePortfolio(id) {
-    this.activePortfolioId = id;
-    this.renderView();
-  }
-
-  // ================= ATS CV BUILDER VIEW =================
+  // ================= RESUME =================
   renderCvBuilderView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
-    const resume = this.resumeData;
-    const atsScore = this.calculateAtsScore();
-
+    const r = this.resumeData;
+    const field = (label, path, value) => `
+      <div><label class="field">${label}</label><input type="text" value="${this.esc(value)}" oninput="app.updateCvField('${path}', this.value)"></div>`;
     return `
-      <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <div class="space-y-1">
-            <span class="badge badge-neutral">${this.lang === 'id' ? 'Resume Internasional' : 'Global Resume'}</span>
-            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.cvTitle}</h1>
-            <p class="text-xs sm:text-sm text-slate-300">${t.cvSubtitle}</p>
-          </div>
-          <div class="flex items-center gap-3 no-print">
-            <button onclick="app.loadSampleCv()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition-colors">
-              ${t.btnLoadTemplate}
-            </button>
-            <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors">
-              ${t.btnPrintPdf}
-            </button>
+      <div class="stack">
+        <div class="card row between no-print">
+          <div><h1>${t.cvTitle}</h1><p class="sub">${t.cvSubtitle}</p></div>
+          <div class="row">
+            <button class="btn" onclick="app.loadSampleCv()">${t.btnLoadTemplate}</button>
+            <button class="btn btn-primary" onclick="window.print()">${t.btnPrintPdf}</button>
           </div>
         </div>
-
-        <!-- ATS Score Real-Time Audit Card -->
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4 no-print">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div class="space-y-0.5">
-              <h2 class="text-base font-bold text-white flex items-center gap-2">
-                <span>${t.atsScoreTitle}</span>
-                <span class="text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 font-mono">${atsScore.totalScore}/100</span>
-              </h2>
-              <p class="text-xs text-slate-400">${t.atsScoreSubtitle}</p>
+        <div class="card stack-sm no-print" id="ats-panel">${this.renderAtsPanel()}</div>
+        <div class="split-cv">
+          <div class="stack no-print">
+            <div class="card stack-sm">
+              <h3>${this.l("Editor resume", "Resume editor")}</h3>
+              ${field("Full name", "personal.fullName", r.personal.fullName)}
+              ${field("Title", "personal.title", r.personal.title)}
+              <div class="grid cols-2">${field("Email", "personal.email", r.personal.email)}${field("Location", "personal.location", r.personal.location)}</div>
+              <div><label class="field">Summary</label><textarea rows="4" oninput="app.updateCvField('summary', this.value)">${this.esc(r.summary)}</textarea></div>
             </div>
-            <div class="w-32 bg-slate-800 rounded-full h-2 overflow-hidden">
-              <div class="bg-blue-500 h-2 rounded-full" style="width: ${atsScore.totalScore}%"></div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 text-xs">
-            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
-              <div class="text-slate-400">${t.metricDensity}</div>
-              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.metrics}/25</div>
-            </div>
-            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
-              <div class="text-slate-400">${t.techSignals}</div>
-              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.tech}/25</div>
-            </div>
-            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
-              <div class="text-slate-400">${t.roleDiff}</div>
-              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.differentiation}/25</div>
-            </div>
-            <div class="p-3 rounded-lg bg-[#090d16] border border-slate-800">
-              <div class="text-slate-400">${t.actionVerbs}</div>
-              <div class="font-bold text-slate-200 mt-1 font-mono">${atsScore.breakdown.actionVerbs}/25</div>
+            <div class="card stack-sm">
+              <h3>${this.l("Contoh bullet (rumus XYZ)", "Example bullets (XYZ formula)")}</h3>
+              <p class="muted small">${this.l("Klik untuk menyalin. Ganti angka dengan hasil Anda sendiri; jangan mengklaim hal yang tidak Anda kerjakan.", "Click to copy. Replace the numbers with your own results; never claim work you did not do.")}</p>
+              ${CV_DATA.bulletLibrary.map((cat, ci) => `
+                <div class="stack-sm">
+                  <div class="label">${this.esc(cat.category)}</div>
+                  ${cat.bullets.map((b, bi) => `<button class="item small" onclick="app.copyBullet(${ci},${bi})">${this.esc(b)}</button>`).join("")}
+                </div>`).join("")}
             </div>
           </div>
-
-          ${atsScore.recommendations.length > 0 ? `
-            <div class="p-3.5 rounded-lg bg-amber-950/20 border border-amber-900/40 text-xs text-amber-300 space-y-1">
-              <div class="font-semibold uppercase tracking-wider text-[11px] text-amber-400">${t.suggestionsTitle}</div>
-              <ul class="list-disc list-inside space-y-0.5">
-                ${atsScore.recommendations.map(r => `<li>${r}</li>`).join('')}
-              </ul>
-            </div>
-          ` : ''}
+          <div id="cv-preview">${this.renderCvPreview()}</div>
         </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div class="lg:col-span-5 space-y-4 no-print">
-            <div class="p-5 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4 text-xs">
-              <h3 class="font-bold text-slate-200 text-sm">${this.lang === 'id' ? 'Detail Informasi Resume' : 'Resume Editor'}</h3>
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-slate-400 mb-1">Full Name</label>
-                  <input type="text" value="${resume.personal.fullName}" oninput="app.updateCvField('personal.fullName', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
-                </div>
-                <div>
-                  <label class="block text-slate-400 mb-1">Title</label>
-                  <input type="text" value="${resume.personal.title}" oninput="app.updateCvField('personal.title', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="block text-slate-400 mb-1">Email</label>
-                    <input type="text" value="${resume.personal.email}" oninput="app.updateCvField('personal.email', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
-                  </div>
-                  <div>
-                    <label class="block text-slate-400 mb-1">Location</label>
-                    <input type="text" value="${resume.personal.location}" oninput="app.updateCvField('personal.location', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">
-                  </div>
-                </div>
-                <div>
-                  <label class="block text-slate-400 mb-1">Summary</label>
-                  <textarea rows="3" oninput="app.updateCvField('summary', this.value)" class="w-full bg-[#090d16] border border-slate-800 rounded-lg p-2 text-slate-200 focus:border-blue-500 outline-none">${resume.summary}</textarea>
-                </div>
-              </div>
-            </div>
-
-            <!-- Bullet Formula Assistant -->
-            <div class="p-5 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-3 text-xs">
-              <h3 class="font-bold text-slate-200 text-sm">XYZ Bullet Formulas</h3>
-              <p class="text-slate-400">${this.lang === 'id' ? 'Klik untuk menyalin peluru resume berstandar internasional:' : 'Click to copy production bullets:'}</p>
-              <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                ${CV_DATA.bulletLibrary.map(cat => `
-                  <div class="space-y-1">
-                    <div class="text-[11px] font-semibold text-blue-400 uppercase">${cat.category}</div>
-                    ${cat.bullets.map(b => `
-                      <div onclick="navigator.clipboard.writeText('${b.replace(/'/g, "\\'")}'); alert('Copied to clipboard!');" class="p-2 rounded bg-[#090d16] border border-slate-800 hover:border-slate-700 cursor-pointer text-[11px] text-slate-300 transition-colors">
-                        ${b}
-                      </div>
-                    `).join('')}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-
-          <!-- Live Resume Preview (Right) -->
-          <div class="lg:col-span-7">
-            <div id="cv-preview-card" class="p-8 rounded-2xl bg-white text-slate-900 shadow-xl space-y-5 min-h-[800px] border border-slate-200 font-sans">
-              <div class="border-b border-slate-300 pb-3 space-y-1 text-center">
-                <h1 class="text-xl font-bold tracking-tight text-slate-900 uppercase">${resume.personal.fullName}</h1>
-                <div class="text-xs font-semibold text-blue-700">${resume.personal.title}</div>
-                <div class="text-[11px] text-slate-600 flex flex-wrap justify-center gap-2 pt-0.5">
-                  <span>${resume.personal.email}</span>
-                  <span>•</span>
-                  <span>${resume.personal.location}</span>
-                  <span>•</span>
-                  <span>${resume.personal.linkedin}</span>
-                </div>
-              </div>
-
-              <div class="space-y-1">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Summary</h3>
-                <p class="text-[11px] text-slate-700 leading-relaxed">${resume.summary}</p>
-              </div>
-
-              <div class="space-y-1">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Technical Proficiencies</h3>
-                <div class="text-[11px] space-y-0.5 text-slate-700">
-                  <div><strong>Engines:</strong> ${resume.skills.languages}</div>
-                  <div><strong>Storage:</strong> ${resume.skills.storageTableFormats}</div>
-                  <div><strong>Streaming:</strong> ${resume.skills.processingStreaming}</div>
-                  <div><strong>Orchestration:</strong> ${resume.skills.orchestrationOps}</div>
-                </div>
-              </div>
-
-              <div class="space-y-2.5">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Experience</h3>
-                ${resume.experience.map(exp => `
-                  <div class="space-y-0.5">
-                    <div class="flex items-center justify-between text-[11px] font-bold text-slate-900">
-                      <span>${exp.company} — ${exp.role}</span>
-                      <span class="text-slate-500 font-normal">${exp.period}</span>
-                    </div>
-                    <ul class="list-disc list-outside ml-4 space-y-0.5 text-[11px] text-slate-700">
-                      ${exp.highlights.map(h => `<li>${h}</li>`).join('')}
-                    </ul>
-                  </div>
-                `).join('')}
-              </div>
-
-              <div class="space-y-1.5">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-0.5">Projects</h3>
-                ${resume.projects.map(p => `
-                  <div class="text-[11px]">
-                    <div class="font-bold text-slate-900">${p.name} <span class="font-normal text-slate-500">(${p.tech})</span></div>
-                    <p class="text-slate-700">${p.description}</p>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+      </div>`;
   }
 
+  renderAtsPanel() {
+    const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
+    const s = this.calculateAtsScore();
+    const stat = (label, v) => `<div class="stat"><div class="muted small">${label}</div><div class="num">${v}<span class="muted small">/25</span></div></div>`;
+    return `
+      <div class="row between"><div><h2>${t.atsScoreTitle} · ${s.totalScore}/100</h2><p class="sub">${t.atsScoreSubtitle}</p></div>
+        <div class="progress" style="width:160px"><div style="width:${s.totalScore}%"></div></div></div>
+      <div class="grid cols-4">${stat(t.metricDensity, s.breakdown.metrics)}${stat(t.techSignals, s.breakdown.tech)}${stat(t.roleDiff, s.breakdown.differentiation)}${stat(t.actionVerbs, s.breakdown.actionVerbs)}</div>
+      ${s.recommendations.length ? `<div class="callout"><div class="label">${t.suggestionsTitle}</div><ul style="margin-left:18px">${s.recommendations.map((x) => `<li>${this.esc(x)}</li>`).join("")}</ul></div>` : ""}
+      <p class="muted small">${this.l("Skor ini hanya heuristik sederhana (hitung angka dan kata kunci), bukan penilaian ATS sungguhan.", "This score is a simple heuristic (it counts numbers and keywords), not a real ATS verdict.")}</p>`;
+  }
+
+  renderCvPreview() {
+    const r = this.resumeData;
+    return `
+      <div class="paper" id="cv-preview-card">
+        <h1>${this.esc(r.personal.fullName)}</h1>
+        <div class="center" style="color:#0a66c2;font-weight:600">${this.esc(r.personal.title)}</div>
+        <div class="center" style="color:#555">${this.esc(r.personal.email)} · ${this.esc(r.personal.location)} · ${this.esc(r.personal.linkedin)}</div>
+        <h3>Summary</h3><p>${this.esc(r.summary)}</p>
+        <h3>Technical Proficiencies</h3>
+        <div><strong>Languages:</strong> ${this.esc(r.skills.languages)}</div>
+        <div><strong>Storage:</strong> ${this.esc(r.skills.storageTableFormats)}</div>
+        <div><strong>Processing:</strong> ${this.esc(r.skills.processingStreaming)}</div>
+        <div><strong>Orchestration:</strong> ${this.esc(r.skills.orchestrationOps)}</div>
+        <h3>Experience</h3>
+        ${r.experience.map((e) => `
+          <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><strong>${this.esc(e.company)} — ${this.esc(e.role)}</strong><span style="color:#555">${this.esc(e.period)}</span></div>
+          <ul>${e.highlights.map((h) => `<li>${this.esc(h)}</li>`).join("")}</ul></div>`).join("")}
+        <h3>Projects</h3>
+        ${r.projects.map((p) => `<div style="margin-bottom:6px"><strong>${this.esc(p.name)}</strong> <span style="color:#555">(${this.esc(p.tech)})</span><div>${this.esc(p.description)}</div></div>`).join("")}
+      </div>`;
+  }
+
+  // Update data and refresh only the preview and score: re-rendering the editor would drop input focus.
   updateCvField(path, val) {
-    if (path.startsWith("personal.")) {
-      const field = path.split(".")[1];
-      this.resumeData.personal[field] = val;
-    } else {
-      this.resumeData[path] = val;
-    }
-    localStorage.setItem("df_resume_data", JSON.stringify(this.resumeData));
-    this.renderView();
+    if (path.startsWith("personal.")) this.resumeData.personal[path.split(".")[1]] = val;
+    else this.resumeData[path] = val;
+    writeStore("df_resume_data", this.resumeData);
+    const preview = document.getElementById("cv-preview");
+    const ats = document.getElementById("ats-panel");
+    if (preview) preview.innerHTML = this.renderCvPreview();
+    if (ats) ats.innerHTML = this.renderAtsPanel();
   }
 
   loadSampleCv() {
     this.resumeData = JSON.parse(JSON.stringify(CV_DATA.sampleResume));
-    localStorage.setItem("df_resume_data", JSON.stringify(this.resumeData));
+    writeStore("df_resume_data", this.resumeData);
     this.renderView();
   }
 
+  copyBullet(ci, bi) {
+    const text = CV_DATA.bulletLibrary[ci].bullets[bi];
+    const done = () => { /* silent: the button text does not change */ };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+  }
+
   calculateAtsScore() {
-    let score = {
-      totalScore: 0,
-      breakdown: { metrics: 15, tech: 20, differentiation: 20, actionVerbs: 20 },
-      recommendations: []
-    };
-
-    const textToScan = JSON.stringify(this.resumeData).toLowerCase();
-    const metricMatches = (textToScan.match(/(\d+%|\$\d+|\d+gb|\d+tb|\d+ms|\d+m|\d+k)/g) || []).length;
+    const score = { totalScore: 0, breakdown: { metrics: 0, tech: 0, differentiation: 25, actionVerbs: 0 }, recommendations: [] };
+    const text = JSON.stringify(this.resumeData).toLowerCase();
+    const metricMatches = (text.match(/(\d+%|\$\d+|\d+gb|\d+tb|\d+ms|\d+m\b|\d+k\b)/g) || []).length;
     score.breakdown.metrics = Math.min(25, metricMatches * 3);
-    if (score.breakdown.metrics < 20) {
-      score.recommendations.push(this.lang === 'id' ? "Tambahkan metrik angka terukur (omset $, volume GB/TB, latensi ms)." : "Add more quantifiable metrics (throughput, latency, cost savings).");
-    }
-
+    if (score.breakdown.metrics < 20) score.recommendations.push(this.l("Tambahkan metrik terukur (omset, volume GB/TB, latensi ms).", "Add measurable metrics (cost, GB/TB volume, latency)."));
     const techKeywords = ["iceberg", "duckdb", "dbt", "dagster", "redpanda", "kafka", "pydantic", "flink", "terraform"];
-    const foundKeywords = techKeywords.filter(k => textToScan.includes(k));
-    score.breakdown.tech = Math.min(25, foundKeywords.length * 3);
-
+    score.breakdown.tech = Math.min(25, techKeywords.filter((k) => text.includes(k)).length * 3);
     const verbs = ["architected", "engineered", "optimized", "refactored", "deployed", "scaled"];
-    const foundVerbs = verbs.filter(v => textToScan.includes(v));
-    score.breakdown.actionVerbs = Math.min(25, foundVerbs.length * 4);
-
-    if (textToScan.includes("dashboard") && !textToScan.includes("idempotency") && !textToScan.includes("cdc")) {
+    score.breakdown.actionVerbs = Math.min(25, verbs.filter((v) => text.includes(v)).length * 4);
+    if (text.includes("dashboard") && !text.includes("idempotency") && !text.includes("cdc")) {
       score.breakdown.differentiation = 12;
-      score.recommendations.push(this.lang === 'id' ? "Kurangi istilah dashboard/reporting. Tunjukkan pipeline terdistribusi & reliabilitas." : "Focus more on distributed pipelines, latency, CDC, and reliability over BI reporting.");
-    } else {
-      score.breakdown.differentiation = 25;
+      score.recommendations.push(this.l("Kurangi istilah dashboard/reporting; tunjukkan pipeline dan reliabilitas.", "Lean less on dashboard/reporting wording; show pipelines and reliability."));
     }
-
     score.totalScore = score.breakdown.metrics + score.breakdown.tech + score.breakdown.differentiation + score.breakdown.actionVerbs;
     return score;
   }
 
-  // ================= PLAYGROUND VIEW =================
+  // ================= SQL SANDBOX =================
   renderPlaygroundView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
+    const sb = this.sandbox;
+    const P = SQL_PLAYGROUND;
+    const ds = P.datasets[sb.datasetKey];
+    const challenge = P.challenges.find((c) => c.id === sb.challengeId);
+    const forDataset = P.challenges.filter((c) => c.dataset === sb.datasetKey);
     return `
-      <div class="animate-fade space-y-6 max-w-7xl mx-auto">
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <div class="space-y-1">
-            <span class="badge badge-neutral">In-Browser Sandbox</span>
-            <h1 class="text-xl sm:text-2xl font-bold text-white">${t.playgroundTitle}</h1>
-            <p class="text-xs sm:text-sm text-slate-300">${t.playgroundSubtitle}</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <label class="text-xs text-slate-400 font-medium">${t.datasetLabel}</label>
-            <select id="pg-dataset-select" onchange="app.changePlaygroundDataset(this.value)" class="bg-[#090d16] border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none">
-              <option value="ecommerce">E-Commerce Schema (Customers & Orders)</option>
-              <option value="user_activity">User Activity (Gaps & Islands)</option>
-            </select>
-          </div>
+      <div class="stack">
+        <div class="card row between">
+          <div><h1>${t.playgroundTitle}</h1><p class="sub">${t.playgroundSubtitle}</p></div>
+          <div class="row"><label class="label" for="pg-dataset-select">${t.datasetLabel}</label>
+            <select id="pg-dataset-select" onchange="app.changeDataset(this.value)">
+              ${Object.keys(P.datasets).map((k) => `<option value="${k}" ${k === sb.datasetKey ? "selected" : ""}>${this.esc(this.t(P.datasets[k].name))}</option>`).join("")}
+            </select></div>
         </div>
-
-        <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-5 space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-xs">
-              <span class="font-medium text-slate-300">${t.presetQueriesLabel}</span>
-              <button onclick="app.loadPresetSql(1)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Customer LTV Join</button>
-              <button onclick="app.loadPresetSql(2)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Gaps & Islands Streaks</button>
-              <button onclick="app.loadPresetSql(3)" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs">Raw Fact Table</button>
+        <div class="split">
+          <aside class="stack-sm">
+            <div class="card stack-sm">
+              <h3>${this.l("Tabel", "Tables")}</h3>
+              <p class="muted small">${this.esc(this.t(ds.description))}</p>
+              <div id="pg-tables" class="schema-list"></div>
             </div>
-            <button onclick="app.executePlaygroundQuery()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors">
-              ${t.btnExecuteSql}
-            </button>
-          </div>
-
-          <textarea id="pg-sql-editor" rows="6" class="w-full bg-[#070a10] border border-slate-800 rounded-xl p-4 font-mono text-xs text-blue-300 focus:border-blue-500 outline-none leading-relaxed">SELECT 
-    c.customer_id,
-    c.name,
-    c.tier,
-    COUNT(o.order_id) AS total_orders,
-    SUM(o.amount) AS total_spent_usd
-FROM customers c
-LEFT JOIN orders o ON c.customer_id = o.customer_id
-WHERE o.status = 'COMPLETED'
-GROUP BY 1, 2, 3
-ORDER BY total_spent_usd DESC;</textarea>
+            <div class="label" style="padding:0 2px">${this.l("Tantangan", "Challenges")}</div>
+            ${forDataset.map((c) => `
+              <button class="item ${c.id === sb.challengeId ? "active" : ""}" onclick="app.selectChallenge('${c.id}')">
+                <div class="item-title">${this.esc(this.t(c.title))}</div>
+                <div class="item-meta">${this.esc(this.t(c.level))}</div>
+              </button>`).join("")}
+            <button class="btn btn-quiet btn-sm" onclick="app.selectChallenge(null)">${this.l("Mode bebas (tanpa tantangan)", "Free mode (no challenge)")}</button>
+          </aside>
+          <section class="stack">
+            ${challenge ? `
+              <div class="card stack-sm">
+                <div class="row between"><h3>${this.esc(this.t(challenge.title))}</h3><span class="chip">${this.esc(this.t(challenge.level))}</span></div>
+                <p>${this.esc(this.t(challenge.task))}</p>
+                <div class="row">
+                  <button class="btn btn-sm btn-quiet" onclick="app.toggleHint()">${this.l("Petunjuk", "Hint")}</button>
+                  <button class="btn btn-sm btn-quiet" onclick="app.toggleSolution()">${this.l("Lihat solusi", "Show solution")}</button>
+                </div>
+                ${sb.hintOpen ? `<div class="callout neutral"><p>${this.esc(this.t(challenge.hint))}</p></div>` : ""}
+                ${sb.solutionOpen ? `<pre><code>${this.esc(challenge.solution)}</code></pre>` : ""}
+              </div>` : ""}
+            <div class="card stack-sm">
+              <textarea id="pg-sql-editor" class="sql" rows="9" spellcheck="false" placeholder="SELECT ..."></textarea>
+              <div class="row between">
+                <div class="row">
+                  <button class="btn btn-primary" onclick="app.runSql()">${t.btnExecuteSql}</button>
+                  ${challenge ? `<button class="btn" onclick="app.checkChallenge()">${this.l("Periksa jawaban", "Check my answer")}</button>` : ""}
+                  <button class="btn btn-quiet" onclick="app.resetDataset()">${this.l("Reset data", "Reset dataset")}</button>
+                </div>
+                <span id="pg-result-stats" class="muted small">${sb.status === "loading" ? this.l("Memuat mesin SQL...", "Loading SQL engine...") : ""}</span>
+              </div>
+              <div id="pg-verdict"></div>
+            </div>
+            <div class="card stack-sm"><h3>${this.l("Hasil", "Result")}</h3><div id="pg-results-container"><p class="muted">${t.runQueryPrompt}</p></div></div>
+          </section>
         </div>
-
-        <div class="rounded-2xl bg-[#0f1523] border border-slate-800 p-5 space-y-3">
-          <div class="flex items-center justify-between text-xs">
-            <span class="font-semibold text-slate-200">Execution Output</span>
-            <span id="pg-result-stats" class="text-slate-400 font-mono">${t.readyToExecute}</span>
-          </div>
-          <div id="pg-results-container" class="overflow-x-auto min-h-[140px] rounded-xl bg-[#070a10] border border-slate-800 p-2">
-            <div class="p-8 text-center text-xs text-slate-500">${t.runQueryPrompt}</div>
-          </div>
-        </div>
-      </div>
-    `;
+      </div>`;
   }
 
-  changePlaygroundDataset(val) {
-    if (val === "user_activity") {
-      this.loadPresetSql(2);
-    } else {
-      this.loadPresetSql(1);
-    }
-  }
-
-  loadPresetSql(id) {
+  async afterPlaygroundRender() {
+    const sb = this.sandbox;
     const editor = document.getElementById("pg-sql-editor");
-    if (!editor) return;
-
-    if (id === 1) {
-      editor.value = `SELECT 
-    c.customer_id,
-    c.name,
-    c.tier,
-    COUNT(o.order_id) AS total_orders,
-    SUM(o.amount) AS total_spent_usd
-FROM customers c
-LEFT JOIN orders o ON c.customer_id = o.customer_id
-WHERE o.status = 'COMPLETED'
-GROUP BY 1, 2, 3
-ORDER BY total_spent_usd DESC;`;
-      const sel = document.getElementById("pg-dataset-select");
-      if (sel) sel.value = "ecommerce";
-    } else if (id === 2) {
-      editor.value = `WITH streak_ranked AS (
-    SELECT 
-        user_id,
-        login_date,
-        login_date - DENSE_RANK() OVER (PARTITION BY user_id ORDER BY login_date) AS streak_group
-    FROM logins
-)
-SELECT 
-    user_id,
-    COUNT(*) AS longest_active_streak
-FROM streak_ranked
-GROUP BY user_id, streak_group
-ORDER BY longest_active_streak DESC;`;
-      const sel = document.getElementById("pg-dataset-select");
-      if (sel) sel.value = "user_activity";
-    } else if (id === 3) {
-      editor.value = `SELECT * FROM orders WHERE status = 'COMPLETED' LIMIT 10;`;
+    editor.value = sb.draft || "";
+    editor.addEventListener("input", () => { sb.draft = editor.value; });
+    editor.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); this.runSql(); } });
+    try {
+      if (SQL_PLAYGROUND.datasetKey !== sb.datasetKey) await SQL_PLAYGROUND.loadDataset(sb.datasetKey);
+      sb.status = "ready";
+    } catch (err) {
+      sb.status = "error";
+      document.getElementById("pg-results-container").innerHTML = `<div class="callout danger">${this.l("Mesin SQL gagal dimuat. Jalankan lewat server (npm start atau python3 server.py), jangan buka file langsung.", "The SQL engine failed to load. Run via the server (npm start or python3 server.py); do not open the file directly.")}<br><code>${this.esc(err.message || err)}</code></div>`;
+      return;
     }
-    this.executePlaygroundQuery();
+    if (this.currentView !== "playground") return;
+    const stats = document.getElementById("pg-result-stats");
+    if (stats) stats.textContent = this.tr("readyToExecute");
+    const tables = document.getElementById("pg-tables");
+    if (tables) tables.innerHTML = SQL_PLAYGROUND.tables().map((tb) => `<div style="margin-top:6px"><b>${this.esc(tb.name)}</b>(${tb.cols.map((c) => this.esc(c)).join(", ")})</div>`).join("");
   }
 
-  executePlaygroundQuery() {
+  async changeDataset(key) {
+    this.sandbox = { ...this.sandbox, datasetKey: key, challengeId: null, hintOpen: false, solutionOpen: false, draft: "" };
+    this.renderView();
+  }
+  async selectChallenge(id) {
+    const sb = this.sandbox;
+    sb.challengeId = id;
+    sb.hintOpen = false; sb.solutionOpen = false; sb.draft = "";
+    if (id) sb.datasetKey = SQL_PLAYGROUND.challenges.find((c) => c.id === id).dataset;
+    this.renderView();
+  }
+  toggleHint() { this.sandbox.hintOpen = !this.sandbox.hintOpen; this.rerenderKeepingEditor(); }
+  toggleSolution() { this.sandbox.solutionOpen = !this.sandbox.solutionOpen; this.rerenderKeepingEditor(); }
+  rerenderKeepingEditor() {
+    const ed = document.getElementById("pg-sql-editor");
+    if (ed) this.sandbox.draft = ed.value;
+    this.renderView();
+  }
+  async resetDataset() {
+    await SQL_PLAYGROUND.loadDataset(this.sandbox.datasetKey);
+    document.getElementById("pg-results-container").innerHTML = `<p class="muted">${this.l("Data dikembalikan ke kondisi awal.", "Data restored to its original state.")}</p>`;
+    document.getElementById("pg-verdict").innerHTML = "";
+  }
+
+  runSql() {
+    if (this.sandbox.status !== "ready") return;
     const editor = document.getElementById("pg-sql-editor");
     const container = document.getElementById("pg-results-container");
     const stats = document.getElementById("pg-result-stats");
-    const sel = document.getElementById("pg-dataset-select");
-    if (!editor || !container) return;
-
-    const datasetKey = sel ? sel.value : "ecommerce";
-    const res = SQL_PLAYGROUND.executeQuery(editor.value, datasetKey);
-
-    if (res.success && res.rows.length > 0) {
-      const keys = Object.keys(res.rows[0]);
-      if (stats) stats.innerText = `${res.rows.length} rows returned in 2.1ms`;
-      container.innerHTML = `
-        <table class="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr class="border-b border-slate-800 text-slate-400 font-mono">
-              ${keys.map(k => `<th class="p-2.5 font-semibold">${k}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-800/60 font-mono text-slate-300">
-            ${res.rows.map(row => `
-              <tr class="hover:bg-slate-900/50">
-                ${keys.map(k => `<td class="p-2.5">${row[k] !== undefined ? row[k] : 'null'}</td>`).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    } else if (res.success) {
-      if (stats) stats.innerText = `0 rows returned`;
-      container.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">0 rows returned.</div>`;
+    document.getElementById("pg-verdict").innerHTML = "";
+    const res = SQL_PLAYGROUND.run(editor.value);
+    if (!res.ok) {
+      stats.textContent = "Error";
+      container.innerHTML = `<div class="callout danger"><div class="label">SQL error</div><code>${this.esc(res.error)}</code></div>`;
+    } else if (res.empty) {
+      stats.textContent = `${res.ms.toFixed(1)} ms`;
+      container.innerHTML = `<p class="muted">${this.l("Perintah berhasil dijalankan (tidak ada baris yang dikembalikan).", "Statement ran successfully (no rows returned).")}</p>`;
     } else {
-      if (stats) stats.innerText = `Error`;
-      container.innerHTML = `<div class="p-4 text-xs text-rose-400 bg-rose-950/30 border border-rose-900/40 rounded-lg">Error: ${res.error}</div>`;
+      stats.textContent = `${res.rows.length} ${this.l("baris", "rows")} · ${res.ms.toFixed(1)} ms`;
+      container.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr>${res.columns.map((c) => `<th>${this.esc(c)}</th>`).join("")}</tr></thead>
+        <tbody>${res.rows.map((row) => `<tr>${row.map((v) => v === null ? `<td class="null">NULL</td>` : `<td>${this.esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div>`;
     }
   }
 
-  // ================= REMOTE PLAYBOOK VIEW =================
-  renderRemotePlaybookView() {
-    const pb = window.REMOTE_PLAYBOOK;
-    if (!pb) return `<div class="p-8 text-center text-slate-400">Remote Playbook data loading...</div>`;
-    const ov = pb.overview[this.lang] || pb.overview.en;
-    return `
-      <div class="animate-fade space-y-8 max-w-6xl mx-auto">
-        <div class="p-8 sm:p-10 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <div class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-mono uppercase tracking-wider bg-blue-500/10 border border-blue-500/20 text-blue-400">
-            Global Remote Career & Communication
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-white">${ov.title}</h1>
-          <p class="text-slate-300 text-sm leading-relaxed">${ov.subtitle}</p>
-          <div class="p-4 rounded-xl bg-blue-950/20 border border-blue-900/40 text-xs sm:text-sm text-blue-200/90 leading-relaxed">
-            <strong>${this.lang === 'id' ? 'Mengapa Ini Jauh Lebih Penting daripada TOEFL/IELTS?' : 'Why is this more crucial than TOEFL/IELTS?'}</strong><br/>
-            ${ov.whyImportant}
-          </div>
-        </div>
-
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[0].title)}</h2>
-          <p class="text-xs text-slate-400">${this.t(pb.sections[0].description)}</p>
-          <div class="space-y-3">
-            ${pb.sections[0].templates.map(t => `
-              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${t.stage}</div>
-                <div class="p-3 rounded-lg bg-[#0e1422] border border-slate-800 font-mono text-xs text-blue-300 leading-relaxed select-all">
-                  "${t.pattern}"
-                </div>
-                <div class="text-xs text-slate-400"><strong>${this.lang === 'id' ? 'Kenapa Pola Ini Disukai Interviewer:' : 'Why Interviewers Love This:'}</strong> ${t.whyItWorks}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[1].title)}</h2>
-          <p class="text-xs text-slate-400">${this.t(pb.sections[1].description)}</p>
-          <div class="space-y-2">
-            <div class="text-xs font-semibold text-slate-400 uppercase">Production RFC Example (Markdown)</div>
-            <pre><code>${this.escapeHtml(pb.sections[1].sampleRfc)}</code></pre>
-          </div>
-        </div>
-
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[2].title)}</h2>
-          <p class="text-xs text-slate-400">${this.t(pb.sections[2].description)}</p>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${pb.sections[2].slackTemplates.map(st => `
-              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div class="text-xs font-semibold text-rose-400 uppercase tracking-wider">${st.phase}</div>
-                <pre class="text-xs font-mono text-slate-200 whitespace-pre-line bg-[#0e1422] p-3 rounded border border-slate-800">${this.escapeHtml(st.text)}</pre>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[3].title)}</h2>
-          <p class="text-xs text-slate-400">${this.t(pb.sections[3].description)}</p>
-          <div class="space-y-3">
-            ${pb.sections[3].starExamples.map(star => `
-              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div class="text-xs font-semibold text-purple-400 uppercase">Question: "${star.question}"</div>
-                <div class="text-xs sm:text-sm text-slate-300 leading-relaxed whitespace-pre-line p-3 rounded-lg bg-[#0e1422] border border-slate-800">${star.answer}</div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="p-6 rounded-2xl bg-[#0f1523] border border-slate-800 space-y-4">
-          <h2 class="text-lg font-bold text-white">${this.t(pb.sections[4].title)}</h2>
-          <p class="text-xs text-slate-400">${this.t(pb.sections[4].description)}</p>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            ${pb.sections[4].tips.map(tip => `
-              <div class="p-4 rounded-xl bg-[#090d16] border border-slate-800 space-y-2">
-                <div class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">${tip.topic}</div>
-                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${tip.detail}</p>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      </div>
-    `;
+  checkChallenge() {
+    if (this.sandbox.status !== "ready") return;
+    const challenge = SQL_PLAYGROUND.challenges.find((c) => c.id === this.sandbox.challengeId);
+    const editor = document.getElementById("pg-sql-editor");
+    this.runSql();
+    const r = SQL_PLAYGROUND.check(challenge, editor.value);
+    const box = document.getElementById("pg-verdict");
+    let msg;
+    if (r.ok) msg = this.l("Benar: hasil query Anda sama dengan hasil referensi.", "Correct: your result matches the reference result.");
+    else if (r.reason === "error") msg = this.l("Query punya error; perbaiki dulu.", "Your query has an error; fix it first.");
+    else if (r.reason === "empty") msg = this.l("Query tidak menghasilkan baris. Tulis SELECT.", "Your query returned no rows. Write a SELECT.");
+    else if (r.reason === "columns") msg = this.l(`Jumlah kolom salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of columns: expected ${r.expected}, you returned ${r.got}.`);
+    else if (r.reason === "rows") msg = this.l(`Jumlah baris salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of rows: expected ${r.expected}, you returned ${r.got}.`);
+    else msg = this.l("Jumlah baris dan kolom sudah sesuai, tetapi nilainya berbeda. Periksa filter dan agregasi.", "Rows and columns match in count, but the values differ. Check your filters and aggregation.");
+    box.innerHTML = `<div class="feedback ${r.ok ? "ok" : "bad"}">${msg}</div>`;
   }
 
-  escapeHtml(str) {
-    if (!str) return "";
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  // ================= REMOTE PLAYBOOK =================
+  renderRemotePlaybookView() {
+    const pb = window.REMOTE_PLAYBOOK;
+    const ov = pb.overview[this.lang] || pb.overview.en;
+    const section = (i, body) => `<div class="card stack-sm"><h2>${this.esc(this.t(pb.sections[i].title))}</h2><p class="muted">${this.esc(this.t(pb.sections[i].description))}</p>${body}</div>`;
+    return `
+      <div class="stack">
+        <div class="card stack-sm">
+          <h1>${this.esc(ov.title)}</h1>
+          <p class="muted" style="font-size:15px">${this.esc(ov.subtitle)}</p>
+          <div class="callout"><strong>${this.l("Mengapa ini penting?", "Why does this matter?")}</strong><br>${this.esc(ov.whyImportant)}</div>
+        </div>
+        ${section(0, pb.sections[0].templates.map((tp) => `
+          <div class="well stack-sm"><div class="label">${this.esc(this.t(tp.stage))}</div><pre><code>${this.esc(tp.pattern)}</code></pre><p class="small muted">${this.esc(this.t(tp.whyItWorks))}</p></div>`).join(""))}
+        ${section(1, `<pre><code>${this.esc(pb.sections[1].sampleRfc)}</code></pre>`)}
+        ${section(2, `<div class="grid cols-2">${pb.sections[2].slackTemplates.map((st) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(st.phase))}</div><pre><code>${this.esc(st.text)}</code></pre></div>`).join("")}</div>`)}
+        ${section(3, pb.sections[3].starExamples.map((s) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(s.question))}</div>${this.md(s.answer)}</div>`).join(""))}
+        ${section(4, `<div class="grid cols-2">${pb.sections[4].tips.map((tip) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(tip.topic))}</div><p>${this.esc(this.t(tip.detail))}</p></div>`).join("")}</div>`)}
+      </div>`;
   }
 }
 
-// Bootstrap application on DOM load
-window.addEventListener("DOMContentLoaded", () => {
-  window.app = new DataForgeApp();
-});
+window.addEventListener("DOMContentLoaded", () => { window.app = new DataForgeApp(); });

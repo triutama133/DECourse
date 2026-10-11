@@ -28,19 +28,37 @@ window.REMOTE_PLAYBOOK = {
       },
       templates: [
         {
-          stage: "Clarifying Requirements (Tahap Klarifikasi)",
+          stage: {
+            id: "Tahap Klarifikasi (Clarifying Requirements)",
+            en: "Clarifying Requirements"
+          },
           pattern: "Before jumping into the storage layer, let me clarify the non-functional requirements. What is the expected write throughput and the acceptable latency SLA between event generation and query availability?",
-          whyItWorks: "Menunjukkan Anda tidak buru-buru memilih tool sebelum paham skala bisnis riil."
+          whyItWorks: {
+            id: "Menunjukkan Anda tidak buru-buru memilih tool sebelum paham skala bisnis riil.",
+            en: "Demonstrates that you prioritize business scale and SLA constraints over premature tool selection."
+          }
         },
         {
-          stage: "Evaluating Trade-offs (Menjelaskan Pertukaran Solusi)",
+          stage: {
+            id: "Menjelaskan Pertukaran Solusi (Evaluating Trade-offs)",
+            en: "Evaluating Trade-offs"
+          },
           pattern: "There is an inherent trade-off here between write latency and storage cost. If we write small files continuously, we achieve sub-second freshness, but we risk the small-file problem in object storage. Therefore, I propose a micro-batching window of 60 seconds coupled with an hourly asynchronous compaction daemon.",
-          whyItWorks: "Hiring manager internasional sangat menyukai kata 'inherent trade-off' dan 'therefore, I propose...'."
+          whyItWorks: {
+            id: "Hiring manager internasional sangat menyukai kata 'inherent trade-off' dan 'therefore, I propose...'.",
+            en: "International hiring managers strongly value explicit trade-off analysis and structured architectural proposals."
+          }
         },
         {
-          stage: "Handling Edge Cases (Menjawab Skenario Gagal)",
+          stage: {
+            id: "Menjawab Skenario Gagal (Handling Edge Cases)",
+            en: "Handling Edge Cases & Failure Modes"
+          },
           pattern: "In the event of network partitions or upstream worker failures, our pipeline guarantees at-least-once delivery. To prevent downstream revenue duplication, our consumers implement idempotent upserts keyed on a deterministic transaction hash.",
-          whyItWorks: "Langsung menjawab kekhawatiran interviewer tentang konsistensi data."
+          whyItWorks: {
+            id: "Langsung menjawab kekhawatiran interviewer tentang konsistensi data.",
+            en: "Directly addresses interviewer concerns regarding idempotency and distributed failure handling."
+          }
         }
       ]
     },
@@ -81,7 +99,10 @@ If consumer lag exceeds 500k records during initial backfill, replication slots 
       },
       slackTemplates: [
         {
-          phase: "Initial Alert (Menit 0-10)",
+          phase: {
+            id: "Pemberitahuan Awal (Menit 0-10)",
+            en: "Initial Alert (0-10 mins)"
+          },
           text: `🚨 **INCIDENT UPDATE [P1 - Data Freshness Delay]**
 - **Impact**: Daily Executive Revenue Mart is delayed; values currently show data up to 23:00 UTC yesterday.
 - **Root Cause (Preliminary)**: Ingestion pipeline halted due to upstream schema modification on checkout events.
@@ -89,7 +110,10 @@ If consumer lag exceeds 500k records during initial backfill, replication slots 
 - **Next Update**: 15 minutes (or immediately upon mitigation).`
         },
         {
-          phase: "Resolved & Backfill Triggered (Menit 45)",
+          phase: {
+            id: "Masalah Teratasi & Backfill Dimulai (Menit 45)",
+            en: "Resolved & Backfill Triggered (45 mins)"
+          },
           text: `✅ **INCIDENT MITIGATED [P1 - Revenue Mart]**
 - **Resolution**: Deployed patch PR #204 to handle nullable currency fields safely.
 - **Status**: Pipeline backfill completed for missing partitions. Row counts reconciled and verified 100% against payment gateways.
@@ -109,7 +133,10 @@ If consumer lag exceeds 500k records during initial backfill, replication slots 
       },
       starExamples: [
         {
-          question: "Tell me about a time you had a disagreement with a Product Manager or Software Engineer.",
+          question: {
+            id: "Ceritakan pengalaman ketika Anda berselisih pendapat teknis dengan Product Manager atau Software Engineer.",
+            en: "Tell me about a time you had a disagreement with a Product Manager or Software Engineer."
+          },
           answer: `**Situation**: The checkout backend team wanted to push a non-backward-compatible database migration on a Friday to hit an end-of-sprint deadline, which would have broken our downstream analytical lakehouse.
 **Task**: I needed to protect our data pipelines and Monday morning executive reporting without becoming a blocker to their deployment roadmap.
 **Action**: Instead of simply saying 'no', I hopped on a 15-minute call with their lead engineer. I proposed adding a temporary alias column in the database migration and pair-programmed a defensive staging view in dbt using \`COALESCE(new_column, old_column)\`.
@@ -129,12 +156,24 @@ If consumer lag exceeds 500k records during initial backfill, replication slots 
       },
       tips: [
         {
-          topic: "Benchmark Gaji Remote (Data Engineer)",
-          detail: "Junior-Mid: $2,500 - $4,500/bulan (~Rp 40jt - 70jt). Senior: $5,000 - $10,000+/bulan (~Rp 80jt - 160jt+). Jangan pernah sebutkan gaji lokal rupiah Anda saat ditanya salary expectation; selalu sebutkan market rate USD."
+          topic: {
+            id: "Benchmark Gaji Remote (Data Engineer)",
+            en: "Remote DE Compensation Benchmarks"
+          },
+          detail: {
+            id: "Junior-Mid: $2,500 - $4,500/bulan (~Rp 40jt - 70jt). Senior: $5,000 - $10,000+/bulan (~Rp 80jt - 160jt+). Jangan pernah sebutkan gaji lokal rupiah Anda saat ditanya salary expectation; selalu sebutkan market rate USD.",
+            en: "Junior-Mid: $2,500 - $4,500/month (~IDR 40M - 70M). Senior: $5,000 - $10,000+/month (~IDR 80M - 160M+). Never anchor on your local salary history when asked for expectations; anchor firmly on global USD market rates."
+          }
         },
         {
-          topic: "Bentuk Kontrak & Pembayaran",
-          detail: "Perusahaan luar negeri biasanya mempekerjakan engineer Indonesia via dua jalur: 1) **Independent Contractor (B2B)** via invoice bulanan (Wise Business / Payoneer), atau 2) **Employer of Record (EOR)** via platform seperti **Deel** atau **Remote.com** (di mana Anda mendapatkan kontrak berbadan hukum Indonesia lengkap dengan BPJS dan pemotongan PPh 21)."
+          topic: {
+            id: "Bentuk Kontrak & Pembayaran",
+            en: "Contract Structure & Payment Methods"
+          },
+          detail: {
+            id: "Perusahaan luar negeri biasanya mempekerjakan engineer Indonesia via dua jalur: 1) **Independent Contractor (B2B)** via invoice bulanan (Wise Business / Payoneer), atau 2) **Employer of Record (EOR)** via platform seperti **Deel** atau **Remote.com** (di mana Anda mendapatkan kontrak berbadan hukum Indonesia lengkap dengan BPJS dan pemotongan PPh 21).",
+            en: "Global companies typically hire Indonesian engineers via two models: 1) **Independent Contractor (B2B)** using monthly invoicing (Wise Business / Payoneer), or 2) **Employer of Record (EOR)** via platforms like **Deel** or **Remote.com** (providing local compliance, Indonesian statutory benefits, and tax withholding)."
+          }
         }
       ]
     }

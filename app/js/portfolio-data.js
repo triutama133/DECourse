@@ -214,7 +214,7 @@ window.PORTFOLIO_DATA = {
       "interviewDefense": [
         {
           "id": "**T: Bagaimana Anda menemukan sumber pemborosan biaya cloud terbesar?**\n*J:* Saya mengekstrak `INFORMATION_SCHEMA.QUERY_HISTORY` untuk menghitung rasio biaya per query. Dengan mengurutkan query termahal, ditemukan bahwa hanya 5% query yang menghabiskan 68% total anggaran komputasi. Penyebab utamanya adalah Cartesian Join dan scan tabel miliaran baris tanpa filter partisi tanggal.",
-          "en": "**Q: How did you identify the biggest sources of wasted cloud spend?**\n*A:* I queried `INFORMATION_SCHEMA.QUERY_HISTORY` to compute cost per query ($Credits = WarehouseSize \\times ExecutionTime$). By sorting on total credits consumed, I discovered that 5% of queries accounted for 68% of total spend. The primary culprits were Cartesian non-equi joins and full-table scans on tables missing date partitioning."
+          "en": "**Q: How did you identify the biggest sources of wasted cloud spend?**\n*A:* I queried `INFORMATION_SCHEMA.QUERY_HISTORY` to compute cost per query (Credits = WarehouseSize × ExecutionTime). By sorting on total credits consumed, I discovered that 5% of queries accounted for 68% of total spend. The primary culprits were Cartesian non-equi joins and full-table scans on tables missing date partitioning."
         },
         {
           "id": "**T: Bagaimana Anda memastikan kualitas data tanpa memperlambat kecepatan rilis tim?**\n*J:* Kami menerapkan dbt Slim CI di GitHub Actions. Dengan membandingkan PR terhadap manifest produksi (`state:modified+`), CI hanya menguji model dbt yang disentuh oleh PR tersebut, menjaga runtime CI di bawah 3 menit sambil mempertahankan cakupan pengujian 100%.",

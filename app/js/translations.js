@@ -10,7 +10,7 @@ window.TRANSLATIONS = {
     navInterview: "Simulasi Interview",
     navPortfolio: "Portofolio",
     navCvBuilder: "ATS Resume",
-    navPlayground: "SQL Playground",
+    navPlayground: "SQL Sandbox",
     navRemote: "Karir Remote",
 
     // Header Stats
@@ -44,17 +44,17 @@ window.TRANSLATIONS = {
     levelLakehouse: "Arsitektur Lakehouse",
     levelScale: "Skala Besar & Real-Time",
     whyTutorialsLieHeader: "Realita Dunia Kerja (Mengapa Tutorial Biasa Gagal):",
-    tabConcepts: "1. Konsep Fundamental",
+    tabConcepts: "1. Materi",
     tabLab: "2. Lab Praktik",
     tabChaos: "3. Skenario Rusak (Chaos)",
     tabQuiz: "4. Kuis Pemahaman",
-    btnMarkComplete: "○ Tandai Selesai",
-    btnMarkedComplete: "✓ Sudah Selesai",
+    btnMarkComplete: "Tandai Selesai",
+    btnMarkedComplete: "Selesai ✓",
     btnCheckAnswers: "Periksa Jawaban",
     btnBackConcepts: "← Kembali ke Konsep",
-    btnProceedLab: "Lanjut ke Lab Praktik ➔",
-    btnTestChaos: "Uji di Skenario Rusak ➔",
-    btnTakeQuiz: "Ikuti Kuis Pemahaman ➔",
+    btnProceedLab: "Lanjut ke Lab Praktik →",
+    btnTestChaos: "Uji di Skenario Rusak →",
+    btnTakeQuiz: "Ikuti Kuis Pemahaman →",
 
     // Interview
     interviewTitle: "Simulasi Wawancara Kerja",
@@ -89,10 +89,10 @@ window.TRANSLATIONS = {
 
     // Playground
     playgroundTitle: "Playground SQL di Browser",
-    playgroundSubtitle: "Tulis dan jalankan query analisis dimensional langsung tanpa perlu install database di laptop.",
+    playgroundSubtitle: "Query berjalan di mesin SQLite sungguhan di browser Anda. Pilih dataset, kerjakan tantangan, lalu cek hasilnya.",
     datasetLabel: "Pilihan Dataset:",
     presetQueriesLabel: "Contoh Query:",
-    btnExecuteSql: "Jalankan Query (Ctrl+Enter) ▶",
+    btnExecuteSql: "Jalankan (Ctrl+Enter)",
     readyToExecute: "Siap dijalankan",
     runQueryPrompt: "Jalankan query di atas untuk melihat data"
   },
@@ -139,17 +139,17 @@ window.TRANSLATIONS = {
     levelLakehouse: "Modern Lakehouse",
     levelScale: "Distributed Scale & Real-Time",
     whyTutorialsLieHeader: "Production Reality (Why Standard Tutorials Fail):",
-    tabConcepts: "1. Core Concepts",
+    tabConcepts: "1. Lessons",
     tabLab: "2. Hands-on Lab",
     tabChaos: "3. Chaos Scenario",
     tabQuiz: "4. Knowledge Gate",
-    btnMarkComplete: "○ Mark as Completed",
-    btnMarkedComplete: "✓ Completed",
+    btnMarkComplete: "Mark as Completed",
+    btnMarkedComplete: "Completed ✓",
     btnCheckAnswers: "Check Answers",
     btnBackConcepts: "← Back to Concepts",
-    btnProceedLab: "Proceed to Lab ➔",
-    btnTestChaos: "Test in Chaos Scenario ➔",
-    btnTakeQuiz: "Take Knowledge Quiz ➔",
+    btnProceedLab: "Proceed to Lab →",
+    btnTestChaos: "Test in Chaos Scenario →",
+    btnTakeQuiz: "Take Knowledge Quiz →",
 
     // Interview
     interviewTitle: "Interview Simulator",
@@ -184,10 +184,10 @@ window.TRANSLATIONS = {
 
     // Playground
     playgroundTitle: "In-Browser SQL Playground",
-    playgroundSubtitle: "Write and execute dimensional queries directly without installing local database software.",
+    playgroundSubtitle: "Queries run on a real SQLite engine in your browser. Pick a dataset, solve a challenge, check your result.",
     datasetLabel: "Select Dataset:",
     presetQueriesLabel: "Preset Queries:",
-    btnExecuteSql: "Execute Query (Ctrl+Enter) ▶",
+    btnExecuteSql: "Run (Ctrl+Enter)",
     readyToExecute: "Ready to execute",
     runQueryPrompt: "Run a query above to view results"
   }

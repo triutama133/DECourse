@@ -12,9 +12,12 @@
       "dest": "/app/js/$1"
     },
     {
+      "src": "/vendor/(.*)",
+      "dest": "/app/vendor/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/app/index.html"
     }
   ]
 }
-

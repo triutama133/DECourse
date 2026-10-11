@@ -1,16 +1,17 @@
-// Zero-dependency Node.js HTTP server for DataForge Web App
+// Zero-dependency static file server for the DataForge web app.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
-const PUBLIC_DIR = path.join(__dirname);
+const PUBLIC_DIR = __dirname;
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=UTF-8',
   '.js': 'application/javascript; charset=UTF-8',
   '.css': 'text/css; charset=UTF-8',
   '.json': 'application/json; charset=UTF-8',
+  '.wasm': 'application/wasm',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
@@ -18,43 +19,33 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let cleanUrl = req.url.split('?')[0];
-  if (cleanUrl === '/' || cleanUrl === '') {
-    cleanUrl = '/index.html';
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('Bad request');
   }
+  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
 
-  const filePath = path.join(PUBLIC_DIR, cleanUrl);
-  const ext = path.extname(filePath).toLowerCase();
-  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  // Resolve against PUBLIC_DIR and refuse anything that escapes it (e.g. /../server.py)
+  const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
+  if (filePath !== PUBLIC_DIR && !filePath.startsWith(PUBLIC_DIR + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('Forbidden');
+  }
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      if (err.code === 'ENOENT') {
-        // Fallback to index.html for SPA routing
-        fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (err2, indexContent) => {
-          if (err2) {
-            res.writeHead(500, { 'Content-Type': 'text/plain' });
-            res.end('Server Error: index.html not found');
-          } else {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-            res.end(indexContent);
-          }
-        });
-      } else {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end(`Server Error: ${err.code}`);
-      }
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content);
+      res.writeHead(err.code === 'ENOENT' || err.code === 'EISDIR' ? 404 : 500, { 'Content-Type': 'text/plain' });
+      return res.end(err.code === 'ENOENT' || err.code === 'EISDIR' ? 'Not found' : `Server error: ${err.code}`);
     }
+    const contentType = MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(content);
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`\n======================================================`);
-  console.log(`🚀 DataForge Web App is running at: http://localhost:${PORT}`);
-  console.log(`   Open your browser to start your data engineering journey.`);
-  console.log(`======================================================\n`);
+  console.log(`DataForge is running at http://localhost:${PORT}`);
 });
-

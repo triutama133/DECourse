@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node app/server.js",
     "dev": "node app/server.js",
+    "build": "node scripts/build-curriculum.js",
     "serve:py": "python3 server.py"
   },
   "keywords": [
