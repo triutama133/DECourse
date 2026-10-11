@@ -170,3 +170,4 @@ docker compose up -d postgres redpanda connect redpanda-console
 3. **Simpan progres di Git**: Buat repositori Git pribadi Anda sendiri dan commit setiap solusi lab yang berhasil Anda pecahkan. Ini bukti nyata portofolio belajar Anda.
 
 Selamat belajar, dan selamat bertumbuh menjadi Data Engineer profesional!
+

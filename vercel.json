@@ -1,23 +1,4 @@
 {
-  "version": 2,
-  "public": false,
-  "cleanUrls": true,
-  "routes": [
-    {
-      "src": "/css/(.*)",
-      "dest": "/app/css/$1"
-    },
-    {
-      "src": "/js/(.*)",
-      "dest": "/app/js/$1"
-    },
-    {
-      "src": "/vendor/(.*)",
-      "dest": "/app/vendor/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/app/index.html"
-    }
-  ]
+  "outputDirectory": "app",
+  "cleanUrls": true
 }
