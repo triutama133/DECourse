@@ -424,5 +424,24 @@
   "reference": [
    "labs/mod-3-5/reference/rag.py"
   ]
+ },
+ "mod-1-7": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-7/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-1-7/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-1-7/nosql_lab.py"
+  ],
+  "reference": [
+   "labs/mod-1-7/reference/nosql_lab.py"
+  ]
  }
 }

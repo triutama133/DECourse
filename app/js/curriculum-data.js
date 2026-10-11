@@ -3997,6 +3997,497 @@ window.CURRICULUM_DATA = [
      }
     ],
     "idPending": false
+   },
+   {
+    "id": "mod-1-7",
+    "number": "1.7",
+    "title": {
+     "id": "Di Luar SQL: Database Key-Value, Dokumen, Wide-Column, dan Graf",
+     "en": "Beyond SQL: Key-Value, Document, Wide-Column and Graph Databases"
+    },
+    "duration": {
+     "id": "2 minggu",
+     "en": "2 weeks"
+    },
+    "summary": {
+     "id": "Pelajari mengapa keluarga database lain ada, apa kelebihan dan kekurangan masing-masing, dan cara memilih berdasarkan pola akses. Anda membangun ulang inti key-value store, document store, cincin consistent hashing, replikasi quorum, dan tabel wide-column dalam Python murni, lalu melihat apa yang harus dilakukan data engineer ketika data berada di sistem seperti itu.",
+     "en": "Learn why other database families exist, what each one is good and bad at, and how to choose by access pattern. You rebuild the core of a key-value store, a document store, a consistent-hashing ring, quorum replication and a wide-column table in plain Python, then see what a data engineer must do when data lives in such systems."
+    },
+    "whyTutorialsLie": {
+     "id": "Bootcamp bilang \"pakai MongoDB untuk data fleksibel dan Cassandra untuk skala\" lalu berhenti. Tanpa tahu cara kerjanya Anda tidak bisa memilih, tidak bisa memodelkan data untuknya, dan tidak bisa dengan andal memasukkan datanya ke warehouse, tempat sebagian besar pekerjaan data engineering dimulai.",
+     "en": "Bootcamps say \"use MongoDB for flexible data and Cassandra for scale\" and stop. Without knowing how they work you cannot choose, you cannot model data for them, and you cannot reliably get their data into a warehouse, where most data engineering work begins."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan apa keunggulan database relasional, dan tekanan apa yang melahirkan database key-value, dokumen, wide-column, dan graf",
+      "en": "Explain what relational databases are good at, and which pressures led to key-value, document, wide-column and graph databases"
+     },
+     {
+      "id": "Menyatakan teorema CAP dengan benar, dan menjelaskan arti eventual consistency dalam praktik",
+      "en": "State the CAP theorem correctly, and explain what eventual consistency means in practice"
+     },
+     {
+      "id": "Memilih di antara keluarga database berdasarkan pola akses, dan menjelaskan trade-off-nya",
+      "en": "Choose between the database families by access pattern, and explain the trade-offs"
+     },
+     {
+      "id": "Menjelaskan partition key, clustering key, consistent hashing, serta baca dan tulis quorum, dan mengapa partition key yang buruk menciptakan titik panas",
+      "en": "Explain partition keys, clustering keys, consistent hashing and quorum reads and writes, and why a bad partition key creates a hot spot"
+     },
+     {
+      "id": "Menjelaskan bagaimana data diekstrak dari sistem seperti itu (change stream, ekspor) dan mengapa analitik tidak boleh dijalankan di operational store",
+      "en": "Describe how data is extracted from such systems (change streams, exports) and why analytics should not run on operational stores"
+     },
+     {
+      "id": "Meratakan dokumen menjadi tabel dan menangani schema drift saat ingestion",
+      "en": "Flatten documents into tables and handle schema drift during ingestion"
+     }
+    ],
+    "prerequisites": {
+     "id": "Modul 0.3 (dasar SQL) dan 1.3 (index) membantu. Lab ini memakai Python murni (Modul 0.0 sudah cukup); tidak ada database yang perlu dipasang.",
+     "en": "Modules 0.3 (SQL basics) and 1.3 (indexes) help. The lab is plain Python (Module 0.0 is enough); no database needs to be installed."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Mengapa ada database lain",
+       "en": "Why other databases exist"
+      },
+      "body": {
+       "id": "Database relasional unggul dalam satu hal: menjaga **data terstruktur dan saling terkait tetap benar** sementara banyak orang membaca dan mengubahnya, dan menjawab **pertanyaan yang tidak Anda rencanakan** dengan SQL. Tabel, key, join, dan transaksi (Modul 0.3) menyelesaikan rentang masalah yang sangat luas, dan untuk kebanyakan aplikasi ia tetap pilihan pertama yang tepat.\n\nKeluarga lain muncul karena **tekanan** yang kurang ditangani baik oleh satu server relasional:\n\n- **Skala dan volume tulis.** Satu mesin punya batas. Menyebar satu database logis ke banyak mesin (sharding) mungkin dilakukan dengan SQL tetapi sulit, karena join dan transaksi lintas mesin lambat dan rumit.\n- **Latensi.** Beberapa pertanyaan harus dijawab dalam semilidetik (\"apakah sesi ini valid?\"), yang menyarankan menyimpan data di memori dengan pencarian paling sederhana.\n- **Bentuk data.** Sebagian data bersarang dan berbeda dari record ke record (katalog produk yang tiap kategorinya punya atribut berbeda), atau sebagian besar berupa *relasi* (jejaring sosial).\n- **Ketersediaan.** Keranjang belanja yang tidak bisa ditulis ketika satu pusat data tidak terjangkau kehilangan penjualan.\n\nKeluarga NoSQL adalah jawaban atas tekanan ini, dan setiap jawaban ada harganya. Pertukaran utamanya: **melepas sebagian kekuatan umum SQL (query ad hoc, join, transaksi ketat) demi skala, kecepatan, atau fleksibilitas untuk pola akses tertentu**. Jadi pertanyaannya tidak pernah \"mana yang lebih baik\" tetapi \"**bagaimana data ini akan diakses?**\".\n\nDua gagasan membantu Anda bernalar tentang pertukaran itu. **Teorema CAP** menyatakan bahwa ketika **partisi jaringan** terjadi (sebagian mesin tidak bisa berbicara dengan yang lain), sistem terdistribusi harus memilih antara **konsistensi** (setiap pembacaan melihat tulisan terbaru, sehingga sebagian permintaan harus ditolak) dan **ketersediaan** (setiap permintaan mendapat jawaban, yang mungkin basi). Partisi tidak bisa dikesampingkan, jadi pilihan sesungguhnya adalah C atau A *selama* partisi. **PACELC** menambahkan kasus sehari-hari: bahkan tanpa partisi ada pertukaran antara **latensi** dan **konsistensi**, karena menunggu lebih banyak replika itu lebih lambat. Banyak sistem NoSQL memilih ketersediaan dan latensi rendah dan menawarkan **eventual consistency**: jika penulisan berhenti, semua replika konvergen, tetapi pembacaan bisa sesaat mengembalikan nilai lama. Yang lain membiarkan Anda memilih per query, seperti yang akan Anda lihat pada quorum.\n\nACID (transaksi atomik, konsisten, terisolasi, tahan lama) adalah janji relasional. Sebagian sistem NoSQL melonggarkannya (kadang bercanda disebut BASE: basically available, soft state, eventually consistent), dan banyak yang kemudian menambahkan transaksi terbatas. Selalu baca apa yang dijamin produk tertentu.",
+       "en": "A relational database is superb at one thing: keeping **structured, related data correct** while many people read and change it, and answering **questions you did not plan for** with SQL. Tables, keys, joins and transactions (Module 0.3) solve a huge range of problems, and for most applications it is still the right first choice.\n\nOther families appeared because of **pressures** that a single relational server handles poorly:\n\n- **Scale and write volume.** One machine has limits. Spreading one logical database over many machines (sharding) is possible with SQL but hard, because joins and transactions across machines are slow and complicated.\n- **Latency.** Some questions must be answered in a millisecond (\"is this session valid?\"), which suggests keeping data in memory with the simplest possible lookup.\n- **Shape of data.** Some data is nested and varies from record to record (a product catalogue where every category has different attributes), or is mostly *relationships* (a social network).\n- **Availability.** A shopping cart that cannot be written when one data centre is unreachable loses sales.\n\nThe NoSQL families are answers to these pressures, and each answer has a price. Their central trade is: **give up some of the general power of SQL (ad hoc queries, joins, strict transactions) to gain scale, speed or flexibility for a specific access pattern**. So the question is never \"which is better\" but \"**how will this data be accessed?**\".\n\nTwo ideas help you reason about the trade. The **CAP theorem** says that when a **network partition** happens (some machines cannot talk to others), a distributed system must choose between **consistency** (every read sees the latest write, so some requests must be refused) and **availability** (every request gets an answer, which may be stale). Partitions cannot be ruled out, so the real choice is C or A *during* a partition. **PACELC** adds the everyday case: even without a partition there is a trade between **latency** and **consistency**, because waiting for more replicas is slower. Many NoSQL systems choose availability and low latency and offer **eventual consistency**: if writes stop, all replicas converge, but a read may briefly return an old value. Others let you choose per query, as you will see with quorums.\n\nACID (atomic, consistent, isolated, durable transactions) is the relational promise. Some NoSQL systems relax it (sometimes jokingly called BASE: basically available, soft state, eventually consistent), and many have since added limited transactions. Always read what a specific product guarantees."
+      }
+     },
+     {
+      "title": {
+       "id": "Key-value store: database paling sederhana",
+       "en": "Key-value stores: the simplest database"
+      },
+      "body": {
+       "id": "Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah sebuah **key** dan **get** kembali lewat key itu. Itu saja. Tampaknya terlalu sederhana untuk berguna, tetapi justru itu yang membuatnya sangat cepat: tidak ada yang perlu direncanakan, diurai, atau di-join. Contoh: **Redis**, Memcached, dan DynamoDB dalam bentuk paling sederhananya.\n\n**Redis** menyimpan data di memori dan juga menawarkan *struktur* data sebagai nilai: string, hash (dictionary kecil), list, set, dan **sorted set** (set yang diurutkan menurut skor, sempurna untuk papan peringkat). Ia bisa menulis ke disk (snapshot, atau log append-only) agar data bertahan setelah restart, tetapi kekuatannya adalah kecepatan, bukan menyimpan segalanya selamanya.\n\nDua fitur menentukan bagaimana key-value store dipakai:\n\n- **TTL (time to live).** Sebuah key bisa kedaluwarsa otomatis setelah sejumlah detik. Sesi, one-time password, dan hasil cache memakainya. `KeyValueStore` di lab mengedaluwarsakan key ketika `clock() >= waktu_set + ttl`; jam disuntikkan sehingga tes tidak perlu tidur.\n- **Eviction.** Memori terbatas. Ketika penuh, store harus membuang sesuatu; **LRU** (least recently used) membuang key yang paling lama tidak disentuh. Lab mengimplementasikannya dengan dictionary terurut, tempat setiap `get` atau `set` memindahkan key ke ujung \"terbaru\".\n\n**Untuk apa:** meng-cache hasil query mahal, sesi, rate limiting (hitung permintaan per pengguna per menit), penghitung, papan peringkat, feature flag, antrean job kecil. **Bukan untuk:** menanyakan \"semua pelanggan di Jakarta yang belanja di atas 1 juta\", karena satu-satunya pintu masuk adalah key. Jika Anda perlu menemukan data lewat hal selain key, Anda harus memelihara key tambahan sendiri, dan pada titik itu keluarga lain mungkin lebih cocok.\n\nData engineer bertemu key-value store sebagai *lapisan penyajian* pipeline (feature store, pencarian real-time) dan sebagai cache yang membuat data pipeline tampak basi. Ingat bahwa cache adalah **salinan**: ketika sumber berubah, salinan itu salah sampai ia kedaluwarsa atau di-invalidasi.",
+       "en": "A key-value store is a giant dictionary: you **set** a value under a **key** and **get** it back by that key. That is all. It looks too simple to be useful, but this is exactly why it is so fast: there is nothing to plan, parse or join. Examples: **Redis**, Memcached, and DynamoDB used in its simplest form.\n\n**Redis** keeps data in memory and also offers data *structures* as values: strings, hashes (a small dictionary), lists, sets and **sorted sets** (a set ordered by a score, perfect for leaderboards). It can write to disk (snapshots, or an append-only log) so data survives a restart, but its strength is speed, not storage of everything forever.\n\nTwo features define how key-value stores are used:\n\n- **TTL (time to live).** A key can expire automatically after a number of seconds. Sessions, one-time passwords and cached results use this. The lab's `KeyValueStore` expires a key when `clock() >= set_time + ttl`; the clock is injected so tests do not need to sleep.\n- **Eviction.** Memory is finite. When the store is full it must remove something; **LRU** (least recently used) removes the key that has been untouched the longest. The lab implements this with an ordered dictionary, where every `get` or `set` moves the key to the \"recent\" end.\n\n**What it is for:** caching the result of an expensive query, sessions, rate limiting (count requests per user per minute), counters, leaderboards, feature flags, queues of small jobs. **What it is not for:** asking \"all customers in Jakarta who spent over 1 million\", because the only way in is the key. If you need to find data by something other than its key, you must maintain extra keys yourself, and at that point another family is probably a better fit.\n\nA data engineer meets key-value stores as the *serving layer* of pipelines (feature stores, real-time lookups) and as caches that make a pipeline's data appear stale. Remember that a cache is a **copy**: when the source changes, the copy is wrong until it expires or is invalidated."
+      }
+     },
+     {
+      "title": {
+       "id": "Database dokumen: bentuk yang fleksibel",
+       "en": "Document databases: flexible shapes"
+      },
+      "body": {
+       "id": "Database dokumen menyimpan **dokumen**, biasanya JSON (MongoDB menyimpan bentuk biner bernama BSON; batas 16 MB per dokumen), dikelompokkan dalam **collection**. Sebuah dokumen bisa berisi objek bersarang dan array, dan dua dokumen dalam collection yang sama bisa punya field berbeda. Contoh: **MongoDB**, Couchbase, Firestore.\n\n```json\n{ \"_id\": \"1001\", \"customer\": {\"name\": \"Sari\", \"city\": \"Jakarta\"},\n  \"items\": [ {\"sku\": \"KS-1\", \"qty\": 2}, {\"sku\": \"ES-9\", \"qty\": 1} ], \"status\": \"paid\" }\n```\n\nSeluruh pesanan, beserta barisnya, adalah **satu dokumen**: Anda membaca dan menulisnya dalam satu operasi, tanpa join. Itulah pilihan pemodelan utama, **embedding versus referencing**. Embed data yang dibaca bersama dan milik induknya (baris pesanan di dalam pesanan). Referensikan (simpan sebuah id) data yang dipakai bersama atau tumbuh tanpa batas, seperti semua pesanan seorang pelanggan, yang akan membuat satu dokumen pelanggan tumbuh selamanya.\n\nDatabase ini **tidak menegakkan skema secara bawaan**; strukturnya adalah apa pun yang ditulis aplikasi. Ini **schema on read**, gagasan yang sama dengan Hive (Modul 3.0). Cepat untuk memulai dan berbahaya kemudian: field yang dieja dua cara, angka yang disimpan sebagai teks di sebagian dokumen, field yang hilang di dokumen lama. Aturan validasi ada, tetapi Anda harus mengaktifkannya.\n\nAnda mengkueri dengan bahasa berbentuk dokumen: `{\"customer.city\": \"Jakarta\", \"total\": {\"$gte\": 100000}}` (`DocumentStore.find` di lab mendukung path bertitik dan operator `$gt $gte $lt $lte $ne $in`). **Index** penting persis seperti di SQL: tanpanya, sebuah query **memindai setiap dokumen**. Di lab, mencari satu pengguna di antara 10.000 dokumen memindai **10.000** dokumen tanpa index, dan **10** dengan index. Aggregation pipeline (filter, group, sort, project secara bertahap) mencakup pertanyaan bergaya analitik, dan sejak versi 4.0 MongoDB mendukung transaksi multi-dokumen, meskipun tujuan desainnya tetap menyimpan data terkait dalam satu dokumen.\n\n**Untuk apa:** konten, katalog, profil pengguna, apa pun yang bersarang dan berkembang, tempat aplikasi membaca objek utuh. **Jebakan:** array tanpa batas di dalam dokumen, tanpa join (sehingga data yang berulang harus diperbarui di banyak tempat), dan schema drift.\n\n**Bagi data engineer** ini adalah sumber NoSQL yang paling umum. Dokumen harus **diratakan** menjadi baris: objek bersarang menjadi kolom (`customer_city`), array menjadi tabel anak dengan satu baris per elemen dan id induknya (`items` di atas menjadi tabel `order_items`). Rencanakan untuk field yang muncul dan hilang, dan untuk perubahan tipe, dengan gagasan kontrak dari Modul 2.5.",
+       "en": "A document database stores **documents**, usually JSON (MongoDB stores a binary form called BSON; limit 16 MB per document), grouped into **collections**. A document can contain nested objects and arrays, and two documents in the same collection can have different fields. Examples: **MongoDB**, Couchbase, Firestore.\n\n```json\n{ \"_id\": \"1001\", \"customer\": {\"name\": \"Sari\", \"city\": \"Jakarta\"},\n  \"items\": [ {\"sku\": \"KS-1\", \"qty\": 2}, {\"sku\": \"ES-9\", \"qty\": 1} ], \"status\": \"paid\" }\n```\n\nThe whole order, with its lines, is **one document**: you read and write it in one operation, with no join. That is the central modelling choice, **embedding versus referencing**. Embed data that is read together and belongs to the parent (order lines in an order). Reference (store an id) data that is shared or grows without limit, as with all orders of a customer, which would make a single customer document grow forever.\n\nThe database has **no enforced schema by default**; the structure is whatever the application wrote. This is **schema on read**, the same idea as Hive (Module 3.0). It is fast to start and dangerous later: a field spelled two ways, a number stored as text in some documents, a field missing in old ones. Validation rules exist, but you must turn them on.\n\nYou query with a document-shaped language: `{\"customer.city\": \"Jakarta\", \"total\": {\"$gte\": 100000}}` (the lab's `DocumentStore.find` supports dotted paths and the operators `$gt $gte $lt $lte $ne $in`). **Indexes** matter exactly as in SQL: without one, a query **scans every document**. In the lab, finding one user among 10,000 documents scans **10,000** documents without an index, and **10** with one. An aggregation pipeline (filter, group, sort, project in stages) covers analytics-style questions, and since version 4.0 MongoDB supports multi-document transactions, though the design goal remains keeping related data in one document.\n\n**What it is for:** content, catalogues, user profiles, anything nested and evolving, where an application reads whole objects. **Pitfalls:** unbounded arrays inside documents, no joins (so repeated data must be updated in many places), and schema drift.\n\n**For data engineers** this is the commonest NoSQL source. Documents must be **flattened** into rows: a nested object becomes columns (`customer_city`), an array becomes a child table with one row per element and the parent's id (the `items` above become an `order_items` table). Plan for fields that appear and disappear, and for type changes, with the contract ideas of Module 2.5."
+      }
+     },
+     {
+      "title": {
+       "id": "Wide-column dan store berpartisi: skala sejak desain",
+       "en": "Wide-column and partitioned stores: scale by design"
+      },
+      "body": {
+       "id": "Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data ke **banyak mesin** dan tetap bekerja saat sebagian gagal. Meski bernama \"wide-column\", cara terbaik memahaminya adalah lewat **primary key**, yang punya dua bagian:\n\n- **Partition key** menentukan *mesin mana* yang menyimpan baris. Semua baris dengan partition key yang sama tinggal bersama.\n- **Clustering key** (DynamoDB: sort key) menentukan **urutan baris di dalam** partisi, yang secara fisik terurut.\n\n`WideColumnTable(\"customer_id\", \"order_ts\")` di lab memodelkan ini: semua pesanan seorang pelanggan membentuk satu partisi, diurutkan menurut waktu, sehingga \"10 pesanan terakhir pelanggan 7\" atau \"pesanan pelanggan 7 pada Januari\" adalah pembacaan cepat atas **satu** irisan terurut. Menanyakan \"semua pesanan Januari untuk setiap pelanggan\" tidak punya jawaban efisien, dan lab menolak query tanpa partition key. Inilah **pemodelan berbasis query**: di database relasional Anda merancang tabel dari data dan menulis query apa pun kemudian; di sini Anda **mendaftar query lebih dulu**, lalu merancang satu tabel per query, mengulang (denormalisasi) data seperlunya. Ini pergeseran mental terbesar.\n\n**Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.\n\n**Replikasi dan konsistensi yang bisa diatur.** Setiap partisi disalin ke *N* replika (umumnya 3). Sebuah penulisan diakui setelah **W** replika mengonfirmasi; sebuah pembacaan bertanya ke **R** replika dan mengembalikan versi terbaru. Jika **R + W > N**, himpunan baca mana pun beririsan dengan himpunan tulis mana pun, sehingga pembacaan **pasti** melihat tulisan terakhir yang diakui. Dengan N = 3: W=2, R=2 aman (\"quorum\"); W=1, R=1 cepat tetapi bisa mengembalikan data basi; W=3, R=1 aman untuk pembacaan tetapi penulisan gagal jika satu replika mati. `ReplicaSet` di lab memperlihatkan persis ini, termasuk `Unavailable` ketika terlalu sedikit replika hidup. Anda membayar konsistensi dengan latensi dan ketersediaan, itulah PACELC dalam praktik.\n\n**Penulisan murah** karena desain log-structured: penulisan ditambahkan ke commit log dan tabel memori, lalu di-flush ke file terurut yang tidak bisa diubah (SSTable) yang digabung kemudian (**compaction**). Penghapusan tidak benar-benar menghapus: ia menulis **tombstone**, yang baru dibuang setelah masa aman; banyak tombstone memperlambat pembacaan.\n\n**Apa yang salah:** **hot partition** (satu partition key menerima sebagian besar lalu lintas, seperti tanggal hari ini) membebani satu mesin sementara yang lain tidur; partisi yang tumbuh tanpa batas; dan query yang butuh pemindaian penuh. **DynamoDB** menambah operasi terkelola dan batas keras 400 KB per item, dan Anda membayar menurut kapasitas atau per permintaan.",
+       "en": "Cassandra, ScyllaDB, DynamoDB, Bigtable and HBase are built to spread data over **many machines** and keep working when some fail. Despite the name \"wide-column\", the best way to understand them is the **primary key**, which has two parts:\n\n- The **partition key** decides *which machine(s)* store the row. All rows with the same partition key live together.\n- The **clustering key** (DynamoDB: sort key) decides the **order of rows inside** a partition, which is physically sorted.\n\nThe lab's `WideColumnTable(\"customer_id\", \"order_ts\")` models this: all orders of one customer form one partition, sorted by time, so \"the last 10 orders of customer 7\" or \"orders of customer 7 in January\" is a fast read of **one** sorted slice. Asking for \"all orders in January for every customer\" has no efficient answer, and the lab refuses a query without the partition key. This is **query-first modelling**: in a relational database you design tables from the data and write any query later; here you **list the queries first**, then design one table per query, repeating (denormalising) data as needed. It is the biggest mental shift.\n\n**How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.\n\n**Replication and tunable consistency.** Each partition is copied to *N* replicas (commonly 3). A write is acknowledged after **W** replicas confirm; a read asks **R** replicas and returns the newest version. If **R + W > N**, any read set overlaps any write set, so a read **must** see the latest acknowledged write. With N = 3: W=2, R=2 is safe (the \"quorum\"); W=1, R=1 is fast but can return stale data; W=3, R=1 is safe for reads but writes fail if any replica is down. The lab's `ReplicaSet` demonstrates exactly this, including `Unavailable` when too few replicas are up. You pay in latency and availability for consistency, which is PACELC in practice.\n\n**Writes are cheap** because of the log-structured design: a write is appended to a commit log and a memory table, then flushed to immutable sorted files (SSTables) that are merged later (**compaction**). A delete does not erase: it writes a **tombstone**, which is removed only after a safe period; many tombstones slow reads.\n\n**What goes wrong:** a **hot partition** (one partition key receiving most of the traffic, such as the current date) overloads one machine while the others sleep; a partition that grows without bound; and queries that need a full scan. **DynamoDB** adds managed operation and a hard limit of 400 KB per item, and you pay by capacity or by request."
+      }
+     },
+     {
+      "title": {
+       "id": "Graf, pencarian, time-series, dan lainnya",
+       "en": "Graph, search, time-series and the rest"
+      },
+      "body": {
+       "id": "Beberapa pola akses bukan satu pun dari yang di atas.\n\n**Database graf** (Neo4j, Amazon Neptune) menyimpan **node** dan **relasi** (edge), keduanya dengan properti, dan menjadikan *menelusuri relasi* sebagai operasi cepat. Di SQL, \"teman dari teman dari teman\" butuh satu self-join per lompatan dan cepat melambat; database graf berjalan langsung di edge. Pakai bila pertanyaannya tentang koneksi: jaringan fraud (akun yang berbagi perangkat dan alamat), rekomendasi, analisis jaringan dan dependensi, data lineage. Bahasa query Neo4j adalah Cypher, misalnya `MATCH (a:Account)-[:USES]->(d:Device)<-[:USES]-(b:Account) RETURN a, b`. Ia bukan pilihan pertama untuk pelaporan tabular.\n\n**Mesin pencari** (Elasticsearch, OpenSearch) membangun **inverted index** (kata ke daftar dokumen) sehingga bisa mencocokkan teks, meranking hasil menurut relevansi, dan memfilter dengan cepat. Mereka untuk kotak pencarian dan penjelajahan log, bukan sistem pencatat utama.\n\n**Database time-series** (TimescaleDB, InfluxDB) disetel untuk data yang banyak ditambah dan diindeks menurut waktu (metrik, pembacaan sensor), dengan retensi dan downsampling otomatis. **Database vektor** menyimpan embedding untuk pencarian kemiripan (Modul 3.5). Banyak dari ini adalah fitur sistem lain: PostgreSQL melakukan time series dengan ekstensi dan pencarian vektor dengan pgvector.\n\nPelajaran untuk disimpan: sebuah keluarga database adalah kumpulan **optimasi untuk sebuah pola akses**. Jika Anda tahu polanya, keluarganya biasanya mengikuti; jika Anda belum tahu polanya, mulailah dengan database relasional dan pelajari polanya dulu.",
+       "en": "Some access patterns are none of the above.\n\n**Graph databases** (Neo4j, Amazon Neptune) store **nodes** and **relationships** (edges), both with properties, and make *following relationships* the fast operation. In SQL, \"friends of friends of friends\" needs one self-join per hop and gets slow quickly; a graph database walks the edges directly. Use them when the questions are about connections: fraud rings (accounts sharing devices and addresses), recommendations, network and dependency analysis, data lineage. Neo4j's query language is Cypher, for example `MATCH (a:Account)-[:USES]->(d:Device)<-[:USES]-(b:Account) RETURN a, b`. They are not the first choice for tabular reporting.\n\n**Search engines** (Elasticsearch, OpenSearch) build an **inverted index** (word to list of documents) so they can match text, rank results by relevance and filter at speed. They are for search boxes and log exploration, not the system of record.\n\n**Time-series databases** (TimescaleDB, InfluxDB) are tuned for append-heavy data indexed by time (metrics, sensor readings), with automatic retention and downsampling. **Vector databases** store embeddings for similarity search (Module 3.5). Many of these are features of other systems: PostgreSQL does time series with extensions and vector search with pgvector.\n\nThe lesson to keep: a database family is a set of **optimisations for an access pattern**. If you know the pattern, the family usually follows; if you do not know the pattern, start with a relational database and learn it first."
+      }
+     },
+     {
+      "title": {
+       "id": "Memilih, dan apa yang dilakukan data engineer dengannya",
+       "en": "Choosing, and what a data engineer does with them"
+      },
+      "body": {
+       "id": "Panduan keputusan singkat, didorong oleh cara data dibaca:\n\n| Pola akses utama | Biasanya |\n|---|---|\n| Banyak pertanyaan berbeda, join, kebenaran ketat | relasional (PostgreSQL, MySQL) |\n| Mencari satu hal lewat id, cepat; cache; sesi; penghitung | key-value (Redis, DynamoDB) |\n| Membaca dan menulis objek bersarang utuh; bentuknya bervariasi | dokumen (MongoDB) |\n| Volume tulis sangat besar, query diketahui lewat key dan waktu, selalu menyala | wide-column (Cassandra, DynamoDB, Bigtable) |\n| Pertanyaannya tentang relasi dan jalur | graf (Neo4j) |\n| Teks bebas dan relevansi | mesin pencari (Elasticsearch) |\n| Metrik sepanjang waktu | time-series |\n| Analitik atas riwayat yang sangat besar | **bukan ini**: warehouse atau lakehouse (Modul 2.2 dan 2.6) |\n\nPerusahaan memakai beberapa sekaligus (**polyglot persistence**): PostgreSQL untuk pesanan, Redis untuk sesi, Elasticsearch untuk pencarian, Cassandra untuk event. Itu melipatgandakan tempat data berada, dan itulah mengapa data engineer ada.\n\n**Tugas Anda di sekitarnya.**\n\n1. **Jangan pernah menjalankan analitik di operational store.** Pemindaian atas MongoDB atau Cassandra produksi bersaing dengan pelanggan dan sering gagal karena timeout. Salin data ke analytical store.\n2. **Ekstrak secara inkremental.** Pakai change feed sistemnya: change stream MongoDB, DynamoDB Streams, CDC Cassandra, atau konektor Debezium (Modul 3.2). Gunakan ekspor penuh ke object storage untuk data kecil atau yang jarang berubah.\n3. **Ratakan dan beri tipe.** Ubah dokumen menjadi tabel seperti pelajaran 3, putuskan cara menangani field yang hilang dan polimorfik, dan catat skema yang Anda asumsikan.\n4. **Perhatikan konsistensi.** Membaca dari replika bisa mengembalikan data lama, dan snapshot yang diambil saat penulisan berlanjut bisa tidak konsisten antar partisi. Catat kapan dan dari mana Anda membaca.\n5. **Hormati pola akses.** Jika Anda harus mengkueri atribut yang tidak diindeks store, minta tim aplikasi menambah index atau tabel turunan, daripada memindai.\n\nKini Anda bisa menjawab pertanyaan yang lazim: \"Mengapa tidak MongoDB untuk semuanya?\" (tanpa join, schema drift, analitik terbatas). \"Apa itu partition key?\" (menentukan penempatan dan satuan penskalaan). \"Apa arti R + W > N?\" (pembacaan beririsan dengan penulisan, jadi melihat tulisan terbaru, dengan harga latensi dan ketersediaan). \"Mengapa consistent hashing?\" (menambah atau membuang node memindahkan sebagian kecil key, bukan hampir semuanya).",
+       "en": "A short decision guide, driven by how the data is read:\n\n| The main access pattern | Usually |\n|---|---|\n| Many different questions, joins, strict correctness | relational (PostgreSQL, MySQL) |\n| Look up one thing by an id, fast; cache; session; counter | key-value (Redis, DynamoDB) |\n| Read and write whole nested objects; shape varies | document (MongoDB) |\n| Huge write volume, known queries by key and time, always on | wide-column (Cassandra, DynamoDB, Bigtable) |\n| The question is about relationships and paths | graph (Neo4j) |\n| Free text and relevance | search engine (Elasticsearch) |\n| Metrics over time | time-series |\n| Analytics over huge history | **not these**: a warehouse or lakehouse (Modules 2.2 and 2.6) |\n\nCompanies use several at once (**polyglot persistence**): PostgreSQL for orders, Redis for sessions, Elasticsearch for search, Cassandra for events. That multiplies the places where data lives, which is why data engineers exist.\n\n**Your job around them.**\n\n1. **Never run analytics on an operational store.** A scan over a production MongoDB or Cassandra competes with customers and often fails on timeouts. Copy the data to an analytical store.\n2. **Extract incrementally.** Use the system's change feed: MongoDB change streams, DynamoDB Streams, Cassandra CDC, or Debezium connectors (Module 3.2). Fall back to full exports to object storage for small or rarely changing data.\n3. **Flatten and type.** Convert documents into tables as in lesson 3, decide how to handle missing and polymorphic fields, and record the schema you assumed.\n4. **Mind consistency.** Reading from a replica can return old data, and a snapshot taken while writes continue may be inconsistent across partitions. Record when and from where you read.\n5. **Respect the access pattern.** If you must query by an attribute the store does not index, ask the application team to add an index or a derived table, instead of scanning.\n\nYou can now answer the usual questions: \"Why not MongoDB for everything?\" (no joins, schema drift, limited analytics). \"What is a partition key?\" (decides placement and the unit of scaling). \"What does R + W > N mean?\" (reads overlap writes, so they see the latest write, at a cost in latency and availability). \"Why consistent hashing?\" (adding or removing a node moves a small share of keys instead of nearly all)."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: lima gagasan database dalam Python murni",
+      "en": "Lab: five database ideas in plain Python"
+     },
+     "description": {
+      "id": "Bangun lima model kecil yang deterministik: **key-value store** dengan TTL dan eviction LRU, **document store** dengan query dan index, **cincin consistent hashing**, **replikasi quorum**, dan **tabel wide-column**. Tesnya (36) memeriksa setiap perilaku yang dijelaskan pelajaran, termasuk angkanya: index yang memangkas pemindaian dari 10.000 dokumen menjadi 10, modulo hashing yang memindahkan 79,5% key dibanding 19,9% untuk cincin, dan aturan quorum.",
+      "en": "Build five small, deterministic models: a **key-value store** with TTL and LRU eviction, a **document store** with queries and indexes, a **consistent-hashing ring**, **quorum replication**, and a **wide-column table**. The tests (36) check each behaviour the lessons describe, including the numbers: the index that cuts a scan from 10,000 documents to 10, modulo hashing that moves 79.5% of the keys against 19.9% for the ring, and the quorum rule."
+     },
+     "steps": {
+      "id": "1. Baca `labs/mod-1-7/nosql_lab.py` dari atas ke bawah. Docstring tiap class adalah spesifikasinya, beserta pelajaran yang menjelaskannya.\n2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP class:\n\n```bash\npytest labs/mod-1-7/test_lab.py -v\npytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # satu kelompok pada satu waktu\n```\n\n3. **Key-value dulu.** Sebelum menjalankan, tebak apa yang dikembalikan `keys()` setelah `set a, set b, get a, set c` dengan `max_items=2`. Lalu tulis class-nya dan periksa.\n4. **Dokumen.** Bangun `insert` dan `find` biasa; lalu operator; lalu index. Cetak `last_scanned` sebelum dan sesudah `create_index` dan catat selisihnya.\n5. **Cincin dan quorum.** Setelah `HashRing` lulus, ukur sendiri berapa dari 10.000 key yang pindah dengan `zlib.crc32(key) % n` ketika n naik dari 4 ke 5, dan bandingkan dengan cincin Anda. Untuk `ReplicaSet`, isi tabel pasangan (R, W) untuk N = 3 dan tandai mana yang bisa mengembalikan data basi; periksa dengan kode Anda.\n6. **Wide-column.** Tebak apa yang dilakukan `query` dengan partition key yang hilang dan mengapa sistem sungguhan menolaknya.\n7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-7` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Read `labs/mod-1-7/nosql_lab.py` from top to bottom. Each class docstring is the specification, with the lesson that explains it.\n2. Work in file order and run the tests after EACH class:\n\n```bash\npytest labs/mod-1-7/test_lab.py -v\npytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # one group at a time\n```\n\n3. **Key-value first.** Predict, before you run, what `keys()` returns after `set a, set b, get a, set c` with `max_items=2`. Then write the class and check.\n4. **Documents.** Build `insert` and a plain `find`; then operators; then the index. Print `last_scanned` before and after `create_index` and write down the difference.\n5. **The ring and the quorum.** After `HashRing` passes, measure for yourself how many of 10,000 keys move with `zlib.crc32(key) % n` when n goes from 4 to 5, and compare with your ring. For `ReplicaSet`, fill in a table of (R, W) pairs for N = 3 and mark which can return stale data; check it with your code.\n6. **Wide-column.** Predict what `query` does with a missing partition key and why a real system refuses it.\n7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-1-7` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "```bash\npytest labs/mod-1-7/test_lab.py -v\npython3 scripts/prove.py mod-1-7\n```\n\nJalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "```bash\npytest labs/mod-1-7/test_lab.py -v\npython3 scripts/prove.py mod-1-7\n```\n\nKnown-good run: prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-1-7/nosql_lab.py",
+       "name": "nosql_lab.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan lima class TODO",
+        "en": "Your working file: implement the five TODO classes"
+       },
+       "code": "\"\"\"Lab 1.7: the core ideas behind key-value, document, wide-column and distributed databases, in plain Python.\n\nFive small pieces; work in order and run the tests after each:    pytest labs/mod-1-7/test_lab.py -v\nEverything is deterministic (the clock is passed in, nothing is random). The lessons explain what each piece models.\n\"\"\"\nimport zlib  # noqa: F401  (HashRing needs it)\nfrom bisect import bisect, insort  # noqa: F401\nfrom collections import OrderedDict  # noqa: F401\n\n\n# ------------------------------------------------------------ 1. key-value store (Redis-like; lesson 2)\nclass KeyValueStore:\n    \"\"\"A key-value store with expiry (TTL) and a size limit with LRU eviction.\n\n    `clock` is a function that returns the current time in seconds (tests pass a fake clock, so no sleeping).\n    - set(key, value, ttl=None): store the value; if ttl is given the key expires ttl seconds from now (expired when clock() >= expires_at).\n      Setting a key makes it the most recently used.\n    - get(key): the value, or None if the key is missing or expired (an expired key is removed). A successful get makes the key most recently used.\n    - delete(key): remove it; return True if it existed.\n    - ttl(key): seconds left (a number), None if the key is missing/expired OR has no expiry.\n    - keys(): sorted list of live (not expired) keys.\n    - max_items: when more than max_items LIVE keys exist after a set(), drop the LEAST recently used until the limit holds (expired keys go first).\n    Hint: collections.OrderedDict with move_to_end() and popitem(last=False) keeps recency order for free.\n    \"\"\"\n\n    def __init__(self, clock, max_items=None):\n        raise NotImplementedError(\"TODO: implement KeyValueStore\")\n\n    def set(self, key, value, ttl=None):\n        raise NotImplementedError(\"TODO: implement KeyValueStore.set\")\n\n    def get(self, key):\n        raise NotImplementedError(\"TODO: implement KeyValueStore.get\")\n\n    def delete(self, key):\n        raise NotImplementedError(\"TODO: implement KeyValueStore.delete\")\n\n    def ttl(self, key):\n        raise NotImplementedError(\"TODO: implement KeyValueStore.ttl\")\n\n    def keys(self):\n        raise NotImplementedError(\"TODO: implement KeyValueStore.keys\")\n\n\n# ------------------------------------------------------------ 2. document store (MongoDB-like; lesson 3)\nclass DocumentStore:\n    \"\"\"Store dicts (\"documents\") and find them with a query dict.\n\n    - insert(doc): store a COPY of the dict. If it has no \"_id\", give it the next id as text: \"1\", \"2\", ... Return the _id.\n    - find(query=None): documents (in _id order, sorted as text) that match EVERY condition of `query`; no query = all.\n      A condition is either a plain value (equality) or a dict of operators: $gt $gte $lt $lte $ne $in, e.g. {\"age\": {\"$gte\": 18, \"$lt\": 65}}.\n      Field names may be paths into nested dicts: \"address.city\". A document that lacks the field never matches an equality or $gt/$gte/$lt/$lte/$in\n      condition; for $ne it DOES match (a missing field is \"not equal\").\n    - create_index(field): build a lookup {value: set of ids} for an equality field. After that, find() with a plain equality on that field must look\n      only at the documents in the index entry, not at all documents.\n    - last_scanned: after every find(), the number of documents that find() had to look at (for a full scan: all of them).\n    New inserts must keep existing indexes up to date.\n    \"\"\"\n\n    def __init__(self):\n        raise NotImplementedError(\"TODO: implement DocumentStore\")\n\n    def insert(self, doc):\n        raise NotImplementedError(\"TODO: implement DocumentStore.insert\")\n\n    def create_index(self, field):\n        raise NotImplementedError(\"TODO: implement DocumentStore.create_index\")\n\n    def find(self, query=None):\n        raise NotImplementedError(\"TODO: implement DocumentStore.find\")\n\n\n# ------------------------------------------------------------ 3. consistent hashing (Cassandra / Dynamo-like; lesson 5)\nclass HashRing:\n    \"\"\"Decide which node stores a key, so that adding or removing a node moves only a small share of the keys.\n\n    Each node is placed on a ring at `vnodes` positions: position = zlib.crc32(f\"{node}#{i}\".encode()) for i in range(vnodes).\n    A key lives on the first node position at or after zlib.crc32(str(key).encode()), wrapping around to the start of the ring.\n    - node_for(key): the node name; raise ValueError(\"the ring has no nodes\") if empty.\n    - add_node(node), remove_node(node).\n    Hint: keep a sorted list of (position, node); bisect finds the first position >= the key's position.\n    \"\"\"\n\n    def __init__(self, nodes, vnodes=100):\n        raise NotImplementedError(\"TODO: implement HashRing\")\n\n    def add_node(self, node):\n        raise NotImplementedError(\"TODO: implement HashRing.add_node\")\n\n    def remove_node(self, node):\n        raise NotImplementedError(\"TODO: implement HashRing.remove_node\")\n\n    def node_for(self, key):\n        raise NotImplementedError(\"TODO: implement HashRing.node_for\")\n\n\n# ------------------------------------------------------------ 4. quorum replication (lesson 5)\nclass Unavailable(Exception):\n    \"\"\"Raised when too few replicas are up to satisfy a read or a write.\"\"\"\n\n\ndef quorum_overlaps(n, r, w):\n    \"\"\"True when every read quorum must overlap every write quorum (so a read sees the latest write): r + w > n.\"\"\"\n    raise NotImplementedError(\"TODO: implement quorum_overlaps\")\n\n\nclass ReplicaSet:\n    \"\"\"n replicas of one value; each replica holds (version, value). Used to see when a read can be stale.\n\n    - write(value, w, down=()): replicas whose index is in `down` are unreachable. Raise Unavailable if fewer than w replicas are up.\n      Otherwise increase the version number by 1 and store (version, value) on the FIRST w live replicas (lowest indexes).\n    - read(r, down=()): raise Unavailable if fewer than r replicas are up. Otherwise contact the LAST r live replicas (highest indexes) and\n      return the value with the highest version among them.\n    Initially every replica holds (0, None).\n    \"\"\"\n\n    def __init__(self, n):\n        raise NotImplementedError(\"TODO: implement ReplicaSet\")\n\n    def write(self, value, w, down=()):\n        raise NotImplementedError(\"TODO: implement ReplicaSet.write\")\n\n    def read(self, r, down=()):\n        raise NotImplementedError(\"TODO: implement ReplicaSet.read\")\n\n\n# ------------------------------------------------------------ 5. wide-column table (Cassandra-like; lesson 4)\nclass WideColumnTable:\n    \"\"\"A table whose primary key is (partition_key, clustering_key): rows with the same partition value live together, sorted by the clustering value.\n\n    - insert(row): row is a dict. Same (partition, clustering) pair again: replace the old row (an upsert). Store a copy.\n    - query(partition_value, start=None, end=None, descending=False): the rows of that partition ordered by clustering value ascending\n      (descending=True reverses it), limited to start <= clustering <= end when given (either bound may be None).\n      Raise ValueError(\"query needs the partition key\") when partition_value is None: you cannot query without the partition key.\n    - last_scanned: after every query, the number of rows in that ONE partition (a query never touches other partitions).\n    - partition_count(): number of distinct partitions.\n    \"\"\"\n\n    def __init__(self, partition_key, clustering_key):\n        raise NotImplementedError(\"TODO: implement WideColumnTable\")\n\n    def insert(self, row):\n        raise NotImplementedError(\"TODO: implement WideColumnTable.insert\")\n\n    def query(self, partition_value, start=None, end=None, descending=False):\n        raise NotImplementedError(\"TODO: implement WideColumnTable.query\")\n\n    def partition_count(self):\n        raise NotImplementedError(\"TODO: implement WideColumnTable.partition_count\")"
+      },
+      {
+       "path": "labs/mod-1-7/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-36 tes yang memeriksa pekerjaan Anda",
+        "en": "The 36 tests that check your work"
+       },
+       "code": "\"\"\"Tests for Lab 1.7.   pip install pytest && pytest labs/mod-1-7/test_lab.py -v\"\"\"\nimport sys\nfrom collections import Counter\nfrom pathlib import Path\n\nimport pytest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\n\nlab = labtools.load(__file__, \"nosql_lab.py\")\n\n\nclass Clock:\n    def __init__(self):\n        self.t = 0.0\n\n    def __call__(self):\n        return self.t\n\n\nclass TestKeyValueStore:\n    def test_set_and_get(self):\n        kv = lab.KeyValueStore(Clock())\n        kv.set(\"session:1\", {\"user\": 7})\n        assert kv.get(\"session:1\") == {\"user\": 7} and kv.get(\"missing\") is None\n\n    def test_a_key_expires_after_its_ttl(self):\n        clock = Clock()\n        kv = lab.KeyValueStore(clock)\n        kv.set(\"otp\", \"123456\", ttl=30)\n        clock.t = 29.9\n        assert kv.get(\"otp\") == \"123456\"\n        clock.t = 30\n        assert kv.get(\"otp\") is None and kv.keys() == []\n\n    def test_ttl_reports_the_time_left(self):\n        clock = Clock()\n        kv = lab.KeyValueStore(clock)\n        kv.set(\"a\", 1, ttl=10)\n        kv.set(\"b\", 2)\n        clock.t = 4\n        assert kv.ttl(\"a\") == pytest.approx(6) and kv.ttl(\"b\") is None and kv.ttl(\"zzz\") is None\n\n    def test_overwriting_resets_the_expiry(self):\n        clock = Clock()\n        kv = lab.KeyValueStore(clock)\n        kv.set(\"a\", 1, ttl=10)\n        clock.t = 8\n        kv.set(\"a\", 2, ttl=10)\n        clock.t = 15\n        assert kv.get(\"a\") == 2\n\n    def test_delete(self):\n        kv = lab.KeyValueStore(Clock())\n        kv.set(\"a\", 1)\n        assert kv.delete(\"a\") is True and kv.delete(\"a\") is False and kv.get(\"a\") is None\n\n    def test_least_recently_used_key_is_evicted(self):\n        kv = lab.KeyValueStore(Clock(), max_items=2)\n        kv.set(\"a\", 1)\n        kv.set(\"b\", 2)\n        kv.get(\"a\")            # a is now more recent than b\n        kv.set(\"c\", 3)\n        assert kv.keys() == [\"a\", \"c\"]\n\n    def test_expired_keys_go_before_live_ones(self):\n        clock = Clock()\n        kv = lab.KeyValueStore(clock, max_items=2)\n        kv.set(\"old\", 1, ttl=5)\n        kv.set(\"keep\", 2)\n        clock.t = 6\n        kv.set(\"new\", 3)\n        assert kv.keys() == [\"keep\", \"new\"]\n\n\nclass TestDocumentStore:\n    @pytest.fixture()\n    def db(self):\n        d = lab.DocumentStore()\n        for doc in [\n            {\"name\": \"Sari\", \"age\": 31, \"address\": {\"city\": \"Jakarta\"}, \"tags\": [\"vip\"]},\n            {\"name\": \"Budi\", \"age\": 17, \"address\": {\"city\": \"Bandung\"}},\n            {\"name\": \"Citra\", \"age\": 45, \"address\": {\"city\": \"Jakarta\"}},\n            {\"name\": \"Dewi\", \"age\": 70},\n        ]:\n            d.insert(doc)\n        return d\n\n    def test_insert_assigns_ids_and_copies(self):\n        d = lab.DocumentStore()\n        original = {\"x\": 1}\n        assert d.insert(original) == \"1\" and d.insert({\"x\": 2}) == \"2\" and \"_id\" not in original\n        assert d.insert({\"_id\": \"custom\", \"x\": 3}) == \"custom\"\n\n    def test_find_all_and_equality(self, db):\n        assert len(db.find()) == 4\n        assert [x[\"name\"] for x in db.find({\"name\": \"Budi\"})] == [\"Budi\"]\n\n    def test_nested_paths(self, db):\n        assert [x[\"name\"] for x in db.find({\"address.city\": \"Jakarta\"})] == [\"Sari\", \"Citra\"]\n\n    def test_comparison_operators(self, db):\n        assert [x[\"name\"] for x in db.find({\"age\": {\"$gte\": 18, \"$lt\": 65}})] == [\"Sari\", \"Citra\"]\n        assert [x[\"name\"] for x in db.find({\"age\": {\"$gt\": 45}})] == [\"Dewi\"]\n        assert [x[\"name\"] for x in db.find({\"age\": {\"$in\": [17, 70]}})] == [\"Budi\", \"Dewi\"]\n\n    def test_a_missing_field_never_matches_equality_but_matches_ne(self, db):\n        assert \"Dewi\" not in [x[\"name\"] for x in db.find({\"address.city\": \"Jakarta\"})]\n        assert \"Dewi\" in [x[\"name\"] for x in db.find({\"address.city\": {\"$ne\": \"Jakarta\"}})]\n        assert \"Dewi\" not in [x[\"name\"] for x in db.find({\"address.city\": {\"$gt\": \"A\"}})]\n\n    def test_all_conditions_must_hold(self, db):\n        assert [x[\"name\"] for x in db.find({\"address.city\": \"Jakarta\", \"age\": {\"$gt\": 40}})] == [\"Citra\"]\n\n    def test_without_an_index_every_document_is_scanned(self, db):\n        db.find({\"name\": \"Budi\"})\n        assert db.last_scanned == 4\n\n    def test_an_index_means_only_matching_documents_are_scanned(self, db):\n        db.create_index(\"name\")\n        assert [x[\"name\"] for x in db.find({\"name\": \"Budi\"})] == [\"Budi\"]\n        assert db.last_scanned == 1\n\n    def test_the_index_is_kept_up_to_date_by_new_inserts(self, db):\n        db.create_index(\"address.city\")\n        db.insert({\"name\": \"Eko\", \"address\": {\"city\": \"Jakarta\"}})\n        assert [x[\"name\"] for x in db.find({\"address.city\": \"Jakarta\"})] == [\"Sari\", \"Citra\", \"Eko\"] and db.last_scanned == 3\n\n\nclass TestHashRing:\n    KEYS = [f\"user:{i}\" for i in range(3000)]\n\n    def test_a_key_always_goes_to_the_same_node(self):\n        ring = lab.HashRing([\"a\", \"b\", \"c\"])\n        assert all(ring.node_for(k) == ring.node_for(k) for k in self.KEYS[:100])\n\n    def test_load_is_spread_roughly_evenly(self):\n        ring = lab.HashRing([\"a\", \"b\", \"c\"], vnodes=200)\n        counts = Counter(ring.node_for(k) for k in self.KEYS)\n        assert set(counts) == {\"a\", \"b\", \"c\"} and min(counts.values()) > 0.2 * len(self.KEYS)\n\n    def test_removing_a_node_moves_only_that_nodes_keys(self):\n        ring = lab.HashRing([\"a\", \"b\", \"c\", \"d\"])\n        before = {k: ring.node_for(k) for k in self.KEYS}\n        ring.remove_node(\"c\")\n        after = {k: ring.node_for(k) for k in self.KEYS}\n        moved = [k for k in self.KEYS if before[k] != after[k]]\n        assert all(before[k] == \"c\" for k in moved) and all(after[k] != \"c\" for k in self.KEYS)\n\n    def test_adding_a_node_moves_about_one_nth_of_the_keys(self):\n        ring = lab.HashRing([\"a\", \"b\", \"c\", \"d\"], vnodes=200)\n        before = {k: ring.node_for(k) for k in self.KEYS}\n        ring.add_node(\"e\")\n        moved = sum(1 for k in self.KEYS if before[k] != ring.node_for(k))\n        assert 0.10 * len(self.KEYS) < moved < 0.32 * len(self.KEYS)       # about 1/5; a modulo hash would move about 4/5\n\n    def test_every_moved_key_moved_to_the_new_node(self):\n        ring = lab.HashRing([\"a\", \"b\", \"c\"])\n        before = {k: ring.node_for(k) for k in self.KEYS}\n        ring.add_node(\"z\")\n        assert all(ring.node_for(k) == \"z\" for k in self.KEYS if ring.node_for(k) != before[k])\n\n    def test_an_empty_ring_is_an_error(self):\n        with pytest.raises(ValueError, match=\"no nodes\"):\n            lab.HashRing([]).node_for(\"x\")\n\n\nclass TestQuorum:\n    def test_overlap_rule(self):\n        assert lab.quorum_overlaps(3, 2, 2) and lab.quorum_overlaps(5, 3, 3) and lab.quorum_overlaps(3, 1, 3)\n        assert not lab.quorum_overlaps(3, 1, 1) and not lab.quorum_overlaps(3, 1, 2) and not lab.quorum_overlaps(4, 2, 2)\n\n    def test_with_r_plus_w_not_above_n_a_read_can_be_stale(self):\n        rs = lab.ReplicaSet(3)\n        rs.write(\"v1\", w=1)\n        assert rs.read(r=1) is None            # the read asked a replica the write never reached\n\n    def test_with_overlapping_quorums_a_read_sees_the_latest_write(self):\n        rs = lab.ReplicaSet(3)\n        rs.write(\"v1\", w=2)\n        rs.write(\"v2\", w=2)\n        assert rs.read(r=2) == \"v2\"\n\n    def test_write_to_all_and_read_one_is_also_safe(self):\n        rs = lab.ReplicaSet(3)\n        rs.write(\"v1\", w=3)\n        assert rs.read(r=1) == \"v1\"\n\n    def test_a_write_fails_when_too_few_replicas_are_up(self):\n        rs = lab.ReplicaSet(3)\n        with pytest.raises(lab.Unavailable):\n            rs.write(\"x\", w=2, down={0, 1})\n\n    def test_a_read_fails_when_too_few_replicas_are_up(self):\n        rs = lab.ReplicaSet(3)\n        rs.write(\"x\", w=3)\n        with pytest.raises(lab.Unavailable):\n            rs.read(r=2, down={1, 2})\n\n    def test_a_write_skips_replicas_that_are_down(self):\n        rs = lab.ReplicaSet(3)\n        rs.write(\"v1\", w=2, down={0})\n        assert rs.replicas == [(0, None), (1, \"v1\"), (1, \"v1\")]\n\n\nclass TestWideColumnTable:\n    @pytest.fixture()\n    def table(self):\n        t = lab.WideColumnTable(\"customer_id\", \"order_ts\")\n        for cid, ts in [(7, \"2026-01-03\"), (7, \"2026-01-01\"), (7, \"2026-01-02\"), (3, \"2026-01-05\"), (3, \"2026-01-04\")]:\n            t.insert({\"customer_id\": cid, \"order_ts\": ts, \"total\": 1})\n        return t\n\n    def test_rows_of_a_partition_come_back_sorted_by_clustering_key(self, table):\n        assert [r[\"order_ts\"] for r in table.query(7)] == [\"2026-01-01\", \"2026-01-02\", \"2026-01-03\"]\n\n    def test_descending(self, table):\n        assert [r[\"order_ts\"] for r in table.query(7, descending=True)] == [\"2026-01-03\", \"2026-01-02\", \"2026-01-01\"]\n\n    def test_a_range_of_the_clustering_key(self, table):\n        assert [r[\"order_ts\"] for r in table.query(7, start=\"2026-01-02\")] == [\"2026-01-02\", \"2026-01-03\"]\n        assert [r[\"order_ts\"] for r in table.query(7, start=\"2026-01-01\", end=\"2026-01-02\")] == [\"2026-01-01\", \"2026-01-02\"]\n\n    def test_a_query_touches_only_one_partition(self, table):\n        table.query(3)\n        assert table.last_scanned == 2 and table.partition_count() == 2\n\n    def test_the_same_primary_key_is_an_upsert(self, table):\n        table.insert({\"customer_id\": 7, \"order_ts\": \"2026-01-02\", \"total\": 99})\n        rows = table.query(7)\n        assert len(rows) == 3 and rows[1][\"total\"] == 99\n\n    def test_you_cannot_query_without_the_partition_key(self, table):\n        with pytest.raises(ValueError, match=\"partition key\"):\n            table.query(None)\n\n    def test_an_unknown_partition_is_just_empty(self, table):\n        assert table.query(999) == []"
+      },
+      {
+       "path": "labs/mod-1-7/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pytest",
+        "en": "pytest"
+       },
+       "code": "pytest>=8"
+      },
+      {
+       "path": "labs/mod-1-7/reference/nosql_lab.py",
+       "name": "nosql_lab.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try first!)"
+       },
+       "code": "\"\"\"Reference solution for Lab 1.7: the core ideas of key-value, document, wide-column and distributed stores (pure Python).\"\"\"\nimport zlib\nfrom bisect import bisect, insort\nfrom collections import OrderedDict\n\n\n# ------------------------------------------------------------ key-value store (Redis-like)\nclass KeyValueStore:\n    def __init__(self, clock, max_items=None):\n        self.clock = clock          # a function returning \"now\" in seconds (injected so tests are deterministic)\n        self.max_items = max_items\n        self._data = OrderedDict()  # key -> (value, expires_at or None); order = least to most recently used\n\n    def _alive(self, key):\n        value, expires = self._data[key]\n        if expires is not None and self.clock() >= expires:\n            del self._data[key]\n            return False\n        return True\n\n    def set(self, key, value, ttl=None):\n        expires = None if ttl is None else self.clock() + ttl\n        self._data[key] = (value, expires)\n        self._data.move_to_end(key)\n        if self.max_items is not None:\n            for k in list(self._data):\n                self._alive(k) if k in self._data else None\n            while len(self._data) > self.max_items:\n                self._data.popitem(last=False)\n\n    def get(self, key):\n        if key not in self._data or not self._alive(key):\n            return None\n        self._data.move_to_end(key)\n        return self._data[key][0]\n\n    def delete(self, key):\n        return self._data.pop(key, None) is not None\n\n    def ttl(self, key):\n        if key not in self._data or not self._alive(key):\n            return None\n        expires = self._data[key][1]\n        return None if expires is None else expires - self.clock()\n\n    def keys(self):\n        return sorted(k for k in list(self._data) if self._alive(k))\n\n\n# ------------------------------------------------------------ document store (MongoDB-like)\ndef _get_path(doc, path):\n    cur = doc\n    for part in path.split(\".\"):\n        if not isinstance(cur, dict) or part not in cur:\n            return None, False\n        cur = cur[part]\n    return cur, True\n\n\n_OPS = {\n    \"$gt\": lambda a, b: a > b, \"$gte\": lambda a, b: a >= b, \"$lt\": lambda a, b: a < b,\n    \"$lte\": lambda a, b: a <= b, \"$ne\": lambda a, b: a != b, \"$in\": lambda a, b: a in b,\n}\n\n\ndef _matches(doc, query):\n    for path, cond in query.items():\n        value, found = _get_path(doc, path)\n        if isinstance(cond, dict) and cond and all(k.startswith(\"$\") for k in cond):\n            for op, operand in cond.items():\n                if op == \"$ne\":\n                    if found and value == operand:\n                        return False\n                elif not found or value is None or not _OPS[op](value, operand):\n                    return False\n        elif not found or value != cond:\n            return False\n    return True\n\n\nclass DocumentStore:\n    def __init__(self):\n        self.docs = {}\n        self._next = 1\n        self.indexes = {}           # field -> {value: set of ids}\n        self.last_scanned = 0\n\n    def insert(self, doc):\n        doc = dict(doc)\n        if \"_id\" not in doc:\n            doc[\"_id\"] = str(self._next)\n            self._next += 1\n        self.docs[doc[\"_id\"]] = doc\n        for field, idx in self.indexes.items():\n            value, found = _get_path(doc, field)\n            if found:\n                idx.setdefault(value, set()).add(doc[\"_id\"])\n        return doc[\"_id\"]\n\n    def create_index(self, field):\n        idx = {}\n        for _id, doc in self.docs.items():\n            value, found = _get_path(doc, field)\n            if found:\n                idx.setdefault(value, set()).add(_id)\n        self.indexes[field] = idx\n\n    def find(self, query=None):\n        query = query or {}\n        candidates = None\n        for field, cond in query.items():\n            if field in self.indexes and not (isinstance(cond, dict) and cond and all(k.startswith(\"$\") for k in cond)):\n                candidates = self.indexes[field].get(cond, set())\n                break\n        ids = sorted(candidates) if candidates is not None else sorted(self.docs)\n        self.last_scanned = len(ids)\n        return [self.docs[i] for i in ids if _matches(self.docs[i], query)]\n\n\n# ------------------------------------------------------------ consistent hashing (Cassandra / Dynamo-like)\nclass HashRing:\n    def __init__(self, nodes, vnodes=100):\n        self.vnodes = vnodes\n        self._ring = []   # sorted list of (position, node)\n        for n in nodes:\n            self.add_node(n)\n\n    @staticmethod\n    def _pos(text):\n        return zlib.crc32(text.encode(\"utf-8\"))\n\n    def add_node(self, node):\n        for i in range(self.vnodes):\n            insort(self._ring, (self._pos(f\"{node}#{i}\"), node))\n\n    def remove_node(self, node):\n        self._ring = [(p, n) for p, n in self._ring if n != node]\n\n    def node_for(self, key):\n        if not self._ring:\n            raise ValueError(\"the ring has no nodes\")\n        i = bisect(self._ring, (self._pos(str(key)), chr(0x10FFFF)))\n        return self._ring[i % len(self._ring)][1]\n\n\n# ------------------------------------------------------------ quorum replication\nclass Unavailable(Exception):\n    pass\n\n\ndef quorum_overlaps(n, r, w):\n    return r + w > n\n\n\nclass ReplicaSet:\n    def __init__(self, n):\n        self.replicas = [(0, None) for _ in range(n)]   # (version, value) per replica\n        self.version = 0\n\n    def write(self, value, w, down=()):\n        up = [i for i in range(len(self.replicas)) if i not in set(down)]\n        if len(up) < w:\n            raise Unavailable(f\"only {len(up)} replicas up, {w} needed\")\n        self.version += 1\n        for i in up[:w]:                       # the write reaches the FIRST w live replicas\n            self.replicas[i] = (self.version, value)\n\n    def read(self, r, down=()):\n        up = [i for i in range(len(self.replicas)) if i not in set(down)]\n        if len(up) < r:\n            raise Unavailable(f\"only {len(up)} replicas up, {r} needed\")\n        contacted = up[::-1][:r]               # the read asks the LAST r live replicas\n        return max((self.replicas[i] for i in contacted), key=lambda vv: vv[0])[1]\n\n\n# ------------------------------------------------------------ wide-column table (Cassandra-like)\nclass WideColumnTable:\n    def __init__(self, partition_key, clustering_key):\n        self.partition_key = partition_key\n        self.clustering_key = clustering_key\n        self.partitions = {}                   # partition value -> sorted list of (clustering value, row)\n        self.last_scanned = 0\n\n    def insert(self, row):\n        part = row[self.partition_key]\n        rows = self.partitions.setdefault(part, [])\n        ck = row[self.clustering_key]\n        for i, (c, _) in enumerate(rows):\n            if c == ck:\n                rows[i] = (ck, dict(row))      # same primary key: overwrite (an upsert)\n                return\n        insort(rows, (ck, dict(row)), key=lambda pair: pair[0])\n\n    def query(self, partition_value, start=None, end=None, descending=False):\n        if partition_value is None:\n            raise ValueError(\"query needs the partition key\")\n        rows = self.partitions.get(partition_value, [])\n        self.last_scanned = len(rows)\n        out = [r for c, r in rows if (start is None or c >= start) and (end is None or c <= end)]\n        return out[::-1] if descending else out\n\n    def partition_count(self):\n        return len(self.partitions)"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 36 tes lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri**",
+       "en": "All 36 tests pass **on your own computer, run from your own terminal**"
+      },
+      {
+       "id": "Anda bisa menjelaskan mengapa `R + W > N` menjamin pembacaan melihat tulisan terbaru, dan menyebut satu pasangan (R, W) untuk N = 3 yang bisa mengembalikan data basi",
+       "en": "You can explain why `R + W > N` guarantees that a read sees the latest write, and name one (R, W) pair for N = 3 that can return stale data"
+      },
+      {
+       "id": "Anda bisa menjelaskan mengapa consistent hashing memindahkan jauh lebih sedikit key daripada modulo hashing, memakai angka 19,9% dan 79,5%",
+       "en": "You can explain why consistent hashing moves far fewer keys than modulo hashing, using the numbers 19.9% and 79.5%"
+      },
+      {
+       "id": "Anda bisa menyebut keluarga mana yang Anda pilih untuk sesi, untuk katalog pesanan dengan atribut bervariasi, dan untuk laju tulis sangat tinggi pembacaan sensor, beserta alasannya",
+       "en": "You can say which family you would choose for sessions, for an order catalogue with varying attributes, and for a very high write rate of sensor readings, and why"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Partition key yang berupa tanggal",
+      "en": "The partition key that was a date"
+     },
+     "scenario": {
+      "id": "Sebuah tim memindahkan log event dari PostgreSQL ke store wide-column \"agar skalanya besar\". Tabelnya dirancang sebagai `PRIMARY KEY (event_date, event_id)`: partition key-nya tanggal, event satu hari diurutkan menurut id. Dalam tes, dengan beberapa ribu baris, semuanya cepat. Query-nya persis yang dibutuhkan produk: \"semua event pada hari tertentu\".\n\nDi produksi, pada hari dengan 20 juta event, masalah dimulai tengah malam. Setiap penulisan hari berjalan masuk ke **satu partisi**, yang tinggal di tiga mesin dari klaster tiga puluh. Ketiga mesin itu mencapai CPU 100%, latensi tulis naik dari milidetik menjadi detik, penulisan mulai timeout dan dicoba ulang, dan percobaan ulang memperburuknya. Dua puluh tujuh mesin lain nyaris menganggur. Menambah mesin tidak mengubah apa-apa. Keesokan paginya, dengan hari yang sudah selesai, partisi lama itu tenang sempurna dan hari baru mengulang masalahnya.",
+      "en": "A team moves an event log from PostgreSQL to a wide-column store \"to scale\". The table is designed as `PRIMARY KEY (event_date, event_id)`: the partition key is the date, the events of one day are sorted by id. In tests, with a few thousand rows, everything is fast. The queries are exactly what the product needs: \"all events of a given day\".\n\nIn production, on a day of 20 million events, the problems begin at midnight. Every write of the current day goes to **one partition**, which lives on three machines of a cluster of thirty. Those three machines hit 100% CPU, write latency rises from milliseconds to seconds, writes start timing out and are retried, and the retries make it worse. The other twenty-seven machines are almost idle. Adding machines changes nothing. The next morning, with the day finished, the old partition is perfectly quiet and the new day repeats the problem."
+     },
+     "breakageReason": {
+      "id": "Partition key menentukan di mana data tinggal, dan **tanggal adalah key berkardinalitas rendah yang tumbuh sepanjang hari di tempat yang sama**: pada saat mana pun, semua penulisan berbagi satu nilai. Kapasitas klaster hanya jumlah mesinnya jika beban tersebar; dengan satu hot partition kapasitasnya adalah milik tiga mesin. Lab menunjukkan efek yang sama dalam skala kecil: dengan satu posisi virtual per node, cincin menaruh 99,4% key di satu node; dan `WideColumnTable` yang dipartisi menurut konstanta menaruh semua barisnya dalam satu partisi, berapa pun jumlah node.\n\nQuery \"semua event suatu hari\" tampak seperti pola akses, tetapi itu pola **baca**. Pola **tulis** (apa yang ditulis pada saat yang sama) sama pentingnya saat memilih partition key.",
+      "en": "The partition key decides where data lives, and a **date is a low-cardinality key that grows all day in the same place**: at any moment, all writes share one value. The cluster's capacity is the sum of its machines only if the load is spread; with one hot partition the capacity is that of three machines. The lab shows the same effect in miniature: with one virtual position per node the ring put 99.4% of keys on one node; and a `WideColumnTable` partitioned by a constant has all its rows in a single partition, no matter how many nodes exist.\n\nThe query \"all events of a day\" looked like the access pattern, but it was a **read** pattern. The **write** pattern (what is written at the same moment) is just as important when choosing a partition key."
+     },
+     "fixGuide": {
+      "id": "1. Ganti partition key menjadi sesuatu dengan **kardinalitas tinggi yang menyebar penulisan**: misalnya `(event_date, bucket)` dengan `bucket = hash(event_id) % 64`, atau `(customer_id, event_date)`. Membaca satu hari penuh lalu berarti mengkueri 64 bucket secara paralel dan menggabungkan, pertukaran yang disengaja.\n2. Jaga **ukuran partisi tetap terbatas** (partisi tidak boleh tumbuh tanpa batas): masukkan bucket waktu seperti jam ke dalam key.\n3. **Uji dengan kemiringan yang realistis**, bukan beberapa ribu baris yang merata: uji beban dengan laju puncak sebenarnya dan lihat beban per partisi dan per node, bukan rata-rata klaster.\n4. **Pantau metrik per partisi** (partisi terpanas, permintaan yang di-throttle), bukan hanya CPU rata-rata. DynamoDB dan Cassandra sama-sama menyediakannya.\n5. Untuk analitik (\"semua event satu hari untuk setiap pelanggan\"), jangan pakai tabel ini: alirkan event ke lakehouse (Modul 2.2) dan kueri di sana.",
+      "en": "1. Change the partition key to something with **high cardinality that spreads writes**: for example `(event_date, bucket)` where `bucket = hash(event_id) % 64`, or `(customer_id, event_date)`. Reading a whole day then means querying all 64 buckets in parallel and merging, which is a deliberate trade.\n2. Keep the **partition size bounded** (a partition should not grow without limit): include a time bucket such as the hour in the key.\n3. **Test with realistic skew**, not a few thousand even rows: load-test with the real peak rate and look at the per-partition and per-node load, not the cluster average.\n4. **Monitor per-partition metrics** (hottest partition, throttled requests), not just average CPU. DynamoDB and Cassandra both expose them.\n5. For analytics (\"all events of a day for every customer\"), do not use this table: stream the events to a lakehouse (Module 2.2) and query there."
+     },
+     "defensivePattern": {
+      "id": "Rancang partition key untuk pola tulis sekaligus pola baca. Kapasitas store terdistribusi hanya sebesar penyebaran bebannya.",
+      "en": "Design the partition key for the write pattern as well as the read pattern. The capacity of a distributed store is only as large as the spread of its load."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "Pada key-value store, apa yang dilakukan TTL?",
+       "en": "In a key-value store, what does a TTL do?"
+      },
+      "options": [
+       {
+        "id": "Ia membatasi berapa banyak key yang boleh dimuat store, dan membuang key tertua saat batas tercapai",
+        "en": "It limits how many keys the store may hold, and it removes the oldest key when the limit is reached"
+       },
+       {
+        "id": "Ia membuat key kedaluwarsa otomatis setelah sejumlah detik, sehingga sesi dan cache membersihkan diri",
+        "en": "It makes a key expire automatically after some seconds, so sessions and caches clean themselves up"
+       },
+       {
+        "id": "Ia menentukan jumlah replika yang harus mengonfirmasi penulisan, agar store tetap bisa konsisten",
+        "en": "It sets the number of replicas that must confirm a write, so that the store can stay consistent"
+       },
+       {
+        "id": "Ia mengurutkan key menurut waktu perubahan terakhir, sehingga query rentang menurut waktu jadi mungkin",
+        "en": "It sorts the keys by the time of their last change, so that range queries by time become possible"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "TTL adalah masa kedaluwarsa (time to live). Batas ukuran dengan eviction LRU adalah fitur lain, dan jumlah replika adalah pengaturan replikasi.",
+       "en": "TTL is expiry (time to live). The size limit with LRU eviction is a different feature, and replica counts are a replication setting."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa index membuat query dokumen jauh lebih cepat?",
+       "en": "Why does an index make a document query much faster?"
+      },
+      "options": [
+       {
+        "id": "Ia menyalin seluruh collection ke memori agar setiap query bisa berjalan tanpa menyentuh disk sama sekali",
+        "en": "It copies the whole collection to memory so that every query can run without touching the disk at all"
+       },
+       {
+        "id": "Ia membuang dokumen duplikat dari collection agar lebih sedikit dokumen yang perlu dibandingkan",
+        "en": "It removes duplicate documents from the collection so that fewer documents have to be compared"
+       },
+       {
+        "id": "Ia membiarkan database langsung melompat ke dokumen yang cocok, bukan memindai semuanya satu per satu",
+        "en": "It lets the database jump straight to the matching documents instead of scanning all of them now"
+       },
+       {
+        "id": "Ia mengubah setiap dokumen menjadi baris tabel, sehingga database bisa memakai join SQL biasa",
+        "en": "It converts every document to a table row, so that the database can use an ordinary SQL join"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Di lab, mencari satu pengguna di antara 10.000 dokumen memindai 10.000 dokumen tanpa index dan 10 dengan index.",
+       "en": "In the lab, finding one user among 10,000 documents scanned 10,000 documents without an index and 10 with one."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang dikatakan teorema CAP tentang partisi jaringan?",
+       "en": "What does the CAP theorem say about a network partition?"
+      },
+      "options": [
+       {
+        "id": "Sistem hanya bisa terpartisi bila memakai database relasional dengan transaksi yang ketat",
+        "en": "A system can only be partitioned when it uses a relational database with strict transactions"
+       },
+       {
+        "id": "Partisi membuat konsistensi dan ketersediaan sama-sama mustahil, jadi sistem harus dihentikan",
+        "en": "A partition makes consistency and availability both impossible, so the system must be stopped"
+       },
+       {
+        "id": "Saat partisi, sistem memilih konsistensi (menolak permintaan) atau ketersediaan (jawaban basi)",
+        "en": "In a partition a system must pick consistency (refusing requests) or availability (stale answers)"
+       },
+       {
+        "id": "Sistem selalu bisa menjaga konsistensi dan ketersediaan sekaligus jika menambah replika setiap item",
+        "en": "The system can always keep both consistency and availability if it adds more replicas of every item"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Partisi tidak bisa dikesampingkan pada sistem terdistribusi, jadi pilihan sesungguhnya adalah C atau A selama partisi. PACELC menambahkan latensi versus konsistensi saat tidak ada partisi.",
+       "en": "Partitions cannot be ruled out in a distributed system, so the real choice is between C and A while one lasts. PACELC adds latency versus consistency when there is no partition."
+      }
+     },
+     {
+      "question": {
+       "id": "Dengan N = 3 replika, pengaturan mana yang menjamin pembacaan melihat tulisan terakhir yang diakui?",
+       "en": "With N = 3 replicas, which setting guarantees that a read sees the latest acknowledged write?"
+      },
+      "options": [
+       {
+        "id": "W = 1 dan R = 1, karena satu replika yang menerima tulisan juga yang melayani pembacaan",
+        "en": "W = 1 and R = 1, because the single replica that took the write is also the one that serves reads"
+       },
+       {
+        "id": "W = 2 dan R = 2, karena R + W lebih besar dari N, jadi setiap himpunan baca beririsan dengan himpunan tulis",
+        "en": "W = 2 and R = 2, because R + W is greater than N, so each read set always overlaps each write set"
+       },
+       {
+        "id": "W = 1 dan R = 2, karena membaca dari lebih banyak replika daripada yang ditulis selalu menemukan nilai terbaru",
+        "en": "W = 1 and R = 2, because reading from more replicas than were written always finds the newest value"
+       },
+       {
+        "id": "Pengaturan apa pun, asalkan replika berada di pusat data berbeda dan punya jaringan cepat",
+        "en": "Any setting, as long as the replicas are in different data centres and have fast network links"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Aturannya R + W > N. Dengan W = 1 dan R = 2, himpunan 1 dan 2 dari 3 replika tidak harus beririsan, dan ReplicaSet di lab memperlihatkan pembacaan basi.",
+       "en": "The rule is R + W > N. With W = 1 and R = 2 the sets of 1 and 2 out of 3 replicas need not overlap, and the lab's ReplicaSet shows a stale read."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa consistent hashing lebih disukai daripada `hash(key) % jumlah_node` saat ukuran klaster berubah?",
+       "en": "Why is consistent hashing preferred to `hash(key) % number_of_nodes` when the cluster changes size?"
+      },
+      "options": [
+       {
+        "id": "Ia membuat fungsi hash sendiri lebih cepat dihitung, sehingga setiap pencarian key lebih murah",
+        "en": "It makes the hash function itself faster to calculate, so every lookup of a key costs less time"
+       },
+       {
+        "id": "Ia menjamin setiap node memegang jumlah key yang persis sama, setimpang apa pun datanya",
+        "en": "It guarantees that every node holds exactly the same number of keys, however skewed the data is"
+       },
+       {
+        "id": "Menambah atau membuang node hanya memindahkan sebagian kecil key, bukan hampir semuanya",
+        "en": "Adding or removing a node moves only a small share of the keys, instead of nearly all of them"
+       },
+       {
+        "id": "Ia menghapus kebutuhan replikasi, karena setiap key otomatis tersimpan di setiap node",
+        "en": "It removes the need for replication, because every key is automatically stored on every node"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Di lab, naik dari 4 ke 5 node memindahkan 79,5% dari 10.000 key dengan modulo hashing dan 19,9% dengan cincin. Virtual node menjaga keseimbangan.",
+       "en": "In the lab, going from 4 to 5 nodes moved 79.5% of 10,000 keys with modulo hashing and 19.9% with the ring. Virtual nodes keep the balance even."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa arti \"pemodelan berbasis query\" untuk database wide-column seperti Cassandra?",
+       "en": "What does \"query-first modelling\" mean for a wide-column database such as Cassandra?"
+      },
+      "options": [
+       {
+        "id": "Anda menulis query aplikasi hanya setelah tabel ada, karena database akan menyesuaikan diri dengannya",
+        "en": "You write the application's queries only after the tables exist, because the database will adapt to them"
+       },
+       {
+        "id": "Anda mendaftar query lebih dulu dan merancang satu tabel untuk tiap query, mengulang data seperlunya",
+        "en": "You list the queries first and design one table for each query, repeating data where that is needed"
+       },
+       {
+        "id": "Anda menormalisasi semua data ke bentuk normal ketiga agar query apa pun bisa dijawab dengan join",
+        "en": "You normalise all data into third normal form so that any query can be answered with joins"
+       },
+       {
+        "id": "Anda membiarkan database memilih partition key dengan menganalisis query pertama setelah peluncuran",
+        "en": "You let the database choose the partition key by analysing the first queries it sees after launch"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Store ini menjawab query lewat partition key secara efisien dan tidak bisa join, jadi tabel dibentuk oleh query-nya dan data diduplikasi dengan sengaja.",
+       "en": "These stores answer queries by partition key efficiently and cannot join, so tables are shaped by their queries and data is duplicated on purpose."
+      }
+     },
+     {
+      "question": {
+       "id": "Sebuah tabel dipartisi menurut tanggal event, dan hari ini menerima semua penulisan. Apa masalah yang paling mungkin?",
+       "en": "A table is partitioned by event date, and the current day receives all the writes. What is the most likely problem?"
+      },
+      "options": [
+       {
+        "id": "Klaster kehabisan ruang disk di setiap mesin pada saat yang sama karena format tanggal",
+        "en": "The cluster runs out of disk space on every machine at the same moment because of the date format"
+       },
+       {
+        "id": "Query menurut tanggal gagal, karena tanggal tidak bisa menjadi partition key di database semacam itu",
+        "en": "The queries by date fail, because a date cannot be used as a partition key in any such database at all"
+       },
+       {
+        "id": "Hot partition: mesin satu partisi kelebihan beban sementara sisa klaster nyaris menganggur",
+        "en": "A hot partition: one partition's machines are overloaded while the rest of the cluster is nearly idle"
+       },
+       {
+        "id": "Replika tidak sepakat soal tanggal, sehingga pembacaan mengembalikan data hari yang salah ke aplikasi",
+        "en": "The replicas disagree about the date, so reads return the data of the wrong day to the application"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Partition key menentukan penempatan, dan tanggal memusatkan semua penulisan terkini di satu tempat. Tambahkan bucket atau pakai key berkardinalitas tinggi.",
+       "en": "The partition key decides placement, and a date concentrates all current writes in one place. Add a bucket or use a high-cardinality key."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa analitik tidak boleh dijalankan langsung di operational NoSQL store, dan apa yang dilakukan sebagai gantinya?",
+       "en": "Why should analytics not run directly on an operational NoSQL store, and what is done instead?"
+      },
+      "options": [
+       {
+        "id": "Store NoSQL tidak bisa dibaca lebih dari satu klien sekaligus, jadi datanya diekspor setahun sekali",
+        "en": "NoSQL stores cannot be read by more than one client, so the data is exported once a year"
+       },
+       {
+        "id": "Analitik membutuhkan data terenkripsi penuh, yang tidak pernah diizinkan pada operational store",
+        "en": "Analytics needs the data to be encrypted, which operational stores are never allowed to do"
+       },
+       {
+        "id": "Pemindaian besar bersaing dengan pelanggan dan sering timeout, sehingga data disalin ke warehouse",
+        "en": "Big scans compete with customers and often time out, so the data is copied to a warehouse"
+       },
+       {
+        "id": "Operational store menghapus datanya setiap hari, sehingga analis harus menyalinnya sebelum hilang",
+        "en": "Operational stores delete their data every day, so analysts must copy it before it disappears"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Operational store melayani satu pola akses. Ekstrak secara inkremental dengan change stream atau CDC, ratakan dokumennya, dan kueri salinannya.",
+       "en": "Operational stores serve one access pattern. Extract incrementally with change streams or CDC, flatten the documents, and query the copy."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "Dokumentasi Redis: tipe data",
+       "en": "Redis documentation: data types"
+      },
+      "url": "https://redis.io/docs/latest/develop/data-types/"
+     },
+     {
+      "label": {
+       "id": "Manual MongoDB",
+       "en": "MongoDB manual"
+      },
+      "url": "https://www.mongodb.com/docs/manual/"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Apache Cassandra",
+       "en": "Apache Cassandra documentation"
+      },
+      "url": "https://cassandra.apache.org/doc/latest/"
+     },
+     {
+      "label": {
+       "id": "Amazon DynamoDB Developer Guide",
+       "en": "Amazon DynamoDB Developer Guide"
+      },
+      "url": "https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html"
+     },
+     {
+      "label": {
+       "id": "Neo4j: manual Cypher",
+       "en": "Neo4j: Cypher manual"
+      },
+      "url": "https://neo4j.com/docs/cypher-manual/current/"
+     },
+     {
+      "label": {
+       "id": "Dynamo: Amazon's Highly Available Key-value Store (makalah)",
+       "en": "Dynamo: Amazon's Highly Available Key-value Store (paper)"
+      },
+      "url": "https://www.allthingsdistributed.com/2007/10/amazons_dynamo.html"
+     }
+    ],
+    "idPending": false
    }
   ]
  },

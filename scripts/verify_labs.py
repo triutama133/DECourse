@@ -33,6 +33,7 @@ PLAN = {
     "mod-1-2": ("pytest", ["labs/mod-1-2/test_lab.py"]),
     "mod-1-3": ("both", ["labs/mod-1-3/verify.sh", "labs/mod-1-3/explain/test_lab.py"]),
     "mod-1-4": ("both", ["labs/mod-1-4/verify.sh", "labs/mod-1-4/test_lab.py"]),
+    "mod-1-7": ("pytest", ["labs/mod-1-7/test_lab.py"]),
     "mod-2-1": ("pytest", ["labs/mod-2-1/test_lab.py"]),
     "mod-2-2": ("pytest", ["labs/mod-2-2/test_lab.py"]),
     "mod-2-3": ("pytest", ["labs/mod-2-3/test_lab.py"]),
