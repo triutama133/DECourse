@@ -115,6 +115,11 @@ Selain kurikulum, aplikasi web lokal DataForge menyediakan 5 modul persiapan kar
    - Generator resume berstandar format pencari kerja global dengan penilaian skor ATS berbasis kata kunci metrik rekayasa data.
 5. **Remote Career Playbook (`#/remote-playbook`)**:
    - Panduan taktis menembus pasar kerja global: strategi pencarian lowongan remote US/Eropa, negosiasi gaji mata uang asing (USD/EUR), serta kiat komunikasi asinkron bahasa Inggris.
+6. **Dashboard Kesiapan Kerja & Evaluasi Skill (`#/readiness`)**:
+   - Laporan menyeluruh tingkat kesiapan karir real-time (0–100%) berdasarkan gabungan modul kurikulum, tantangan SQL yang diselesaikan, dan aset karir.
+   - Evaluasi 6 domain kompetensi rekayasa data (SQL, Production Python, Lakehouse, dbt & Dagster, Distributed Streaming Spark/Kafka, Cloud Ops & AI).
+   - Checklist kualifikasi pelamar kerja otomatis dan rencana aksi prioritas langkah berikutnya.
+   - Fitur cetak / ekspor laporan resmi (PDF) untuk jejak progres belajar Anda.
 
 ---
 

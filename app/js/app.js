@@ -1,7 +1,7 @@
 // DataForge application controller.
 // Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
 
-const VIEWS = ["roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "remote-playbook"];
+const VIEWS = ["roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents"];
 
@@ -33,6 +33,7 @@ class DataForgeApp {
 
     this.completedModules = readStore("df_completed_modules", []);
     this.quizScores = readStore("df_quiz_scores", {});
+    this.solvedChallenges = readStore("df_solved_challenges", []);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
     const savedLang = readStore("df_lang", "id");
     this.lang = savedLang === "en" ? "en" : "id";
@@ -162,7 +163,7 @@ class DataForgeApp {
     const labels = {
       "roadmap": this.tr("navRoadmap"), "curriculum": this.tr("navCurriculum"), "interview": this.tr("navInterview"),
       "portfolio": this.tr("navPortfolio"), "cv-builder": this.tr("navCvBuilder"), "playground": this.tr("navPlayground"),
-      "remote-playbook": this.tr("navRemote")
+      "readiness": this.tr("navReadiness"), "remote-playbook": this.tr("navRemote")
     };
     document.getElementById("nav").innerHTML = VIEWS.map((v) =>
       `<button class="${v === this.currentView ? "active" : ""}" onclick="app.go('${v}')">${this.esc(labels[v])}</button>`).join("");
@@ -178,8 +179,10 @@ class DataForgeApp {
     const done = this.completedModules.length;
     const pct = Math.round((done / total) * 100);
     document.getElementById("header-stats").innerHTML = `
-      <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
-      <div class="progress"><div style="width:${pct}%"></div></div>`;
+      <div style="cursor:pointer" onclick="app.go('readiness')" title="${this.l('Buka Dashboard Kesiapan Kerja & Evaluasi Skill', 'Open Job Readiness & Skill Dashboard')}">
+        <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
+        <div class="progress"><div style="width:${pct}%"></div></div>
+      </div>`;
   }
 
   setLanguage(lang) {
@@ -198,6 +201,7 @@ class DataForgeApp {
       "portfolio": () => this.renderPortfolioView(),
       "cv-builder": () => this.renderCvBuilderView(),
       "playground": () => this.renderPlaygroundView(),
+      "readiness": () => this.renderReadinessView(),
       "remote-playbook": () => this.renderRemotePlaybookView()
     };
     container.innerHTML = views[this.currentView]();
@@ -744,11 +748,14 @@ class DataForgeApp {
               <div id="pg-tables" class="schema-list"></div>
             </div>
             <div class="label" style="padding:0 2px">${this.l("Tantangan", "Challenges")}</div>
-            ${forDataset.map((c) => `
+            ${forDataset.map((c) => {
+              const solved = this.solvedChallenges.includes(c.id);
+              return `
               <button class="item ${c.id === sb.challengeId ? "active" : ""}" onclick="app.selectChallenge('${c.id}')">
-                <div class="item-title">${this.esc(this.t(c.title))}</div>
+                <div class="item-title">${solved ? `<span style="color:var(--green);font-weight:bold;margin-right:5px">✓</span>` : ""}${this.esc(this.t(c.title))}</div>
                 <div class="item-meta">${this.esc(this.t(c.level))}</div>
-              </button>`).join("")}
+              </button>`;
+            }).join("")}
             <button class="btn btn-quiet btn-sm" onclick="app.selectChallenge(null)">${this.l("Mode bebas (tanpa tantangan)", "Free mode (no challenge)")}</button>
           </aside>
           <section class="stack">
@@ -856,13 +863,309 @@ class DataForgeApp {
     const r = SQL_PLAYGROUND.check(challenge, editor.value);
     const box = document.getElementById("pg-verdict");
     let msg;
-    if (r.ok) msg = this.l("Benar: hasil query Anda sama dengan hasil referensi.", "Correct: your result matches the reference result.");
+    if (r.ok) {
+      msg = this.l("Benar: hasil query Anda sama dengan hasil referensi.", "Correct: your result matches the reference result.");
+      if (challenge && !this.solvedChallenges.includes(challenge.id)) {
+        this.solvedChallenges.push(challenge.id);
+        writeStore("df_solved_challenges", this.solvedChallenges);
+        this.renderChrome();
+      }
+    }
     else if (r.reason === "error") msg = this.l("Query punya error; perbaiki dulu.", "Your query has an error; fix it first.");
     else if (r.reason === "empty") msg = this.l("Query tidak menghasilkan baris. Tulis SELECT.", "Your query returned no rows. Write a SELECT.");
     else if (r.reason === "columns") msg = this.l(`Jumlah kolom salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of columns: expected ${r.expected}, you returned ${r.got}.`);
     else if (r.reason === "rows") msg = this.l(`Jumlah baris salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of rows: expected ${r.expected}, you returned ${r.got}.`);
     else msg = this.l("Jumlah baris dan kolom sudah sesuai, tetapi nilainya berbeda. Periksa filter dan agregasi.", "Rows and columns match in count, but the values differ. Check your filters and aggregation.");
     box.innerHTML = `<div class="feedback ${r.ok ? "ok" : "bad"}">${msg}</div>`;
+  }
+
+  // ================= JOB READINESS DASHBOARD =================
+  renderReadinessView() {
+    const totalModules = CURRICULUM_DATA.reduce((n, lvl) => n + lvl.modules.length, 0);
+    const completedCount = this.completedModules.length;
+    const solvedSqlCount = this.solvedChallenges.length;
+    const totalSqlCount = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) ? SQL_PLAYGROUND.challenges.length : 36;
+    
+    // Quiz stats
+    const quizModIds = Object.keys(this.quizScores);
+    const totalQuizCorrect = quizModIds.reduce((sum, id) => sum + (this.quizScores[id].best || 0), 0);
+    const avgQuizPct = quizModIds.length ? Math.round((totalQuizCorrect / (quizModIds.length * 8)) * 100) : 0;
+
+    // Resume score
+    const atsResult = this.calculateAtsScore();
+    const resumeScoreTotal = atsResult.totalScore || 0;
+
+    // Readiness Score (0 to 100)
+    // 60% Curriculum Modules, 25% SQL Sandbox, 15% Career Assets (Resume + Portfolio)
+    const modWeight = (completedCount / totalModules) * 60;
+    const sqlWeight = (Math.min(solvedSqlCount, 25) / 25) * 25;
+    const careerWeight = (resumeScoreTotal >= 70 ? 7.5 : 0) + (completedCount >= 8 ? 7.5 : 0);
+    const readinessScore = Math.min(100, Math.round(modWeight + sqlWeight + careerWeight));
+
+    // Career Tier & Compensation
+    let tierTitle, tierDesc, tierComp, tierBadge, tierBadgeBg;
+    if (readinessScore < 25) {
+      tierTitle = this.l("Fase 1: Penjelajah Fondasi (Foundations in Progress)", "Phase 1: Foundations in Progress");
+      tierDesc = this.l("Sedang membangun fondasi Linux, Git, SQL relasional, dan Python produksi. Fokus selesaikan Level 0 dan Level 1 terlebih dahulu.", "Building core foundations: Linux, Git, relational SQL, and production Python. Complete Level 0 and Level 1 first.");
+      tierComp = this.l("Target: Magang / Belajar Mandiri Terarah", "Target: Apprenticeship / Focused Self-study");
+      tierBadge = this.l("Fondasi", "Foundations");
+      tierBadgeBg = "var(--blue)";
+    } else if (readinessScore < 55) {
+      tierTitle = this.l("Fase 2: Siap Kerja Junior (Junior Data / Analytics Engineer Ready)", "Phase 2: Junior Data / Analytics Engineer Ready");
+      tierDesc = this.l("Fasih SQL analitik tingkat lanjut, pemodelan data dimensional (Star Schema), dan Python streaming idempoten. Anda siap melamar posisi Junior Data Engineer atau Analytics Engineer.", "Fluent in advanced analytical SQL, Kimball Star Schema modeling, and idempotent Python streaming. Ready for Junior Data / Analytics Engineer roles.");
+      tierComp = this.l("IDR 8jt – 18jt / bln (Lokal)  ·  $1.500 – $2.800 / bln (Remote Entry-Level)", "IDR 8M–18M / mo (Local) · $1,500–$2,800 / mo (Remote Entry)");
+      tierBadge = this.l("Siap Junior", "Junior Ready");
+      tierBadgeBg = "var(--green)";
+    } else if (readinessScore < 80) {
+      tierTitle = this.l("Fase 3: Siap Kerja Mid-Level (Mid-Level Lakehouse Engineer Ready)", "Phase 3: Mid-Level Lakehouse Engineer Ready");
+      tierDesc = this.l("Menguasai arsitektur open lakehouse (Iceberg & Delta Lake), transformasi data dbt tingkat lanjut, Dagster orkestrasi, dan penegakan data quality contracts.", "Proficient in open lakehouse architecture (Iceberg & Delta Lake), dbt transformation marts, Dagster orchestration, and data quality contracts.");
+      tierComp = this.l("IDR 20jt – 38jt / bln (Lokal)  ·  $3.500 – $5.500 / bln (Remote Global)", "IDR 20M–38M / mo (Local) · $3,500–$5,500 / mo (Remote Global)");
+      tierBadge = this.l("Siap Mid-Level", "Mid-Level Ready");
+      tierBadgeBg = "var(--green)";
+    } else {
+      tierTitle = this.l("Fase 4: Siap Kerja Global Remote & Senior (Global Remote Senior DE Ready)", "Phase 4: Global Remote Senior DE Ready");
+      tierDesc = this.l("Menguasai sistem streaming terdistribusi (Spark Internals, Kafka CDC), FinOps efisiensi biaya cloud, serta AI Vector Data Engineering. Siap bersaing di bursa kerja internasional (USD).", "Mastered distributed streaming (Spark internals, Kafka CDC), cloud FinOps cost governance, and AI Vector Engineering. Ready for global US/EU remote roles (USD).");
+      tierComp = this.l("$5.000 – $9.000+ / bln (USD Remote Global B2B Contract)", "$5,000 – $9,000+ / mo (USD Global Remote B2B Contract)");
+      tierBadge = this.l("Siap Global Remote", "Global Remote Ready");
+      tierBadgeBg = "var(--green)";
+    }
+
+    // 6 Competency Domains
+    const domains = [
+      {
+        id: "sql",
+        name: this.l("1. Kefasihan SQL & Analitik Data", "1. SQL & Analytical Querying"),
+        mods: ["mod-0-3", "mod-1-3", "mod-1-4"],
+        topics: this.l("Relasional, Indexing B-Tree, EXPLAIN ANALYZE, Window Functions, CTE Rekursif, Star Schema, SCD Type 2", "Relational schemas, B-Tree indexes, EXPLAIN ANALYZE, Window functions, Recursive CTEs, Star Schema, SCD Type 2"),
+        sqlBonus: true
+      },
+      {
+        id: "python",
+        name: this.l("2. Software Craftsmanship & Production Python", "2. Software Craftsmanship & Production Python"),
+        mods: ["mod-0-2", "mod-1-1", "mod-1-2"],
+        topics: this.l("Linux Shell piping, Docker container limits (code 137), Pydantic v2 validation, Python Generators (flat RAM), Idempotensi, Pytest TDD", "Linux Shell pipes, Docker resource limits (code 137), Pydantic v2, Python Generators (flat RAM), Idempotency, Pytest TDD")
+      },
+      {
+        id: "lakehouse",
+        name: this.l("3. Arsitektur Lakehouse & Format Kolumnar", "3. Lakehouse Architecture & Columnar Storage"),
+        mods: ["mod-2-1", "mod-2-2"],
+        topics: this.l("Parquet columnar layout, Predicate pushdown, DuckDB & Polars, Apache Iceberg metadata tree, Delta Lake ACID logs, MinIO/SeaweedFS S3", "Parquet layout, Predicate pushdown, DuckDB & Polars, Apache Iceberg metadata tree, Delta Lake ACID logs, S3 storage")
+      },
+      {
+        id: "transformation",
+        name: this.l("4. Transformasi Data, Orkestrasi & Kualitas", "4. Data Transformation, Orchestration & Quality"),
+        mods: ["mod-2-3", "mod-2-4", "mod-2-5"],
+        topics: this.l("dbt Core Staging/Marts, Jinja macros, Dagster asset-based DAGs, Airflow, Data Contracts formal, Total Variation Distance drift, Dead-letter quarantine", "dbt Core Staging/Marts, Jinja macros, Dagster assets, Airflow, Data Contracts, Drift detection, Dead-letter quarantine")
+      },
+      {
+        id: "streaming",
+        name: this.l("5. Sistem Terdistribusi & Real-Time Streaming", "5. Distributed Scale & Real-Time Streaming"),
+        mods: ["mod-3-1", "mod-3-2", "mod-3-3"],
+        topics: this.l("Apache Spark shuffle & memory tuning, Skew salting, Apache Kafka KRaft partitions, Debezium CDC Postgres WAL replication slot, Watermarks & sliding windows", "Apache Spark shuffle & memory tuning, Skew salting, Kafka KRaft partitions, Debezium CDC Postgres WAL, Watermarks & sliding windows")
+      },
+      {
+        id: "ops_ai",
+        name: this.l("6. Infrastruktur Cloud, FinOps & AI Vector Data", "6. Cloud Infrastructure, FinOps & AI Vector Data"),
+        mods: ["mod-3-4", "mod-3-5"],
+        topics: this.l("Terraform IaC multi-env, FinOps warehouse budget limits & query runaway kill, pgvector cosine search, HNSW indexing tuning, RAG offline sync pipelines", "Terraform IaC multi-env, FinOps warehouse budget limits & query runaway kill, pgvector cosine search, HNSW tuning, RAG offline sync pipelines")
+      }
+    ];
+
+    const domainScores = domains.map((d) => {
+      const doneInDomain = d.mods.filter((m) => this.completedModules.includes(m)).length;
+      let pct = (doneInDomain / d.mods.length) * 100;
+      if (d.sqlBonus) {
+        const bonus = Math.min(100, (solvedSqlCount / 20) * 100);
+        pct = Math.round((pct * 0.7) + (bonus * 0.3));
+      } else {
+        pct = Math.round(pct);
+      }
+      return { ...d, pct, doneCount: doneInDomain, totalCount: d.mods.length };
+    });
+
+    // Checklist
+    const checklist = [
+      {
+        label: this.l("Kefasihan SQL Analitik (Window functions, EXPLAIN query tuning)", "Advanced SQL Fluency (Window functions, EXPLAIN query tuning)"),
+        done: this.completedModules.includes("mod-1-3") || solvedSqlCount >= 10
+      },
+      {
+        label: this.l("Menulis pipeline Python idempoten dengan Automated Pytest", "Write idempotent Python pipelines with Automated Pytest"),
+        done: this.completedModules.includes("mod-1-2")
+      },
+      {
+        label: this.l("Pemodelan data dimensional (Kimball Star Schema & SCD Tipe 2)", "Dimensional data modeling (Kimball Star Schema & SCD Type 2)"),
+        done: this.completedModules.includes("mod-1-4")
+      },
+      {
+        label: this.l("Arsitektur Open Lakehouse (Iceberg / Delta Lake & dbt modeling)", "Open Lakehouse architecture (Iceberg / Delta Lake & dbt)"),
+        done: this.completedModules.includes("mod-2-2") && this.completedModules.includes("mod-2-3")
+      },
+      {
+        label: this.l("Memahami mitigasi insiden produksi nyata (Chaos Scenarios)", "Production incident mitigation experience (Chaos Scenarios)"),
+        done: completedCount >= 5
+      },
+      {
+        label: this.l("Memiliki rancangan proyek portofolio dengan dokumen ADR", "Portfolio capstone blueprint with Architectural Decision Record (ADR)"),
+        done: completedCount >= 8
+      },
+      {
+        label: this.l("Menyiapkan resume ATS-friendly berstandar internasional", "International-ready ATS resume with quantitative impact metrics"),
+        done: resumeScoreTotal >= 70
+      },
+      {
+        label: this.l("Memahami strategi kontrak remote internasional (W-8BEN, tarif USD)", "International remote contract strategy (W-8BEN, USD day rates)"),
+        done: completedCount >= 12
+      }
+    ];
+
+    // Next steps
+    const nextSteps = [];
+    if (!this.completedModules.includes("mod-0-3")) nextSteps.push({ text: this.l("Selesaikan Modul 0.3 untuk mengunci fondasi database relasional dan SQL.", "Complete Module 0.3 to solidify relational databases and SQL foundations."), link: "#/curriculum/mod-0-3/concepts" });
+    if (!this.completedModules.includes("mod-1-2")) nextSteps.push({ text: this.l("Pelajari Modul 1.2 untuk menguasai Production Python, Pydantic, dan generator.", "Study Module 1.2 to master Production Python, Pydantic, and generators."), link: "#/curriculum/mod-1-2/concepts" });
+    if (solvedSqlCount < 10) nextSteps.push({ text: this.l(`Selesaikan minimal 10 tantangan di SQL Sandbox (saat ini ${solvedSqlCount}/${totalSqlCount}).`, `Solve at least 10 challenges in the SQL Sandbox (currently ${solvedSqlCount}/${totalSqlCount}).`), link: "#/playground" });
+    if (!this.completedModules.includes("mod-1-4")) nextSteps.push({ text: this.l("Kuasai pemodelan data dimensional dan SCD Tipe 2 di Modul 1.4.", "Master dimensional modeling and SCD Type 2 in Module 1.4."), link: "#/curriculum/mod-1-4/concepts" });
+    if (!this.completedModules.includes("mod-2-3")) nextSteps.push({ text: this.l("Bangun data marts modern dengan dbt Core di Modul 2.3.", "Build modern data marts with dbt Core in Module 2.3."), link: "#/curriculum/mod-2-3/concepts" });
+    if (nextSteps.length < 3 && !this.completedModules.includes("mod-3-2")) nextSteps.push({ text: this.l("Kuasai streaming real-time dengan Kafka dan CDC di Modul 3.2.", "Master real-time streaming with Kafka and CDC in Module 3.2."), link: "#/curriculum/mod-3-2/concepts" });
+    if (nextSteps.length < 3) nextSteps.push({ text: this.l("Latih simulasi interview teknis dan system design di Interview Sim.", "Practice technical interview and system design drills in Interview Sim."), link: "#/interview" });
+
+    return `
+      <div class="stack">
+        <!-- Hero Header -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue" style="margin-bottom:8px;display:inline-block">${this.l("Evaluasi Kesiapan Karir", "Career Readiness Evaluation")}</span>
+              <h1>${this.l("Dashboard Kesiapan Kerja & Evaluasi Skill", "Job Readiness & Skill Assessment Dashboard")}</h1>
+              <p class="muted" style="margin-top:4px">${this.l("Laporan komprehensif tingkat kesiapan kerja Data Engineer, penguasaan 6 pilar kompetensi, dan rencana aksi menuju standar industri global.", "Comprehensive Data Engineering job readiness report, 6-pillar competency mastery, and action plan toward global engineering standards.")}</p>
+            </div>
+            <div class="row no-print">
+              <button class="btn btn-quiet" onclick="window.print()">🖨️ ${this.l("Cetak / Simpan PDF", "Print / Save PDF")}</button>
+              <button class="btn btn-primary" onclick="app.go('roadmap')">${this.l("Buka Roadmap", "Open Roadmap")}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Score Overview Grid -->
+        <div class="grid cols-2">
+          <!-- Readiness Score Card -->
+          <div class="card stack-sm" style="display:flex;flex-direction:column;justify-content:space-between">
+            <div>
+              <div class="label">${this.l("Skor Kesiapan Kerja Keseluruhan", "Overall Job Readiness Score")}</div>
+              <div class="row" style="align-items:baseline;gap:12px;margin:12px 0 6px">
+                <span style="font-size:46px;font-weight:800;color:var(--blue);line-height:1">${readinessScore}%</span>
+                <span class="chip" style="font-size:12px;padding:4px 10px;background:${tierBadgeBg};color:#fff;font-weight:600">${tierBadge}</span>
+              </div>
+              <div class="progress" style="height:10px;margin-bottom:12px">
+                <div style="width:${readinessScore}%;background:var(--blue)"></div>
+              </div>
+              <h3 style="margin-bottom:6px">${tierTitle}</h3>
+              <p class="small muted">${tierDesc}</p>
+            </div>
+            <div class="callout success" style="margin-top:16px">
+              <strong>${this.l("Target Kompensasi Pasar:", "Market Compensation Target:")}</strong><br>
+              <span style="font-size:13px;font-weight:600">${tierComp}</span>
+            </div>
+          </div>
+
+          <!-- 4 Progress Stats Card -->
+          <div class="card stack-sm">
+            <div class="label">${this.l("Indikator Progres Belajar", "Learning Progress Indicators")}</div>
+            <div class="grid cols-2" style="margin-top:8px">
+              <div class="stat">
+                <div class="muted small">${this.l("Kurikulum Diselesaikan", "Curriculum Done")}</div>
+                <div class="num" style="margin-top:4px">${completedCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalModules}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((completedCount/totalModules)*100)}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Tantangan SQL Tuntas", "SQL Challenges")}</div>
+                <div class="num" style="margin-top:4px">${solvedSqlCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalSqlCount}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((solvedSqlCount/totalSqlCount)*100)}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Akurasi Rata-rata Kuis", "Average Quiz Accuracy")}</div>
+                <div class="num" style="margin-top:4px">${avgQuizPct}% <span style="font-size:13px;color:var(--text-muted);font-weight:normal">(${quizModIds.length} kuis)</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${avgQuizPct}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Skor ATS Resume", "ATS Resume Score")}</div>
+                <div class="num" style="margin-top:4px">${resumeScoreTotal} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ 100</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${resumeScoreTotal}%"></div></div>
+              </div>
+            </div>
+            <div class="well stack-sm" style="margin-top:12px;font-size:12px">
+              <p class="muted">💡 ${this.l("Skor kesiapan dihitung transparan: 60% penguasaan modul kurikulum (kuis ≥ 80%), 25% tantangan SQL Sandbox, dan 15% kesiapan resume ATS & portofolio.", "Readiness score formula: 60% curriculum module mastery (quiz ≥ 80%), 25% SQL Sandbox challenges, and 15% ATS resume & portfolio readiness.")}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6 Pillars Competency Matrix -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <h2>${this.l("Matriks 6 Domain Kompetensi Rekayasa Data", "6 Data Engineering Competency Domains")}</h2>
+              <p class="muted small">${this.l("Evaluasi mendalam per pilar keterampilan teknis yang dicari oleh Hiring Manager & Lead Data Engineer.", "In-depth evaluation per technical skill pillar sought by Hiring Managers and Lead Data Engineers.")}</p>
+            </div>
+            <span class="chip ${completedCount >= 14 ? "chip-blue" : ""}">${completedCount >= 14 ? this.l("Tingkat Mahir", "Advanced Mastery") : this.l("Sedang Berjalan", "In Progress")}</span>
+          </div>
+
+          <div class="grid cols-3" style="margin-top:14px">
+            ${domainScores.map((d) => `
+              <div class="stat stack-sm" style="display:flex;flex-direction:column;justify-content:space-between">
+                <div>
+                  <div class="row between">
+                    <strong style="font-size:13px">${this.esc(d.name)}</strong>
+                    <span style="font-weight:700;color:${d.pct >= 80 ? "var(--green)" : d.pct >= 40 ? "var(--blue)" : "var(--text-muted)"}">${d.pct}%</span>
+                  </div>
+                  <div class="progress" style="height:6px;margin:8px 0 10px">
+                    <div style="width:${d.pct}%;background:${d.pct >= 80 ? "var(--green)" : "var(--blue)"}"></div>
+                  </div>
+                  <div class="small muted" style="line-height:1.45">${this.esc(d.topics)}</div>
+                </div>
+                <div class="row between" style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)">
+                  <span>${d.doneCount}/${d.totalCount} ${this.l("modul tuntas", "modules done")}</span>
+                  <span>${d.pct >= 100 ? "✓ " + this.l("Kuasai", "Mastered") : d.pct > 0 ? this.l("Diproses", "Progressing") : this.l("Belum Mulai", "Not started")}</span>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>
+
+        <!-- Hiring Checklist & Action Plan -->
+        <div class="grid cols-2">
+          <!-- Checklist -->
+          <div class="card stack-sm">
+            <h3>${this.l("Daftar Periksa Kualifikasi Kerja (Hiring Checklist)", "Hiring Qualification Checklist")}</h3>
+            <p class="muted small">${this.l("Item kualifikasi yang otomatis tercentang saat Anda menyelesaikan modul & lab terkait:", "Qualification items automatically checked as you complete relevant modules & labs:")}</p>
+            <div class="stack-sm" style="margin-top:12px">
+              ${checklist.map((item) => `
+                <div class="row" style="align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:16px;line-height:1;color:${item.done ? "var(--green)" : "var(--border-strong)"};font-weight:bold">${item.done ? "✓" : "○"}</span>
+                  <span style="font-size:13px;color:${item.done ? "var(--text)" : "var(--text-muted)"};${item.done ? "font-weight:500" : ""}">${this.esc(item.label)}</span>
+                </div>`).join("")}
+            </div>
+          </div>
+
+          <!-- Recommended Next Steps -->
+          <div class="card stack-sm">
+            <h3>${this.l("Rencana Aksi & Prioritas Belajar Berikutnya", "Next Recommended Action Plan")}</h3>
+            <p class="muted small">${this.l("Langkah-langkah paling bernilai tinggi untuk memaksimalkan kesiapan karir Anda saat ini:", "High-impact next steps to maximize your job readiness right now:")}</p>
+            <div class="stack-sm" style="margin-top:12px">
+              ${nextSteps.slice(0, 3).map((ns, idx) => `
+                <div class="well stack-sm" style="padding:10px 14px">
+                  <div class="row between">
+                    <span class="label" style="margin:0">${this.l("Prioritas", "Priority")} #${idx + 1}</span>
+                    <a href="${ns.link}" class="small" style="font-weight:600">${this.l("Buka Modul", "Open Step")} →</a>
+                  </div>
+                  <p style="font-size:13px;margin-top:4px">${this.esc(ns.text)}</p>
+                </div>`).join("")}
+            </div>
+            <div class="callout neutral" style="margin-top:14px">
+              <strong>${this.l("Saran Karir Mentor:", "Mentor Career Tip:")}</strong><br>
+              <span class="small">${this.l("Jangan menunggu skor 100% untuk mulai menyiapkan portofolio. Saat skor kesiapan Anda mencapai 50%, mulailah membuat akun GitHub publik dan menyusun resume menggunakan ATS Resume Builder kami.", "Do not wait for 100% to start building your portfolio. Once your readiness hits 50%, start an active public GitHub profile and craft your resume with our ATS Resume Builder.")}</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
   }
 
   // ================= REMOTE PLAYBOOK =================

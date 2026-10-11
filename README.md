@@ -24,6 +24,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 | **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |
 | **Portfolio** | Capstone blueprints with an ADR and interview-defense notes each. These are plans to build yourself, not finished projects. |
 | **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
+| **Job Readiness Dashboard** | Overall readiness score, 6 competency domain matrices, hiring checklist, next action steps, and exportable PDF report. |
 
 ### The 17 modules
 

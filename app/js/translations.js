@@ -11,6 +11,7 @@ window.TRANSLATIONS = {
     navPortfolio: "Portofolio",
     navCvBuilder: "ATS Resume",
     navPlayground: "SQL Sandbox",
+    navReadiness: "Kesiapan Kerja",
     navRemote: "Karir Remote",
 
     // Header Stats
@@ -106,6 +107,7 @@ window.TRANSLATIONS = {
     navPortfolio: "Portfolios",
     navCvBuilder: "ATS Resume",
     navPlayground: "SQL Sandbox",
+    navReadiness: "Job Readiness",
     navRemote: "Remote Career",
 
     // Header Stats

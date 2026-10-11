@@ -741,6 +741,225 @@ SELECT id, depth, path FROM tree;`
         en: "WITH RECURSIVE generates the 7 dates. strftime('%w', d) gives 0 for Sunday through 6 for Saturday."
       },
       solution: `WITH RECURSIVE days(d) AS (\n  SELECT date('2026-01-01')\n  UNION ALL\n  SELECT date(d, '+1 day') FROM days WHERE d < '2026-01-07'\n)\nSELECT CAST(strftime('%Y%m%d', d) AS INTEGER) AS date_key,\n       d AS full_date,\n       CASE strftime('%w', d) WHEN '0' THEN 'Sunday' WHEN '1' THEN 'Monday' WHEN '2' THEN 'Tuesday'\n            WHEN '3' THEN 'Wednesday' WHEN '4' THEN 'Thursday' WHEN '5' THEN 'Friday' ELSE 'Saturday' END AS day_name,\n       CASE WHEN strftime('%w', d) IN ('0', '6') THEN 1 ELSE 0 END AS is_weekend\nFROM days;`
+    },
+    {
+      id: "k-11",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pelanggan berulang (Repeat buyers)", en: "Repeat buyers (Cohort analysis)" },
+      task: {
+        id: "Tampilkan name, order_count (jumlah pesanan unik), dan total_spend (jumlah nilai item belanja) untuk pelanggan yang memiliki lebih dari 1 pesanan. Urutkan dari total_spend terbesar.",
+        en: "Return name, order_count (distinct orders) and total_spend (sum of item totals) for customers with more than 1 order. Order by total_spend descending."
+      },
+      hint: {
+        id: "JOIN customers, orders, order_items. GROUP BY c.customer_id, c.name HAVING COUNT(DISTINCT o.order_id) > 1 ORDER BY total_spend DESC.",
+        en: "JOIN customers, orders, order_items. GROUP BY c.customer_id, c.name HAVING COUNT(DISTINCT o.order_id) > 1 ORDER BY total_spend DESC."
+      },
+      solution: `SELECT c.name, COUNT(DISTINCT o.order_id) AS order_count, SUM(i.qty * i.unit_price_idr) AS total_spend
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+JOIN order_items i ON i.order_id = o.order_id
+GROUP BY c.customer_id, c.name
+HAVING COUNT(DISTINCT o.order_id) > 1
+ORDER BY total_spend DESC;`
+    },
+    {
+      id: "k-12",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Produk tanpa pembeli (Anti-join)", en: "Unsold products (Anti-join)" },
+      task: {
+        id: "Tampilkan name dan origin dari semua produk yang belum pernah dibeli sama sekali dalam pesanan apa pun.",
+        en: "Return name and origin for all products that have never been purchased in any order."
+      },
+      hint: {
+        id: "LEFT JOIN products ke order_items lalu cari baris yang kolom order_items-nya IS NULL.",
+        en: "LEFT JOIN products to order_items, then filter for rows where order_items columns are IS NULL."
+      },
+      solution: `SELECT p.name, p.origin
+FROM products p
+LEFT JOIN order_items i ON i.product_id = p.product_id
+WHERE i.product_id IS NULL;`
+    },
+    {
+      id: "k-13",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Average Order Value (AOV) per kota", en: "Average Order Value per city" },
+      task: {
+        id: "Tampilkan city dan avg_order_value (rata-rata nilai pesanan per transaksi di kota tersebut, dibulatkan ke bilangan bulat) hanya untuk pesanan berstatus delivered dan kota yang tidak NULL.",
+        en: "Return city and avg_order_value (average order value per transaction, rounded to integer) for delivered orders and non-NULL cities only."
+      },
+      hint: {
+        id: "Hitung total nilai per order_id di CTE terlebih dahulu pada status delivered, lalu gabungkan ke customers untuk menghitung AVG(val).",
+        en: "Compute total value per order_id in a CTE first for delivered orders, then join to customers to compute AVG(val)."
+      },
+      solution: `WITH order_vals AS (
+  SELECT o.order_id, o.customer_id, SUM(i.qty * i.unit_price_idr) AS val
+  FROM orders o
+  JOIN order_items i ON i.order_id = o.order_id
+  WHERE o.status = 'delivered'
+  GROUP BY o.order_id, o.customer_id
+)
+SELECT c.city, CAST(ROUND(AVG(v.val)) AS INTEGER) AS avg_order_value
+FROM order_vals v
+JOIN customers c ON c.customer_id = v.customer_id
+WHERE c.city IS NOT NULL
+GROUP BY c.city;`
+    },
+    {
+      id: "k-14",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Prinsip Pareto omset produk (Running total)", en: "Pareto product revenue (Cumulative sum)" },
+      task: {
+        id: "Tampilkan product_id, name, revenue (total omset produk), dan cum_revenue: running total akumulatif omset dari produk dengan omset tertinggi ke terendah.",
+        en: "Return product_id, name, revenue (total product revenue) and cum_revenue: running total of revenue ordered from highest to lowest."
+      },
+      hint: {
+        id: "Hitung revenue per produk di CTE, lalu SUM(revenue) OVER (ORDER BY revenue DESC, product_id) di query luar.",
+        en: "Aggregate revenue per product in a CTE, then SUM(revenue) OVER (ORDER BY revenue DESC, product_id) in the outer query."
+      },
+      solution: `WITH prod_rev AS (
+  SELECT p.product_id, p.name, SUM(i.qty * i.unit_price_idr) AS revenue
+  FROM products p
+  JOIN order_items i ON i.product_id = p.product_id
+  GROUP BY p.product_id, p.name
+)
+SELECT product_id, name, revenue,
+       SUM(revenue) OVER (ORDER BY revenue DESC, product_id) AS cum_revenue
+FROM prod_rev;`
+    },
+    {
+      id: "k-15",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Pesanan terbesar tiap pelanggan (ROW_NUMBER)", en: "Largest order per customer (ROW_NUMBER)" },
+      task: {
+        id: "Tampilkan customer_id, order_id, dan max_order_total untuk pesanan dengan nilai belanja TERBESAR dari masing-masing pelanggan.",
+        en: "Return customer_id, order_id and max_order_total for the largest order of each customer."
+      },
+      hint: {
+        id: "Hitung total belanja per pesanan di CTE, beri peringkat dengan ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_total DESC, order_id), lalu filter rn = 1.",
+        en: "Compute total spend per order in a CTE, rank with ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_total DESC, order_id), then filter rn = 1."
+      },
+      solution: `WITH totals AS (
+  SELECT o.customer_id, o.order_id, SUM(i.qty * i.unit_price_idr) AS order_total
+  FROM orders o
+  JOIN order_items i ON i.order_id = o.order_id
+  GROUP BY o.customer_id, o.order_id
+),
+ranked AS (
+  SELECT customer_id, order_id, order_total AS max_order_total,
+         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_total DESC, order_id) AS rn
+  FROM totals
+)
+SELECT customer_id, order_id, max_order_total
+FROM ranked
+WHERE rn = 1;`
+    },
+    {
+      id: "ch-5",
+      module: "mod-0-3",
+      dataset: "ecommerce",
+      level: { id: "Dasar", en: "Basic" },
+      title: { id: "Order di atas rata-rata (Subquery)", en: "Orders above average (Subquery)" },
+      task: {
+        id: "Tampilkan customer_id dan amount dari semua order berstatus COMPLETED yang nilainya lebih tinggi daripada rata-rata nilai order COMPLETED.",
+        en: "Return customer_id and amount for all COMPLETED orders with amount higher than the overall average COMPLETED order amount."
+      },
+      hint: {
+        id: "Gunakan subquery pembanding di klausa WHERE: amount > (SELECT AVG(amount) FROM orders WHERE status = 'COMPLETED').",
+        en: "Use a scalar subquery comparison in the WHERE clause: amount > (SELECT AVG(amount) FROM orders WHERE status = 'COMPLETED')."
+      },
+      solution: `SELECT customer_id, amount
+FROM orders
+WHERE status = 'COMPLETED'
+  AND amount > (SELECT AVG(amount) FROM orders WHERE status = 'COMPLETED');`
+    },
+    {
+      id: "ch-6",
+      module: "mod-0-3",
+      dataset: "ecommerce",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Order dan refund per tier (Conditional aggregation)", en: "Orders and refunds per tier" },
+      task: {
+        id: "Tampilkan tier, total_orders (jumlah seluruh order), dan refunded_orders (jumlah order berstatus REFUNDED) untuk setiap tier pelanggan yang memiliki order.",
+        en: "Return tier, total_orders (count of all orders) and refunded_orders (count of REFUNDED orders) for each customer tier with orders."
+      },
+      hint: {
+        id: "JOIN customers ke orders, GROUP BY c.tier, dan gunakan SUM(CASE WHEN o.status = 'REFUNDED' THEN 1 ELSE 0 END).",
+        en: "JOIN customers to orders, GROUP BY c.tier, and use SUM(CASE WHEN o.status = 'REFUNDED' THEN 1 ELSE 0 END)."
+      },
+      solution: `SELECT c.tier,
+       COUNT(o.order_id) AS total_orders,
+       SUM(CASE WHEN o.status = 'REFUNDED' THEN 1 ELSE 0 END) AS refunded_orders
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+GROUP BY c.tier;`
+    },
+    {
+      id: "w-9",
+      module: "mod-1-3",
+      dataset: "daily_sales",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Selisih omset harian toko (Day-over-Day LAG)", en: "Day-over-day revenue diff (LAG)" },
+      task: {
+        id: "Tampilkan store, day, revenue, dan revenue_diff: selisih omset hari ini dikurangi omset hari kemarin di toko yang sama (NULL untuk hari pertama di toko tersebut).",
+        en: "Return store, day, revenue and revenue_diff: today's revenue minus previous day's revenue in the same store (NULL for first day)."
+      },
+      hint: {
+        id: "Gunakan LAG(revenue) OVER (PARTITION BY store ORDER BY day), lalu kurangi dari revenue hari ini.",
+        en: "Use LAG(revenue) OVER (PARTITION BY store ORDER BY day), then subtract it from today's revenue."
+      },
+      solution: `SELECT store, day, revenue,
+       revenue - LAG(revenue) OVER (PARTITION BY store ORDER BY day) AS revenue_diff
+FROM daily_sales;`
+    },
+    {
+      id: "w-10",
+      module: "mod-1-3",
+      dataset: "daily_sales",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Tiga hari omset tertinggi per toko (Top-3 DENSE_RANK)", en: "Top 3 revenue days per store" },
+      task: {
+        id: "Tampilkan store, day, revenue, dan rank (1 sampai 3) untuk 3 hari dengan omset tertinggi di setiap toko menggunakan DENSE_RANK.",
+        en: "Return store, day, revenue and rank (1 to 3) for the top 3 revenue days in each store using DENSE_RANK."
+      },
+      hint: {
+        id: "Beri peringkat omset dengan DENSE_RANK() OVER (PARTITION BY store ORDER BY revenue DESC) di dalam CTE, lalu filter rank <= 3 di query luar.",
+        en: "Rank revenue using DENSE_RANK() OVER (PARTITION BY store ORDER BY revenue DESC) in a CTE, then filter rank <= 3 in outer query."
+      },
+      solution: `WITH ranked AS (
+  SELECT store, day, revenue,
+         DENSE_RANK() OVER (PARTITION BY store ORDER BY revenue DESC) AS rank
+  FROM daily_sales
+)
+SELECT store, day, revenue, rank
+FROM ranked
+WHERE rank <= 3;`
+    },
+    {
+      id: "d-5",
+      module: "mod-1-4",
+      dataset: "scd_demo",
+      level: { id: "Dasar", en: "Basic" },
+      title: { id: "Audit rekonsiliasi data mart", en: "Data mart reconciliation audit" },
+      task: {
+        id: "Dari tabel orders_small, tampilkan tepat satu baris berisi total_orders (jumlah seluruh pesanan) dan total_gmv (jumlah seluruh total_idr) sebagai angka kontrol audit rekonsiliasi.",
+        en: "From orders_small, return a single row with total_orders (count of orders) and total_gmv (sum of total_idr) as control totals for audit reconciliation."
+      },
+      hint: {
+        id: "Query agregasi sederhana: COUNT(*) AS total_orders dan SUM(total_idr) AS total_gmv.",
+        en: "Simple aggregate query: COUNT(*) AS total_orders and SUM(total_idr) AS total_gmv."
+      },
+      solution: `SELECT COUNT(*) AS total_orders, SUM(total_idr) AS total_gmv
+FROM orders_small;`
     }
   ],
 
