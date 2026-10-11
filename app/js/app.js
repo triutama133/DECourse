@@ -676,8 +676,20 @@ class DataForgeApp {
 
         <div class="split-cv">
           <div class="stack no-print">
+            <!-- Navigasi Cepat Editor -->
+            <div class="card tight row between" style="background:#f7f9fa;gap:6px">
+              <span class="label" style="margin-right:4px">${this.l("Bagian Editor:", "Editor Sections:")}</span>
+              <div class="row" style="gap:4px">
+                <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-bio')?.scrollIntoView({behavior:'smooth'})">${this.l("1. Kontak", "1. Contact")}</button>
+                <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-skills')?.scrollIntoView({behavior:'smooth'})">${this.l("2. Skills", "2. Skills")}</button>
+                <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-exp')?.scrollIntoView({behavior:'smooth'})">${this.l("3. Pengalaman", "3. Experience")}</button>
+                <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-proj')?.scrollIntoView({behavior:'smooth'})">${this.l("4. Proyek", "4. Projects")}</button>
+                <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-bullets')?.scrollIntoView({behavior:'smooth'})">${this.l("5. Pustaka", "5. Bullets")}</button>
+              </div>
+            </div>
+
             <!-- 1. Identitas & Kontak -->
-            <div class="card stack-sm">
+            <div class="card stack-sm" id="sec-bio">
               <div class="row between">
                 <h3>${this.l("1. Kontak & Bio", "1. Contact & Bio")}</h3>
                 <span class="muted small">${this.l("Data diri", "Personal info")}</span>
@@ -701,7 +713,7 @@ class DataForgeApp {
             </div>
 
             <!-- 2. Keahlian Teknis (Skills) -->
-            <div class="card stack-sm">
+            <div class="card stack-sm" id="sec-skills">
               <div class="row between">
                 <h3>${this.l("2. Keahlian Teknis (Skills)", "2. Technical Skills")}</h3>
                 <span class="muted small">${this.l("Kata kunci ATS", "ATS keywords")}</span>
@@ -713,7 +725,7 @@ class DataForgeApp {
             </div>
 
             <!-- 3. Pengalaman Kerja 1 -->
-            <div class="card stack-sm">
+            <div class="card stack-sm" id="sec-exp">
               <div class="row between">
                 <h3>${this.l("3. Pengalaman Kerja 1", "3. Work Experience 1")}</h3>
                 <span class="muted small">${this.l("Perusahaan terkini", "Latest role")}</span>
@@ -756,23 +768,31 @@ class DataForgeApp {
             </div>
 
             <!-- 5. Proyek Portofolio -->
-            <div class="card stack-sm">
+            <div class="card stack-sm" id="sec-proj">
               <div class="row between">
                 <h3>${this.l("5. Proyek Portofolio", "5. Portfolio Projects")}</h3>
                 <span class="muted small">${this.l("Capstone", "Capstone")}</span>
               </div>
               <div class="grid cols-2">
                 ${field(this.l("Nama Proyek 1", "Project 1 Name"), "projects.0.name", proj0.name)}
-                ${field("Tech Stack", "projects.0.tech", proj0.tech)}
+                ${field("Tech Stack 1", "projects.0.tech", proj0.tech)}
               </div>
               <div>
                 <label class="field">${this.l("Deskripsi Proyek 1", "Project 1 Description")}</label>
                 <textarea rows="2" oninput="app.updateCvField('projects.0.description', this.value)">${this.esc(proj0.description || "")}</textarea>
               </div>
+              <div class="grid cols-2" style="margin-top:10px">
+                ${field(this.l("Nama Proyek 2", "Project 2 Name"), "projects.1.name", proj1.name)}
+                ${field("Tech Stack 2", "projects.1.tech", proj1.tech)}
+              </div>
+              <div>
+                <label class="field">${this.l("Deskripsi Proyek 2", "Project 2 Description")}</label>
+                <textarea rows="2" oninput="app.updateCvField('projects.1.description', this.value)">${this.esc(proj1.description || "")}</textarea>
+              </div>
             </div>
 
             <!-- 6. Perpustakaan Bullet (Formula XYZ) -->
-            <div class="card stack-sm">
+            <div class="card stack-sm" id="sec-bullets">
               <div class="row between">
                 <h3>${this.l("Perpustakaan Bullet Siap Pakai (Rumus XYZ)", "Ready-to-Use Bullet Library (XYZ Formula)")}</h3>
                 <span class="chip chip-blue">${CV_DATA.bulletLibrary.reduce((acc, c) => acc + c.bullets.length, 0)} ${this.l("Contoh", "Examples")}</span>
