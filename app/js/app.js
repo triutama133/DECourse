@@ -34,6 +34,7 @@ class DataForgeApp {
     this.completedModules = readStore("df_completed_modules", []);
     this.quizScores = readStore("df_quiz_scores", {});
     this.solvedChallenges = readStore("df_solved_challenges", []);
+    this.resumeEdited = readStore("df_resume_edited", false);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
     const savedLang = readStore("df_lang", "id");
     this.lang = savedLang === "en" ? "en" : "id";
@@ -611,38 +612,187 @@ class DataForgeApp {
   // ================= RESUME =================
   renderCvBuilderView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
-    const r = this.resumeData;
+    const r = this.resumeData || {};
+    r.personal = r.personal || {};
+    r.skills = r.skills || {};
+    r.experience = Array.isArray(r.experience) ? r.experience : [];
+    r.projects = Array.isArray(r.projects) ? r.projects : [];
+
+    const s = this.calculateAtsScore();
     const field = (label, path, value) => `
-      <div><label class="field">${label}</label><input type="text" value="${this.esc(value)}" oninput="app.updateCvField('${path}', this.value)"></div>`;
+      <div><label class="field">${label}</label><input type="text" value="${this.esc(value || "")}" oninput="app.updateCvField('${path}', this.value)"></div>`;
+
+    const exp0 = r.experience[0] || { company: "", role: "", period: "", location: "", highlights: [] };
+    const exp1 = r.experience[1] || { company: "", role: "", period: "", location: "", highlights: [] };
+    const proj0 = r.projects[0] || { name: "", tech: "", description: "" };
+    const proj1 = r.projects[1] || { name: "", tech: "", description: "" };
+
     return `
       <div class="stack">
         <div class="card row between no-print">
           <div><h1>${t.cvTitle}</h1><p class="sub">${t.cvSubtitle}</p></div>
           <div class="row">
-            <button class="btn" onclick="app.loadSampleCv()">${t.btnLoadTemplate}</button>
+            <button class="btn btn-quiet" onclick="app.resetBlankCv()">${t.btnStartBlank || (this.lang === "id" ? "Mulai CV Baru" : "Start Fresh CV")}</button>
+            <button class="btn btn-quiet" onclick="app.loadSampleCv()">${t.btnLoadTemplate}</button>
             <button class="btn btn-primary" onclick="window.print()">${t.btnPrintPdf}</button>
           </div>
         </div>
+
+        <!-- Banner status -->
+        <div class="no-print">
+          ${!this.resumeEdited ? `
+            <div class="callout neutral">
+              <div class="label">${this.l("Mode Template Sampel (Belum Diedit)", "Sample Template Mode (Unedited)")}</div>
+              <p>${this.l(
+                "Anda sedang melihat data contoh senior (Alex Pratama). Checklist kesiapan kerja <strong>hanya akan dicentang jika Anda mengedit CV Anda sendiri</strong> (atau klik <em>Mulai CV Baru</em>) dan mencapai skor ATS ≥ 70.",
+                "You are viewing sample senior data (Alex Pratama). The Job Readiness checklist item <strong>will only check off when you customize your own CV</strong> (or click <em>Start Fresh CV</em>) and achieve an ATS score ≥ 70."
+              )}</p>
+            </div>
+          ` : `
+            <div class="callout success">
+              <div class="label">${this.l("Resume Pribadi Aktif", "Personal Resume Active")}</div>
+              <p>${this.l(
+                `Resume kustom Anda sedang aktif. Skor ATS saat ini: <strong>${s.totalScore}/100</strong>. ${s.totalScore >= 70 ? "🎉 Syarat kesiapan kerja telah terpenuhi!" : "⚠️ Tambahkan lebih banyak metrik angka (%, $, GB, ms) dan kata kunci teknologi modern untuk mencapai skor minimal 70."}`,
+                `Your custom resume is active. Current ATS score: <strong>${s.totalScore}/100</strong>. ${s.totalScore >= 70 ? "🎉 Job readiness requirement met!" : "⚠️ Add more measurable metrics (%, $, GB, ms) and modern tech keywords to reach score 70+."}`
+              )}</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Formula Callout -->
+        <div class="card stack-sm no-print" style="background:#fcfdfd;border-left:4px solid var(--blue)">
+          <div class="row between">
+            <h3>${this.l("Panduan Formula Dampak Google (Rumus XYZ)", "Google XYZ Impact Formula Guide")}</h3>
+            <span class="chip chip-blue">Standar Global</span>
+          </div>
+          <p class="well" style="font-size:13px;line-height:1.5">
+            <strong>Formula:</strong> <em>"Berhasil mencapai [X], terukur dengan [Y], dengan melakukan [Z]"</em><br>
+            <span style="color:#b32d2e">❌ Pasif:</span> <em>"Bertanggung jawab membuat pipeline ETL dengan Python dan SQL."</em><br>
+            <span style="color:#0f6b38">✓ Dampak Terukur:</span> <em>"Architected Lakehouse ingestion pipeline using Python & Apache Iceberg, processing 45M daily events with 99.98% uptime."</em>
+          </p>
+        </div>
+
         <div class="card stack-sm no-print" id="ats-panel">${this.renderAtsPanel()}</div>
+
         <div class="split-cv">
           <div class="stack no-print">
+            <!-- 1. Identitas & Kontak -->
             <div class="card stack-sm">
-              <h3>${this.l("Editor resume", "Resume editor")}</h3>
-              ${field("Full name", "personal.fullName", r.personal.fullName)}
-              ${field("Title", "personal.title", r.personal.title)}
-              <div class="grid cols-2">${field("Email", "personal.email", r.personal.email)}${field("Location", "personal.location", r.personal.location)}</div>
-              <div><label class="field">Summary</label><textarea rows="4" oninput="app.updateCvField('summary', this.value)">${this.esc(r.summary)}</textarea></div>
+              <div class="row between">
+                <h3>${this.l("1. Kontak & Bio", "1. Contact & Bio")}</h3>
+                <span class="muted small">${this.l("Data diri", "Personal info")}</span>
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Nama Lengkap", "Full Name"), "personal.fullName", r.personal.fullName)}
+                ${field(this.l("Jabatan Target", "Target Title"), "personal.title", r.personal.title)}
+              </div>
+              <div class="grid cols-2">
+                ${field("Email", "personal.email", r.personal.email)}
+                ${field(this.l("Lokasi (Domisili)", "Location"), "personal.location", r.personal.location)}
+              </div>
+              <div class="grid cols-2">
+                ${field("LinkedIn", "personal.linkedin", r.personal.linkedin)}
+                ${field("GitHub", "personal.github", r.personal.github)}
+              </div>
+              <div>
+                <label class="field">${this.l("Ringkasan Profesional (Summary)", "Professional Summary")}</label>
+                <textarea rows="3" placeholder="${this.l("Tulis 2-3 kalimat fokus spesialisasi, volume data, dan teknologi utama...", "Write 2-3 sentences highlighting specialization, scale, and primary tech...")}" oninput="app.updateCvField('summary', this.value)">${this.esc(r.summary || "")}</textarea>
+              </div>
             </div>
+
+            <!-- 2. Keahlian Teknis (Skills) -->
             <div class="card stack-sm">
-              <h3>${this.l("Contoh bullet (rumus XYZ)", "Example bullets (XYZ formula)")}</h3>
-              <p class="muted small">${this.l("Klik untuk menyalin. Ganti angka dengan hasil Anda sendiri; jangan mengklaim hal yang tidak Anda kerjakan.", "Click to copy. Replace the numbers with your own results; never claim work you did not do.")}</p>
+              <div class="row between">
+                <h3>${this.l("2. Keahlian Teknis (Skills)", "2. Technical Skills")}</h3>
+                <span class="muted small">${this.l("Kata kunci ATS", "ATS keywords")}</span>
+              </div>
+              ${field("Languages (Bahasa)", "skills.languages", r.skills.languages)}
+              ${field("Storage & Formats (Format & Penyimpanan)", "skills.storageTableFormats", r.skills.storageTableFormats)}
+              ${field("Processing & Streaming (Komputasi & Aliran Data)", "skills.processingStreaming", r.skills.processingStreaming)}
+              ${field("Orchestration & DevOps (Orkestrasi & CI/CD)", "skills.orchestrationOps", r.skills.orchestrationOps)}
+            </div>
+
+            <!-- 3. Pengalaman Kerja 1 -->
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>${this.l("3. Pengalaman Kerja 1", "3. Work Experience 1")}</h3>
+                <span class="muted small">${this.l("Perusahaan terkini", "Latest role")}</span>
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Perusahaan", "Company"), "experience.0.company", exp0.company)}
+                ${field(this.l("Peran / Role", "Role"), "experience.0.role", exp0.role)}
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Periode", "Period"), "experience.0.period", exp0.period)}
+                ${field(this.l("Lokasi", "Location"), "experience.0.location", exp0.location)}
+              </div>
+              <div>
+                <div class="row between" style="margin-bottom:4px">
+                  <label class="field" style="margin:0">${this.l("Bullet Points Pengalaman 1 (1 baris per poin)", "Experience 1 Bullets (1 line per bullet)")}</label>
+                  <span class="muted small">${this.l("Gunakan rumus XYZ + angka", "Use XYZ formula + numbers")}</span>
+                </div>
+                <textarea rows="5" id="exp-highlights-0" placeholder="${this.l("Tulis 1 bullet per baris. Contoh:\nArchitected Lakehouse ingestion using Apache Iceberg, processing 20M daily events with 99.9% SLA.", "1 bullet per line. Example:\nArchitected Lakehouse ingestion using Apache Iceberg, processing 20M daily events with 99.9% SLA.")}" oninput="app.updateCvHighlights(0, this.value)">${this.esc((exp0.highlights || []).join("\n"))}</textarea>
+              </div>
+            </div>
+
+            <!-- 4. Pengalaman Kerja 2 -->
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>${this.l("4. Pengalaman Kerja 2 (Opsional)", "4. Work Experience 2 (Optional)")}</h3>
+                <span class="muted small">${this.l("Peran sebelumnya", "Previous role")}</span>
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Perusahaan", "Company"), "experience.1.company", exp1.company)}
+                ${field(this.l("Peran / Role", "Role"), "experience.1.role", exp1.role)}
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Periode", "Period"), "experience.1.period", exp1.period)}
+                ${field(this.l("Lokasi", "Location"), "experience.1.location", exp1.location)}
+              </div>
+              <div>
+                <label class="field">${this.l("Bullet Points Pengalaman 2 (1 baris per poin)", "Experience 2 Bullets (1 line per bullet)")}</label>
+                <textarea rows="4" id="exp-highlights-1" placeholder="${this.l("Tulis 1 bullet per baris...", "1 bullet per line...")}" oninput="app.updateCvHighlights(1, this.value)">${this.esc((exp1.highlights || []).join("\n"))}</textarea>
+              </div>
+            </div>
+
+            <!-- 5. Proyek Portofolio -->
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>${this.l("5. Proyek Portofolio", "5. Portfolio Projects")}</h3>
+                <span class="muted small">${this.l("Capstone", "Capstone")}</span>
+              </div>
+              <div class="grid cols-2">
+                ${field(this.l("Nama Proyek 1", "Project 1 Name"), "projects.0.name", proj0.name)}
+                ${field("Tech Stack", "projects.0.tech", proj0.tech)}
+              </div>
+              <div>
+                <label class="field">${this.l("Deskripsi Proyek 1", "Project 1 Description")}</label>
+                <textarea rows="2" oninput="app.updateCvField('projects.0.description', this.value)">${this.esc(proj0.description || "")}</textarea>
+              </div>
+            </div>
+
+            <!-- 6. Perpustakaan Bullet (Formula XYZ) -->
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>${this.l("Perpustakaan Bullet Siap Pakai (Rumus XYZ)", "Ready-to-Use Bullet Library (XYZ Formula)")}</h3>
+                <span class="chip chip-blue">${CV_DATA.bulletLibrary.reduce((acc, c) => acc + c.bullets.length, 0)} ${this.l("Contoh", "Examples")}</span>
+              </div>
+              <p class="muted small">${this.l("Klik <strong>+ Sisipkan ke Pengalaman 1</strong> untuk langsung menambahkan ke CV Anda, atau klik <strong>Salin</strong>. Sesuaikan angka sesuai portofolio Anda.", "Click <strong>+ Insert to Experience 1</strong> to immediately add to your CV, or click <strong>Copy</strong>. Adjust numbers to match your actual work.")}</p>
               ${CV_DATA.bulletLibrary.map((cat, ci) => `
-                <div class="stack-sm">
-                  <div class="label">${this.esc(cat.category)}</div>
-                  ${cat.bullets.map((b, bi) => `<button class="item small" onclick="app.copyBullet(${ci},${bi})">${this.esc(b)}</button>`).join("")}
+                <div class="stack-sm" style="margin-top:10px">
+                  <div class="label" style="color:var(--text);font-weight:600">${this.esc(cat.category)}</div>
+                  ${cat.bullets.map((b, bi) => `
+                    <div class="well stack-sm" style="padding:10px 12px;background:#fff">
+                      <div style="font-size:12.5px;line-height:1.45">${this.esc(b)}</div>
+                      <div class="row" style="margin-top:4px">
+                        <button class="btn btn-sm btn-primary" onclick="app.insertBullet(${ci}, ${bi}, 0)">${this.l("+ Sisipkan ke Pengalaman 1", "+ Insert to Exp 1")}</button>
+                        <button class="btn btn-sm btn-quiet" onclick="app.copyBullet(${ci}, ${bi}, this)">${this.l("📋 Salin", "📋 Copy")}</button>
+                      </div>
+                    </div>`).join("")}
                 </div>`).join("")}
             </div>
           </div>
+
           <div id="cv-preview">${this.renderCvPreview()}</div>
         </div>
       </div>`;
@@ -657,35 +807,76 @@ class DataForgeApp {
         <div class="progress" style="width:160px"><div style="width:${s.totalScore}%"></div></div></div>
       <div class="grid cols-4">${stat(t.metricDensity, s.breakdown.metrics)}${stat(t.techSignals, s.breakdown.tech)}${stat(t.roleDiff, s.breakdown.differentiation)}${stat(t.actionVerbs, s.breakdown.actionVerbs)}</div>
       ${s.recommendations.length ? `<div class="callout"><div class="label">${t.suggestionsTitle}</div><ul style="margin-left:18px">${s.recommendations.map((x) => `<li>${this.esc(x)}</li>`).join("")}</ul></div>` : ""}
-      <p class="muted small">${this.l("Skor ini hanya heuristik sederhana (hitung angka dan kata kunci), bukan penilaian ATS sungguhan.", "This score is a simple heuristic (it counts numbers and keywords), not a real ATS verdict.")}</p>`;
+      <p class="muted small">${this.l("Skor ini adalah audit heuristik otomatis (mengevaluasi angka terukur, kata kunci modern, pemisahan peran, dan kata kerja aksi).", "This score is an automated heuristic audit (evaluating measurable numbers, modern tech, role differentiation, and action verbs).")}</p>`;
   }
 
   renderCvPreview() {
-    const r = this.resumeData;
+    const r = this.resumeData || {};
+    const personal = r.personal || {};
+    const skills = r.skills || {};
+    const experience = (Array.isArray(r.experience) ? r.experience : []).filter((e) => e && (e.company || e.role || (e.highlights && e.highlights.length)));
+    const projects = (Array.isArray(r.projects) ? r.projects : []).filter((p) => p && (p.name || p.description));
+    const contacts = [personal.email, personal.location, personal.linkedin, personal.github].filter(Boolean);
+
     return `
       <div class="paper" id="cv-preview-card">
-        <h1>${this.esc(r.personal.fullName)}</h1>
-        <div class="center" style="color:#0a66c2;font-weight:600">${this.esc(r.personal.title)}</div>
-        <div class="center" style="color:#555">${this.esc(r.personal.email)} · ${this.esc(r.personal.location)} · ${this.esc(r.personal.linkedin)}</div>
-        <h3>Summary</h3><p>${this.esc(r.summary)}</p>
+        <h1>${this.esc(personal.fullName || (this.lang === "id" ? "Nama Lengkap" : "Your Full Name"))}</h1>
+        <div class="center" style="color:#0a66c2;font-weight:600;margin-top:2px">${this.esc(personal.title || "Data Engineer")}</div>
+        <div class="center" style="color:#555;margin-top:4px">${contacts.map((c) => this.esc(c)).join(" · ")}</div>
+
+        ${r.summary ? `<h3>Summary</h3><p>${this.esc(r.summary)}</p>` : ""}
+
         <h3>Technical Proficiencies</h3>
-        <div><strong>Languages:</strong> ${this.esc(r.skills.languages)}</div>
-        <div><strong>Storage:</strong> ${this.esc(r.skills.storageTableFormats)}</div>
-        <div><strong>Processing:</strong> ${this.esc(r.skills.processingStreaming)}</div>
-        <div><strong>Orchestration:</strong> ${this.esc(r.skills.orchestrationOps)}</div>
-        <h3>Experience</h3>
-        ${r.experience.map((e) => `
-          <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><strong>${this.esc(e.company)} — ${this.esc(e.role)}</strong><span style="color:#555">${this.esc(e.period)}</span></div>
-          <ul>${e.highlights.map((h) => `<li>${this.esc(h)}</li>`).join("")}</ul></div>`).join("")}
-        <h3>Projects</h3>
-        ${r.projects.map((p) => `<div style="margin-bottom:6px"><strong>${this.esc(p.name)}</strong> <span style="color:#555">(${this.esc(p.tech)})</span><div>${this.esc(p.description)}</div></div>`).join("")}
+        ${skills.languages ? `<div><strong>Languages:</strong> ${this.esc(skills.languages)}</div>` : ""}
+        ${skills.storageTableFormats ? `<div><strong>Storage & Formats:</strong> ${this.esc(skills.storageTableFormats)}</div>` : ""}
+        ${skills.processingStreaming ? `<div><strong>Processing & Streaming:</strong> ${this.esc(skills.processingStreaming)}</div>` : ""}
+        ${skills.orchestrationOps ? `<div><strong>Orchestration & Ops:</strong> ${this.esc(skills.orchestrationOps)}</div>` : ""}
+
+        ${experience.length ? `
+          <h3>Experience</h3>
+          ${experience.map((e) => `
+            <div style="margin-bottom:10px">
+              <div style="display:flex;justify-content:space-between">
+                <strong>${this.esc(e.company || "")}${e.role ? ` — ${this.esc(e.role)}` : ""}</strong>
+                <span style="color:#555">${this.esc(e.period || "")}</span>
+              </div>
+              ${e.location ? `<div style="color:#777;font-size:11px;margin-bottom:3px">${this.esc(e.location)}</div>` : ""}
+              ${Array.isArray(e.highlights) && e.highlights.length ? `
+                <ul>${e.highlights.map((h) => `<li>${this.esc(h)}</li>`).join("")}</ul>
+              ` : ""}
+            </div>`).join("")}
+        ` : ""}
+
+        ${projects.length ? `
+          <h3>Projects</h3>
+          ${projects.map((p) => `
+            <div style="margin-bottom:8px">
+              <strong>${this.esc(p.name || "")}</strong> ${p.tech ? `<span style="color:#555">(${this.esc(p.tech)})</span>` : ""}
+              <div>${this.esc(p.description || "")}</div>
+            </div>`).join("")}
+        ` : ""}
       </div>`;
+  }
+
+  setDeep(obj, path, val) {
+    const parts = path.split(".");
+    let cur = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts[i];
+      const nextIsNum = !isNaN(Number(parts[i + 1]));
+      if (cur[p] === undefined || cur[p] === null) {
+        cur[p] = nextIsNum ? [] : {};
+      }
+      cur = cur[p];
+    }
+    cur[parts[parts.length - 1]] = val;
   }
 
   // Update data and refresh only the preview and score: re-rendering the editor would drop input focus.
   updateCvField(path, val) {
-    if (path.startsWith("personal.")) this.resumeData.personal[path.split(".")[1]] = val;
-    else this.resumeData[path] = val;
+    this.setDeep(this.resumeData, path, val);
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
     writeStore("df_resume_data", this.resumeData);
     const preview = document.getElementById("cv-preview");
     const ats = document.getElementById("ats-panel");
@@ -693,31 +884,131 @@ class DataForgeApp {
     if (ats) ats.innerHTML = this.renderAtsPanel();
   }
 
-  loadSampleCv() {
-    this.resumeData = JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+  updateCvHighlights(expIndex, val) {
+    if (!this.resumeData.experience) this.resumeData.experience = [];
+    if (!this.resumeData.experience[expIndex]) {
+      this.resumeData.experience[expIndex] = { company: "", role: "Data Engineer", period: "", location: "", highlights: [] };
+    }
+    this.resumeData.experience[expIndex].highlights = val.split("\n").map((s) => s.trim()).filter(Boolean);
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
+    writeStore("df_resume_data", this.resumeData);
+    const preview = document.getElementById("cv-preview");
+    const ats = document.getElementById("ats-panel");
+    if (preview) preview.innerHTML = this.renderCvPreview();
+    if (ats) ats.innerHTML = this.renderAtsPanel();
+  }
+
+  insertBullet(ci, bi, expIndex = 0) {
+    const text = CV_DATA.bulletLibrary[ci].bullets[bi];
+    if (!this.resumeData.experience) this.resumeData.experience = [];
+    if (!this.resumeData.experience[expIndex]) {
+      this.resumeData.experience[expIndex] = { company: "Data Platform Inc", role: "Data Engineer", period: "2024 - Sekarang", location: "Remote", highlights: [] };
+    }
+    if (!Array.isArray(this.resumeData.experience[expIndex].highlights)) {
+      this.resumeData.experience[expIndex].highlights = [];
+    }
+    this.resumeData.experience[expIndex].highlights.push(text);
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
     writeStore("df_resume_data", this.resumeData);
     this.renderView();
   }
 
-  copyBullet(ci, bi) {
+  copyBullet(ci, bi, btnEl) {
     const text = CV_DATA.bulletLibrary[ci].bullets[bi];
-    const done = () => { /* silent: the button text does not change */ };
-    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (btnEl) {
+          const orig = btnEl.innerHTML;
+          btnEl.innerHTML = this.l("✓ Tersalin!", "✓ Copied!");
+          setTimeout(() => { if (btnEl) btnEl.innerHTML = orig; }, 1500);
+        }
+      });
+    }
+  }
+
+  loadSampleCv() {
+    this.resumeData = JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+    this.resumeEdited = false;
+    writeStore("df_resume_edited", false);
+    writeStore("df_resume_data", this.resumeData);
+    this.renderView();
+  }
+
+  resetBlankCv() {
+    if (!confirm(this.l("Mulai CV baru dari lembar kosong? Format template lama akan digantikan.", "Start a fresh blank CV? Current resume fields will be reset."))) return;
+    this.resumeData = {
+      personal: {
+        fullName: "",
+        title: "Data Engineer",
+        email: "",
+        phone: "",
+        location: "Indonesia (Open to Remote)",
+        linkedin: "",
+        github: ""
+      },
+      summary: "",
+      skills: {
+        languages: "Python, SQL, Bash",
+        storageTableFormats: "Apache Iceberg, DuckDB, Parquet",
+        processingStreaming: "PySpark, Apache Kafka, DuckDB",
+        orchestrationOps: "Dagster, dbt Core, Docker, GitHub Actions"
+      },
+      experience: [
+        {
+          company: "",
+          role: "Data Engineer",
+          period: "2024 - Sekarang",
+          location: "Remote / On-site",
+          highlights: []
+        }
+      ],
+      projects: [
+        {
+          name: "Lakehouse Batch & Streaming Platform",
+          tech: "MinIO, Iceberg, DuckDB, dbt Core, Dagster",
+          description: "Arsitektur data lakehouse lokal berstandar industri dengan pengujian otomatis."
+        }
+      ]
+    };
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
+    writeStore("df_resume_data", this.resumeData);
+    this.renderView();
   }
 
   calculateAtsScore() {
     const score = { totalScore: 0, breakdown: { metrics: 0, tech: 0, differentiation: 25, actionVerbs: 0 }, recommendations: [] };
     const text = JSON.stringify(this.resumeData).toLowerCase();
+
+    // Check if CV is essentially empty
+    const personal = this.resumeData.personal || {};
+    const hasName = Boolean(personal.fullName && personal.fullName.trim().length > 0);
+    const hasSummary = Boolean(this.resumeData.summary && this.resumeData.summary.trim().length > 0);
+    const hasExperience = Boolean(this.resumeData.experience && this.resumeData.experience.length && (this.resumeData.experience[0].company || (this.resumeData.experience[0].highlights && this.resumeData.experience[0].highlights.length)));
+
+    if (!hasName && !hasSummary && !hasExperience) {
+      score.breakdown.differentiation = 0;
+      score.recommendations.push(this.l("Isi nama lengkap, ringkasan profil, dan pengalaman kerja Anda.", "Fill in your full name, summary profile, and work experience."));
+      return score;
+    }
+
     const metricMatches = (text.match(/(\d+%|\$\d+|\d+gb|\d+tb|\d+ms|\d+m\b|\d+k\b)/g) || []).length;
     score.breakdown.metrics = Math.min(25, metricMatches * 3);
-    if (score.breakdown.metrics < 20) score.recommendations.push(this.l("Tambahkan metrik terukur (omset, volume GB/TB, latensi ms).", "Add measurable metrics (cost, GB/TB volume, latency)."));
-    const techKeywords = ["iceberg", "duckdb", "dbt", "dagster", "redpanda", "kafka", "pydantic", "flink", "terraform"];
+    if (score.breakdown.metrics < 20) score.recommendations.push(this.l("Tambahkan metrik terukur (persen %, penghematan $, volume GB/TB, latensi ms).", "Add measurable metrics (% percentage, $ savings, GB/TB volume, ms latency)."));
+
+    const techKeywords = ["iceberg", "duckdb", "dbt", "dagster", "redpanda", "kafka", "pydantic", "flink", "terraform", "spark", "postgres", "parquet"];
     score.breakdown.tech = Math.min(25, techKeywords.filter((k) => text.includes(k)).length * 3);
-    const verbs = ["architected", "engineered", "optimized", "refactored", "deployed", "scaled"];
+    if (score.breakdown.tech < 20) score.recommendations.push(this.l("Sertakan kata kunci stack modern (Iceberg, DuckDB, dbt, Dagster, Kafka/Redpanda, Spark).", "Include modern stack keywords (Iceberg, DuckDB, dbt, Dagster, Kafka/Redpanda, Spark)."));
+
+    const verbs = ["architected", "engineered", "optimized", "refactored", "deployed", "scaled", "designed", "implemented", "built"];
     score.breakdown.actionVerbs = Math.min(25, verbs.filter((v) => text.includes(v)).length * 4);
+    if (score.breakdown.actionVerbs < 20) score.recommendations.push(this.l("Gunakan kata kerja aksi aktif (Architected, Engineered, Optimized, Refactored, Scaled).", "Use active verbs (Architected, Engineered, Optimized, Refactored, Scaled)."));
+
     if (text.includes("dashboard") && !text.includes("idempotency") && !text.includes("cdc")) {
       score.breakdown.differentiation = 12;
-      score.recommendations.push(this.l("Kurangi istilah dashboard/reporting; tunjukkan pipeline dan reliabilitas.", "Lean less on dashboard/reporting wording; show pipelines and reliability."));
+      score.recommendations.push(this.l("Kurangi istilah dashboard/reporting; tonjolkan sistem pipeline data, idempotensi, atau CDC.", "Lean less on dashboard/reporting wording; highlight pipelines, idempotency, or CDC."));
     }
     score.totalScore = score.breakdown.metrics + score.breakdown.tech + score.breakdown.differentiation + score.breakdown.actionVerbs;
     return score;
@@ -894,12 +1185,13 @@ class DataForgeApp {
     // Resume score
     const atsResult = this.calculateAtsScore();
     const resumeScoreTotal = atsResult.totalScore || 0;
+    const isResumeDone = Boolean(this.resumeEdited && resumeScoreTotal >= 70);
 
     // Readiness Score (0 to 100)
     // 60% Curriculum Modules, 25% SQL Sandbox, 15% Career Assets (Resume + Portfolio)
     const modWeight = (completedCount / totalModules) * 60;
     const sqlWeight = (Math.min(solvedSqlCount, 25) / 25) * 25;
-    const careerWeight = (resumeScoreTotal >= 70 ? 7.5 : 0) + (completedCount >= 8 ? 7.5 : 0);
+    const careerWeight = (isResumeDone ? 7.5 : 0) + (completedCount >= 8 ? 7.5 : 0);
     const readinessScore = Math.min(100, Math.round(modWeight + sqlWeight + careerWeight));
 
     // Career Tier & Compensation
@@ -1010,8 +1302,8 @@ class DataForgeApp {
         done: completedCount >= 8
       },
       {
-        label: this.l("Menyiapkan resume ATS-friendly berstandar internasional", "International-ready ATS resume with quantitative impact metrics"),
-        done: resumeScoreTotal >= 70
+        label: this.l("Menyiapkan resume ATS-friendly berstandar internasional (kustomisasi & skor ≥ 70)", "International-ready ATS resume with quantitative impact metrics (customized & score ≥ 70)"),
+        done: isResumeDone
       },
       {
         label: this.l("Memahami strategi kontrak remote internasional (W-8BEN, tarif USD)", "International remote contract strategy (W-8BEN, USD day rates)"),
@@ -1021,6 +1313,7 @@ class DataForgeApp {
 
     // Next steps
     const nextSteps = [];
+    if (!isResumeDone) nextSteps.push({ text: this.l("Kustomisasi resume ATS Anda di Resume Builder (target skor ≥ 70) dengan formula dampak XYZ.", "Customize your ATS resume in Resume Builder (target score ≥ 70) using the XYZ impact formula."), link: "#/cv-builder" });
     if (!this.completedModules.includes("mod-0-3")) nextSteps.push({ text: this.l("Selesaikan Modul 0.3 untuk mengunci fondasi database relasional dan SQL.", "Complete Module 0.3 to solidify relational databases and SQL foundations."), link: "#/curriculum/mod-0-3/concepts" });
     if (!this.completedModules.includes("mod-1-2")) nextSteps.push({ text: this.l("Pelajari Modul 1.2 untuk menguasai Production Python, Pydantic, dan generator.", "Study Module 1.2 to master Production Python, Pydantic, and generators."), link: "#/curriculum/mod-1-2/concepts" });
     if (solvedSqlCount < 10) nextSteps.push({ text: this.l(`Selesaikan minimal 10 tantangan di SQL Sandbox (saat ini ${solvedSqlCount}/${totalSqlCount}).`, `Solve at least 10 challenges in the SQL Sandbox (currently ${solvedSqlCount}/${totalSqlCount}).`), link: "#/playground" });

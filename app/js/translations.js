@@ -86,6 +86,7 @@ window.TRANSLATIONS = {
     actionVerbs: "Kata Kerja Aksi",
     suggestionsTitle: "Saran Peningkatan:",
     btnLoadTemplate: "Muat Contoh Senior",
+    btnStartBlank: "Mulai CV Baru",
     btnPrintPdf: "Cetak / Simpan PDF",
 
     // Playground
@@ -182,6 +183,7 @@ window.TRANSLATIONS = {
     actionVerbs: "Action Verbs",
     suggestionsTitle: "Improvement Suggestions:",
     btnLoadTemplate: "Load Senior Template",
+    btnStartBlank: "Start Fresh CV",
     btnPrintPdf: "Print / Save PDF",
 
     // Playground
