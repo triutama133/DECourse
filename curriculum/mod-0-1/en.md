@@ -119,7 +119,7 @@ Two habits will help more than any tool:
 You have a file of order rows with the problems described above. Write four small functions that turn it into trustworthy data and compute daily revenue. This is a miniature version of what every pipeline does: read, validate, normalise, quarantine what you cannot trust, then compute.
 
 ### @steps
-1. Make sure you can run Python 3 (`python3 --version`). From the repository root, generate the data:
+1. Make sure you can run Python 3 (`python3 --version`). If you do not have the course files yet, follow the **Start here** page of the app first (it shows how to download them and where to open a terminal; Module 0.2 teaches the terminal and Git properly). From the repository root, generate the data:
 
 ```bash
 python3 labs/shared/shopgen.py --out data

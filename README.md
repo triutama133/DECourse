@@ -6,6 +6,18 @@ A self-study data engineering course that runs in your browser: a curriculum wit
 > 
 > 💡 **New to Data Engineering?** Read the [Beginner Walkthrough / Panduan Belajar Pemula](WALKTHROUGH.md) for a complete zero-to-pro study guide and learning loop.
 
+## Quick start (new learners)
+
+The site opens on a **Start here** page that walks you from zero to your first running lab. The short version:
+
+```bash
+git clone https://github.com/triutama133/DECourse.git && cd DECourse
+python3 labs/shared/shopgen.py --out data     # creates the KopiKu sample data; proves Python works
+python3 server.py                             # then open http://localhost:3000
+```
+
+No Git? Download the ZIP of this repository instead. Prefer not to install anything? Open the repository in **GitHub Codespaces** (the `.devcontainer/` folder sets up Python, Java, Terraform and every lab's dependencies). Press **Ctrl+K** inside the site to search every lesson.
+
 ## Run it
 
 ```bash

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main-content" onclick="document.getElementById('main-content').focus()">Skip to content / Lewati ke konten</a>
 
   <header class="site-header no-print">
     <div class="header-inner">
@@ -15,24 +16,44 @@
         <span class="brand-name">DataForge</span>
       </button>
 
-      <nav class="nav" id="nav" aria-label="Main"></nav>
-
       <div class="header-tools">
+        <button class="icon-btn" id="search-btn" onclick="app.openSearch()" aria-label="Search the course (Ctrl+K)" title="Ctrl+K">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
+          <span class="icon-btn-label" id="search-btn-label">Search</span>
+        </button>
+        <button class="icon-btn menu-toggle" id="menu-toggle" onclick="app.toggleMenu()" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
+        </button>
         <div class="lang" role="group" aria-label="Language">
           <button id="lang-btn-id" onclick="app.setLanguage('id')">ID</button>
           <button id="lang-btn-en" onclick="app.setLanguage('en')">EN</button>
         </div>
         <div class="header-progress" id="header-stats"></div>
       </div>
+
+      <nav class="nav" id="nav" aria-label="Main"></nav>
     </div>
   </header>
 
-  <main id="main-content"></main>
+  <main id="main-content" tabindex="-1"></main>
+
+  <div class="search-overlay" id="search-overlay" hidden onclick="if(event.target===this)app.closeSearch()">
+    <div class="search-box" role="dialog" aria-modal="true" aria-label="Search">
+      <input type="search" id="search-input" autocomplete="off" oninput="app.runSearch(this.value)" onkeydown="app.searchKey(event)" />
+      <div id="search-results" role="listbox"></div>
+      <div class="search-foot muted small" id="search-foot"></div>
+    </div>
+  </div>
 
   <footer class="site-footer no-print">
     <div class="inner">
       <span id="footer-tagline"></span>
-      <span>Progress is stored only in this browser.</span>
+      <span class="footer-progress">
+        <span id="footer-note"></span>
+        <button class="link-btn" onclick="app.exportProgress()" id="footer-export"></button>
+        <button class="link-btn" onclick="document.getElementById('import-file').click()" id="footer-import"></button>
+        <input type="file" id="import-file" accept="application/json" hidden onchange="app.importProgress(this)" />
+      </span>
     </div>
   </footer>
 

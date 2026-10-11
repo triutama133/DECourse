@@ -1,7 +1,8 @@
 // DataForge application controller.
 // Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
 
-const VIEWS = ["roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
+const REPO_URL = "https://github.com/triutama133/DECourse";
+const VIEWS = ["start", "roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents"];
 
@@ -21,7 +22,7 @@ function writeStore(key, value) {
 
 class DataForgeApp {
   constructor() {
-    this.currentView = "roadmap";
+    this.currentView = "start";
     this.activeLevelId = "zero";
     this.activeModuleId = "mod-0-1";
     this.activeModuleTab = "concepts";
@@ -43,7 +44,8 @@ class DataForgeApp {
     this.sandbox = { datasetKey: "ecommerce", challengeId: null, status: "loading", message: null, result: null, hintOpen: false, solutionOpen: false };
 
     this.renderChrome();
-    window.addEventListener("hashchange", () => this.readHash());
+    window.addEventListener("hashchange", () => this.readHash(true));
+    document.addEventListener("keydown", (e) => this.globalKey(e));
     this.readHash();
   }
 
@@ -98,7 +100,7 @@ class DataForgeApp {
         i++;
         while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
         i++;
-        out.push(`<pre${m[1] ? ` data-lang="${this.esc(m[1])}"` : ""}><code>${this.esc(body.join("\n"))}</code></pre>`);
+        out.push(`<div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)" aria-label="${this.l("Salin kode", "Copy code")}">${this.l("Salin", "Copy")}</button><pre${m[1] ? ` data-lang="${this.esc(m[1])}"` : ""}><code>${this.esc(body.join("\n"))}</code></pre></div>`);
       } else if ((m = line.match(/^(#{3,4}) (.+)$/))) {
         out.push(`<h4 class="md-h">${this.inline(m[2])}</h4>`); i++;
       } else if (/^---+\s*$/.test(line)) {
@@ -139,9 +141,11 @@ class DataForgeApp {
   }
 
   // ---------- routing ----------
-  readHash() {
+  readHash(focusMain) {
     const parts = (location.hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
-    const view = VIEWS.includes(parts[0]) ? parts[0] : "roadmap";
+    const view = VIEWS.includes(parts[0]) ? parts[0] : (readStore("df_visited", false) ? "roadmap" : "start");
+    writeStore("df_visited", true);
+    this.closeMenu();
     this.currentView = view;
     if (view === "curriculum") {
       const lvl = CURRICULUM_DATA.find((L) => L.modules.some((m) => m.id === parts[1]));
@@ -152,6 +156,7 @@ class DataForgeApp {
     this.renderChrome();
     this.renderView();
     window.scrollTo(0, 0);
+    if (focusMain) document.getElementById("main-content").focus({ preventScroll: true });
   }
   go(view, ...rest) {
     const hash = "#/" + [view, ...rest].join("/");
@@ -162,12 +167,19 @@ class DataForgeApp {
   // ---------- chrome (header/nav/footer) ----------
   renderChrome() {
     const labels = {
+      "start": this.l("Mulai di sini", "Start here"),
       "roadmap": this.tr("navRoadmap"), "curriculum": this.tr("navCurriculum"), "interview": this.tr("navInterview"),
       "portfolio": this.tr("navPortfolio"), "cv-builder": this.tr("navCvBuilder"), "playground": this.tr("navPlayground"),
       "readiness": this.tr("navReadiness"), "remote-playbook": this.tr("navRemote")
     };
     document.getElementById("nav").innerHTML = VIEWS.map((v) =>
-      `<button class="${v === this.currentView ? "active" : ""}" onclick="app.go('${v}')">${this.esc(labels[v])}</button>`).join("");
+      `<button class="${v === this.currentView ? "active" : ""}"${v === this.currentView ? ' aria-current="page"' : ""} onclick="app.go('${v}')">${this.esc(labels[v])}</button>`).join("");
+    document.getElementById("search-btn-label").textContent = this.l("Cari", "Search");
+    document.getElementById("search-btn").setAttribute("aria-label", this.l("Cari di seluruh kursus (Ctrl+K)", "Search the course (Ctrl+K)"));
+    document.getElementById("menu-toggle").setAttribute("aria-label", this.l("Menu", "Menu"));
+    document.getElementById("footer-note").textContent = this.l("Progres tersimpan hanya di browser ini.", "Progress is stored only in this browser.");
+    document.getElementById("footer-export").textContent = this.l("Ekspor progres", "Export progress");
+    document.getElementById("footer-import").textContent = this.l("Impor progres", "Import progress");
     document.documentElement.lang = this.lang;
     document.getElementById("lang-btn-id").className = this.lang === "id" ? "active" : "";
     document.getElementById("lang-btn-en").className = this.lang === "en" ? "active" : "";
@@ -182,8 +194,20 @@ class DataForgeApp {
     document.getElementById("header-stats").innerHTML = `
       <div style="cursor:pointer" onclick="app.go('readiness')" title="${this.l('Buka Dashboard Kesiapan Kerja & Evaluasi Skill', 'Open Job Readiness & Skill Dashboard')}">
         <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
-        <div class="progress"><div style="width:${pct}%"></div></div>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${this.l("Progres modul", "Module progress")}"><div style="width:${pct}%"></div></div>
       </div>`;
+  }
+
+  toggleMenu() {
+    const nav = document.getElementById("nav");
+    const open = nav.classList.toggle("open");
+    document.getElementById("menu-toggle").setAttribute("aria-expanded", String(open));
+  }
+  closeMenu() {
+    const nav = document.getElementById("nav");
+    if (nav) nav.classList.remove("open");
+    const t = document.getElementById("menu-toggle");
+    if (t) t.setAttribute("aria-expanded", "false");
   }
 
   setLanguage(lang) {
@@ -196,6 +220,7 @@ class DataForgeApp {
   renderView() {
     const container = document.getElementById("main-content");
     const views = {
+      "start": () => this.renderStartView(),
       "roadmap": () => this.renderRoadmapView(),
       "curriculum": () => this.renderCurriculumView(),
       "interview": () => this.renderInterviewView(),
@@ -207,6 +232,227 @@ class DataForgeApp {
     };
     container.innerHTML = views[this.currentView]();
     if (this.currentView === "playground") this.afterPlaygroundRender();
+  }
+
+  // ================= TOOLS: copy, search, export/import =================
+  copyText(text, btn) {
+    const done = () => { if (btn) { const old = btn.textContent; btn.textContent = this.l("Tersalin", "Copied"); setTimeout(() => { btn.textContent = old; }, 1200); } };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, done);
+    else {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e) { /* ignore */ }
+      document.body.removeChild(ta); done();
+    }
+  }
+  copyCode(btn) {
+    const code = btn.parentElement.querySelector("code");
+    this.copyText(code ? code.textContent : "", btn);
+  }
+
+  globalKey(e) {
+    const overlay = document.getElementById("search-overlay");
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); this.openSearch(); }
+    else if (e.key === "/" && !typing && overlay.hidden) { e.preventDefault(); this.openSearch(); }
+    else if (e.key === "Escape" && !overlay.hidden) this.closeSearch();
+  }
+  stripMd(text) {
+    return String(text || "").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
+  }
+  searchIndex() {
+    this._searchIdx = this._searchIdx || {};
+    if (this._searchIdx[this.lang]) return this._searchIdx[this.lang];
+    const idx = [];
+    for (const lvl of CURRICULUM_DATA) for (const m of lvl.modules) {
+      const mt = `${m.number} ${this.t(m.title)}`;
+      idx.push({ mod: m.id, kind: "module", i: 0, title: mt, modTitle: mt, text: this.stripMd(`${this.t(m.summary)} ${(m.outcomes || []).map((o) => this.t(o)).join(" ")}`) });
+      (m.lessons || []).forEach((l, i) => idx.push({ mod: m.id, kind: "lesson", i, title: this.t(l.title), modTitle: mt, text: this.stripMd(this.t(l.body)) }));
+      if (m.chaosLab) idx.push({ mod: m.id, kind: "chaos", i: 0, title: this.t(m.chaosLab.title), modTitle: mt,
+        text: this.stripMd([m.chaosLab.scenario, m.chaosLab.breakageReason, m.chaosLab.fixGuide, m.chaosLab.defensivePattern].map((x) => this.t(x)).join(" ")) });
+    }
+    idx.forEach((e) => { e.hayTitle = (e.title + " " + e.modTitle).toLowerCase(); e.hay = e.text.toLowerCase(); });
+    this._searchIdx[this.lang] = idx;
+    return idx;
+  }
+  openSearch() {
+    const o = document.getElementById("search-overlay");
+    const input = document.getElementById("search-input");
+    this._searchReturn = document.activeElement;
+    o.hidden = false;
+    input.value = "";
+    input.placeholder = this.l('Cari di semua modul, mis. "watermark", "idempoten", "grain"', 'Search all modules, e.g. "watermark", "idempotent", "grain"');
+    document.getElementById("search-foot").textContent = this.l("Enter: buka · ↑ ↓: pilih · Esc: tutup", "Enter: open · ↑ ↓: move · Esc: close");
+    this.runSearch("");
+    input.focus();
+  }
+  closeSearch() {
+    document.getElementById("search-overlay").hidden = true;
+    if (this._searchReturn && this._searchReturn.focus) this._searchReturn.focus();
+  }
+  runSearch(q) {
+    const box = document.getElementById("search-results");
+    const tokens = String(q).toLowerCase().split(/\s+/).filter((x) => x.length > 1);
+    this._searchSel = 0;
+    if (!tokens.length) { box.innerHTML = `<p class="muted small" style="padding:12px 16px">${this.l("Ketik minimal 2 huruf. Pencarian mencakup judul dan isi materi, serta skenario chaos.", "Type at least 2 letters. Search covers titles, lesson text and chaos scenarios.")}</p>`; this._hits = []; return; }
+    const hits = [];
+    for (const e of this.searchIndex()) {
+      if (!tokens.every((t) => e.hayTitle.includes(t) || e.hay.includes(t))) continue;
+      let score = 0;
+      for (const t of tokens) {
+        if (e.title.toLowerCase().includes(t)) score += 10;
+        if (e.modTitle.toLowerCase().includes(t)) score += 3;
+        score += Math.min(5, e.hay.split(t).length - 1);
+      }
+      if (e.kind === "module") score += 1;
+      hits.push({ e, score });
+    }
+    hits.sort((a, b) => b.score - a.score);
+    this._hits = hits.slice(0, 12).map((h) => h.e);
+    const mark = (txt) => {
+      let out = this.esc(txt);
+      for (const t of tokens) out = out.replace(new RegExp(this.esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
+      return out;
+    };
+    const kindLabel = { module: this.l("Modul", "Module"), lesson: this.l("Materi", "Lesson"), chaos: "Chaos" };
+    box.innerHTML = this._hits.length ? this._hits.map((e, n) => {
+      const pos = Math.max(0, e.hay.indexOf(tokens[0]));
+      const snippet = e.text.slice(Math.max(0, pos - 50), pos + 130);
+      return `<button class="search-hit${n === 0 ? " sel" : ""}" role="option" data-n="${n}" onclick="app.openHit(${n})">
+        <div class="t">${mark(e.title)}</div><div class="m">${kindLabel[e.kind]} · ${this.esc(e.modTitle)}</div>
+        ${e.kind === "module" ? "" : `<div class="s">…${mark(snippet)}…</div>`}</button>`;
+    }).join("") : `<p class="muted small" style="padding:12px 16px">${this.l("Tidak ada hasil. Coba kata lain atau ejaan bahasa Inggris.", "No results. Try another word.")}</p>`;
+  }
+  searchKey(e) {
+    const n = (this._hits || []).length;
+    if (!n) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      this._searchSel = (this._searchSel + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+      document.querySelectorAll(".search-hit").forEach((el, i) => el.classList.toggle("sel", i === this._searchSel));
+      const el = document.querySelectorAll(".search-hit")[this._searchSel];
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { e.preventDefault(); this.openHit(this._searchSel); }
+  }
+  openHit(n) {
+    const e = (this._hits || [])[n];
+    if (!e) return;
+    this.closeSearch();
+    this.go("curriculum", e.mod, e.kind === "chaos" ? "chaos" : "concepts");
+    if (e.kind === "lesson") setTimeout(() => this.scrollToLesson(e.i), 60);
+  }
+
+  exportProgress() {
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang"];
+    const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
+    keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `dataforge-progress-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  importProgress(input) {
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const d = JSON.parse(reader.result);
+        if (!d || d.format !== "dataforge-progress") throw new Error("format");
+        const ids = new Set(CURRICULUM_DATA.flatMap((l) => l.modules.map((m) => m.id)));
+        if (Array.isArray(d.df_completed_modules)) this.completedModules = d.df_completed_modules.filter((x) => ids.has(x));
+        if (d.df_quiz_scores && typeof d.df_quiz_scores === "object" && !Array.isArray(d.df_quiz_scores)) this.quizScores = d.df_quiz_scores;
+        if (Array.isArray(d.df_solved_challenges)) this.solvedChallenges = d.df_solved_challenges.filter((x) => typeof x === "string");
+        if (typeof d.df_resume_edited === "boolean") this.resumeEdited = d.df_resume_edited;
+        if (d.df_resume_data && typeof d.df_resume_data === "object") this.resumeData = d.df_resume_data;
+        writeStore("df_completed_modules", this.completedModules);
+        writeStore("df_quiz_scores", this.quizScores);
+        writeStore("df_solved_challenges", this.solvedChallenges);
+        writeStore("df_resume_edited", this.resumeEdited);
+        writeStore("df_resume_data", this.resumeData);
+        this.renderChrome(); this.renderView();
+        alert(this.l("Progres berhasil diimpor.", "Progress imported."));
+      } catch (e) {
+        alert(this.l("File tidak valid: pilih file hasil Ekspor progres dari DataForge.", "Invalid file: choose a file created by DataForge's Export progress."));
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ================= START HERE =================
+  renderStartView() {
+    const cmd = (text) => `<div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(text)}</code></pre></div>`;
+    const step = (n, title, body) => `<div class="card start-step"><div class="num" aria-hidden="true">${n}</div><div class="stack-sm"><h2>${title}</h2>${body}</div></div>`;
+    const repo = REPO_URL;
+    return `
+      <div class="stack">
+        <div class="card stack-sm">
+          <span class="chip chip-blue">${this.l("Sekali saja, 30 sampai 60 menit", "Once only, 30 to 60 minutes")}</span>
+          <h1>${this.l("Mulai di sini: dari nol sampai lab pertama yang berjalan", "Start here: from zero to your first running lab")}</h1>
+          <p class="muted" style="max-width:760px;font-size:15px">${this.l(
+            "Kursus ini dipelajari dengan menjalankan kode, bukan hanya membaca. Halaman ini membawa Anda ke titik di mana lab pertama berjalan di komputer Anda. Anda tidak perlu pengalaman sebelumnya. Kalau ada langkah yang macet, itu bukan salah Anda: lihat bagian \"Kalau macet\" di bawah.",
+            "You learn this course by running code, not only by reading. This page takes you to the point where the first lab runs on your computer. You do not need any experience. If a step gets stuck, it is not your fault: see \"If you get stuck\" below.")}</p>
+          <div class="callout"><p>${this.l("Anda bisa membaca semua materi dan memakai SQL Sandbox langsung di browser ini tanpa instalasi apa pun. Instalasi hanya diperlukan untuk lab Python/terminal.", "You can read every lesson and use the SQL Sandbox right here in the browser with nothing installed. Setup is only needed for the Python/terminal labs.")}</p></div>
+        </div>
+
+        ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
+          <div class="grid cols-2">
+            <div class="well stack-sm">
+              <strong>${this.l("A. Di cloud, tanpa instal (paling mudah)", "A. In the cloud, nothing to install (easiest)")}</strong>
+              <p class="small muted">${this.l("GitHub Codespaces membuka editor kode lengkap di browser dengan Python dan semua alat sudah terpasang. Perlu akun GitHub gratis; ada kuota jam gratis per bulan.", "GitHub Codespaces opens a full code editor in your browser with Python and the tools already installed. It needs a free GitHub account and has a free monthly hours quota.")}</p>
+              <a class="btn btn-primary" href="https://codespaces.new/${repo.replace("https://github.com/", "")}" target="_blank" rel="noopener">${this.l("Buka di Codespaces", "Open in Codespaces")}</a>
+              <p class="small muted">${this.l("Setelah terbuka, lompat ke langkah 3.", "Once it opens, skip to step 3.")}</p>
+            </div>
+            <div class="well stack-sm">
+              <strong>${this.l("B. Di komputer Anda sendiri", "B. On your own computer")}</strong>
+              <ul class="small" style="margin-left:18px">
+                <li>${this.l("Linux, macOS, atau Windows 10/11 dengan WSL2 (Modul 0.2 menjelaskan WSL2)", "Linux, macOS, or Windows 10/11 with WSL2 (Module 0.2 explains WSL2)")}</li>
+                <li>${this.l("Python 3.10 atau lebih baru", "Python 3.10 or newer")}</li>
+                <li>${this.l("RAM 8 GB cukup untuk Level 0 sampai 2; 16 GB disarankan untuk Spark dan Kafka", "8 GB RAM is enough for Levels 0 to 2; 16 GB is recommended for Spark and Kafka")}</li>
+                <li>${this.l("Sekitar 10 GB ruang disk bebas", "About 10 GB of free disk space")}</li>
+              </ul>
+            </div>
+          </div>`)}
+
+        ${step(2, this.l("Ambil file kursus (hanya untuk pilihan B)", "Get the course files (option B only)"), `
+          <p>${this.l("File lab ada di folder <code>labs/</code> pada repositori kursus. Cara tercepat:", "The lab files live in the <code>labs/</code> folder of the course repository. Fastest way:")}</p>
+          <p><strong>${this.l("Dengan Git", "With Git")}</strong> (${this.l("jika sudah terpasang; Modul 0.2 mengajarkannya", "if installed; Module 0.2 teaches it")}):</p>
+          ${cmd(`git clone ${repo}.git\ncd DECourse`)}
+          <p><strong>${this.l("Tanpa Git", "Without Git")}</strong>: <a href="${repo}/archive/refs/heads/main.zip" target="_blank" rel="noopener">${this.l("unduh ZIP", "download the ZIP")}</a>, ${this.l("ekstrak, lalu buka terminal di folder hasil ekstrak.", "extract it, then open a terminal in the extracted folder.")}</p>
+          <p class="small muted">${this.l("Semua perintah di kursus ini dijalankan dari folder ini (disebut \"akar repositori\").", "Every command in this course is run from this folder (called the \"repository root\").")}</p>`)}
+
+        ${step(3, this.l("Cek bahwa semuanya berjalan", "Check that everything works"), `
+          ${cmd(`python3 --version\npython3 labs/shared/shopgen.py --out data\nls data`)}
+          <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap untuk Modul 0.1.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready for Module 0.1.")}</p>
+          <p class="small muted">${this.l("Pesan <code>command not found</code>? Di Linux/macOS coba <code>python</code> sebagai ganti <code>python3</code>. Di Windows pastikan Anda berada di terminal Ubuntu (WSL2), bukan PowerShell.", "<code>command not found</code>? On Linux/macOS try <code>python</code> instead of <code>python3</code>. On Windows make sure you are in the Ubuntu (WSL2) terminal, not PowerShell.")}</p>`)}
+
+        ${step(4, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
+          ${cmd("python3 server.py")}
+          <p class="small muted">${this.l("Lalu buka http://localhost:3000. Progres Anda disimpan di browser; gunakan Ekspor progres di bawah halaman untuk membuat cadangan.", "Then open http://localhost:3000. Your progress is stored in the browser; use Export progress in the page footer to make a backup.")}</p>`)}
+
+        ${step(5, this.l("Mulai belajar", "Start learning"), `
+          <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
+          <ul style="margin-left:18px">
+            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 45 minggu; Level 0 saja sekitar 4 sampai 5 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 45 weeks; Level 0 alone is about 4 to 5 weeks.")}</li>
+            <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
+            <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
+          </ul>
+          <div class="row"><button class="btn btn-primary" onclick="app.go('curriculum','mod-0-1')">${this.l("Mulai Modul 0.1", "Start Module 0.1")}</button><button class="btn" onclick="app.go('playground')">${this.l("Coba SQL Sandbox dulu", "Try the SQL Sandbox first")}</button></div>`)}
+
+        <div class="card stack-sm">
+          <h2>${this.l("Kalau macet", "If you get stuck")}</h2>
+          <ul style="margin-left:18px">
+            <li>${this.l("Baca pesan error <strong>dari baris paling bawah</strong>. Jawabannya biasanya di sana (Modul 0.2 melatih ini).", "Read the error message <strong>from the bottom line</strong>. The answer is usually there (Module 0.2 trains this).")}</li>
+            <li>${this.l("Coba sendiri minimal 30 menit sebelum melihat folder <code>reference/</code>. Setelah melihat, tutup dan tulis ulang dengan kata-kata Anda sendiri.", "Try for at least 30 minutes before looking at the <code>reference/</code> folder. After looking, close it and write it again in your own words.")}</li>
+            <li>${this.l("Jalankan satu tes saja agar pesan error lebih pendek: <code>pytest labs/mod-0-1 -k parse_total -x</code>.", "Run one test only to get a shorter error: <code>pytest labs/mod-0-1 -k parse_total -x</code>.")}</li>
+            <li>${this.l("Masih macet? Buka isu di", "Still stuck? Open an issue at")} <a href="${repo}/issues" target="_blank" rel="noopener">${repo.replace("https://", "")}/issues</a> ${this.l("dan sertakan perintah yang Anda jalankan serta pesan error lengkap.", "and include the command you ran and the full error message.")}</li>
+          </ul>
+          <p class="small muted">${this.l("Tentang kejujuran kursus: semua lab sudah dijalankan terhadap alat aslinya (Spark, Kafka, dbt, Terraform, dan lain-lain) dan solusi referensinya lulus tes. Namun kursus ini belum diuji oleh banyak pemula; jika ada bagian yang membingungkan, tolong laporkan.", "About honesty: every lab has been run against the real tools (Spark, Kafka, dbt, Terraform and others) and its reference solution passes the tests. But the course has not yet been tested with many beginners; if something is confusing, please report it.")}</p>
+        </div>
+      </div>`;
   }
 
   // ================= ROADMAP =================
@@ -243,7 +489,8 @@ class DataForgeApp {
           <h1>${t.roadmapHeroTitle}</h1>
           <p class="muted" style="max-width:720px;font-size:15px">${t.roadmapHeroDesc}</p>
           <div class="row" style="padding-top:8px">
-            <button class="btn btn-primary" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
+            <button class="btn btn-primary" onclick="app.go('start')">${this.l("Mulai di sini: siapkan komputer", "Start here: set up your computer")}</button>
+            <button class="btn" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
             <button class="btn" onclick="app.go('interview')">${t.ctaInterviewSim}</button>
             <button class="btn" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
           </div>
@@ -273,7 +520,7 @@ class DataForgeApp {
         <aside class="stack-sm">
           <div class="segmented" style="display:flex">
             ${CURRICULUM_DATA.filter((lvl) => lvl.modules.length).map((lvl) => `
-              <button style="flex:1" class="${lvl.levelId === level.levelId ? "active" : ""}" onclick="app.go('curriculum','${lvl.modules[0].id}')">${this.esc(this.t(lvl.badge))}</button>`).join("")}
+              <button style="flex:1" aria-pressed="${lvl.levelId === level.levelId}" class="${lvl.levelId === level.levelId ? "active" : ""}" onclick="app.go('curriculum','${lvl.modules[0].id}')">${this.esc(this.t(lvl.badge))}</button>`).join("")}
           </div>
           <div class="muted small" style="padding:4px 2px">${this.esc(this.t(level.levelTitle))}</div>
           ${level.modules.map((m) => `
@@ -301,10 +548,10 @@ class DataForgeApp {
               <div class="label">${t.whyTutorialsLieHeader}</div>
               <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
             </div>
-            <div class="tabs">
-              ${MODULE_TABS.map((k) => `<button class="${this.activeModuleTab === k ? "active" : ""}" onclick="app.go('curriculum','${mod.id}','${k}')">${tabLabels[k]}</button>`).join("")}
+            <div class="tabs" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
+              ${MODULE_TABS.map((k) => `<button role="tab" id="tab-${k}" aria-selected="${this.activeModuleTab === k}" aria-controls="tabpanel" class="${this.activeModuleTab === k ? "active" : ""}" onclick="app.go('curriculum','${mod.id}','${k}')">${tabLabels[k]}</button>`).join("")}
             </div>
-            <div class="stack" style="padding-top:8px">${this.renderModuleTabContent(mod, t)}</div>
+            <div class="stack" id="tabpanel" role="tabpanel" aria-labelledby="tab-${this.activeModuleTab}" style="padding-top:8px">${this.renderModuleTabContent(mod, t)}</div>
           </div>
         </section>
       </div>`;
@@ -1214,31 +1461,28 @@ class DataForgeApp {
     const careerWeight = (isResumeDone ? 7.5 : 0) + (completedCount >= 8 ? 7.5 : 0);
     const readinessScore = Math.min(100, Math.round(modWeight + sqlWeight + careerWeight));
 
-    // Career Tier & Compensation
+    // Learning stage (a progress indicator, not a hiring promise)
     let tierTitle, tierDesc, tierComp, tierBadge, tierBadgeBg;
+    tierComp = this.l("Skor ini mengukur kemajuan belajar Anda di kursus ini, bukan kesiapan kerja yang dijamin. Gaji dan syarat jabatan sangat berbeda antar kota dan perusahaan; cek lowongan dan survei gaji terbaru. Yang paling meyakinkan perekrut adalah proyek portofolio buatan Anda sendiri yang berjalan.", "This score measures your learning progress in this course, not guaranteed job readiness. Pay and job requirements differ a lot between cities and companies; check current job posts and salary surveys. What convinces recruiters most is a portfolio project of your own that runs.");
     if (readinessScore < 25) {
-      tierTitle = this.l("Fase 1: Penjelajah Fondasi (Foundations in Progress)", "Phase 1: Foundations in Progress");
+      tierTitle = this.l("Tahap 1: Membangun fondasi", "Stage 1: Building foundations");
       tierDesc = this.l("Sedang membangun fondasi Linux, Git, SQL relasional, dan Python produksi. Fokus selesaikan Level 0 dan Level 1 terlebih dahulu.", "Building core foundations: Linux, Git, relational SQL, and production Python. Complete Level 0 and Level 1 first.");
-      tierComp = this.l("Target: Magang / Belajar Mandiri Terarah", "Target: Apprenticeship / Focused Self-study");
       tierBadge = this.l("Fondasi", "Foundations");
       tierBadgeBg = "var(--blue)";
     } else if (readinessScore < 55) {
-      tierTitle = this.l("Fase 2: Siap Kerja Junior (Junior Data / Analytics Engineer Ready)", "Phase 2: Junior Data / Analytics Engineer Ready");
-      tierDesc = this.l("Fasih SQL analitik tingkat lanjut, pemodelan data dimensional (Star Schema), dan Python streaming idempoten. Anda siap melamar posisi Junior Data Engineer atau Analytics Engineer.", "Fluent in advanced analytical SQL, Kimball Star Schema modeling, and idempotent Python streaming. Ready for Junior Data / Analytics Engineer roles.");
-      tierComp = this.l("IDR 8jt – 18jt / bln (Lokal)  ·  $1.500 – $2.800 / bln (Remote Entry-Level)", "IDR 8M–18M / mo (Local) · $1,500–$2,800 / mo (Remote Entry)");
-      tierBadge = this.l("Siap Junior", "Junior Ready");
-      tierBadgeBg = "var(--green)";
+      tierTitle = this.l("Tahap 2: Kemampuan tingkat junior", "Stage 2: Junior-level skills");
+      tierDesc = this.l("Anda sudah mempelajari SQL analitik tingkat lanjut, pemodelan dimensional, dan Python produksi. Itu sejalan dengan persyaratan umum lowongan junior; langkah berikutnya adalah membangun proyek portofolio Anda sendiri.", "You have covered advanced analytical SQL, dimensional modeling, and production Python. That lines up with typical junior job requirements; the next step is building your own portfolio project.");
+      tierBadge = this.l("Junior", "Junior");
+      tierBadgeBg = "var(--blue)";
     } else if (readinessScore < 80) {
-      tierTitle = this.l("Fase 3: Siap Kerja Mid-Level (Mid-Level Lakehouse Engineer Ready)", "Phase 3: Mid-Level Lakehouse Engineer Ready");
-      tierDesc = this.l("Menguasai arsitektur open lakehouse (Iceberg & Delta Lake), transformasi data dbt tingkat lanjut, Dagster orkestrasi, dan penegakan data quality contracts.", "Proficient in open lakehouse architecture (Iceberg & Delta Lake), dbt transformation marts, Dagster orchestration, and data quality contracts.");
-      tierComp = this.l("IDR 20jt – 38jt / bln (Lokal)  ·  $3.500 – $5.500 / bln (Remote Global)", "IDR 20M–38M / mo (Local) · $3,500–$5,500 / mo (Remote Global)");
-      tierBadge = this.l("Siap Mid-Level", "Mid-Level Ready");
-      tierBadgeBg = "var(--green)";
+      tierTitle = this.l("Tahap 3: Kemampuan tingkat menengah", "Stage 3: Mid-level skills");
+      tierDesc = this.l("Anda sudah mempelajari arsitektur lakehouse (Iceberg dan Delta Lake), dbt, orkestrasi, dan data quality contracts. Pengalaman produksi nyata tetap harus datang dari proyek atau pekerjaan.", "You have covered lakehouse architecture (Iceberg and Delta Lake), dbt, orchestration, and data quality contracts. Real production experience still has to come from projects or work.");
+      tierBadge = this.l("Menengah", "Mid-level");
+      tierBadgeBg = "var(--blue)";
     } else {
-      tierTitle = this.l("Fase 4: Siap Kerja Global Remote & Senior (Global Remote Senior DE Ready)", "Phase 4: Global Remote Senior DE Ready");
-      tierDesc = this.l("Menguasai sistem streaming terdistribusi (Spark Internals, Kafka CDC), FinOps efisiensi biaya cloud, serta AI Vector Data Engineering. Siap bersaing di bursa kerja internasional (USD).", "Mastered distributed streaming (Spark internals, Kafka CDC), cloud FinOps cost governance, and AI Vector Engineering. Ready for global US/EU remote roles (USD).");
-      tierComp = this.l("$5.000 – $9.000+ / bln (USD Remote Global B2B Contract)", "$5,000 – $9,000+ / mo (USD Global Remote B2B Contract)");
-      tierBadge = this.l("Siap Global Remote", "Global Remote Ready");
+      tierTitle = this.l("Tahap 4: Seluruh kurikulum dipelajari", "Stage 4: Whole curriculum covered");
+      tierDesc = this.l("Anda sudah mempelajari streaming terdistribusi (Spark, Kafka, CDC), FinOps, dan data engineering untuk AI. Gunakan Interview Sim dan portofolio untuk mengubah pengetahuan ini menjadi bukti.", "You have covered distributed streaming (Spark, Kafka, CDC), FinOps, and AI data engineering. Use the Interview Sim and a portfolio to turn this knowledge into evidence.");
+      tierBadge = this.l("Lengkap", "Complete");
       tierBadgeBg = "var(--green)";
     }
 
@@ -1333,7 +1577,8 @@ class DataForgeApp {
 
     // Next steps
     const nextSteps = [];
-    if (!isResumeDone) nextSteps.push({ text: this.l("Kustomisasi resume ATS Anda di Resume Builder (target skor ≥ 70) dengan formula dampak XYZ.", "Customize your ATS resume in Resume Builder (target score ≥ 70) using the XYZ impact formula."), link: "#/cv-builder" });
+    if (completedCount === 0) nextSteps.push({ text: this.l("Mulai dari awal: siapkan komputer di halaman Mulai di sini, lalu kerjakan Modul 0.1.", "Start at the beginning: set up your computer on the Start here page, then do Module 0.1."), link: "#/start" });
+    const resumeStep = !isResumeDone ? ({ text: this.l("Kustomisasi resume ATS Anda di Resume Builder (target skor ≥ 70) dengan formula dampak XYZ.", "Customize your ATS resume in Resume Builder (target score ≥ 70) using the XYZ impact formula."), link: "#/cv-builder" }) : null;
     if (!this.completedModules.includes("mod-0-3")) nextSteps.push({ text: this.l("Selesaikan Modul 0.3 untuk mengunci fondasi database relasional dan SQL.", "Complete Module 0.3 to solidify relational databases and SQL foundations."), link: "#/curriculum/mod-0-3/concepts" });
     if (!this.completedModules.includes("mod-1-2")) nextSteps.push({ text: this.l("Pelajari Modul 1.2 untuk menguasai Production Python, Pydantic, dan generator.", "Study Module 1.2 to master Production Python, Pydantic, and generators."), link: "#/curriculum/mod-1-2/concepts" });
     if (solvedSqlCount < 10) nextSteps.push({ text: this.l(`Selesaikan minimal 10 tantangan di SQL Sandbox (saat ini ${solvedSqlCount}/${totalSqlCount}).`, `Solve at least 10 challenges in the SQL Sandbox (currently ${solvedSqlCount}/${totalSqlCount}).`), link: "#/playground" });
@@ -1341,6 +1586,7 @@ class DataForgeApp {
     if (!this.completedModules.includes("mod-2-3")) nextSteps.push({ text: this.l("Bangun data marts modern dengan dbt Core di Modul 2.3.", "Build modern data marts with dbt Core in Module 2.3."), link: "#/curriculum/mod-2-3/concepts" });
     if (nextSteps.length < 3 && !this.completedModules.includes("mod-3-2")) nextSteps.push({ text: this.l("Kuasai streaming real-time dengan Kafka dan CDC di Modul 3.2.", "Master real-time streaming with Kafka and CDC in Module 3.2."), link: "#/curriculum/mod-3-2/concepts" });
     if (nextSteps.length < 3) nextSteps.push({ text: this.l("Latih simulasi interview teknis dan system design di Interview Sim.", "Practice technical interview and system design drills in Interview Sim."), link: "#/interview" });
+    if (resumeStep && nextSteps.length < 3) nextSteps.push(resumeStep);
 
     return `
       <div class="stack">
@@ -1376,8 +1622,8 @@ class DataForgeApp {
               <p class="small muted">${tierDesc}</p>
             </div>
             <div class="callout success" style="margin-top:16px">
-              <strong>${this.l("Target Kompensasi Pasar:", "Market Compensation Target:")}</strong><br>
-              <span style="font-size:13px;font-weight:600">${tierComp}</span>
+              <strong>${this.l("Catatan jujur:", "An honest note:")}</strong><br>
+              <span style="font-size:13px">${tierComp}</span>
             </div>
           </div>
 
@@ -1402,8 +1648,8 @@ class DataForgeApp {
               </div>
               <div class="stat">
                 <div class="muted small">${this.l("Skor ATS Resume", "ATS Resume Score")}</div>
-                <div class="num" style="margin-top:4px">${resumeScoreTotal} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ 100</span></div>
-                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${resumeScoreTotal}%"></div></div>
+                <div class="num" style="margin-top:4px">${this.resumeEdited ? resumeScoreTotal : "—"} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">${this.resumeEdited ? "/ 100" : this.l("(belum diisi)", "(not filled in)")}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${this.resumeEdited ? resumeScoreTotal : 0}%"></div></div>
               </div>
             </div>
             <div class="well stack-sm" style="margin-top:12px;font-size:12px">

@@ -40,9 +40,9 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 - **Reference solution (`reference/`)**: Kunci jawaban berstandar industri jika Anda benar-benar mentok.
 
 **Cara mengerjakan lab:**
-1. Buka terminal di direktori proyek:
+1. Buka terminal di folder kursus. Belum punya foldernya? Buka halaman **Mulai di sini** di aplikasi (atau lihat bagian Quick Start di README): di sana ada perintah `git clone`, tautan ZIP, dan opsi GitHub Codespaces tanpa instalasi. Lalu:
    ```bash
-   cd /path/to/dataengineeringCourse
+   cd DECourse    # nama folder hasil clone atau ekstrak ZIP
    ```
 2. Jalankan pengujian awal untuk melihat kegagalan yang diharapkan:
    ```bash

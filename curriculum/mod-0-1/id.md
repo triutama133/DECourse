@@ -119,7 +119,7 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 Anda punya file berisi baris pesanan dengan masalah-masalah di atas. Tulis empat fungsi kecil yang mengubahnya menjadi data yang bisa dipercaya dan menghitung omset harian. Ini versi mini dari apa yang dilakukan setiap pipeline: baca, validasi, seragamkan, karantina apa yang tidak bisa dipercaya, lalu hitung.
 
 ### @steps
-1. Pastikan Python 3 berjalan (`python3 --version`). Dari root repositori, buat datanya:
+1. Pastikan Python 3 berjalan (`python3 --version`). Jika Anda belum punya file kursus, ikuti dulu halaman **Mulai di sini** di aplikasi (di sana dijelaskan cara mengunduhnya dan di folder mana terminal dibuka; Modul 0.2 mengajarkan terminal dan Git dengan benar). Dari root repositori, buat datanya:
 
 ```bash
 python3 labs/shared/shopgen.py --out data
