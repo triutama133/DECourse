@@ -295,16 +295,16 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 > RANK would give 4 (it skips after ties), ROW_NUMBER gives 4 as well, and NTILE is for buckets. DENSE_RANK gives ties the same rank and continues with the next integer.
 
 ### You write `SUM(x) OVER (ORDER BY x)` and rows with equal x all show the same running total. Why?
-- [ ] The database caches the first result for equal values to avoid recalculating it
+- [ ] The database caches the first result for equal values to avoid recalculating it every time
 - [ ] `SUM` ignores the ORDER BY clause when two rows have the same value in the column
-- [x] The default frame is RANGE, which includes all rows tied with the current row
+- [x] The default frame is RANGE, which also includes all rows tied with the current row
 - [ ] Window functions are evaluated before WHERE, which merges the equal rows into one
 
 > With ORDER BY and no frame the default is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW, where tied rows are peers and all counted. Write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` for a row-by-row total.
 
 ### How do you keep only the newest row per customer from a table that holds many versions per customer?
 - [ ] `SELECT DISTINCT customer_id, MAX(effective_ts)` and then join the result back by the timestamp alone
-- [x] `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY effective_ts DESC)` in a CTE, then keep `rn = 1`
+- [x] `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY effective_ts DESC)` in a CTE, keeping `rn = 1`
 - [ ] `GROUP BY customer_id` and select every other column without any aggregate function at all
 - [ ] `ORDER BY effective_ts DESC LIMIT 1`, which returns one newest row for each separate customer
 
@@ -321,8 +321,8 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 ### What stops a recursive CTE from running forever on a hierarchy?
 - [ ] The database automatically stops after a fixed number of rounds, whatever the data looks like
 - [ ] The `UNION ALL` keyword removes any row that was already produced earlier in the same query
-- [x] The recursion ends when a round returns no new rows, so a cycle in the data loops forever
-- [ ] The anchor query limits the number of results that the recursive part is able to add later
+- [x] The recursion ends when a round returns no new rows, so a cycle in the data would loop forever
+- [ ] The anchor query limits the number of results that the recursive part is able to add later on in the query
 
 > Each round feeds on the previous round's rows and stops when it produces none. Cycles in the data (A is the parent of B and B of A) never reach that state unless you add a depth limit or cycle detection.
 
@@ -345,7 +345,7 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 ### `EXPLAIN ANALYZE` shows a node with `rows=15` estimated and `rows=2000` actual. What does this tell you, and what do you do first?
 - [ ] The query returned too many rows, so you should add a LIMIT clause to reduce the number of them
 - [ ] The estimate is irrelevant, because only the final execution time of the query really matters
-- [x] The planner's statistics are misleading it, so refresh them with ANALYZE and check correlated columns
+- [x] The planner's statistics mislead it, so refresh them with ANALYZE and check correlated columns
 - [ ] The index is corrupted and must be rebuilt before the query can run in the right way again
 
 > Large gaps between estimated and actual rows mean the planner chose a plan on wrong assumptions (stale statistics, correlated predicates). Fix the estimate first; the plan usually improves with it.

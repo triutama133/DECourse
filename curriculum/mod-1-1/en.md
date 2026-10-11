@@ -293,7 +293,7 @@ A pipeline succeeds only if every stage succeeds. Verify inputs, fail on any sta
 ### Why does `sort | uniq -c` need the `sort` first?
 - [ ] `uniq` can only read files from disk and cannot receive input through a pipe, so a temporary file is needed
 - [ ] `sort` translates the text into a binary format that `uniq` is then able to understand and count
-- [x] `uniq` merges only adjacent identical lines, so lines with the same value must be sorted next to each other
+- [x] `uniq` merges only adjacent identical lines, so equal values have to be sorted next to each other
 - [ ] `sort` removes the blank lines and the header row that would otherwise make `uniq` count incorrectly
 
 > uniq compares each line only with the previous one. Sorting brings equal lines together so each distinct value is counted once.
@@ -317,7 +317,7 @@ A pipeline succeeds only if every stage succeeds. Verify inputs, fail on any sta
 ### A cron job works when you run it by hand but fails when cron runs it, with `command not found`. What is the most likely explanation?
 - [ ] cron only runs scripts that are written in the shell language itself, and cannot start Python or Perl programs
 - [ ] The script file lost its execute permission at the exact moment when cron started it for the first time
-- [x] cron runs with a minimal environment: a short PATH, no login profile and no active virtual environment
+- [x] cron runs with a minimal environment: a short PATH, no login profile and no activated virtual environment
 - [ ] cron cannot run commands that read from or write to files on the disk, only commands that print to the screen
 
 > cron does not load your login shell's profile. Use absolute paths, set needed variables inside the script, and call the virtual environment's Python directly.
@@ -325,7 +325,7 @@ A pipeline succeeds only if every stage succeeds. Verify inputs, fail on any sta
 ### What does `jq -R 'fromjson?'` do for a file where some lines are broken?
 - [ ] It repairs broken JSON lines by guessing the missing brackets, quotes and commas, then keeps them
 - [ ] It stops at the first broken line and reports the line number of that line as a fatal error
-- [x] It parses every line on its own and silently skips any line that is not valid JSON, instead of failing
+- [x] It parses every line separately and silently skips any invalid JSON line, instead of failing
 - [ ] It loads the whole file into memory first so that every broken line can be located before parsing
 
 > `-R` reads raw lines, `fromjson` parses one, and `?` suppresses the error for failures, so one bad line does not abort the run. Count what you skipped so the loss is visible.

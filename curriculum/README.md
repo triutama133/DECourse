@@ -6,6 +6,7 @@ Every module lives in `curriculum/<module>/` as one Markdown file per language: 
 node scripts/build-curriculum.js --check     # validate only; prints a table of words and quiz size per module
 node scripts/build-curriculum.js             # validate and write app/js/curriculum-data.js
 python3 scripts/quizlen.py curriculum/mod-3-4/en.md   # where does the correct quiz option rank by length?
+python3 scripts/quizfit.py need mod-1-2 en          # which questions let a learner guess by length? (see the script for how to fix them)
 python3 scripts/verify_labs.py mod-3-4       # reference passes, starter fails
 ```
 

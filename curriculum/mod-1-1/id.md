@@ -276,7 +276,7 @@ Sebuah pipeline sukses hanya bila setiap tahapnya sukses. Verifikasi masukan, ga
 ## @quiz
 ### Apa yang diubah `set -o pipefail` dalam skrip Bash?
 - [ ] Membuat setiap perintah dalam skrip berjalan paralel sehingga pipeline selesai lebih cepat
-- [x] Pipeline gagal ketika perintah mana pun di dalamnya gagal, tidak hanya perintah yang terakhir
+- [x] Pipeline gagal bila perintah mana pun di dalamnya gagal, tidak hanya yang terakhir
 - [ ] Mencegah skrip membuat file sementara atau menulis ke disk
 - [ ] Membuat skrip berhenti setiap kali variabel yang belum diset dipakai dalam perintah apa pun
 
@@ -293,14 +293,14 @@ Sebuah pipeline sukses hanya bila setiap tahapnya sukses. Verifikasi masukan, ga
 ### Mengapa `sort | uniq -c` perlu `sort` lebih dulu?
 - [ ] `uniq` hanya bisa membaca file dari disk dan tidak menerima masukan lewat pipe, sehingga perlu file sementara
 - [ ] `sort` menerjemahkan teks ke format biner yang kemudian bisa dipahami dan dihitung oleh `uniq`
-- [x] `uniq` hanya menggabungkan baris identik yang bersebelahan, jadi baris dengan nilai sama harus diurutkan berdampingan
+- [x] `uniq` hanya menggabungkan baris identik yang bersebelahan, jadi baris sama harus diurutkan berdampingan
 - [ ] `sort` membuang baris kosong dan baris header yang kalau tidak akan membuat `uniq` salah menghitung
 
 > uniq membandingkan tiap baris hanya dengan baris sebelumnya. Pengurutan mengumpulkan baris yang sama sehingga tiap nilai berbeda dihitung sekali.
 
 ### Di Dockerfile, mengapa menyalin `requirements.txt` dan menjalankan `pip install` sebelum menyalin sisa kode?
 - [ ] pip menolak memasang paket bila kode aplikasi sudah ada di dalam image
-- [x] Docker memakai ulang layer dependensi yang di-cache bila hanya kode Anda yang berubah, sehingga build ulang cepat
+- [x] Docker memakai ulang layer dependensi bila hanya kode berubah, sehingga build ulang cepat
 - [ ] File system di container menjadi baca-saja setelah instruksi COPY pertama dijalankan
 - [ ] Urutannya tidak berpengaruh nyata, tetapi menjadi konvensi agar Dockerfile lebih mudah dibaca orang
 
@@ -309,7 +309,7 @@ Sebuah pipeline sukses hanya bila setiap tahapnya sukses. Verifikasi masukan, ga
 ### Mengapa container sebaiknya berjalan sebagai pengguna non-root?
 - [ ] Pengguna root tidak bisa membaca file yang disalin ke image dengan instruksi COPY
 - [ ] Proses non-root memakai lebih sedikit memori karena melewati beberapa pemeriksaan kernel
-- [x] Jika aplikasi dibobol, penyerang punya hak akses yang jauh lebih sedikit
+- [x] Jika aplikasi dibobol, penyerang hanya mendapat hak akses yang jauh lebih sedikit
 - [ ] Docker tidak akan memulai container yang proses utamanya berjalan sebagai root
 
 > Hak akses minimum membatasi kerusakan akibat kerentanan. Ini praktik keamanan, bukan syarat dari Docker.
@@ -325,7 +325,7 @@ Sebuah pipeline sukses hanya bila setiap tahapnya sukses. Verifikasi masukan, ga
 ### Apa yang dilakukan `jq -R 'fromjson?'` pada file yang sebagian barisnya rusak?
 - [ ] Memperbaiki baris JSON rusak dengan menebak kurung, kutip, dan koma yang hilang, lalu tetap memakainya
 - [ ] Berhenti di baris rusak pertama dan melaporkan nomor baris itu sebagai error fatal
-- [x] Mengurai setiap baris sendiri-sendiri dan diam-diam melewati baris mana pun yang bukan JSON valid, tanpa gagal
+- [x] Mengurai tiap baris sendiri-sendiri dan diam-diam melewati baris yang bukan JSON valid, tanpa gagal
 - [ ] Memuat seluruh file ke memori lebih dulu agar setiap baris rusak bisa ditemukan sebelum parsing
 
 > `-R` membaca baris mentah, `fromjson` mengurai satu baris, dan `?` menahan error saat gagal, sehingga satu baris buruk tidak membatalkan proses. Hitung apa yang Anda lewati agar kehilangannya terlihat.

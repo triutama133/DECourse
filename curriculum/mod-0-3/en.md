@@ -320,7 +320,7 @@ Know the grain of every table you join, and sum a value only at the grain where 
 ### An analyst joins `orders` (one row per order) to `order_items` (one row per line) and runs `SUM(shipping_fee_idr)`. Why is the total too high?
 - [ ] SUM adds NULL values as if they were zero, which overstates the total of every group
 - [ ] The join drops orders that have no items, which changes how the remaining rows are grouped
-- [x] After the join, each order's fee is repeated once for every line that the order has
+- [x] After the join, each order's fee is repeated once for every line that the order contains
 - [ ] The database caches the earlier result and then adds it a second time to the new one
 
 > Joining to a finer-grain table repeats the coarse-grain rows. A per-order value must be summed at the per-order grain, or the finer table must be aggregated first.
@@ -353,7 +353,7 @@ Know the grain of every table you join, and sum a value only at the grain where 
 - [ ] The database refuses the statement, because an UPDATE must always contain a condition
 - [ ] Only the first row of the table is updated, because no other condition was given
 - [ ] Only the rows where tier is currently NULL are updated, since they need a value most
-- [x] Every row in the table is updated, unless you ran it in a transaction and can roll back
+- [x] Every row is updated, unless it ran in a transaction that you are able to roll back
 
 > UPDATE and DELETE without WHERE affect all rows. Preview with a SELECT using the same WHERE, check the count, and use a transaction when you can.
 

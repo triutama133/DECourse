@@ -289,7 +289,7 @@ Jangan pernah mengubah error menjadi nilai hilang tanpa menghitungnya. Koersi se
 ### Di Pydantic v2, apa yang memungkinkan `@field_validator("total_idr", mode="before")` untuk Anda lakukan?
 - [ ] Melewati validasi field sepenuhnya ketika nilai yang masuk bertipe string
 - [ ] Menjalankan fungsi Anda setelah field diurai, sehingga bisa memeriksa integer akhirnya
-- [x] Membersihkan masukan mentah sebelum diurai Pydantic, misalnya mengubah `Rp 1.250.000` menjadi `1250000`
+- [x] Membersihkan masukan mentah sebelum diurai Pydantic, mis. `Rp 1.250.000` jadi `1250000`
 - [ ] Menentukan nilai bawaan yang dipakai setiap kali baris masuk tidak memuat field tersebut
 
 > Before-validator menerima nilai mentah, sehingga bisa membuang simbol dan format. Pydantic lalu menjalankan parsing normal dan pemeriksaan constraint pada nilai yang sudah dibersihkan.
@@ -297,7 +297,7 @@ Jangan pernah mengubah error menjadi nilai hilang tanpa menghitungnya. Koersi se
 ### Apa tujuan utama file karantina (dead-letter) dalam pipeline validasi?
 - [ ] Membuat pipeline berjalan lebih cepat karena baris yang ditolak tidak perlu diperiksa lagi
 - [ ] Menjamin baris yang error diperbaiki otomatis sebelum eksekusi terjadwal berikutnya
-- [x] Menyimpan baris yang ditolak beserta alasannya agar tidak ada yang hilang diam-diam, sementara keluaran utama tetap bersih
+- [x] Menyimpan baris ditolak dan alasannya agar tak hilang diam-diam, keluaran tetap bersih
 - [ ] Menyimpan salinan cadangan setiap baris valid agar keluaran bisa dibangun ulang setelah crash
 
 > Crash karena satu baris buruk atau membuangnya diam-diam sama-sama pilihan buruk. Karantina mengawetkan bukti untuk diperiksa dan diperbaiki, dan jumlah penolakan bisa memberi alert tentang masalah di hulu.
@@ -305,14 +305,14 @@ Jangan pernah mengubah error menjadi nilai hilang tanpa menghitungnya. Koersi se
 ### Jenis error mana yang sebaiknya diulang job dengan exponential backoff?
 - [ ] Baris dengan total negatif, karena percobaan berikutnya mungkin membaca nilai yang berbeda
 - [ ] Ketidakcocokan skema antara file dan model, karena bisa saja membaik sendiri semalam
-- [x] Timeout jaringan saat memanggil API yang aman dipanggil lagi
+- [x] Timeout jaringan saat memanggil API yang aman untuk dipanggil ulang dengan permintaan sama
 - [ ] Syntax error di kode Anda sendiri, yang kadang bisa hilang setelah interpreter dimulai ulang
 
 > Retry membantu untuk kegagalan sementara. Data buruk dan bug bersifat deterministik: masukan yang sama gagal dengan cara yang sama setiap kali. Ulangi juga hanya operasi yang aman diulang.
 
 ### Bagaimana membuat keluaran file sebuah job aman dari crash di tengah penulisan?
 - [ ] Menulis langsung ke file akhir dan memanggil `flush()` setelah setiap baris yang ditulis
-- [x] Menulis ke file sementara dan memakai `os.replace` untuk memindahkannya ke tempatnya saat selesai
+- [x] Menulis ke file sementara lalu memakai `os.replace` untuk memindahkannya saat selesai
 - [ ] Membuka file akhir dalam mode append agar isi sebelumnya tidak pernah tertimpa
 - [ ] Membungkus loop penulisan dengan `try/except Exception: pass` agar crash tidak pernah dilempar
 
@@ -321,7 +321,7 @@ Jangan pernah mengubah error menjadi nilai hilang tanpa menghitungnya. Koersi se
 ### Kode Anda memakai `except Exception: pass` di sekitar parsing tiap baris. Apa risiko utamanya?
 - [ ] Interpreter menjadi lebih lambat karena setiap exception harus dibuat dan disimpan
 - [ ] Python mengeluarkan peringatan saat start karena penangan exception telanjang tidak diizinkan
-- [x] Setiap bug di masa depan pada kode itu tertelan, sehingga hasil salah muncul tanpa tanda masalah
+- [x] Setiap bug di masa depan pada kode itu tertelan, jadi hasil salah muncul tanpa tanda masalah
 - [ ] Program tidak bisa lagi berjalan di container karena exit code tetap nol
 
 > Menelan semua exception mengubah error menjadi kehilangan data yang senyap. Tangkap exception spesifik, tangani dengan sengaja, dan hitung apa yang Anda tangani.
@@ -329,7 +329,7 @@ Jangan pernah mengubah error menjadi nilai hilang tanpa menghitungnya. Koersi se
 ### Apa yang diberikan `pytest.mark.parametrize`?
 - [ ] Menjalankan rangkaian tes paralel di seluruh core CPU yang tersedia agar selesai lebih cepat
 - [ ] Merekam argumen setiap pemanggilan fungsi agar tes yang gagal bisa diputar ulang
-- [x] Menjalankan badan tes yang sama pada tabel masukan dan keluaran yang diharapkan, satu tes per baris
+- [x] Menjalankan badan tes yang sama pada tabel masukan dan hasil harapan, satu tes per baris
 - [ ] Membuat masukan acak secara otomatis untuk mencari kasus yang tidak bisa ditangani kode Anda
 
 > Parametrisasi ideal untuk aturan pada data berantakan: tambahkan satu baris per kasus alih-alih menyalin tes. Setiap kasus dilaporkan sendiri-sendiri.

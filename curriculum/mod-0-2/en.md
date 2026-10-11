@@ -254,7 +254,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 ## @quiz
 ### What is the main purpose of a Python virtual environment?
 - [ ] It makes Python code run faster by compiling it ahead of time for the current machine
-- [x] It gives each project its own packages, so projects needing different versions do not conflict
+- [x] It gives each project its own packages, so different projects can use different versions
 - [ ] It protects your code from being read by other users who share the same computer
 - [ ] It installs a second copy of the operating system's Python so that updates cannot change it
 
@@ -262,7 +262,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 
 ### You committed `data/orders.csv` last week and now add `data/` to `.gitignore`. What happens to the file?
 - [ ] Git deletes it from the repository history as soon as the line is added
-- [x] It stays tracked, because ignoring only affects untracked files; run `git rm -r --cached data` to stop tracking it
+- [x] It stays tracked; ignore only covers untracked files. Run `git rm -r --cached data`
 - [ ] It is removed from your disk during the next `git pull`
 - [ ] It is hidden in the log but still tracked, and future edits are ignored automatically
 
@@ -271,7 +271,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 ### What does `grep "paid" orders.csv | wc -l` do?
 - [ ] Counts how many files in the current folder contain the word "paid"
 - [ ] Deletes every line that contains "paid" and prints the number of lines remaining
-- [x] Counts how many lines in orders.csv contain the text "paid"
+- [x] Counts how many lines of orders.csv contain the text "paid" anywhere
 - [ ] Writes the word "paid" into orders.csv once for each line it already has
 
 > `grep` prints matching lines, and the pipe sends them to `wc -l`, which counts lines. Nothing is modified.
@@ -286,7 +286,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 
 ### A Python script crashes with a long stack trace. Where should you look first?
 - [ ] The first line of the trace, because that is where the program began running
-- [x] The last line, which names the error, and then the last line of your own code in the trace
+- [x] The last line, which names the error, then your own last line of code in the trace
 - [ ] The middle of the trace, because that is where the library code is
 - [ ] Nowhere: stack traces are for the Python developers and not meant for users to read
 
@@ -311,7 +311,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 ### Why is `requirements.txt` committed to Git but the `venv/` folder is not?
 - [ ] Git cannot store folders that contain more than a hundred files
 - [ ] `requirements.txt` is encrypted, which makes it safe to share, while `venv/` is not
-- [x] The folder is large and machine-specific, while the file lets anyone recreate the same environment in one command
+- [x] The folder is big and machine-specific, while the file can recreate it anywhere
 - [ ] Python refuses to start if the `venv/` folder is stored in a repository
 
 > `python -m pip install -r requirements.txt` rebuilds the environment on any machine, so only the recipe needs version control.

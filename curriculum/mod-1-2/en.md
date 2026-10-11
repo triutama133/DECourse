@@ -280,7 +280,7 @@ Never convert an error into a missing value without counting it. Silent coercion
 ## @quiz
 ### Why does a generator-based `read_orders` keep memory flat on a very large file?
 - [ ] It compresses each row in memory, so the whole file occupies much less space than usual
-- [x] It hands over one row at a time, so only the current row is held in memory
+- [x] It hands over one row at a time, so only the current row is held in memory at any moment
 - [ ] It reads the file in a background thread, which frees the memory used by the main thread
 - [ ] It stores the rows on disk in a temporary file and reads them back only when they are printed
 
@@ -289,7 +289,7 @@ Never convert an error into a missing value without counting it. Silent coercion
 ### In Pydantic v2, what does `@field_validator("total_idr", mode="before")` allow you to do?
 - [ ] Skip validation of the field entirely when the incoming value is of type string
 - [ ] Run your function after the field has been parsed, so it can inspect the final integer
-- [x] Clean the raw input before Pydantic parses it, such as turning `Rp 1.250.000` into `1250000`
+- [x] Clean the raw input before Pydantic parses it, for example `Rp 1.250.000` to `1250000`
 - [ ] Define a default value that is used whenever the incoming row does not contain the field
 
 > A before-validator receives the raw value, so it can strip symbols and formats. Pydantic then performs its normal parsing and constraint checks on the cleaned value.
@@ -297,7 +297,7 @@ Never convert an error into a missing value without counting it. Silent coercion
 ### What is the main purpose of a quarantine (dead-letter) file in a validation pipeline?
 - [ ] It makes the pipeline run faster because rejected rows do not need to be checked again
 - [ ] It guarantees that rows with errors are repaired automatically before the next scheduled run
-- [x] It keeps rejected rows with their reasons so nothing is silently lost, while the main output stays clean
+- [x] It keeps rejected rows with reasons, so nothing is silently lost and the output stays clean
 - [ ] It stores a backup copy of every valid row so that the output can be rebuilt after a crash
 
 > Crashing on one bad row or silently dropping it are both bad choices. A quarantine preserves the evidence for inspection and repair, and counts of rejects can alert you to upstream problems.
@@ -305,7 +305,7 @@ Never convert an error into a missing value without counting it. Silent coercion
 ### Which kind of error should a job retry with exponential backoff?
 - [ ] A row with a negative total, because the next attempt may read a different value
 - [ ] A schema mismatch between the file and the model, because it may fix itself overnight
-- [x] A network timeout when calling an API that is safe to call again
+- [x] A network timeout when calling an API, which is safe to call again with the same request
 - [ ] A syntax error in your own code, which can sometimes vanish after the interpreter restarts
 
 > Retries help with transient failures. Bad data and bugs are deterministic: the same input fails the same way every time. Also retry only operations that are safe to repeat.
@@ -321,7 +321,7 @@ Never convert an error into a missing value without counting it. Silent coercion
 ### Your code does `except Exception: pass` around the parsing of each row. What is the main risk?
 - [ ] The interpreter becomes slower because every exception must be created and stored
 - [ ] Python raises a warning on start-up because bare exception handlers are not allowed
-- [x] Every future bug in that code is swallowed, so wrong results are produced without any sign of trouble
+- [x] Every future bug there is swallowed, so wrong results appear without any sign of trouble
 - [ ] The program will no longer be able to run in a container because the exit code stays at zero
 
 > Swallowing all exceptions turns errors into silent data loss. Catch specific exceptions, handle them deliberately, and count what you handled.

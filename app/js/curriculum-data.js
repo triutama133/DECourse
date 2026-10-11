@@ -261,8 +261,8 @@ window.CURRICULUM_DATA = [
         "en": "The data analyst, who builds the dashboards that the whole company reads every morning"
        },
        {
-        "id": "Data engineer, yang membangun dan menjalankan pipeline",
-        "en": "The data engineer, who builds and runs the pipelines"
+        "id": "Data engineer, yang membangun dan menjalankan pipeline pemindah data",
+        "en": "The data engineer, who builds and runs the pipelines that move data between systems"
        },
        {
         "id": "Software engineer tim checkout, yang memegang skema database produksi",
@@ -294,8 +294,8 @@ window.CURRICULUM_DATA = [
         "en": "The retry notices which rows already exist and skips them, so each order is stored exactly once"
        },
        {
-        "id": "Banyak pesanan termuat dua kali sehingga penjumlahan hari itu terlalu tinggi",
-        "en": "Many orders are loaded twice, so sums for that day are too high"
+        "id": "Banyak pesanan termuat dua kali sehingga semua penjumlahan, hitungan, dan rata-rata hari itu terlalu tinggi",
+        "en": "Many orders are loaded twice, so every sum, count and average for that day is too high until fixed"
        },
        {
         "id": "Percobaan ulang lebih dulu menghapus seluruh tabel lalu membangunnya lagi, sehingga data benar tetapi lama muncul",
@@ -323,7 +323,7 @@ window.CURRICULUM_DATA = [
         "en": "Batch processing cannot cope with large data, which is the main reason companies move to streaming"
        },
        {
-        "id": "Batch lebih sederhana dan berjalan terjadwal; streaming bereaksi dalam hitungan detik tetapi lebih sulit dibangun dan dijalankan",
+        "id": "Batch lebih sederhana dan terjadwal; streaming bereaksi dalam hitungan detik tetapi lebih sulit dijalankan",
         "en": "Batch is simpler and runs on a schedule; streaming reacts within seconds but is harder to build and run"
        },
        {
@@ -352,8 +352,8 @@ window.CURRICULUM_DATA = [
         "en": "A raw copy makes dashboards load faster because the data has not yet been through any slow transformation"
        },
        {
-        "id": "Bila transformasi berikutnya punya bug, Anda bisa memperbaikinya dan menjalankan ulang dari input asli",
-        "en": "If a later transformation has a bug, you can fix it and rerun from the real original input"
+        "id": "Bila transformasi berikutnya punya bug, Anda bisa memperbaikinya dan menjalankan ulang semuanya dari input asli",
+        "en": "If a later transformation has a bug, you can fix it and rerun everything from the real original input"
        },
        {
         "id": "Peraturan perlindungan data mewajibkan setiap tabel di warehouse punya tabel mentah pendamping yang tidak disentuh",
@@ -435,8 +435,8 @@ window.CURRICULUM_DATA = [
         "en": "Running the same job on a faster server so that it finishes before anyone opens the dashboard"
        },
        {
-        "id": "Pemeriksaan pada outputnya sendiri, seperti \"tidak ada total pesanan nol atau negatif\" dan \"omset harian dalam rentang normal\"",
-        "en": "Checks on the output itself, such as \"no order total is zero or negative\" and \"daily revenue is within a normal range\""
+        "id": "Pemeriksaan pada output, seperti \"tidak ada total nol atau negatif\" dan \"omset dalam rentang normal\"",
+        "en": "Checks on the output, such as \"no total is zero or negative\" and \"revenue is in a normal range\""
        },
        {
         "id": "Mengirim seluruh file log job ke CEO setiap pagi supaya ada yang membaca peringatannya",
@@ -698,7 +698,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Memberi setiap proyek paketnya sendiri, sehingga proyek yang butuh versi berbeda tidak berbenturan",
-        "en": "It gives each project its own packages, so projects needing different versions do not conflict"
+        "en": "It gives each project its own packages, so different projects can use different versions"
        },
        {
         "id": "Melindungi kode Anda agar tidak dibaca pengguna lain yang berbagi komputer yang sama",
@@ -726,15 +726,15 @@ window.CURRICULUM_DATA = [
         "en": "Git deletes it from the repository history as soon as the line is added"
        },
        {
-        "id": "Ia tetap dilacak, karena pengabaian hanya berlaku untuk file yang belum dilacak; jalankan `git rm -r --cached data` untuk berhenti melacaknya",
-        "en": "It stays tracked, because ignoring only affects untracked files; run `git rm -r --cached data` to stop tracking it"
+        "id": "Ia tetap dilacak; ignore hanya untuk file yang belum dilacak. Pakai `git rm -r --cached data`",
+        "en": "It stays tracked; ignore only covers untracked files. Run `git rm -r --cached data`"
        },
        {
         "id": "Ia dihapus dari disk Anda saat `git pull` berikutnya",
         "en": "It is removed from your disk during the next `git pull`"
        },
        {
-        "id": "Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan",
+        "id": "Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan oleh Git",
         "en": "It is hidden in the log but still tracked, and future edits are ignored automatically"
        }
       ],
@@ -759,8 +759,8 @@ window.CURRICULUM_DATA = [
         "en": "Deletes every line that contains \"paid\" and prints the number of lines remaining"
        },
        {
-        "id": "Menghitung berapa baris di orders.csv yang mengandung teks \"paid\"",
-        "en": "Counts how many lines in orders.csv contain the text \"paid\""
+        "id": "Menghitung berapa baris di orders.csv yang mengandung teks \"paid\" di mana pun",
+        "en": "Counts how many lines of orders.csv contain the text \"paid\" anywhere"
        },
        {
         "id": "Menulis kata \"paid\" ke orders.csv satu kali untuk setiap baris yang sudah ada",
@@ -788,7 +788,7 @@ window.CURRICULUM_DATA = [
         "en": "The command fails with an error because the input and output are the same file"
        },
        {
-        "id": "File menjadi kosong, karena shell memotongnya sebelum `sort` membaca",
+        "id": "File menjadi kosong, karena shell memotongnya sebelum `sort` sempat membaca",
         "en": "The file ends up empty, because the shell truncates it before `sort` reads it"
        },
        {
@@ -813,8 +813,8 @@ window.CURRICULUM_DATA = [
         "en": "The first line of the trace, because that is where the program began running"
        },
        {
-        "id": "Baris terakhir yang menyebut error-nya, lalu baris terakhir dari kode Anda sendiri di dalam trace",
-        "en": "The last line, which names the error, and then the last line of your own code in the trace"
+        "id": "Baris terakhir yang menyebut error-nya, lalu baris terakhir kode Anda sendiri di trace",
+        "en": "The last line, which names the error, then your own last line of code in the trace"
        },
        {
         "id": "Bagian tengah trace, karena di situlah kode library berada",
@@ -867,7 +867,7 @@ window.CURRICULUM_DATA = [
       },
       "options": [
        {
-        "id": "Tidak perlu apa-apa lagi, karena password sudah tidak ada di versi terbaru kode",
+        "id": "Tidak perlu apa-apa lagi, karena password sudah tidak ada di versi terbaru kode itu",
         "en": "Nothing more, because the password is no longer present in the latest version of the code"
        },
        {
@@ -879,7 +879,7 @@ window.CURRICULUM_DATA = [
         "en": "Change the password at the database first, then clean the history and add safeguards"
        },
        {
-        "id": "Meminta dukungan GitHub menghapus repositori dan terus memakai password yang sama",
+        "id": "Meminta dukungan GitHub menghapus repositori dan terus memakai password yang sama seperti sebelumnya",
         "en": "Ask GitHub support to delete the repository and keep using the same password"
        }
       ],
@@ -904,8 +904,8 @@ window.CURRICULUM_DATA = [
         "en": "`requirements.txt` is encrypted, which makes it safe to share, while `venv/` is not"
        },
        {
-        "id": "Folder itu besar dan spesifik untuk mesin, sedangkan file itu memungkinkan siapa pun membuat ulang environment yang sama dengan satu perintah",
-        "en": "The folder is large and machine-specific, while the file lets anyone recreate the same environment in one command"
+        "id": "Folder itu besar dan khusus mesin; file itu bisa membuat ulang environment-nya",
+        "en": "The folder is big and machine-specific, while the file can recreate it anywhere"
        },
        {
         "id": "Python menolak berjalan jika folder `venv/` disimpan di dalam repositori",
@@ -1267,8 +1267,8 @@ window.CURRICULUM_DATA = [
         "en": "The join drops orders that have no items, which changes how the remaining rows are grouped"
        },
        {
-        "id": "Setelah join, biaya setiap pesanan terulang sekali untuk tiap baris produk yang dimiliki pesanan itu",
-        "en": "After the join, each order's fee is repeated once for every line that the order has"
+        "id": "Setelah join, biaya tiap pesanan terulang sekali untuk tiap baris produk dalam pesanan itu",
+        "en": "After the join, each order's fee is repeated once for every line that the order contains"
        },
        {
         "id": "Database menyimpan cache hasil sebelumnya lalu menambahkannya sekali lagi ke hasil yang baru",
@@ -1387,8 +1387,8 @@ window.CURRICULUM_DATA = [
         "en": "Only the rows where tier is currently NULL are updated, since they need a value most"
        },
        {
-        "id": "Setiap baris di tabel diperbarui, kecuali Anda menjalankannya di dalam transaksi dan bisa rollback",
-        "en": "Every row in the table is updated, unless you ran it in a transaction and can roll back"
+        "id": "Semua baris diperbarui, kecuali Anda menjalankannya dalam transaksi yang bisa di-rollback",
+        "en": "Every row is updated, unless it ran in a transaction that you are able to roll back"
        }
       ],
       "correct": 3,
@@ -1706,7 +1706,7 @@ window.CURRICULUM_DATA = [
         "en": "It makes every command in the script run in parallel so that pipelines finish sooner"
        },
        {
-        "id": "Pipeline gagal ketika perintah mana pun di dalamnya gagal, tidak hanya perintah yang terakhir",
+        "id": "Pipeline gagal bila perintah mana pun di dalamnya gagal, tidak hanya yang terakhir",
         "en": "A pipeline fails when any command inside it fails, not only the last command"
        },
        {
@@ -1768,8 +1768,8 @@ window.CURRICULUM_DATA = [
         "en": "`sort` translates the text into a binary format that `uniq` is then able to understand and count"
        },
        {
-        "id": "`uniq` hanya menggabungkan baris identik yang bersebelahan, jadi baris dengan nilai sama harus diurutkan berdampingan",
-        "en": "`uniq` merges only adjacent identical lines, so lines with the same value must be sorted next to each other"
+        "id": "`uniq` hanya menggabungkan baris identik yang bersebelahan, jadi baris sama harus diurutkan berdampingan",
+        "en": "`uniq` merges only adjacent identical lines, so equal values have to be sorted next to each other"
        },
        {
         "id": "`sort` membuang baris kosong dan baris header yang kalau tidak akan membuat `uniq` salah menghitung",
@@ -1793,7 +1793,7 @@ window.CURRICULUM_DATA = [
         "en": "pip refuses to install packages once the application code is already present inside the image"
        },
        {
-        "id": "Docker memakai ulang layer dependensi yang di-cache bila hanya kode Anda yang berubah, sehingga build ulang cepat",
+        "id": "Docker memakai ulang layer dependensi bila hanya kode berubah, sehingga build ulang cepat",
         "en": "Docker reuses the cached dependency layer when only your code changes, so rebuilds are fast"
        },
        {
@@ -1826,7 +1826,7 @@ window.CURRICULUM_DATA = [
         "en": "Non-root processes use less memory because they skip several kernel checks"
        },
        {
-        "id": "Jika aplikasi dibobol, penyerang punya hak akses yang jauh lebih sedikit",
+        "id": "Jika aplikasi dibobol, penyerang hanya mendapat hak akses yang jauh lebih sedikit",
         "en": "If the application is compromised, the attacker has far fewer privileges"
        },
        {
@@ -1856,7 +1856,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "cron berjalan dengan environment minimal: PATH pendek, tanpa profil login, dan tanpa virtual environment yang aktif",
-        "en": "cron runs with a minimal environment: a short PATH, no login profile and no active virtual environment"
+        "en": "cron runs with a minimal environment: a short PATH, no login profile and no activated virtual environment"
        },
        {
         "id": "cron tidak bisa menjalankan perintah yang membaca atau menulis file di disk, hanya perintah yang mencetak ke layar",
@@ -1884,8 +1884,8 @@ window.CURRICULUM_DATA = [
         "en": "It stops at the first broken line and reports the line number of that line as a fatal error"
        },
        {
-        "id": "Mengurai setiap baris sendiri-sendiri dan diam-diam melewati baris mana pun yang bukan JSON valid, tanpa gagal",
-        "en": "It parses every line on its own and silently skips any line that is not valid JSON, instead of failing"
+        "id": "Mengurai tiap baris sendiri-sendiri dan diam-diam melewati baris yang bukan JSON valid, tanpa gagal",
+        "en": "It parses every line separately and silently skips any invalid JSON line, instead of failing"
        },
        {
         "id": "Memuat seluruh file ke memori lebih dulu agar setiap baris rusak bisa ditemukan sebelum parsing",
@@ -2196,7 +2196,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Ia menyerahkan satu baris sekali waktu, sehingga hanya baris yang sedang diproses yang ada di memori",
-        "en": "It hands over one row at a time, so only the current row is held in memory"
+        "en": "It hands over one row at a time, so only the current row is held in memory at any moment"
        },
        {
         "id": "Ia membaca file di thread latar belakang, yang membebaskan memori yang dipakai thread utama",
@@ -2228,8 +2228,8 @@ window.CURRICULUM_DATA = [
         "en": "Run your function after the field has been parsed, so it can inspect the final integer"
        },
        {
-        "id": "Membersihkan masukan mentah sebelum diurai Pydantic, misalnya mengubah `Rp 1.250.000` menjadi `1250000`",
-        "en": "Clean the raw input before Pydantic parses it, such as turning `Rp 1.250.000` into `1250000`"
+        "id": "Membersihkan masukan mentah sebelum diurai Pydantic, mis. `Rp 1.250.000` jadi `1250000`",
+        "en": "Clean the raw input before Pydantic parses it, for example `Rp 1.250.000` to `1250000`"
        },
        {
         "id": "Menentukan nilai bawaan yang dipakai setiap kali baris masuk tidak memuat field tersebut",
@@ -2257,8 +2257,8 @@ window.CURRICULUM_DATA = [
         "en": "It guarantees that rows with errors are repaired automatically before the next scheduled run"
        },
        {
-        "id": "Menyimpan baris yang ditolak beserta alasannya agar tidak ada yang hilang diam-diam, sementara keluaran utama tetap bersih",
-        "en": "It keeps rejected rows with their reasons so nothing is silently lost, while the main output stays clean"
+        "id": "Menyimpan baris ditolak dan alasannya agar tak hilang diam-diam, keluaran tetap bersih",
+        "en": "It keeps rejected rows with reasons, so nothing is silently lost and the output stays clean"
        },
        {
         "id": "Menyimpan salinan cadangan setiap baris valid agar keluaran bisa dibangun ulang setelah crash",
@@ -2286,8 +2286,8 @@ window.CURRICULUM_DATA = [
         "en": "A schema mismatch between the file and the model, because it may fix itself overnight"
        },
        {
-        "id": "Timeout jaringan saat memanggil API yang aman dipanggil lagi",
-        "en": "A network timeout when calling an API that is safe to call again"
+        "id": "Timeout jaringan saat memanggil API yang aman untuk dipanggil ulang dengan permintaan sama",
+        "en": "A network timeout when calling an API, which is safe to call again with the same request"
        },
        {
         "id": "Syntax error di kode Anda sendiri, yang kadang bisa hilang setelah interpreter dimulai ulang",
@@ -2311,7 +2311,7 @@ window.CURRICULUM_DATA = [
         "en": "Write directly to the final file and call `flush()` after every row that is written"
        },
        {
-        "id": "Menulis ke file sementara dan memakai `os.replace` untuk memindahkannya ke tempatnya saat selesai",
+        "id": "Menulis ke file sementara lalu memakai `os.replace` untuk memindahkannya saat selesai",
         "en": "Write to a temporary file and use `os.replace` to move it into place when finished"
        },
        {
@@ -2344,8 +2344,8 @@ window.CURRICULUM_DATA = [
         "en": "Python raises a warning on start-up because bare exception handlers are not allowed"
        },
        {
-        "id": "Setiap bug di masa depan pada kode itu tertelan, sehingga hasil salah muncul tanpa tanda masalah",
-        "en": "Every future bug in that code is swallowed, so wrong results are produced without any sign of trouble"
+        "id": "Setiap bug di masa depan pada kode itu tertelan, jadi hasil salah muncul tanpa tanda masalah",
+        "en": "Every future bug there is swallowed, so wrong results appear without any sign of trouble"
        },
        {
         "id": "Program tidak bisa lagi berjalan di container karena exit code tetap nol",
@@ -2373,7 +2373,7 @@ window.CURRICULUM_DATA = [
         "en": "It records the arguments of each function call so that failing tests can be replayed"
        },
        {
-        "id": "Menjalankan badan tes yang sama pada tabel masukan dan keluaran yang diharapkan, satu tes per baris",
+        "id": "Menjalankan badan tes yang sama pada tabel masukan dan hasil harapan, satu tes per baris",
         "en": "It runs the same test body over a table of inputs and expected outputs, one test per row"
        },
        {
@@ -2755,7 +2755,7 @@ window.CURRICULUM_DATA = [
         "en": "`ROW_NUMBER()`, because it numbers the rows in the exact order in which they are returned"
        },
        {
-        "id": "`DENSE_RANK()`, karena nilai kembar berbagi satu peringkat dan nilai berikutnya lanjut tanpa celah",
+        "id": "`DENSE_RANK()`, karena nilai kembar berbagi peringkat dan nilai berikutnya lanjut tanpa celah",
         "en": "`DENSE_RANK()`, because ties share one rank and the next value continues without a gap"
        },
        {
@@ -2776,8 +2776,8 @@ window.CURRICULUM_DATA = [
       },
       "options": [
        {
-        "id": "Database menyimpan cache hasil pertama untuk nilai yang sama agar tidak menghitung ulang",
-        "en": "The database caches the first result for equal values to avoid recalculating it"
+        "id": "Database menyimpan cache hasil pertama untuk nilai yang sama agar tidak menghitung ulang setiap kali",
+        "en": "The database caches the first result for equal values to avoid recalculating it every time"
        },
        {
         "id": "`SUM` mengabaikan klausa ORDER BY ketika dua baris punya nilai yang sama di kolom itu",
@@ -2785,7 +2785,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Frame bawaannya adalah RANGE, yang menyertakan semua baris yang kembar dengan baris saat ini",
-        "en": "The default frame is RANGE, which includes all rows tied with the current row"
+        "en": "The default frame is RANGE, which also includes all rows tied with the current row"
        },
        {
         "id": "Window function dievaluasi sebelum WHERE, yang menggabungkan baris yang sama menjadi satu",
@@ -2810,7 +2810,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "`ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY effective_ts DESC)` di CTE, lalu simpan `rn = 1`",
-        "en": "`ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY effective_ts DESC)` in a CTE, then keep `rn = 1`"
+        "en": "`ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY effective_ts DESC)` in a CTE, keeping `rn = 1`"
        },
        {
         "id": "`GROUP BY customer_id` dan memilih setiap kolom lain tanpa fungsi agregat apa pun sama sekali",
@@ -2842,7 +2842,7 @@ window.CURRICULUM_DATA = [
         "en": "ROW_NUMBER is computed from the date values themselves, so the difference is always exactly zero"
        },
        {
-        "id": "Tanggal dan nomor baris sama-sama naik satu per baris, sehingga selisihnya konstan sampai celah",
+        "id": "Tanggal dan nomor baris sama-sama naik satu per baris, jadi selisihnya konstan hingga celah",
         "en": "Date and row number both rise by one per row, so their difference stays constant until a gap"
        },
        {
@@ -2863,7 +2863,7 @@ window.CURRICULUM_DATA = [
       },
       "options": [
        {
-        "id": "Database otomatis berhenti setelah sejumlah putaran tetap, bagaimanapun bentuk datanya sebenarnya",
+        "id": "Database otomatis berhenti setelah sejumlah putaran tetap, bagaimanapun bentuk datanya sebenarnya di tabel",
         "en": "The database automatically stops after a fixed number of rounds, whatever the data looks like"
        },
        {
@@ -2872,11 +2872,11 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Rekursi berakhir ketika satu putaran tidak menghasilkan baris baru, sehingga siklus berputar selamanya",
-        "en": "The recursion ends when a round returns no new rows, so a cycle in the data loops forever"
+        "en": "The recursion ends when a round returns no new rows, so a cycle in the data would loop forever"
        },
        {
-        "id": "Query anchor membatasi jumlah hasil yang bisa ditambahkan oleh bagian rekursif pada tiap putaran",
-        "en": "The anchor query limits the number of results that the recursive part is able to add later"
+        "id": "Query anchor membatasi jumlah hasil yang bisa ditambahkan oleh bagian rekursif pada tiap putaran berikutnya",
+        "en": "The anchor query limits the number of results that the recursive part is able to add later on in the query"
        }
       ],
       "correct": 2,
@@ -2933,7 +2933,7 @@ window.CURRICULUM_DATA = [
         "en": "`(customer_id, event_type, event_time DESC)` since it contains every column the query touches"
        },
        {
-        "id": "`(customer_id, event_time DESC)`: kolom kesamaan dulu, lalu kolom yang dipakai untuk pengurutan",
+        "id": "`(customer_id, event_time DESC)`: kolom kesamaan dulu, lalu kolom yang dipakai mengurutkan",
         "en": "`(customer_id, event_time DESC)`: equality column first, then the column used for sorting"
        }
       ],
@@ -2958,8 +2958,8 @@ window.CURRICULUM_DATA = [
         "en": "The estimate is irrelevant, because only the final execution time of the query really matters"
        },
        {
-        "id": "Statistik planner menyesatkannya, jadi segarkan dengan ANALYZE dan periksa kolom yang berkorelasi",
-        "en": "The planner's statistics are misleading it, so refresh them with ANALYZE and check correlated columns"
+        "id": "Statistik planner menyesatkannya, jadi jalankan ANALYZE dan periksa kolom yang berkorelasi",
+        "en": "The planner's statistics mislead it, so refresh them with ANALYZE and check correlated columns"
        },
        {
         "id": "Index rusak dan harus dibangun ulang sebelum query bisa berjalan dengan benar kembali",

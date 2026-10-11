@@ -195,7 +195,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 
 ### In the KopiKu example, which role is mainly responsible for getting data from the website, payments and ads into one trustworthy place on time?
 - [ ] The data analyst, who builds the dashboards that the whole company reads every morning
-- [x] The data engineer, who builds and runs the pipelines
+- [x] The data engineer, who builds and runs the pipelines that move data between systems
 - [ ] The software engineer on the checkout team, who owns the production database schema
 - [ ] The data scientist, who trains the models that forecast next month's demand
 
@@ -204,7 +204,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 ### A nightly job loads the day's orders by appending them to a table. It fails halfway and the scheduler retries it automatically. What is the most likely result?
 - [ ] The table is unchanged, because a failed job always rolls back everything it wrote before the failure
 - [ ] The retry notices which rows already exist and skips them, so each order is stored exactly once
-- [x] Many orders are loaded twice, so sums for that day are too high
+- [x] Many orders are loaded twice, so every sum, count and average for that day is too high until fixed
 - [ ] The retry first deletes the whole table and rebuilds it, so the data stays correct but slow to appear
 
 > A plain append has no memory of the first attempt. Unless the load is idempotent (replace or upsert by key), the retry adds the rows again.
@@ -220,7 +220,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 ### What is the main reason to keep an unchanged copy of incoming data in a raw layer?
 - [ ] Raw data takes less storage than cleaned data, so keeping it first saves money on every later step
 - [ ] A raw copy makes dashboards load faster because the data has not yet been through any slow transformation
-- [x] If a later transformation has a bug, you can fix it and rerun from the real original input
+- [x] If a later transformation has a bug, you can fix it and rerun everything from the real original input
 - [ ] Data protection regulations require every table in a warehouse to have a matching untouched raw table
 
 > Reprocessing from raw is what makes fixes and backfills possible. If you only store transformed data, a bug in the transformation may destroy the evidence.
@@ -243,7 +243,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 
 ### A pipeline runs every night and reports success, but for three weeks it has been writing orders with a total of 0 because of a parsing bug. What would have caught this soonest?
 - [ ] Running the same job on a faster server so that it finishes before anyone opens the dashboard
-- [x] Checks on the output itself, such as "no order total is zero or negative" and "daily revenue is within a normal range"
+- [x] Checks on the output, such as "no total is zero or negative" and "revenue is in a normal range"
 - [ ] Sending the job's full log file to the CEO every morning so someone reads the warnings
 - [ ] Changing the input format from CSV to JSON, which has real number types and so cannot produce a zero
 

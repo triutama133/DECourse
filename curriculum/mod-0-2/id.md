@@ -262,16 +262,16 @@ Rahasia tinggal di environment, tidak pernah di repositori. Jika suatu saat boco
 
 ### Anda meng-commit `data/orders.csv` minggu lalu dan kini menambahkan `data/` ke `.gitignore`. Apa yang terjadi pada file itu?
 - [ ] Git menghapusnya dari riwayat repositori begitu baris itu ditambahkan
-- [x] Ia tetap dilacak, karena pengabaian hanya berlaku untuk file yang belum dilacak; jalankan `git rm -r --cached data` untuk berhenti melacaknya
+- [x] Ia tetap dilacak; ignore hanya untuk file yang belum dilacak. Pakai `git rm -r --cached data`
 - [ ] Ia dihapus dari disk Anda saat `git pull` berikutnya
-- [ ] Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan
+- [ ] Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan oleh Git
 
 > `.gitignore` hanya berlaku untuk file yang belum dilacak Git. File yang sudah di-commit terus dilacak sampai Anda mengeluarkannya dari index (dan tetap ada di commit lama).
 
 ### Apa yang dilakukan `grep "paid" orders.csv | wc -l`?
 - [ ] Menghitung berapa file di folder saat ini yang mengandung kata "paid"
 - [ ] Menghapus setiap baris yang mengandung "paid" dan mencetak jumlah baris yang tersisa
-- [x] Menghitung berapa baris di orders.csv yang mengandung teks "paid"
+- [x] Menghitung berapa baris di orders.csv yang mengandung teks "paid" di mana pun
 - [ ] Menulis kata "paid" ke orders.csv satu kali untuk setiap baris yang sudah ada
 
 > `grep` mencetak baris yang cocok, dan pipe mengirimnya ke `wc -l` yang menghitung baris. Tidak ada yang diubah.
@@ -279,14 +279,14 @@ Rahasia tinggal di environment, tidak pernah di repositori. Jika suatu saat boco
 ### Anda menjalankan `sort orders.csv > orders.csv`. Apa hasilnya?
 - [ ] File terurut di tempat, yang merupakan cara biasa dan aman untuk mengurutkan file
 - [ ] Perintah gagal dengan error karena masukan dan keluarannya file yang sama
-- [x] File menjadi kosong, karena shell memotongnya sebelum `sort` membaca
+- [x] File menjadi kosong, karena shell memotongnya sebelum `sort` sempat membaca
 - [ ] File terurut dan salinan cadangan bernama orders.csv~ dibuat otomatis
 
 > Shell membuka file keluaran untuk ditulis (mengosongkannya) sebelum menjalankan perintah. Tulis ke file baru lalu ganti namanya, atau pakai `sort -o`.
 
 ### Skrip Python crash dengan stack trace panjang. Ke mana Anda sebaiknya melihat pertama kali?
 - [ ] Baris pertama trace, karena di situlah program mulai berjalan
-- [x] Baris terakhir yang menyebut error-nya, lalu baris terakhir dari kode Anda sendiri di dalam trace
+- [x] Baris terakhir yang menyebut error-nya, lalu baris terakhir kode Anda sendiri di trace
 - [ ] Bagian tengah trace, karena di situlah kode library berada
 - [ ] Tidak ke mana pun: stack trace untuk pengembang Python dan tidak dimaksudkan dibaca pengguna
 
@@ -301,17 +301,17 @@ Rahasia tinggal di environment, tidak pernah di repositori. Jika suatu saat boco
 > Pesan yang baik menyebut apa yang berubah dan, bila perlu, mengapa. Pesan yang samar membuat riwayat tidak berguna saat Anda harus mencari bug.
 
 ### Anda tidak sengaja mem-push commit berisi password database ke repositori publik, lalu menghapus file itu di commit berikutnya. Apa yang harus dilakukan?
-- [ ] Tidak perlu apa-apa lagi, karena password sudah tidak ada di versi terbaru kode
+- [ ] Tidak perlu apa-apa lagi, karena password sudah tidak ada di versi terbaru kode itu
 - [ ] Menjadikan repositori privat, yang mencegah siapa pun sudah menyalinnya sebelumnya
 - [x] Mengganti password di database lebih dulu, baru membersihkan riwayat dan menambah pengaman
-- [ ] Meminta dukungan GitHub menghapus repositori dan terus memakai password yang sama
+- [ ] Meminta dukungan GitHub menghapus repositori dan terus memakai password yang sama seperti sebelumnya
 
 > Rahasia masih ada di commit lama dan mungkin sudah disalin. Mengganti kredensial adalah satu-satunya perbaikan yang benar-benar menghilangkan risiko. Pembersihan riwayat sifatnya sekunder.
 
 ### Mengapa `requirements.txt` di-commit ke Git tetapi folder `venv/` tidak?
 - [ ] Git tidak bisa menyimpan folder yang berisi lebih dari seratus file
 - [ ] `requirements.txt` terenkripsi sehingga aman dibagikan, sedangkan `venv/` tidak
-- [x] Folder itu besar dan spesifik untuk mesin, sedangkan file itu memungkinkan siapa pun membuat ulang environment yang sama dengan satu perintah
+- [x] Folder itu besar dan khusus mesin; file itu bisa membuat ulang environment-nya
 - [ ] Python menolak berjalan jika folder `venv/` disimpan di dalam repositori
 
 > `python -m pip install -r requirements.txt` membangun ulang environment di mesin mana pun, jadi hanya resepnya yang perlu dikontrol versinya.

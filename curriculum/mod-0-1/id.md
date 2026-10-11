@@ -195,7 +195,7 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 
 ### Dalam contoh KopiKu, peran mana yang terutama bertanggung jawab membawa data dari website, pembayaran, dan iklan ke satu tempat yang bisa dipercaya tepat waktu?
 - [ ] Data analyst, yang membuat dashboard yang dibaca seluruh perusahaan setiap pagi
-- [x] Data engineer, yang membangun dan menjalankan pipeline
+- [x] Data engineer, yang membangun dan menjalankan pipeline pemindah data
 - [ ] Software engineer tim checkout, yang memegang skema database produksi
 - [ ] Data scientist, yang melatih model peramal permintaan bulan depan
 
@@ -204,7 +204,7 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 ### Sebuah job malam memuat pesanan hari itu dengan menambahkannya ke tabel. Ia gagal di tengah dan scheduler mencobanya ulang otomatis. Apa hasil yang paling mungkin?
 - [ ] Tabel tidak berubah, karena job yang gagal selalu membatalkan semua yang ditulisnya sebelum gagal
 - [ ] Percobaan ulang mengenali baris yang sudah ada dan melewatinya, sehingga tiap pesanan tersimpan tepat sekali
-- [x] Banyak pesanan termuat dua kali sehingga penjumlahan hari itu terlalu tinggi
+- [x] Banyak pesanan termuat dua kali sehingga semua penjumlahan, hitungan, dan rata-rata hari itu terlalu tinggi
 - [ ] Percobaan ulang lebih dulu menghapus seluruh tabel lalu membangunnya lagi, sehingga data benar tetapi lama muncul
 
 > Append biasa tidak mengingat percobaan pertama. Kecuali pemuatan itu idempoten (ganti atau upsert berdasarkan kunci), percobaan ulang menambahkan barisnya lagi.
@@ -212,7 +212,7 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 ### Pernyataan mana tentang pemrosesan batch dan streaming yang benar?
 - [ ] Streaming selalu desain yang lebih baik karena lebih baru dan karena itu menangani semua beban kerja dengan lebih murah
 - [ ] Batch tidak sanggup menangani data besar, dan itu alasan utama perusahaan beralih ke streaming
-- [x] Batch lebih sederhana dan berjalan terjadwal; streaming bereaksi dalam hitungan detik tetapi lebih sulit dibangun dan dijalankan
+- [x] Batch lebih sederhana dan terjadwal; streaming bereaksi dalam hitungan detik tetapi lebih sulit dijalankan
 - [ ] Perusahaan harus memilih salah satu, karena sistem batch dan streaming tidak bisa berbagi data yang sama
 
 > Sebagian besar analitik adalah batch. Streaming menambah kerumitan state, urutan, dan pemulihan kegagalan, yang sepadan untuk hal seperti deteksi fraud tetapi tidak untuk laporan mingguan.
@@ -220,7 +220,7 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 ### Apa alasan utama menyimpan salinan data masuk yang tidak diubah di lapisan raw?
 - [ ] Data mentah memakai penyimpanan lebih sedikit daripada data bersih, sehingga menyimpannya lebih dulu menghemat biaya di setiap langkah berikutnya
 - [ ] Salinan mentah membuat dashboard tampil lebih cepat karena datanya belum melewati transformasi yang lambat
-- [x] Bila transformasi berikutnya punya bug, Anda bisa memperbaikinya dan menjalankan ulang dari input asli
+- [x] Bila transformasi berikutnya punya bug, Anda bisa memperbaikinya dan menjalankan ulang semuanya dari input asli
 - [ ] Peraturan perlindungan data mewajibkan setiap tabel di warehouse punya tabel mentah pendamping yang tidak disentuh
 
 > Memproses ulang dari raw membuat perbaikan dan backfill mungkin. Kalau Anda hanya menyimpan data hasil transformasi, bug di transformasi bisa menghancurkan buktinya.
@@ -243,7 +243,7 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 
 ### Sebuah pipeline berjalan tiap malam dan melaporkan sukses, tetapi selama tiga minggu menulis pesanan dengan total 0 karena bug parsing. Apa yang paling cepat menangkapnya?
 - [ ] Menjalankan job yang sama di server lebih cepat supaya selesai sebelum ada yang membuka dashboard
-- [x] Pemeriksaan pada outputnya sendiri, seperti "tidak ada total pesanan nol atau negatif" dan "omset harian dalam rentang normal"
+- [x] Pemeriksaan pada output, seperti "tidak ada total nol atau negatif" dan "omset dalam rentang normal"
 - [ ] Mengirim seluruh file log job ke CEO setiap pagi supaya ada yang membaca peringatannya
 - [ ] Mengganti format input dari CSV ke JSON, yang punya tipe angka sungguhan sehingga tidak mungkin menghasilkan nol
 

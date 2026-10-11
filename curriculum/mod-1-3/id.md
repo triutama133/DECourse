@@ -289,13 +289,13 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 ### Tiga pesanan punya total yang sama dan pesanan berikutnya lebih besar. Fungsi mana yang memberi pesanan lebih besar itu peringkat 2?
 - [ ] `RANK()`, karena ia selalu menghitung berapa baris yang ada sebelum baris saat ini dalam urutan
 - [ ] `ROW_NUMBER()`, karena ia menomori baris persis menurut urutan baris itu dikembalikan
-- [x] `DENSE_RANK()`, karena nilai kembar berbagi satu peringkat dan nilai berikutnya lanjut tanpa celah
+- [x] `DENSE_RANK()`, karena nilai kembar berbagi peringkat dan nilai berikutnya lanjut tanpa celah
 - [ ] `NTILE(2)`, karena ia membagi baris terurut menjadi dua keranjang yang hampir sama besar
 
 > RANK akan memberi 4 (melompat setelah nilai kembar), ROW_NUMBER juga 4, dan NTILE untuk keranjang. DENSE_RANK memberi peringkat sama pada nilai kembar dan melanjutkan dengan bilangan bulat berikutnya.
 
 ### Anda menulis `SUM(x) OVER (ORDER BY x)` dan baris dengan x sama semuanya menampilkan total berjalan yang sama. Mengapa?
-- [ ] Database menyimpan cache hasil pertama untuk nilai yang sama agar tidak menghitung ulang
+- [ ] Database menyimpan cache hasil pertama untuk nilai yang sama agar tidak menghitung ulang setiap kali
 - [ ] `SUM` mengabaikan klausa ORDER BY ketika dua baris punya nilai yang sama di kolom itu
 - [x] Frame bawaannya adalah RANGE, yang menyertakan semua baris yang kembar dengan baris saat ini
 - [ ] Window function dievaluasi sebelum WHERE, yang menggabungkan baris yang sama menjadi satu
@@ -313,16 +313,16 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 ### Dalam query gaps-and-islands, mengapa `tanggal - ROW_NUMBER()` sama untuk semua baris dalam satu deretan tanggal berurutan?
 - [ ] Keduanya direset ke nol oleh database setiap kali partisi baru dimulai dalam hasil query
 - [ ] ROW_NUMBER dihitung dari nilai tanggalnya sendiri, sehingga selisihnya selalu persis nol
-- [x] Tanggal dan nomor baris sama-sama naik satu per baris, sehingga selisihnya konstan sampai celah
+- [x] Tanggal dan nomor baris sama-sama naik satu per baris, jadi selisihnya konstan hingga celah
 - [ ] Database mengurutkan baris menurut selisihnya, yang menempatkan tanggal berurutan berdampingan
 
 > Dalam satu deretan, setiap baris berikutnya bertanggal sehari kemudian dan bernomor satu lebih tinggi, sehingga pengurangan saling meniadakan. Setelah celah, tanggal melompat tetapi nomor baris tidak, sehingga selisihnya berubah.
 
 ### Apa yang menghentikan CTE rekursif agar tidak berjalan selamanya pada sebuah hierarki?
-- [ ] Database otomatis berhenti setelah sejumlah putaran tetap, bagaimanapun bentuk datanya sebenarnya
+- [ ] Database otomatis berhenti setelah sejumlah putaran tetap, bagaimanapun bentuk datanya sebenarnya di tabel
 - [ ] Kata kunci `UNION ALL` membuang setiap baris yang sudah dihasilkan sebelumnya dalam query itu
 - [x] Rekursi berakhir ketika satu putaran tidak menghasilkan baris baru, sehingga siklus berputar selamanya
-- [ ] Query anchor membatasi jumlah hasil yang bisa ditambahkan oleh bagian rekursif pada tiap putaran
+- [ ] Query anchor membatasi jumlah hasil yang bisa ditambahkan oleh bagian rekursif pada tiap putaran berikutnya
 
 > Setiap putaran memakai baris putaran sebelumnya dan berhenti ketika tidak menghasilkan apa-apa. Siklus dalam data (A induk B dan B induk A) tidak pernah mencapai keadaan itu kecuali Anda menambah batas kedalaman atau deteksi siklus.
 
@@ -338,14 +338,14 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 - [ ] `(event_time DESC, customer_id)` karena kolom yang diurutkan berada pertama di kunci
 - [ ] Index kolom tunggal terpisah pada `customer_id` dan pada `event_time`, yang lalu digabungkan
 - [ ] `(customer_id, event_type, event_time DESC)` karena memuat setiap kolom yang disentuh query
-- [x] `(customer_id, event_time DESC)`: kolom kesamaan dulu, lalu kolom yang dipakai untuk pengurutan
+- [x] `(customer_id, event_time DESC)`: kolom kesamaan dulu, lalu kolom yang dipakai mengurutkan
 
 > Index terurut menurut pelanggan lalu menurut waktu di dalam tiap pelanggan, sehingga baris satu pelanggan sudah dalam urutan yang diinginkan. Kolom tengah yang berbeda merusak urutan, dan kolom pengurutan di depan tidak bisa dicari menurut pelanggan.
 
 ### `EXPLAIN ANALYZE` menunjukkan sebuah node dengan perkiraan `rows=15` dan aktual `rows=2000`. Apa artinya, dan apa yang dilakukan pertama kali?
 - [ ] Query mengembalikan terlalu banyak baris, jadi tambahkan klausa LIMIT untuk mengurangi jumlahnya
 - [ ] Perkiraan itu tidak relevan, karena hanya waktu eksekusi akhir query yang benar-benar penting
-- [x] Statistik planner menyesatkannya, jadi segarkan dengan ANALYZE dan periksa kolom yang berkorelasi
+- [x] Statistik planner menyesatkannya, jadi jalankan ANALYZE dan periksa kolom yang berkorelasi
 - [ ] Index rusak dan harus dibangun ulang sebelum query bisa berjalan dengan benar kembali
 
 > Selisih besar antara baris perkiraan dan aktual berarti planner memilih plan berdasarkan asumsi yang salah (statistik usang, predikat berkorelasi). Perbaiki perkiraannya lebih dulu; plan biasanya ikut membaik.

@@ -320,7 +320,7 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 ### Seorang analis menggabungkan `orders` (satu baris per pesanan) dengan `order_items` (satu baris per baris produk) lalu menjalankan `SUM(shipping_fee_idr)`. Mengapa totalnya terlalu tinggi?
 - [ ] SUM menambahkan nilai NULL seolah nol, yang membuat total tiap kelompok terlalu besar
 - [ ] Join membuang pesanan yang tidak punya item, yang mengubah cara baris sisanya dikelompokkan
-- [x] Setelah join, biaya setiap pesanan terulang sekali untuk tiap baris produk yang dimiliki pesanan itu
+- [x] Setelah join, biaya tiap pesanan terulang sekali untuk tiap baris produk dalam pesanan itu
 - [ ] Database menyimpan cache hasil sebelumnya lalu menambahkannya sekali lagi ke hasil yang baru
 
 > Menggabungkan dengan tabel berbutir lebih halus mengulang baris yang lebih kasar. Nilai per pesanan harus dijumlahkan pada grain per pesanan, atau tabel yang lebih halus harus diagregasi lebih dulu.
@@ -353,7 +353,7 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 - [ ] Database menolak pernyataan itu, karena sebuah UPDATE harus selalu memuat kondisi
 - [ ] Hanya baris pertama tabel yang diperbarui, karena tidak ada kondisi lain yang diberikan
 - [ ] Hanya baris yang tier-nya saat ini NULL yang diperbarui, karena merekalah yang paling butuh nilai
-- [x] Setiap baris di tabel diperbarui, kecuali Anda menjalankannya di dalam transaksi dan bisa rollback
+- [x] Semua baris diperbarui, kecuali Anda menjalankannya dalam transaksi yang bisa di-rollback
 
 > UPDATE dan DELETE tanpa WHERE mengenai semua baris. Pratinjau dengan SELECT yang memakai WHERE yang sama, periksa jumlahnya, dan pakai transaksi bila bisa.
 
