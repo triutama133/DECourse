@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.npm/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# Lab data volumes
+minio_data/
+postgres_data/

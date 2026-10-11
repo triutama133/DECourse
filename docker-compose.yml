@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  # 1. Local S3-Compatible Object Storage (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: dataforge_minio
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # MinIO Web Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # 2. Production PostgreSQL with Logical Decoding for CDC (Debezium)
+  postgres:
+    image: debezium/postgres:16-alpine
+    container_name: dataforge_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: production
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 3. High-Performance Event Streaming Engine (Redpanda - Kafka Compatible)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: dataforge_redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 1G
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092" # External Kafka API
+      - "9644:9644"   # Admin API
+
+  # 4. Redpanda Console (Web UI for inspecting Kafka topics, partitions, and consumer lag)
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: dataforge_redpanda_console
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    depends_on:
+      - redpanda
+
+volumes:
+  minio_data:
+  postgres_data:
+

@@ -1,0 +1,25 @@
+{
+  "name": "dataforge-course",
+  "version": "1.0.0",
+  "description": "The Anti-Tutorial-Hell Data Engineering Operating System & Learning Platform",
+  "main": "app/server.js",
+  "scripts": {
+    "start": "node app/server.js",
+    "dev": "node app/server.js",
+    "serve:py": "python3 server.py"
+  },
+  "keywords": [
+    "data-engineering",
+    "lakehouse",
+    "iceberg",
+    "duckdb",
+    "dbt",
+    "dagster",
+    "kafka",
+    "spark",
+    "system-design"
+  ],
+  "author": "DataForge Team",
+  "license": "MIT"
+}
+
