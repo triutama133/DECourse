@@ -245,8 +245,8 @@ class DataForgeApp {
     return `
       <div class="card browser-lab stack-sm" id="browser-lab">
         <div class="row between">
-          <h3>${this.l("Kerjakan di browser (tanpa instalasi)", "Do it in your browser (no setup)")}</h3>
-          ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Tes lulus di browser", "Passed in the browser")}</span>` : `<span id="bl-passed"></span>`}
+          <h3>${this.l("Pratinjau di browser (tidak dihitung)", "Browser preview (does not count)")}</h3>
+          ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Pratinjau lulus", "Preview passed")}</span>` : `<span id="bl-passed"></span>`}
         </div>
         <p class="small muted">${this.esc(this.t(bl.note))}</p>
         <label class="label" for="bl-code"><code>${this.esc(bl.editable)}</code></label>
@@ -260,9 +260,18 @@ class DataForgeApp {
         </div>
         <div id="bl-summary" aria-live="polite">${last.summary || ""}</div>
         <pre class="bl-out" id="bl-out"${last.out ? "" : " hidden"}>${this.esc(last.out || "")}</pre>
-        <details class="file"><summary>${this.l("Lihat solusi referensi", "Show the reference solution")} <span class="muted small">${this.l("(coba sendiri dulu)", "(try it yourself first)")}</span></summary>
-          <pre><code>${this.esc(bl.reference)}</code></pre></details>
+        <div id="bl-ref">${this.blReferenceHtml(modId)}</div>
       </div>`;
+  }
+  blReferenceHtml(modId) {
+    const bl = window.BROWSER_LABS[modId];
+    const runs = ((readStore("df_bl_runs", {}) || {})[modId]) || 0;
+    const need = 3;
+    if (runs < need) {
+      return `<p class="small muted">🔒 ${this.l(`Solusi referensi terbuka setelah Anda menjalankan tes minimal ${need} kali (sekarang ${runs}). Berjuanglah dulu: membaca pesan error dan memperbaikinya adalah inti latihan ini.`, `The reference solution unlocks after you have run the tests at least ${need} times (now ${runs}). Struggle first: reading the error and fixing it is the point of this exercise.`)}</p>`;
+    }
+    return `<details class="file"><summary>${this.l("Lihat solusi referensi", "Show the reference solution")} <span class="muted small">${this.l("(bandingkan setelah Anda mencoba sendiri; jangan menyalin)", "(compare after you have tried yourself; do not copy it)")}</span></summary>
+      <pre><code>${this.esc(bl.reference)}</code></pre></details>`;
   }
   saveBlDraft(modId, value) {
     clearTimeout(this._blSave);
@@ -304,6 +313,11 @@ class DataForgeApp {
       return;
     }
     writeStore("df_bl_" + modId, area.value);
+    const runs = readStore("df_bl_runs", {}) || {};
+    runs[modId] = (runs[modId] || 0) + 1;
+    writeStore("df_bl_runs", runs);
+    const refBox = document.getElementById("bl-ref");
+    if (refBox) refBox.innerHTML = this.blReferenceHtml(modId);
     const btn = document.getElementById("bl-run");
     this._blBusy = true;
     if (btn) btn.disabled = true;
@@ -339,8 +353,8 @@ class DataForgeApp {
           done[modId] = new Date().toISOString();
           writeStore("df_browser_labs", done);
           const mark = document.getElementById("bl-passed");
-          if (mark) { mark.className = "state-done"; mark.textContent = "✓ " + this.l("Tes lulus di browser", "Passed in the browser"); }
-          summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus. Lanjutkan ke tab Chaos dan Kuis.`, `All ${passed} tests pass. Continue with the Chaos and Quiz tabs.`)}</div>`;
+          if (mark) { mark.className = "state-done"; mark.textContent = "✓ " + this.l("Pratinjau lulus", "Preview passed"); }
+          summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus di pratinjau. Langkah yang sesungguhnya: selesaikan Modul 0.2, lalu ulangi lab ini di komputer Anda sendiri (venv, pytest, editor Anda) dan tulis ulang kodenya tanpa menyalin. Hanya itu yang dihitung.`, `All ${passed} tests pass in the preview. The real step: finish Module 0.2, then repeat this lab on your own computer (venv, pytest, your own editor) and write the code again without copying. Only that counts.`)}</div>`;
         } else {
           summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one function, then run again.`)}</div>`;
         }
@@ -466,7 +480,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs", "df_bl_runs"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -498,6 +512,7 @@ class DataForgeApp {
         writeStore("df_resume_edited", this.resumeEdited);
         writeStore("df_resume_data", this.resumeData);
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
+        if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
         this.renderChrome(); this.renderView();
         alert(this.l("Progres berhasil diimpor.", "Progress imported."));
@@ -521,19 +536,14 @@ class DataForgeApp {
           <p class="muted" style="max-width:760px;font-size:15px">${this.l(
             "Kursus ini dipelajari dengan menjalankan kode, bukan hanya membaca. Halaman ini membawa Anda ke titik di mana lab pertama berjalan di komputer Anda. Anda tidak perlu pengalaman sebelumnya. Kalau ada langkah yang macet, itu bukan salah Anda: lihat bagian \"Kalau macet\" di bawah.",
             "You learn this course by running code, not only by reading. This page takes you to the point where the first lab runs on your computer. You do not need any experience. If a step gets stuck, it is not your fault: see \"If you get stuck\" below.")}</p>
-          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi, memakai SQL Sandbox, dan mengerjakan lab Python Modul 0.1 (serta bagian Python-murni di Modul 3.2, 3.3, dan 3.4) dengan tes asli. Instalasi diperlukan untuk lab lain dan untuk belajar memakai terminal.", "With nothing installed, you can already read every lesson, use the SQL Sandbox, and do the Module 0.1 Python lab (plus the plain-Python parts of Modules 3.2, 3.3 and 3.4) with the real tests, all in this browser. Setup is needed for the other labs and to learn the terminal.")}</p></div>
+          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi dan memakai SQL Sandbox. Menyiapkan Python, venv, terminal, dan Git di komputer Anda sendiri adalah bagian penting dari belajar data engineering, dan itu dilatih di Modul 0.2. Lab Python dikerjakan di komputer Anda sendiri; hanya Lab 0.1 punya pratinjau di browser, dan pratinjau itu tidak dihitung.", "With nothing installed, you can already read every lesson and use the SQL Sandbox in this browser. Setting up Python, a venv, a terminal and Git on your own computer is a core part of learning data engineering, and Module 0.2 trains it. The Python labs are done on your own computer; only Lab 0.1 has a browser preview, and the preview does not count.")}</p></div>
         </div>
 
         ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
           <div class="grid cols-2">
             <div class="well stack-sm">
-              <strong>${this.l("A. Di cloud, tanpa instal (paling mudah)", "A. In the cloud, nothing to install (easiest)")}</strong>
-              <p class="small muted">${this.l("GitHub Codespaces membuka editor kode lengkap di browser dengan Python dan semua alat sudah terpasang. Perlu akun GitHub gratis; ada kuota jam gratis per bulan.", "GitHub Codespaces opens a full code editor in your browser with Python and the tools already installed. It needs a free GitHub account and has a free monthly hours quota.")}</p>
-              <a class="btn btn-primary" href="https://codespaces.new/${repo.replace("https://github.com/", "")}" target="_blank" rel="noopener">${this.l("Buka di Codespaces", "Open in Codespaces")}</a>
-              <p class="small muted">${this.l("Setelah terbuka, lompat ke langkah 3.", "Once it opens, skip to step 3.")}</p>
-            </div>
-            <div class="well stack-sm">
-              <strong>${this.l("B. Di komputer Anda sendiri", "B. On your own computer")}</strong>
+              <strong>${this.l("A. Di komputer Anda sendiri (disarankan)", "A. On your own computer (recommended)")}</strong>
+              <p class="small muted">${this.l("Ini yang Anda pakai di pekerjaan nyata, dan menyiapkannya sendiri adalah latihan yang berharga. Jika macet, lihat \"Kalau macet\" di bawah dan Modul 0.2.", "This is what you will use in a real job, and setting it up yourself is valuable practice. If you get stuck, see \"If you get stuck\" below and Module 0.2.")}</p>
               <ul class="small" style="margin-left:18px">
                 <li>${this.l("Linux, macOS, atau Windows 10/11 dengan WSL2 (Modul 0.2 menjelaskan WSL2)", "Linux, macOS, or Windows 10/11 with WSL2 (Module 0.2 explains WSL2)")}</li>
                 <li>${this.l("Python 3.10 atau lebih baru", "Python 3.10 or newer")}</li>
@@ -541,9 +551,15 @@ class DataForgeApp {
                 <li>${this.l("Sekitar 10 GB ruang disk bebas", "About 10 GB of free disk space")}</li>
               </ul>
             </div>
+            <div class="well stack-sm">
+              <strong>${this.l("B. Di cloud, hanya jika A tidak memungkinkan", "B. In the cloud, only if A is not possible")}</strong>
+              <p class="small muted">${this.l("Misalnya komputer pinjaman atau tablet. GitHub Codespaces membuka editor lengkap di browser dengan semuanya sudah terpasang; Anda tetap bekerja di terminal sungguhan. Perlu akun GitHub gratis; ada kuota jam gratis per bulan. Anda tidak melatih penyiapan sendiri di sini, jadi usahakan A bila bisa.", "For example a borrowed computer or a tablet. GitHub Codespaces opens a full editor in your browser with everything installed; you still work in a real terminal. It needs a free GitHub account and has a free monthly hours quota. You do not practise the setup yourself here, so prefer A when you can.")}</p>
+              <a class="btn" href="https://codespaces.new/${repo.replace("https://github.com/", "")}" target="_blank" rel="noopener">${this.l("Buka di Codespaces", "Open in Codespaces")}</a>
+              <p class="small muted">${this.l("Setelah terbuka, lompat ke langkah 3.", "Once it opens, skip to step 3.")}</p>
+            </div>
           </div>`)}
 
-        ${step(2, this.l("Ambil file kursus (hanya untuk pilihan B)", "Get the course files (option B only)"), `
+        ${step(2, this.l("Ambil file kursus (pilihan A)", "Get the course files (option A)"), `
           <p>${this.l("File lab ada di folder <code>labs/</code> pada repositori kursus. Cara tercepat:", "The lab files live in the <code>labs/</code> folder of the course repository. Fastest way:")}</p>
           <p><strong>${this.l("Dengan Git", "With Git")}</strong> (${this.l("jika sudah terpasang; Modul 0.2 mengajarkannya", "if installed; Module 0.2 teaches it")}):</p>
           ${cmd(`git clone ${repo}.git\ncd DECourse`)}

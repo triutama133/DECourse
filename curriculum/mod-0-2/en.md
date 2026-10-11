@@ -214,6 +214,14 @@ git commit -m "Record dependencies in requirements.txt"
 python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 ```
 
+7. **Now do Lab 0.1 for real.** If you only tried it in the browser preview, go back to Module 0.1 and do it on your own computer, using what you just built: activate a venv, install pytest, then run the tests from your own terminal.
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install pytest
+pytest labs/mod-0-1/test_lab.py -v
+```
+
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Starter for your script: fill in the counting logic :: starter
 - labs/mod-0-2/check.py :: Checker that inspects your workspace :: test
@@ -224,6 +232,7 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 - `python3 labs/mod-0-2/check.py ~/kopiku` prints PASS for every line
 - Your Git history has at least three commits with meaningful messages
 - `venv/`, `data/` and `.env` are not tracked by Git
+- Lab 0.1's 8 tests pass in your own terminal, inside your own venv (your own setup, not the browser preview)
 
 ### @verify
 The checker is the verification:

@@ -214,6 +214,14 @@ git commit -m "Record dependencies in requirements.txt"
 python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 ```
 
+7. **Sekarang kerjakan Lab 0.1 yang sesungguhnya.** Jika Anda baru mencobanya di pratinjau browser, kembali ke Modul 0.1 dan kerjakan di komputer Anda sendiri dengan apa yang baru Anda bangun: aktifkan venv, pasang pytest, lalu jalankan tes dari terminal Anda sendiri.
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install pytest
+pytest labs/mod-0-1/test_lab.py -v
+```
+
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Kerangka skrip Anda: isi logika penghitungannya :: starter
 - labs/mod-0-2/check.py :: Pemeriksa yang memeriksa workspace Anda :: test
@@ -224,6 +232,7 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 - `python3 labs/mod-0-2/check.py ~/kopiku` mencetak PASS di setiap baris
 - Riwayat Git Anda punya minimal tiga commit dengan pesan yang bermakna
 - `venv/`, `data/`, dan `.env` tidak dilacak oleh Git
+- 8 tes Lab 0.1 lulus di terminal Anda sendiri, di dalam venv Anda sendiri (penyiapan Anda sendiri, bukan pratinjau browser)
 
 ### @verify
 Pemeriksa itulah verifikasinya:

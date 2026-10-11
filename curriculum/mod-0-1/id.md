@@ -144,6 +144,7 @@ python3 labs/mod-0-1/pipeline.py data/orders.csv
 ```
 
 6. Opsional: tulis tiga kalimat di `NOTES.md` yang menjelaskan masalah yang Anda temukan dan mana yang paling mengejutkan.
+7. **Kerjakan yang sesungguhnya.** Kotak di browser di atas hanya pratinjau. Setelah Modul 0.2 (terminal, venv, Git), ulangi lab ini di komputer Anda sendiri: buat venv, `pip install pytest`, tulis ulang keempat fungsi di editor Anda **tanpa menyalin**, lalu jalankan `pytest labs/mod-0-1/test_lab.py -v` sampai hijau. Penyiapan itu bagian dari keterampilannya.
 
 ### @files
 - labs/mod-0-1/pipeline.py :: File kerja Anda: implementasikan empat fungsi TODO :: starter
@@ -152,7 +153,7 @@ python3 labs/mod-0-1/pipeline.py data/orders.csv
 - labs/mod-0-1/reference/pipeline.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference
 
 ### @deliverables
-- Semua 8 tes di test_lab.py lulus
+- Semua 8 tes di test_lab.py lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri** (lulus di pratinjau browser tidak dihitung)
 - Setiap baris yang dibuang muncul di `rejected` dengan alasan
 - Anda bisa menjelaskan masalah mana dari kelima masalah yang diwakili tiap baris yang ditolak atau diperbaiki
 

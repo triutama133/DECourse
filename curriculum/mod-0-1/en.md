@@ -144,6 +144,7 @@ python3 labs/mod-0-1/pipeline.py data/orders.csv
 ```
 
 6. Optional: write three sentences in a `NOTES.md` describing the problems you found and which one surprised you.
+7. **Do it for real.** The in-browser box above is only a preview. After Module 0.2 (terminal, venv, Git), repeat this lab on your own computer: create a venv, `pip install pytest`, write the four functions again in your own editor **without copying**, and run `pytest labs/mod-0-1/test_lab.py -v` until it is green. That setup is part of the skill.
 
 ### @files
 - labs/mod-0-1/pipeline.py :: Your working file: implement the four TODO functions :: starter
@@ -152,7 +153,7 @@ python3 labs/mod-0-1/pipeline.py data/orders.csv
 - labs/mod-0-1/reference/pipeline.py :: One possible solution (try first!) :: reference
 
 ### @deliverables
-- All 8 tests in test_lab.py pass
+- All 8 tests in test_lab.py pass **on your own computer, run from your own terminal** (a pass in the browser preview does not count)
 - Every dropped row appears in `rejected` with a reason
 - You can explain which of the five problems each rejected or repaired row represents
 
