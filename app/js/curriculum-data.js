@@ -3999,6 +3999,497 @@ window.CURRICULUM_DATA = [
     "idPending": false
    },
    {
+    "id": "mod-1-6",
+    "number": "1.6",
+    "title": {
+     "id": "Memasukkan Data: File, API, dan Database",
+     "en": "Getting Data In: Files, APIs and Databases"
+    },
+    "duration": {
+     "id": "2 minggu",
+     "en": "2 weeks"
+    },
+    "summary": {
+     "id": "Pelajari bagaimana data sebenarnya masuk ke sebuah platform: memanggil API HTTP dengan autentikasi, membaca setiap halaman tanpa celah atau duplikat, bertahan dari rate limit dan kegagalan dengan retry dan backoff, memuat hanya yang baru dengan checkpoint, dan mendaratkan data mentah dengan aman sehingga pengulangan tidak pernah membuat duplikat. Anda membangunnya terhadap API palsu yang sengaja gagal.",
+     "en": "Learn how data actually enters a platform: calling HTTP APIs with authentication, reading every page without gaps or duplicates, surviving rate limits and failures with retries and backoff, loading only what is new with a checkpoint, and landing raw data safely so a rerun never creates duplicates. You build it against a fake API that fails on purpose."
+    },
+    "whyTutorialsLie": {
+     "id": "Tutorial memanggil satu API sekali dan mencetak hasilnya. Ingestion sungguhan berjalan setiap malam terhadap layanan yang membagi halaman, membatasi Anda, timeout, dan berubah bentuk, dan kesalahan urutan dua baris bisa diam-diam menghilangkan pesanan satu hari penuh.",
+     "en": "Tutorials call one API once and print the result. Real ingestion runs every night against a service that pages, throttles you, times out and changes shape, and a mistake in the order of two lines can silently lose a day of orders."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan cara umum data masuk ke platform (file, API, database, event) dan apa yang dijanjikan job ingestion yang tepercaya",
+      "en": "Describe the common ways data enters a platform (files, APIs, databases, events) and what a trustworthy ingestion job promises"
+     },
+     {
+      "id": "Membuat permintaan HTTP terautentikasi, membaca status code dan header, dan menjaga rahasia tetap di luar kode",
+      "en": "Make authenticated HTTP requests, read status codes and headers, and keep secrets out of code"
+     },
+     {
+      "id": "Membaca semua halaman API dengan pagination cursor atau offset, dan menjelaskan mengapa pagination offset bisa menduplikasi atau melewatkan record",
+      "en": "Read all pages of an API with cursor or offset pagination, and explain why offset pagination can duplicate or skip records"
+     },
+     {
+      "id": "Menangani rate limit dan kegagalan dengan retry, exponential backoff, dan Retry-After, serta tahu apa yang tidak boleh diulang",
+      "en": "Handle rate limits and failures with retries, exponential backoff and Retry-After, and know what must not be retried"
+     },
+     {
+      "id": "Membangun pemuatan inkremental yang idempoten dengan checkpoint yang ditulis dalam urutan yang benar",
+      "en": "Build an incremental, idempotent load with a checkpoint written in the right order"
+     },
+     {
+      "id": "Mendaratkan data mentah dengan metadata, meratakan JSON bersarang, dan mendeteksi schema drift",
+      "en": "Land raw data with metadata, flatten nested JSON, and detect schema drift"
+     }
+    ],
+    "prerequisites": {
+     "id": "Modul 0.0 dan 1.2 (Python, error, idempotensi). Lab hanya butuh pustaka standar Python dan tidak butuh koneksi internet: tes menjalankan API palsu kecil di komputer Anda sendiri.",
+     "en": "Modules 0.0 and 1.2 (Python, errors, idempotence). The lab needs only the Python standard library and no internet connection: the tests start a small fake API on your own computer."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Bagaimana data masuk ke platform",
+       "en": "How data enters a platform"
+      },
+      "body": {
+       "id": "Semua yang dibangun data engineer dimulai dari **ingestion**: memindahkan data dari tempat ia dibuat ke tempat ia bisa dipakai. Sumbernya terbagi dalam empat keluarga:\n\n- **File**: CSV, JSON, Parquet yang dijatuhkan di server, folder SFTP, atau penyimpanan cloud oleh mitra atau job ekspor.\n- **API**: layanan (penyedia pembayaran, alat pemasaran, portal data terbuka pemerintah) yang Anda panggil lewat HTTP.\n- **Database**: tabel di database operasional, dibaca secara bulk atau inkremental (Modul 3.2 membahas change data capture).\n- **Event**: pesan dari Kafka, webhook, dan antrean (Modul 3.2).\n\nDua pilihan membentuk setiap job. **Pull atau push:** apakah Anda meminta data ke sumber sesuai jadwal (pull), atau sumber mengirim data ketika sesuatu terjadi (push, seperti pada webhook dan event)? **Penuh atau inkremental:** apakah Anda menyalin semuanya setiap kali (sederhana, benar, mahal seiring data tumbuh), atau hanya yang berubah sejak terakhir kali (murah, tetapi Anda harus melacak \"sejak kapan\" dan menangani pembaruan dan penghapusan)?\n\nApa yang dijanjikan **job ingestion yang tepercaya**, dan apa yang diajarkan modul ini untuk dibangun:\n\n1. **Lengkap**: tidak ada record yang hilang, bahkan setelah crash atau rate limit.\n2. **Tanpa duplikat, aman diulang**: menjalankannya dua kali menghasilkan hasil yang sama dengan sekali (idempotensi, Modul 1.2).\n3. **Mentah dulu**: ia menyimpan apa yang diterima, tanpa diubah, sebelum pembersihan apa pun (kebiasaan ELT dari Modul 0.1), sehingga Anda bisa memproses ulang nanti tanpa memanggil sumber lagi.\n4. **Teramati**: ia melaporkan berapa record yang diambil, berapa lama, berapa retry yang dibutuhkan, dan seberapa segar datanya.\n5. **Sopan**: ia menghormati batas sumber dan gagal dengan jelas daripada menghantamnya.\n\nSatu prinsip terakhir: sumber **tidak berada di bawah kendali Anda**. Ia bisa lambat, mengubah field-nya, mengembalikan error pukul 3 pagi, atau memblokir Anda karena penyalahgunaan. Kode yang ditulis seolah jaringan itu sempurna rusak di minggu pertama.",
+       "en": "Everything a data engineer builds starts with **ingestion**: moving data from where it is created to where it can be used. The sources fall into four families:\n\n- **Files**: CSV, JSON, Parquet dropped on a server, an SFTP folder or cloud storage by a partner or an export job.\n- **APIs**: a service (a payment provider, a marketing tool, a government open-data portal) that you call over HTTP.\n- **Databases**: tables in an operational database, read in bulk or incrementally (Module 3.2 covers change data capture).\n- **Events**: messages from Kafka, webhooks and queues (Module 3.2).\n\nTwo choices shape every job. **Pull or push:** do you ask the source for data on a schedule (pull), or does it send you data when something happens (push, as with webhooks and events)? **Full or incremental:** do you copy everything every time (simple, correct, expensive as data grows), or only what changed since last time (cheap, but you must track \"since when\" and handle updates and deletes)?\n\nWhat a **trustworthy ingestion job** promises, and what this module teaches you to build:\n\n1. **Complete**: no record is lost, even after a crash or a rate limit.\n2. **No duplicates, safe to rerun**: running it twice produces the same result as running it once (idempotence, Module 1.2).\n3. **Raw first**: it stores what it received, unchanged, before any cleaning (the ELT habit of Module 0.1), so you can reprocess later without calling the source again.\n4. **Observable**: it reports how many records it fetched, how long it took, how many retries it needed and how fresh the data is.\n5. **Polite**: it respects the source's limits and fails clearly rather than hammering it.\n\nA last principle: the source is **not under your control**. It may be slow, change its fields, return errors at 3 a.m. or ban you for abuse. Code written as if the network were perfect breaks the first week."
+      }
+     },
+     {
+      "title": {
+       "id": "API HTTP dalam sepuluh menit",
+       "en": "HTTP APIs in ten minutes"
+      },
+      "body": {
+       "id": "API HTTP bekerja seperti halaman web untuk program. Anda mengirim **request** (metode seperti GET, sebuah URL, header, dan kadang body) dan menerima **response** (status code, header, dan body, biasanya JSON).\n\n```text\nGET /orders?limit=100&cursor=abc HTTP/1.1\nAuthorization: Bearer <token Anda>\nAccept: application/json\n```\n\n**Status code** memberi tahu apa yang terjadi, dan kode Anda harus bereaksi berbeda untuk tiap keluarga:\n\n| Kode | Arti | Apa yang dilakukan |\n|---|---|---|\n| 200 | OK | pakai body-nya |\n| 400 | bad request: parameter Anda salah | perbaiki kode; mengulang percuma |\n| 401, 403 | tidak terautentikasi, atau tidak diizinkan | perbaiki kredensial; jangan diulang |\n| 404 | tidak ditemukan | perbaiki URL atau anggap \"tidak ada data\"; jangan diulang |\n| 429 | **terlalu banyak permintaan**: Anda terkena rate limit | tunggu, lalu ulangi (lihat di bawah) |\n| 500, 502, 503, 504 | server bermasalah | tunggu dan ulangi |\n\n**Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau query string, **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau secret manager, jangan pernah di kode atau di Git (Modul 0.2), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.\n\nSelalu pasang **timeout**. Tanpanya, koneksi yang menggantung memblokir job Anda selamanya. Masalah koneksi (server tidak terjangkau, reset, timeout) berbeda dari error HTTP: tidak ada status code, jadi Anda memperlakukannya seperti 5xx, sebagai sesuatu yang sementara.\n\nBaca dokumentasi API untuk empat hal sebelum menulis kode: bagaimana **autentikasi** bekerja, bagaimana **pagination** bekerja, berapa **rate limit**-nya, dan bagaimana meminta **hanya perubahan** (parameter seperti `updated_since`). Banyak API diberi versi (`/v2/orders`); kunci versinya, karena perubahan tanpa pengumuman adalah cara job Anda rusak.\n\nAnda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), seperti di lab, atau dengan paket populer `requests`; gagasannya identik.",
+       "en": "An HTTP API works like a web page for programs. You send a **request** (a method such as GET, a URL, headers and sometimes a body) and receive a **response** (a status code, headers and a body, usually JSON).\n\n```text\nGET /orders?limit=100&cursor=abc HTTP/1.1\nAuthorization: Bearer <your token>\nAccept: application/json\n```\n\nThe **status code** tells you what happened, and your code must react differently to each family:\n\n| Code | Meaning | What to do |\n|---|---|---|\n| 200 | OK | use the body |\n| 400 | bad request: your parameters are wrong | fix the code; retrying is pointless |\n| 401, 403 | not authenticated, or not allowed | fix the credentials; do not retry |\n| 404 | not found | fix the URL or treat as \"no data\"; do not retry |\n| 429 | **too many requests**: you are rate limited | wait, then retry (see below) |\n| 500, 502, 503, 504 | the server has a problem | wait and retry |\n\n**Authentication** is how the API knows who you are: an **API key** in a header or query string, a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a secret manager, never in the code or in Git (Module 0.2), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.\n\nAlways set a **timeout**. Without one, a hung connection blocks your job forever. Connection problems (the server unreachable, a reset, a timeout) are different from HTTP errors: there is no status code, so you treat them like a 5xx, as something temporary.\n\nRead the API documentation for four things before writing code: how **authentication** works, how **pagination** works, what the **rate limit** is, and how to ask for **only the changes** (a parameter such as `updated_since`). Many APIs are versioned (`/v2/orders`); pin the version, because an unannounced change is a way for your job to break.\n\nYou can do all of this with Python's standard library (`urllib.request`), as the lab does, or with the popular `requests` package; the ideas are identical."
+      }
+     },
+     {
+      "title": {
+       "id": "Membaca semua data: pagination, rate limit, dan retry",
+       "en": "Reading all the data: pagination, rate limits and retries"
+      },
+      "body": {
+       "id": "API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:\n\n- **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data hidup. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman 10 sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris diambil untuk 25 pesanan sebenarnya**: 3 duplikat (baris yang lebih lama bergeser ke halaman berikutnya). Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.\n- **Nomor halaman** (`?page=3`): kelemahan yang sama.\n- **Pagination cursor (keyset)** (`?cursor=abc`): setiap respons memuat `next_cursor` yang menandai persis di mana melanjutkan. Membaca feed yang sama dengan cara ini memberi 25 pesanan tanpa duplikat dan tanpa yang hilang. **Pilih cursor setiap kali API menyediakannya.** `fetch_all_cursor` di lab mengikuti `next_cursor` sampai tidak ada, dan `fetch_all_offset` memperlihatkan loop offset (berhenti ketika sebuah halaman lebih pendek dari `limit`; perhatikan bahwa ketika total adalah kelipatan pas dari `limit`, Anda butuh satu permintaan tambahan untuk melihat halaman kosong).\n\n**Rate limit.** Untuk melindungi diri, API membatasi berapa banyak permintaan yang boleh Anda kirim, misalnya 100 per menit. Ketika Anda melampauinya, Anda menerima **429 Too Many Requests**, sering dengan header **`Retry-After`** yang menyatakan berapa detik harus menunggu. Respons yang sopan dan efektif adalah **menunggu selama itu persis**. Menghantam API membuat keadaan lebih buruk dan bisa membuat Anda diblokir.\n\n**Retry dengan exponential backoff.** Jaringan dan server gagal sementara, jadi ulangi error yang *sementara* (429, 5xx, masalah koneksi), dan hanya itu. Setelah tiap kegagalan tunggu lebih lama: 1 detik, lalu 2, 4, 8, 16, dibatasi pada, misalnya, 30 (`backoff_delay` di lab: `min(cap, base * 2 ** (attempt - 1))`, menghasilkan 1, 2, 4, 8, 16, 30, 30). Penggandaan memberi server yang kewalahan waktu untuk pulih; di produksi tambahkan sedikit **jitter** acak agar seribu klien yang gagal bersamaan tidak semuanya mengulang pada saat yang sama. Pasang **batas jumlah retry**, dan ketika tercapai **gagal dengan lantang** dengan error terakhir, agar orkestrator (Modul 2.4) bisa memberi alert dan menjalankan ulang nanti. Jangan pernah mengulang 400, 401, 403, atau 404: jawabannya tidak akan berubah.\n\nMengulang hanya aman untuk operasi yang **idempoten**. GET yang membaca data adalah idempoten. POST yang membuat sesuatu bisa membuatnya dua kali jika percobaan pertama berhasil tetapi responsnya hilang; panggilan seperti itu butuh idempotency key bila API menyediakannya. Ingestion kebanyakan membaca, itulah mengapa ini kasus yang ramah.\n\nDi lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di komputer Anda**, yang menjawab 429 dengan `Retry-After` dan 500 sesuai permintaan. Fungsi `sleep` adalah parameter, sehingga tes mencatat waktu tunggu (1, 2, atau 7 detik) alih-alih benar-benar tidur. Merancang kode agar waktu dan jaringan bisa diganti saat tes adalah keterampilan tersendiri.",
+       "en": "An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:\n\n- **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched for 25 real orders**: 3 duplicates (an older row slides into the next page). Deleted rows cause the opposite, skipped records. It is also slow on large offsets.\n- **Page numbers** (`?page=3`): the same weakness.\n- **Cursor (keyset) pagination** (`?cursor=abc`): each response contains a `next_cursor` that marks exactly where to continue. Reading the same feed this way gives the 25 orders with no duplicates and none missing. **Prefer cursors whenever the API offers them.** The lab's `fetch_all_cursor` follows `next_cursor` until it is missing, and `fetch_all_offset` shows the offset loop (stop when a page is shorter than `limit`; note that when the total is an exact multiple of `limit` you need one extra request to see the empty page).\n\n**Rate limits.** To protect itself, an API limits how many requests you may send, for example 100 per minute. When you exceed it you receive **429 Too Many Requests**, often with a **`Retry-After`** header saying how many seconds to wait. The polite and effective response is to **wait exactly that long**. Hammering the API makes things worse and can get you banned.\n\n**Retries with exponential backoff.** Networks and servers fail temporarily, so retry the *temporary* errors (429, 5xx, connection problems), and only those. After each failure wait longer: 1 second, then 2, 4, 8, 16, capped at, say, 30 (`backoff_delay` in the lab: `min(cap, base * 2 ** (attempt - 1))`, giving 1, 2, 4, 8, 16, 30, 30). Doubling gives a struggling server time to recover; in production add a little random **jitter** so that a thousand clients that failed together do not all retry at the same instant. Put a **limit on the number of retries**, and when it is reached **fail loudly** with the last error, so that the orchestrator (Module 2.4) can alert and rerun later. Never retry 400, 401, 403 or 404: the answer will not change.\n\nRetrying is only safe for operations that are **idempotent**. A GET that reads data is. A POST that creates something may create it twice if the first attempt succeeded but the response was lost; such calls need an idempotency key if the API offers one. Ingestion mostly reads, which is why it is the friendly case.\n\nIn the lab you test all this against a **real HTTP server running on your computer**, which answers 429 with `Retry-After` and 500 on request. The `sleep` function is a parameter, so tests record the waits (1, 2 or 7 seconds) instead of really sleeping. Designing code so that time and the network can be replaced in tests is a skill in itself."
+      }
+     },
+     {
+      "title": {
+       "id": "Pemuatan inkremental dan checkpoint",
+       "en": "Incremental loads and checkpoints"
+      },
+      "body": {
+       "id": "Menyalin 5 tahun pesanan setiap malam itu boros. **Pemuatan inkremental** hanya mengambil yang baru atau berubah. Ia membutuhkan dua hal: parameter API seperti `updated_since`, dan sebuah **checkpoint** (disebut juga high-water mark atau watermark): titik sampai mana Anda sudah memuat, misalnya `updated_at` terbesar yang pernah Anda lihat.\n\nSatu putaran lalu tampak seperti ini:\n\n1. Baca checkpoint (tidak ada pada putaran pertama, yang memuat semuanya).\n2. Ambil semuanya dengan `updated_since = checkpoint`.\n3. **Tulis data ke tempat yang tahan lama.**\n4. **Baru setelah itu** majukan checkpoint ke `updated_at` terbesar dari yang Anda ambil.\n\n**Urutan langkah 3 dan 4 adalah baris terpenting modul ini.** Jika Anda menyimpan checkpoint lebih dulu dan penulisan kemudian gagal, putaran berikutnya mulai *setelah* data yang tidak pernah tersimpan: record-record itu hilang, diam-diam, selamanya. Dengan urutan yang benar, crash di antara 3 dan 4 hanya berarti putaran berikutnya mengambil record yang sama lagi, yang tidak berbahaya **jika pemuatannya idempoten**. Maka aturannya: *checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman.*\n\nCara membuat pemuatan idempoten:\n\n- **Namai keluaran sesuai putaran** (`orders_<run_id>.jsonl`). Pengulangan putaran yang sama menimpa file yang sama, bukan menambah yang kedua.\n- **Tulis secara atomik**: tulis file sementara di folder yang sama, lalu ganti namanya menimpa nama akhir (`os.replace`). File itu lengkap atau tidak ada, tidak pernah setengah tertulis. Lab menerapkan gagasan yang sama pada file checkpoint sendiri, sehingga crash tidak bisa meninggalkan checkpoint rusak.\n- **Deduplikasi** berdasarkan id record, simpan versi dengan `updated_at` terbesar, karena record yang sama bisa muncul dua kali (pembaruan tiba di antara halaman).\n\nKasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `updated_at` baru, jadi ia muncul lagi, dan pemuatan Anda harus memperlakukannya sebagai versi baru (tes lab mengubah pesanan 3 menjadi \"refunded\"). **Penghapusan**: API berbasis `updated_since` biasanya tidak bisa memberi tahu bahwa sebuah record dihapus; cari flag soft-delete atau endpoint \"deleted since\", atau rekonsiliasi dengan pemuatan penuh sesekali, atau pakai change data capture (Modul 3.2). **Timestamp kembar dan pembaruan terlambat**: beberapa record bisa berbagi satu timestamp, dan jam berbeda, sehingga banyak tim membaca ulang jendela tumpang tindih kecil (beberapa menit terakhir) dan mengandalkan deduplikasi. **Tanpa `updated_since`**: kembali ke snapshot penuh dan bandingkan dengan yang sudah Anda miliki.\n\nCheckpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih lama dari mesin (file di penyimpanan cloud, sebuah tabel), dan buat mudah diperiksa dan di-reset untuk **backfill** (memuat ulang suatu periode dengan sengaja).",
+       "en": "Copying 5 years of orders every night is wasteful. An **incremental load** fetches only what is new or changed. It needs two things: an API parameter such as `updated_since`, and a **checkpoint** (also called a high-water mark or watermark): the point up to which you have already loaded, for example the greatest `updated_at` you have seen.\n\nOne run then looks like this:\n\n1. Read the checkpoint (none on the first run, which loads everything).\n2. Fetch everything with `updated_since = checkpoint`.\n3. **Write the data somewhere durable.**\n4. **Only then** move the checkpoint forward to the greatest `updated_at` of what you fetched.\n\n**The order of steps 3 and 4 is the most important line of the module.** If you save the checkpoint first and the write then fails, the next run starts *after* the data that was never stored: those records are lost, silently, forever. With the right order, a crash between 3 and 4 only means that the next run fetches the same records again, which is harmless **if the load is idempotent**. Hence the rule: *a checkpoint may only ever describe data that is safely stored.*\n\nHow to make the load idempotent:\n\n- **Name the output after the run** (`orders_<run_id>.jsonl`). A rerun of the same run overwrites the same file instead of adding a second one.\n- **Write atomically**: write a temporary file in the same folder, then rename it over the final name (`os.replace`). The file is either complete or absent, never half written. The lab applies the same idea to the checkpoint file itself, so a crash cannot leave a corrupt checkpoint.\n- **Deduplicate** by the record's id, keeping the version with the greatest `updated_at`, because the same record may appear twice (an update arrived between pages).\n\nEdge cases to design for. **Updates**: a changed old record has a new `updated_at`, so it shows up again, and your load must treat it as a new version (the lab test changes order 3 to \"refunded\"). **Deletes**: an API based on `updated_since` usually cannot tell you that a record was deleted; look for a soft-delete flag or a \"deleted since\" endpoint, or reconcile with an occasional full load, or use change data capture (Module 3.2). **Ties and late updates**: several records may share one timestamp, and clocks differ, so many teams re-read a small overlap window (the last few minutes) and rely on deduplication. **No `updated_since`**: fall back to a full snapshot and compare it with what you have.\n\nThe checkpoint is itself state. Store it somewhere durable that survives the machine (a file in cloud storage, a table), and make it easy to inspect and to reset for a **backfill** (reloading a period on purpose)."
+      }
+     },
+     {
+      "title": {
+       "id": "Mendaratkan dan membentuk data mentah",
+       "en": "Landing and shaping raw data"
+      },
+      "body": {
+       "id": "Simpan apa yang Anda terima, sebagaimana Anda menerimanya, di area **landing** (disebut juga raw atau bronze, Modul 2.2). Jangan memperbaiki, mengganti nama, atau membuang apa pun pada tahap ini; lakukan pembersihan di langkah berikutnya yang bisa diulang (Modul 2.3). Alasannya praktis: jika pembersihan Anda punya bug, Anda bisa memperbaikinya dan memproses ulang dari salinan mentah alih-alih meminta sumber mengirim data bulan lalu lagi, yang mungkin sudah tidak tersedia.\n\nKebiasaan landing yang baik:\n\n- **JSON Lines** (satu objek JSON per baris) adalah format yang aman, bisa ditambah, dan bisa dipecah untuk data API. Parquet lebih baik untuk volume besar, begitu bentuknya stabil.\n- Tambahkan **metadata** ke setiap record: `_run_id`, `_source`, dan `_ingested_at` (`incremental_load` di lab melakukannya). Ketika sebuah angka tampak salah, ini memberi tahu putaran mana yang membawanya.\n- **Partisi menurut tanggal ingestion** (`dt=2026-02-01/`), agar data satu hari mudah ditemukan, diproses ulang, atau dihapus (lab menulis persis path itu).\n- Jaga file pada **ukuran yang wajar**: bukan satu file mungil per permintaan (masalah file kecil, Modul 3.0 dan 2.6), bukan satu file raksasa.\n\n**Meratakan JSON bersarang.** API mengembalikan objek dan array bersarang, tetapi tabel itu datar. Objek bersarang menjadi kolom (`customer.address.city` menjadi `customer_address_city`); sebuah **array** butuh keputusan. Menyimpannya sebagai string JSON dalam satu kolom adalah default aman untuk landing (`flatten_record` di lab), dan langkah berikutnya meledakkannya menjadi **tabel anak** dengan satu baris per elemen dan id induknya (`items` sebuah pesanan menjadi tabel `order_items`, grain dari Modul 1.4).\n\n**Schema drift.** Bentuk API akan berubah: field baru muncul, field menghilang, angka tiba sebagai teks `\"Rp 6.000\"`. Memuatnya diam-diam itu berbahaya. `detect_schema_drift` di lab membandingkan record yang masuk dengan skema yang Anda harapkan dan melaporkan **kolom baru**, **kolom hilang**, dan **perubahan tipe** (dengan setiap tipe yang terlihat). Lalu tentukan kebijakan: **gagalkan** pemuatan (ketat, aman untuk data keuangan), **karantina** record yang janggal dan lanjutkan, atau **evolusikan** skema otomatis (nyaman, berisiko). Tuliskan kebijakan itu sebagai data contract dengan penyedia atau konsumen Anda (Modul 2.5), dan beri alert saat drift terdeteksi.",
+       "en": "Store what you received, as you received it, in a **landing** area (also called raw or bronze, Module 2.2). Do not fix, rename or drop anything at this stage; do the cleaning in a later, repeatable step (Module 2.3). The reason is practical: if your cleaning had a bug, you can fix it and reprocess from the raw copy instead of asking the source for last month's data again, which may no longer be available.\n\nGood landing habits:\n\n- **JSON Lines** (one JSON object per line) is a safe, appendable, splittable format for API data. Parquet is better for large volumes, once the shape is stable.\n- Add **metadata** to every record: `_run_id`, `_source` and `_ingested_at` (the lab's `incremental_load` does). When a number looks wrong, these tell you which run brought it.\n- **Partition by ingestion date** (`dt=2026-02-01/`), so a day's data is easy to find, reprocess or delete (the lab writes exactly that path).\n- Keep files a **reasonable size**: not one tiny file per request (the small-files problem, Modules 3.0 and 2.6), not one giant file.\n\n**Flattening nested JSON.** APIs return nested objects and arrays, but tables are flat. A nested object becomes columns (`customer.address.city` becomes `customer_address_city`); an **array** needs a decision. Keeping it as a JSON string in one column is the safe default for landing (the lab's `flatten_record`), and a later step explodes it into a **child table** with one row per element and the parent's id (an order's `items` become an `order_items` table, the grain of Module 1.4).\n\n**Schema drift.** The API's shape will change: a new field appears, a field disappears, a number arrives as the text `\"Rp 6.000\"`. Silently loading it is dangerous. The lab's `detect_schema_drift` compares incoming records with the schema you expect and reports **new columns**, **missing columns** and **type changes** (with every type seen). Then decide a policy: **fail** the load (strict, safe for finance data), **quarantine** the odd records and continue, or **evolve** the schema automatically (convenient, risky). Write the policy down as a data contract with the provider or your consumers (Module 2.5), and alert when drift is detected."
+      }
+     },
+     {
+      "title": {
+       "id": "File, database, dan menjalankannya sungguhan",
+       "en": "Files, databases, and running it for real"
+      },
+      "body": {
+       "id": "**File.** Mitra menjatuhkan file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau (\"file pukul 06:00 belum datang\").\n\n**Database.** Pilihannya **salinan tabel penuh** (sederhana, berat bagi sumber), **salinan inkremental menurut timestamp atau id yang naik** (logika checkpoint yang sama seperti di atas; ia melewatkan penghapusan dan mengandalkan `updated_at` yang tepercaya), dan **change data capture** dari log (Modul 3.2). Apa pun pilihan Anda, baca dari **replika** bila mungkin dan hindari query panjang pada primary produksi (Modul 1.3). Hormati batas tim aplikasi seperti Anda menghormati batas API.\n\n**Bangun atau beli.** Konektor terkelola (Airbyte, Fivetran, dan lainnya) menangani sumber umum, pagination, retry, dan perubahan skema untuk Anda. Beli untuk sumber populer yang konektornya matang; bangun ketika sumbernya tidak lazim, ketika Anda butuh kendali atas biaya atau latensi, atau ketika konektor menyembunyikan perilaku yang harus Anda pahami. Tahu cara membangunnya, seperti di lab ini, adalah yang membuat Anda bisa menilai dan men-debug konektor.\n\n**Mengoperasikan job ingestion.**\n\n- **Catat dan ukur**: record diambil, halaman, retry, waktu tunggu, durasi, byte tertulis, checkpoint sebelum dan sesudah. Job yang \"berhasil\" dengan nol record sering rusak; beri alert pada **kesegaran** (usia data terbaru) dan **volume** (Modul 2.5).\n- **Rekonsiliasi**: bandingkan jumlah yang Anda muat dengan yang dikatakan sumber. Ini pemeriksaan kelengkapan termurah.\n- **Backfill dengan sengaja**: punya cara terdokumentasi untuk me-reset checkpoint dan memuat ulang suatu periode, dan pastikan pengulangannya idempoten.\n- **Uji tanpa layanan asli**: server palsu seperti milik lab memungkinkan Anda menguji 429, 500, timeout, dan token buruk dalam hitungan detik. Tambahkan **contract test** yang sesekali berjalan terhadap API asli untuk menangkap perubahan.\n- **Rahasia dan batas**: token di secret manager, dirotasi; laju permintaan dikonfigurasi dan didokumentasikan.\n\nKini Anda bisa menjawab: \"Bagaimana Anda meng-ingest dari API berhalaman secara andal?\" (cursor, retry dengan backoff, penanganan rate limit, checkpoint setelah penulisan tahan lama, landing idempoten, pemeriksaan skema). \"Bagaimana jika job crash di tengah?\" (checkpoint tidak maju, jadi pengulangan mengambil data yang sama dan menimpa file yang sama). \"Mengapa bukan pagination offset?\" (ia menduplikasi atau melewatkan ketika data berubah saat Anda membaca).",
+       "en": "**Files.** Partners drop files, and files are full of surprises: encodings (always say UTF-8 explicitly, Module 0.0), quoted line breaks, a header that changes, **late or missing files**, and the same file delivered twice. Practices: wait for the file to be completely written (a marker file, or a stable size), record the **file name and checksum** of everything loaded so a duplicate delivery is recognised, and make arrival a monitored event (\"the 06:00 file has not come\").\n\n**Databases.** The options are a **full table copy** (simple, heavy on the source), an **incremental copy by a timestamp or increasing id** (the same checkpoint logic as above; it misses deletes and relies on a trustworthy `updated_at`), and **change data capture** from the log (Module 3.2). Whatever you choose, read from a **replica** when possible and avoid long queries on the production primary (Module 1.3). Respect the application team's limits as you would an API's.\n\n**Build or buy.** Managed connectors (Airbyte, Fivetran and others) handle common sources, pagination, retries and schema changes for you. Buy for popular sources where the connector is mature; build when the source is unusual, when you need control over cost or latency, or when the connector hides behaviour you must understand. Knowing how to build it, as in this lab, is what lets you judge and debug a connector.\n\n**Operating an ingestion job.**\n\n- **Log and measure**: records fetched, pages, retries, waits, duration, bytes written, checkpoint before and after. A job that \"succeeds\" with zero records is often broken; alert on **freshness** (age of the newest data) and on **volume** (Module 2.5).\n- **Reconcile**: compare the count you loaded with what the source says it has. It is the cheapest completeness check.\n- **Backfill on purpose**: have a documented way to reset the checkpoint and reload a period, and make sure the rerun is idempotent.\n- **Test without the real service**: a fake server like the lab's lets you test 429, 500, timeouts and bad tokens in seconds. Add **contract tests** that run against the real API occasionally to catch changes.\n- **Secrets and limits**: tokens in a secret manager, rotated; request rates configured and documented.\n\nYou can now answer: \"How do you ingest from a paginated API reliably?\" (cursor, retries with backoff, rate-limit handling, checkpoint after durable write, idempotent landing, schema checks). \"What if the job crashes halfway?\" (the checkpoint did not move, so the rerun fetches the same data and overwrites the same file). \"Why not offset pagination?\" (it duplicates or skips when data changes while you read)."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: ingest dari API yang tidak stabil, dengan aman",
+      "en": "Lab: ingest from a flaky API, safely"
+     },
+     "description": {
+      "id": "Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.",
+      "en": "Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint."
+     },
+     "steps": {
+      "id": "1. Baca `labs/mod-1-6/ingest_lab.py` lalu 70 baris pertama `test_lab.py` untuk melihat API palsunya (ia Python biasa: server HTTP kecil dalam sebuah thread). `ApiError` sudah disediakan.\n2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP fungsi:\n\n```bash\npytest labs/mod-1-6/test_lab.py -v\npytest labs/mod-1-6/test_lab.py -v -k \"GetJson or Pagination\"      # satu kelompok pada satu waktu\n```\n\n3. **Request dan retry dulu.** Implementasikan `build_request` dan `backoff_delay`, lalu `get_json`. Sebelum menjalankan tes, tulis di kertas daftar waktu tunggu yang Anda harapkan untuk urutan \"500, 503, lalu berhasil\", dan untuk \"429 dengan Retry-After 7, lalu 429 dengan Retry-After 2, lalu berhasil\".\n4. **Pagination.** Implementasikan loop cursor lebih dulu, lalu loop offset. Jalankan `fetch_all_offset` terhadap data yang ukurannya kelipatan pas dari ukuran halaman dan hitung permintaannya.\n5. **Checkpoint, flatten, drift.** Ini kecil dan murni. Untuk `Checkpoint.save`, jelaskan dalam satu kalimat apa yang bisa salah jika Anda menulis file langsung.\n6. **Pemuatan inkremental.** Tulis paling akhir. Sebelum menjalankan `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, jelaskan mengapa urutan langkah Anda membuatnya lulus. Lalu tukar langkah 5 dan 6 dengan sengaja dan lihat tes mana yang gagal.\n7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Read `labs/mod-1-6/ingest_lab.py` and then the first 70 lines of `test_lab.py` to see the fake API (it is ordinary Python: a small HTTP server in a thread). `ApiError` is provided.\n2. Work in file order and run the tests after EACH function:\n\n```bash\npytest labs/mod-1-6/test_lab.py -v\npytest labs/mod-1-6/test_lab.py -v -k \"GetJson or Pagination\"      # one group at a time\n```\n\n3. **Requests and retries first.** Implement `build_request` and `backoff_delay`, then `get_json`. Before you run the tests, write on paper the list of waits you expect for the sequence \"500, 503, then success\", and for \"429 with Retry-After 7, then 429 with Retry-After 2, then success\".\n4. **Pagination.** Implement the cursor loop first, then the offset loop. Run `fetch_all_offset` against a data set whose size is an exact multiple of the page size and count the requests.\n5. **Checkpoint, flatten, drift.** These are small and pure. For `Checkpoint.save`, explain in one sentence what could go wrong if you wrote the file directly.\n6. **The incremental load.** Write it last. Before you run `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, explain why your order of steps makes it pass. Then deliberately swap steps 5 and 6 and watch which test fails.\n7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-1-6` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "```bash\npytest labs/mod-1-6/test_lab.py -v\npython3 scripts/prove.py mod-1-6\n```\n\nJalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "```bash\npytest labs/mod-1-6/test_lab.py -v\npython3 scripts/prove.py mod-1-6\n```\n\nKnown-good run: prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-1-6/ingest_lab.py",
+       "name": "ingest_lab.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan fungsi TODO dan class Checkpoint",
+        "en": "Your working file: implement the TODO functions and the Checkpoint class"
+       },
+       "code": "\"\"\"Lab 1.6: ingest data from an HTTP API correctly (standard library only, no internet needed).\n\nThe tests start a small fake API on your own computer (see test_lab.py: it can answer 429 and 500 on purpose), so you practise\npagination, retries, checkpoints and idempotent landing exactly as you would against a real service.\nWork in order and run the tests after each:    pytest labs/mod-1-6/test_lab.py -v\n\"\"\"\nimport json  # noqa: F401\nimport os  # noqa: F401\nimport tempfile  # noqa: F401\nimport time  # noqa: F401\nimport urllib.error  # noqa: F401\nimport urllib.parse  # noqa: F401\nimport urllib.request  # noqa: F401\nfrom datetime import datetime, timezone  # noqa: F401\n\n\nclass ApiError(Exception):\n    \"\"\"(Provided.) An HTTP error from the API. `status` is the HTTP status code, or 0 for a connection problem.\"\"\"\n\n    def __init__(self, status, message=\"\"):\n        super().__init__(f\"HTTP {status}: {message}\")\n        self.status = status\n\n\ndef build_request(url, token, params=None):\n    \"\"\"Build a urllib.request.Request for GET url?query.   (lesson 2)\n\n    - Query parameters whose value is None are dropped; the rest are URL-encoded with urllib.parse.urlencode, SORTED by name\n      (so the URL is the same every time). No parameters: no \"?\" at all.\n    - Headers: \"Authorization\": f\"Bearer {token}\" and \"Accept\": \"application/json\".\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement build_request\")\n\n\ndef backoff_delay(attempt, base=1.0, cap=30.0):\n    \"\"\"Exponential backoff: how long to wait before retry number `attempt` (1, 2, 3 ...): min(cap, base * 2 ** (attempt - 1)).   (lesson 3)\"\"\"\n    raise NotImplementedError(\"TODO: implement backoff_delay\")\n\n\ndef get_json(url, token, params=None, retries=3, sleep=time.sleep, timeout=10):\n    \"\"\"GET a URL and return the parsed JSON.   (lesson 3: retries, backoff, rate limits)\n\n    Make at most 1 + `retries` attempts, using build_request and urllib.request.urlopen(..., timeout=timeout).\n      - HTTP 429 or any 5xx, or a connection problem (urllib.error.URLError, TimeoutError, ConnectionError): wait, then try again.\n        The wait is the number of seconds in a 429's \"Retry-After\" header when it is present and numeric, otherwise backoff_delay(attempt).\n        Wait by calling sleep(seconds) (it is a parameter, so tests do not really sleep). Do NOT sleep after the last attempt.\n      - Any other 4xx (401, 404 ...): never retry; raise ApiError(status, reason) at once.\n      - When every attempt failed raise the last ApiError (a connection problem is ApiError(0, str(error))).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement get_json\")\n\n\ndef fetch_all_cursor(url, token, since=None, limit=100, **kw):\n    \"\"\"Read every page of a cursor-paginated endpoint and return all records in one list.   (lesson 3: pagination)\n\n    Page request parameters: limit, cursor (None on the first page) and updated_since (the `since` value, None = leave out).\n    The response is {\"data\": [...], \"next_cursor\": \"...\" or None}. Stop when next_cursor is missing or None.\n    Pass **kw (retries, sleep, timeout) on to get_json.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement fetch_all_cursor\")\n\n\ndef fetch_all_offset(url, token, limit=100, **kw):\n    \"\"\"Read every page of an offset-paginated endpoint (parameters limit and offset; the response is {\"data\": [...]}).\n\n    Start at offset 0, move on by `limit`, and stop after the first page that has FEWER than `limit` records.   (lesson 3)\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement fetch_all_offset\")\n\n\nclass Checkpoint:\n    \"\"\"Remembers how far we have loaded (a \"high-water mark\") in a small JSON file.   (lesson 4: incremental loads)\n\n    - load(): the saved value, or None if the file does not exist yet.\n    - save(value): write {\"value\": value} to the file ATOMICALLY: write a temporary file in the same folder, then os.replace() it over the real file,\n      so a crash never leaves a half-written checkpoint. Create the folder if needed.\n    \"\"\"\n\n    def __init__(self, path):\n        raise NotImplementedError(\"TODO: implement Checkpoint\")\n\n    def load(self):\n        raise NotImplementedError(\"TODO: implement Checkpoint.load\")\n\n    def save(self, value):\n        raise NotImplementedError(\"TODO: implement Checkpoint.save\")\n\n\ndef flatten_record(record, sep=\"_\"):\n    \"\"\"Turn a nested dict into one flat dict, so it can become a table row.   (lesson 5)\n\n    {\"id\": 1, \"customer\": {\"name\": \"Sari\", \"address\": {\"city\": \"Jakarta\"}}}  ->  {\"id\": 1, \"customer_name\": \"Sari\", \"customer_address_city\": \"Jakarta\"}\n    A list stays ONE column, as JSON text with sorted keys: json.dumps(value, sort_keys=True). Other values are kept as they are (None too).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement flatten_record\")\n\n\ndef detect_schema_drift(expected, records):\n    \"\"\"Compare incoming flat records with the schema you expect.   (lesson 5: schema drift)\n\n    `expected` is {column: type_name} such as {\"id\": \"int\", \"total_idr\": \"int\"}; type names are Python names (type(value).__name__).\n    Return {\"new_columns\": sorted list of columns that appear in the records but not in `expected`,\n            \"missing_columns\": sorted list of expected columns that appear in NO record,\n            \"type_changes\": {column: (expected_type, sorted list of types seen)}} for expected columns whose non-None values include a type other than the expected one.\n    None values are ignored when looking at types.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement detect_schema_drift\")\n\n\ndef incremental_load(url, token, checkpoint_path, landing_dir, run_id, today, **kw):\n    \"\"\"One incremental run, landing raw data as JSON lines.   (lessons 4 and 6)\n\n    1. since = Checkpoint(checkpoint_path).load()\n    2. records = fetch_all_cursor(url, token, since=since, **kw)\n    3. No records: return {\"fetched\": 0, \"written\": None, \"checkpoint\": since} and change nothing.\n    4. Otherwise keep ONE record per id (the one with the greatest updated_at), sorted by (updated_at, id).\n    5. Write them to landing_dir/dt=<today>/orders_<run_id>.jsonl, one JSON object per line (json.dumps(..., sort_keys=True)), each record with three extra\n       keys: \"_run_id\" (run_id), \"_source\" (url) and \"_ingested_at\" (the current UTC time as an ISO string). Write to a temporary file in that folder first\n       and os.replace() it, so the file is complete or absent, and running again with the same run_id overwrites the same file (idempotent).\n    6. ONLY AFTER the file is in place, save the new checkpoint: the greatest updated_at of the records.\n    Return {\"fetched\": number of records the API returned, \"written\": the file path, \"checkpoint\": the new checkpoint}.\n    If anything fails before step 6 the checkpoint must stay as it was, so the next run fetches the same data again.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement incremental_load\")"
+      },
+      {
+       "path": "labs/mod-1-6/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-37 tes, termasuk API HTTP palsunya",
+        "en": "The 37 tests, including the fake HTTP API"
+       },
+       "code": "\"\"\"Tests for Lab 1.6.   pip install pytest && pytest labs/mod-1-6/test_lab.py -v\n\nThe tests start a small fake HTTP API on 127.0.0.1 (a thread, standard library only). It checks the bearer token, paginates with a cursor or an offset,\nfilters with updated_since, and can be told to answer with scripted errors first (429 with Retry-After, 500, ...).\n\"\"\"\nimport json\nimport socket\nimport sys\nimport threading\nimport urllib.parse\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\nfrom pathlib import Path\n\nimport pytest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\n\nlab = labtools.load(__file__, \"ingest_lab.py\")\nTOKEN = \"test-token\"\nORDERS = [{\"id\": i, \"status\": \"paid\", \"total_idr\": 1000 * i, \"updated_at\": f\"2026-01-01T00:{i // 60:02d}:{i % 60:02d}Z\"} for i in range(1, 26)]\n\n\nclass FakeApi:\n    def __init__(self):\n        self.data = list(ORDERS)\n        self.script = []        # scripted responses served BEFORE normal ones: (status, {headers})\n        self.requests = []      # (path, query dict) of every request that arrived\n        api = self\n\n        class Handler(BaseHTTPRequestHandler):\n            def log_message(self, *a):\n                pass\n\n            def do_GET(self):\n                parsed = urllib.parse.urlparse(self.path)\n                q = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}\n                api.requests.append((parsed.path, q, self.headers.get(\"Authorization\"), self.headers.get(\"Accept\")))\n                if api.script:\n                    status, headers = api.script.pop(0)\n                    self.send_response(status)\n                    for k, v in headers.items():\n                        self.send_header(k, v)\n                    self.end_headers()\n                    return\n                if self.headers.get(\"Authorization\") != f\"Bearer {TOKEN}\":\n                    self.send_response(401)\n                    self.end_headers()\n                    return\n                rows = [r for r in api.data if \"updated_since\" not in q or r[\"updated_at\"] > q[\"updated_since\"]]\n                limit = int(q.get(\"limit\", 100))\n                if parsed.path == \"/orders\":\n                    start = int(q[\"cursor\"]) if \"cursor\" in q else 0\n                    page = rows[start:start + limit]\n                    nxt = str(start + limit) if start + limit < len(rows) else None\n                    body = {\"data\": page, \"next_cursor\": nxt}\n                elif parsed.path == \"/orders_offset\":\n                    offset = int(q.get(\"offset\", 0))\n                    body = {\"data\": rows[offset:offset + limit]}\n                else:\n                    self.send_response(404)\n                    self.end_headers()\n                    return\n                raw = json.dumps(body).encode()\n                self.send_response(200)\n                self.send_header(\"Content-Type\", \"application/json\")\n                self.send_header(\"Content-Length\", str(len(raw)))\n                self.end_headers()\n                self.wfile.write(raw)\n\n        self.server = HTTPServer((\"127.0.0.1\", 0), Handler)\n        self.url = f\"http://127.0.0.1:{self.server.server_port}\"\n        threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01), daemon=True).start()\n\n    def stop(self):\n        self.server.shutdown()\n        self.server.server_close()\n\n\n@pytest.fixture()\ndef api():\n    a = FakeApi()\n    yield a\n    a.stop()\n\n\nclass Sleeper:\n    def __init__(self):\n        self.waits = []\n\n    def __call__(self, seconds):\n        self.waits.append(seconds)\n\n\nclass TestBuildRequest:\n    def test_url_header_and_sorted_params(self):\n        req = lab.build_request(\"https://api.example.com/orders\", \"abc\", {\"limit\": 50, \"cursor\": \"x y\", \"updated_since\": \"2026-01-01T00:00:00Z\"})\n        assert req.full_url == \"https://api.example.com/orders?cursor=x+y&limit=50&updated_since=2026-01-01T00%3A00%3A00Z\"\n        assert req.get_header(\"Authorization\") == \"Bearer abc\" and req.get_header(\"Accept\") == \"application/json\"\n\n    def test_none_params_are_dropped_and_no_question_mark_without_params(self):\n        assert lab.build_request(\"https://x/y\", \"t\", {\"a\": None}).full_url == \"https://x/y\"\n        assert lab.build_request(\"https://x/y\", \"t\").full_url == \"https://x/y\"\n        assert lab.build_request(\"https://x/y\", \"t\", {\"a\": 1, \"b\": None}).full_url == \"https://x/y?a=1\"\n\n\nclass TestBackoff:\n    def test_doubles_each_time(self):\n        assert [lab.backoff_delay(n) for n in (1, 2, 3, 4)] == [1, 2, 4, 8]\n\n    def test_is_capped(self):\n        assert lab.backoff_delay(10) == 30 and lab.backoff_delay(10, cap=5) == 5\n\n    def test_custom_base(self):\n        assert lab.backoff_delay(3, base=0.5) == 2.0\n\n\nclass TestGetJson:\n    def test_a_normal_request(self, api):\n        page = lab.get_json(api.url + \"/orders\", TOKEN, {\"limit\": 3})\n        assert [r[\"id\"] for r in page[\"data\"]] == [1, 2, 3] and page[\"next_cursor\"] == \"3\"\n        assert api.requests[0][2] == f\"Bearer {TOKEN}\" and api.requests[0][3] == \"application/json\"\n\n    def test_a_wrong_token_is_not_retried(self, api):\n        sleeper = Sleeper()\n        with pytest.raises(lab.ApiError) as e:\n            lab.get_json(api.url + \"/orders\", \"wrong\", sleep=sleeper)\n        assert e.value.status == 401 and len(api.requests) == 1 and sleeper.waits == []\n\n    def test_a_missing_page_is_not_retried(self, api):\n        with pytest.raises(lab.ApiError) as e:\n            lab.get_json(api.url + \"/nope\", TOKEN, sleep=Sleeper())\n        assert e.value.status == 404 and len(api.requests) == 1\n\n    def test_server_errors_are_retried_with_exponential_backoff(self, api):\n        api.script = [(500, {}), (503, {})]\n        sleeper = Sleeper()\n        page = lab.get_json(api.url + \"/orders\", TOKEN, {\"limit\": 2}, sleep=sleeper)\n        assert len(page[\"data\"]) == 2 and sleeper.waits == [1, 2] and len(api.requests) == 3\n\n    def test_rate_limit_honours_retry_after(self, api):\n        api.script = [(429, {\"Retry-After\": \"7\"}), (429, {\"Retry-After\": \"2\"})]\n        sleeper = Sleeper()\n        lab.get_json(api.url + \"/orders\", TOKEN, {\"limit\": 1}, sleep=sleeper)\n        assert sleeper.waits == [7, 2]\n\n    def test_a_429_without_retry_after_falls_back_to_backoff(self, api):\n        api.script = [(429, {})]\n        sleeper = Sleeper()\n        lab.get_json(api.url + \"/orders\", TOKEN, {\"limit\": 1}, sleep=sleeper)\n        assert sleeper.waits == [1]\n\n    def test_gives_up_after_the_retries_and_raises_the_last_error(self, api):\n        api.script = [(500, {})] * 10\n        sleeper = Sleeper()\n        with pytest.raises(lab.ApiError) as e:\n            lab.get_json(api.url + \"/orders\", TOKEN, retries=2, sleep=sleeper)\n        assert e.value.status == 500 and len(api.requests) == 3 and sleeper.waits == [1, 2]   # no sleep after the final attempt\n\n    def test_connection_errors_are_retried_too(self):\n        s = socket.socket()\n        s.bind((\"127.0.0.1\", 0))\n        port = s.getsockname()[1]\n        s.close()                     # nothing listens on this port\n        sleeper = Sleeper()\n        with pytest.raises(lab.ApiError) as e:\n            lab.get_json(f\"http://127.0.0.1:{port}/orders\", TOKEN, retries=2, sleep=sleeper)\n        assert e.value.status == 0 and sleeper.waits == [1, 2]\n\n\nclass TestPagination:\n    def test_cursor_pagination_reads_everything_exactly_once(self, api):\n        records = lab.fetch_all_cursor(api.url + \"/orders\", TOKEN, limit=10)\n        assert [r[\"id\"] for r in records] == list(range(1, 26))\n        assert len(api.requests) == 3 and \"cursor\" not in api.requests[0][1] and api.requests[1][1][\"cursor\"] == \"10\"\n\n    def test_since_is_sent_and_filters(self, api):\n        records = lab.fetch_all_cursor(api.url + \"/orders\", TOKEN, since=\"2026-01-01T00:00:20Z\", limit=10)\n        assert [r[\"id\"] for r in records] == [21, 22, 23, 24, 25]\n        assert all(q[\"updated_since\"] == \"2026-01-01T00:00:20Z\" for _, q, _, _ in api.requests)\n\n    def test_since_none_is_left_out(self, api):\n        lab.fetch_all_cursor(api.url + \"/orders\", TOKEN)\n        assert \"updated_since\" not in api.requests[0][1]\n\n    def test_a_retry_in_the_middle_does_not_duplicate_or_lose_records(self, api):\n        records = lab.fetch_all_cursor(api.url + \"/orders\", TOKEN, limit=10, sleep=Sleeper())\n        api.requests.clear()\n        api.script = [(500, {})]          # the first request of the second run fails once, then everything works\n        again = lab.fetch_all_cursor(api.url + \"/orders\", TOKEN, limit=10, sleep=Sleeper())\n        assert again == records\n\n    def test_offset_pagination_stops_on_a_short_page(self, api):\n        records = lab.fetch_all_offset(api.url + \"/orders_offset\", TOKEN, limit=10)\n        assert [r[\"id\"] for r in records] == list(range(1, 26))\n        assert [q.get(\"offset\") for _, q, _, _ in api.requests] == [\"0\", \"10\", \"20\"]\n\n    def test_offset_pagination_with_an_exact_multiple_needs_one_more_request(self, api):\n        api.data = api.data[:20]\n        records = lab.fetch_all_offset(api.url + \"/orders_offset\", TOKEN, limit=10)\n        assert len(records) == 20 and len(api.requests) == 3\n\n\nclass TestCheckpoint:\n    def test_missing_file_means_no_checkpoint(self, tmp_path):\n        assert lab.Checkpoint(tmp_path / \"state\" / \"cp.json\").load() is None\n\n    def test_save_and_load(self, tmp_path):\n        cp = lab.Checkpoint(tmp_path / \"state\" / \"cp.json\")\n        cp.save(\"2026-01-01T00:00:10Z\")\n        assert cp.load() == \"2026-01-01T00:00:10Z\"\n        assert json.loads((tmp_path / \"state\" / \"cp.json\").read_text()) == {\"value\": \"2026-01-01T00:00:10Z\"}\n\n    def test_saving_again_replaces_the_value_and_leaves_no_temp_files(self, tmp_path):\n        cp = lab.Checkpoint(tmp_path / \"cp.json\")\n        cp.save(1)\n        cp.save(2)\n        assert cp.load() == 2 and [p.name for p in tmp_path.iterdir()] == [\"cp.json\"]\n\n    def test_path_may_be_text_or_path(self, tmp_path):\n        cp = lab.Checkpoint(str(tmp_path / \"cp.json\"))\n        cp.save(\"x\")\n        assert cp.load() == \"x\"\n\n\nclass TestFlatten:\n    def test_nested_dicts_become_columns(self):\n        rec = {\"id\": 1, \"customer\": {\"name\": \"Sari\", \"address\": {\"city\": \"Jakarta\"}}, \"total\": 5}\n        assert lab.flatten_record(rec) == {\"id\": 1, \"customer_name\": \"Sari\", \"customer_address_city\": \"Jakarta\", \"total\": 5}\n\n    def test_lists_stay_one_column_as_json_text(self):\n        flat = lab.flatten_record({\"id\": 1, \"items\": [{\"sku\": \"B\", \"qty\": 1}, {\"sku\": \"A\", \"qty\": 2}]})\n        assert flat[\"items\"] == '[{\"qty\": 1, \"sku\": \"B\"}, {\"qty\": 2, \"sku\": \"A\"}]'\n\n    def test_none_and_custom_separator(self):\n        assert lab.flatten_record({\"a\": {\"b\": None}}, sep=\".\") == {\"a.b\": None}\n\n    def test_the_input_is_not_modified(self):\n        rec = {\"a\": {\"b\": 1}}\n        lab.flatten_record(rec)\n        assert rec == {\"a\": {\"b\": 1}}\n\n\nclass TestSchemaDrift:\n    EXPECTED = {\"id\": \"int\", \"total_idr\": \"int\", \"status\": \"str\"}\n\n    def test_no_drift(self):\n        recs = [{\"id\": 1, \"total_idr\": 5, \"status\": \"paid\"}, {\"id\": 2, \"total_idr\": 6, \"status\": None}]\n        assert lab.detect_schema_drift(self.EXPECTED, recs) == {\"new_columns\": [], \"missing_columns\": [], \"type_changes\": {}}\n\n    def test_new_and_missing_columns(self):\n        recs = [{\"id\": 1, \"total_idr\": 5, \"channel\": \"app\"}, {\"id\": 2, \"total_idr\": 6, \"coupon\": \"X\"}]\n        d = lab.detect_schema_drift(self.EXPECTED, recs)\n        assert d[\"new_columns\"] == [\"channel\", \"coupon\"] and d[\"missing_columns\"] == [\"status\"]\n\n    def test_a_type_change_is_reported_with_every_type_seen(self):\n        recs = [{\"id\": 1, \"total_idr\": 5}, {\"id\": 2, \"total_idr\": \"Rp 6.000\"}, {\"id\": 3, \"total_idr\": 7.5}, {\"id\": 4, \"total_idr\": None}]\n        d = lab.detect_schema_drift({\"id\": \"int\", \"total_idr\": \"int\"}, recs)\n        assert d[\"type_changes\"] == {\"total_idr\": (\"int\", [\"float\", \"int\", \"str\"])}\n\n\nclass TestIncrementalLoad:\n    def run(self, api, tmp_path, run_id=\"run1\", today=\"2026-02-01\", **kw):\n        return lab.incremental_load(api.url + \"/orders\", TOKEN, tmp_path / \"state\" / \"cp.json\", tmp_path / \"landing\", run_id, today, **kw)\n\n    def lines(self, path):\n        return [json.loads(l) for l in Path(path).read_text().splitlines()]\n\n    def test_first_run_loads_everything_and_sets_the_checkpoint(self, api, tmp_path):\n        r = self.run(api, tmp_path, limit=10)\n        assert r[\"fetched\"] == 25 and r[\"checkpoint\"] == \"2026-01-01T00:00:25Z\"\n        assert r[\"written\"] == str(tmp_path / \"landing\" / \"dt=2026-02-01\" / \"orders_run1.jsonl\")\n        rows = self.lines(r[\"written\"])\n        assert [x[\"id\"] for x in rows] == list(range(1, 26))\n        assert all(x[\"_run_id\"] == \"run1\" and x[\"_source\"] == api.url + \"/orders\" and x[\"_ingested_at\"].endswith(\"+00:00\") for x in rows)\n        assert lab.Checkpoint(tmp_path / \"state\" / \"cp.json\").load() == \"2026-01-01T00:00:25Z\"\n\n    def test_second_run_with_no_new_data_does_nothing(self, api, tmp_path):\n        self.run(api, tmp_path)\n        before = sorted(p.name for p in (tmp_path / \"landing\").rglob(\"*\") if p.is_file())\n        r = self.run(api, tmp_path, run_id=\"run2\")\n        assert r == {\"fetched\": 0, \"written\": None, \"checkpoint\": \"2026-01-01T00:00:25Z\"}\n        assert sorted(p.name for p in (tmp_path / \"landing\").rglob(\"*\") if p.is_file()) == before\n\n    def test_only_new_records_are_loaded_next_time(self, api, tmp_path):\n        self.run(api, tmp_path)\n        api.data.append({\"id\": 26, \"status\": \"paid\", \"total_idr\": 26000, \"updated_at\": \"2026-01-01T00:00:26Z\"})\n        api.data.append({\"id\": 3, \"status\": \"refunded\", \"total_idr\": 3000, \"updated_at\": \"2026-01-01T00:00:27Z\"})   # an old order changed\n        r = self.run(api, tmp_path, run_id=\"run2\")\n        rows = self.lines(r[\"written\"])\n        assert [(x[\"id\"], x[\"status\"]) for x in rows] == [(26, \"paid\"), (3, \"refunded\")] and r[\"checkpoint\"] == \"2026-01-01T00:00:27Z\"\n\n    def test_duplicates_in_one_fetch_keep_the_latest_version(self, api, tmp_path):\n        api.data = [dict(ORDERS[0]), dict(ORDERS[0], status=\"refunded\", updated_at=\"2026-01-01T00:09:00Z\")]\n        rows = self.lines(self.run(api, tmp_path)[\"written\"])\n        assert len(rows) == 1 and rows[0][\"status\"] == \"refunded\"\n\n    def test_a_crash_before_the_checkpoint_is_repaired_by_rerunning(self, api, tmp_path, monkeypatch):\n        calls = {\"n\": 0}\n        real_save = lab.Checkpoint.save\n\n        def failing_save(self, value):\n            calls[\"n\"] += 1\n            raise OSError(\"disk full\")\n\n        monkeypatch.setattr(lab.Checkpoint, \"save\", failing_save)\n        with pytest.raises(OSError):\n            self.run(api, tmp_path, run_id=\"runA\")\n        assert lab.Checkpoint(tmp_path / \"state\" / \"cp.json\").load() is None           # the checkpoint did not move\n        monkeypatch.setattr(lab.Checkpoint, \"save\", real_save)\n        r = self.run(api, tmp_path, run_id=\"runA\")                                       # same run id: the same file is overwritten, no duplicate\n        files = [p for p in (tmp_path / \"landing\").rglob(\"*.jsonl\")]\n        assert len(files) == 1 and r[\"fetched\"] == 25 and len(self.lines(r[\"written\"])) == 25\n\n    def test_a_failed_fetch_changes_nothing(self, api, tmp_path):\n        api.script = [(500, {})] * 20\n        with pytest.raises(lab.ApiError):\n            self.run(api, tmp_path, retries=1, sleep=Sleeper())\n        assert not (tmp_path / \"landing\").exists() and lab.Checkpoint(tmp_path / \"state\" / \"cp.json\").load() is None\n\n    def test_no_temp_files_are_left_behind(self, api, tmp_path):\n        self.run(api, tmp_path)\n        assert [p.name for p in (tmp_path / \"landing\" / \"dt=2026-02-01\").iterdir()] == [\"orders_run1.jsonl\"]"
+      },
+      {
+       "path": "labs/mod-1-6/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pytest",
+        "en": "pytest"
+       },
+       "code": "pytest>=8"
+      },
+      {
+       "path": "labs/mod-1-6/reference/ingest_lab.py",
+       "name": "ingest_lab.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try first!)"
+       },
+       "code": "\"\"\"Reference solution for Lab 1.6: ingesting data from an HTTP API (standard library only).\"\"\"\nimport json\nimport os\nimport tempfile\nimport time\nimport urllib.error\nimport urllib.parse\nimport urllib.request\nfrom datetime import datetime, timezone\n\n\nclass ApiError(Exception):\n    def __init__(self, status, message=\"\"):\n        super().__init__(f\"HTTP {status}: {message}\")\n        self.status = status\n\n\ndef build_request(url, token, params=None):\n    clean = {k: v for k, v in (params or {}).items() if v is not None}\n    query = urllib.parse.urlencode(sorted(clean.items()))\n    full = url + (\"?\" + query if query else \"\")\n    return urllib.request.Request(full, headers={\"Authorization\": f\"Bearer {token}\", \"Accept\": \"application/json\"})\n\n\ndef backoff_delay(attempt, base=1.0, cap=30.0):\n    return min(cap, base * 2 ** (attempt - 1))\n\n\ndef get_json(url, token, params=None, retries=3, sleep=time.sleep, timeout=10):\n    \"\"\"GET and parse JSON. Retry 429, 5xx and connection errors up to `retries` times; never retry other 4xx.\"\"\"\n    last = None\n    for attempt in range(1, retries + 2):\n        try:\n            with urllib.request.urlopen(build_request(url, token, params), timeout=timeout) as resp:\n                return json.loads(resp.read().decode(\"utf-8\"))\n        except urllib.error.HTTPError as e:\n            last = ApiError(e.code, e.reason)\n            if e.code != 429 and e.code < 500:\n                raise last\n            wait = None\n            if e.code == 429 and e.headers.get(\"Retry-After\"):\n                try:\n                    wait = float(e.headers[\"Retry-After\"])\n                except ValueError:\n                    wait = None\n            if wait is None:\n                wait = backoff_delay(attempt)\n        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:\n            last = ApiError(0, str(e))\n            wait = backoff_delay(attempt)\n        if attempt <= retries:\n            sleep(wait)\n    raise last\n\n\ndef fetch_all_cursor(url, token, since=None, limit=100, **kw):\n    records, cursor = [], None\n    while True:\n        page = get_json(url, token, {\"limit\": limit, \"cursor\": cursor, \"updated_since\": since}, **kw)\n        records.extend(page[\"data\"])\n        cursor = page.get(\"next_cursor\")\n        if not cursor:\n            return records\n\n\ndef fetch_all_offset(url, token, limit=100, **kw):\n    records, offset = [], 0\n    while True:\n        page = get_json(url, token, {\"limit\": limit, \"offset\": offset}, **kw)[\"data\"]\n        records.extend(page)\n        if len(page) < limit:\n            return records\n        offset += limit\n\n\nclass Checkpoint:\n    def __init__(self, path):\n        self.path = path\n\n    def load(self):\n        try:\n            with open(self.path, encoding=\"utf-8\") as f:\n                return json.load(f)[\"value\"]\n        except FileNotFoundError:\n            return None\n\n    def save(self, value):\n        directory = os.path.dirname(os.path.abspath(self.path))\n        os.makedirs(directory, exist_ok=True)\n        fd, tmp = tempfile.mkstemp(dir=directory, suffix=\".tmp\")\n        with os.fdopen(fd, \"w\", encoding=\"utf-8\") as f:\n            json.dump({\"value\": value}, f)\n        os.replace(tmp, self.path)\n\n\ndef flatten_record(record, sep=\"_\"):\n    out = {}\n\n    def walk(prefix, value):\n        if isinstance(value, dict):\n            for k, v in value.items():\n                walk(f\"{prefix}{sep}{k}\" if prefix else k, v)\n        elif isinstance(value, list):\n            out[prefix] = json.dumps(value, sort_keys=True)\n        else:\n            out[prefix] = value\n\n    walk(\"\", record)\n    return out\n\n\ndef detect_schema_drift(expected, records):\n    seen_types = {}\n    for rec in records:\n        for col, value in rec.items():\n            if value is not None:\n                seen_types.setdefault(col, set()).add(type(value).__name__)\n            else:\n                seen_types.setdefault(col, set())\n    new_columns = sorted(set(seen_types) - set(expected))\n    missing = sorted(c for c in expected if c not in seen_types)\n    changes = {c: (expected[c], sorted(t)) for c, t in seen_types.items() if c in expected and t and t != {expected[c]}}\n    return {\"new_columns\": new_columns, \"missing_columns\": missing, \"type_changes\": changes}\n\n\ndef incremental_load(url, token, checkpoint_path, landing_dir, run_id, today, **kw):\n    checkpoint = Checkpoint(checkpoint_path)\n    since = checkpoint.load()\n    records = fetch_all_cursor(url, token, since=since, **kw)\n    if not records:\n        return {\"fetched\": 0, \"written\": None, \"checkpoint\": since}\n    latest = {}\n    for r in records:\n        if r[\"id\"] not in latest or r[\"updated_at\"] >= latest[r[\"id\"]][\"updated_at\"]:\n            latest[r[\"id\"]] = r\n    rows = sorted(latest.values(), key=lambda r: (r[\"updated_at\"], r[\"id\"]))\n    folder = os.path.join(landing_dir, f\"dt={today}\")\n    os.makedirs(folder, exist_ok=True)\n    path = os.path.join(folder, f\"orders_{run_id}.jsonl\")\n    fd, tmp = tempfile.mkstemp(dir=folder, suffix=\".tmp\")\n    stamp = datetime.now(timezone.utc).isoformat()\n    with os.fdopen(fd, \"w\", encoding=\"utf-8\") as f:\n        for r in rows:\n            f.write(json.dumps({**r, \"_run_id\": run_id, \"_source\": url, \"_ingested_at\": stamp}, sort_keys=True) + \"\\n\")\n    os.replace(tmp, path)\n    new_mark = max(r[\"updated_at\"] for r in rows)\n    checkpoint.save(new_mark)\n    return {\"fetched\": len(records), \"written\": path, \"checkpoint\": new_mark}"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 37 tes lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri**",
+       "en": "All 37 tests pass **on your own computer, run from your own terminal**"
+      },
+      {
+       "id": "Anda bisa menjelaskan, dengan sebuah angka, mengapa pagination offset bisa menduplikasi record, dan mengapa cursor tidak",
+       "en": "You can explain, with a number, why offset pagination can duplicate records, and why cursors do not"
+      },
+      {
+       "id": "Anda bisa menjelaskan status code mana yang diulang dan mana yang tidak, dan untuk apa `Retry-After`",
+       "en": "You can explain which status codes to retry and which not to, and what `Retry-After` is for"
+      },
+      {
+       "id": "Anda bisa menjelaskan mengapa checkpoint disimpan setelah data ditulis, dan apa yang terjadi setelah crash di antaranya",
+       "en": "You can explain why the checkpoint is saved after the data is written, and what happens after a crash in between"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Checkpoint yang maju sebelum datanya mendarat",
+      "en": "The checkpoint that moved before the data landed"
+     },
+     "scenario": {
+      "id": "Sebuah job malam memuat pesanan dari API penyedia pembayaran. Agar tidak \"membuang\" waktu, seorang developer menyimpan checkpoint baru begitu halaman terakhir selesai diambil, lalu menulis record ke penyimpanan cloud. Ini berjalan berbulan-bulan.\n\nPada suatu malam layanan penyimpanan mengalami gangguan singkat saat job sedang menulis. Penulisan gagal dan job keluar dengan error, tetapi checkpoint sudah maju ke akhir data yang sempat diambil. Orkestrator mengulang job pada pagi hari; ia membaca checkpoint baru, meminta pesanan setelahnya kepada API, dan menemukan hanya beberapa. Job melaporkan **sukses**. Tiga minggu kemudian tim keuangan menyadari bahwa omset satu malam, 4.200 pesanan, hilang dari warehouse dan dari setiap laporan yang dibangun di atasnya, dan dashboard milik penyedia sendiri menunjukkan selisihnya.",
+      "en": "A nightly job loads orders from a payment provider's API. To avoid \"wasting\" time, a developer saves the new checkpoint as soon as the last page has been fetched, then writes the records to cloud storage. It has run for months.\n\nOne night the storage service has a short outage while the job is writing. The write fails and the job exits with an error, but the checkpoint has already moved to the end of the data it had fetched. The orchestrator retries the job in the morning; it reads the new checkpoint, asks the API for orders after it, and finds only a few. The job reports **success**. Three weeks later the finance team notices that one night of revenue, 4,200 orders, is missing from the warehouse and from every report built on it, and the provider's own dashboard shows the difference."
+     },
+     "breakageReason": {
+      "id": "Langkah-langkahnya salah urutan. Checkpoint menyatakan bahwa data sampai suatu titik sudah dimuat dengan aman, tetapi datanya belum tersimpan, sehingga kegagalan di antaranya menciptakan **celah permanen**: pesanan-pesanan itu lebih tua daripada checkpoint dan tidak akan pernah diminta lagi. Tidak ada yang mendeteksinya, karena pengulangan berhasil dan tidak ada yang membandingkan jumlah dengan sumber.\n\nFaktor yang memperparah: tidak ada rekonsiliasi antara total penyedia dan warehouse, tidak ada alert volume (jumlah baris malam itu hanya sebagian kecil dari biasanya), dan job yang tidak dirancang untuk diulang, sehingga tidak ada yang bisa begitu saja \"memuat ulang malam itu\".",
+      "en": "The steps were in the wrong order. The checkpoint claimed that data up to a point was safely loaded, but the data had not been stored yet, so a failure in between created a **permanent gap**: those orders were older than the checkpoint and would never be requested again. Nothing detected it, because the retry succeeded and nothing compared counts with the source.\n\nContributing factors: no reconciliation between the provider's totals and the warehouse, no alert on volume (the night's row count was a fraction of normal), and a job that was not designed to be rerun, so nobody could simply \"load that night again\"."
+     },
+     "fixGuide": {
+      "id": "1. **Tulis dulu, checkpoint terakhir**, dalam urutan itu, dan perlakukan keduanya sebagai satu kesatuan: file checkpoint diganti secara atomik hanya setelah file data berada di tempatnya (`incremental_load` di lab, dan tes crash-nya).\n2. Buat pemuatan **idempoten** (keluaran dinamai menurut run id, rename atomik, deduplikasi menurut id), sehingga mengulang malam yang gagal atau mencurigakan selalu aman.\n3. **Backfill malam yang hilang** dengan me-reset checkpoint ke sebelum malam itu dan mengulang; periksa jumlahnya terhadap penyedia.\n4. Tambahkan **rekonsiliasi**: bandingkan jumlah dan total nilai record yang dimuat per hari dengan laporan penyedia sendiri, dan beri alert saat ada selisih.\n5. Tambahkan **alert volume dan kesegaran** (Modul 2.5): malam dengan 5% dari jumlah baris normal harus memicu alert meskipun job \"berhasil\".\n6. Tambahkan **jendela replay**: baca ulang beberapa jam terakhir pada setiap putaran dan andalkan deduplikasi, sehingga celah kecil dari sebab apa pun sembuh sendiri.",
+      "en": "1. **Write first, checkpoint last**, in that order, and treat the pair as one unit: the checkpoint file is replaced atomically only after the data file is in place (the lab's `incremental_load`, and its crash test).\n2. Make the load **idempotent** (output named by run id, atomic rename, deduplication by id), so rerunning a failed or suspicious night is always safe.\n3. **Backfill the missing night** by resetting the checkpoint to before it and rerunning; check the counts against the provider.\n4. Add **reconciliation**: compare the number and total value of records loaded per day with the provider's own report, and alert on a difference.\n5. Add **volume and freshness alerts** (Module 2.5): a night with 5% of the normal row count must raise an alert even when the job \"succeeded\".\n6. Add a **replay window**: re-read the last few hours on every run and rely on deduplication, so a small gap from any cause is self-healing."
+     },
+     "defensivePattern": {
+      "id": "Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Atur langkah agar crash menyebabkan pengulangan, bukan kehilangan, lalu buktikan dengan membandingkan terhadap sumber.",
+      "en": "A checkpoint may only describe data that is safely stored. Order the steps so that a crash causes a repeat, never a loss, and then prove it by comparing with the source."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "API menjawab `429 Too Many Requests` dengan header `Retry-After: 7`. Apa yang harus dilakukan klien?",
+       "en": "An API answers `429 Too Many Requests` with the header `Retry-After: 7`. What should the client do?"
+      },
+      "options": [
+       {
+        "id": "Mengulang segera dan secepat mungkin, karena server akan menerima permintaan pada percobaan kedua",
+        "en": "Retry at once and as fast as possible, because the server will accept it the second time"
+       },
+       {
+        "id": "Menghentikan job selamanya dan melaporkan error, karena rate limit tidak pernah bisa ditangani klien",
+        "en": "Stop the job for good and report an error, since a rate limit can never be handled by the client itself"
+       },
+       {
+        "id": "Menunggu sekitar 7 detik, lalu mengulang, karena server memberi tahu klien kapan boleh mencoba lagi",
+        "en": "Wait about 7 seconds, then retry, because the server told the client exactly when to try again"
+       },
+       {
+        "id": "Segera pindah ke API key lain, agar batasnya dihitung terhadap identitas yang berbeda setiap kali",
+        "en": "Change to another API key at once, so that the limit is counted against a different identity each time"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "`Retry-After` menyatakan berapa lama harus menunggu. Menghantam server memperburuk masalah dan bisa membuat klien diblokir.",
+       "en": "`Retry-After` states how long to wait. Hammering makes the problem worse and can get a client banned."
+      }
+     },
+     {
+      "question": {
+       "id": "Error HTTP mana di bawah ini yang TIDAK boleh diulang oleh klien?",
+       "en": "Which of these HTTP errors should a client NOT retry?"
+      },
+      "options": [
+       {
+        "id": "503 Service Unavailable, karena server kelebihan beban dan mungkin bisa menjawab sebentar lagi",
+        "en": "503 Service Unavailable, because the server is overloaded and may be able to answer a little later"
+       },
+       {
+        "id": "500 Internal Server Error, karena gangguan sementara di server sering hilang pada percobaan berikutnya",
+        "en": "500 Internal Server Error, since a temporary fault on the server often disappears on the next try"
+       },
+       {
+        "id": "Timeout koneksi, karena jaringan atau server bisa saja sebentar tidak tersedia",
+        "en": "A connection timeout, because the network or server may have been briefly unavailable"
+       },
+       {
+        "id": "401 Unauthorized, karena kredensialnya salah dan permintaan yang sama akan gagal lagi",
+        "en": "401 Unauthorized, because the credentials are wrong and the same request will fail again"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Ulangi masalah sementara (429, 5xx, error koneksi). Error yang berarti \"permintaan Anda salah\" (400, 401, 403, 404) tidak akan berubah dengan menunggu.",
+       "en": "Retry temporary problems (429, 5xx, connection errors). Errors that mean \"your request is wrong\" (400, 401, 403, 404) will not change by waiting."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa exponential backoff menunggu 1, 2, 4, 8 detik, bukan satu detik tetap setiap kali?",
+       "en": "Why does exponential backoff wait 1, 2, 4, 8 seconds instead of a fixed second each time?"
+      },
+      "options": [
+       {
+        "id": "Waktu tunggu yang berlipat memakai lebih sedikit memori di program klien daripada yang sama panjang setiap kali",
+        "en": "A doubling wait uses less memory in the client program than a wait of the same length every time"
+       },
+       {
+        "id": "Server yang kewalahan punya waktu untuk pulih, dan banyak klien tidak mengulang bersamaan",
+        "en": "A struggling server gets more time to recover, and many clients do not all retry at the same moment"
+       },
+       {
+        "id": "Standar HTTP mewajibkan waktu tunggu berupa pangkat dua, dan server menolak waktu tunggu yang lain",
+        "en": "The HTTP standard requires that the waits are powers of two, and servers reject other waiting times"
+       },
+       {
+        "id": "Ia menjamin permintaan berhasil pada percobaan keempat, sehingga tidak butuh retry lagi",
+        "en": "It guarantees that the request succeeds on the fourth attempt, so no further retries are ever needed"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Waktu tunggu yang bertambah mengurangi tekanan pada layanan yang gagal. Jitter acak menyebarkan klien yang gagal bersamaan. Batas retry dan kegagalan yang lantang tetap diperlukan.",
+       "en": "Increasing waits reduce pressure on a failing service. Adding random jitter spreads out clients that failed together. A retry limit and a loud failure are still needed."
+      }
+     },
+     {
+      "question": {
+       "id": "Pada feed terbaru-dulu, 3 pesanan tiba setelah Anda membaca halaman 1 dengan pagination offset. Apa yang bisa terjadi pada halaman 2?",
+       "en": "In a newest-first feed, 3 orders arrive after you read page 1 with offset pagination. What can happen on page 2?"
+      },
+      "options": [
+       {
+        "id": "Tidak ada, karena offset adalah angka tetap yang selalu menunjuk ke record yang sama, apa pun yang disisipkan",
+        "en": "Nothing, since offsets are fixed numbers that always point to the same records, whatever is inserted"
+       },
+       {
+        "id": "Sebagian baris bergeser ke halaman berikutnya dan muncul lagi, sehingga hasilnya memuat duplikat",
+        "en": "Some rows slide down into the next page and appear a second time, so the result contains duplicates"
+       },
+       {
+        "id": "Server menutup koneksi, karena klien tidak boleh membaca feed saat baris sedang ditambahkan",
+        "en": "The server closes the connection, because a client may not read a feed while rows arrive"
+       },
+       {
+        "id": "Halaman berikutnya kosong, karena record baru membuat offset sebelumnya tidak valid bagi semua klien",
+        "en": "The next page comes back empty, because new records make the earlier offsets invalid for all clients"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Penyisipan menggeser offset berikutnya. Pada contoh lab 25 pesanan terambil sebagai 28 baris. Pagination cursor (keyset) menghindarinya.",
+       "en": "Inserts shift later offsets. In the lab's example 25 orders were fetched as 28 rows. Cursor (keyset) pagination avoids this."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa urutan yang benar untuk satu putaran inkremental?",
+       "en": "What is the correct order for one incremental run?"
+      },
+      "options": [
+       {
+        "id": "Simpan checkpoint baru, lalu ambil data, lalu tulis, agar putaran berikutnya mulai secepat mungkin",
+        "en": "Save the new checkpoint, then fetch the data, then write it, so the next run starts as early as possible"
+       },
+       {
+        "id": "Ambil data, simpan checkpoint, lalu tulis datanya, karena checkpoint adalah langkah yang lebih murah",
+        "en": "Fetch the data, save the checkpoint, then write the data, because the checkpoint is the cheaper step"
+       },
+       {
+        "id": "Baca checkpoint, ambil, tulis data secara tahan lama, dan baru setelah itu simpan checkpoint baru",
+        "en": "Read the checkpoint, fetch the data, write it durably, and only after that save the new checkpoint"
+       },
+       {
+        "id": "Tulis data dan checkpoint bersamaan, karena urutannya tidak pernah penting bagi job",
+        "en": "Write the data and the checkpoint at the same moment, since the order never matters to a job"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Checkpoint hanya boleh menggambarkan data yang sudah tersimpan. Dengan urutan ini crash menyebabkan pengulangan, yang ditoleransi pemuatan idempoten, dan tidak pernah kehilangan.",
+       "en": "A checkpoint may only describe data that is stored. With this order a crash causes a repeat, which an idempotent load tolerates, and never a loss."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa menulis file ke nama sementara lalu mengganti namanya?",
+       "en": "Why write a file to a temporary name and then rename it?"
+      },
+      "options": [
+       {
+        "id": "Mengganti nama file mengompresnya, sehingga file akhir memakai ruang lebih kecil daripada yang ditulis langsung",
+        "en": "Renaming a file compresses it, so the final file takes less space than one written directly"
+       },
+       {
+        "id": "File sementara bebas dari kuota disk, yang membuat pemuatan besar selesai tanpa error",
+        "en": "Temporary files are exempt from disk quotas, which lets large loads finish without errors"
+       },
+       {
+        "id": "File akhir lengkap atau tidak ada, sehingga crash tidak pernah meninggalkan file yang setengah tertulis",
+        "en": "The final file is either complete or absent, so a crash never leaves a half-written file behind"
+       },
+       {
+        "id": "Sistem operasi mewajibkan setiap file diganti namanya sekali sebelum program lain boleh membacanya",
+        "en": "The operating system requires every file to be renamed once before any other program may read it"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Rename atomik (`os.replace`) membuat pergantian bersifat semua-atau-tidak-sama-sekali. Teknik yang sama melindungi file checkpoint.",
+       "en": "An atomic rename (`os.replace`) makes the switch all-or-nothing. The same technique protects the checkpoint file."
+      }
+     },
+     {
+      "question": {
+       "id": "Pengulangan run id yang sama harus meninggalkan berapa file di folder landing untuk putaran itu?",
+       "en": "A rerun of the same run id should leave the landing folder with how many files for that run?"
+      },
+      "options": [
+       {
+        "id": "Dua, satu untuk tiap percobaan, karena setiap putaran harus menyimpan salinannya sendiri untuk jejak audit",
+        "en": "Two, one for each attempt, because every run must keep its own copy for the audit trail later"
+       },
+       {
+        "id": "Satu, karena keluaran dinamai menurut run id sehingga pengulangan menimpa file yang sama",
+        "en": "One, because the output is named after the run id and the rerun overwrites the same file"
+       },
+       {
+        "id": "Nol, karena pengulangan menghapus keluarannya ketika menemukan bahwa datanya sudah dimuat",
+        "en": "None, because a rerun deletes its output when it finds that the data was already loaded earlier"
+       },
+       {
+        "id": "Sebanyak jumlah halaman, karena setiap halaman API harus disimpan dalam filenya sendiri",
+        "en": "As many as there are pages, since each page of the API must be stored in its own file"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Menamai keluaran menurut run id ditambah penimpaan atomik membuat pemuatan idempoten: menjalankannya lagi memberi hasil yang sama dengan sekali.",
+       "en": "Naming output by run id plus an atomic overwrite makes the load idempotent: running it again gives the same result as running it once."
+      }
+     },
+     {
+      "question": {
+       "id": "API mulai mengirim `total_idr` sebagai teks \"Rp 6.000\" untuk sebagian record. Apa yang harus dilakukan job ingestion?",
+       "en": "The API starts sending `total_idr` as the text \"Rp 6.000\" for some records. What should an ingestion job do?"
+      },
+      "options": [
+       {
+        "id": "Memuatnya diam-diam, karena warehouse akan mengonversi teks itu menjadi angka saat seseorang mengkuerinya",
+        "en": "Load it silently, since the warehouse will convert the text to a number when someone queries it"
+       },
+       {
+        "id": "Membuang record itu, supaya tabel tetap bersih dan tidak ada yang perlu diberi tahu soal masalahnya",
+        "en": "Drop those records, so the table stays clean and nobody has to be told about the problem"
+       },
+       {
+        "id": "Mendeteksinya sebagai schema drift, lalu gagal atau karantina sesuai kebijakan tim, dan beri alert ke pemilik",
+        "en": "Detect the type change as schema drift, then fail or quarantine by an agreed policy, and alert"
+       },
+       {
+        "id": "Mengonversi setiap kolom setiap record menjadi teks, agar perubahan tipe tidak pernah lagi menimbulkan masalah",
+        "en": "Convert every column of every record to text, so that a type change can never cause a problem again"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Perubahan tipe yang diam-diam merusak angka hilir. Deteksi drift, terapkan kebijakan eksplisit (gagal, karantina, atau evolusi), dan beri tahu pemiliknya.",
+       "en": "Silent type changes corrupt downstream numbers. Detect drift, apply an explicit policy (fail, quarantine or evolve), and tell the owner."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "MDN: kode status respons HTTP",
+       "en": "MDN: HTTP response status codes"
+      },
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status"
+     },
+     {
+      "label": {
+       "id": "MDN: header Retry-After",
+       "en": "MDN: Retry-After header"
+      },
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After"
+     },
+     {
+      "label": {
+       "id": "Python: urllib.request",
+       "en": "Python: urllib.request"
+      },
+      "url": "https://docs.python.org/3/library/urllib.request.html"
+     },
+     {
+      "label": {
+       "id": "Slack API: pagination (contoh cursor)",
+       "en": "Slack API: pagination (cursor example)"
+      },
+      "url": "https://api.slack.com/docs/pagination"
+     },
+     {
+      "label": {
+       "id": "AWS Architecture Blog: Exponential Backoff and Jitter",
+       "en": "AWS Architecture Blog: Exponential Backoff and Jitter"
+      },
+      "url": "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/"
+     },
+     {
+      "label": {
+       "id": "JSON Lines",
+       "en": "JSON Lines"
+      },
+      "url": "https://jsonlines.org/"
+     }
+    ],
+    "idPending": false
+   },
+   {
     "id": "mod-1-7",
     "number": "1.7",
     "title": {
