@@ -11,6 +11,8 @@ why: Tutorials treat SQL as syntax to memorise on perfect tables. In real work t
 - Predict how NULL behaves in comparisons, aggregates and NOT IN
 - Combine tables with INNER and LEFT joins, and spot when a join multiplies rows and corrupts a sum
 - Make safe changes to data with INSERT, UPDATE and DELETE and explain what a transaction protects you from
+- Transform values with text, number and date functions, and avoid the integer-division and date-range traps
+- Define tables with types and constraints, change them with ALTER, and explain the difference between a view, a snapshot table and a materialized view
 
 ## @prereq
 Modules 0.1 and 0.2 are helpful. You can do the whole lab in your browser (SQL Sandbox) or with the `sqlite3` module that ships with Python; no installation is needed.
@@ -89,6 +91,32 @@ More places NULL bites:
 - **`COALESCE(a, b, ...)`** returns the first non-NULL argument. `COALESCE(city, 'Unknown')` makes missing cities show as `Unknown`.
 
 > **Warning:** When a count or sum looks "a bit low", suspect NULL before suspecting the data. Add `OR col IS NULL`, or `COALESCE`, and see whether the numbers move.
+
+## @lesson Text, number and date functions
+Real columns are messy: names in mixed case, ratios that must be computed, dates stored as text. A **function** transforms a value inside the query, one result per row (an aggregate such as `SUM` collapses rows; a function does not). The examples run on the KopiKu dataset in the SQL Sandbox.
+
+**Text.** `LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)`, `REPLACE(x, 'a', 'b')`, `SUBSTR(x, start, length)` (positions start at 1, not 0), `INSTR(x, 'text')` (the position of the first match, 0 if none) and `||` to join text. To get the first name from `Budi Santoso`:
+
+```sql
+SELECT name, SUBSTR(name, 1, INSTR(name, ' ') - 1) AS first_name, LENGTH(name) AS name_length
+FROM customers;       -- Budi Santoso | Budi | 12
+```
+
+`LIKE` matches patterns: `%` is any run of characters and `_` is exactly one, so `name LIKE 'A%'` finds names that start with A. Two traps, both checked on SQLite, PostgreSQL and DuckDB. First, `'a' || NULL` is **NULL** in all three, so one missing part empties the whole joined string; `COALESCE(part, '')` first, or use `concat()`, which skips NULL (PostgreSQL and DuckDB; the sandbox's SQLite 3.39 has no `concat()`). Second, `'abc' LIKE 'ABC'` is true in SQLite and **false** in PostgreSQL and DuckDB, which have `ILIKE` for case-insensitive matching. Module 1.3 has the full dialect table.
+
+**Numbers.** `ROUND(x, 1)`, `CAST(x AS INTEGER)`, `COALESCE(a, b)` (first non-NULL; `COALESCE(city, 'Unknown')` turns the two NULL cities into a visible group of 2 customers) and `NULLIF(a, b)` (NULL when they are equal, which makes `x / NULLIF(y, 0)` return NULL instead of failing on division by zero). The trap to remember is **integer division**: in SQLite and PostgreSQL, `7 / 2` is **3**. KopiKu has 2 cancelled orders out of 18, so `SUM(status = 'cancelled') / COUNT(*)` returns **0**, and `100 * SUM(...) / COUNT(*)` returns 11, because the division still happens between integers. Make one side a decimal before dividing: `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` returns **11.1**. DuckDB gives 3.5 for `7 / 2`, another reason to test on the engine you will use.
+
+**Dates.** SQLite has no real date type: dates are text in the ISO format `YYYY-MM-DD`, which sorts correctly as text (`'2026-01-03' < '2026-01-10'`). A format such as `10/1/2026` does not: as text, `'10/1/2026' < '3/1/2026'` is true. Store dates in ISO form, always. The SQLite functions are `date(x, '+7 days')`, `strftime(format, x)` and `julianday(x)`:
+
+```sql
+SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- 0 = Sunday ... 6 = Saturday
+SELECT date(order_date, '+7 days') FROM orders;                                   -- 2026-01-03 becomes 2026-01-10
+SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...                 -- days between two dates (Budi: 61)
+```
+
+Two more habits. **Use half-open ranges**: `order_date >= '2026-01-10' AND order_date < '2026-01-20'` (4 KopiKu orders). `BETWEEN '2026-01-10' AND '2026-01-19'` looks the same on plain dates but silently drops anything later than midnight on the 19th when the column holds timestamps: we inserted `'2026-01-19 15:30:00'` and `BETWEEN` missed it while the half-open range found it. And **months are not all equal**: `date('2026-01-31', '+1 month')` is **2026-03-03** in SQLite (it computes February 31 and rolls over), while PostgreSQL's `DATE '2026-01-31' + INTERVAL '1 month'` is 2026-02-28. Store timestamps in UTC and convert to a local time zone only when showing them.
+
+One performance rule that Module 1.3 explains with EXPLAIN: do not wrap an indexed column in a function inside `WHERE`. On a table with an index on `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` made SQLite **scan the whole table**, and the equivalent range `ts >= '2026-01-01' AND ts < '2026-02-01'` **searched the index**.
 
 ## @lesson Aggregation: GROUP BY and HAVING
 Aggregation collapses many rows into one number per group. The functions are `COUNT`, `SUM`, `AVG`, `MIN` and `MAX`.
@@ -236,6 +264,42 @@ An **index** is a separate lookup structure that makes finding rows by a column 
 
 Finally, **SQL has dialects**. The core in this lesson works everywhere, but date functions, string functions, `LIMIT` versus `TOP`, and special features differ between SQLite (used in this course's sandbox), PostgreSQL, MySQL, DuckDB, Snowflake and BigQuery. When something fails after copying a query, check the dialect first.
 
+## @lesson Defining tables: DDL, types and views
+So far you read and changed rows. **DDL** (Data Definition Language) creates and changes the *structure*: `CREATE`, `ALTER` and `DROP`. A table you design yourself looks like this:
+
+```sql
+CREATE TABLE reviews (
+  review_id   INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL REFERENCES customers (customer_id),
+  product_id  INTEGER NOT NULL REFERENCES products (product_id),
+  stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  comment     TEXT,
+  created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (customer_id, product_id)          -- one review per customer per product
+);
+```
+
+Each column has a **type**, optional **constraints**, and optionally a `DEFAULT`. We ran this kind of table and each constraint rejects a bad row: a `stars` of 9 fails with `CHECK constraint failed`, a missing `customer_id` with `NOT NULL constraint failed`, and a second review by the same customer of the same product with `UNIQUE constraint failed`. Choose types deliberately: whole numbers `INTEGER`, text `TEXT`, dates and times as real date types where the engine has them (ISO text in SQLite), and **money never as floating point**: in SQLite `0.1 + 0.2 = 0.3` is **false** (the sum is 0.30000000000000004), and PostgreSQL's `float8` behaves the same. KopiKu stores rupiah as `INTEGER` (`price_idr`), and engines with `DECIMAL(12, 2)` store exact decimals.
+
+**The engine may not enforce what you declared.** This is a real SQLite behaviour we measured, and the reason this lesson exists:
+
+- SQLite lets you insert `'abc'` into an `INTEGER` column and stores the text. PostgreSQL and DuckDB refuse with an error.
+- SQLite **does not enforce foreign keys by default** (`PRAGMA foreign_keys` returns 0 in Python's SQLite and in the sandbox). We inserted an order for customer 99, who does not exist, and it was accepted. After `PRAGMA foreign_keys = ON` the same insert failed with `FOREIGN KEY constraint failed`, and PostgreSQL always refuses it.
+
+A constraint you never verified is a hope. Test the constraints you rely on by trying to break them.
+
+**Changing a table.** `ALTER TABLE customers ADD COLUMN email TEXT` adds a column, and every existing row gets NULL there (we checked). `DROP COLUMN` and `RENAME` exist (SQLite 3.35+, PostgreSQL, others). `DROP TABLE` removes the table and its data, so run it only on purpose. Changes to a shared table should be written as small, ordered **migration scripts** kept in version control, run the same way in every environment, and preferably **backwards compatible** (adding a nullable column does not break existing queries; renaming one does). Module 3.2 returns to schema changes in streams.
+
+**Views.** A **view** gives a name to a query:
+
+```sql
+CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
+```
+
+A view stores **the query, not the data**. We created `v_gold` when it matched 1 row, inserted another Gold customer, and the view immediately returned 2 rows. If the table underneath is dropped, the view stays but fails with `no such table` when used. `CREATE TABLE snap AS SELECT ...` (CTAS) is different: it stores a **snapshot** that does not change when the source does (it kept its rows while the view grew), and it loses the constraints of the original (the copy we made had no primary key, no `NOT NULL` and no `CHECK`). PostgreSQL and warehouses also offer **materialized views**: stored results that are **stale until refreshed**. In PostgreSQL a materialized view showed 2 rows after a third was inserted, and 3 only after `REFRESH MATERIALIZED VIEW`.
+
+Why this matters for data engineers: views are how a team defines a metric in one place ("revenue" means this query) and how a warehouse exposes a safe subset of columns. The models you build with dbt in Module 2.3 are views and tables created by DDL that the tool writes for you; knowing what they are underneath is what lets you debug them.
+
 ## @lab Lab: ten questions about KopiKu
 You are the new data engineer and the founder has ten questions. Answer them in SQL against the KopiKu miniature dataset: a customer table with NULL cities, orders with cancellations and refunds, and a shipping fee that tempts you into a fan-out bug.
 
@@ -356,6 +420,22 @@ Know the grain of every table you join, and sum a value only at the grain where 
 - [x] Every row is updated, unless it ran in a transaction that you are able to roll back
 
 > UPDATE and DELETE without WHERE affect all rows. Preview with a SELECT using the same WHERE, check the count, and use a transaction when you can.
+
+### Two of KopiKu's 18 orders are cancelled. Which SQLite expression returns the cancellation rate as 11.1 (percent)?
+- [ ] `ROUND(100 * 2 / 18, 1)`, because multiplying by 100 first always keeps the decimals of the result
+- [ ] `ROUND(2 / 18 * 100, 1)`, because the division comes first, so the fraction is multiplied afterwards
+- [x] `ROUND(100.0 * 2 / 18, 1)`, because one decimal value makes the whole division keep its decimals
+- [ ] `ROUND(2 / 18, 1) * 100`, because rounding the fraction first keeps the precision of the answer
+
+> With integers only, SQLite truncates: `100 * 2 / 18` is 11 and `2 / 18` is 0. One decimal operand (100.0) forces decimal division, so the result is 11.11, which rounds to 11.1.
+
+### A view `delivered_orders` was created over `orders`. Afterwards 5 more delivered orders are inserted. What does `SELECT COUNT(*) FROM delivered_orders` return?
+- [ ] The count from the moment the view was created, because a view keeps a copy of the rows it selected
+- [ ] An error, because a view must be dropped and created again whenever the table below it changes
+- [ ] Only 5, because a view shows just the rows that were added after the day it was created
+- [x] The old count plus the 5 new rows, because a view stores the query and runs it on the current data
+
+> A view is a saved query, not saved data. A table made with `CREATE TABLE ... AS` is the snapshot that would keep the old count, and a materialized view stays stale until it is refreshed.
 
 ## @resources
 - [SQLite SQL language reference](https://www.sqlite.org/lang.html)

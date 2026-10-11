@@ -769,19 +769,25 @@ ORDER BY total_spend DESC;`
       module: "mod-0-3",
       dataset: "kopiku",
       level: { id: "Menengah", en: "Intermediate" },
-      title: { id: "Produk tanpa pembeli (Anti-join)", en: "Unsold products (Anti-join)" },
+      title: { id: "Produk yang tidak pernah dibeli pelanggan Surabaya (Anti-join)", en: "Products no Surabaya customer ever bought (Anti-join)" },
       task: {
-        id: "Tampilkan name dan origin dari semua produk yang belum pernah dibeli sama sekali dalam pesanan apa pun.",
-        en: "Return name and origin for all products that have never been purchased in any order."
+        id: "Tampilkan name dan origin dari semua produk yang tidak pernah muncul di pesanan milik pelanggan yang kotanya Surabaya (apa pun status pesanannya).",
+        en: "Return name and origin for every product that never appears in an order placed by a customer whose city is Surabaya (any order status)."
       },
       hint: {
-        id: "LEFT JOIN products ke order_items lalu cari baris yang kolom order_items-nya IS NULL.",
-        en: "LEFT JOIN products to order_items, then filter for rows where order_items columns are IS NULL."
+        id: "Buat subquery: product_id yang dibeli pelanggan Surabaya (order_items JOIN orders JOIN customers). LEFT JOIN products ke subquery itu lalu simpan baris yang kolomnya IS NULL.",
+        en: "Build a subquery of the product_ids bought by Surabaya customers (order_items JOIN orders JOIN customers). LEFT JOIN products to it and keep the rows where its column IS NULL."
       },
       solution: `SELECT p.name, p.origin
 FROM products p
-LEFT JOIN order_items i ON i.product_id = p.product_id
-WHERE i.product_id IS NULL;`
+LEFT JOIN (
+  SELECT DISTINCT i.product_id
+  FROM order_items i
+  JOIN orders o ON o.order_id = i.order_id
+  JOIN customers c ON c.customer_id = o.customer_id
+  WHERE c.city = 'Surabaya'
+) bought ON bought.product_id = p.product_id
+WHERE bought.product_id IS NULL;`
     },
     {
       id: "k-13",
@@ -960,6 +966,252 @@ WHERE rank <= 3;`
       },
       solution: `SELECT COUNT(*) AS total_orders, SUM(total_idr) AS total_gmv
 FROM orders_small;`
+    },
+    {
+      id: "k-16",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Dasar", en: "Basic" },
+      title: { id: "Nama depan dan panjang nama (fungsi teks)", en: "First name and name length (text functions)" },
+      task: {
+        id: "Tampilkan customer_id, first_name (teks sebelum spasi pertama pada name), dan name_length (jumlah karakter name) untuk semua pelanggan.",
+        en: "Return customer_id, first_name (the text before the first space in name) and name_length (number of characters in name) for every customer."
+      },
+      hint: {
+        id: "Pakai SUBSTR(name, 1, INSTR(name, ' ') - 1) untuk nama depan dan LENGTH(name) untuk panjangnya.",
+        en: "Use SUBSTR(name, 1, INSTR(name, ' ') - 1) for the first name and LENGTH(name) for the length."
+      },
+      solution: `SELECT customer_id,
+       SUBSTR(name, 1, INSTR(name, ' ') - 1) AS first_name,
+       LENGTH(name) AS name_length
+FROM customers;`
+    },
+    {
+      id: "k-17",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Dasar", en: "Basic" },
+      title: { id: "Kota yang tidak diketahui (COALESCE)", en: "Unknown cities (COALESCE)" },
+      task: {
+        id: "Tampilkan city_label (city, atau 'Unknown' bila NULL) dan customers (jumlah pelanggan) untuk setiap label.",
+        en: "Return city_label (the city, or 'Unknown' when it is NULL) and customers (number of customers) for each label."
+      },
+      hint: {
+        id: "COALESCE(city, 'Unknown') dipakai di SELECT dan juga di GROUP BY (atau GROUP BY 1).",
+        en: "Use COALESCE(city, 'Unknown') in the SELECT and also in the GROUP BY (or GROUP BY 1)."
+      },
+      solution: `SELECT COALESCE(city, 'Unknown') AS city_label, COUNT(*) AS customers
+FROM customers
+GROUP BY COALESCE(city, 'Unknown');`
+    },
+    {
+      id: "k-18",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Persentase pesanan batal (jebakan pembagian bilangan bulat)", en: "Cancellation rate (the integer-division trap)" },
+      task: {
+        id: "Tampilkan satu baris berisi cancelled_pct: persentase pesanan berstatus cancelled dari semua pesanan, dibulatkan ke 1 desimal.",
+        en: "Return one row with cancelled_pct: the percentage of all orders whose status is cancelled, rounded to 1 decimal place."
+      },
+      hint: {
+        id: "Di SQLite 2 / 18 adalah 0 karena kedua angka bilangan bulat. Kalikan dengan 100.0 (bukan 100) sebelum membagi, lalu ROUND(..., 1).",
+        en: "In SQLite 2 / 18 is 0 because both numbers are integers. Multiply by 100.0 (not 100) before dividing, then ROUND(..., 1)."
+      },
+      solution: `SELECT ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1) AS cancelled_pct
+FROM orders;`
+    },
+    {
+      id: "k-19",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pesanan per hari dalam seminggu (fungsi tanggal)", en: "Orders per day of the week (date functions)" },
+      task: {
+        id: "Tampilkan weekday (0 = Minggu sampai 6 = Sabtu, sebagai teks dari strftime) dan orders (jumlah pesanan) untuk setiap hari yang punya pesanan.",
+        en: "Return weekday (0 = Sunday to 6 = Saturday, as the text strftime gives) and orders (number of orders) for each weekday that has orders."
+      },
+      hint: {
+        id: "strftime('%w', order_date) memberi nomor hari. GROUP BY ekspresi yang sama.",
+        en: "strftime('%w', order_date) gives the weekday number. GROUP BY the same expression."
+      },
+      solution: `SELECT strftime('%w', order_date) AS weekday, COUNT(*) AS orders
+FROM orders
+GROUP BY strftime('%w', order_date);`
+    },
+    {
+      id: "k-20",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Hari dari daftar sampai pesanan pertama (selisih tanggal)", en: "Days from signup to first order (date difference)" },
+      task: {
+        id: "Tampilkan name dan days_to_first_order (bilangan bulat: jumlah hari antara signup_date dan tanggal pesanan paling awal) untuk pelanggan yang punya minimal satu pesanan.",
+        en: "Return name and days_to_first_order (an integer: days between signup_date and the customer's earliest order_date) for customers with at least one order."
+      },
+      hint: {
+        id: "SQLite tidak punya DATE - DATE. Pakai julianday(MIN(order_date)) - julianday(signup_date), lalu CAST(... AS INTEGER).",
+        en: "SQLite has no DATE - DATE. Use julianday(MIN(order_date)) - julianday(signup_date), then CAST(... AS INTEGER)."
+      },
+      solution: `SELECT c.name,
+       CAST(julianday(MIN(o.order_date)) - julianday(c.signup_date) AS INTEGER) AS days_to_first_order
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+GROUP BY c.customer_id, c.name, c.signup_date;`
+    },
+    {
+      id: "k-21",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Tenggat pengiriman +7 hari (aritmetika tanggal)", en: "Delivery deadline +7 days (date arithmetic)" },
+      task: {
+        id: "Tampilkan order_id dan due_date (order_date ditambah 7 hari) untuk pesanan berstatus paid atau shipped.",
+        en: "Return order_id and due_date (order_date plus 7 days) for orders whose status is paid or shipped."
+      },
+      hint: {
+        id: "date(order_date, '+7 days') menambah hari pada teks tanggal ISO. Filter dengan WHERE status IN ('paid', 'shipped').",
+        en: "date(order_date, '+7 days') adds days to an ISO date text. Filter with WHERE status IN ('paid', 'shipped')."
+      },
+      solution: `SELECT order_id, date(order_date, '+7 days') AS due_date
+FROM orders
+WHERE status IN ('paid', 'shipped');`
+    },
+    {
+      id: "k-22",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Membuat VIEW lalu memakainya", en: "Create a VIEW, then use it" },
+      task: {
+        id: "Buat view delivered_orders (order_id, customer_id, order_date dari pesanan berstatus delivered), lalu tampilkan customer_id dan delivered (jumlah pesanan delivered) per pelanggan dengan membaca dari view itu.",
+        en: "Create a view delivered_orders (order_id, customer_id, order_date of orders whose status is delivered), then return customer_id and delivered (number of delivered orders) per customer by reading from that view."
+      },
+      hint: {
+        id: "CREATE VIEW delivered_orders AS SELECT ...; lalu SELECT ... FROM delivered_orders GROUP BY customer_id. Dua perintah dipisah titik koma. Bila error 'already exists', klik Reset data.",
+        en: "CREATE VIEW delivered_orders AS SELECT ...; then SELECT ... FROM delivered_orders GROUP BY customer_id. Two statements separated by a semicolon. If you see 'already exists', click Reset data."
+      },
+      solution: `CREATE VIEW delivered_orders AS
+  SELECT order_id, customer_id, order_date
+  FROM orders
+  WHERE status = 'delivered';
+
+SELECT customer_id, COUNT(*) AS delivered
+FROM delivered_orders
+GROUP BY customer_id;`
+    },
+    {
+      id: "k-23",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Membuat tabel dengan constraint (DDL)", en: "Create a table with constraints (DDL)" },
+      task: {
+        id: "Buat tabel wishlist(customer_id, product_id, added_on) dengan PRIMARY KEY gabungan (customer_id, product_id), foreign key ke customers dan products, dan added_on bawaan '2026-02-01'. Isi dengan (1,2), (1,3), (2,2), lalu tampilkan product_id dan wishers (jumlah pelanggan) per produk.",
+        en: "Create a table wishlist(customer_id, product_id, added_on) with a composite PRIMARY KEY (customer_id, product_id), foreign keys to customers and products, and added_on defaulting to '2026-02-01'. Insert (1,2), (1,3), (2,2), then return product_id and wishers (number of customers) per product."
+      },
+      hint: {
+        id: "CREATE TABLE ... (..., PRIMARY KEY (customer_id, product_id)); INSERT INTO wishlist (customer_id, product_id) VALUES ...; lalu SELECT dengan GROUP BY product_id. Bila error 'already exists', klik Reset data.",
+        en: "CREATE TABLE ... (..., PRIMARY KEY (customer_id, product_id)); INSERT INTO wishlist (customer_id, product_id) VALUES ...; then SELECT with GROUP BY product_id. If you see 'already exists', click Reset data."
+      },
+      solution: `CREATE TABLE wishlist (
+  customer_id INTEGER NOT NULL REFERENCES customers (customer_id),
+  product_id  INTEGER NOT NULL REFERENCES products (product_id),
+  added_on    TEXT NOT NULL DEFAULT '2026-02-01',
+  PRIMARY KEY (customer_id, product_id)
+);
+
+INSERT INTO wishlist (customer_id, product_id) VALUES (1, 2), (1, 3), (2, 2);
+
+SELECT product_id, COUNT(*) AS wishers
+FROM wishlist
+GROUP BY product_id;`
+    },
+    {
+      id: "w-11",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pesanan terakhir tiap pelanggan (pengganti QUALIFY)", en: "Latest order per customer (the portable QUALIFY)" },
+      task: {
+        id: "Tampilkan name, order_id, dan order_date dari pesanan paling baru setiap pelanggan (satu baris per pelanggan yang punya pesanan).",
+        en: "Return name, order_id and order_date of each customer's most recent order (one row per customer that has orders)."
+      },
+      hint: {
+        id: "SQLite, PostgreSQL, dan MySQL tidak punya QUALIFY. Beri ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) di CTE, lalu filter = 1 di query luar.",
+        en: "SQLite, PostgreSQL and MySQL have no QUALIFY. Number rows with ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) in a CTE, then filter = 1 in the outer query."
+      },
+      solution: `WITH ranked AS (
+  SELECT customer_id, order_id, order_date,
+         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) AS rn
+  FROM orders
+)
+SELECT c.name, r.order_id, r.order_date
+FROM ranked r
+JOIN customers c ON c.customer_id = r.customer_id
+WHERE r.rn = 1;`
+    },
+    {
+      id: "w-12",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Hitungan bersyarat dengan FILTER", en: "Conditional counts with FILTER" },
+      task: {
+        id: "Tampilkan customer_id, delivered (jumlah pesanan delivered), dan cancelled (jumlah pesanan cancelled) untuk setiap pelanggan yang punya pesanan, memakai COUNT(*) FILTER (WHERE ...).",
+        en: "Return customer_id, delivered (number of delivered orders) and cancelled (number of cancelled orders) for every customer that has orders, using COUNT(*) FILTER (WHERE ...)."
+      },
+      hint: {
+        id: "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered. FILTER bekerja di SQLite, PostgreSQL, dan DuckDB; di MySQL pakai SUM(CASE ...).",
+        en: "COUNT(*) FILTER (WHERE status = 'delivered') AS delivered. FILTER works in SQLite, PostgreSQL and DuckDB; in MySQL use SUM(CASE ...)."
+      },
+      solution: `SELECT customer_id,
+       COUNT(*) FILTER (WHERE status = 'delivered') AS delivered,
+       COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled
+FROM orders
+GROUP BY customer_id;`
+    },
+    {
+      id: "w-13",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pesanan per minggu (pengelompokan tanggal)", en: "Orders per week (date bucketing)" },
+      task: {
+        id: "Tampilkan week (strftime('%W', order_date), nomor minggu dengan Senin sebagai hari pertama) dan orders (jumlah pesanan) per minggu.",
+        en: "Return week (strftime('%W', order_date), the week number with Monday as first day) and orders (number of orders) per week."
+      },
+      hint: {
+        id: "Di PostgreSQL ini date_trunc('week', ...), di SQLite strftime('%W', ...). GROUP BY ekspresi yang sama.",
+        en: "In PostgreSQL this is date_trunc('week', ...), in SQLite strftime('%W', ...). GROUP BY the same expression."
+      },
+      solution: `SELECT strftime('%W', order_date) AS week, COUNT(*) AS orders
+FROM orders
+GROUP BY strftime('%W', order_date);`
+    },
+    {
+      id: "w-14",
+      module: "mod-1-3",
+      dataset: "kopiku",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Median nilai baris pesanan tanpa MEDIAN()", en: "Median line value without MEDIAN()" },
+      task: {
+        id: "Dari order_items tampilkan satu baris berisi median_line: median dari qty * unit_price_idr per baris (jumlah baris genap: rata-rata dua nilai tengah).",
+        en: "From order_items return one row with median_line: the median of qty * unit_price_idr per row (with an even number of rows, the average of the two middle values)."
+      },
+      hint: {
+        id: "SQLite tidak punya median. Beri ROW_NUMBER() dan COUNT(*) OVER () di CTE, lalu rata-ratakan baris dengan rn IN ((n + 1) / 2, (n + 2) / 2). Ingat: pembagian bilangan bulat membulatkan ke bawah.",
+        en: "SQLite has no median. Add ROW_NUMBER() and COUNT(*) OVER () in a CTE, then average the rows where rn IN ((n + 1) / 2, (n + 2) / 2). Remember: integer division rounds down."
+      },
+      solution: `WITH lines AS (
+  SELECT qty * unit_price_idr AS amount,
+         ROW_NUMBER() OVER (ORDER BY qty * unit_price_idr) AS rn,
+         COUNT(*) OVER () AS n
+  FROM order_items
+)
+SELECT AVG(amount) AS median_line
+FROM lines
+WHERE rn IN ((n + 1) / 2, (n + 2) / 2);`
     }
   ],
 
@@ -974,10 +1226,15 @@ FROM orders_small;`
 
   async loadDataset(key) {
     await this.init();
+    this.freshDb(key);
+  },
+
+  // Rebuild the current dataset from scratch (synchronous: the engine is already loaded).
+  freshDb(key) {
     if (this.db) this.db.close();
     this.db = new this.SQL.Database();
-    this.db.exec(this.datasets[key].setup);
-    this.datasetKey = key;
+    this.db.exec(this.datasets[key || this.datasetKey].setup);
+    this.datasetKey = key || this.datasetKey;
   },
 
   tables() {
@@ -1005,11 +1262,16 @@ FROM orders_small;`
   },
 
   // Compare as unordered sets of rows (numbers rounded), ignoring column names.
+  // Each side runs on a fresh copy of the dataset, so statements that change data (INSERT, CREATE VIEW ...) cannot disturb the comparison
+  // or be applied twice.
   check(challenge, learnerSql) {
+    this.freshDb(challenge.dataset);
     const mine = this.run(learnerSql);
-    if (!mine.ok) return { ok: false, reason: "error", detail: mine.error };
-    if (mine.empty) return { ok: false, reason: "empty" };
+    if (!mine.ok) { this.freshDb(); return { ok: false, reason: "error", detail: mine.error }; }
+    if (mine.empty) { this.freshDb(); return { ok: false, reason: "empty" }; }
+    this.freshDb();
     const ref = this.run(challenge.solution);
+    this.freshDb();
     const norm = (rows) =>
       rows
         .map((r) => JSON.stringify(r.map((v) => (typeof v === "number" ? Math.round(v * 100) / 100 : v))))

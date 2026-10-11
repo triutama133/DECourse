@@ -11,6 +11,7 @@ why: Tutorial menguji SELECT dan WHERE pada beberapa baris. Di produksi, query y
 - Menyelesaikan masalah gaps-and-islands dan sessionization dengan pola row-number dan jumlah kumulatif
 - Menulis CTE rekursif untuk hierarki dan tahu bagaimana ia berhenti
 - Membaca plan EXPLAIN ANALYZE PostgreSQL, menemukan langkah yang lambat, dan merancang index sesedikit mungkin yang memperbaikinya
+- Menerjemahkan query antara SQLite, PostgreSQL, DuckDB, dan warehouse cloud, serta mengenali perbedaan dialek yang diam-diam mengubah jawaban
 
 ## @prereq
 Modul 0.3 (join, GROUP BY, NULL, CTE). Bagian A lab berjalan di browser Anda atau dengan SQLite bawaan Python; Bagian B memakai PostgreSQL (salinan tertanam dipasang oleh `pip`, jadi Docker opsional).
@@ -225,6 +226,50 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 
 Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutuhkan: pilih hanya kolom yang Anda perlukan (bukan `*`), filter lebih awal, hindari `DISTINCT` sebagai tambalan untuk fan-out join yang tidak disengaja (perbaiki join-nya), pilih `EXISTS` daripada `IN (subquery)` untuk uji keberadaan, hati-hati dengan `OR` lintas kolom berbeda, dan hindari menjalankan query per baris dari kode aplikasi (pola "N+1"): satu query berbasis himpunan mengalahkan seribu query kecil.
 
+## @lesson Satu pertanyaan, banyak dialek: SQLite, PostgreSQL, DuckDB, dan warehouse
+SQL adalah standar, tetapi setiap engine berbicara dalam dialeknya sendiri, dan dalam data engineering Anda akan bertemu beberapa: SQLite di sandbox, PostgreSQL di database aplikasi, DuckDB di laptop, BigQuery atau Snowflake di warehouse (Modul 2.6), Spark SQL di lakehouse. Standar mendefinisikan inti (SELECT, join, GROUP BY, window function, CTE), dan setiap engine menambah fungsi, tipe, dan aturan di sekelilingnya. Perbedaan datang dalam dua jenis, dan jenis kedua adalah yang berbahaya.
+
+**Perbedaan yang gagal dengan keras.** Query error, Anda mencari tahu, Anda memperbaikinya. Kami menjalankan pernyataan yang sama di SQLite 3.45, PostgreSQL 16, dan DuckDB 1.5:
+
+| Tugas | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| Tanggal ditambah 7 hari | `date(d, '+7 days')` | `d + 7` | `d + 7` |
+| Selisih hari antar tanggal | `julianday(b) - julianday(a)` | `b - a` | `b - a` |
+| Potong ke bulan | `strftime('%Y-%m-01', d)` | `date_trunc('month', d)` | `date_trunc('month', d)` |
+| Hari dalam minggu (Sabtu = 6) | `strftime('%w', d)` | `EXTRACT(dow FROM d)` | `EXTRACT(dow FROM d)` |
+| Menyambung teks per kelompok | `group_concat(x, ',')` | `string_agg(x, ',')` | keduanya bisa |
+| Posisi teks | `instr(x, 'p')` | `strpos(x, 'p')` | keduanya bisa |
+| Pencocokan tak peka huruf | `LIKE` (ASCII) | `ILIKE` | `ILIKE` |
+| `QUALIFY` (filter atas window) | syntax error | syntax error | berfungsi |
+| Deret angka | CTE rekursif | `generate_series(1, 5)` | `generate_series(1, 5)` |
+
+Di SQL Sandbox Anda karena itu menulis `group_concat`, `julianday`, dan `strftime`, dan pola portabel untuk `QUALIFY` adalah window function di dalam CTE diikuti filter (challenge w-11). Warehouse, dari dokumentasinya dan tidak dijalankan di kursus ini: BigQuery memakai `DATE_DIFF(b, a, DAY)`, `DATE_TRUNC(d, MONTH)`, `STRING_AGG`, dan backtick untuk nama; Snowflake memakai `DATEDIFF('day', a, b)`, `DATEADD(day, 7, d)`, `LISTAGG`; keduanya mendukung `QUALIFY`. Alat seperti **sqlglot** menerjemahkan antar dialek: ia mengubah `GROUP_CONCAT(name, ',')` SQLite menjadi `STRING_AGG(name, ',')` untuk PostgreSQL dan `DATEDIFF('day', a, b)` Snowflake menjadi `CAST(b AS DATE) - CAST(a AS DATE)`. Perlakukan penerjemah sebagai draf pertama untuk diuji, bukan jaminan.
+
+**Perbedaan yang mengubah jawaban secara diam-diam.** Query berjalan dan angkanya berbeda. Ini memakan biaya nyata, jadi pelajari:
+
+| Pernyataan | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| `SELECT 7 / 2` | **3** | **3** | **3,5** |
+| `ORDER BY x` dengan NULL (menaik) | NULL **di awal** | NULL **di akhir** | NULL **di akhir** |
+| `'abc' LIKE 'ABC'` | benar | salah | salah |
+| `x, y ... GROUP BY x` (y tidak diagregasi) | mengembalikan satu `y` sembarang | **error** | **error** |
+| `INSERT 'abc'` ke kolom `INTEGER` | **disimpan sebagai teks** | error | error |
+| `CAST('12abc' AS INTEGER)` | **12** | error | error |
+| `SELECT "hello"` (tanda kutip ganda) | teks `hello` bila tak ada kolom itu | error | error |
+| `SELECT 1 = 1` | `1` | `true` | `true` |
+
+Baca baris ketiga dan keempat dua kali. Laporan yang mengurutkan menurut kolom nullable menaruh yang tak diketahui di atas di SQLite dan di bawah di tempat lain, dan memindahkan query dari satu engine ke engine lain mengubah urutan hasil tanpa error: bila urutan penting, tulis `NULLS FIRST` atau `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, dan SQLite 3.30+). `GROUP BY` yang memilih kolom tak ter-grup adalah *error* di PostgreSQL karena jawabannya ambigu; SQLite mengembalikan nilai dari satu baris tanpa memberi tahu, sehingga bug yang akan ditangkap PostgreSQL lolos diam-diam di prototipe. Ketika sqlglot memindahkan `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` dari Snowflake ke BigQuery ia menambahkan `NULLS LAST`, yaitu penerjemah menjaga urutan NULL tetap sama. Dan dialek yang *memaafkan* (menyimpan `'abc'` di kolom integer, membaca `'12abc'` sebagai 12) mengubah masalah kualitas data menjadi angka yang salah alih-alih error. Jebakan pandas di Modul 1.5 tentang menebak tipe adalah keluarga yang sama.
+
+**Strategi kerja.**
+
+1. **Kenali engine target Anda** dan uji di sana. Query yang lolos di sandbox belum terbukti untuk warehouse.
+2. **Tulis subset portabel bila bisa**: CTE, window function, `CASE`, `COALESCE`, `CAST`, join standar, `||`, `NULLS FIRST/LAST` eksplisit, rentang tanggal setengah terbuka.
+3. **Eksplisit alih-alih mengandalkan default**: desimal untuk rasio, `ORDER BY` dengan pemutus seri lengkap, daftar kolom di `INSERT`, dan `GROUP BY` pada setiap kolom yang tidak diagregasi.
+4. **Bungkus perbedaannya**: di dbt (Modul 2.3) makro lintas database seperti `dbt.date_trunc` dan `dbt.datediff` menyembunyikannya, sehingga model berjalan di DuckDB saat pengembangan dan di warehouse saat produksi.
+5. **Saat bertemu engine baru**, jawab ini sebelum menulis query: bagaimana tanggal dan zona waktu disimpan? apa yang dilakukan `/` pada bilangan bulat? di mana NULL terurut? bagaimana nama dikutip dan dibandingkan (huruf besar-kecil, spasi)? apakah constraint dan foreign key ditegakkan? bagaimana string diagregasi? apakah ada `QUALIFY`? bagaimana `LIMIT`/`OFFSET` (atau `TOP`, `FETCH FIRST`) ditulis? apa yang terjadi pada `CAST` yang buruk?
+
+Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan DDL, Modul 0.3) dan **w-11 sampai w-14** (QUALIFY, FILTER, pengelompokan tanggal, median tanpa `MEDIAN()`) memakai persis gagasan-gagasan ini.
+
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.
 
@@ -349,6 +394,22 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 - [ ] Index rusak dan harus dibangun ulang sebelum query bisa berjalan dengan benar kembali
 
 > Selisih besar antara baris perkiraan dan aktual berarti planner memilih plan berdasarkan asumsi yang salah (statistik usang, predikat berkorelasi). Perbaiki perkiraannya lebih dulu; plan biasanya ikut membaik.
+
+### Query yang sama dipindah dari SQLite ke PostgreSQL dan kolom nullable yang diurutkannya kini muncul di posisi berbeda, tanpa error. Mengapa?
+- [ ] PostgreSQL mengurutkan semua kolom teks terbalik secara default, sehingga setiap kolom berakhir di tempat sebaliknya
+- [x] Kedua engine menaruh NULL berbeda secara default, sehingga urutan sebaiknya diatur dengan NULLS FIRST atau LAST
+- [ ] SQLite mengabaikan `ORDER BY` untuk kolom yang berisi NULL, sehingga ia mengembalikan baris dalam urutan apa pun
+- [ ] PostgreSQL membuang baris NULL sebelum mengurutkan, sehingga mereka tidak muncul di posisi mana pun pada hasil
+
+> Pada proses kami, pengurutan menaik menaruh NULL di awal pada SQLite dan di akhir pada PostgreSQL dan DuckDB. Tulis `NULLS FIRST` atau `NULLS LAST` bila urutan penting, alih-alih memercayai default.
+
+### Mengapa `SELECT x, y FROM t GROUP BY x` bisa berbahaya ketika query yang sama berjalan di SQLite dan di PostgreSQL?
+- [ ] SQLite menghitung jawabannya dengan benar, sedangkan PostgreSQL memberi jumlah tak tepat atas baris tiap kelompok
+- [ ] Ia aman di kedua engine, karena kolom yang tidak diagregasi selalu diambil dari baris pertama
+- [x] PostgreSQL menolak query itu karena ambigu, tetapi SQLite mengembalikan `y` sembarang tanpa peringatan
+- [ ] SQLite menolaknya dengan error, sedangkan PostgreSQL diam-diam menambahkan `y` ke daftar `GROUP BY`
+
+> SQLite mengembalikan `y` dari satu baris, sedangkan PostgreSQL dan DuckDB memunculkan error. Bug yang akan ditangkap engine ketat bisa lolos diam-diam di prototipe, jadi cantumkan setiap kolom tak teragregasi di `GROUP BY`.
 
 ## @resources
 - [Dokumen PostgreSQL: tutorial window function](https://www.postgresql.org/docs/current/tutorial-window.html)

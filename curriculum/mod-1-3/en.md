@@ -11,6 +11,7 @@ why: Tutorials test SELECT and WHERE on a few rows. In production a query that r
 - Solve gaps-and-islands and sessionization problems with the row-number and cumulative-sum patterns
 - Write a recursive CTE for hierarchies and know how it terminates
 - Read a PostgreSQL EXPLAIN ANALYZE plan, find the slow step, and design the fewest indexes that fix it
+- Translate a query between SQLite, PostgreSQL, DuckDB and the cloud warehouses, and recognise the dialect differences that silently change an answer
 
 ## @prereq
 Module 0.3 (joins, GROUP BY, NULL, CTEs). Part A of the lab runs in your browser or with Python's built-in SQLite; Part B uses PostgreSQL (an embedded copy is installed by `pip`, so Docker is optional).
@@ -225,6 +226,50 @@ An **index** is a separate sorted structure that maps column values to row locat
 
 Finally, a few query habits that avoid problems before indexes are needed: select only the columns you need (not `*`), filter early, avoid `DISTINCT` as a band-aid for an accidental join fan-out (fix the join), prefer `EXISTS` to `IN (subquery)` for existence tests, be careful with `OR` across different columns, and avoid running a query per row from application code (the "N+1" pattern): one set-based query beats a thousand small ones.
 
+## @lesson One question, many dialects: SQLite, PostgreSQL, DuckDB and the warehouses
+SQL is a standard, but every engine speaks its own dialect, and in data engineering you will meet several: SQLite in the sandbox, PostgreSQL in application databases, DuckDB on a laptop, BigQuery or Snowflake in the warehouse (Module 2.6), Spark SQL in the lakehouse. The standard defines a core (SELECT, joins, GROUP BY, window functions, CTEs), and each engine adds functions, types and rules around it. Differences come in two kinds, and the second kind is the dangerous one.
+
+**Differences that fail loudly.** The query errors out, you look it up, you fix it. We ran the same statements on SQLite 3.45, PostgreSQL 16 and DuckDB 1.5:
+
+| Task | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| Date plus 7 days | `date(d, '+7 days')` | `d + 7` | `d + 7` |
+| Days between two dates | `julianday(b) - julianday(a)` | `b - a` | `b - a` |
+| Truncate to month | `strftime('%Y-%m-01', d)` | `date_trunc('month', d)` | `date_trunc('month', d)` |
+| Day of week (Saturday is 6) | `strftime('%w', d)` | `EXTRACT(dow FROM d)` | `EXTRACT(dow FROM d)` |
+| Join text per group | `group_concat(x, ',')` | `string_agg(x, ',')` | both work |
+| Position of text | `instr(x, 'p')` | `strpos(x, 'p')` | both work |
+| Case-insensitive match | `LIKE` (ASCII) | `ILIKE` | `ILIKE` |
+| `QUALIFY` (filter on a window) | syntax error | syntax error | works |
+| Series of numbers | recursive CTE | `generate_series(1, 5)` | `generate_series(1, 5)` |
+
+In the SQL Sandbox you therefore write `group_concat`, `julianday` and `strftime`, and the portable pattern for `QUALIFY` is a window function in a CTE followed by a filter (challenge w-11). The warehouses, from their documentation and not run in this course: BigQuery uses `DATE_DIFF(b, a, DAY)`, `DATE_TRUNC(d, MONTH)`, `STRING_AGG` and backticks for names; Snowflake uses `DATEDIFF('day', a, b)`, `DATEADD(day, 7, d)`, `LISTAGG`; both support `QUALIFY`. A tool such as **sqlglot** translates between dialects: it turned SQLite's `GROUP_CONCAT(name, ',')` into `STRING_AGG(name, ',')` for PostgreSQL and a Snowflake `DATEDIFF('day', a, b)` into `CAST(b AS DATE) - CAST(a AS DATE)`. Treat translators as a first draft to test, not as a guarantee.
+
+**Differences that change the answer silently.** The query runs and the number is different. These cost real money, so learn them:
+
+| Statement | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| `SELECT 7 / 2` | **3** | **3** | **3.5** |
+| `ORDER BY x` with a NULL (ascending) | NULL **first** | NULL **last** | NULL **last** |
+| `'abc' LIKE 'ABC'` | true | false | false |
+| `x, y ... GROUP BY x` (y not aggregated) | returns one arbitrary `y` | **error** | **error** |
+| `INSERT 'abc'` into an `INTEGER` column | **stored as text** | error | error |
+| `CAST('12abc' AS INTEGER)` | **12** | error | error |
+| `SELECT "hello"` (double quotes) | the text `hello` if no such column | error | error |
+| `SELECT 1 = 1` | `1` | `true` | `true` |
+
+Read the third and fourth rows twice. A report that sorts by a nullable column puts the unknowns at the top in SQLite and at the bottom elsewhere, and moving a query from one engine to another reorders the result with no error: when order matters, write `NULLS FIRST` or `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, and SQLite 3.30+). A `GROUP BY` that selects an ungrouped column is an *error* in PostgreSQL because the answer is ambiguous; SQLite returns one row's value without telling you, so a bug that PostgreSQL would catch passes silently in a prototype. When sqlglot moved a Snowflake `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` to BigQuery it added `NULLS LAST`, which is the translator keeping the NULL order the same. And a dialect that is *forgiving* (storing `'abc'` in an integer column, reading `'12abc'` as 12) turns a data quality problem into a wrong number instead of an error. The pandas trap in Module 1.5 about guessing types is the same family.
+
+**A working strategy.**
+
+1. **Know your target engine** and test on it. A query that passes in the sandbox is not proven for the warehouse.
+2. **Write the portable subset when you can**: CTEs, window functions, `CASE`, `COALESCE`, `CAST`, standard joins, `||`, explicit `NULLS FIRST/LAST`, half-open date ranges.
+3. **Be explicit instead of relying on defaults**: decimals for ratios, `ORDER BY` with full tie-breakers, column lists in `INSERT`, and `GROUP BY` on every non-aggregated column.
+4. **Wrap the differences**: in dbt (Module 2.3) cross-database macros such as `dbt.date_trunc` and `dbt.datediff` hide them, so a model runs on DuckDB in development and on a warehouse in production.
+5. **When you meet a new engine**, answer these before writing queries: how are dates and time zones stored? what does `/` do with integers? where do NULLs sort? how are names quoted and compared (case, spaces)? are constraints and foreign keys enforced? how is a string aggregated? is there `QUALIFY`? how are `LIMIT`/`OFFSET` (or `TOP`, `FETCH FIRST`) spelled? what happens on a bad `CAST`?
+
+The sandbox practice challenges **k-16 to k-23** (text, number, date functions and DDL, Module 0.3) and **w-11 to w-14** (QUALIFY, FILTER, date bucketing, a median without `MEDIAN()`) use exactly these ideas.
+
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.
 
@@ -349,6 +394,22 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 - [ ] The index is corrupted and must be rebuilt before the query can run in the right way again
 
 > Large gaps between estimated and actual rows mean the planner chose a plan on wrong assumptions (stale statistics, correlated predicates). Fix the estimate first; the plan usually improves with it.
+
+### The same query is moved from SQLite to PostgreSQL and the nullable column it sorts by now appears in a different position, with no error. Why?
+- [ ] PostgreSQL sorts all text columns in reverse by default, so every column ends up in the opposite place
+- [x] The engines place NULLs differently by default, so the order should be set with NULLS FIRST or LAST
+- [ ] SQLite ignores `ORDER BY` for columns that contain NULL, so it returns the rows in any order
+- [ ] PostgreSQL removes NULL rows before sorting, so they cannot appear in the result in any position
+
+> In our run an ascending sort put NULL first in SQLite and last in PostgreSQL and DuckDB. Write `NULLS FIRST` or `NULLS LAST` when the order matters, instead of trusting a default.
+
+### Why can `SELECT x, y FROM t GROUP BY x` be dangerous when the same query runs on SQLite and on PostgreSQL?
+- [ ] SQLite computes the answer correctly, while PostgreSQL gives an inexact sum over the rows in each group
+- [ ] It is safe on both engines, since a column that is not aggregated is always taken from the first row
+- [x] PostgreSQL rejects the query as ambiguous, but SQLite returns an arbitrary `y` without any warning
+- [ ] SQLite rejects it with an error, while PostgreSQL silently adds `y` to the `GROUP BY` list
+
+> SQLite returned one row's `y` and PostgreSQL and DuckDB raised an error. A bug that a strict engine would catch can pass silently in a prototype, so list every non-aggregated column in `GROUP BY`.
 
 ## @resources
 - [PostgreSQL docs: window functions tutorial](https://www.postgresql.org/docs/current/tutorial-window.html)

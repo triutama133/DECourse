@@ -1695,7 +1695,8 @@ class DataForgeApp {
     // Quiz stats
     const quizModIds = Object.keys(this.quizScores);
     const totalQuizCorrect = quizModIds.reduce((sum, id) => sum + (this.quizScores[id].best || 0), 0);
-    const avgQuizPct = quizModIds.length ? Math.round((totalQuizCorrect / (quizModIds.length * 8)) * 100) : 0;
+    const totalQuizQuestions = quizModIds.reduce((sum, id) => sum + (this.quizScores[id].total || 8), 0);
+    const avgQuizPct = totalQuizQuestions ? Math.round((totalQuizCorrect / totalQuizQuestions) * 100) : 0;
 
     // Resume score
     const atsResult = this.calculateAtsScore();

@@ -11,6 +11,8 @@ why: Tutorial memperlakukan SQL sebagai sintaks untuk dihafal pada tabel yang se
 - Memprediksi perilaku NULL dalam perbandingan, agregat, dan NOT IN
 - Menggabungkan tabel dengan INNER dan LEFT join, dan mengenali saat join menggandakan baris dan merusak sebuah penjumlahan
 - Mengubah data dengan aman lewat INSERT, UPDATE, dan DELETE dan menjelaskan apa yang dilindungi oleh transaksi
+- Mengubah nilai dengan fungsi teks, angka, dan tanggal, serta menghindari jebakan pembagian bilangan bulat dan rentang tanggal
+- Mendefinisikan tabel dengan tipe dan constraint, mengubahnya dengan ALTER, dan menjelaskan beda view, tabel snapshot, dan materialized view
 
 ## @prereq
 Modul 0.1 dan 0.2 membantu. Anda bisa mengerjakan seluruh lab di browser (SQL Sandbox) atau dengan modul `sqlite3` bawaan Python; tidak perlu instalasi.
@@ -89,6 +91,32 @@ Tempat lain di mana NULL menggigit:
 - **`COALESCE(a, b, ...)`** mengembalikan argumen pertama yang bukan NULL. `COALESCE(city, 'Unknown')` membuat kota yang hilang tampil sebagai `Unknown`.
 
 > **Peringatan:** Ketika hitungan atau jumlah tampak "agak rendah", curigai NULL sebelum mencurigai datanya. Tambahkan `OR col IS NULL`, atau `COALESCE`, dan lihat apakah angkanya bergeser.
+
+## @lesson Fungsi teks, angka, dan tanggal
+Kolom di dunia nyata berantakan: nama dengan huruf campur aduk, rasio yang harus dihitung, tanggal yang disimpan sebagai teks. Sebuah **fungsi** mengubah nilai di dalam query, satu hasil per baris (agregat seperti `SUM` meleburkan baris; fungsi tidak). Contohnya berjalan pada dataset KopiKu di SQL Sandbox.
+
+**Teks.** `LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)`, `REPLACE(x, 'a', 'b')`, `SUBSTR(x, start, length)` (posisi mulai dari 1, bukan 0), `INSTR(x, 'teks')` (posisi kemunculan pertama, 0 bila tidak ada), dan `||` untuk menyambung teks. Untuk mengambil nama depan dari `Budi Santoso`:
+
+```sql
+SELECT name, SUBSTR(name, 1, INSTR(name, ' ') - 1) AS first_name, LENGTH(name) AS name_length
+FROM customers;       -- Budi Santoso | Budi | 12
+```
+
+`LIKE` mencocokkan pola: `%` adalah rangkaian karakter apa pun dan `_` tepat satu karakter, sehingga `name LIKE 'A%'` menemukan nama yang berawalan A. Dua jebakan, keduanya diperiksa di SQLite, PostgreSQL, dan DuckDB. Pertama, `'a' || NULL` adalah **NULL** di ketiganya, sehingga satu bagian yang kosong mengosongkan seluruh teks gabungan; gunakan `COALESCE(bagian, '')` lebih dulu, atau `concat()` yang melewati NULL (PostgreSQL dan DuckDB; SQLite 3.39 di sandbox tidak punya `concat()`). Kedua, `'abc' LIKE 'ABC'` bernilai benar di SQLite dan **salah** di PostgreSQL dan DuckDB, yang punya `ILIKE` untuk pencocokan tak peka huruf besar-kecil. Modul 1.3 memuat tabel dialek lengkap.
+
+**Angka.** `ROUND(x, 1)`, `CAST(x AS INTEGER)`, `COALESCE(a, b)` (nilai pertama yang bukan NULL; `COALESCE(city, 'Unknown')` mengubah dua kota NULL menjadi kelompok terlihat berisi 2 pelanggan), dan `NULLIF(a, b)` (NULL bila keduanya sama, sehingga `x / NULLIF(y, 0)` mengembalikan NULL alih-alih gagal karena pembagian nol). Jebakan yang harus diingat adalah **pembagian bilangan bulat**: di SQLite dan PostgreSQL `7 / 2` adalah **3**. KopiKu punya 2 pesanan batal dari 18, jadi `SUM(status = 'cancelled') / COUNT(*)` mengembalikan **0**, dan `100 * SUM(...) / COUNT(*)` mengembalikan 11, karena pembagiannya tetap terjadi antar bilangan bulat. Jadikan salah satu sisi desimal sebelum membagi: `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` mengembalikan **11,1**. DuckDB memberi 3,5 untuk `7 / 2`, alasan lain untuk menguji di engine yang akan Anda pakai.
+
+**Tanggal.** SQLite tidak punya tipe tanggal sungguhan: tanggal adalah teks berformat ISO `YYYY-MM-DD`, yang terurut benar sebagai teks (`'2026-01-03' < '2026-01-10'`). Format seperti `10/1/2026` tidak: sebagai teks, `'10/1/2026' < '3/1/2026'` bernilai benar. Simpan tanggal selalu dalam bentuk ISO. Fungsi SQLite-nya adalah `date(x, '+7 days')`, `strftime(format, x)`, dan `julianday(x)`:
+
+```sql
+SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- 0 = Minggu ... 6 = Sabtu
+SELECT date(order_date, '+7 days') FROM orders;                                   -- 2026-01-03 menjadi 2026-01-10
+SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...                 -- selisih hari antar tanggal (Budi: 61)
+```
+
+Dua kebiasaan lagi. **Pakai rentang setengah terbuka**: `order_date >= '2026-01-10' AND order_date < '2026-01-20'` (4 pesanan KopiKu). `BETWEEN '2026-01-10' AND '2026-01-19'` tampak sama pada tanggal biasa, tetapi diam-diam membuang apa pun setelah tengah malam tanggal 19 ketika kolomnya berisi timestamp: kami memasukkan `'2026-01-19 15:30:00'` dan `BETWEEN` melewatkannya sementara rentang setengah terbuka menemukannya. Dan **bulan tidak semuanya sama**: `date('2026-01-31', '+1 month')` adalah **2026-03-03** di SQLite (ia menghitung 31 Februari lalu meluap), sedangkan `DATE '2026-01-31' + INTERVAL '1 month'` di PostgreSQL adalah 2026-02-28. Simpan timestamp dalam UTC dan ubah ke zona waktu lokal hanya saat menampilkannya.
+
+Satu aturan performa yang dijelaskan Modul 1.3 dengan EXPLAIN: jangan membungkus kolom ber-index dengan fungsi di dalam `WHERE`. Pada tabel dengan index di `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` membuat SQLite **memindai seluruh tabel**, sedangkan rentang setara `ts >= '2026-01-01' AND ts < '2026-02-01'` **mencari lewat index**.
 
 ## @lesson Agregasi: GROUP BY dan HAVING
 Agregasi meringkas banyak baris menjadi satu angka per kelompok. Fungsinya `COUNT`, `SUM`, `AVG`, `MIN`, dan `MAX`.
@@ -236,6 +264,42 @@ Jika server crash di antara dua update, tidak ada yang berlaku; uang tidak perna
 
 Terakhir, **SQL punya dialek**. Inti pelajaran ini bekerja di mana-mana, tetapi fungsi tanggal, fungsi string, `LIMIT` versus `TOP`, dan fitur khusus berbeda antara SQLite (dipakai di sandbox kursus ini), PostgreSQL, MySQL, DuckDB, Snowflake, dan BigQuery. Ketika sesuatu gagal setelah menyalin query, periksa dialeknya dulu.
 
+## @lesson Mendefinisikan tabel: DDL, tipe, dan view
+Sejauh ini Anda membaca dan mengubah baris. **DDL** (Data Definition Language) membuat dan mengubah *struktur*: `CREATE`, `ALTER`, dan `DROP`. Tabel yang Anda rancang sendiri tampak seperti ini:
+
+```sql
+CREATE TABLE reviews (
+  review_id   INTEGER PRIMARY KEY,
+  customer_id INTEGER NOT NULL REFERENCES customers (customer_id),
+  product_id  INTEGER NOT NULL REFERENCES products (product_id),
+  stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  comment     TEXT,
+  created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (customer_id, product_id)          -- satu ulasan per pelanggan per produk
+);
+```
+
+Setiap kolom punya **tipe**, **constraint** opsional, dan boleh punya `DEFAULT`. Kami menjalankan tabel seperti ini dan setiap constraint menolak baris yang buruk: `stars` bernilai 9 gagal dengan `CHECK constraint failed`, `customer_id` yang kosong dengan `NOT NULL constraint failed`, dan ulasan kedua oleh pelanggan yang sama untuk produk yang sama dengan `UNIQUE constraint failed`. Pilih tipe dengan sengaja: bilangan bulat `INTEGER`, teks `TEXT`, tanggal dan waktu sebagai tipe tanggal sungguhan di engine yang punya (teks ISO di SQLite), dan **uang jangan pernah sebagai floating point**: di SQLite `0.1 + 0.2 = 0.3` adalah **salah** (jumlahnya 0.30000000000000004), dan `float8` di PostgreSQL berperilaku sama. KopiKu menyimpan rupiah sebagai `INTEGER` (`price_idr`), dan engine dengan `DECIMAL(12, 2)` menyimpan desimal yang tepat.
+
+**Engine mungkin tidak menegakkan apa yang Anda deklarasikan.** Ini perilaku SQLite sungguhan yang kami ukur, dan alasan pelajaran ini ada:
+
+- SQLite membolehkan Anda memasukkan `'abc'` ke kolom `INTEGER` dan menyimpan teksnya. PostgreSQL dan DuckDB menolak dengan error.
+- SQLite **tidak menegakkan foreign key secara default** (`PRAGMA foreign_keys` mengembalikan 0 di SQLite milik Python dan di sandbox). Kami memasukkan pesanan untuk pelanggan 99 yang tidak ada, dan diterima. Setelah `PRAGMA foreign_keys = ON`, insert yang sama gagal dengan `FOREIGN KEY constraint failed`, dan PostgreSQL selalu menolaknya.
+
+Constraint yang tidak pernah Anda verifikasi hanyalah harapan. Uji constraint yang Anda andalkan dengan mencoba melanggarnya.
+
+**Mengubah tabel.** `ALTER TABLE customers ADD COLUMN email TEXT` menambah kolom, dan setiap baris yang sudah ada mendapat NULL di sana (kami memeriksanya). `DROP COLUMN` dan `RENAME` tersedia (SQLite 3.35+, PostgreSQL, dan lainnya). `DROP TABLE` menghapus tabel beserta datanya, jadi jalankan hanya dengan sengaja. Perubahan pada tabel bersama sebaiknya ditulis sebagai **skrip migrasi** kecil yang berurutan dan disimpan di version control, dijalankan dengan cara sama di setiap lingkungan, dan sebaiknya **kompatibel ke belakang** (menambah kolom nullable tidak merusak query yang ada; mengganti namanya merusak). Modul 3.2 membahas perubahan skema pada stream.
+
+**View.** Sebuah **view** memberi nama pada sebuah query:
+
+```sql
+CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
+```
+
+View menyimpan **querynya, bukan datanya**. Kami membuat `v_gold` saat ia cocok dengan 1 baris, memasukkan satu pelanggan Gold lagi, dan view langsung mengembalikan 2 baris. Jika tabel di bawahnya di-drop, view tetap ada tetapi gagal dengan `no such table` saat dipakai. `CREATE TABLE snap AS SELECT ...` (CTAS) berbeda: ia menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (ia mempertahankan barisnya ketika view bertambah), dan ia kehilangan constraint aslinya (salinan yang kami buat tidak punya primary key, `NOT NULL`, maupun `CHECK`). PostgreSQL dan warehouse juga menyediakan **materialized view**: hasil yang tersimpan dan **basi sampai di-refresh**. Di PostgreSQL sebuah materialized view menampilkan 2 baris setelah baris ketiga dimasukkan, dan 3 baris hanya setelah `REFRESH MATERIALIZED VIEW`.
+
+Mengapa ini penting bagi data engineer: view adalah cara tim mendefinisikan sebuah metrik di satu tempat ("omset" berarti query ini) dan cara warehouse mengekspos subset kolom yang aman. Model yang Anda bangun dengan dbt di Modul 2.3 adalah view dan tabel yang dibuat oleh DDL yang ditulis alat itu untuk Anda; mengetahui apa mereka sebenarnya adalah yang memungkinkan Anda men-debug-nya.
+
 ## @lab Lab: sepuluh pertanyaan tentang KopiKu
 Anda data engineer baru dan pendiri toko punya sepuluh pertanyaan. Jawab dengan SQL pada dataset mini KopiKu: tabel pelanggan dengan kota NULL, pesanan dengan pembatalan dan refund, dan biaya kirim yang menggoda Anda membuat bug fan-out.
 
@@ -356,6 +420,22 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 - [x] Semua baris diperbarui, kecuali Anda menjalankannya dalam transaksi yang bisa di-rollback
 
 > UPDATE dan DELETE tanpa WHERE mengenai semua baris. Pratinjau dengan SELECT yang memakai WHERE yang sama, periksa jumlahnya, dan pakai transaksi bila bisa.
+
+### Dua dari 18 pesanan KopiKu dibatalkan. Ekspresi SQLite mana yang mengembalikan angka cancellation rate sebesar 11,1 (persen)?
+- [ ] `ROUND(100 * 2 / 18, 1)`, karena mengalikan dengan 100 lebih dulu selalu mempertahankan desimal hasilnya
+- [ ] `ROUND(2 / 18 * 100, 1)`, karena pembagian dilakukan lebih dulu, lalu pecahannya dikalikan sesudahnya
+- [x] `ROUND(100.0 * 2 / 18, 1)`, karena satu nilai desimal membuat pembagian mempertahankan desimalnya
+- [ ] `ROUND(2 / 18, 1) * 100`, karena membulatkan pecahan lebih dulu menjaga ketelitian jawabannya
+
+> Dengan bilangan bulat saja, SQLite memotong: `100 * 2 / 18` adalah 11 dan `2 / 18` adalah 0. Satu operand desimal (100.0) memaksa pembagian desimal, sehingga hasilnya 11,11 yang dibulatkan menjadi 11,1.
+
+### View `delivered_orders` dibuat di atas `orders`. Setelah itu 5 pesanan delivered lagi dimasukkan. Apa yang dikembalikan `SELECT COUNT(*) FROM delivered_orders`?
+- [ ] Hitungan pada saat view dibuat, karena view menyimpan salinan baris yang dipilihnya
+- [ ] Sebuah error, karena view harus di-drop dan dibuat ulang setiap kali tabel di bawahnya berubah
+- [ ] Hanya 5, karena view hanya menampilkan baris yang ditambahkan setelah hari ia dibuat
+- [x] Hitungan lama ditambah 5 baris baru, karena view menjalankan querynya pada data terkini
+
+> View adalah query tersimpan, bukan data tersimpan. Tabel hasil `CREATE TABLE ... AS` adalah snapshot yang mempertahankan hitungan lama, dan materialized view tetap basi sampai di-refresh.
 
 ## @resources
 - [Referensi bahasa SQL SQLite](https://www.sqlite.org/lang.html)
