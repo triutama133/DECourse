@@ -371,6 +371,87 @@ class DataForgeApp {
     w.postMessage({ type: "run", id, files, args: bl.tests });
   }
 
+  // ================= LAB PROOF (scripts/prove.py prints a code; the app checks it) =================
+  proofFor(modId) {
+    const rec = (readStore("df_proofs", {}) || {})[modId];
+    return rec && this.verifyProof(modId, rec.code).ok ? rec : null;
+  }
+  verifyProof(modId, raw) {
+    return ProofCheck.verify(window.PROOF && window.PROOF[modId], modId, raw);
+  }
+  proofMessage(res) {
+    const m = {
+      format: this.l("Format kode tidak dikenali. Salin seluruh baris yang diawali DF1: persis seperti dicetak.", "The code format is not recognised. Copy the whole line starting with DF1: exactly as printed."),
+      checksum: this.l("Kode rusak (salah ketik atau terpotong). Salin ulang seluruh baris.", "The code is damaged (typo or cut off). Copy the whole line again."),
+      module: this.l(`Kode ini untuk modul lain (${res.mod || "?"}).`, `This code is for another module (${res.mod || "?"}).`),
+      stale: this.l("Tes di komputer Anda berbeda dari tes kursus saat ini. Perbarui file kursus (git pull atau unduh ulang), kembalikan file tes yang Anda ubah, lalu jalankan lagi.", "The tests on your computer differ from the course's current tests. Update the course files (git pull or download again), restore any test file you edited, then run again."),
+      copied: this.l("Pekerjaan Anda identik dengan solusi referensi. Tulis sendiri solusinya dengan kata-kata Anda, tanpa menyalin, lalu jalankan lagi.", "Your work is identical to the reference solution. Write the solution yourself, in your own words, without copying, then run again."),
+      starter: this.l("File kerja Anda masih sama dengan titik awal. Kerjakan labnya dulu.", "Your work files are still the starter. Do the lab first."),
+      passed: this.l("Kode ini tidak mencatat tes yang lulus.", "This code records no passing tests."),
+      venv: this.l("Lab 0.1 harus dijalankan di dalam virtual environment (venv) milik Anda sendiri; Modul 0.2 menunjukkan caranya. Aktifkan venv lalu jalankan perintahnya lagi.", "Lab 0.1 must be run inside your own virtual environment (venv); Module 0.2 shows how. Activate the venv and run the command again."),
+      none: this.l("Modul ini tidak memiliki bukti lab.", "This module has no lab proof.")
+    };
+    return m[res.reason] || m.format;
+  }
+  proofCard(modId) {
+    const P = window.PROOF && window.PROOF[modId];
+    if (!P) return "";
+    const rec = this.proofFor(modId);
+    const envNote = P.needsEnv && P.needsEnv.length ? `<li>${this.l(`Bagian yang memakai layanan membutuhkan variabel lingkungan ${P.needsEnv.join(", ")} (lihat langkah lab).`, `The part that uses a service needs the environment variable ${P.needsEnv.join(", ")} (see the lab steps).`)}</li>` : "";
+    const info = rec ? this.verifyProof(modId, rec.code).info : null;
+    return `
+      <div class="card stack-sm" id="proof-card">
+        <div class="row between">
+          <h3>${this.l("Bukti: Anda mengerjakannya sendiri", "Proof: you did it yourself")}</h3>
+          <span id="proof-state" class="${rec ? "state-done" : "muted small"}">${rec ? "✓ " + this.l("Terverifikasi", "Verified") : this.l("Belum ada bukti", "No proof yet")}</span>
+        </div>
+        <p class="small muted">${this.l("Hal terpenting di kursus ini adalah Anda mengerjakannya sendiri di komputer Anda. Setelah semua tes lulus di terminal Anda, jalankan perintah ini; ia menjalankan tes yang sama dan mencetak kode bukti pendek:", "The most important thing in this course is that you do the work yourself on your own computer. Once all the tests pass in your terminal, run this command; it runs the same tests and prints a short proof code:")}</p>
+        <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(P.command)}</code></pre></div>
+        <ul class="small muted" style="margin-left:18px">
+          <li>${this.l("Kode hanya tercetak jika semua tes lulus dan tidak ada yang dilewati.", "A code is printed only if every test passes and none is skipped.")}</li>
+          ${P.requireVenv ? `<li>${this.l("Untuk lab ini, jalankan di dalam venv Anda (Modul 0.2).", "For this lab, run it inside your venv (Module 0.2).")}</li>` : ""}
+          ${P.arg ? `<li>${this.l("Ganti ~/kopiku dengan folder workspace yang Anda buat di lab ini.", "Replace ~/kopiku with the workspace folder you made in this lab.")}</li>` : ""}
+          ${envNote}
+          <li>${this.l("Ini pemeriksaan kejujuran, bukan keamanan: siapa pun bisa membaca skripnya. Gunanya agar Anda menyatakan \"saya mengerjakannya\" dengan bukti, demi kebaikan Anda sendiri.", "This is an honesty check, not security: anyone can read the script. It exists so you can state \"I did it\" with evidence, for your own benefit.")}</li>
+        </ul>
+        <label class="label" for="proof-input">${this.l("Tempel kode bukti", "Paste your proof code")}</label>
+        <div class="row">
+          <input type="text" id="proof-input" autocomplete="off" spellcheck="false" placeholder="DF1:${modId}:…" value="${rec ? this.esc(rec.code) : ""}" style="flex:1;min-width:240px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitProof('${modId}')}" />
+          <button class="btn btn-primary" onclick="app.submitProof('${modId}')">${this.l("Periksa kode", "Check code")}</button>
+        </div>
+        <div id="proof-result" aria-live="polite">${info ? this.proofOkHtml(info) : ""}</div>
+      </div>`;
+  }
+  proofOkHtml(info) {
+    const venv = { v: "venv", c: "conda env", n: this.l("tanpa venv", "no venv") }[info.venv] || info.venv;
+    return `<div class="feedback ok">✓ ${this.l(`Bukti diterima: ${info.passed} tes/pemeriksaan lulus di komputer Anda (Python ${info.py}, ${info.os}, ${venv}).`, `Proof accepted: ${info.passed} tests/checks passed on your computer (Python ${info.py}, ${info.os}, ${venv}).`)}</div>`;
+  }
+  submitProof(modId) {
+    const input = document.getElementById("proof-input");
+    const out = document.getElementById("proof-result");
+    if (!input || !out) return;
+    const res = this.verifyProof(modId, input.value);
+    if (!res.ok) {
+      out.innerHTML = `<div class="feedback bad">${this.esc(this.proofMessage(res))}</div>`;
+      return;
+    }
+    const all = readStore("df_proofs", {}) || {};
+    all[modId] = { code: input.value.trim().replace(/\s+/g, ""), at: new Date().toISOString() };
+    writeStore("df_proofs", all);
+    out.innerHTML = this.proofOkHtml(res.info);
+    const st = document.getElementById("proof-state");
+    if (st) { st.className = "state-done"; st.textContent = "✓ " + this.l("Terverifikasi", "Verified"); }
+    // a passed quiz was waiting for the proof: complete the module now
+    const q = this.quizScores[modId];
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+    if (q && mod && q.best >= Math.ceil(mod.quiz.length * 0.8) && !this.completedModules.includes(modId)) {
+      this.completedModules.push(modId);
+      writeStore("df_completed_modules", this.completedModules);
+      this.renderHeaderStats();
+      out.innerHTML += `<div class="feedback ok">${this.l("Kuis sudah lulus, jadi modul ini sekarang ditandai selesai.", "The quiz was already passed, so this module is now marked complete.")}</div>`;
+    }
+  }
+
   // ================= TOOLS: copy, search, export/import =================
   copyText(text, btn) {
     const done = () => { if (btn) { const old = btn.textContent; btn.textContent = this.l("Tersalin", "Copied"); setTimeout(() => { btn.textContent = old; }, 1200); } };
@@ -480,7 +561,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs", "df_bl_runs"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs", "df_bl_runs", "df_proofs"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -513,6 +594,11 @@ class DataForgeApp {
         writeStore("df_resume_data", this.resumeData);
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
+        if (d.df_proofs && typeof d.df_proofs === "object" && !Array.isArray(d.df_proofs)) {
+          const kept = {};
+          for (const [id, rec] of Object.entries(d.df_proofs)) if (rec && typeof rec.code === "string" && this.verifyProof(id, rec.code).ok) kept[id] = { code: rec.code, at: String(rec.at || "") };
+          writeStore("df_proofs", kept);
+        }
         for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
         this.renderChrome(); this.renderView();
         alert(this.l("Progres berhasil diimpor.", "Progress imported."));
@@ -580,6 +666,7 @@ class DataForgeApp {
           <ul style="margin-left:18px">
             <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 45 minggu; Level 0 saja sekitar 4 sampai 5 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 45 weeks; Level 0 alone is about 4 to 5 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
+            <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
           </ul>
           <div class="row"><button class="btn btn-primary" onclick="app.go('curriculum','mod-0-1')">${this.l("Mulai Modul 0.1", "Start Module 0.1")}</button><button class="btn" onclick="app.go('playground')">${this.l("Coba SQL Sandbox dulu", "Try the SQL Sandbox first")}</button></div>`)}
@@ -681,7 +768,7 @@ class DataForgeApp {
           <div class="card stack-sm">
             <div class="row between">
               <span class="muted small">${this.esc(this.t(level.badge))} · ${this.esc(this.t(mod.duration))} · ~${this.readingMinutes(mod)} ${this.l("menit baca", "min read")}</span>
-              <button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
+              ${this.proofFor(mod.id) ? `<span class="state-done" title="${this.l("Bukti lab terverifikasi", "Lab proof verified")}">✓ ${this.l("Bukti lab", "Lab proof")}</span>` : ""}<button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
             </div>
             <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
             <p class="muted">${this.esc(this.t(mod.summary))}</p>
@@ -759,6 +846,7 @@ class DataForgeApp {
               <pre><code>${this.esc(f.code)}</code></pre>
             </details>`).join("")}` : ""}
         ${lab.verify && this.t(lab.verify) ? `<h3>${this.l("Cara memeriksa hasil", "How to check your work")}</h3>${this.md(lab.verify)}` : ""}
+        ${this.proofCard(mod.id)}
         <div class="callout">
           <div class="label">${this.l("Selesai bila", "Done when")}</div>
           <ul style="margin-left:18px">${lab.deliverables.map((d) => `<li>${this.esc(this.t(d))}</li>`).join("")}</ul>
@@ -816,6 +904,9 @@ class DataForgeApp {
   }
 
   toggleModuleCompletion(modId) {
+    if (!this.completedModules.includes(modId) && window.PROOF && window.PROOF[modId] && !this.proofFor(modId)) {
+      if (!window.confirm(this.l("Belum ada bukti lab untuk modul ini. Tandai selesai hanya jika Anda benar-benar mengerjakan lab di komputer Anda sendiri. Tetap tandai selesai?", "There is no lab proof for this module yet. Only mark it complete if you really did the lab on your own computer. Mark it complete anyway?"))) return;
+    }
     this.completedModules = this.completedModules.includes(modId)
       ? this.completedModules.filter((id) => id !== modId)
       : [...this.completedModules, modId];
@@ -846,13 +937,14 @@ class DataForgeApp {
 
     const need = Math.ceil(mod.quiz.length * 0.8);
     const all = correct >= need;
-    if (all && !this.completedModules.includes(modId)) {
+    const needsProof = Boolean(window.PROOF && window.PROOF[modId]) && !this.proofFor(modId);
+    if (all && !needsProof && !this.completedModules.includes(modId)) {
       this.completedModules.push(modId);
       writeStore("df_completed_modules", this.completedModules);
       this.renderHeaderStats();
     }
     const summary = document.getElementById("quiz-summary");
-    if (summary) summary.innerHTML = `<div class="callout ${all ? "success" : ""}"><strong>${correct}/${mod.quiz.length}</strong> ${all ? this.l("Modul ditandai selesai.", "Module marked complete.") : this.l(`Anda butuh minimal ${need}. Baca ulang materinya, lalu coba lagi.`, `You need at least ${need}. Re-read the lessons and try again.`)}</div>`;
+    if (summary) summary.innerHTML = `<div class="callout ${all ? "success" : ""}"><strong>${correct}/${mod.quiz.length}</strong> ${all ? (needsProof ? this.l("Kuis lulus. Modul ini baru ditandai selesai setelah Anda memasukkan bukti lab (tab Lab, bagian Bukti): kerjakan lab di komputer Anda sendiri.", "Quiz passed. This module is marked complete only after you enter the lab proof (Lab tab, Proof section): do the lab on your own computer.") : this.l("Modul ditandai selesai.", "Module marked complete.")) : this.l(`Anda butuh minimal ${need}. Baca ulang materinya, lalu coba lagi.`, `You need at least ${need}. Re-read the lessons and try again.`)}</div>`;
   }
 
   // ================= INTERVIEW =================

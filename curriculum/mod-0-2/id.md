@@ -220,7 +220,11 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 python3 -m venv venv && source venv/bin/activate
 pip install pytest
 pytest labs/mod-0-1/test_lab.py -v
+python3 scripts/prove.py mod-0-1
+python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
+
+Dua perintah terakhir mencetak kode bukti. Tempel masing-masing ke kotak **Bukti** di halaman lab Modul 0.1 dan Modul 0.2.
 
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Kerangka skrip Anda: isi logika penghitungannya :: starter

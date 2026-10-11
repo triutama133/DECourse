@@ -220,7 +220,11 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 python3 -m venv venv && source venv/bin/activate
 pip install pytest
 pytest labs/mod-0-1/test_lab.py -v
+python3 scripts/prove.py mod-0-1
+python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
+
+The last two commands print proof codes. Paste each into the **Proof** box on the lab page of Module 0.1 and Module 0.2.
 
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Starter for your script: fill in the counting logic :: starter

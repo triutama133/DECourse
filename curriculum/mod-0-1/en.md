@@ -144,7 +144,7 @@ python3 labs/mod-0-1/pipeline.py data/orders.csv
 ```
 
 6. Optional: write three sentences in a `NOTES.md` describing the problems you found and which one surprised you.
-7. **Do it for real.** The in-browser box above is only a preview. After Module 0.2 (terminal, venv, Git), repeat this lab on your own computer: create a venv, `pip install pytest`, write the four functions again in your own editor **without copying**, and run `pytest labs/mod-0-1/test_lab.py -v` until it is green. That setup is part of the skill.
+7. **Do it for real.** The in-browser box above is only a preview. After Module 0.2 (terminal, venv, Git), repeat this lab on your own computer: create a venv, `pip install pytest`, write the four functions again in your own editor **without copying**, and run `pytest labs/mod-0-1/test_lab.py -v` until it is green. That setup is part of the skill. Then run `python3 scripts/prove.py mod-0-1` inside your venv: it prints a proof code that you paste into the **Proof** box on this lab page.
 
 ### @files
 - labs/mod-0-1/pipeline.py :: Your working file: implement the four TODO functions :: starter

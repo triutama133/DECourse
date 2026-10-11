@@ -20,6 +20,8 @@ No Git? Download the ZIP of this repository instead. Prefer not to install anyth
 
 **Browser preview of the first lab:** Lab 0.1 has a preview that runs the real pytest tests in the page (Python in WebAssembly via vendored Pyodide in `app/vendor/pyodide/`, about 15 MB, no CDN; nothing is sent to a server). It is only a taster and **does not count**: the course requires learners to set up Python, a venv and a terminal themselves (Module 0.2) and to repeat Lab 0.1 there, writing the code again without copying. The reference solution in the preview unlocks only after three test runs. `node scripts/verify_browser_labs.js` proves the preview in the real Pyodide.
 
+**Proof that learners did the work themselves:** every lab ends with `python3 scripts/prove.py <module>` (for example `mod-0-1`; Lab 0.2 also needs the workspace path). It runs the lab's real tests on the learner's own computer and, only if all pass with none skipped, prints a short code such as `DF1:mod-0-1:8:v:3.12:linux:3f9a1c2e:b04d77a1:5c1e9b`. The learner pastes it into the lab page; the app checks that the tests are the course's current tests, that the work is not the reference solution or the untouched starter, and (for Lab 0.1) that it ran inside a venv. A module is marked complete automatically only when the quiz is passed **and** the proof is accepted (manual completion asks for confirmation). This is an honesty check, not security: anyone can read the scripts. `python3 scripts/test_proof.py` tests it end to end; `labs/proof.json` defines how each lab is proven.
+
 ## Run it
 
 ```bash

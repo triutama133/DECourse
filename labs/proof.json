@@ -1,0 +1,390 @@
+{
+ "mod-0-1": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-0-1/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-0-1/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-0-1/pipeline.py"
+  ],
+  "reference": [
+   "labs/mod-0-1/reference/pipeline.py"
+  ],
+  "require_venv": true
+ },
+ "mod-0-2": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-0-2/check.py",
+    "args": [
+     "{arg0}"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-0-2/check.py"
+  ],
+  "work": [
+   "{arg0}/summarize.py"
+  ],
+  "reference": [
+   "labs/mod-0-2/reference/summarize.py"
+  ],
+  "arg": "workspace",
+  "starter": [
+   "labs/mod-0-2/starter/summarize.py"
+  ]
+ },
+ "mod-0-3": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-0-3/check.py",
+    "args": []
+   }
+  ],
+  "tests": [
+   "labs/mod-0-3/check.py"
+  ],
+  "work": [
+   "labs/mod-0-3/answers.sql"
+  ],
+  "reference": [
+   "labs/mod-0-3/reference/answers.sql"
+  ]
+ },
+ "mod-1-1": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-1/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-1-1/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-1-1/report.sh",
+   "labs/mod-1-1/Dockerfile",
+   "labs/mod-1-1/.dockerignore"
+  ],
+  "reference": [
+   "labs/mod-1-1/reference/report.sh",
+   "labs/mod-1-1/reference/Dockerfile",
+   null
+  ]
+ },
+ "mod-1-2": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-2/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-1-2/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-1-2/etl.py"
+  ],
+  "reference": [
+   "labs/mod-1-2/reference/etl.py"
+  ]
+ },
+ "mod-1-3": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-1-3/check.py",
+    "args": []
+   },
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-3/explain/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-1-3/check.py",
+   "labs/mod-1-3/explain/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-1-3/answers.sql",
+   "labs/mod-1-3/explain/queries.sql",
+   "labs/mod-1-3/explain/indexes.sql"
+  ],
+  "reference": [
+   "labs/mod-1-3/reference/answers.sql",
+   "labs/mod-1-3/explain/reference/queries.sql",
+   "labs/mod-1-3/explain/reference/indexes.sql"
+  ]
+ },
+ "mod-1-4": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-4/test_lab.py"
+    ]
+   },
+   {
+    "kind": "check",
+    "script": "labs/mod-1-4/check.py",
+    "args": []
+   }
+  ],
+  "tests": [
+   "labs/mod-1-4/test_lab.py",
+   "labs/mod-1-4/check.py"
+  ],
+  "work": [
+   "labs/mod-1-4/warehouse.sql",
+   "labs/mod-1-4/answers.sql"
+  ],
+  "reference": [
+   "labs/mod-1-4/reference/warehouse.sql",
+   "labs/mod-1-4/reference/answers.sql"
+  ]
+ },
+ "mod-2-1": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-1/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-1/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-1/analytics.py"
+  ],
+  "reference": [
+   "labs/mod-2-1/reference/analytics.py"
+  ]
+ },
+ "mod-2-2": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-2/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-2/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-2/lakehouse.py"
+  ],
+  "reference": [
+   "labs/mod-2-2/reference/lakehouse.py"
+  ]
+ },
+ "mod-2-3": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-3/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-3/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql",
+   "labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql",
+   "labs/mod-2-3/kopiku_dbt/models/marts/fct_order_items.sql",
+   "labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql",
+   "labs/mod-2-3/kopiku_dbt/models/staging/schema.yml",
+   "labs/mod-2-3/kopiku_dbt/models/marts/schema.yml"
+  ],
+  "reference": [
+   "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_orders.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_customers.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/marts/fct_order_items.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/marts/fct_daily_revenue.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/staging/schema.yml",
+   "labs/mod-2-3/reference/kopiku_dbt/models/marts/schema.yml"
+  ]
+ },
+ "mod-2-4": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-4/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-4/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-4/orchestration.py"
+  ],
+  "reference": [
+   "labs/mod-2-4/reference/orchestration.py"
+  ]
+ },
+ "mod-2-5": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-2-5/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-2-5/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-2-5/contracts/orders.yaml",
+   "labs/mod-2-5/quality.py"
+  ],
+  "reference": [
+   "labs/mod-2-5/reference/contracts/orders.yaml",
+   "labs/mod-2-5/reference/quality.py"
+  ]
+ },
+ "mod-3-1": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-1/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-3-1/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-3-1/spark_lab.py"
+  ],
+  "reference": [
+   "labs/mod-3-1/reference/spark_lab.py"
+  ]
+ },
+ "mod-3-2": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-2/test_minilog.py",
+     "labs/mod-3-2/test_cdc.py"
+    ]
+   },
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-2/test_real_kafka.py"
+    ],
+    "needs_env": "KAFKA_BOOTSTRAP"
+   }
+  ],
+  "tests": [
+   "labs/mod-3-2/test_minilog.py",
+   "labs/mod-3-2/test_cdc.py",
+   "labs/mod-3-2/test_real_kafka.py"
+  ],
+  "work": [
+   "labs/mod-3-2/minilog.py",
+   "labs/mod-3-2/real_kafka.py",
+   "labs/mod-3-2/cdc.py"
+  ],
+  "reference": [
+   "labs/mod-3-2/reference/minilog.py",
+   "labs/mod-3-2/reference/real_kafka.py",
+   "labs/mod-3-2/reference/cdc.py"
+  ]
+ },
+ "mod-3-3": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-3/test_windows.py",
+     "labs/mod-3-3/test_stream.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-3-3/test_windows.py",
+   "labs/mod-3-3/test_stream.py"
+  ],
+  "work": [
+   "labs/mod-3-3/windows.py",
+   "labs/mod-3-3/stream_job.py"
+  ],
+  "reference": [
+   "labs/mod-3-3/reference/windows.py",
+   "labs/mod-3-3/reference/stream_job.py"
+  ]
+ },
+ "mod-3-4": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-4/test_terraform.py",
+     "labs/mod-3-4/test_finops.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-3-4/test_terraform.py",
+   "labs/mod-3-4/test_finops.py"
+  ],
+  "work": [
+   "labs/mod-3-4/terraform/variables.tf",
+   "labs/mod-3-4/terraform/main.tf",
+   "labs/mod-3-4/terraform/outputs.tf",
+   "labs/mod-3-4/finops.py"
+  ],
+  "reference": [
+   "labs/mod-3-4/reference/terraform/variables.tf",
+   "labs/mod-3-4/reference/terraform/main.tf",
+   "labs/mod-3-4/reference/terraform/outputs.tf",
+   "labs/mod-3-4/reference/finops.py"
+  ]
+ },
+ "mod-3-5": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-5/test_rag.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-3-5/test_rag.py"
+  ],
+  "work": [
+   "labs/mod-3-5/rag.py"
+  ],
+  "reference": [
+   "labs/mod-3-5/reference/rag.py"
+  ]
+ }
+}

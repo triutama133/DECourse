@@ -8,6 +8,7 @@ node scripts/build-curriculum.js             # validate and write app/js/curricu
 python3 scripts/quizlen.py curriculum/mod-3-4/en.md   # where does the correct quiz option rank by length?
 python3 scripts/quizfit.py need mod-1-2 en          # which questions let a learner guess by length? (see the script for how to fix them)
 python3 scripts/verify_labs.py mod-3-4       # reference passes, starter fails
+python3 scripts/test_proof.py                # lab proof codes end to end (needs Node and network once)
 ```
 
 ## Language status
@@ -63,3 +64,7 @@ Introduction paragraph.
 - **Chaos scenario**: a realistic production failure with a cause that the lab demonstrates, and a fix with several concrete steps.
 - **Quiz**: eight questions, four options each, with an explanation. The correct option must not be systematically the longest or the shortest: distractors should be plausible and similar in length. Run `quizlen.py`. The app shuffles the options.
 - **Facts**: any claim about a tool's behaviour must be something you ran. If you could not run it, do not state it as fact.
+
+## Lab proof codes
+
+Every module has an entry in `labs/proof.json` (what to run, which files are the learner's work, which are the reference). `node scripts/build-curriculum.js` validates it against the lab's `starter` files and generates `app/js/proof-data.js`. When you add a lab or change its tests, starters or shared helpers, rebuild: the hashes change, and old codes become "stale" for learners.

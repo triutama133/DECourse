@@ -26,7 +26,7 @@ jobs:
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js
-          git diff --exit-code app/js/curriculum-data.js app/js/browser-labs-data.js
+          git diff --exit-code app/js/curriculum-data.js app/js/browser-labs-data.js app/js/proof-data.js
 
       - name: Validate JavaScript Syntax
         run: |
@@ -41,6 +41,11 @@ jobs:
 
       - name: Verify in-browser Python labs (real Pyodide)
         run: node scripts/verify_browser_labs.js
+
+      - name: Check Python and JavaScript hash rules agree
+        run: |
+          python3 scripts/prove.py --hashes > /tmp/py_hashes.json
+          node -e "global.window={};eval(require('fs').readFileSync('app/js/proof-data.js','utf8'));const py=JSON.parse(require('fs').readFileSync('/tmp/py_hashes.json','utf8'));let bad=0;for(const m of Object.keys(window.PROOF))for(const k of ['tests','starter','reference'])if(window.PROOF[m][k]!==py[m][k]){bad++;console.log('MISMATCH',m,k)}process.exit(bad?1:0)"
 
   test-labs-core:
     name: Verify Labs (Core & Level 0-1)
@@ -65,6 +70,9 @@ jobs:
           bash labs/mod-0-3/verify.sh
           bash labs/mod-1-3/verify.sh
           bash labs/mod-1-4/verify.sh
+
+      - name: Test lab proof codes end to end
+        run: python3 scripts/test_proof.py
 
       - name: Run Core Lab Tests
         run: |
