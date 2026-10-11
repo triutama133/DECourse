@@ -1,0 +1,91 @@
+[
+  {
+    "levelId": "zero",
+    "levelTitle": {
+      "id": "Level 0: Fondasi Pemula (Dari Awam ke Mindset Engineer)",
+      "en": "Level 0: Layman's Onboarding (From Novice to Engineer)"
+    },
+    "levelSubtitle": {
+      "id": "Pahami analogi dunia nyata, mental model aliran data, setup komputer, dan fondasi database tanpa jargon rumit.",
+      "en": "Understand real-world analogies, mental models of data flow, environment setup, and database fundamentals without confusing jargon."
+    },
+    "badge": {
+      "id": "Mulai di Sini",
+      "en": "Start Here"
+    },
+    "badgeColor": "blue",
+    "modules": [
+      "mod-0-1",
+      "mod-0-2",
+      "mod-0-3"
+    ]
+  },
+  {
+    "levelId": "beginner",
+    "levelTitle": {
+      "id": "Level 1: Fondasi Rekayasa (The Software Engineering Mindset)",
+      "en": "Level 1: Foundations (The Software Engineering Mindset)"
+    },
+    "levelSubtitle": {
+      "id": "Tinggalkan notebook rapuh. Pelajari Linux, Python produksi, SQL tingkat lanjut, dan pemodelan dimensional.",
+      "en": "Stop writing brittle notebooks. Learn Linux, production Python, advanced SQL, and dimensional modeling."
+    },
+    "badge": {
+      "id": "Fondasi Rekayasa",
+      "en": "Foundations"
+    },
+    "badgeColor": "emerald",
+    "modules": [
+      "mod-1-1",
+      "mod-1-2",
+      "mod-1-3",
+      "mod-1-4"
+    ]
+  },
+  {
+    "levelId": "intermediate",
+    "levelTitle": {
+      "id": "Level 2: Arsitektur Lakehouse Modern",
+      "en": "Level 2: The Modern Lakehouse & Transformation"
+    },
+    "levelSubtitle": {
+      "id": "Bangun lakehouse mandiri di laptop dengan Apache Iceberg, DuckDB, dbt Core, Dagster, dan Data Contracts.",
+      "en": "Build local-first lakehouses with Apache Iceberg, DuckDB, dbt Core, Dagster, and Data Contracts."
+    },
+    "badge": {
+      "id": "Lakehouse & Ops",
+      "en": "Lakehouse & Ops"
+    },
+    "badgeColor": "amber",
+    "modules": [
+      "mod-2-1",
+      "mod-2-2",
+      "mod-2-3",
+      "mod-2-4",
+      "mod-2-5"
+    ]
+  },
+  {
+    "levelId": "advanced",
+    "levelTitle": {
+      "id": "Level 3: Skala Besar & Streaming Real-Time",
+      "en": "Level 3: Distributed Scale & Real-Time Streaming"
+    },
+    "levelSubtitle": {
+      "id": "Kuasai komputasi terdistribusi (Spark Internals), event streaming (Kafka/Redpanda), CDC, Flink, dan Terraform IaC.",
+      "en": "Master distributed computing internals (Spark/Flink), event streaming (Kafka/Redpanda), CDC, and Terraform IaC."
+    },
+    "badge": {
+      "id": "Skala & Streaming",
+      "en": "Scale & Streaming"
+    },
+    "badgeColor": "rose",
+    "modules": [
+      "mod-3-1",
+      "mod-3-2",
+      "mod-3-3",
+      "mod-3-4",
+      "mod-3-5"
+    ]
+  }
+]

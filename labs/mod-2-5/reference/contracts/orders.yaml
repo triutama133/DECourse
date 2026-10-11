@@ -1,0 +1,33 @@
+# Data contract for the "orders" feed: an agreement between the checkout team (producer) and the data team (consumer).
+name: orders
+version: 1.0.0
+owner: checkout-team
+description: One row per order, delivered daily as CSV.
+fields:
+  - name: order_id
+    type: integer
+    required: true
+    unique: true
+    minimum: 1
+  - name: customer_id
+    type: integer
+    required: true
+    minimum: 1
+  - name: order_ts
+    type: timestamp        # ISO 8601, YYYY-MM-DDTHH:MM:SS
+    required: true
+  - name: status
+    type: string
+    required: true
+    allowed: [paid, shipped, delivered, cancelled, refunded]
+  - name: payment_method
+    type: string
+    required: true
+    allowed: [card, bank_transfer, ewallet, cod]
+  - name: total_idr
+    type: integer
+    required: true
+    minimum: 1
+sla:
+  freshness_hours: 24        # the newest order must be at most this old when the data is loaded
+  max_reject_rate: 0.10      # more than 10% of rows breaking the contract means the feed is broken

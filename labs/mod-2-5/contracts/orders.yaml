@@ -1,0 +1,13 @@
+# Lab 2.5: write the data contract for the "orders" feed.  The tests load THIS file.
+#
+# Required fields, in this order (all of them required: true unless noted):
+#   order_id        integer, unique, minimum 1
+#   customer_id     integer, minimum 1
+#   order_ts        timestamp (ISO 8601 "YYYY-MM-DDTHH:MM:SS")
+#   status          string, allowed: paid, shipped, delivered, cancelled, refunded   (exactly these, lower case)
+#   payment_method  string, allowed: card, bank_transfer, ewallet, cod
+#   total_idr       integer, minimum 1
+# Also: name, version, owner, and an `sla:` block with freshness_hours: 24 and max_reject_rate: 0.10
+name: orders
+version: 1.0.0
+fields: []

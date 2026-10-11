@@ -1,0 +1,4 @@
+pyiceberg[sql-sqlite,pyarrow,pyiceberg-core]>=0.9
+deltalake>=0.20
+pyarrow>=15
+pytest>=8

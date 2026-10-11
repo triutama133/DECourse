@@ -1,0 +1,9 @@
+version: 2
+
+# TODO: add tests. Required by the lab:
+#   dim_customers.customer_id        unique, not_null
+#   fct_order_items.customer_id      relationships to dim_customers.customer_id, severity: warn
+#                                    (some orders belong to customers missing from the extract: flag them, do not block)
+#   fct_daily_revenue.order_date     unique, not_null
+# Newer dbt wants generic test arguments nested:  - accepted_values: {arguments: {values: [...]}}
+models: []

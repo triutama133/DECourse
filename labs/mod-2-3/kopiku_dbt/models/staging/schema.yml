@@ -1,0 +1,7 @@
+version: 2
+
+# TODO: add tests (use `data_tests:`). Required by the lab:
+#   stg_orders.order_id            unique, not_null
+#   stg_orders.status              accepted_values [paid, shipped, delivered, cancelled, refunded]
+#   stg_customers.customer_id      unique, not_null
+models: []

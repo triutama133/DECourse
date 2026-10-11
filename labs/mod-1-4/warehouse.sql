@@ -1,0 +1,28 @@
+-- Lab 1.4: build a star schema from the staging tables (SQLite dialect).
+-- Run it with:   sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql     (or just let the tests run it)
+-- The tests drop and recreate nothing: start each table with DROP TABLE IF EXISTS.
+--
+-- Required tables and columns (the grain is stated for each):
+--
+-- dim_date            one row per calendar day from the first to the last order date, NO gaps
+--   date_key INTEGER (YYYYMMDD), full_date TEXT (YYYY-MM-DD), year INTEGER, month INTEGER, day INTEGER,
+--   day_name TEXT ('Sunday'..'Saturday'), is_weekend INTEGER (1 for Saturday/Sunday)
+--
+-- dim_product         one row per product (Type 1: current values only)
+--   product_sk INTEGER (surrogate key, unique), product_id, name, category, origin, roast_level, price_idr
+--
+-- dim_customer        one row per customer VERSION (Type 2: keep history)
+--   customer_sk INTEGER (surrogate key, unique), customer_id, city, tier,
+--   valid_from TEXT, valid_to TEXT (exclusive; '9999-12-31T00:00:00' for the current version), is_current INTEGER
+--   * first version of a customer starts at signup_date || 'T00:00:00' with the city/tier from stg_customers
+--   * every row of stg_customer_changes starts a new version at effective_ts
+--   * a missing city must be stored as 'Unknown'
+--   * add ONE extra "unknown member" row: customer_sk = -1, customer_id = -1, city = 'Unknown', tier = 'Unknown',
+--     valid_from = '1900-01-01T00:00:00', valid_to = '9999-12-31T00:00:00', is_current = 1
+--
+-- fact_order_items    one row per ORDER LINE
+--   order_id, line_no (together unique), date_key, customer_sk, product_sk, qty, unit_price_idr, line_total_idr (= qty * unit_price_idr)
+--   * customer_sk must be the customer VERSION that was valid when the order was placed (order_ts)
+--   * an order whose customer does not exist in stg_customers gets customer_sk = -1 (never NULL)
+
+-- TODO: write the four tables here

@@ -1,0 +1,7 @@
+kopiku:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('KOPIKU_DB', 'kopiku.duckdb') }}"
+      threads: 1

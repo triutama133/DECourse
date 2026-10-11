@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "dataforge",
+      "credentials": [{ "accessKey": "dataforge", "secretKey": "dataforge-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

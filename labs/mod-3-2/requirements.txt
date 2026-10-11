@@ -1,0 +1,4 @@
+pytest>=8
+confluent-kafka>=2.3      # Part B (real Kafka)
+psycopg[binary]>=3.1      # Part C (PostgreSQL CDC)
+pgserver>=0.1.4           # Part C: embedded PostgreSQL; not needed if you set DATABASE_URL to a server with wal_level=logical

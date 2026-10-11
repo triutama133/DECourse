@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: dim_customers
+    columns:
+      - name: customer_id
+        data_tests: [unique, not_null]
+
+  - name: fct_order_items
+    description: "Grain: one row per order line."
+    columns:
+      - name: order_id
+        data_tests: [not_null]
+      - name: customer_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+              config:
+                severity: warn   # a few orders belong to customers missing from the extract: flag, do not block
+      - name: line_total_idr
+        data_tests: [not_null]
+
+  - name: fct_daily_revenue
+    columns:
+      - name: order_date
+        data_tests: [unique, not_null]
