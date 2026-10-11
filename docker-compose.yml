@@ -1,21 +1,37 @@
-version: "3.8"
-
+# Local lab stack. Start only what a lab needs, e.g.:
+#   docker compose up -d s3 s3-init                            (Lab 2.2, optional S3 storage)
+#   docker compose up -d postgres redpanda connect redpanda-console   (Lab 3.2)
+#
+# Image versions are pinned to the ones this stack was tested with (Debezium 2.7, PostgreSQL 16, Redpanda v26.2.4).
+# Bump them deliberately and re-run the Lab 3.2 step 6 check.
 services:
-  # 1. Local S3-Compatible Object Storage (MinIO)
-  minio:
-    image: minio/minio:latest
-    container_name: dataforge_minio
+  # S3-compatible object storage (SeaweedFS). MinIO stopped publishing free Docker images in 2025,
+  # so this stack uses SeaweedFS. Credentials: dataforge / dataforge-secret (local use only; labs/s3-config.json).
+  # Use path-style addressing.
+  s3:
+    image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d # 2026-10 build
+    container_name: dataforge_s3
+    command: server -s3 -s3.config=/etc/seaweedfs/s3.json -dir=/data
     ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # MinIO Web Console
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+      - "8333:8333" # S3 API: endpoint http://localhost:8333
     volumes:
-      - minio_data:/data
+      - s3_data:/data
+      - ./labs/s3-config.json:/etc/seaweedfs/s3.json:ro
 
-  # 2. Production PostgreSQL with Logical Decoding for CDC (Debezium)
+  # Creates the 'warehouse' bucket the Iceberg lab can use
+  s3-init:
+    image: curlimages/curl@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777 # curl 8.22
+    container_name: dataforge_s3_init
+    depends_on:
+      - s3
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      until curl -sf -X PUT --aws-sigv4 aws:amz:us-east-1:s3 --user dataforge:dataforge-secret http://s3:8333/warehouse; do sleep 2; done;
+      echo bucket warehouse ready
+      "
+
+  # PostgreSQL with logical decoding enabled (required for CDC)
   postgres:
     image: debezium/postgres:16-alpine
     container_name: dataforge_postgres
@@ -35,10 +51,16 @@ services:
       - "max_replication_slots=10"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./labs/postgres-init.sql:/docker-entrypoint-initdb.d/01-orders.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d production"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  # 3. High-Performance Event Streaming Engine (Redpanda - Kafka Compatible)
+  # Kafka-compatible streaming engine
   redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
     container_name: dataforge_redpanda
     command:
       - redpanda start
@@ -48,21 +70,46 @@ services:
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
       - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
     ports:
-      - "19092:19092" # External Kafka API
+      - "19092:19092" # Kafka API for clients on your machine
       - "9644:9644"   # Admin API
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
 
-  # 4. Redpanda Console (Web UI for inspecting Kafka topics, partitions, and consumer lag)
+  # Kafka Connect with the Debezium Postgres connector (REST API on :8083)
+  connect:
+    image: quay.io/debezium/connect:2.7
+    container_name: dataforge_connect
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: redpanda:9092
+      GROUP_ID: dataforge-connect
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+
+  # Web UI for topics, messages and consumer lag
   redpanda-console:
-    image: docker.redpanda.com/redpandadata/console:latest
+    image: docker.redpanda.com/redpandadata/console@sha256:9dc0cd55db172c6be9c2ff8a51f33a14395f7675fa7fbc002c277f3b96115c27 # 2026-10 build
     container_name: dataforge_redpanda_console
     ports:
       - "8080:8080"
     environment:
       KAFKA_BROKERS: redpanda:9092
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_healthy
+    restart: on-failure
 
 volumes:
-  minio_data:
+  s3_data:
   postgres_data:
-

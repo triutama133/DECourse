@@ -1,121 +1,79 @@
-# DataForge: The Anti-Tutorial-Hell Data Engineering Operating System
+# DataForge
 
-> **A comprehensive, production-grade learning system and web application designed for self-mastery from Beginner to Advanced, complete with Chaos Labs, System Design Simulators, Portfolio Blueprints with ADRs, and an ATS CV Builder.**
+A self-study data engineering course that runs in your browser: a curriculum with hands-on labs and "chaos" scenarios, a SQL sandbox with auto-checked challenges, interview practice, portfolio blueprints and a resume builder. UI languages: Indonesian and English.
 
----
+> **Status:** All 17 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes).
 
-## ⚡ Quick Start (Launch Web App)
+## Run it
 
-The DataForge web application runs with **zero external npm dependencies** and is 100% self-contained.
-
-### Option 1: Node.js
 ```bash
-npm start
-# OR
-node app/server.js
+npm start          # or: python3 server.py
 ```
 
-### Option 2: Python
+Open http://localhost:3000. Use the server; opening `index.html` directly will not load the SQL engine. No `npm install` is needed and nothing is fetched from a CDN. Your progress is stored in your browser only.
+
+## What is here
+
+| Part | What you get |
+|---|---|
+| **Curriculum** | 4 levels, 17 modules, about 45 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8-question quiz with explanations (80% to pass). |
+| **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
+| **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and challenges whose results are checked against a reference query. SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
+| **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |
+| **Portfolio** | Capstone blueprints with an ADR and interview-defense notes each. These are plans to build yourself, not finished projects. |
+| **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
+
+### The 17 modules
+
+| | Module |
+|---|---|
+| **Level 0** | 0.1 The data landscape · 0.2 Terminal, Python environments and Git · 0.3 Databases and SQL 101 |
+| **Level 1** | 1.1 Linux, shell and Docker · 1.2 Production Python · 1.3 Advanced SQL and execution plans · 1.4 Dimensional modeling |
+| **Level 2** | 2.1 Parquet, DuckDB and Polars · 2.2 Iceberg and Delta Lake · 2.3 dbt · 2.4 Dagster and Airflow · 2.5 Data quality and contracts |
+| **Level 3** | 3.1 Spark internals · 3.2 Kafka and CDC · 3.3 Event time, windows and watermarks · 3.4 Terraform and FinOps · 3.5 AI and vector data engineering (pgvector) |
+
+### How the labs were verified
+
+Each lab was run against the real tool, not a mock: DuckDB, Polars, PyIceberg and delta-rs, dbt-duckdb, Dagster, PySpark (Java 17), a real Kafka 3.9 broker (KRaft) with `confluent-kafka`, PostgreSQL logical decoding (`pgoutput`) and pgvector through an embedded PostgreSQL, and Terraform with the real AWS provider planning offline (no AWS account needed). Reference solutions pass, starters fail; tests that need a tool you have not installed (Terraform, Java, a Kafka broker) skip themselves with a message.
+
 ```bash
-python3 server.py
+pip install -r labs/mod-2-3/requirements.txt     # each lab lists its own requirements
+python3 scripts/verify_labs.py mod-2-3           # one module, or no argument for all
+pytest labs/mod-2-3 -v                           # as a learner: edit the files, run the tests
+LAB_DIR=reference pytest labs/mod-2-3 -v         # run the tests against the reference solution
 ```
 
-Then open your browser at **[http://localhost:3000](http://localhost:3000)**.
+The Docker stack (`docker-compose.yml`, images pinned) was brought up and checked by hand: Postgres seeded and healthy; Redpanda passes the real-Kafka lab tests; the Debezium connector in `labs/mod-3-2/debezium-orders.json` streams real snapshot, insert, update, delete and tombstone events; PyIceberg creates, appends to and reads a table on the S3 service. The Docker-based steps are not part of the automated tests. If something fails for you, please open an issue.
 
----
+## Optional lab infrastructure (Docker)
 
-## 🧭 Why "Anti-Tutorial-Hell"?
-
-Most data engineering courses fail students because they teach **syntax on clean toy datasets** (Iris, Titanic, pre-cleaned CSVs). In the real world:
-- 70% of engineering time is spent on dirty data, schema drift, network partitions, late-arriving events, and out-of-memory errors.
-- Real systems require **Data Contracts**, **idempotent pipelines**, **automated tests (`pytest`)**, **CI/CD**, and **cost optimization (FinOps)**.
-- Hiring managers reject cookie-cutter Kaggle portfolios within 5 seconds.
-
-DataForge enforces a **4-Pillar Engineering Framework**:
-1. **First Principles Before Frameworks**: Understand memory layout, disk serialization, and distributed shuffles before touching tools.
-2. **Chaos & Breakage Labs**: Every module features deliberate production failures (corrupt schemas, OOM executors, race conditions, non-idempotent appends).
-3. **Production Rigor**: Data contracts, unit testing, dbt slim CI, and automated verification gates.
-4. **Proof-of-Work Portfolios**: 3 enterprise capstones accompanied by Architectural Decision Records (ADRs) and interview defense scripts.
-
----
-
-## 📚 Curriculum Matrix
-
-### 🟢 Level 1: Foundations (The Software Engineering Mindset)
-- **Module 1.1**: Modern Linux, Shell Scripting & Docker for Data Pipelines
-- **Module 1.2**: Production Python for DE (Generators, Pydantic v2, pytest fixtures)
-- **Module 1.3**: Advanced SQL Mastery & Execution Plans (Window functions, Gaps & Islands, EXPLAIN ANALYZE)
-- **Module 1.4**: Dimensional Data Modeling (Kimball Star Schema, Facts, Dims, SCD Types 1-6, OBT)
-
-### 🟡 Level 2: The Modern Lakehouse & Transformation
-- **Module 2.1**: Columnar Compute, DuckDB & Polars (Vectorized execution, Apache Arrow)
-- **Module 2.2**: Open Table Formats: Apache Iceberg & Delta Lake (Metadata trees, ACID commits, hidden partitioning, compaction)
-- **Module 2.3**: Transformation with dbt Core & Data Contracts (Medallion architecture, incremental merges, slim CI)
-- **Module 2.4**: Asset-Oriented Orchestration: Dagster & Airflow (Software-Defined Assets, idempotency, backfills)
-- **Module 2.5**: Data Quality, Observability & Contracts (Great Expectations, OpenLineage, SLA monitors)
-
-### 🔴 Level 3: Distributed Scale & Real-Time Streaming
-- **Module 3.1**: Distributed Computing & Apache Spark Internals (Catalyst optimizer, Tungsten, data skew salting, OOM debugging)
-- **Module 3.2**: Event Streaming & Change Data Capture (Kafka / Redpanda, WAL logical decoding with Debezium, consumer lag)
-- **Module 3.3**: Real-Time Stream Processing: Flink & Spark Streaming (Event time, watermarks, tumbling/sliding windows)
-- **Module 3.4**: Infrastructure as Code (Terraform) & FinOps (Least privilege, automated auto-suspend, cost auditing)
-- **Module 3.5**: AI & Vector Data Engineering (Unstructured document pipelines, semantic chunking, pgvector/Qdrant RAG)
-
----
-
-## 🎯 Career Acceleration Suite
-
-### 1. Interactive Interview Simulator
-- **System Design Studio**: 8 enterprise scenarios (Uber ride telemetry, Financial ledger with double-entry, E-commerce 1B clicks, GDPR lakehouse deletion) with 4-phase interactive scoring rubrics.
-- **SQL & Data Modeling Arena**: 15+ LeetCode-hard and FAANG interview problems with solution reveals and execution plans.
-- **Incident Post-Mortem Drills**: 60-minute crisis triage protocols (The Silent Metric Drop, Upstream Breaking Schema Push, Runaway Cloud Spend).
-
-### 2. Portfolio Architecture Blueprints
-- **Capstone 1**: The Zero-Cost Modern Lakehouse (MinIO + Iceberg + DuckDB + dbt Core + Dagster + CI/CD).
-- **Capstone 2**: Real-Time CDC & Streaming Platform (Postgres WAL + Debezium + Redpanda + Flink/Spark + Iceberg).
-- **Capstone 3**: Enterprise FinOps & Observability Engine (Query log audit, Iceberg compaction optimizer).
-- Includes formal **Architectural Decision Records (ADR-001, ADR-002, ADR-003)** and interview defense playbooks.
-
-### 3. ATS CV Architect & Scorer
-- Powered by the Google XYZ formula: *"Accomplished [X], as measured by [Y], by doing [Z]"*.
-- Real-time scoring against 4 criteria: Metrics Density, Modern Tech Stack Signals, DE vs DA Differentiation, and Action Verbs.
-- One-click print/PDF preview and senior DE template.
-
----
-
-## 🐳 Optional Local Lab Stack (Docker)
-
-To spin up real local infrastructure for hands-on labs (MinIO S3, Postgres CDC, Redpanda):
 ```bash
-docker compose up -d
-```
-- **MinIO Console**: [http://localhost:9001](http://localhost:9001) (`minioadmin` / `minioadmin`)
-- **Redpanda Console**: [http://localhost:8080](http://localhost:8080)
-- **Postgres CDC**: `localhost:5432` (`production` DB, `wal_level=logical`)
-
----
-
-## 📂 Repository Structure
-
-```
-dataengineeringCourse/
-├── app/                      # Interactive Web Application
-│   ├── index.html            # Main SPA Interface
-│   ├── css/style.css         # Modern dark-mode styling
-│   ├── js/
-│   │   ├── app.js            # App controller & routing
-│   │   ├── curriculum-data.js# Full syllabus, labs & chaos scenarios
-│   │   ├── interview-data.js # System design, SQL arena & incident drills
-│   │   ├── portfolio-data.js # 3 Capstones, ADRs & interview defense
-│   │   ├── cv-data.js        # CV builder & ATS scoring rules
-│   │   └── playground.js     # In-browser SQL execution engine
-│   └── server.js             # Zero-dependency Node.js server
-├── curriculum/               # Deep-dive guides & notes
-├── labs/                     # Hands-on code templates & chaos exercises
-├── career/                   # Career assets (CV, ADRs, rubrics)
-├── docker-compose.yml        # Local lab infrastructure
-├── package.json              # Project scripts
-└── server.py                 # Python web server
+docker compose up -d s3 s3-init                                # Lab 2.2: S3 storage + 'warehouse' bucket (optional)
+docker compose up -d postgres redpanda connect redpanda-console   # Lab 3.2: CDC (optional; the graded tests do not need it)
 ```
 
-# DECourse
+S3 endpoint http://localhost:8333 (SeaweedFS; access key `dataforge`, secret `dataforge-secret`, path-style addressing, region `us-east-1`), Redpanda Console http://localhost:8080, Kafka Connect REST http://localhost:8083, Postgres `localhost:5432` (`production` DB, seeded by [labs/postgres-init.sql](labs/postgres-init.sql)). The credentials are for local use only.
+
+## Layout
+
+```
+app/                 static web app (no build step)
+  index.html  css/style.css
+  js/app.js          UI and hash routing (#/curriculum/mod-1-3/lab)
+  js/curriculum-data.js  GENERATED from curriculum/ and labs/ (do not edit by hand)
+  js/*-data.js       interview, portfolio, resume, remote-career content (ID/EN)
+  js/playground.js   SQL sandbox datasets, challenges, checker
+  vendor/sqljs/      SQLite compiled to WebAssembly (MIT)
+  server.js          static server with path-traversal protection
+curriculum/          the course source: levels.json and <module>/en.md (+ id.md)
+labs/                one folder per module, plus shared/ (data generators and test helpers)
+scripts/             build-curriculum.js, verify_labs.py and authoring helpers
+docker-compose.yml   optional local lab stack
+server.py            Python alternative to server.js
+```
+
+Editing the course: change `curriculum/<module>/en.md` or a lab file, run `node scripts/build-curriculum.js` (add `--check` to validate without writing), and reload the app.
+
+## License
+
+MIT (sql.js is MIT, see `app/vendor/sqljs/LICENSE`).

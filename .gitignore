@@ -7,6 +7,7 @@ __pycache__/
 *.pyc
 *.pyo
 venv/
+.venv/
 .env
 
 # Logs & OS
@@ -18,3 +19,17 @@ Thumbs.db
 minio_data/
 postgres_data/
 
+
+# dbt
+target/
+logs/
+dbt_packages/
+*.duckdb
+*.duckdb.wal
+
+# Terraform (module 3.4)
+.terraform/
+*.tfstate
+*.tfstate.*
+tfplan*
+plan-*
