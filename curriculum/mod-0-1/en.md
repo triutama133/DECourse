@@ -13,7 +13,7 @@ why: Most courses start by typing SELECT * on a clean file. On the job, nobody h
 - Read a small CSV file defensively and clean it with plain Python
 
 ## @prereq
-None. You only need to be able to read simple Python. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works.
+Module 0.0 (Python from zero) is strongly recommended: the lab uses functions, loops, dictionaries and error handling that Module 0.0 explains. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works.
 
 ## @lesson Why this job exists: two kinds of database
 Imagine **KopiKu**, a small online shop that sells specialty coffee beans from Gayo, Toraja and Flores. Every time a customer taps "Pay", the website writes one new row to a database: who bought, what, how much, when. That database exists to run the shop. It must answer small questions very fast ("what is in this customer's cart?") and it must never lose an order. This kind of database is called **OLTP** (Online Transaction Processing). PostgreSQL and MySQL are the usual choices.

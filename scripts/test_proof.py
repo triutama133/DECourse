@@ -89,6 +89,17 @@ try:
     check(app_check("mod-0-1", resign(code, 3, "n"))["reason"] == "venv", "Lab 0.1 rejects a run outside a venv")
     check(app_check("mod-0-1", resign(code, 3, "c"))["ok"], "a conda environment is accepted")
 
+    # Lab 0.0 (the Python-from-zero lab): honest work accepted, copied reference rejected
+    l0 = work / "labs" / "mod-0-0"
+    ref0 = (l0 / "reference" / "basics.py").read_text(encoding="utf-8")
+    (l0 / "basics.py").write_text(ref0, encoding="utf-8")
+    rc, out = prove("mod-0-0")
+    check(rc == 0 and app_check("mod-0-0", code_of(out))["reason"] == "copied", "Lab 0.0: copied reference is rejected")
+    (l0 / "basics.py").write_text(ref0 + "\n# my version\n", encoding="utf-8")
+    rc, out = prove("mod-0-0")
+    r = app_check("mod-0-0", code_of(out))
+    check(rc == 0 and r["ok"] and r["info"]["passed"] == 31, f"Lab 0.0: honest work accepted ({r})")
+
     (lab / "test_lab.py").write_text((lab / "test_lab.py").read_text(encoding="utf-8") + "\n# weakened\n", encoding="utf-8")
     rc, out = prove("mod-0-1")
     r = app_check("mod-0-1", code_of(out))

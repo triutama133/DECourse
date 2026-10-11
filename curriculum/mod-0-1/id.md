@@ -13,7 +13,7 @@ why: Kebanyakan kursus langsung mengetik SELECT * di file yang sudah bersih. Di 
 - Membaca file CSV kecil secara defensif dan membersihkannya dengan Python biasa
 
 ## @prereq
-Tidak ada. Anda hanya perlu bisa membaca Python sederhana. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.
+Modul 0.0 (Python dari nol) sangat disarankan: lab ini memakai fungsi, perulangan, dictionary, dan penanganan error yang dijelaskan Modul 0.0. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.
 
 ## @lesson Mengapa profesi ini ada: dua jenis database
 Bayangkan **KopiKu**, toko online kecil yang menjual biji kopi spesialti dari Gayo, Toraja, dan Flores. Setiap kali pelanggan menekan "Bayar", website menulis satu baris baru ke database: siapa yang membeli, apa, berapa, kapan. Database itu ada untuk menjalankan toko. Ia harus menjawab pertanyaan kecil dengan sangat cepat ("apa isi keranjang pelanggan ini?") dan tidak boleh kehilangan satu pesanan pun. Jenis database seperti ini disebut **OLTP** (Online Transaction Processing). PostgreSQL dan MySQL adalah pilihan yang umum.

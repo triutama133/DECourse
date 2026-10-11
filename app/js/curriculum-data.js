@@ -18,6 +18,506 @@ window.CURRICULUM_DATA = [
   "badgeColor": "blue",
   "modules": [
    {
+    "id": "mod-0-0",
+    "number": "0.0",
+    "title": {
+     "id": "Python dari Nol: Arti Setiap Baris dan Mengapa Ia Ada",
+     "en": "Python from Zero: What Every Line Means and Why It Exists"
+    },
+    "duration": {
+     "id": "2-3 minggu",
+     "en": "2-3 weeks"
+    },
+    "summary": {
+     "id": "Pelajari Python seperti yang dipakai data engineer: nilai dan tipe, list dan dictionary, if, for, def, error, dan file. Untuk setiap gagasan Anda melihat apa fungsinya, mengapa ia ada, dan apa persisnya yang dilakukan komputer langkah demi langkah, lalu membuktikannya dengan sebelas fungsi kecil pada data pesanan yang mirip aslinya.",
+     "en": "Learn Python the way a data engineer uses it: values and types, lists and dictionaries, if, for, def, errors and files. For every idea you see what it does, why it exists, and exactly what the computer does step by step, then you prove it with eleven small functions on real-looking order data."
+    },
+    "whyTutorialsLie": {
+     "id": "Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-buru lanjut. Anda menyalin kode, jalan, dan tetap tidak bisa menjelaskannya. Data engineering adalah menulis gagasan-gagasan kecil ini ribuan kali, jadi dasar yang kabur berubah menjadi bug yang merugikan uang.",
+     "en": "Many courses show you def and for for ten minutes and rush on. You copy the code, it works, and you still cannot explain it. Data engineering is writing these small ideas thousands of times, so unclear basics turn into bugs that cost money."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan apa itu variabel, tipe, list, dictionary, dan set, lalu memilih yang tepat untuk sebuah data",
+      "en": "Explain what a variable, a type, a list, a dictionary and a set are, and choose the right one for a piece of data"
+     },
+     {
+      "id": "Menelusuri program kecil baris demi baris dan menebak keluarannya tanpa menjalankannya",
+      "en": "Trace a small program line by line and predict its output without running it"
+     },
+     {
+      "id": "Menulis keputusan if/elif/else serta perulangan for/while, dan menjelaskan mengapa perulangan atau keputusan itu diperlukan",
+      "en": "Write if/elif/else decisions and for/while loops, and say why a loop or a decision is needed"
+     },
+     {
+      "id": "Menulis fungsi dengan def, parameter, return, dan nilai bawaan, serta menjelaskan beda print dan return",
+      "en": "Write functions with def, parameters, return and default values, and explain the difference between print and return"
+     },
+     {
+      "id": "Membaca pesan error dari bawah, dan memakai try/except tanpa menyembunyikan masalah yang sebenarnya",
+      "en": "Read an error message from the bottom, and use try/except without hiding real problems"
+     },
+     {
+      "id": "Membaca file CSV dengan `with open` dan modul csv, serta menjelaskan apa yang dilakukan `import` dan `if __name__ == \"__main__\"`",
+      "en": "Read a CSV file with `with open` and the csv module, and explain what `import` and `if __name__ == \"__main__\"` do"
+     }
+    ],
+    "prerequisites": {
+     "id": "Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.2 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.",
+     "en": "None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.2 then teaches the proper setup on your own computer."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Cara program berjalan: nilai, variabel, dan tipe",
+       "en": "How a program runs: values, variables and types"
+      },
+      "body": {
+       "id": "Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi \"di latar belakang\" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.\n\nUntuk bekerja, komputer harus mengingat sesuatu. Ia mengingat sebuah **nilai** (potongan data seperti `150000` atau `\"paid\"`) dan memberinya **nama** agar bisa dipakai lagi. Nilai bernama itu adalah **variabel**:\n\n```python\ntotal = 150000\nstatus = \"paid\"\nprint(total)        # menampilkan 150000\n```\n\nBacalah `total = 150000` sebagai \"**biarkan nama `total` menunjuk ke nilai 150000**\". Tanda `=` bukan \"sama dengan\" dalam matematika; ia adalah *penugasan* (assignment): hitung sisi kanan dulu, lalu tempelkan nama di kiri ke hasilnya. Karena itu `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama ke nilai baru) tetapi tidak masuk akal dalam matematika.\n\nSetiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakukan dengannya. Lima yang akan Anda pakai setiap hari:\n\n| Tipe | Contoh | Arti |\n|---|---|---|\n| `int` | `150000` | bilangan bulat |\n| `float` | `3.5` | bilangan dengan desimal |\n| `str` | `\"paid\"` | teks, selalu di dalam tanda kutip |\n| `bool` | `True`, `False` | ya atau tidak |\n| `None` | `None` | \"tidak ada nilai\" |\n\n**Mengapa tipe penting, dengan masalah data engineering yang nyata.** File CSV hanya berisi teks. Total `150000` tiba sebagai *teks* `\"150000\"`, dan `\"150000\" + 1` gagal karena Python tidak mau menebak apakah Anda ingin menyambung teks atau berhitung. Anda mengonversi dengan sengaja: `int(\"150000\") + 1` menghasilkan `150001`. Teks seperti `\"Rp 1.250.000\"` sama sekali tidak bisa dikonversi (Python memunculkan error), dan begitulah data kotor muncul di pipeline sungguhan. Periksa tipe dengan `type(total)`.\n\nDua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f\"Order {1001}: Rp {total}\"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`.\n\nTelusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.",
+       "en": "A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens \"in the background\" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.\n\nTo do any work the computer must remember things. It remembers a **value** (a piece of data such as `150000` or `\"paid\"`) and gives it a **name** so you can use it again. That named value is a **variable**:\n\n```python\ntotal = 150000\nstatus = \"paid\"\nprint(total)        # shows 150000\n```\n\nRead `total = 150000` as \"**let the name `total` point at the value 150000**\". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result. That is why `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.\n\nEvery value has a **type**, which tells Python what you are allowed to do with it. The five you will use daily:\n\n| Type | Example | Meaning |\n|---|---|---|\n| `int` | `150000` | a whole number |\n| `float` | `3.5` | a number with decimals |\n| `str` | `\"paid\"` | text, always inside quotes |\n| `bool` | `True`, `False` | yes or no |\n| `None` | `None` | \"there is no value\" |\n\n**Why types matter, with a real data engineering problem.** A CSV file contains only text. The total `150000` arrives as the *text* `\"150000\"`, and `\"150000\" + 1` fails because Python will not guess whether you mean text joining or arithmetic. You convert on purpose: `int(\"150000\") + 1` gives `150001`. Text such as `\"Rp 1.250.000\"` cannot be converted at all (Python raises an error), which is exactly how dirty data shows up in real pipelines. Check a type with `type(total)`.\n\nTwo traps to learn now. First, money must be an `int` in the smallest unit, because decimals are stored in binary and cannot always be exact: `0.1 + 0.2` is `0.30000000000000004`. Second, build text with an **f-string**: `f\"Order {1001}: Rp {total}\"` puts the values inside the text, and it is easier to read than gluing pieces with `+`.\n\nTrace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important."
+      }
+     },
+     {
+      "title": {
+       "id": "Koleksi: satu nilai tidak pernah cukup",
+       "en": "Collections: one value is never enough"
+      },
+      "body": {
+       "id": "Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.\n\n**List** (`[...]`): deretan hal yang berurutan, tempat posisi penting dan duplikat boleh ada. `orders = [row1, row2, row3]`. Anda membaca berdasarkan posisi mulai dari **0**: `orders[0]` yang pertama, `orders[-1]` yang terakhir, `orders[1:3]` adalah *irisan* (slice; posisi 1 dan 2). `len(orders)` menghitung, `orders.append(x)` menambah di akhir. Pakai list untuk \"semua baris dari file\".\n\n**Dictionary** (`{...}`): mencari berdasarkan *nama*, bukan posisi. Satu pesanan adalah sebuah dict: \n\n```python\norder = {\"order_id\": \"1001\", \"customer_id\": \"7\", \"status\": \"paid\", \"total_idr\": \"150000\"}\nprint(order[\"status\"])         # paid\nprint(order.get(\"note\"))       # None: .get memberi None, bukan error, jika kuncinya tidak ada\norder[\"status\"] = \"shipped\"    # ubah sebuah nilai\n```\n\nMembaca kunci yang tidak ada dengan `order[\"note\"]` memunculkan `KeyError`; `.get(\"note\", \"\")` memberi nilai bawaan. Dict juga alat untuk **menghitung**: `counts[status] = counts.get(status, 0) + 1`. Ingat baris ini; Anda akan menulisnya berkali-kali.\n\n**Tuple** (`(...)`): kelompok kecil tetap yang tidak seharusnya berubah, seperti `(\"paid\", 3)`. Fungsi sering mengembalikan tuple untuk memberi dua hal sekaligus.\n\n**Set** (`{...}` tanpa kunci): kantong nilai **unik** tanpa urutan. `set([7, 3, 7, 5])` adalah `{3, 5, 7}`. Pakai untuk membuang duplikat, dan untuk bertanya \"pernahkah saya melihat ini?\" dengan sangat cepat memakai `x in seen`.\n\nData file nyata karenanya biasanya adalah **list berisi dictionary**: list adalah file, setiap dict adalah satu baris, kuncinya adalah nama kolom. `orders` di lab terlihat persis seperti ini.\n\nSatu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.",
+       "en": "One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.\n\n**List** (`[...]`): an ordered row of things, where position matters and duplicates are allowed. `orders = [row1, row2, row3]`. You read by position starting at **0**: `orders[0]` is the first, `orders[-1]` is the last, `orders[1:3]` is a *slice* (positions 1 and 2). `len(orders)` counts, `orders.append(x)` adds at the end. Use a list for \"all the rows of the file\".\n\n**Dictionary** (`{...}`): look things up by a *name* instead of a position. One order is a dict: \n\n```python\norder = {\"order_id\": \"1001\", \"customer_id\": \"7\", \"status\": \"paid\", \"total_idr\": \"150000\"}\nprint(order[\"status\"])         # paid\nprint(order.get(\"note\"))       # None: .get gives None instead of an error when the key is missing\norder[\"status\"] = \"shipped\"    # change a value\n```\n\nReading a missing key with `order[\"note\"]` raises `KeyError`; `.get(\"note\", \"\")` gives a default instead. A dict is also the tool for **counting**: `counts[status] = counts.get(status, 0) + 1`. Remember this line; you will write it many times.\n\n**Tuple** (`(...)`): a small fixed group that should not change, such as `(\"paid\", 3)`. Functions often return a tuple to give back two things at once.\n\n**Set** (`{...}` with no keys): a bag of **unique** values with no order. `set([7, 3, 7, 5])` is `{3, 5, 7}`. Use it to remove duplicates, and to ask \"have I seen this before?\" very quickly with `x in seen`.\n\nA real data file is therefore usually **a list of dictionaries**: the list is the file, each dict is a row, the keys are the column names. The lab's `orders` looks exactly like this.\n\nOne idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows."
+      }
+     },
+     {
+      "title": {
+       "id": "Keputusan: if, elif, else",
+       "en": "Decisions: if, elif, else"
+      },
+      "body": {
+       "id": "Keputusan adalah cara program memilih di antara jalur. Dalam data engineering hampir semua **validasi** adalah keputusan: apakah total ini angka? apakah status ini kita kenal?\n\n```python\nstatus = \"refunded\"\nif status == \"paid\":\n    print(\"hitung omsetnya\")\nelif status == \"cancelled\" or status == \"refunded\":\n    print(\"tanpa omset\")\nelse:\n    print(\"status tidak dikenal: kirim ke karantina\")\n```\n\nCara kerjanya: Python memeriksa kondisi dari atas, menjalankan blok dari kondisi **pertama** yang benar, lalu melewati semua yang lain. Blok adalah apa pun yang **menjorok** (indentasi) di bawah titik dua; di Python indentasi adalah strukturnya (biasanya empat spasi), jadi indentasi yang salah adalah program yang salah.\n\nKondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==` sama dengan (dua tanda; satu `=` adalah penugasan!), `!=`, `<`, `>`, `<=`, `>=`, dan `in` untuk keanggotaan (`status in {\"cancelled\", \"refunded\"}`). Gabungkan dengan `and`, `or`, `not`.\n\n**Truthiness** menghemat ketikan: `0`, `\"\"`, `None`, `[]`, `{}` dianggap salah di dalam `if`, selain itu dianggap benar. Jadi `if not rows:` berarti \"jika tidak ada baris\". Tetapi hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah. Bila nol sah, tulis `if total is not None:`.\n\n**Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.1 adalah \"jangan menebak dan jangan membuang diam-diam\". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.\n\nPembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.",
+       "en": "A decision is how a program chooses between paths. In data engineering almost all **validation** is decisions: is this total a number? is the status one we know?\n\n```python\nstatus = \"refunded\"\nif status == \"paid\":\n    print(\"count the revenue\")\nelif status == \"cancelled\" or status == \"refunded\":\n    print(\"no revenue\")\nelse:\n    print(\"unknown status: send it to quarantine\")\n```\n\nHow it runs: Python checks the conditions from the top, runs the block of the **first** one that is true, then skips all the others. The block is whatever is **indented** under the colon; in Python the indentation is the structure (usually four spaces), so a wrong indent is a wrong program.\n\nThe condition is an expression that gives `True` or `False`. Comparisons: `==` equal (two signs; one `=` is assignment!), `!=`, `<`, `>`, `<=`, `>=`, and `in` for membership (`status in {\"cancelled\", \"refunded\"}`). Combine with `and`, `or`, `not`.\n\n**Truthiness** saves typing: `0`, `\"\"`, `None`, `[]`, `{}` count as false in an `if`, everything else as true. So `if not rows:` means \"if there are no rows\". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value. When zero is legal, write `if total is not None:`.\n\n**Why decisions are everywhere in pipelines.** The rule of Module 0.1 is \"never guess and never drop silently\". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.\n\nDivision by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early."
+      }
+     },
+     {
+      "title": {
+       "id": "Pengulangan: for, while, dan comprehension",
+       "en": "Repetition: for, while and comprehensions"
+      },
+      "body": {
+       "id": "Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah perulangan (loop), dan ia adalah mesin dari setiap pipeline data.\n\n```python\ntotal = 0\nfor order in orders:            # ambil baris satu per satu: tiap putaran, `order` menunjuk ke baris berikutnya\n    total = total + int(order[\"total_idr\"])\nprint(total)\n```\n\nTelusuri dengan tiga baris (150000, 80000, 120000). Sebelum loop `total` bernilai 0. Putaran 1: `order` adalah baris 1, jadi `total` menjadi 150000. Putaran 2: 230000. Putaran 3: 350000. Loop berhenti karena baris habis, dan print menampilkan 350000. **Pola akumulator** ini (mulai dengan nilai netral, perbarui setiap putaran) ada di balik jumlah, hitungan, maksimum, dan hampir setiap agregasi yang akan Anda tulis.\n\nAlat-alat yang berguna, masing-masing menyelesaikan satu gangguan tertentu:\n\n- `range(5)` menghasilkan 0, 1, 2, 3, 4 (bukan 5!). `range(0, 100, 10)` melangkah sepuluh-sepuluh. Pakai saat butuh posisi atau jumlah pengulangan.\n- `enumerate(rows)` memberi posisi *dan* itemnya: `for i, row in enumerate(rows):`. Lebih baik daripada menyimpan penghitung sendiri.\n- `zip(a, b)` menelusuri dua list bersamaan.\n- `continue` melompat ke putaran berikutnya (pesanan dibatalkan: tidak ada yang ditambah). `break` keluar dari loop sepenuhnya.\n\n**Comprehension** adalah loop yang ditulis sebagai satu ekspresi: `ids = [int(o[\"customer_id\"]) for o in orders]` membangun list; `{int(o[\"customer_id\"]) for o in orders}` membangun set; `{k: v for ...}` membangun dict. Ia loop yang sama dalam bentuk singkat. Pakai bila muat di satu baris yang jelas; bila perlu cabang `if/else` atau beberapa langkah, tulis loop biasa. Mudah dibaca lebih baik daripada akal-akalan.\n\nLoop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. Pakai saat Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: jika tidak ada yang membuat kondisi menjadi salah di dalam loop, ia berjalan selamanya. Selalu tanyakan: \"apa yang berubah di dalam loop sehingga ia berakhir?\"",
+       "en": "A file has 100,000 rows. You cannot write 100,000 lines, so you write the instruction **once** and let the computer repeat it. That is a loop, and it is the engine of every data pipeline.\n\n```python\ntotal = 0\nfor order in orders:            # take the rows one by one: each time, `order` points at the next row\n    total = total + int(order[\"total_idr\"])\nprint(total)\n```\n\nTrace it with three rows (150000, 80000, 120000). Before the loop `total` is 0. Round 1: `order` is row 1, so `total` becomes 150000. Round 2: 230000. Round 3: 350000. The loop ends because the rows ran out, and the print shows 350000. This **accumulator pattern** (start with a neutral value, update it every round) is behind sums, counts, maximums and almost every aggregation you will write.\n\nUseful tools, each solving a specific annoyance:\n\n- `range(5)` gives 0, 1, 2, 3, 4 (not 5!). `range(0, 100, 10)` steps by ten. Use it when you need positions or a number of repeats.\n- `enumerate(rows)` gives the position *and* the item: `for i, row in enumerate(rows):`. Better than keeping your own counter.\n- `zip(a, b)` walks two lists together.\n- `continue` skips to the next round (a cancelled order: nothing to add). `break` leaves the loop entirely.\n\nA **comprehension** is a loop written as one expression: `ids = [int(o[\"customer_id\"]) for o in orders]` builds a list; `{int(o[\"customer_id\"]) for o in orders}` builds a set; `{k: v for ...}` a dict. It is the same loop in short form. Use it when it fits on one clear line; when you need `if/else` branches or several steps, write the normal loop. Readable beats clever.\n\nA `while` loop repeats **as long as a condition is true**: `while attempts < 3:`. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing in the loop ever makes the condition false, it runs forever. Always ask: \"what changes inside the loop so that it ends?\""
+      }
+     },
+     {
+      "title": {
+       "id": "Fungsi: def, parameter, dan return",
+       "en": "Functions: def, parameters and return"
+      },
+      "body": {
+       "id": "Lihat loop yang menjumlahkan total. Jika Anda butuh jumlah yang sama di lima tempat, Anda tidak menyalin lima loop. Anda memberi loop itu sebuah **nama** dan memakainya ulang. Itulah fungsi, dan ia ada karena tiga alasan: **pemakaian ulang** (tulis sekali), **kejelasan** (nama yang baik menjelaskan tujuannya, jadi `total_revenue(orders)` terbaca seperti kalimat), dan **pengujian** (fungsi kecil dengan satu masukan dan satu keluaran bisa diperiksa otomatis, begitulah lab ini bekerja).\n\n```python\ndef total_revenue(orders):             # def = \"define\": di sini kita hanya menjelaskan; belum ada yang berjalan\n    total = 0\n    for order in orders:\n        total = total + int(order[\"total_idr\"])\n    return total                       # return = serahkan jawabannya dan tinggalkan fungsi\n\nresult = total_revenue(my_orders)      # memanggil fungsi: sekarang badannya berjalan\n```\n\nBagian-bagiannya: `def`, **nama**, **parameter** dalam tanda kurung (masukan; `orders` adalah nama penampung), titik dua, lalu **badan** yang menjorok. Saat Anda *memanggilnya*, nilai yang Anda berikan (**argumen**) ditempelkan ke nama parameter selama pemanggilan.\n\n**return versus print**, kebingungan yang paling menyakiti pemula. `print` hanya *menampilkan* sesuatu di layar; program tidak bisa memakainya setelah itu. `return` *menyerahkan nilai kembali* ke kode yang memanggil fungsi sehingga ia bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.\n\n**Nilai bawaan**: `def safe_int(text, default=None):` berarti pemanggil boleh menghilangkan `default`. **Scope**: nama yang dibuat di dalam fungsi hanya ada selama fungsi berjalan; dunia luar tidak bisa melihatnya, dan itu fitur (fungsi tidak bisa merusak variabel Anda yang lain secara tidak sengaja).\n\n**Jebakan untuk dikenal sekarang.** Jangan pernah memakai nilai *mutable* (list atau dict) sebagai nilai bawaan: `def add(order, batch=[]):`. Python membuat list itu **sekali**, saat baris `def` dibaca, dan setiap pemanggilan yang tidak mengisi `batch` memakainya bersama. Pemanggilan kedua melihat apa yang ditambahkan pemanggilan pertama. Pakai `batch=None` dan buat list baru di dalam. Skenario chaos memperlihatkan akibatnya pada pipeline nyata, dan lab punya tesnya.\n\nPilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.1: idempotensi).",
+       "en": "Look at the loop that sums totals. If you need the same sum in five places, you do not copy five loops. You give the loop a **name** and reuse it. That is a function, and it exists for three reasons: **reuse** (write once), **clarity** (a good name explains the purpose, so `total_revenue(orders)` is read like a sentence), and **testing** (a small function with one input and one output can be checked automatically, which is how the lab works).\n\n```python\ndef total_revenue(orders):             # def = \"define\": here we only describe it; nothing runs yet\n    total = 0\n    for order in orders:\n        total = total + int(order[\"total_idr\"])\n    return total                       # return = hand the answer back and leave the function\n\nresult = total_revenue(my_orders)      # calling the function: now the body runs\n```\n\nThe parts: `def`, the **name**, the **parameters** in brackets (the inputs; `orders` is a placeholder name), a colon, then the indented **body**. When you *call* it, the value you pass (the **argument**) is attached to the parameter name for the duration of the call.\n\n**return versus print**, the confusion that hurts most beginners. `print` only *shows* something on the screen; the program cannot use it afterwards. `return` *hands a value back* to the code that called the function so that it can store it, compare it or pass it on. A function that prints but does not return gives `None` to the caller. Pipelines run without a screen, so functions must **return** their results.\n\n**Default values**: `def safe_int(text, default=None):` means the caller may leave `default` out. **Scope**: names created inside a function exist only while it runs; the outside world cannot see them, and that is a feature (a function cannot accidentally break your other variables).\n\n**A trap to meet now.** Never use a *mutable* value (a list or dict) as a default: `def add(order, batch=[]):`. Python creates that list **once**, when the `def` line is read, and every call that omits `batch` shares it. The second call sees what the first one added. Use `batch=None` and create a new list inside. The chaos scenario shows what this does to a real pipeline, and the lab has a test for it.\n\nPrefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.1: idempotence)."
+      }
+     },
+     {
+      "title": {
+       "id": "Saat ada yang salah: error dan try/except",
+       "en": "When things go wrong: errors and try/except"
+      },
+      "body": {
+       "id": "Error bukan kegagalan pelajar; ia adalah program yang memberi tahu persis apa yang tidak bisa dilakukannya. Belajarlah membacanya. **Traceback** mendaftar jalur pemanggilan; **bacalah dari bawah**. Baris terakhir menyebut jenis error dan pesannya (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); baris di atasnya menunjukkan di mana ia terjadi, dan baris terakhir yang menunjuk ke kode *Anda* biasanya tempat untuk melihat.\n\nError yang akan terus Anda temui: `ValueError` (tipe benar, nilai mustahil: `int(\"abc\")`), `TypeError` (tipe salah: `\"a\" + 1`), `KeyError` (kunci dict tidak ada), `IndexError` (posisi list terlalu besar), `ZeroDivisionError`, `FileNotFoundError`, `NameError` (salah ketik nama), `IndentationError`.\n\nAnda bisa **menangkap** error yang Anda duga dan memutuskan apa yang dilakukan:\n\n```python\ndef safe_int(text, default=None):\n    try:\n        return int(text)\n    except ValueError:       # hanya jenis error ini\n        return default\n```\n\nCara kerjanya: Python mencoba blok di bawah `try`. Jika semua berjalan, `except` dilewati. Jika `ValueError` terjadi, sisa `try` ditinggalkan dan blok `except` berjalan sebagai gantinya.\n\nTiga aturan yang memisahkan pipeline yang baik dari yang berbahaya:\n\n1. **Tangkap error spesifik yang Anda duga.** `except ValueError` adalah rencana. `except Exception: pass` (atau `except:` kosong) adalah keputusan menyembunyikan setiap bug di masa depan: salah ketik, file hilang, masalah data sungguhan, semuanya lenyap diam-diam, dan angka salah muncul tanpa tanda masalah. Modul 1.2 menunjukkan betapa mahalnya itu.\n2. **Buat blok `try` tetap kecil**: hanya baris yang bisa gagal.\n3. **Angkat error dengan sengaja** (`raise`) saat fungsi Anda tidak bisa melakukan tugasnya: `raise ValueError(\"total must not be negative\")`. Gagal dengan lantang lebih awal lebih baik daripada meneruskan data buruk.\n\nBaris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (menyisihkannya beserta alasan). File hilang atau kesalahan pemrograman *tidak diduga*, jadi biarkan gagal dengan lantang.",
+       "en": "Errors are not failures of the learner; they are the program telling you precisely what it could not do. Learn to read them. A **traceback** lists the path of calls; **read it from the bottom**. The last line names the error type and a message (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); the lines above it show where it happened, and the last line that points into *your* code is usually the place to look.\n\nThe errors you will meet constantly: `ValueError` (right type, impossible value: `int(\"abc\")`), `TypeError` (wrong type: `\"a\" + 1`), `KeyError` (dict key missing), `IndexError` (list position too big), `ZeroDivisionError`, `FileNotFoundError`, `NameError` (a typo in a name), `IndentationError`.\n\nYou can **catch** an error you expect and decide what to do:\n\n```python\ndef safe_int(text, default=None):\n    try:\n        return int(text)\n    except ValueError:       # only this kind of error\n        return default\n```\n\nHow it runs: Python tries the block under `try`. If everything works, the `except` is skipped. If a `ValueError` happens, the rest of the `try` is abandoned and the `except` block runs instead.\n\nThree rules that separate good pipelines from dangerous ones:\n\n1. **Catch the specific error you expect.** `except ValueError` is a plan. `except Exception: pass` (or a bare `except:`) is a decision to hide every future bug: a typo, a missing file, a real data problem all vanish silently, and wrong numbers appear with no sign of trouble. Module 1.2 shows how expensive that is.\n2. **Keep the `try` block small**: only the line that can fail.\n3. **Raise on purpose** when your function cannot do its job: `raise ValueError(\"total must not be negative\")`. Failing loudly early is better than passing bad data on.\n\nA bad row from a customer is *expected* data, so you handle it (put it aside with a reason). A missing file or a programming mistake is *not* expected, so let it fail loudly."
+      }
+     },
+     {
+      "title": {
+       "id": "File, import, dan menjalankan skrip",
+       "en": "Files, imports and running a script"
+      },
+      "body": {
+       "id": "Program membaca file. Pola standarnya:\n\n```python\nimport csv\n\nwith open(\"orders.csv\", newline=\"\", encoding=\"utf-8\") as f:\n    rows = list(csv.DictReader(f))\n```\n\nMengapa setiap bagian ada. `open` memberi Anda sambungan ke file. **`with`** menjamin file ditutup saat blok selesai, bahkan jika terjadi error di dalamnya, sehingga Anda tidak membiarkan file terbuka (masalah nyata pada job yang berjalan lama). `encoding=\"utf-8\"` menyatakan bagaimana byte menjadi teks; jika dihilangkan, program Anda berperilaku berbeda di komputer berbeda. `newline=\"\"` adalah yang diminta modul csv agar pemisah baris di dalam nilai bertanda kutip tetap utuh. `csv.DictReader(f)` mengubah setiap baris menjadi dict dengan baris header sebagai kunci, sehingga Anda mendapat persis list berisi dictionary dari pelajaran 2. Semua nilainya string; mengonversinya adalah tugas Anda.\n\n**Import** membawa kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke virtual environment Anda (Modul 0.2). File Anda sendiri `basics.py` juga sebuah **modul**: `import basics` menjalankannya sekali dan memberi fungsinya sebagai `basics.total_revenue(...)`. Begitulah tes lab memakai kode Anda.\n\nAnda menjalankan skrip dengan `python3 myfile.py`. Baris yang umum di bagian bawah skrip adalah:\n\n```python\nif __name__ == \"__main__\":\n    main()\n```\n\nPython mengisi nama khusus `__name__` dengan `\"__main__\"` hanya saat file *dijalankan langsung*. Ketika file lain meng-import-nya, `__name__` adalah nama modulnya, sehingga `main()` tidak berjalan. Akibatnya: file bisa berfungsi sebagai program dan sebagai pustaka yang bisa Anda uji.\n\nPath: pakai `pathlib.Path(\"data\") / \"orders.csv\"` daripada menyambung string, dan ingat bahwa path relatif dihitung dari folder tempat Anda memulai Python, yang biasanya jadi sebab `FileNotFoundError`.",
+       "en": "Programs read files. The standard pattern:\n\n```python\nimport csv\n\nwith open(\"orders.csv\", newline=\"\", encoding=\"utf-8\") as f:\n    rows = list(csv.DictReader(f))\n```\n\nWhy each part. `open` gives you a connection to the file. **`with`** guarantees the file is closed when the block ends, even if an error happens inside, so you never leak open files (a real problem in long-running jobs). `encoding=\"utf-8\"` says how bytes become text; leaving it out means your program behaves differently on different computers. `newline=\"\"` is what the csv module wants so that line breaks inside quoted values survive. `csv.DictReader(f)` turns each row into a dict using the header line as keys, so you get exactly the list of dictionaries of lesson 2. All values are strings; converting them is your job.\n\nAn **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.2). Your own file `basics.py` is a **module** too: `import basics` runs it once and gives you its functions as `basics.total_revenue(...)`. That is how the lab tests use your code.\n\nYou run a script with `python3 myfile.py`. A common line at the bottom of scripts is:\n\n```python\nif __name__ == \"__main__\":\n    main()\n```\n\nPython sets the special name `__name__` to `\"__main__\"` only when the file is *run directly*. When another file imports it, `__name__` is the module's name instead, so `main()` does not run. The effect: the file works both as a program and as a library you can test.\n\nPaths: use `pathlib.Path(\"data\") / \"orders.csv\"` instead of gluing strings, and remember that a relative path is relative to the folder you started Python in, which is the usual reason for `FileNotFoundError`."
+      }
+     },
+     {
+      "title": {
+       "id": "Menyatukan semuanya, dan cara men-debug",
+       "en": "Putting it together, and how to debug"
+      },
+      "body": {
+       "id": "Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (pelajaran 7), ulangi baris-barisnya (4), putuskan mana yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus tiap langkah dalam fungsi (5). Berikut sebagai rencana yang bisa dibaca seperti cerita:\n\n```python\ndef main(path):\n    rows = read_orders(path)                 # file -> list berisi dict\n    valid, invalid = split_valid(rows)       # keputusan + try/except, tidak ada yang dibuang diam-diam\n    print(count_by_status(valid))            # menghitung dengan dict\n    print(format_rupiah(total_revenue(valid)))\n```\n\nPerhatikan apa yang terjadi: `main` tidak berisi detail. Setiap fungsi punya satu tugas dan nama yang menyebutkannya. Beginilah pipeline profesional tetap mudah dibaca.\n\n**Cara membaca kode yang tidak Anda tulis.** Mulai dari bawah (biasanya titik masuk), lalu baca nama dan parameter setiap fungsi sebelum badannya. Pilih masukan yang sangat kecil dan **telusuri** dengan tangan, tulis nilai tiap variabel di kertas setelah setiap baris. Jika tebakan Anda dan keluarannya berbeda, Anda menemukan baris yang salah Anda pahami. Alat gratis pythontutor.com memperlihatkan eksekusi ini langkah demi langkah.\n\n**Cara men-debug.** (1) Baca error dari bawah. (2) Ulangi dengan masukan sekecil mungkin. (3) Cetak atau periksa nilai *tepat sebelum* baris yang gagal (`print(type(x), x)` menjawab separuh dari semua bug). (4) Ubah satu hal pada satu waktu. (5) Tulis **tes** yang gagal karena bug itu, perbaiki kodenya, dan simpan tesnya agar bug itu tidak kembali.\n\n**Tes**, pandangan pertama. Tes hanyalah kode yang memanggil fungsi Anda dan membandingkannya dengan jawaban yang diharapkan:\n\n```python\ndef test_format_rupiah():\n    assert format_rupiah(1250000) == \"Rp 1.250.000\"\n```\n\n`assert` memunculkan error jika kondisinya salah. Alat uji (pytest) menemukan fungsi bernama `test_...`, menjalankan semuanya dan melaporkan mana yang gagal dan mengapa. Lab punya 31 tes seperti itu: bacalah tes yang gagal sebagai **spesifikasi** (ia menyatakan persis apa yang diharapkan), bukan sebagai rintangan.\n\nAnda tidak akan mengingat semuanya setelah sekali membaca, dan memang tidak diharapkan. Ketik contoh-contohnya, rusak dengan sengaja, dan lihat pesan errornya. Setiap fungsi lab di bawah melatih satu pelajaran; kerjakan berurutan dan jalankan tes setelah masing-masing.",
+       "en": "You now have every piece of a tiny pipeline: read the file (lesson 7), loop over the rows (4), decide what is valid (3), set the bad ones aside (6), count with a dict (2), wrap each step in a function (5). Here it is as a plan you can read like a story:\n\n```python\ndef main(path):\n    rows = read_orders(path)                 # file -> list of dicts\n    valid, invalid = split_valid(rows)       # decisions + try/except, nothing dropped silently\n    print(count_by_status(valid))            # dict counting\n    print(format_rupiah(total_revenue(valid)))\n```\n\nNotice what happened: `main` contains no details. Each function has one job and a name that says it. This is how professional pipelines stay readable.\n\n**How to read code you did not write.** Start at the bottom (usually the entry point), then read each function's name and parameters before its body. Pick a tiny input and **trace** it by hand, writing the value of each variable on paper after each line. If your prediction and the output differ, you found the line you misunderstood. The free tool pythontutor.com shows this execution step by step.\n\n**How to debug.** (1) Read the error from the bottom. (2) Reproduce it with the smallest input. (3) Print or inspect the value *just before* the failing line (`print(type(x), x)` answers half of all bugs). (4) Change one thing at a time. (5) Write a **test** that fails because of the bug, fix the code, and keep the test so the bug never returns.\n\n**Tests**, a first look. A test is just code that calls your function and compares with the expected answer:\n\n```python\ndef test_format_rupiah():\n    assert format_rupiah(1250000) == \"Rp 1.250.000\"\n```\n\n`assert` raises an error if the condition is false. A test tool (pytest) finds the functions named `test_...`, runs them all and reports which failed and why. The lab has 31 such tests: read a failing test as a **specification** (it tells you exactly what is expected), not as an obstacle.\n\nYou will not remember everything after one reading, and you are not supposed to. Type the examples, break them on purpose, and look at the error messages. Each lab function below practises one lesson; do them in order and run the tests after each."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: sebelas fungsi kecil pada pesanan KopiKu",
+      "en": "Lab: eleven small functions on KopiKu orders"
+     },
+     "description": {
+      "id": "Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran: memformat angka, mengonversi teks dengan aman, mengulang dan menjumlahkan, menghitung dengan dictionary, membuang duplikat dengan set, memisahkan yang valid dari yang tidak, merata-rata tanpa membagi dengan nol, membuat peringkat, memotong list menjadi batch, menghindari jebakan nilai bawaan mutable, dan membaca file CSV. Tesnya (31) memberi tahu apa yang harus dilakukan setiap fungsi.",
+      "en": "Write eleven short functions, each practising one idea from the lessons: formatting numbers, converting text safely, looping and summing, counting with dictionaries, removing duplicates with a set, splitting valid from invalid, averaging without dividing by zero, ranking, cutting a list into batches, avoiding the mutable default trap, and reading a CSV file. The tests (31) tell you what each function must do."
+     },
+     "steps": {
+      "id": "1. Buka `labs/mod-0-0/basics.py` dan baca dari atas ke bawah lebih dulu. Setiap fungsi punya docstring dengan contoh; nomor pelajaran memberi tahu di mana gagasannya dijelaskan.\n2. Kerjakan berurutan, dan jalankan tes setelah SETIAP fungsi: `format_rupiah`, `safe_int`, `total_revenue`, `count_by_status`, `unique_customer_ids`, `split_valid`, `average_total`, `top_customers`, `batches`, `add_to_batch`, `read_orders`.\n\n```bash\npytest labs/mod-0-0/test_lab.py -v                    # semuanya\npytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # hanya satu kelompok saat Anda bekerja\n```\n\n3. Saat tes gagal, bacalah seperti spesifikasi: nama tes menyatakan apa yang Anda rusak, baris terakhir menunjukkan nilai yang diharapkan dan yang sebenarnya. Cetak nilai di dalam fungsi Anda (`print(type(x), x)`) jika Anda ragu apa yang sedang Anda tangani.\n4. Sebelum menjalankan, **tebak**: tulis tes mana yang Anda harapkan lulus. Ketika hasilnya mengejutkan, cari tahu mengapa. Kejutan itulah tempat belajar terjadi.\n5. **Kerjakan yang sesungguhnya.** Kotak di browser di atas hanya pratinjau. Setelah Modul 0.2, ulangi lab ini di komputer Anda sendiri dalam venv Anda sendiri, tulis kodenya lagi **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-0-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Open `labs/mod-0-0/basics.py` and read it from top to bottom first. Every function has a docstring with examples; the lesson numbers tell you where the idea is explained.\n2. Work in this order, and run the tests after EACH function: `format_rupiah`, `safe_int`, `total_revenue`, `count_by_status`, `unique_customer_ids`, `split_valid`, `average_total`, `top_customers`, `batches`, `add_to_batch`, `read_orders`.\n\n```bash\npytest labs/mod-0-0/test_lab.py -v                    # all of them\npytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # only one group while you work\n```\n\n3. When a test fails, read it like a specification: the test name says what you broke, the last lines show the expected and the actual value. Print the values inside your function (`print(type(x), x)`) if you are unsure what you are working with.\n4. Before you run, **predict**: write down which tests you expect to pass. When the result surprises you, find out why. That surprise is where the learning is.\n5. **Do it for real.** The in-browser box above is only a preview. After Module 0.2, repeat this lab on your own computer in your own venv, writing the code again **without copying**, and run `python3 scripts/prove.py mod-0-0` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "Jalankan tes dari root repositori:\n\n```bash\npytest labs/mod-0-0/test_lab.py -v\npython3 scripts/prove.py mod-0-0\n```\n\nJalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "Run the tests from the repository root:\n\n```bash\npytest labs/mod-0-0/test_lab.py -v\npython3 scripts/prove.py mod-0-0\n```\n\nKnown-good run: prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-0-0/basics.py",
+       "name": "basics.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan sebelas fungsi TODO",
+        "en": "Your working file: implement the eleven TODO functions"
+       },
+       "code": "\"\"\"Lab 0.0: Python from zero, with KopiKu orders.\n\nEleven small functions. Each one practises one idea from the lessons (variables, collections, if, for, def, errors, files).\nRun the tests after EACH function:   pytest labs/mod-0-0/test_lab.py -v\nAn order is a dict whose values are all strings, exactly as they come out of a CSV file:\n    {\"order_id\": \"1001\", \"customer_id\": \"7\", \"status\": \"paid\", \"total_idr\": \"150000\"}\n\"\"\"\nimport csv  # noqa: F401  (you need it for read_orders)\n\nCANCELLED = {\"cancelled\", \"refunded\"}  # a set: statuses that bring in no money\n\n\ndef format_rupiah(amount):\n    \"\"\"Turn a whole number into text with dots between thousands.   (lessons 1 and 5)\n\n    1250000 -> \"Rp 1.250.000\"      0 -> \"Rp 0\"      -45000 -> \"-Rp 45.000\"\n    Hint: f\"{n:,}\" puts commas between thousands; .replace(\",\", \".\") swaps them for dots.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement format_rupiah\")\n\n\ndef safe_int(text, default=None):\n    \"\"\"Turn text into an int, or return `default` when that is impossible.   (lesson 6: try / except)\n\n    \"42\" -> 42     \" 42 \" -> 42     \"abc\" -> None     \"\" -> None     safe_int(\"abc\", 0) -> 0\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement safe_int\")\n\n\ndef total_revenue(orders):\n    \"\"\"Add up total_idr (as numbers!) of every order whose status is NOT in CANCELLED.   (lessons 3 and 4: if, for)\n\n    The values are strings: int(\"150000\") makes the number 150000.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement total_revenue\")\n\n\ndef count_by_status(orders):\n    \"\"\"How many orders have each status? Return a dict such as {\"paid\": 3, \"cancelled\": 1}.   (lessons 2 and 4: dict, for)\"\"\"\n    raise NotImplementedError(\"TODO: implement count_by_status\")\n\n\ndef unique_customer_ids(orders):\n    \"\"\"The distinct customer ids as ints, smallest first, each once.   (lesson 2: set)\"\"\"\n    raise NotImplementedError(\"TODO: implement unique_customer_ids\")\n\n\ndef split_valid(orders):\n    \"\"\"Return two lists (valid, invalid). An order is INVALID when its total_idr is not a whole number or is negative.\n\n    Use your safe_int. Order inside each list must stay the same as in `orders`.   (lessons 3, 5, 6: if, def, errors)\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement split_valid\")\n\n\ndef average_total(orders):\n    \"\"\"The average total_idr as a float, or None when there are no orders (never divide by zero!).   (lesson 3)\"\"\"\n    raise NotImplementedError(\"TODO: implement average_total\")\n\n\ndef top_customers(orders, n):\n    \"\"\"The n customers who spent the most, as a list of (customer_id, total) tuples, biggest total first.\n\n    customer_id is an int. If two customers have the same total, the smaller id comes first.   (lessons 2, 4: dict, for, tuple)\n    Hint: collect totals in a dict, then sorted(d.items(), key=...) with a key function; slicing [:n] keeps the first n.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement top_customers\")\n\n\ndef batches(items, size):\n    \"\"\"Cut a list into a list of chunks of at most `size` items, keeping the order.   (lesson 4: range with a step, slicing)\n\n    batches([1, 2, 3, 4, 5], 2) -> [[1, 2], [3, 4], [5]]      batches([], 3) -> []\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement batches\")\n\n\ndef add_to_batch(order, batch=None):\n    \"\"\"Return a NEW list: everything in `batch` plus `order` at the end. Never change the list that was passed in,\n    and never remember anything between calls.   (lesson 5: the mutable default argument trap; see the Chaos tab)\n\n    add_to_batch(\"a\") -> [\"a\"]      add_to_batch(\"b\") -> [\"b\"]      add_to_batch(\"c\", [\"a\", \"b\"]) -> [\"a\", \"b\", \"c\"]\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement add_to_batch\")\n\n\ndef read_orders(path):\n    \"\"\"Read a CSV file into a list of dicts (one per row, all values strings).   (lesson 7: with, csv)\n\n    Open with encoding=\"utf-8\" and newline=\"\" , and use a `with` block so the file is always closed.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement read_orders\")"
+      },
+      {
+       "path": "labs/mod-0-0/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-31 tes yang memeriksa pekerjaan Anda",
+        "en": "The 31 tests that check your work"
+       },
+       "code": "\"\"\"Tests for Lab 0.0.   pip install pytest && pytest labs/mod-0-0/test_lab.py -v\"\"\"\nimport sys\nfrom pathlib import Path\n\nimport pytest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\n\nlab = labtools.load(__file__, \"basics.py\")\n\n\ndef order(i, cid, status, total):\n    return {\"order_id\": str(i), \"customer_id\": str(cid), \"status\": status, \"total_idr\": str(total)}\n\n\nORDERS = [\n    order(1, 7, \"paid\", 150000),\n    order(2, 3, \"delivered\", 80000),\n    order(3, 7, \"cancelled\", 999999),\n    order(4, 5, \"paid\", 120000),\n    order(5, 3, \"refunded\", 50000),\n    order(6, 3, \"paid\", 40000),\n]\n\n\nclass TestFormatRupiah:\n    def test_adds_dots_between_thousands(self):\n        assert lab.format_rupiah(1250000) == \"Rp 1.250.000\"\n\n    def test_small_numbers_have_no_dots(self):\n        assert lab.format_rupiah(500) == \"Rp 500\"\n        assert lab.format_rupiah(0) == \"Rp 0\"\n\n    def test_negative_numbers_put_the_minus_first(self):\n        assert lab.format_rupiah(-45000) == \"-Rp 45.000\"\n\n    def test_returns_text_not_a_number(self):\n        assert isinstance(lab.format_rupiah(10), str)\n\n\nclass TestSafeInt:\n    def test_plain_and_padded_numbers(self):\n        assert lab.safe_int(\"42\") == 42\n        assert lab.safe_int(\"  42 \") == 42\n        assert lab.safe_int(\"-45000\") == -45000\n\n    def test_impossible_text_gives_the_default(self):\n        assert lab.safe_int(\"abc\") is None\n        assert lab.safe_int(\"\") is None\n        assert lab.safe_int(\"Rp 1.250.000\") is None\n\n    def test_a_custom_default(self):\n        assert lab.safe_int(\"abc\", 0) == 0\n        assert lab.safe_int(\"7\", 0) == 7\n\n    def test_accepts_a_number_too(self):\n        assert lab.safe_int(12) == 12\n\n\nclass TestTotalRevenue:\n    def test_skips_cancelled_and_refunded(self):\n        assert lab.total_revenue(ORDERS) == 150000 + 80000 + 120000 + 40000\n\n    def test_no_orders_is_zero(self):\n        assert lab.total_revenue([]) == 0\n\n    def test_returns_a_number_not_text(self):\n        assert isinstance(lab.total_revenue(ORDERS), int)\n\n\nclass TestCountByStatus:\n    def test_counts_each_status(self):\n        assert lab.count_by_status(ORDERS) == {\"paid\": 3, \"delivered\": 1, \"cancelled\": 1, \"refunded\": 1}\n\n    def test_empty(self):\n        assert lab.count_by_status([]) == {}\n\n\nclass TestUniqueCustomerIds:\n    def test_sorted_numbers_without_repeats(self):\n        assert lab.unique_customer_ids(ORDERS) == [3, 5, 7]\n\n    def test_are_ints_not_text(self):\n        assert all(isinstance(x, int) for x in lab.unique_customer_ids(ORDERS))\n\n\nclass TestSplitValid:\n    ROWS = [order(1, 1, \"paid\", 100), order(2, 1, \"paid\", \"Rp 1.250.000\"), order(3, 2, \"paid\", -5), order(4, 2, \"paid\", \"\"), order(5, 3, \"paid\", 0)]\n\n    def test_splits_in_order(self):\n        valid, invalid = lab.split_valid(self.ROWS)\n        assert [o[\"order_id\"] for o in valid] == [\"1\", \"5\"]\n        assert [o[\"order_id\"] for o in invalid] == [\"2\", \"3\", \"4\"]\n\n    def test_nothing_is_lost(self):\n        valid, invalid = lab.split_valid(self.ROWS)\n        assert len(valid) + len(invalid) == len(self.ROWS)\n\n    def test_returns_two_lists(self):\n        result = lab.split_valid([])\n        assert result == ([], [])\n\n\nclass TestAverageTotal:\n    def test_average(self):\n        assert lab.average_total([order(1, 1, \"paid\", 100), order(2, 1, \"paid\", 200)]) == pytest.approx(150.0)\n\n    def test_no_orders_is_none_not_an_error(self):\n        assert lab.average_total([]) is None\n\n\nclass TestTopCustomers:\n    def test_ranks_by_total_spent(self):\n        # customer 7: 150000+999999, customer 3: 80000+50000+40000, customer 5: 120000\n        assert lab.top_customers(ORDERS, 2) == [(7, 1149999), (3, 170000)]\n\n    def test_ties_go_to_the_smaller_id(self):\n        rows = [order(1, 9, \"paid\", 100), order(2, 4, \"paid\", 100), order(3, 6, \"paid\", 100)]\n        assert lab.top_customers(rows, 3) == [(4, 100), (6, 100), (9, 100)]\n\n    def test_asking_for_more_than_exist(self):\n        assert len(lab.top_customers(ORDERS, 10)) == 3\n\n\nclass TestBatches:\n    def test_chunks_keep_order(self):\n        assert lab.batches([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]\n\n    def test_exact_fit_and_empty(self):\n        assert lab.batches([1, 2, 3, 4], 2) == [[1, 2], [3, 4]]\n        assert lab.batches([], 3) == []\n\n    def test_does_not_change_the_input(self):\n        items = [1, 2, 3]\n        lab.batches(items, 2)\n        assert items == [1, 2, 3]\n\n\nclass TestAddToBatch:\n    def test_starts_a_new_list(self):\n        assert lab.add_to_batch(\"a\") == [\"a\"]\n\n    def test_never_remembers_previous_calls(self):\n        lab.add_to_batch(\"a\")\n        lab.add_to_batch(\"b\")\n        assert lab.add_to_batch(\"c\") == [\"c\"]\n\n    def test_extends_without_changing_the_original(self):\n        original = [\"a\", \"b\"]\n        result = lab.add_to_batch(\"c\", original)\n        assert result == [\"a\", \"b\", \"c\"]\n        assert original == [\"a\", \"b\"]\n\n\nclass TestReadOrders:\n    def test_reads_rows_as_dicts_of_text(self, tmp_path):\n        f = tmp_path / \"orders.csv\"\n        f.write_text(\"order_id,customer_id,status,total_idr\\n1,7,paid,150000\\n2,3,paid,Rp 80.000\\n\", encoding=\"utf-8\")\n        rows = lab.read_orders(f)\n        assert rows == [\n            {\"order_id\": \"1\", \"customer_id\": \"7\", \"status\": \"paid\", \"total_idr\": \"150000\"},\n            {\"order_id\": \"2\", \"customer_id\": \"3\", \"status\": \"paid\", \"total_idr\": \"Rp 80.000\"},\n        ]\n\n    def test_handles_accents_and_empty_file_body(self, tmp_path):\n        f = tmp_path / \"o.csv\"\n        f.write_text(\"order_id,note\\n1,café\\n\", encoding=\"utf-8\")\n        assert lab.read_orders(f)[0][\"note\"] == \"café\"\n        g = tmp_path / \"e.csv\"\n        g.write_text(\"order_id,note\\n\", encoding=\"utf-8\")\n        assert lab.read_orders(g) == []"
+      },
+      {
+       "path": "labs/mod-0-0/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pytest",
+        "en": "pytest"
+       },
+       "code": "pytest>=8"
+      },
+      {
+       "path": "labs/mod-0-0/reference/basics.py",
+       "name": "basics.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try first!)"
+       },
+       "code": "\"\"\"Reference solution for Lab 0.0.\"\"\"\nimport csv\n\nCANCELLED = {\"cancelled\", \"refunded\"}\n\n\ndef format_rupiah(amount):\n    sign = \"-\" if amount < 0 else \"\"\n    digits = f\"{abs(amount):,}\".replace(\",\", \".\")\n    return f\"{sign}Rp {digits}\"\n\n\ndef safe_int(text, default=None):\n    try:\n        return int(str(text).strip())\n    except ValueError:\n        return default\n\n\ndef total_revenue(orders):\n    total = 0\n    for order in orders:\n        if order[\"status\"] in CANCELLED:\n            continue\n        total += int(order[\"total_idr\"])\n    return total\n\n\ndef count_by_status(orders):\n    counts = {}\n    for order in orders:\n        status = order[\"status\"]\n        counts[status] = counts.get(status, 0) + 1\n    return counts\n\n\ndef unique_customer_ids(orders):\n    ids = set()\n    for order in orders:\n        ids.add(int(order[\"customer_id\"]))\n    return sorted(ids)\n\n\ndef split_valid(orders):\n    valid, invalid = [], []\n    for order in orders:\n        total = safe_int(order[\"total_idr\"])\n        if total is None or total < 0:\n            invalid.append(order)\n        else:\n            valid.append(order)\n    return valid, invalid\n\n\ndef average_total(orders):\n    if not orders:\n        return None\n    return sum(int(o[\"total_idr\"]) for o in orders) / len(orders)\n\n\ndef top_customers(orders, n):\n    spent = {}\n    for order in orders:\n        cid = int(order[\"customer_id\"])\n        spent[cid] = spent.get(cid, 0) + int(order[\"total_idr\"])\n    ranked = sorted(spent.items(), key=lambda pair: (-pair[1], pair[0]))\n    return ranked[:n]\n\n\ndef batches(items, size):\n    result = []\n    for start in range(0, len(items), size):\n        result.append(items[start:start + size])\n    return result\n\n\ndef add_to_batch(order, batch=None):\n    if batch is None:\n        batch = []\n    return batch + [order]\n\n\ndef read_orders(path):\n    with open(path, newline=\"\", encoding=\"utf-8\") as f:\n        return list(csv.DictReader(f))"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 31 tes di test_lab.py lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri** (lulus di pratinjau browser tidak dihitung)",
+       "en": "All 31 tests in test_lab.py pass **on your own computer, run from your own terminal** (a pass in the browser preview does not count)"
+      },
+      {
+       "id": "Anda bisa menjelaskan dengan kata-kata sendiri beda `print` dan `return`, serta beda list, dict, dan set",
+       "en": "You can explain in your own words the difference between `print` and `return`, and between a list, a dict and a set"
+      },
+      {
+       "id": "Anda bisa menjelaskan mengapa `batch=[]` sebagai nilai bawaan adalah bug dan apa yang harus ditulis sebagai gantinya",
+       "en": "You can explain why `batch=[]` as a default argument is a bug and what to write instead"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Batch yang mengingat kemarin",
+      "en": "The batch that remembered yesterday"
+     },
+     "scenario": {
+      "id": "Sebuah tim kecil menulis job per jam yang mengelompokkan pesanan masuk menjadi batch sebelum dimuat. Fungsi pembantunya satu baris: `def add_to_batch(order, batch=[]): batch.append(order); return batch`. Dalam tes ia berfungsi: panggil dengan satu pesanan dan Anda mendapat list berisi pesanan itu.\n\nDi produksi, job berjalan di dalam proses worker yang hidup lama. Setelah jam kedua, dashboard menampilkan lagi pesanan dari jam pertama; setelah sehari, pesanan yang sama muncul 24 kali dan omset 24 kali terlalu tinggi. Memulai ulang worker memperbaikinya selama satu jam. Tidak ada yang bisa mereproduksi masalahnya dengan satu tes, sehingga orang mencurigai database, lalu jaringan.",
+      "en": "A small team writes an hourly job that groups incoming orders into batches before loading them. The helper function is one line: `def add_to_batch(order, batch=[]): batch.append(order); return batch`. In tests it works: call it with an order and you get a list containing that order.\n\nIn production the job runs inside a long-lived worker process. After the second hour, the dashboard shows orders from the first hour again; after a day, the same orders appear 24 times and revenue is 24 times too high. Restarting the worker fixes it for an hour. Nobody can reproduce the problem with a single test, which makes people suspect the database, then the network."
+     },
+     "breakageReason": {
+      "id": "Di Python, nilai bawaan sebuah parameter dibuat **sekali**, saat baris `def` dieksekusi, bukan setiap kali fungsi dipanggil. `batch=[]` karena itu adalah satu list tunggal yang hidup selama prosesnya. Setiap pemanggilan yang tidak memberi list sendiri menambah ke list yang sama, sehingga ia mengingat semuanya dari pemanggilan sebelumnya. Proses baru (seperti dalam unit test, atau tepat setelah restart) menyembunyikan bug karena list-nya kosong lagi.\n\nPenyebab yang lebih dalam adalah state tersembunyi: hasil fungsi bergantung pada sesuatu yang bukan masukan, yaitu apa yang dilakukan pemanggilan sebelumnya. Fungsi yang memberi jawaban berbeda untuk masukan yang sama tidak bisa diuji dengan sederhana dan tidak aman dijalankan dua kali.",
+      "en": "In Python the default value of a parameter is created **once**, when the `def` line is executed, not every time the function is called. `batch=[]` is therefore one single list that lives as long as the process. Every call that does not pass its own list appends to that same list, so it remembers everything from earlier calls. A fresh process (as in a unit test, or right after a restart) hides the bug because the list is empty again.\n\nThe deeper cause is hidden state: the function's result depended on something that was not an input, namely what earlier calls had done. A function that returns different answers for the same input cannot be tested simply and is not safe to run twice."
+     },
+     "fixGuide": {
+      "id": "1. Pakai `None` sebagai nilai bawaan dan buat list di dalam fungsi: `if batch is None: batch = []`. Lebih baik lagi, kembalikan list **baru** (`return batch + [order]`) daripada mengubah list yang diberikan.\n2. Tambahkan tes yang memanggil fungsi dua kali dan memastikan pemanggilan kedua tidak memuat pesanan dari pemanggilan pertama. Lab punya tes persis seperti itu (`test_never_remembers_previous_calls`).\n3. Cari nilai bawaan mutable lain di basis kode (`=[]`, `={}`, `=set()`): linter seperti ruff menandainya otomatis (aturan B006). Jadikan pemeriksaan itu bagian dari build.\n4. Pilih fungsi yang keluarannya hanya bergantung pada masukannya. Bila state memang diperlukan, simpan secara eksplisit (parameter atau objek), jangan pernah di nilai bawaan.",
+      "en": "1. Use `None` as the default and create the list inside the function: `if batch is None: batch = []`. Better still, return a **new** list (`return batch + [order]`) instead of changing the one that was passed in.\n2. Add a test that calls the function twice and asserts that the second call does not contain the first call's order. The lab has exactly this test (`test_never_remembers_previous_calls`).\n3. Search the code base for other mutable defaults (`=[]`, `={}`, `=set()`): linters such as ruff flag them automatically (rule B006). Make that check part of the build.\n4. Prefer functions whose output depends only on their inputs. Where state is really needed, keep it explicit (a parameter or an object), never in a default value."
+     },
+     "defensivePattern": {
+      "id": "Nilai bawaan dibuat sekali. Fungsi harus memberi hasil yang sama untuk masukan yang sama; state tersembunyi mengubah pipeline menjadi yang berfungsi di tes dan gagal di produksi.",
+      "en": "A default value is created once. A function must give the same result for the same input; hidden state turns a pipeline into one that works in tests and fails in production."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "Apa yang dilakukan baris `total = total + 1000` di Python?",
+       "en": "What does the line `total = total + 1000` do in Python?"
+      },
+      "options": [
+       {
+        "id": "Ia menampilkan error, karena sebuah nilai tidak bisa sama dengan dirinya sendiri ditambah angka lain",
+        "en": "It shows an error, because a value cannot be equal to itself plus another number"
+       },
+       {
+        "id": "Ia menambah 1000 ke setiap variabel dalam program yang saat ini bernama total",
+        "en": "It adds 1000 to every variable in the whole program that currently has the name total"
+       },
+       {
+        "id": "Ia mengambil nilai total saat ini, menambah 1000, dan mengarahkan nama total ke hasilnya",
+        "en": "It takes total's current value, adds 1000 and attaches the name total to the result"
+       },
+       {
+        "id": "Ia menguji apakah total sama dengan total ditambah 1000 lalu menyimpan True atau False di total",
+        "en": "It tests whether total equals total plus 1000 and then stores True or False in total"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "`=` adalah penugasan: sisi kanan dihitung dulu, lalu nama di kiri menunjuk ke hasilnya. Ia bukan tanda sama dengan dalam matematika.",
+       "en": "`=` is assignment: the right side is calculated first, then the name on the left points at the result. It is not the equals sign of mathematics."
+      }
+     },
+     {
+      "question": {
+       "id": "File CSV memberi Anda teks `\"150000\"` sebagai total sebuah pesanan. Apa yang Anda butuhkan sebelum bisa menambahkan 1000 padanya?",
+       "en": "A CSV file gives you the text `\"150000\"` as the total of an order. What do you need before you can add 1000 to it?"
+      },
+      "options": [
+       {
+        "id": "Tidak ada, karena Python otomatis mengonversi teks yang tampak seperti angka untuk semua operator",
+        "en": "Nothing, because Python converts text that looks like a number automatically for every operator"
+       },
+       {
+        "id": "Taruh teks itu di dalam kurung siku agar menjadi list yang bisa ditambah oleh Python",
+        "en": "Put the text in square brackets so that it becomes a list that Python can add to"
+       },
+       {
+        "id": "Hapus tanda kutip dari filenya sendiri, karena Python tidak bisa membaca nilai berupa teks",
+        "en": "Remove the quotation marks from the file itself, since Python cannot read text values"
+       },
+       {
+        "id": "Konversi dengan int(...), karena file hanya berisi teks dan `\"150000\" + 1000` adalah error",
+        "en": "Convert it with int(...), because the file holds only text and `\"150000\" + 1000` is an error"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Semua yang dibaca dari CSV adalah string. Anda mengonversi secara eksplisit, dan teks seperti \"Rp 1.250.000\" tidak bisa dikonversi, begitulah data kotor muncul.",
+       "en": "Everything read from a CSV is a string. You convert explicitly, and a text such as \"Rp 1.250.000\" cannot be converted, which is how dirty data shows up."
+      }
+     },
+     {
+      "question": {
+       "id": "Wadah mana yang paling tepat untuk mengingat id pelanggan yang sudah Anda lihat, supaya bisa cepat bertanya \"sudah pernahkah saya lihat yang ini?\"",
+       "en": "Which container is the best choice to remember which customer ids you have already seen, so you can quickly ask \"have I seen this one?\""
+      },
+      "options": [
+       {
+        "id": "List, karena list menyimpan setiap id sesuai urutan ditemukan dan membolehkan id yang berulang",
+        "en": "A list, because a list keeps every id in the order it was found and allows repeated ids"
+       },
+       {
+        "id": "Tuple, karena tuple bersifat tetap sehingga tidak mungkin berisi id yang sama dua kali",
+        "en": "A tuple, since a tuple is fixed and therefore cannot ever contain the same id twice"
+       },
+       {
+        "id": "Set, karena ia menyimpan tiap nilai sekali dan menjawab `x in seen` dengan sangat cepat",
+        "en": "A set, because it stores each value once and answers `x in seen` very quickly on large data"
+       },
+       {
+        "id": "Dictionary dengan id sebagai nilai, karena dict satu-satunya wadah yang bisa menyimpan angka",
+        "en": "A dictionary with the id as value, because a dict is the only container that can hold numbers"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Set menyimpan nilai unik dan dibuat untuk uji keanggotaan. List juga bisa dipakai tetapi lebih lambat pada data besar dan menyimpan duplikat.",
+       "en": "A set holds unique values and is built for membership tests. A list would also work but is slower on large data and keeps duplicates."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang dicetak kode ini?  `a = 2`  `b = a * 3`  `a = 10`  `print(b)`",
+       "en": "What is printed by this code?  `a = 2`  `b = a * 3`  `a = 10`  `print(b)`"
+      },
+      "options": [
+       {
+        "id": "30, karena b selalu mengikuti nilai a yang sekarang",
+        "en": "30, because b always follows the current value of a, whatever happens later"
+       },
+       {
+        "id": "6, karena b sudah mendapat nilai 6 dan perubahan a tidak menyentuhnya",
+        "en": "6, because b got the value 6 when it was assigned; changing a later does not touch it"
+       },
+       {
+        "id": "10, karena penugasan terakhir dalam program menimpa semua penugasan sebelumnya",
+        "en": "10, because the last assignment in the program overrides every earlier one before printing"
+       },
+       {
+        "id": "Error, karena sebuah nama tidak bisa diberi nilai dua kali dalam satu program",
+        "en": "An error, since a name cannot be assigned twice in the same program"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Nama menunjuk ke nilai. `b = a * 3` menghitung 6 saat itu. Mengubah `a` kemudian tidak menghitung ulang `b`.",
+       "en": "Names point at values. `b = a * 3` calculates 6 at that moment. Changing `a` later does not recalculate `b`."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa beda print dan return dalam sebuah fungsi?",
+       "en": "What is the difference between print and return in a function?"
+      },
+      "options": [
+       {
+        "id": "Tidak ada: keduanya menampilkan hasil di layar, dan return hanya menghentikan fungsi lebih awal",
+        "en": "There is none: both show the result on the screen, and return only stops the function earlier"
+       },
+       {
+        "id": "print hanya menampilkan sesuatu di layar, sedangkan return menyerahkan nilai ke pemanggil fungsi",
+        "en": "print only shows something on screen, while return hands a value back to the code that called it"
+       },
+       {
+        "id": "return menampilkan nilai di layar dan menyimpannya ke file, sedangkan print hanya menyimpannya di memori",
+        "en": "return shows the value on the screen and saves it in a file, whereas print only keeps it in memory"
+       },
+       {
+        "id": "print hanya bisa dipakai di dalam loop, dan return hanya di fungsi yang tidak punya parameter",
+        "en": "print can be used only inside loops, and return only in functions that have no parameters"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Pipeline berjalan tanpa layar. Hanya nilai yang di-return yang bisa disimpan, dibandingkan, atau diteruskan ke langkah berikutnya. Fungsi yang hanya mencetak memberi None kepada pemanggilnya.",
+       "en": "A pipeline runs without a screen. Only a returned value can be stored, compared or passed to the next step. A function that only prints gives None to its caller."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa `except Exception: pass` berbahaya dalam pipeline data?",
+       "en": "Why is `except Exception: pass` dangerous in a data pipeline?"
+      },
+      "options": [
+       {
+        "id": "Ia menyembunyikan setiap error di masa depan, sehingga data salah berlanjut tanpa tanda",
+        "en": "It hides every future error, so wrong or missing data goes on silently with no sign of trouble"
+       },
+       {
+        "id": "Ia membuat program lebih lambat, karena Python harus membuat objek exception untuk setiap baris",
+        "en": "It makes the program slower, because Python has to build an exception object for every single row"
+       },
+       {
+        "id": "Ia tidak diizinkan Python, sehingga program berhenti dengan syntax error begitu mulai berjalan",
+        "en": "It is not allowed by Python, so the program stops with a syntax error as soon as it is started"
+       },
+       {
+        "id": "Ia menghapus baris penyebab error dari file masukan, dan itu tidak bisa dibatalkan",
+        "en": "It deletes the rows that caused the error from the input file, which cannot be undone"
+       }
+      ],
+      "correct": 0,
+      "explanation": {
+       "id": "Tangkap error spesifik yang Anda duga (`except ValueError`) dan putuskan apa yang dilakukan pada barisnya. Menelan semuanya mengubah salah ketik, file hilang, dan data buruk menjadi hasil salah yang diam-diam.",
+       "en": "Catch the specific error you expect (`except ValueError`) and decide what to do with the row. Swallowing everything turns typos, missing files and bad data into silent wrong results."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang terjadi dengan `def add(order, batch=[]): batch.append(order); return batch` ketika Anda memanggil `add(\"a\")` lalu `add(\"b\")`?",
+       "en": "What happens with `def add(order, batch=[]): batch.append(order); return batch` when you call `add(\"a\")` and then `add(\"b\")`?"
+      },
+      "options": [
+       {
+        "id": "Pemanggilan kedua mengembalikan [\"b\"], karena setiap pemanggilan mulai dengan list kosong yang baru",
+        "en": "The second call returns [\"b\"], since every call starts with a brand new empty list"
+       },
+       {
+        "id": "Python melaporkan error pada pemanggilan kedua karena list bawaan sudah pernah dipakai",
+        "en": "Python reports an error on the second call because the default list was already used once"
+       },
+       {
+        "id": "Setiap pemanggilan mengubah salinan, jadi hasil [\"a\"] dan [\"b\"] tidak saling memengaruhi",
+        "en": "Each call changes a copy, so the results [\"a\"] and [\"b\"] never influence each other"
+       },
+       {
+        "id": "Pemanggilan kedua mengembalikan \"a\", \"b\", karena list bawaan dibuat sekali dan dipakai bersama",
+        "en": "The second call returns \"a\", \"b\", because the default list is created once and shared"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Nilai bawaan dibuat saat `def` berjalan, bukan di setiap pemanggilan. Pakai `batch=None` dan buat list di dalam fungsi.",
+       "en": "A default value is created when `def` runs, not at each call. Use `batch=None` and create the list inside the function."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang dicapai `if __name__ == \"__main__\":` di bagian bawah sebuah skrip?",
+       "en": "What does `if __name__ == \"__main__\":` at the bottom of a script achieve?"
+      },
+      "options": [
+       {
+        "id": "Ia membuat skrip berjalan lebih cepat dengan melewati setiap fungsi yang tidak dipanggil langsung",
+        "en": "It makes the script run faster by skipping every function that is not called directly"
+       },
+       {
+        "id": "Kode di bawahnya berjalan saat file dimulai langsung, tetapi tidak ketika di-import file lain",
+        "en": "The code under it runs when you start the file directly, but not when it is imported"
+       },
+       {
+        "id": "Ia memeriksa bahwa skrip ditulis oleh pengembang utama proyek ini",
+        "en": "It checks that the script was written by the main developer of the project"
+       },
+       {
+        "id": "Ia membuat Python membaca file dua kali agar semua nama sudah terdefinisi sebelum dipakai",
+        "en": "It makes Python read the file twice so that all names are defined before they are used"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "`__name__` bernilai `\"__main__\"` hanya untuk file yang Anda jalankan. Meng-import file (misalnya dari tes) tidak memicu `main()`, sehingga file berfungsi sebagai program dan sebagai pustaka.",
+       "en": "`__name__` is `\"__main__\"` only for the file you run. Importing the file (for example from a test) does not trigger `main()`, so the file works as a program and as a library."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "Tutorial Python (resmi)",
+       "en": "The Python Tutorial (official)"
+      },
+      "url": "https://docs.python.org/3/tutorial/"
+     },
+     {
+      "label": {
+       "id": "Python Tutor: lihat kode Anda berjalan langkah demi langkah",
+       "en": "Python Tutor: see your code run step by step"
+      },
+      "url": "https://pythontutor.com/"
+     },
+     {
+      "label": {
+       "id": "Think Python, edisi ke-3 (buku gratis)",
+       "en": "Think Python, 3rd edition (free book)"
+      },
+      "url": "https://allendowney.github.io/ThinkPython/"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Python: modul csv",
+       "en": "Python docs: the csv module"
+      },
+      "url": "https://docs.python.org/3/library/csv.html"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Python: error dan exception",
+       "en": "Python docs: errors and exceptions"
+      },
+      "url": "https://docs.python.org/3/tutorial/errors.html"
+     }
+    ],
+    "idPending": false
+   },
+   {
     "id": "mod-0-1",
     "number": "0.1",
     "title": {
@@ -59,8 +559,8 @@ window.CURRICULUM_DATA = [
      }
     ],
     "prerequisites": {
-     "id": "Tidak ada. Anda hanya perlu bisa membaca Python sederhana. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.",
-     "en": "None. You only need to be able to read simple Python. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works."
+     "id": "Modul 0.0 (Python dari nol) sangat disarankan: lab ini memakai fungsi, perulangan, dictionary, dan penanganan error yang dijelaskan Modul 0.0. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.",
+     "en": "Module 0.0 (Python from zero) is strongly recommended: the lab uses functions, loops, dictionaries and error handling that Module 0.0 explains. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works."
     },
     "lessons": [
      {

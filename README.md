@@ -2,9 +2,13 @@
 
 A self-study data engineering course that runs in your browser: a curriculum with hands-on labs and "chaos" scenarios, a SQL sandbox with auto-checked challenges, interview practice, portfolio blueprints and a resume builder. UI languages: Indonesian and English.
 
-> **Status:** All 17 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes).
+> **Status:** All 18 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes).
 > 
 > 💡 **New to Data Engineering?** Read the [Beginner Walkthrough / Panduan Belajar Pemula](WALKTHROUGH.md) for a complete zero-to-pro study guide and learning loop.
+
+## Learning contract (read this before you share the course)
+
+This course only works if learners write the code **themselves**. The site says so on the Start here page and on every lab page: do not copy the reference solution and do not ask an AI to write the lab; use AI or people to *explain* concepts and errors after trying for at least 30 minutes. The proof codes (`scripts/prove.py`) show that the tests pass on the learner's computer, but they cannot prove who wrote the code, and the course gives no certificate. If you run this course for a group, say the rule out loud and consider reviewing code live.
 
 ## Quick start (new learners)
 
@@ -34,7 +38,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 
 | Part | What you get |
 |---|---|
-| **Curriculum** | 4 levels, 17 modules, about 45 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8-question quiz with explanations (80% to pass). |
+| **Curriculum** | 4 levels, 18 modules, about 47 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8-question quiz with explanations (80% to pass). |
 | **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
 | **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and challenges whose results are checked against a reference query. SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
 | **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |
@@ -42,11 +46,11 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 | **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
 | **Job Readiness Dashboard** | Overall readiness score, 6 competency domain matrices, hiring checklist, next action steps, and exportable PDF report. |
 
-### The 17 modules
+### The 18 modules
 
 | | Module |
 |---|---|
-| **Level 0** | 0.1 The data landscape · 0.2 Terminal, Python environments and Git · 0.3 Databases and SQL 101 |
+| **Level 0** | 0.0 Python from zero · 0.1 The data landscape · 0.2 Terminal, Python environments and Git · 0.3 Databases and SQL 101 |
 | **Level 1** | 1.1 Linux, shell and Docker · 1.2 Production Python · 1.3 Advanced SQL and execution plans · 1.4 Dimensional modeling |
 | **Level 2** | 2.1 Parquet, DuckDB and Polars · 2.2 Iceberg and Delta Lake · 2.3 dbt · 2.4 Dagster and Airflow · 2.5 Data quality and contracts |
 | **Level 3** | 3.1 Spark internals · 3.2 Kafka and CDC · 3.3 Event time, windows and watermarks · 3.4 Terraform and FinOps · 3.5 AI and vector data engineering (pgvector) |

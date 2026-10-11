@@ -1,4 +1,19 @@
 {
+  "mod-0-0": {
+    "note": {
+      "id": "Ini hanya pratinjau agar Anda bisa mencoba langsung tanpa instalasi: edit basics.py di bawah, lalu klik Jalankan tes. Python berjalan di komputer Anda (WebAssembly); tidak ada yang dikirim ke server. Yang dihitung adalah mengerjakannya sendiri di komputer Anda: setelah Modul 0.2, ulangi lab ini di terminal Anda sendiri dengan pytest, tulis ulang kodenya tanpa menyalin, lalu jalankan python3 scripts/prove.py mod-0-0.",
+      "en": "This is only a preview so you can try the lab right away with nothing installed: edit basics.py below, then click Run tests. Python runs on your own computer (WebAssembly); nothing is sent to a server. What counts is doing it yourself on your own computer: after Module 0.2, repeat this lab in your own terminal with pytest, write the code again without copying, then run python3 scripts/prove.py mod-0-0."
+    },
+    "editable": "labs/mod-0-0/basics.py",
+    "reference": "labs/mod-0-0/reference/basics.py",
+    "tests": [
+      "labs/mod-0-0/test_lab.py"
+    ],
+    "extra": [
+      "labs/shared/labtools.py",
+      "labs/shared/shopgen.py"
+    ]
+  },
   "mod-0-1": {
     "note": {
       "id": "Ini hanya pratinjau agar Anda bisa mencoba langsung tanpa instalasi: edit pipeline.py di bawah, lalu klik Jalankan tes. Python berjalan di komputer Anda (WebAssembly); tidak ada yang dikirim ke server. Yang dihitung adalah mengerjakannya sendiri di komputer Anda: setelah Modul 0.2, ulangi lab ini di terminal Anda sendiri dengan pytest sampai semua tes lulus. Menyiapkan Python, venv, dan terminal sendiri adalah keterampilan yang dicari perusahaan.",

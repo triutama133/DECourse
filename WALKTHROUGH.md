@@ -12,9 +12,11 @@ Di dunia kerja nyata, seorang Data Engineer tidak dinilai dari berapa banyak vid
 2. Apakah Anda mengerti apa yang terjadi di balik layar (memori, partisi disk, query execution plan, network shuffle)?
 3. Ketika pipeline produksi meledak jam 3 pagi (OOM, disk WAL penuh, data duplikat), apakah Anda tahu cara mendiagnosis akar masalahnya (*root cause*) dan memperbaikinya?
 
-Kurikulum 17 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
+Kurikulum 18 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
 
 ---
+
+> **Aturan main:** kerjakan sendiri. Jangan menyalin solusi referensi atau meminta AI menulis lab untuk Anda; bertanyalah untuk *memahami* setelah mencoba minimal 30 menit. Kode bukti tidak bisa membuktikan siapa yang menulis kode; yang dirugikan jika curang adalah Anda sendiri.
 
 ## 1. Arsitektur Belajar: Loop 4 Langkah Setiap Modul
 

@@ -24,7 +24,7 @@ class DataForgeApp {
   constructor() {
     this.currentView = "start";
     this.activeLevelId = "zero";
-    this.activeModuleId = "mod-0-1";
+    this.activeModuleId = "mod-0-0";
     this.activeModuleTab = "concepts";
     this.activeInterviewTab = "system-design";
     this.activeSystemDesignId = "sd-1";
@@ -74,13 +74,14 @@ class DataForgeApp {
   // Small Markdown renderer: paragraphs, lists, tables, fenced code, callouts, inline code/bold/italic/links.
   // Everything is escaped before any tag is produced.
   inline(s) {
-    return String(s).split(/(`[^`]+`)/).map((part) => {
-      if (part.length > 1 && part[0] === "`" && part[part.length - 1] === "`") return `<code>${this.esc(part.slice(1, -1))}</code>`;
-      return this.esc(part)
-        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-        .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![\w*])/g, "$1<em>$2</em>")
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    }).join("");
+    // protect `code` spans first so that **bold**, *italic* and [links] may wrap or contain them
+    const codes = [];
+    const protectedText = String(s).replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return "\u0000" + (codes.length - 1) + "\u0000"; });
+    return this.esc(protectedText)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![\w*])/g, "$1<em>$2</em>")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\u0000(\d+)\u0000/g, (m, n) => `<code>${this.esc(codes[Number(n)])}</code>`);
   }
   md(val) {
     const src = this.t(val);
@@ -622,7 +623,18 @@ class DataForgeApp {
           <p class="muted" style="max-width:760px;font-size:15px">${this.l(
             "Kursus ini dipelajari dengan menjalankan kode, bukan hanya membaca. Halaman ini membawa Anda ke titik di mana lab pertama berjalan di komputer Anda. Anda tidak perlu pengalaman sebelumnya. Kalau ada langkah yang macet, itu bukan salah Anda: lihat bagian \"Kalau macet\" di bawah.",
             "You learn this course by running code, not only by reading. This page takes you to the point where the first lab runs on your computer. You do not need any experience. If a step gets stuck, it is not your fault: see \"If you get stuck\" below.")}</p>
-          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi dan memakai SQL Sandbox. Menyiapkan Python, venv, terminal, dan Git di komputer Anda sendiri adalah bagian penting dari belajar data engineering, dan itu dilatih di Modul 0.2. Lab Python dikerjakan di komputer Anda sendiri; hanya Lab 0.1 punya pratinjau di browser, dan pratinjau itu tidak dihitung.", "With nothing installed, you can already read every lesson and use the SQL Sandbox in this browser. Setting up Python, a venv, a terminal and Git on your own computer is a core part of learning data engineering, and Module 0.2 trains it. The Python labs are done on your own computer; only Lab 0.1 has a browser preview, and the preview does not count.")}</p></div>
+          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi dan memakai SQL Sandbox. Menyiapkan Python, venv, terminal, dan Git di komputer Anda sendiri adalah bagian penting dari belajar data engineering, dan itu dilatih di Modul 0.2. Lab Python dikerjakan di komputer Anda sendiri; hanya Lab 0.0 dan 0.1 punya pratinjau di browser, dan pratinjau itu tidak dihitung.", "With nothing installed, you can already read every lesson and use the SQL Sandbox in this browser. Setting up Python, a venv, a terminal and Git on your own computer is a core part of learning data engineering, and Module 0.2 trains it. The Python labs are done on your own computer; only Labs 0.0 and 0.1 have a browser preview, and the preview does not count.")}</p></div>
+        </div>
+
+        <div class="card stack-sm" style="border-left:4px solid var(--blue)" id="learning-contract">
+          <h2>${this.l("Aturan main: kerjakan sendiri", "The rule: do it yourself")}</h2>
+          <p>${this.l("Kursus ini hanya berhasil jika <strong>Anda sendiri yang menulis kodenya</strong>. Menyalin solusi referensi, atau meminta AI atau orang lain menulis lab untuk Anda, membuat Anda merasa paham padahal tidak, dan itu langsung terlihat di wawancara teknis dan di minggu pertama bekerja.", "This course only works if <strong>you write the code yourself</strong>. Copying the reference solution, or asking an AI or another person to write the lab for you, makes you feel you understand when you do not, and it shows immediately in a technical interview and in your first week at work.")}</p>
+          <ul style="margin-left:18px">
+            <li>${this.l("<strong>Boleh:</strong> bertanya ke AI, forum, atau teman untuk <em>menjelaskan</em> sebuah konsep atau pesan error, setelah Anda mencoba sendiri minimal 30 menit.", "<strong>Allowed:</strong> asking an AI, a forum or a friend to <em>explain</em> a concept or an error message, after you have tried yourself for at least 30 minutes.")}</li>
+            <li>${this.l("<strong>Jangan:</strong> meminta mereka menulis solusi lab, atau membuka folder <code>reference/</code> sebelum Anda berusaha sungguh-sungguh.", "<strong>Do not:</strong> ask them to write the lab solution, or open the <code>reference/</code> folder before you have really tried.")}</li>
+            <li>${this.l("Kode bukti hanya menunjukkan bahwa tes lulus di komputer Anda; ia <strong>tidak bisa membuktikan siapa yang menulis kodenya</strong>. Kursus ini tidak memberi sertifikat. Yang Anda bawa pulang adalah kemampuan Anda, dan yang dirugikan jika curang adalah Anda sendiri.", "The proof code only shows that the tests pass on your computer; it <strong>cannot prove who wrote the code</strong>. This course gives no certificate. What you take away is your own ability, and the person who loses when you cheat is you.")}</li>
+            <li>${this.l("Merasa macet itu normal dan itulah proses belajarnya. Jika macet lebih dari 30 menit: baca ulang pelajaran, kecilkan masalahnya, lalu bertanyalah.", "Feeling stuck is normal and it is how learning happens. If you are stuck for more than 30 minutes: re-read the lesson, shrink the problem, then ask.")}</li>
+          </ul>
         </div>
 
         ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
@@ -664,19 +676,19 @@ class DataForgeApp {
         ${step(5, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
           <ul style="margin-left:18px">
-            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 45 minggu; Level 0 saja sekitar 4 sampai 5 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 45 weeks; Level 0 alone is about 4 to 5 weeks.")}</li>
+            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 47 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 47 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
           </ul>
-          <div class="row"><button class="btn btn-primary" onclick="app.go('curriculum','mod-0-1')">${this.l("Mulai Modul 0.1", "Start Module 0.1")}</button><button class="btn" onclick="app.go('playground')">${this.l("Coba SQL Sandbox dulu", "Try the SQL Sandbox first")}</button></div>`)}
+          <div class="row"><button class="btn btn-primary" onclick="app.go('curriculum','mod-0-0')">${this.l("Mulai Modul 0.0 (Python dari nol)", "Start Module 0.0 (Python from zero)")}</button><button class="btn" onclick="app.go('playground')">${this.l("Coba SQL Sandbox dulu", "Try the SQL Sandbox first")}</button></div>`)}
 
         <div class="card stack-sm">
           <h2>${this.l("Kalau macet", "If you get stuck")}</h2>
           <ul style="margin-left:18px">
             <li>${this.l("Baca pesan error <strong>dari baris paling bawah</strong>. Jawabannya biasanya di sana (Modul 0.2 melatih ini).", "Read the error message <strong>from the bottom line</strong>. The answer is usually there (Module 0.2 trains this).")}</li>
             <li>${this.l("Coba sendiri minimal 30 menit sebelum melihat folder <code>reference/</code>. Setelah melihat, tutup dan tulis ulang dengan kata-kata Anda sendiri.", "Try for at least 30 minutes before looking at the <code>reference/</code> folder. After looking, close it and write it again in your own words.")}</li>
-            <li>${this.l("Jalankan satu tes saja agar pesan error lebih pendek: <code>pytest labs/mod-0-1 -k parse_total -x</code>.", "Run one test only to get a shorter error: <code>pytest labs/mod-0-1 -k parse_total -x</code>.")}</li>
+            <li>${this.l("Jalankan satu tes saja agar pesan error lebih pendek: <code>pytest labs/mod-0-0 -k safe_int -x</code>.", "Run one test only to get a shorter error: <code>pytest labs/mod-0-0 -k safe_int -x</code>.")}</li>
             <li>${this.l("Masih macet? Buka isu di", "Still stuck? Open an issue at")} <a href="${repo}/issues" target="_blank" rel="noopener">${repo.replace("https://", "")}/issues</a> ${this.l("dan sertakan perintah yang Anda jalankan serta pesan error lengkap.", "and include the command you ran and the full error message.")}</li>
           </ul>
           <p class="small muted">${this.l("Tentang kejujuran kursus: semua lab sudah dijalankan terhadap alat aslinya (Spark, Kafka, dbt, Terraform, dan lain-lain) dan solusi referensinya lulus tes. Namun kursus ini belum diuji oleh banyak pemula; jika ada bagian yang membingungkan, tolong laporkan.", "About honesty: every lab has been run against the real tools (Spark, Kafka, dbt, Terraform and others) and its reference solution passes the tests. But the course has not yet been tested with many beginners; if something is confusing, please report it.")}</p>
@@ -808,7 +820,7 @@ class DataForgeApp {
       return `
         <div class="callout">
           <div class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</div>
-          <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.esc(this.t(o))}</li>`).join("")}</ul>
+          <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>
           ${mod.prerequisites && this.t(mod.prerequisites) ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(this.t(mod.prerequisites))}</p>` : ""}
           <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
         </div>
@@ -834,6 +846,7 @@ class DataForgeApp {
           ${this.md(lab.description)}
         </div>
         ${hasSandbox ? `<div class="callout success"><p>${this.l("Sebagian lab ini bisa dikerjakan langsung di browser dengan pengecekan otomatis:", "Part of this lab can be done in your browser with automatic checking:")} <a href="#/playground">${this.l("buka SQL Sandbox", "open the SQL Sandbox")} →</a></p></div>` : ""}
+        <div class="callout"><p><strong>${this.l("Kerjakan sendiri.", "Do it yourself.")}</strong> ${this.l("Tulis kodenya sendiri; jangan menyalin solusi referensi atau meminta AI menulisnya. Kebingungan yang Anda rasakan sekarang adalah belajar yang sesungguhnya. Bertanyalah untuk memahami, setelah Anda mencoba.", "Write the code yourself; do not copy the reference solution or ask an AI to write it. The confusion you feel now is the real learning. Ask questions to understand, after you have tried.")}</p></div>
         ${this.browserLabCard(mod.id)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
         ${this.md(lab.steps)}
@@ -1733,7 +1746,7 @@ class DataForgeApp {
       {
         id: "python",
         name: this.l("2. Software Craftsmanship & Production Python", "2. Software Craftsmanship & Production Python"),
-        mods: ["mod-0-2", "mod-1-1", "mod-1-2"],
+        mods: ["mod-0-0", "mod-0-2", "mod-1-1", "mod-1-2"],
         topics: this.l("Linux Shell piping, Docker container limits (code 137), Pydantic v2 validation, Python Generators (flat RAM), Idempotensi, Pytest TDD", "Linux Shell pipes, Docker resource limits (code 137), Pydantic v2, Python Generators (flat RAM), Idempotency, Pytest TDD")
       },
       {
@@ -1812,7 +1825,7 @@ class DataForgeApp {
 
     // Next steps
     const nextSteps = [];
-    if (completedCount === 0) nextSteps.push({ text: this.l("Mulai dari awal: siapkan komputer di halaman Mulai di sini, lalu kerjakan Modul 0.1.", "Start at the beginning: set up your computer on the Start here page, then do Module 0.1."), link: "#/start" });
+    if (completedCount === 0) nextSteps.push({ text: this.l("Mulai dari awal: baca halaman Mulai di sini, lalu kerjakan Modul 0.0 (Python dari nol).", "Start at the beginning: read the Start here page, then do Module 0.0 (Python from zero)."), link: "#/start" });
     const resumeStep = !isResumeDone ? ({ text: this.l("Kustomisasi resume ATS Anda di Resume Builder (target skor ≥ 70) dengan formula dampak XYZ.", "Customize your ATS resume in Resume Builder (target score ≥ 70) using the XYZ impact formula."), link: "#/cv-builder" }) : null;
     if (!this.completedModules.includes("mod-0-3")) nextSteps.push({ text: this.l("Selesaikan Modul 0.3 untuk mengunci fondasi database relasional dan SQL.", "Complete Module 0.3 to solidify relational databases and SQL foundations."), link: "#/curriculum/mod-0-3/concepts" });
     if (!this.completedModules.includes("mod-1-2")) nextSteps.push({ text: this.l("Pelajari Modul 1.2 untuk menguasai Production Python, Pydantic, dan generator.", "Study Module 1.2 to master Production Python, Pydantic, and generators."), link: "#/curriculum/mod-1-2/concepts" });

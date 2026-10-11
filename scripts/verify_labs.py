@@ -25,6 +25,7 @@ LABS = ROOT / "labs"
 
 # module -> ("pytest", [targets]) or ("shell", [verify scripts])
 PLAN = {
+    "mod-0-0": ("pytest", ["labs/mod-0-0/test_lab.py"]),
     "mod-0-1": ("pytest", ["labs/mod-0-1/test_lab.py"]),
     "mod-0-2": ("shell", ["labs/mod-0-2/verify.sh"]),
     "mod-0-3": ("shell", ["labs/mod-0-3/verify.sh"]),
