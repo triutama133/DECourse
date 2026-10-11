@@ -3999,6 +3999,511 @@ window.CURRICULUM_DATA = [
     "idPending": false
    },
    {
+    "id": "mod-1-5",
+    "number": "1.5",
+    "title": {
+     "id": "pandas untuk Data Engineer: Bersihkan, Bentuk Ulang, dan Ringkas Data",
+     "en": "pandas for Data Engineers: Clean, Reshape and Summarise Data"
+    },
+    "duration": {
+     "id": "2 minggu",
+     "en": "2 weeks"
+    },
+    "summary": {
+     "id": "Pelajari bagian pandas yang dipakai data engineer setiap hari: memuat file dengan tipe yang benar, menemukan apa yang salah di dalamnya, membersihkan dengan operasi seluruh kolom alih-alih loop, mengelompokkan, mem-pivot dan meranking, menggabungkan tabel tanpa melipatgandakan baris, dan menjaga memori dengan kategori, chunk, dan Parquet. Anda membersihkan ekspor pesanan yang sengaja berantakan dan memeriksa setiap angkanya.",
+     "en": "Learn the part of pandas that data engineers use every day: loading files with the right types, finding what is wrong with them, cleaning with whole-column operations instead of loops, grouping, pivoting and ranking, joining without multiplying rows, and keeping memory under control with categories, chunks and Parquet. You clean a deliberately messy orders export and check every number."
+    },
+    "whyTutorialsLie": {
+     "id": "Tutorial menampilkan pandas pada CSV yang rapi dan melakukan loop per baris dengan apply. File sungguhan punya angka nol di depan yang hilang, tanggal yang bukan tanggal, dan duplikat dari ekspor yang diulang, dan loop per baris yang memakan 6 detik untuk sejuta baris adalah beda antara pipeline yang selesai dan yang tidak.",
+     "en": "Tutorials show pandas on a tidy CSV and loop over rows with apply. Real files have leading zeros that disappear, dates that are not dates and duplicates from retried exports, and a row-by-row loop that takes 6 seconds on a million rows is the difference between a pipeline that finishes and one that does not."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan apa itu DataFrame, Series, index, dan dtype, dan kapan pandas adalah alat yang tepat dibanding SQL atau Spark",
+      "en": "Explain what a DataFrame, a Series, an index and a dtype are, and when pandas is the right tool compared with SQL or Spark"
+     },
+     {
+      "id": "Memuat CSV dengan tipe eksplisit sehingga id mempertahankan angka nol di depan, penanda kosong dikenali, dan tanggal yang buruk menjadi nilai kosong",
+      "en": "Load a CSV with explicit types so that ids keep their leading zeros, missing markers are recognised and bad dates become missing values"
+     },
+     {
+      "id": "Memprofil file untuk mencari null dan duplikat sebelum mengubah apa pun, lalu membersihkannya dengan operasi vektor, bukan loop per baris",
+      "en": "Profile a file for nulls and duplicates before changing anything, and clean it with vectorised operations rather than row-by-row loops"
+     },
+     {
+      "id": "Mengelompokkan, mengagregasi, mem-pivot, dan meranking data, serta menambah total berjalan dan selisih hari per pelanggan",
+      "en": "Group, aggregate, pivot and rank data, and add running totals and gaps per customer"
+     },
+     {
+      "id": "Menggabungkan dua tabel dengan merge yang tidak bisa diam-diam melipatgandakan baris, dan menemukan baris yang tidak cocok",
+      "en": "Join two tables with a merge that cannot silently multiply rows, and find the rows that did not match"
+     },
+     {
+      "id": "Mengurangi memori dengan kategori dan integer yang lebih kecil, membaca file per chunk, dan memilih Parquet daripada CSV",
+      "en": "Reduce memory with categories and smaller integers, read a file in chunks, and choose Parquet over CSV"
+     }
+    ],
+    "prerequisites": {
+     "id": "Modul 0.0 dan 0.1 (fungsi Python, loop, virtual environment) dan 0.3 (GROUP BY dan join SQL). Lab butuh `pandas` dan `pyarrow` di virtual environment Anda (`pip install -r labs/mod-1-5/requirements.txt`).",
+     "en": "Modules 0.0 and 0.1 (Python functions, loops, virtual environments) and 0.3 (SQL grouping and joins). The lab needs `pandas` and `pyarrow` in your virtual environment (`pip install -r labs/mod-1-5/requirements.txt`)."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Apa itu pandas, dan kapan memakainya",
+       "en": "What pandas is, and when to use it"
+      },
+      "body": {
+       "id": "**pandas** adalah pustaka Python untuk bekerja dengan tabel di memori. Dua objek intinya:\n\n- **Series**: satu kolom, daftar nilai dengan label untuk tiap nilai (**index**) dan satu **dtype** (tipe dari setiap nilai: `int64`, `float64`, teks, datetime, ...);\n- **DataFrame**: sebuah tabel, yaitu kumpulan Series yang berbagi satu index. Setiap kolom punya dtype-nya sendiri.\n\nJika Anda sudah tahu SQL, Anda sudah tahu sebagian besar gagasannya, hanya penulisannya yang berubah:\n\n| SQL | pandas |\n|---|---|\n| `SELECT a, b` | `df[[\"a\", \"b\"]]` |\n| `WHERE x > 3` | `df[df[\"x\"] > 3]` (sebuah **boolean mask**) |\n| `SELECT a * b AS c` | `df.assign(c=df[\"a\"] * df[\"b\"])` |\n| `GROUP BY k` dengan `SUM`, `COUNT` | `df.groupby(\"k\").agg(...)` |\n| `JOIN` | `df.merge(other, on=..., how=...)` |\n| `ORDER BY x DESC` | `df.sort_values(\"x\", ascending=False)` |\n| `ROW_NUMBER() OVER (PARTITION BY k ...)` | `df.groupby(\"k\").cumcount() + 1` |\n\nModel mental yang paling penting: **pandas bekerja pada seluruh kolom sekaligus.** `df[\"quantity\"] * df[\"unit_price_idr\"]` mengalikan sejuta pasang dalam satu panggilan, di kode yang sudah dikompilasi. Hampir tidak pernah Anda menulis loop `for` atas baris. Kita akan mengukur seberapa besar bedanya di pelajaran 3.\n\n**Kapan pandas adalah alat yang tepat?** Pakai ketika data muat di memori satu mesin (pelajaran 6 menunjukkan cara memperkirakannya), ketika Anda mengeksplorasi, membersihkan, atau membentuk ulang file, ketika Anda menulis transformasi kecil dalam Python, dan ketika Anda perlu menguji logika dengan cepat. Pilih **SQL di warehouse atau DuckDB** ketika data sudah ada di sana, karena mesinnya hanya membaca yang dibutuhkan dan Anda tidak menyalin data keluar. Pilih **Spark** (Modul 3.1) ketika satu mesin tidak cukup. Data engineer memakai ketiganya; pandas adalah alat paling tajam untuk melihat file baru pertama kali dan untuk langkah kecil di antaranya.\n\nDua kebiasaan untuk dimulai. Pertama, **lihat sebelum mengubah**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df[\"country\"].value_counts()`. Kedua, **jangan mengedit di tempat tanpa alasan**: bangun frame baru dari yang lama (`assign`, `rename`, `dropna`), yang juga membuat fungsi Anda mudah diuji, seperti di lab.",
+       "en": "**pandas** is the Python library for working with tables in memory. Its two core objects are:\n\n- a **Series**: one column, a list of values with a label for each value (the **index**) and one **dtype** (the type of every value: `int64`, `float64`, text, datetime, ...);\n- a **DataFrame**: a table, which is a set of Series sharing one index. Each column has its own dtype.\n\nIf you know SQL you already know most of the ideas, only the spelling changes:\n\n| SQL | pandas |\n|---|---|\n| `SELECT a, b` | `df[[\"a\", \"b\"]]` |\n| `WHERE x > 3` | `df[df[\"x\"] > 3]` (a **boolean mask**) |\n| `SELECT a * b AS c` | `df.assign(c=df[\"a\"] * df[\"b\"])` |\n| `GROUP BY k` with `SUM`, `COUNT` | `df.groupby(\"k\").agg(...)` |\n| `JOIN` | `df.merge(other, on=..., how=...)` |\n| `ORDER BY x DESC` | `df.sort_values(\"x\", ascending=False)` |\n| `ROW_NUMBER() OVER (PARTITION BY k ...)` | `df.groupby(\"k\").cumcount() + 1` |\n\nThe mental model that matters most: **pandas works on whole columns at once.** `df[\"quantity\"] * df[\"unit_price_idr\"]` multiplies a million pairs in one call, in compiled code. You almost never write a `for` loop over rows. We will measure how much that matters in lesson 3.\n\n**When is pandas the right tool?** Use it when the data fits in memory on one machine (lesson 6 shows how to estimate that), when you are exploring, cleaning or reshaping files, when you write a small transformation in Python, and when you need to test logic quickly. Prefer **SQL in a warehouse or DuckDB** when the data already lives there, because the engine reads only what it needs and you avoid copying data out. Prefer **Spark** (Module 3.1) when one machine is not enough. A data engineer uses all three; pandas is the sharpest tool for the first look at a new file and for the small steps in between.\n\nTwo habits to start with. First, **look before you change**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df[\"country\"].value_counts()`. Second, **never edit in place without a reason**: build a new frame from the old one (`assign`, `rename`, `dropna`), which also makes your function easy to test, as in the lab."
+      }
+     },
+     {
+      "title": {
+       "id": "Memuat file dengan benar",
+       "en": "Loading a file correctly"
+      },
+      "body": {
+       "id": "`pd.read_csv(\"orders.csv\")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:\n\n1. **Id adalah teks, bukan angka.** Id pelanggan seperti `00042` adalah label, bukan kuantitas. Jika dibaca sebagai angka, pandas menyimpan `42`: angka nol di depan hilang, dan join terhadap tabel pelanggan (yang berisi `\"00042\"`) gagal atau, lebih buruk, cocok dengan baris yang salah. Pada file pesanan berantakan kita, id pelanggan pertama yang terbaca secara default adalah `211` alih-alih `00211`, dan merge atasnya memunculkan `ValueError: You are trying to merge on int64 and str columns`. Perbaikan: `dtype={\"customer_id\": \"string\"}`.\n2. **Penanda kosong.** pandas sudah menganggap sel kosong, `NA`, `N/A`, dan `null` sebagai kosong, tetapi file Anda mungkin memakai `-` atau `unknown`. Beri tahu: `na_values=[\"-\"]`. Kalau tidak, satu `-` mengubah seluruh kolom harga menjadi teks.\n3. **Integer yang bisa kosong.** Kolom `int64` biasa tidak bisa menyimpan nilai kosong, jadi satu sel kosong diam-diam mengubah seluruh kolom menjadi float (`3.0`). Tipe integer nullable `\"Int64\"` (I besar) menjaga integer dan menampilkan `<NA>`.\n4. **Tanggal di-parse, dan kegagalan ditangani dengan sengaja.** `pd.to_datetime(col, format=\"%Y-%m-%d\", errors=\"coerce\")` mengubah teks menjadi datetime sungguhan dan mengubah apa pun yang bukan tanggal (`\"yesterday\"`, `\"2026-02-30\"`, sel kosong) menjadi `NaT` (\"not a time\"), alih-alih membuat job malam crash atau, lebih buruk, menebak.\n\nBerguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang dibutuhkan, `nrows=1000` untuk pratinjau, dan `encoding=\"utf-8\"` sebaiknya disebut terang-terangan (Modul 0.0).\n\n**Profil sebelum membersihkan.** Di lab Anda menulis `data_quality_report`, yang menghitung baris, null per kolom, dan id yang berulang. Untuk ekspor 2.080 baris itu, ia menemukan **80 id pesanan berulang, 25 tanggal tak terpakai, 37 kuantitas kosong, dan 30 harga kosong**. Itu 4% baris berulang dan sekitar 5% tak terpakai, wajar untuk ekspor sungguhan dan itulah alasan langkah ini ada. Pipeline yang tidak menghitung apa yang dibuangnya tidak bisa menjelaskan nanti mengapa sebuah total berubah. Simpan hitungan seperti ini: itulah metrik kualitas data pertama Anda (Modul 2.5).\n\n`NaN` perlu dibahas sebentar. Di pandas angka kosong adalah `NaN` (dan tanggal kosong `NaT`), dan sebagian besar agregasi **melewatinya**: `pd.Series([1, None, 3]).sum()` adalah 4.0 dan `.mean()` adalah 2.0, bukan 1.33. Biasanya itu yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% kosong menggambarkan 70% sisanya. Selalu tahu berapa banyak yang kosong ketika Anda menyebut sebuah angka.",
+       "en": "`pd.read_csv(\"orders.csv\")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:\n\n1. **Ids are text, not numbers.** A customer id like `00042` is a label, not a quantity. Read it as a number and pandas stores `42`: the leading zeros are gone, and a join against the customer table (which has `\"00042\"`) fails or, worse, matches the wrong rows. In our messy orders file the first customer id read by default is `211` instead of `00211`, and merging on it raises `ValueError: You are trying to merge on int64 and str columns`. Fix: `dtype={\"customer_id\": \"string\"}`.\n2. **Missing markers.** pandas already treats an empty cell, `NA`, `N/A` and `null` as missing, but your file may use `-` or `unknown`. Tell it: `na_values=[\"-\"]`. Otherwise one `-` turns the whole price column into text.\n3. **Integers that can be missing.** A plain `int64` column cannot hold a missing value, so one empty cell silently turns the whole column into floats (`3.0`). The nullable integer type `\"Int64\"` (capital I) keeps integers and shows `<NA>`.\n4. **Dates are parsed, and failures are handled on purpose.** `pd.to_datetime(col, format=\"%Y-%m-%d\", errors=\"coerce\")` turns text into real datetimes and turns anything that is not a date (`\"yesterday\"`, `\"2026-02-30\"`, an empty cell) into `NaT` (\"not a time\"), instead of crashing a nightly job or, worse, guessing.\n\nAlso useful when reading big files: `usecols=[...]` loads only the columns you need, `nrows=1000` previews, and `encoding=\"utf-8\"` should be said out loud (Module 0.0).\n\n**Profile before you clean.** In the lab you write `data_quality_report`, which counts rows, nulls per column and repeated ids. For the 2,080-line export it finds **80 repeated order ids, 25 unusable dates, 37 missing quantities and 30 missing prices**. That is 4% of lines repeated and about 5% unusable, which is normal for a real export and is the reason this step exists. A pipeline that does not count what it removes cannot tell you later why a total changed. Keep such counts: they are your first data quality metric (Module 2.5).\n\n`NaN` deserves a moment. In pandas a missing number is `NaN` (and a missing date `NaT`), and most aggregations **skip** it: `pd.Series([1, None, 3]).sum()` is 4.0 and `.mean()` is 2.0, not 1.33. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many are missing when you quote a number."
+      }
+     },
+     {
+      "title": {
+       "id": "Membersihkan dengan operasi seluruh kolom",
+       "en": "Cleaning with whole-column operations"
+      },
+      "body": {
+       "id": "Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bentuk vektornya:\n\n- **Teks**: accessor `.str` menerapkan metode string ke setiap nilai: `df[\"country\"].str.strip().str.upper()`. Pada ekspor kita negara muncul sebagai `\" id\"`, `\"Id\"`, `\"ID \"`, dan `\"ID\"`; setelah satu baris hanya ada satu nilai.\n- **Tanggal**: accessor `.dt`: `df[\"order_date\"].dt.strftime(\"%Y-%m\")`, `.dt.month`, `.dt.day_name()`.\n- **Duplikat**: `df.drop_duplicates(subset=\"order_id\", keep=\"first\")`. Tentukan **kuncinya** (id pesanan, bukan seluruh baris) dan salinan mana yang menang.\n- **Kosong**: `df.dropna(subset=[...])` untuk membuang baris yang tak terpakai bagi tujuan Anda, atau `fillna(value)` untuk memberi nilai default. Membuang adalah keputusan tentang data, jadi hitung apa yang Anda buang.\n- **Menyaring**: boolean mask, `df[df[\"status\"] == \"paid\"]`; gabungkan mask dengan `&`, `|`, `~` dan kurung: `df[(df[\"status\"] == \"paid\") & (df[\"quantity\"] > 1)]`.\n- **Kolom baru**: `df.assign(revenue_idr=df[\"quantity\"] * df[\"unit_price_idr\"])`.\n- **Tipe**: `astype(\"int64\")`, `pd.to_numeric(..., errors=\"coerce\")`.\n\n**Mengapa bukan `apply`?** `df.apply(lambda row: row[\"quantity\"] * row[\"unit_price_idr\"], axis=1)` memberi jawaban yang benar dan begitulah banyak tutorial menulisnya. Kami mengukurnya pada tabel **1.000.000 baris**: perkalian kolom memakan **1,8 milidetik**, `apply` per baris memakan **5,7 detik**, sekitar **3.100 kali lebih lambat**, dan loop `itertuples` biasa atas hanya 200.000 baris memakan 0,9 detik. Loop menjalankan kode Python sejuta kali; operasi kolom menjalankan satu loop yang sudah dikompilasi. Ketika Anda tergoda menulis `apply`, cari fungsi bawaan: `.str`, `.dt`, `np.where`, `clip`, `map` dengan dictionary, `groupby`. Tes lab melarang `apply`, `iterrows`, dan `itertuples` di tempat jawaban vektor tersedia, agar kebiasaan itu terbentuk.\n\n**Jangan merantai assignment.** `df[df[\"a\"] > 1][\"b\"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df[\"b\"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df[\"a\"] > 1, \"b\"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).\n\nAturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> clean`, fungsi murni dari satu frame ke frame lain, bisa diuji dengan frame lima baris, dijalankan lagi pada file besok, dan dibaca rekan kerja. Notebook dengan empat puluh sel yang harus dijalankan dalam urutan yang benar tidak bisa.",
+       "en": "Cleaning is a short list of repeated moves. Each has a vectorised form:\n\n- **Text**: the `.str` accessor applies a string method to every value: `df[\"country\"].str.strip().str.upper()`. In our export the country appears as `\" id\"`, `\"Id\"`, `\"ID \"` and `\"ID\"`; after one line there is one value.\n- **Dates**: the `.dt` accessor: `df[\"order_date\"].dt.strftime(\"%Y-%m\")`, `.dt.month`, `.dt.day_name()`.\n- **Duplicates**: `df.drop_duplicates(subset=\"order_id\", keep=\"first\")`. Decide the **key** (the order id, not the whole row) and which copy wins.\n- **Missing**: `df.dropna(subset=[...])` to drop rows that are unusable for your purpose, or `fillna(value)` to give a default. Dropping is a decision about the data, so count what you drop.\n- **Filtering**: a boolean mask, `df[df[\"status\"] == \"paid\"]`; combine masks with `&`, `|`, `~` and brackets: `df[(df[\"status\"] == \"paid\") & (df[\"quantity\"] > 1)]`.\n- **New columns**: `df.assign(revenue_idr=df[\"quantity\"] * df[\"unit_price_idr\"])`.\n- **Types**: `astype(\"int64\")`, `pd.to_numeric(..., errors=\"coerce\")`.\n\n**Why not `apply`?** `df.apply(lambda row: row[\"quantity\"] * row[\"unit_price_idr\"], axis=1)` gives the right answer and is how many tutorials write it. We measured it on a table of **1,000,000 rows**: the column multiplication took **1.8 milliseconds**, the row-by-row `apply` took **5.7 seconds**, about **3,100 times slower**, and a plain `itertuples` loop over just 200,000 rows took 0.9 seconds. The loop runs Python code a million times; the column operation runs one compiled loop. When you feel the urge to write `apply`, search for a built-in: `.str`, `.dt`, `np.where`, `clip`, `map` with a dictionary, `groupby`. The lab tests forbid `apply`, `iterrows` and `itertuples` where a vectorised answer exists, so you learn the habit.\n\n**Do not chain assignments.** `df[df[\"a\"] > 1][\"b\"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df[\"b\"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df[\"a\"] > 1, \"b\"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).\n\nA final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure function from one frame to another, can be tested with a five-row frame, run again on tomorrow's file, and read by a colleague. A notebook with forty cells that must run in the right order cannot."
+      }
+     },
+     {
+      "title": {
+       "id": "Group, pivot, dan rank",
+       "en": "Group, pivot and rank"
+      },
+      "body": {
+       "id": "**`groupby`** adalah jantung analitik di pandas: pecah tabel menjadi kelompok, hitung sesuatu per kelompok, gabungkan hasilnya kembali. Bentuk paling jelas adalah **named aggregation**:\n\n```python\ndf.groupby(\"country\", as_index=False).agg(\n    orders=(\"order_id\", \"nunique\"),\n    revenue_idr=(\"revenue_idr\", \"sum\"),\n    avg_order_idr=(\"revenue_idr\", \"mean\"),\n)\n```\n\nSetiap keyword menjadi kolom keluaran, didefinisikan sebagai `(kolom, fungsi)`. Perhatikan `nunique`: itu adalah `COUNT(DISTINCT order_id)`. `count` menghitung nilai yang tidak kosong dan `size` menghitung baris; keduanya berbeda ketika ada nilai kosong, jadi pilih dengan sengaja. `as_index=False` menjaga kunci kelompok sebagai kolom biasa, yang lebih mudah di-merge, diuji, dan ditulis nanti.\n\n**Pivot table** mengubah nilai satu kolom menjadi kolom: omset per bulan (baris) dan negara (kolom). `pivot_table(index=..., columns=..., values=..., aggfunc=\"sum\", fill_value=0)` melakukannya. `fill_value=0` penting: bulan tanpa penjualan di suatu negara akan menjadi `NaN`, yang diperlakukan grafik dan penjumlahan berikutnya berbeda dari nol. Apakah \"tidak ada penjualan\" itu nol atau tidak diketahui? Putuskan, lalu tuliskan.\n\n**Window tanpa fungsi window.** `ROW_NUMBER`, total berjalan, dan `LAG` di SQL punya padanan langsung setelah Anda mengurutkan dan mengelompokkan:\n\n```python\nout = df.sort_values([\"customer_id\", \"order_date\", \"order_id\"])\nby_customer = out.groupby(\"customer_id\")\nout[\"order_number\"] = by_customer.cumcount() + 1                 # 1, 2, 3 ... per customer\nout[\"revenue_to_date\"] = by_customer[\"revenue_idr\"].cumsum()      # running total\nout[\"days_since_previous\"] = by_customer[\"order_date\"].diff().dt.days   # LAG-style gap\n```\n\nPengurutan datang lebih dulu dan **menyertakan pemutus seri** (`order_id`) membuat hasilnya sama setiap kali, yang dibutuhkan sebuah tes. **Top N per kelompok** adalah gagasan yang sama: urutkan menurut nilai menurun di dalam tiap kelompok, lalu simpan baris yang `cumcount() + 1`-nya paling banyak N. Seri butuh aturan (di lab, nama produk A sampai Z), kalau tidak dua proses pada data yang sama bisa berbeda.\n\nPeriksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang setiap total dengan Python biasa atas baris yang benar lalu membandingkannya; dalam kerja Anda sendiri, periksa satu kelompok dengan tangan dan bandingkan total keseluruhan dengan sumbernya (Modul 2.5). `groupby` yang diam-diam membuang baris dengan kunci kosong (`groupby` melewati kunci `NaN` secara default) adalah cara klasik meleset beberapa persen tanpa disadari.",
+       "en": "**`groupby`** is the heart of analytics in pandas: split the table into groups, compute something per group, put the results back. The clearest form is **named aggregation**:\n\n```python\ndf.groupby(\"country\", as_index=False).agg(\n    orders=(\"order_id\", \"nunique\"),\n    revenue_idr=(\"revenue_idr\", \"sum\"),\n    avg_order_idr=(\"revenue_idr\", \"mean\"),\n)\n```\n\nEach keyword becomes an output column, defined as `(column, function)`. Notice `nunique`: it is `COUNT(DISTINCT order_id)`. `count` counts non-missing values and `size` counts rows; they differ when there are missing values, so choose on purpose. `as_index=False` keeps the group key as a normal column, which is easier to merge, test and write out later.\n\n**Pivot tables** turn one column's values into columns: revenue by month (rows) and country (columns). `pivot_table(index=..., columns=..., values=..., aggfunc=\"sum\", fill_value=0)` does it. The `fill_value=0` matters: a month with no sales in a country would otherwise be `NaN`, which charts and later sums treat differently from zero. Is \"no sales\" a zero or an unknown? Decide, then write it down.\n\n**Windows without a window function.** SQL's `ROW_NUMBER`, running totals and `LAG` have direct equivalents once you sort and group:\n\n```python\nout = df.sort_values([\"customer_id\", \"order_date\", \"order_id\"])\nby_customer = out.groupby(\"customer_id\")\nout[\"order_number\"] = by_customer.cumcount() + 1                 # 1, 2, 3 ... per customer\nout[\"revenue_to_date\"] = by_customer[\"revenue_idr\"].cumsum()      # running total\nout[\"days_since_previous\"] = by_customer[\"order_date\"].diff().dt.days   # LAG-style gap\n```\n\nThe sort comes first and **including a tie-breaker** (`order_id`) makes the result the same every time, which is what a test needs. **Top N per group** is the same idea: sort by value descending inside each group, then keep rows whose `cumcount() + 1` is at most N. Ties need a rule (in the lab, product name A to Z), otherwise two runs on identical data can disagree.\n\nCheck your aggregates against an independent calculation. The lab tests recompute every total with plain Python over the correct rows and compare; in your own work, spot-check one group by hand and compare the grand total with the source (Module 2.5). A groupby that silently drops rows with a missing key (`groupby` skips `NaN` keys by default) is a classic way to be off by a few percent without noticing."
+      }
+     },
+     {
+      "title": {
+       "id": "Menggabungkan tabel tanpa melipatgandakan baris",
+       "en": "Joining tables without multiplying rows"
+      },
+      "body": {
+       "id": "`orders.merge(customers, on=\"customer_id\", how=\"left\")` adalah `LEFT JOIN`. Argumen `how` memilih `inner`, `left`, `right`, atau `outer`, persis seperti di SQL (Modul 0.3), dan jebakan yang sama berlaku: **fan-out**. Jika tabel kanan punya kunci yang sama dua kali, setiap baris kiri yang cocok diulang.\n\nKami mengukurnya pada pesanan yang sudah bersih: 1.911 pesanan dan daftar pelanggan yang 30 pelanggannya tanpa sengaja tercantum dua kali. Left join mengembalikan **2.187 baris** alih-alih 1.911, dan kolom omset berjumlah **378.380.000 alih-alih 331.555.000**, kelebihan **14,1%**, tanpa error dan dengan hasil yang tampak sangat masuk akal. Dashboard yang dibangun di atasnya akan salah dan tak seorang pun tahu sebabnya.\n\nPertahanannya satu argumen: **`validate=\"m:1\"`** (\"banyak pesanan ke satu pelanggan\"). Sekarang pandas memeriksa kunci di tabel kanan dan memunculkan `MergeError` begitu ada kunci yang berulang. Pakai `validate` di setiap merge yang Anda tulis: `\"1:1\"`, `\"m:1\"`, atau `\"1:m\"`, mana pun yang Anda yakini benar. Ia mengubah asumsi menjadi tes. Bandingkan juga `len()` sebelum dan sesudah.\n\nKebiasaan join lain:\n\n- **Temukan baris yang tidak cocok (anti-join).** Pesanan kita menyebut 20 id pelanggan yang tidak ada di daftar pelanggan (`00201` sampai `00220`). `set(orders[\"customer_id\"]) - set(customers[\"customer_id\"])` menemukannya; atau `merge(..., how=\"left\", indicator=True)` menambah kolom `_merge` yang menampilkan baris `left_only`. Yatim adalah temuan kualitas data untuk dilaporkan, bukan untuk disembunyikan.\n- **Isi dengan sengaja.** Setelah join, pesanan tanpa pelanggan punya `NaN` di `tier`. Di lab mereka menjadi `\"unknown\"`, kategori yang terlihat, alih-alih diam-diam hilang dari `groupby` berikutnya (yang melewati kunci kosong).\n- **Tipe kunci sama di kedua sisi.** Masalah int versus teks dari pelajaran 2 muncul di sini sebagai error; dengan dua kolom teks yang berbeda spasi atau huruf besar-kecil ia muncul sebagai *nol kecocokan* tanpa error. Periksa tingkat kecocokan segera setelah join.\n- **Nama kolom berbeda**: `left_on=\"cust\"`, `right_on=\"customer_id\"`. **Nama sama untuk kolom lain** mendapat akhiran `_x`/`_y`: pilih akhiran eksplisit dengan `suffixes=`.\n- **`concat`** menumpuk tabel dengan kolom sama (beberapa file harian menjadi satu). Pastikan kolomnya sejajar dan reset index.\n\nAlat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: ia membandingkan dua frame dan memberi tahu persis apa yang berbeda. Begitulah tes di lab bekerja, dan begitulah seharusnya Anda menguji transformasi Anda sendiri.",
+       "en": "`orders.merge(customers, on=\"customer_id\", how=\"left\")` is `LEFT JOIN`. The `how` argument selects `inner`, `left`, `right` or `outer`, exactly as in SQL (Module 0.3), and the same trap applies: **the fan-out**. If the right-hand table has the same key twice, every matching left row is repeated.\n\nWe measured it on the cleaned orders: 1,911 orders and a customer list where 30 customers were accidentally listed twice. The left join returned **2,187 rows** instead of 1,911, and the revenue column summed to **378,380,000 instead of 331,555,000**, an overstatement of **14.1%**, with no error and a result that looks perfectly reasonable. A dashboard built on this would be wrong and nobody would see why.\n\nThe defence is one argument: **`validate=\"m:1\"`** (\"many orders to one customer\"). Now pandas checks the right-hand keys and raises `MergeError` the moment a key repeats. Use `validate` on every merge you write: `\"1:1\"`, `\"m:1\"` or `\"1:m\"`, whichever you believe is true. It turns an assumption into a test. Also compare `len()` before and after.\n\nOther join habits:\n\n- **Find unmatched rows (an anti-join).** Our orders mention 20 customer ids that are not in the customer list (`00201` to `00220`). `set(orders[\"customer_id\"]) - set(customers[\"customer_id\"])` finds them; or `merge(..., how=\"left\", indicator=True)` adds a `_merge` column showing `left_only` rows. Orphans are a data quality finding to report, not something to hide.\n- **Fill deliberately.** After the join, orders with no customer have `NaN` in `tier`. In the lab they become `\"unknown\"`, a visible category, instead of silently vanishing from a later `groupby` (which skips missing keys).\n- **Same key type on both sides.** The int-versus-text problem from lesson 2 appears here as an error; with two text columns that differ by spaces or case it appears as *zero matches* and no error. Check the match rate right after the join.\n- **Different column names**: `left_on=\"cust\"`, `right_on=\"customer_id\"`. **Same names for other columns** get `_x`/`_y` suffixes: pick explicit ones with `suffixes=`.\n- **`concat`** stacks tables with the same columns (several daily files into one). Check the columns line up and reset the index.\n\nA last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it compares two frames and tells you exactly what differs. It is how the lab tests, and how you should test your own transformations."
+      }
+     },
+     {
+      "title": {
+       "id": "Memori, chunk, dan Parquet",
+       "en": "Memory, chunks and Parquet"
+      },
+      "body": {
+       "id": "pandas menyimpan seluruh tabel di RAM. Berapa banyak RAM? Lebih dari ukuran file. Kami membuat tabel pesanan **1.000.000 baris** (CSV **47,7 MB**) dan membacanya dengan pengaturan default: pada pandas 3.0.6 ia menempati **83 MB** di memori (1,75 kali file), dan pada pandas 2.2.3 **247 MB, 5,2 kali file**, karena pandas lama menyimpan setiap nilai teks sebagai objek Python tersendiri. Aturan praktis: **rencanakan 2 sampai 10 kali ukuran file**, ukur dengan `df.memory_usage(deep=True).sum()`, dan periksa sebelum membaca ekspor 20 GB di laptop 16 GB.\n\n**Kecilkan.** Kolom dengan sedikit nilai berbeda (negara, produk, status) bisa disimpan sebagai **kategori**: tabel menyimpan tiap nilai berbeda sekali dan satu kode integer kecil per baris. Kolom integer jarang butuh 64 bit. Pada sejuta baris yang sama, mengubah teks beragam-rendah menjadi `category` dan men-downcast integer menurunkan memori dari **78 MB menjadi 40 MB di pandas 3.0.6, dan dari 242 MB menjadi 84 MB di 2.2.3** (`shrink_memory` di lab). Nilainya identik. Jangan ubah id unik menjadi kategori: ia akan menyimpan satu kode *dan* satu label per baris, yang justru lebih besar. Aturan lab adalah \"nilai berbeda kurang dari setengah jumlah baris\".\n\n**Baca per chunk.** Ketika file tidak muat, `pd.read_csv(path, usecols=[...], chunksize=100_000)` mengembalikan iterator DataFrame. Untuk tiap chunk, hitung **hasil parsial**, lalu gabungkan hasil parsialnya:\n\n```python\nparts = []\nfor chunk in pd.read_csv(path, usecols=[\"country\", \"quantity\", \"unit_price_idr\"], chunksize=100_000):\n    parts.append((chunk[\"quantity\"] * chunk[\"unit_price_idr\"]).groupby(chunk[\"country\"]).sum())\ntotal = pd.concat(parts).groupby(level=0).sum()\n```\n\nIni bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum. Rata-rata adalah `sum / count` dari jumlah gabungan, bukan rata-rata dari rata-rata. **Waspadai apa pun yang butuh seluruh file.** Deduplikasi tiap chunk secara terpisah melewatkan duplikat yang jatuh di chunk berbeda. Pada ekspor kita baris yang diulang berdekatan, jadi chunk 100 baris hanya melewatkan 1 dari 80 duplikat, tetapi jika eksporter mengulang berjam-jam kemudian, jaraknya jauh dan mereka akan lolos. Median, rank global, dan join dua file besar tidak bisa dilakukan per chunk; saat itulah Anda pindah ke database, DuckDB, atau Spark.\n\n**Pakai Parquet, bukan CSV, untuk data yang Anda simpan.** CSV adalah teks: ia menyimpan `2026-01-15` sebagai sepuluh karakter, tidak punya tipe (pelajaran 2 ada karena itu), dan harus dibaca dari byte pertama sampai terakhir. **Parquet** adalah format biner, **kolumnar**, terkompresi (Modul 2.1) yang menyimpan tipe. Pada sejuta baris yang sama file Parquet berukuran **9,1 MB dibanding 47,7 MB** untuk CSV, sekitar **5 kali lebih kecil**, dan membaca hanya dua kolom memakan **0,03 detik dibanding 0,27** untuk CSV (`usecols` tetap harus memindai seluruh file teks). `df.to_parquet(\"orders.parquet\", index=False)` menulisnya dan `pd.read_parquet(path, columns=[...])` hanya membaca kolom yang diminta. Antar langkah pipeline, serahkan Parquet, bukan CSV.\n\n**Menguji kode data.** Lab memperlihatkan kebiasaannya: tiap fungsi kecil dan murni, menerima frame dan mengembalikan frame, dan punya tes dari beberapa baris yang jawabannya bisa Anda hitung dengan tangan, ditambah satu tes pada file realistis terhadap jawaban yang dihitung secara independen. Ketika sebuah fungsi bisa diuji dengan lima baris, ia cukup sederhana untuk dipercaya.",
+       "en": "pandas keeps the entire table in RAM. How much RAM? More than the file. We generated an orders table of **1,000,000 rows** (a **47.7 MB** CSV) and read it with default settings: on pandas 3.0.6 it occupied **83 MB** in memory (1.75 times the file), and on pandas 2.2.3 **247 MB, 5.2 times the file**, because older pandas stores every text value as a separate Python object. Rule of thumb: **plan for 2 to 10 times the file size**, measure with `df.memory_usage(deep=True).sum()`, and check before you read a 20 GB export on a 16 GB laptop.\n\n**Shrink it.** Columns with few distinct values (country, product, status) can be stored as **categories**: the table keeps each distinct value once and a small integer code per row. Integer columns rarely need 64 bits. On the same million rows, converting low-variety text to `category` and downcasting integers took memory from **78 MB to 40 MB on pandas 3.0.6, and from 242 MB to 84 MB on 2.2.3** (`shrink_memory` in the lab). The values are identical. Do not turn a unique id into a category: it would store one code *and* one label per row, which is bigger. The lab's rule is \"fewer distinct values than half the rows\".\n\n**Read in chunks.** When the file does not fit, `pd.read_csv(path, usecols=[...], chunksize=100_000)` returns an iterator of DataFrames. For each chunk, compute a **partial result**, then combine the partials:\n\n```python\nparts = []\nfor chunk in pd.read_csv(path, usecols=[\"country\", \"quantity\", \"unit_price_idr\"], chunksize=100_000):\n    parts.append((chunk[\"quantity\"] * chunk[\"unit_price_idr\"]).groupby(chunk[\"country\"]).sum())\ntotal = pd.concat(parts).groupby(level=0).sum()\n```\n\nThis works for things you can combine: sums, counts, minimum, maximum. A mean is `sum / count` computed from the combined sums, not a mean of means. **Beware of anything that needs the whole file.** Deduplicating each chunk separately misses duplicates that land in different chunks. In our export the retried lines sit next to each other, so chunks of 100 rows missed just 1 of the 80 duplicates, but if the exporter retried hours later they would be far apart and survive. A median, a global rank and a join of two large files cannot be done chunk by chunk; that is when you move to a database, DuckDB or Spark.\n\n**Use Parquet, not CSV, for data you keep.** CSV is text: it stores `2026-01-15` as ten characters, has no types (lesson 2 existed because of that) and must be read from the first byte to the last. **Parquet** is a binary, **columnar**, compressed format (Module 2.1) that stores types. On the same million rows the Parquet file was **9.1 MB against 47.7 MB** for CSV, about **5 times smaller**, and reading just two columns took **0.03 seconds against 0.27** for CSV (`usecols` still had to scan the whole text file). `df.to_parquet(\"orders.parquet\", index=False)` writes it and `pd.read_parquet(path, columns=[...])` reads only the columns you ask for. Between steps of a pipeline, hand over Parquet, not CSV.\n\n**Testing data code.** The lab shows the habit: each function is small and pure, takes frames in and returns frames out, and has tests built from a few rows whose answer you can work out by hand, plus one test on the realistic file against an independently computed answer. When a function can be tested with five rows, it is simple enough to trust."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: bersihkan dan ringkas ekspor pesanan yang berantakan",
+      "en": "Lab: clean and summarise a messy orders export"
+     },
+     "description": {
+      "id": "Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.",
+      "en": "Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops."
+     },
+     "steps": {
+      "id": "1. Buat atau aktifkan virtual environment Anda (Modul 0.2) dan pasang requirements lab: `pip install -r labs/mod-1-5/requirements.txt`.\n2. Baca bagian atas `labs/mod-1-5/orders_data.py`, tulis filenya dengan `python3 -c \"from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])\"` (jalankan di dalam `labs/mod-1-5`), dan **jelajahi sebelum menulis kode**: `head`, `dtypes`, `isna().sum()`, `value_counts()` pada country, berapa id pesanan yang berulang. Catat temuan Anda.\n3. Kerjakan `labs/mod-1-5/orders_lab.py` dari atas dan jalankan tes setelah SETIAP fungsi:\n\n```bash\npytest labs/mod-1-5/test_lab.py -v\npytest labs/mod-1-5/test_lab.py -v -k \"Load or Quality\"      # satu kelompok pada satu waktu\n```\n\n4. **Muat, laporkan, bersihkan.** Sebelum menjalankan `TestClean`, perkirakan berapa baris yang akan tersisa (petunjuk: pakai laporan kualitas Anda). Setelah lulus, ubah `keep=\"first\"` menjadi `keep=\"last\"` dan lihat tes mana yang memperhatikannya dan mengapa.\n5. **Agregasi, pivot, rank, window.** Bandingkan `revenue_by_country` dengan `GROUP BY` SQL pada data yang sama (muat ke SQLite atau DuckDB) dan pastikan angkanya sama.\n6. **Join.** Hapus `validate` dari merge Anda, buat daftar pelanggan berisi duplikat dan lihat jumlah barisnya. Pasang kembali `validate`.\n7. **Memori dan file.** Panggil `shrink_memory` dan cetak memori sebelum dan sesudah; tulis Parquet dan bandingkan ukuran file dengan CSV.\n8. **Kerjakan yang sesungguhnya.** Tulis seluruh file lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-5` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Create or activate your virtual environment (Module 0.2) and install the lab requirements: `pip install -r labs/mod-1-5/requirements.txt`.\n2. Read the top of `labs/mod-1-5/orders_data.py`, write the file with `python3 -c \"from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])\"` (run it inside `labs/mod-1-5`), and **explore it before writing code**: `head`, `dtypes`, `isna().sum()`, `value_counts()` on country, how many repeated order ids. Write down what you find.\n3. Work through `labs/mod-1-5/orders_lab.py` from the top and run the tests after EACH function:\n\n```bash\npytest labs/mod-1-5/test_lab.py -v\npytest labs/mod-1-5/test_lab.py -v -k \"Load or Quality\"      # one group at a time\n```\n\n4. **Load, report, clean.** Before running `TestClean`, predict how many rows should remain (hint: use your quality report). After it passes, change `keep=\"first\"` to `keep=\"last\"` and see which test notices and why.\n5. **Aggregate, pivot, rank, window.** Compare `revenue_by_country` with a SQL `GROUP BY` on the same data (load it into SQLite or DuckDB) and confirm the numbers match.\n6. **Join.** Remove `validate` from your merge, make the customer list contain a duplicate and look at the row count. Put `validate` back.\n7. **Memory and files.** Call `shrink_memory` and print memory before and after; write Parquet and compare the file size with the CSV.\n8. **Do it for real.** Write the whole file again in your own virtual environment **without copying**, then run `python3 scripts/prove.py mod-1-5` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "```bash\npytest labs/mod-1-5/test_lab.py -v\npython3 scripts/prove.py mod-1-5\n```\n\nUntuk menjalankan solusi yang diketahui benar, awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "```bash\npytest labs/mod-1-5/test_lab.py -v\npython3 scripts/prove.py mod-1-5\n```\n\nTo run the known-good solution instead, prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-1-5/orders_lab.py",
+       "name": "orders_lab.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan fungsi TODO",
+        "en": "Your working file: implement the TODO functions"
+       },
+       "code": "\"\"\"Lab 1.5: clean and summarise messy data with pandas.\n\nYou clean the KopiKu orders export (orders_data.py makes it: look at its docstring first, then write the file and open it in a Python\nsession or notebook). Work in order and run the tests after each function:    pytest labs/mod-1-5/test_lab.py -v\nRules of the lab: no apply / iterrows / itertuples where a test says so (the tests forbid them): use column arithmetic and built-in methods.\n\"\"\"\nimport pandas as pd  # noqa: F401\n\n\ndef load_orders(source):\n    \"\"\"Read the raw orders CSV (a path or a file-like object) into a DataFrame.   (lesson 2)\n\n    - order_id and customer_id stay TEXT (customer ids like \"00042\" must keep their leading zeros): dtype \"string\".\n    - quantity is a nullable integer (\"Int64\"), so empty cells become <NA> instead of turning the column into floats.\n    - a \"-\" in the file means missing (unit_price_idr must end up float64 with NaN).\n    - order_date becomes datetime64; anything that is not a valid YYYY-MM-DD date becomes NaT (do not raise).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement load_orders\")\n\n\ndef data_quality_report(df):\n    \"\"\"Return {\"rows\": int, \"nulls\": {column: int, ...}, \"duplicate_order_ids\": int} for a loaded (raw) frame.   (lesson 2)\n\n    nulls has every column. duplicate_order_ids is the number of rows whose order_id already appeared earlier. Use plain Python ints.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement data_quality_report\")\n\n\ndef clean_orders(df):\n    \"\"\"Return a cleaned COPY of the raw frame (do not change the input).   (lesson 3)\n\n    - country: strip spaces, UPPER case.  product and status: strip spaces, lower case.\n    - one row per order_id (the first copy wins).\n    - drop rows whose order_date, quantity or unit_price_idr is missing.\n    - quantity becomes a plain int64 column.  The index is reset to 0..n-1.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement clean_orders\")\n\n\ndef paid_only(df):\n    \"\"\"Rows whose status is \"paid\", with a fresh 0..n-1 index.   (lesson 3: boolean masks)\"\"\"\n    raise NotImplementedError(\"TODO: implement paid_only\")\n\n\ndef add_revenue(df):\n    \"\"\"Return a new frame with a revenue_idr column = quantity * unit_price_idr. The input must not gain the column.   (lesson 3)\"\"\"\n    raise NotImplementedError(\"TODO: implement add_revenue\")\n\n\ndef revenue_by_country(df):\n    \"\"\"One row per country with columns, in this order: country, orders (DISTINCT order_id), revenue_idr (sum), avg_order_idr (mean of\n    revenue_idr). Highest revenue first, index 0..n-1.   (lesson 4: groupby)\"\"\"\n    raise NotImplementedError(\"TODO: implement revenue_by_country\")\n\n\ndef monthly_revenue(df):\n    \"\"\"Pivot table: rows = month as text \"YYYY-MM\" (index named \"month\"), columns = country, values = sum of revenue_idr, 0 where there\n    were no sales. The columns axis must have no name.   (lesson 4: pivot)\"\"\"\n    raise NotImplementedError(\"TODO: implement monthly_revenue\")\n\n\ndef top_products_per_country(df, n=2):\n    \"\"\"The n best products per country by total revenue_idr. Columns: country, product, revenue_idr, rank (1 = best).\n    Ties are broken by product name A to Z. Sorted by country, then rank. Index 0..n-1.   (lesson 4: group + rank)\"\"\"\n    raise NotImplementedError(\"TODO: implement top_products_per_country\")\n\n\ndef add_customer_history(df):\n    \"\"\"Sort by customer_id, order_date, order_id (fresh index) and add, per customer:   (lesson 4: window-style columns)\n      order_number               1, 2, 3 ... in that order\n      customer_revenue_to_date   running sum of revenue_idr including this order\n      days_since_previous        whole days since the customer's previous order (NaN for their first)\n    The input must not be changed.\"\"\"\n    raise NotImplementedError(\"TODO: implement add_customer_history\")\n\n\ndef join_customers(orders, customers):\n    \"\"\"Attach name, tier and signup_date to every order.   (lesson 5: joins)\n\n    Keep every order exactly once (a left join). If the customer list has the same customer_id twice, raise pandas.errors.MergeError\n    instead of silently multiplying orders (ask merge to validate). Orders whose customer is not in the list get tier \"unknown\".\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement join_customers\")\n\n\ndef orphan_customer_ids(orders, customers):\n    \"\"\"Sorted list of customer_ids that appear in orders but not in the customer list (an anti-join).   (lesson 5)\"\"\"\n    raise NotImplementedError(\"TODO: implement orphan_customer_ids\")\n\n\ndef shrink_memory(df):\n    \"\"\"Return a copy that uses much less memory but holds the same values.   (lesson 6)\n\n    Text columns with few distinct values (fewer than half as many as rows) become \"category\"; integer columns get the smallest\n    integer type that fits (pd.to_numeric(..., downcast=\"integer\")). Leave floats, dates and unique ids alone.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement shrink_memory\")\n\n\ndef chunked_revenue_by_country(path, chunksize=500):\n    \"\"\"Total quantity * unit_price_idr per country for a CSV that may be too big for memory.   (lesson 6)\n\n    Read ONLY the columns country, quantity, unit_price_idr, `chunksize` rows at a time, and combine the partial sums. Never hold the\n    whole file. Return a pandas Series indexed by country (sorted), values = revenue.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement chunked_revenue_by_country\")\n\n\ndef write_parquet(df, path):\n    \"\"\"Write the frame to a Parquet file without the pandas index.   (lesson 6)\"\"\"\n    raise NotImplementedError(\"TODO: implement write_parquet\")\n\n\ndef read_parquet_columns(path, columns):\n    \"\"\"Read only the given columns from a Parquet file.   (lesson 6: Parquet is columnar)\"\"\"\n    raise NotImplementedError(\"TODO: implement read_parquet_columns\")"
+      },
+      {
+       "path": "labs/mod-1-5/orders_data.py",
+       "name": "orders_data.py",
+       "kind": "config",
+       "label": {
+        "id": "Membuat ekspor berantakan dan daftar pelanggan (disediakan, jangan diubah)",
+        "en": "Makes the messy export and the customer list (provided, do not edit)"
+       },
+       "code": "\"\"\"(Provided, do not edit.) Makes the messy KopiKu orders file you clean in Lab 1.5.\n\n    from orders_data import make_orders, make_customers\n    csv_text, truth = make_orders()          # csv_text: what the export looks like, truth: the correct answer in plain Python\n\nWrite the text to a file to explore it in a notebook or a Python session:\n\n    python3 -c \"from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])\"\n\nWhat is wrong with the file, on purpose (this is what real exports look like):\n  - country is written \" id\", \"Id\", \"ID \" ...;  product has stray spaces and capitals          -> normalise\n  - some lines are repeated exactly (the exporter retried)                                    -> one row per order_id\n  - some order_date cells are not dates (\"yesterday\", \"2026-02-30\", empty)                      -> unusable rows\n  - some quantity cells are empty, some unit_price_idr cells are \"-\"                             -> unusable rows\n  - customer_id looks like a number but has leading zeros (\"00042\"); some ids are not in the customer list\n\"\"\"\nimport csv\nimport io\nimport random\nfrom datetime import date, timedelta\n\nCOUNTRIES = [\"ID\", \"SG\", \"MY\", \"TH\"]\nPRODUCTS = {\"espresso\": 25000, \"latte\": 32000, \"cold brew\": 35000, \"beans 1kg\": 180000, \"filter\": 28000}\nSTATUSES = [\"paid\", \"paid\", \"paid\", \"refunded\", \"cancelled\"]\nSTART = date(2026, 1, 1)\nDAYS = 90\nCUSTOMERS_KNOWN = 200      # 00001..00200 are in the customer list\nCUSTOMERS_SEEN = 220       # orders also mention 00201..00220, which are NOT in the list\n\n\ndef make_customers(seed=7):\n    \"\"\"Customer list (a list of dicts): customer_id, name, tier, signup_date (ISO text).\"\"\"\n    rng = random.Random(seed + 1)\n    return [{\"customer_id\": f\"{i:05d}\", \"name\": f\"Customer {i}\", \"tier\": rng.choice([\"gold\", \"silver\", \"bronze\"]),\n             \"signup_date\": (START - timedelta(days=rng.randint(30, 900))).isoformat()} for i in range(1, CUSTOMERS_KNOWN + 1)]\n\n\ndef make_orders(n=2000, seed=7):\n    \"\"\"Return (csv_text, truth). `truth` is a list of the CORRECT clean rows (dicts) after the cleaning rules in the lab.\"\"\"\n    rng = random.Random(seed)\n    columns = [\"order_id\", \"customer_id\", \"order_date\", \"country\", \"product\", \"quantity\", \"unit_price_idr\", \"status\"]\n    raw_rows, truth = [], []\n    for i in range(1, n + 1):\n        day = START + timedelta(days=rng.randrange(DAYS))\n        country = rng.choices(COUNTRIES, weights=[5, 3, 2, 2])[0]\n        product = rng.choice(list(PRODUCTS))\n        quantity = rng.randint(1, 5)\n        price = PRODUCTS[product] + rng.choice([0, 0, 0, 1000, -1000])\n        row = {\"order_id\": f\"O{i:06d}\", \"customer_id\": f\"{rng.randint(1, CUSTOMERS_SEEN):05d}\", \"order_date\": day.isoformat(),\n               \"country\": country, \"product\": product, \"quantity\": quantity, \"unit_price_idr\": price, \"status\": rng.choice(STATUSES)}\n        good = True\n        r = rng.random()\n        if r < 0.015:\n            row[\"order_date\"] = rng.choice([\"yesterday\", \"2026-02-30\", \"\"]); good = False\n        elif r < 0.035:\n            row[\"quantity\"] = \"\"; good = False\n        elif r < 0.05:\n            row[\"unit_price_idr\"] = \"-\"; good = False\n        if good:\n            truth.append({**row, \"order_date\": day, \"quantity\": quantity, \"unit_price_idr\": float(price)})\n        shown = dict(row)\n        shown[\"country\"] = rng.choice([country, country.lower(), \" \" + country, country.capitalize() + \" \"])\n        shown[\"product\"] = rng.choice([product, product.upper(), \" \" + product, product.title() + \" \"])\n        raw_rows.append(shown)\n        if rng.random() < 0.04:                      # the exporter retried: the same line appears twice\n            raw_rows.append(dict(shown))\n    buf = io.StringIO()\n    w = csv.DictWriter(buf, fieldnames=columns, lineterminator=\"\\n\")\n    w.writeheader()\n    w.writerows(raw_rows)\n    return buf.getvalue(), truth"
+      },
+      {
+       "path": "labs/mod-1-5/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-35 tes",
+        "en": "The 35 tests"
+       },
+       "code": "\"\"\"Tests for Lab 1.5.   pip install -r labs/mod-1-5/requirements.txt && pytest labs/mod-1-5/test_lab.py -v\n\nEach group of tests builds its own input (from the known-correct rows of orders_data.py), so a mistake in one function does not make\nthe others fail. Some tests forbid row-by-row loops (apply, iterrows, itertuples): vectorise instead.\n\"\"\"\nimport io\nimport sys\nfrom pathlib import Path\n\nimport pytest\n\npd = pytest.importorskip(\"pandas\")\nsys.path.insert(0, str(Path(__file__).resolve().parent))\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\nfrom orders_data import make_customers, make_orders  # noqa: E402\n\nlab = labtools.load(__file__, \"orders_lab.py\")\nCSV_TEXT, TRUTH = make_orders()\n\n\ndef truth_frame():\n    df = pd.DataFrame(TRUTH)\n    df[\"order_date\"] = pd.to_datetime(df[\"order_date\"])\n    df[\"quantity\"] = df[\"quantity\"].astype(\"int64\")\n    return df\n\n\ndef customers_frame():\n    return pd.DataFrame(make_customers())\n\n\n@pytest.fixture\ndef no_row_loops(monkeypatch):\n    def boom(*a, **k):\n        raise AssertionError(\"Do not loop over rows (apply / iterrows / itertuples): use column arithmetic and built-in methods\")\n    for owner, name in [(pd.DataFrame, \"apply\"), (pd.Series, \"apply\"), (pd.DataFrame, \"iterrows\"), (pd.DataFrame, \"itertuples\")]:\n        monkeypatch.setattr(owner, name, boom)\n\n\n# ---------------------------------------------------------------- lesson 2: load and inspect\nclass TestLoad:\n    def test_reads_every_line_from_text_or_path(self, tmp_path):\n        df = lab.load_orders(io.StringIO(CSV_TEXT))\n        assert len(df) == 2080\n        p = tmp_path / \"orders.csv\"\n        p.write_text(CSV_TEXT, encoding=\"utf-8\")\n        assert len(lab.load_orders(p)) == 2080\n\n    def test_ids_stay_text_with_their_leading_zeros(self):\n        df = lab.load_orders(io.StringIO(CSV_TEXT))\n        assert df[\"customer_id\"].iloc[0] == df[\"customer_id\"].iloc[0].strip()\n        assert all(len(str(v)) == 5 for v in df[\"customer_id\"])\n        assert str(df[\"customer_id\"].iloc[0]).isdigit() and df[\"customer_id\"].astype(str).str.startswith(\"00\").sum() > 100\n\n    def test_dates_are_real_dates_and_bad_ones_are_missing(self):\n        df = lab.load_orders(io.StringIO(CSV_TEXT))\n        assert pd.api.types.is_datetime64_any_dtype(df[\"order_date\"])\n        assert int(df[\"order_date\"].isna().sum()) == 25\n\n    def test_quantity_is_a_nullable_integer_and_a_dash_is_a_missing_price(self):\n        df = lab.load_orders(io.StringIO(CSV_TEXT))\n        assert str(df[\"quantity\"].dtype) == \"Int64\"\n        assert int(df[\"quantity\"].isna().sum()) == 37\n        assert df[\"unit_price_idr\"].dtype == \"float64\"\n        assert int(df[\"unit_price_idr\"].isna().sum()) == 30\n\n\nclass TestQualityReport:\n    def test_report_on_the_raw_file(self):\n        rep = lab.data_quality_report(lab.load_orders(io.StringIO(CSV_TEXT)))\n        assert rep[\"rows\"] == 2080\n        assert rep[\"duplicate_order_ids\"] == 80\n        assert rep[\"nulls\"][\"order_date\"] == 25 and rep[\"nulls\"][\"quantity\"] == 37 and rep[\"nulls\"][\"unit_price_idr\"] == 30\n        assert rep[\"nulls\"][\"order_id\"] == 0\n        assert set(rep[\"nulls\"]) == {\"order_id\", \"customer_id\", \"order_date\", \"country\", \"product\", \"quantity\", \"unit_price_idr\", \"status\"}\n\n    def test_report_values_are_plain_python_numbers(self):\n        rep = lab.data_quality_report(pd.DataFrame({\"order_id\": [\"a\", \"a\", \"b\"], \"x\": [1, None, 3]}))\n        assert rep == {\"rows\": 3, \"nulls\": {\"order_id\": 0, \"x\": 1}, \"duplicate_order_ids\": 1}\n        assert type(rep[\"rows\"]) is int and type(rep[\"nulls\"][\"x\"]) is int\n\n\n# ---------------------------------------------------------------- lesson 3: clean and compute\nclass TestClean:\n    @pytest.fixture\n    def raw(self):\n        return lab.load_orders(io.StringIO(CSV_TEXT))\n\n    def test_keeps_exactly_the_good_rows(self, raw, no_row_loops):\n        out = lab.clean_orders(raw)\n        assert len(out) == len(TRUTH) == 1911\n        assert set(out[\"order_id\"]) == {r[\"order_id\"] for r in TRUTH}\n        assert out[\"order_id\"].is_unique\n\n    def test_text_columns_are_normalised(self, raw):\n        out = lab.clean_orders(raw)\n        assert set(out[\"country\"]) == {\"ID\", \"SG\", \"MY\", \"TH\"}\n        assert set(out[\"product\"]) == {\"espresso\", \"latte\", \"cold brew\", \"beans 1kg\", \"filter\"}\n        assert set(out[\"status\"]) == {\"paid\", \"refunded\", \"cancelled\"}\n\n    def test_no_missing_values_and_quantity_is_a_plain_int(self, raw):\n        out = lab.clean_orders(raw)\n        assert int(out[[\"order_date\", \"quantity\", \"unit_price_idr\"]].isna().sum().sum()) == 0\n        assert str(out[\"quantity\"].dtype) == \"int64\"\n\n    def test_values_match_the_truth(self, raw):\n        out = lab.clean_orders(raw).sort_values(\"order_id\").reset_index(drop=True)\n        expected = truth_frame().sort_values(\"order_id\").reset_index(drop=True)\n        assert (out[\"quantity\"] * out[\"unit_price_idr\"]).sum() == (expected[\"quantity\"] * expected[\"unit_price_idr\"]).sum()\n        assert list(out[\"customer_id\"]) == list(expected[\"customer_id\"])\n        assert list(out[\"order_date\"]) == list(expected[\"order_date\"])\n\n    def test_index_is_reset_and_input_is_not_changed(self, raw):\n        before = raw.copy()\n        out = lab.clean_orders(raw)\n        assert list(out.index) == list(range(len(out)))\n        pd.testing.assert_frame_equal(raw, before)\n\n    def test_first_copy_of_a_duplicate_wins(self):\n        df = pd.DataFrame({\"order_id\": [\"a\", \"a\", \"b\"], \"order_date\": pd.to_datetime([\"2026-01-01\"] * 3), \"country\": [\" id\", \"ID\", \"sg\"],\n                           \"product\": [\"Latte\", \"latte\", \"latte\"], \"status\": [\"Paid\", \"paid\", \"paid\"],\n                           \"quantity\": pd.array([1, 2, 3], dtype=\"Int64\"), \"unit_price_idr\": [10.0, 20.0, 30.0], \"customer_id\": [\"1\"] * 3})\n        out = lab.clean_orders(df)\n        assert list(out[\"order_id\"]) == [\"a\", \"b\"] and list(out[\"quantity\"]) == [1, 3]\n        assert list(out[\"country\"]) == [\"ID\", \"SG\"] and list(out[\"status\"]) == [\"paid\", \"paid\"]\n\n\nclass TestPaidAndRevenue:\n    def test_paid_only(self):\n        df = truth_frame()\n        out = lab.paid_only(df)\n        assert set(out[\"status\"]) == {\"paid\"}\n        assert len(out) == sum(1 for r in TRUTH if r[\"status\"] == \"paid\")\n        assert list(out.index) == list(range(len(out)))\n\n    def test_add_revenue_is_vectorised_and_leaves_the_input_alone(self, no_row_loops):\n        df = truth_frame()\n        before = df.copy()\n        out = lab.add_revenue(df)\n        assert \"revenue_idr\" not in df.columns\n        pd.testing.assert_frame_equal(df, before)\n        assert list(out[\"revenue_idr\"]) == [r[\"quantity\"] * r[\"unit_price_idr\"] for r in TRUTH]\n\n\n# ---------------------------------------------------------------- lesson 4: group, pivot, window\ndef revenue_frame():\n    return lab.add_revenue(lab.paid_only(truth_frame()))\n\n\nclass TestAggregate:\n    def test_revenue_by_country(self, no_row_loops):\n        out = lab.revenue_by_country(revenue_frame())\n        assert list(out.columns) == [\"country\", \"orders\", \"revenue_idr\", \"avg_order_idr\"]\n        paid = [r for r in TRUTH if r[\"status\"] == \"paid\"]\n        want = {}\n        for r in paid:\n            c = want.setdefault(r[\"country\"], [0, 0.0])\n            c[0] += 1\n            c[1] += r[\"quantity\"] * r[\"unit_price_idr\"]\n        got = {c: (o, rev, avg) for c, o, rev, avg in zip(out[\"country\"], out[\"orders\"], out[\"revenue_idr\"], out[\"avg_order_idr\"])}\n        assert set(got) == set(want)\n        for c, (orders, revenue) in want.items():\n            assert got[c][0] == orders\n            assert got[c][1] == pytest.approx(revenue)\n            assert got[c][2] == pytest.approx(revenue / orders)\n\n    def test_sorted_by_revenue_highest_first_with_a_fresh_index(self):\n        out = lab.revenue_by_country(revenue_frame())\n        assert list(out[\"revenue_idr\"]) == sorted(out[\"revenue_idr\"], reverse=True)\n        assert list(out.index) == list(range(len(out)))\n\n    def test_orders_counts_distinct_order_ids(self):\n        df = pd.DataFrame({\"order_id\": [\"a\", \"a\", \"b\"], \"country\": [\"ID\"] * 3, \"revenue_idr\": [1.0, 2.0, 3.0]})\n        assert int(lab.revenue_by_country(df)[\"orders\"].iloc[0]) == 2\n\n\nclass TestPivot:\n    def test_monthly_revenue_by_country(self):\n        out = lab.monthly_revenue(revenue_frame())\n        assert list(out.index) == [\"2026-01\", \"2026-02\", \"2026-03\"]\n        assert out.index.name == \"month\" and out.columns.name is None\n        assert set(out.columns) == {\"ID\", \"SG\", \"MY\", \"TH\"}\n        want = {}\n        for r in TRUTH:\n            if r[\"status\"] == \"paid\":\n                key = (r[\"order_date\"].strftime(\"%Y-%m\"), r[\"country\"])\n                want[key] = want.get(key, 0.0) + r[\"quantity\"] * r[\"unit_price_idr\"]\n        for (month, country), value in want.items():\n            assert out.loc[month, country] == pytest.approx(value)\n\n    def test_a_month_with_no_sales_is_zero_not_missing(self):\n        df = pd.DataFrame({\"order_date\": pd.to_datetime([\"2026-01-05\", \"2026-02-05\"]), \"country\": [\"ID\", \"SG\"], \"revenue_idr\": [10.0, 20.0]})\n        out = lab.monthly_revenue(df)\n        assert out.loc[\"2026-01\", \"SG\"] == 0 and out.loc[\"2026-02\", \"ID\"] == 0\n        assert int(out.isna().sum().sum()) == 0\n\n\nclass TestTopN:\n    def df(self):\n        rows = [(\"ID\", \"latte\", 50.0), (\"ID\", \"latte\", 50.0), (\"ID\", \"filter\", 70.0), (\"ID\", \"beans\", 70.0), (\"ID\", \"espresso\", 5.0),\n                (\"SG\", \"latte\", 1.0)]\n        return pd.DataFrame(rows, columns=[\"country\", \"product\", \"revenue_idr\"])\n\n    def test_top_two_per_country_with_ties_broken_by_product_name(self):\n        out = lab.top_products_per_country(self.df(), n=2)\n        assert list(out.columns) == [\"country\", \"product\", \"revenue_idr\", \"rank\"]\n        got = out.set_index([\"country\", \"product\"])\n        assert got.loc[(\"ID\", \"latte\"), \"revenue_idr\"] == 100.0 and got.loc[(\"ID\", \"latte\"), \"rank\"] == 1\n        assert got.loc[(\"ID\", \"beans\"), \"rank\"] == 2          # beans and filter tie at 70: A to Z wins\n        assert (\"ID\", \"filter\") not in got.index and (\"ID\", \"espresso\") not in got.index\n\n    def test_sorted_by_country_then_rank_and_n_is_respected(self):\n        out = lab.top_products_per_country(self.df(), n=3)\n        assert list(out[\"country\"]) == [\"ID\", \"ID\", \"ID\", \"SG\"]\n        assert list(out[\"rank\"]) == [1, 2, 3, 1]\n        assert list(out[\"product\"][:3]) == [\"latte\", \"beans\", \"filter\"]\n        assert list(out.index) == list(range(len(out)))\n\n\nclass TestWindow:\n    def df(self):\n        return pd.DataFrame({\n            \"order_id\": [\"o3\", \"o1\", \"o2\", \"o4\"], \"customer_id\": [\"B\", \"A\", \"A\", \"A\"],\n            \"order_date\": pd.to_datetime([\"2026-01-09\", \"2026-01-01\", \"2026-01-04\", \"2026-01-10\"]),\n            \"revenue_idr\": [5.0, 10.0, 20.0, 30.0]})\n\n    def test_order_number_running_total_and_gap_per_customer(self, no_row_loops):\n        out = lab.add_customer_history(self.df())\n        assert list(out[\"order_id\"]) == [\"o1\", \"o2\", \"o4\", \"o3\"]          # sorted by customer, date, order id\n        assert list(out[\"order_number\"]) == [1, 2, 3, 1]\n        assert list(out[\"customer_revenue_to_date\"]) == [10.0, 30.0, 60.0, 5.0]\n        gaps = list(out[\"days_since_previous\"])\n        assert pd.isna(gaps[0]) and gaps[1] == 3 and gaps[2] == 6 and pd.isna(gaps[3])\n\n    def test_input_unchanged_and_index_fresh(self):\n        df = self.df()\n        before = df.copy()\n        out = lab.add_customer_history(df)\n        pd.testing.assert_frame_equal(df, before)\n        assert list(out.index) == [0, 1, 2, 3]\n\n\n# ---------------------------------------------------------------- lesson 5: joins\nclass TestJoin:\n    def test_left_join_keeps_every_order_exactly_once(self):\n        orders = truth_frame()\n        out = lab.join_customers(orders, customers_frame())\n        assert len(out) == len(orders)\n        assert list(out[\"order_id\"]) == list(orders[\"order_id\"])\n        assert {\"name\", \"tier\", \"signup_date\"} <= set(out.columns)\n\n    def test_orders_with_no_customer_get_tier_unknown(self):\n        orders = truth_frame()\n        out = lab.join_customers(orders, customers_frame())\n        known = set(customers_frame()[\"customer_id\"])\n        expected = sum(1 for r in TRUTH if r[\"customer_id\"] not in known)\n        assert int((out[\"tier\"] == \"unknown\").sum()) == expected > 0\n        assert out.loc[out[\"tier\"] == \"unknown\", \"name\"].isna().all()\n\n    def test_duplicate_customers_are_refused_not_silently_multiplied(self):\n        dup = pd.concat([customers_frame(), customers_frame().iloc[:1]], ignore_index=True)\n        with pytest.raises(pd.errors.MergeError):\n            lab.join_customers(truth_frame(), dup)\n\n    def test_orphan_customer_ids(self):\n        out = lab.orphan_customer_ids(truth_frame(), customers_frame())\n        assert out == [f\"{i:05d}\" for i in range(201, 221)]\n        assert isinstance(out, list)\n\n    def test_no_orphans_gives_an_empty_list(self):\n        assert lab.orphan_customer_ids(truth_frame().iloc[:0], customers_frame()) == []\n\n\n# ---------------------------------------------------------------- lesson 6: memory, chunks, files\nclass TestMemory:\n    def test_smaller_but_the_same_numbers(self):\n        df = lab.clean_orders(lab.load_orders(io.StringIO(CSV_TEXT)))\n        before = df.copy()\n        small = lab.shrink_memory(df)\n        pd.testing.assert_frame_equal(df, before)                       # input untouched\n        assert small.memory_usage(deep=True).sum() < 0.6 * df.memory_usage(deep=True).sum()\n        for col in df.columns:\n            assert list(small[col].astype(object)) == list(df[col].astype(object)), col\n\n    def test_few_distinct_values_become_category_and_ids_do_not(self):\n        small = lab.shrink_memory(lab.clean_orders(lab.load_orders(io.StringIO(CSV_TEXT))))\n        assert isinstance(small[\"country\"].dtype, pd.CategoricalDtype)\n        assert isinstance(small[\"product\"].dtype, pd.CategoricalDtype)\n        assert not isinstance(small[\"order_id\"].dtype, pd.CategoricalDtype)\n        assert small[\"quantity\"].dtype.itemsize < 8\n\n\nclass TestChunks:\n    @pytest.fixture\n    def csv_path(self, tmp_path):\n        p = tmp_path / \"clean.csv\"\n        truth_frame().to_csv(p, index=False)\n        return p\n\n    def test_same_answer_as_reading_everything(self, csv_path):\n        df = pd.read_csv(csv_path)\n        want = (df[\"quantity\"] * df[\"unit_price_idr\"]).groupby(df[\"country\"]).sum().sort_index()\n        got = lab.chunked_revenue_by_country(csv_path, chunksize=300)\n        assert list(got.index) == list(want.index)\n        for k in want.index:\n            assert float(got[k]) == pytest.approx(float(want[k]))\n\n    def test_never_holds_more_than_one_chunk(self, csv_path, monkeypatch):\n        seen = []\n        original = pd.read_csv\n\n        def spy(*a, **kw):\n            result = original(*a, **kw)\n            if kw.get(\"chunksize\"):\n                def gen():\n                    for chunk in result:\n                        seen.append(len(chunk))\n                        yield chunk\n                return gen()\n            seen.append(len(result))\n            return result\n\n        monkeypatch.setattr(pd, \"read_csv\", spy)\n        lab.chunked_revenue_by_country(csv_path, chunksize=250)\n        assert len(seen) >= 7 and max(seen) <= 250 and sum(seen) == len(TRUTH)\n\n    def test_chunk_size_does_not_change_the_answer(self, csv_path):\n        a = lab.chunked_revenue_by_country(csv_path, chunksize=97)\n        b = lab.chunked_revenue_by_country(csv_path, chunksize=5000)\n        assert [float(x) for x in a] == pytest.approx([float(x) for x in b])\n\n\nclass TestParquet:\n    def test_round_trip_keeps_types_and_is_smaller_than_csv(self, tmp_path):\n        pytest.importorskip(\"pyarrow\")\n        df = truth_frame()\n        out = tmp_path / \"orders.parquet\"\n        lab.write_parquet(df, out)\n        back = pd.read_parquet(out)\n        pd.testing.assert_frame_equal(back.reset_index(drop=True), df, check_dtype=False)\n        assert pd.api.types.is_datetime64_any_dtype(back[\"order_date\"])\n        csv = tmp_path / \"orders.csv\"\n        df.to_csv(csv, index=False)\n        assert out.stat().st_size < csv.stat().st_size\n\n    def test_reads_only_the_requested_columns(self, tmp_path):\n        pytest.importorskip(\"pyarrow\")\n        out = tmp_path / \"orders.parquet\"\n        lab.write_parquet(truth_frame(), out)\n        got = lab.read_parquet_columns(out, [\"order_id\", \"quantity\"])\n        assert list(got.columns) == [\"order_id\", \"quantity\"] and len(got) == len(TRUTH)"
+      },
+      {
+       "path": "labs/mod-1-5/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pandas, pyarrow, pytest",
+        "en": "pandas, pyarrow, pytest"
+       },
+       "code": "pandas>=2.2\npyarrow>=15\npytest>=8"
+      },
+      {
+       "path": "labs/mod-1-5/reference/orders_lab.py",
+       "name": "orders_lab.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try on your own first!)"
+       },
+       "code": "\"\"\"Lab 1.5 reference solution. Try on your own first!\"\"\"\nimport pandas as pd\n\n\ndef load_orders(source):\n    df = pd.read_csv(source, dtype={\"order_id\": \"string\", \"customer_id\": \"string\", \"quantity\": \"Int64\"}, na_values=[\"-\"])\n    df[\"order_date\"] = pd.to_datetime(df[\"order_date\"], format=\"%Y-%m-%d\", errors=\"coerce\")\n    return df\n\n\ndef data_quality_report(df):\n    return {\"rows\": int(len(df)),\n            \"nulls\": {c: int(df[c].isna().sum()) for c in df.columns},\n            \"duplicate_order_ids\": int(df[\"order_id\"].duplicated().sum())}\n\n\ndef clean_orders(df):\n    out = df.copy()\n    out[\"country\"] = out[\"country\"].str.strip().str.upper()\n    out[\"product\"] = out[\"product\"].str.strip().str.lower()\n    out[\"status\"] = out[\"status\"].str.strip().str.lower()\n    out = out.drop_duplicates(subset=\"order_id\", keep=\"first\")\n    out = out.dropna(subset=[\"order_date\", \"quantity\", \"unit_price_idr\"])\n    out[\"quantity\"] = out[\"quantity\"].astype(\"int64\")\n    return out.reset_index(drop=True)\n\n\ndef paid_only(df):\n    return df[df[\"status\"] == \"paid\"].reset_index(drop=True)\n\n\ndef add_revenue(df):\n    return df.assign(revenue_idr=df[\"quantity\"] * df[\"unit_price_idr\"])\n\n\ndef revenue_by_country(df):\n    g = df.groupby(\"country\", as_index=False).agg(orders=(\"order_id\", \"nunique\"), revenue_idr=(\"revenue_idr\", \"sum\"),\n                                                  avg_order_idr=(\"revenue_idr\", \"mean\"))\n    return g.sort_values(\"revenue_idr\", ascending=False).reset_index(drop=True)\n\n\ndef monthly_revenue(df):\n    month = df[\"order_date\"].dt.strftime(\"%Y-%m\").rename(\"month\")\n    table = df.pivot_table(index=month, columns=\"country\", values=\"revenue_idr\", aggfunc=\"sum\", fill_value=0)\n    table.columns.name = None\n    return table\n\n\ndef top_products_per_country(df, n=2):\n    g = df.groupby([\"country\", \"product\"], as_index=False)[\"revenue_idr\"].sum()\n    g = g.sort_values([\"country\", \"revenue_idr\", \"product\"], ascending=[True, False, True])\n    g[\"rank\"] = g.groupby(\"country\").cumcount() + 1\n    return g[g[\"rank\"] <= n].reset_index(drop=True)\n\n\ndef add_customer_history(df):\n    out = df.sort_values([\"customer_id\", \"order_date\", \"order_id\"]).reset_index(drop=True)\n    by_customer = out.groupby(\"customer_id\")\n    out[\"order_number\"] = by_customer.cumcount() + 1\n    out[\"customer_revenue_to_date\"] = by_customer[\"revenue_idr\"].cumsum()\n    out[\"days_since_previous\"] = by_customer[\"order_date\"].diff().dt.days\n    return out\n\n\ndef join_customers(orders, customers):\n    merged = orders.merge(customers, on=\"customer_id\", how=\"left\", validate=\"m:1\")\n    merged[\"tier\"] = merged[\"tier\"].fillna(\"unknown\")\n    return merged\n\n\ndef orphan_customer_ids(orders, customers):\n    return sorted(set(orders[\"customer_id\"]) - set(customers[\"customer_id\"]))\n\n\ndef shrink_memory(df):\n    out = df.copy()\n    for col in out.columns:\n        s = out[col]\n        if pd.api.types.is_integer_dtype(s) and not isinstance(s.dtype, pd.api.extensions.ExtensionDtype):\n            out[col] = pd.to_numeric(s, downcast=\"integer\")\n        elif (pd.api.types.is_object_dtype(s) or pd.api.types.is_string_dtype(s)) and s.nunique() < 0.5 * len(s):\n            out[col] = s.astype(\"category\")\n    return out\n\n\ndef chunked_revenue_by_country(path, chunksize=500):\n    parts = []\n    for chunk in pd.read_csv(path, usecols=[\"country\", \"quantity\", \"unit_price_idr\"], chunksize=chunksize):\n        revenue = chunk[\"quantity\"] * chunk[\"unit_price_idr\"]\n        parts.append(revenue.groupby(chunk[\"country\"]).sum())\n    return pd.concat(parts).groupby(level=0).sum().sort_index()\n\n\ndef write_parquet(df, path):\n    df.to_parquet(path, index=False)\n\n\ndef read_parquet_columns(path, columns):\n    return pd.read_parquet(path, columns=list(columns))"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 35 tes lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri, di virtual environment Anda sendiri**",
+       "en": "All 35 tests pass **on your own computer, run from your own terminal, in your own virtual environment**"
+      },
+      {
+       "id": "Anda bisa menjelaskan mengapa id pelanggan harus dibaca sebagai teks, dan apa yang dilakukan `na_values` dan `errors=\"coerce\"`",
+       "en": "You can explain why a customer id must be read as text, and what `na_values` and `errors=\"coerce\"` do"
+      },
+      {
+       "id": "Anda bisa menunjukkan dengan angka mengapa `apply` per baris adalah alat yang salah, dan menyebut fungsi bawaan penggantinya",
+       "en": "You can show with a number why `apply` over rows is the wrong tool, and name the built-in that replaces it"
+      },
+      {
+       "id": "Anda bisa menjelaskan dari apa `validate=\"m:1\"` melindungi Anda, dan apa yang terjadi pada omset di contoh fan-out (+14,1%)",
+       "en": "You can explain what `validate=\"m:1\"` protects you from, and what happened to revenue in the fan-out example (+14.1%)"
+      },
+      {
+       "id": "Anda bisa menyebut kapan pandas bukan lagi alat yang tepat dan apa yang dipakai sebagai gantinya",
+       "en": "You can say when pandas stops being the right tool and what to use instead"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Join yang menggandakan omset",
+      "en": "The join that doubled the revenue"
+     },
+     "scenario": {
+      "id": "Sebuah tim analitik kecil membuat laporan omset bulanan di notebook: muat pesanan, merge daftar pelanggan untuk mendapat tier tiap pelanggan, group by tier, kirim tabelnya ke kepala keuangan. Berjalan berbulan-bulan dan totalnya cocok dengan kas toko.\n\nPada suatu bulan ekspor CRM yang menghasilkan daftar pelanggan diubah: pelanggan yang naik tier kini muncul di dua baris, satu untuk tiap tier yang pernah dimilikinya. Tiga puluh pelanggan terpengaruh. Tidak ada yang gagal. Merge-nya left join biasa, notebook berjalan hijau, dan tabel omsetnya tampak seperti biasa, kecuali totalnya **14% lebih tinggi** dari kas. Kepala keuangan baru menyadarinya karena perhitungan bonus kuartal didasarkan pada angka itu, dan saat itu tiga laporan bulanan sudah terkirim.",
+      "en": "A small analytics team builds the monthly revenue report in a notebook: load orders, merge in the customer list to get each customer's tier, group by tier, send the table to the finance lead. It runs for months and the totals match the shop's till.\n\nOne month the CRM export that produces the customer list is changed: a customer who upgraded now appears on two lines, one for each tier they have had. Thirty customers are affected. Nothing fails. The merge is a normal left join, the notebook runs green, and the revenue table looks as usual, except that the total is **14% higher** than the till. The finance lead notices only because the quarter's bonus calculation is based on the number, and by then three monthly reports have gone out."
+     },
+     "breakageReason": {
+      "id": "Merge mengizinkan hubungan **many-to-many**: setiap pesanan cocok dengan dua baris pelanggan, sehingga diulang, dan omset dijumlahkan dua kali untuk pelanggan-pelanggan itu. pandas melakukan apa yang diminta dan tidak punya pendapat tentang apakah hasilnya masuk akal. Tidak ada yang memintanya memeriksa.\n\nFaktor yang memperparah: notebook tidak punya pemeriksaan bahwa jumlah baris setelah merge sama dengan sebelumnya, \"daftar pelanggan\" tidak punya tes keunikan di sumbernya, dan tak seorang pun merekonsiliasi total keseluruhan dengan sistem sumber. Laporan itu bergantung pada asumsi (satu baris per pelanggan) yang benar pada hari ditulis dan tidak pernah dituliskan sebagai pemeriksaan.",
+      "en": "The merge allowed a **many-to-many** relationship: each order matched two customer rows, so it was repeated, and revenue was summed twice for those customers. pandas does what you ask and has no opinion about whether the result is plausible. Nobody had asked it to check.\n\nContributing factors: the notebook had no check that the row count after the merge equals the row count before, the \"customer list\" had no uniqueness test at its source, and no one reconciled the grand total with the source system. The report depended on an assumption (one row per customer) that was true on the day it was written and was never written down as a check."
+     },
+     "fixGuide": {
+      "id": "1. **Nyatakan hubungannya**: `merge(..., validate=\"m:1\")`. Proses berikutnya akan memunculkan `MergeError` pada hari duplikat muncul, dan laporan tidak akan terkirim.\n2. **Tegaskan jumlah baris** setelah setiap join (`len(out) == len(orders)`) dan tulis tes yang memberi fungsi pelanggan duplikat dan mengharapkan error (lab melakukannya).\n3. **Uji keunikan di sumber**: `customer_id` harus unik di tabel pelanggan (Modul 2.5).\n4. **Rekonsiliasi total** dengan sistem pencatat pada setiap proses, dan beri alert pada selisih di atas toleransi kecil.\n5. **Hitung ulang laporan yang terdampak** dari join yang sudah benar dan beri tahu orang yang memakainya, lengkap dengan besar kesalahannya.\n6. **Selesaikan aturan bisnisnya**: jika pelanggan memang punya beberapa tier dari waktu ke waktu, tabelnya butuh tanggal berlaku dan join point-in-time (slowly changing dimension, Modul 1.4), bukan merge polos.",
+      "en": "1. **Declare the relationship**: `merge(..., validate=\"m:1\")`. The next run would raise `MergeError` the day the duplicates appeared, and the report would not have gone out.\n2. **Assert the row count** after every join (`len(out) == len(orders)`) and write a test that gives the function a duplicated customer and expects an error (the lab does this).\n3. **Test uniqueness at the source**: `customer_id` must be unique in the customer table (Module 2.5).\n4. **Reconcile the total** against the system of record on every run, and alert on a difference above a small tolerance.\n5. **Recalculate the affected reports** from the corrected join and tell the people who used them, with the size of the error.\n6. **Resolve the business rule**: if a customer legitimately has several tiers over time, the table needs validity dates and a point-in-time join (slowly changing dimensions, Module 1.4), not a bare merge."
+     },
+     "defensivePattern": {
+      "id": "Join adalah klaim tentang kunci. Tuliskan klaimnya (`validate=`), periksa jumlah baris, dan rekonsiliasi total dengan sumber independen, agar hasil yang salah menghentikan pipeline alih-alih sampai ke dashboard.",
+      "en": "A join is a claim about keys. Write the claim down (`validate=`), check the row count, and reconcile a total with an independent source, so that a wrong result stops the pipeline instead of reaching a dashboard."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "Id pelanggan seperti `00042` dibaca oleh `pd.read_csv` dengan pengaturan default. Apa yang tersimpan, dan apa perbaikan yang tepat?",
+       "en": "A customer id such as `00042` is read by `pd.read_csv` with default settings. What is stored, and what is the right fix?"
+      },
+      "options": [
+       {
+        "id": "Teks \"00042\", karena pandas selalu menjaga karakter persis seperti yang tertulis di dalam file",
+        "en": "The text \"00042\", because pandas always keeps the characters exactly as they appear in the file"
+       },
+       {
+        "id": "Angka 42 sehingga nol di depannya hilang; baca kolom itu sebagai teks dengan `dtype=\"string\"`",
+        "en": "The number 42, so leading zeros are lost; read the column as text with `dtype=\"string\"`"
+       },
+       {
+        "id": "Sebuah tanggal, karena pandas mengubah setiap nilai lima digit menjadi datetime saat melihatnya",
+        "en": "A date, because pandas converts any five-digit value to a datetime when it sees one"
+       },
+       {
+        "id": "Sebuah error, karena pandas menolak membaca kolom apa pun yang berawalan nol di dalam file",
+        "en": "An error, because pandas refuses to read any column that begins with zeros in the file"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "pandas menebak angka untuk kolom yang hanya berisi digit. Id adalah label, bukan kuantitas, jadi deklarasikan sebagai teks; kalau tidak, join terhadap tabel yang berisi `\"00042\"` gagal atau salah cocok.",
+       "en": "pandas guesses numbers for digit-only columns. Ids are labels, not quantities, so declare them as text; otherwise joins against a table that has `\"00042\"` fail or mismatch."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa alasan utama memilih `df[\"quantity\"] * df[\"unit_price_idr\"]` daripada `df.apply(lambda row: ..., axis=1)`?",
+       "en": "What is the main reason to prefer `df[\"quantity\"] * df[\"unit_price_idr\"]` over `df.apply(lambda row: ..., axis=1)`?"
+      },
+      "options": [
+       {
+        "id": "Bentuk kolom lebih sedikit diketik, tetapi kedua bentuk berjalan dengan kecepatan yang persis sama di semua tabel",
+        "en": "The column form uses less typing, but both forms run at exactly the same speed on every table"
+       },
+       {
+        "id": "`apply` sudah usang, sehingga ia memunculkan error begitu tabel punya lebih dari seribu baris",
+        "en": "`apply` is deprecated, so it raises an error as soon as a table has more than a thousand rows"
+       },
+       {
+        "id": "Satu loop terkompilasi berjalan atas seluruh kolom; ia sekitar 3.000 kali lebih cepat pada sejuta baris",
+        "en": "One compiled loop runs over the whole column; it was about 3,000 times faster on a million rows"
+       },
+       {
+        "id": "Hanya bentuk kolom yang bisa menangani nilai kosong, karena `apply` selalu gagal ketika bertemu `NaN`",
+        "en": "The column form is the only one that can handle missing values, since `apply` always fails on `NaN`"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Operasi vektor berjalan di kode terkompilasi atas seluruh kolom. Fungsi Python yang dipanggil per baris adalah jalur lambat: 1,8 ms dibanding 5,7 detik untuk 1.000.000 baris.",
+       "en": "Vectorised operations run in compiled code over the whole column. A Python function called once per row is the slow path: 1.8 ms against 5.7 s on 1,000,000 rows."
+      }
+     },
+     {
+      "question": {
+       "id": "`pd.Series([1, None, 3]).mean()` mengembalikan 2.0. Mengapa?",
+       "en": "`pd.Series([1, None, 3]).mean()` returns 2.0. Why?"
+      },
+      "options": [
+       {
+        "id": "pandas mengganti nilai kosong dengan nol sebelum merata-ratakan, yang akan memberi 1,33 sebagai hasilnya",
+        "en": "pandas replaces the missing value with zero before averaging, which would give 1.33 instead"
+       },
+       {
+        "id": "Nilai kosong dilewati, sehingga hasilnya (1 + 3) / 2, dan Anda harus menghitung berapa yang dilewati itu.",
+        "en": "Missing values are skipped, so it is (1 + 3) / 2, and you should count how many were skipped."
+       },
+       {
+        "id": "pandas memberi peringatan dan mengembalikan median karena tidak bisa menghitung rata-rata dari data kosong",
+        "en": "pandas raises a warning and returns the median because it cannot compute a mean of missing data"
+       },
+       {
+        "id": "Nilai kosong diperlakukan sebagai nilai sebelumnya, sehingga seri itu dibaca sebagai 1, 1, 3 secara default",
+        "en": "The missing value is treated as the previous value, so the series is read as 1, 1, 3 by default"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Sebagian besar agregasi mengabaikan `NaN`. Itu praktis, tetapi rata-rata atas kolom yang hampir kosong hanya menggambarkan baris yang ada, jadi selalu hitung nilai yang kosong.",
+       "en": "Most aggregations ignore `NaN`. That is convenient, but a mean over a mostly-missing column describes only the rows that exist, so always count the missing values."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa `df[df[\"a\"] > 1][\"b\"] = 9` tidak andal memperbarui `df`, dan apa cara menulis yang aman?",
+       "en": "Why does `df[df[\"a\"] > 1][\"b\"] = 9` not reliably update `df`, and what is the safe way to write it?"
+      },
+      "options": [
+       {
+        "id": "Ia bekerja seperti yang tertulis; versi yang aman hanyalah pilihan gaya yang disukai sebagian tim",
+        "en": "It works as written; the safe version is only a style choice preferred by some teams"
+       },
+       {
+        "id": "Ia gagal karena kolom `b` adalah nama yang dicadangkan; ganti nama kolom lalu jalankan baris yang sama",
+        "en": "It fails because column `b` is a reserved name; rename the column and then run the same line"
+       },
+       {
+        "id": "Bagian pertama bisa berupa salinan, jadi perubahannya hilang; pakai `df.loc[df[\"a\"] > 1, \"b\"] = 9`",
+        "en": "The first part may return a copy, so the change is lost; use `df.loc[df[\"a\"] > 1, \"b\"] = 9`"
+       },
+       {
+        "id": "Ia mengubah seluruh kolom, bukan hanya baris yang dipilih; pakai `df[\"b\"] = 9` untuk memperbaikinya",
+        "en": "It changes the whole column instead of the selected rows; use `df[\"b\"] = 9` to fix that instead"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Bentuk berantai meng-assign ke objek sementara. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6 dan aslinya tetap tidak berubah. Satu assignment `.loc[mask, kolom]` eksplisit dan berfungsi.",
+       "en": "The chained form assigns into a temporary object. We ran it on pandas 2.2.3 and 3.0.6 and the original stayed unchanged. A single `.loc[mask, column]` assignment is explicit and works."
+      }
+     },
+     {
+      "question": {
+       "id": "Tabel `orders` di-left-join ke tabel `customers` yang 30 pelanggannya muncul dua kali. Apa yang terjadi?",
+       "en": "An `orders` table is left-joined to a `customers` table in which 30 customers appear twice. What happens?"
+      },
+      "options": [
+       {
+        "id": "pandas otomatis memunculkan error, karena kunci duplikat tidak pernah diizinkan dalam sebuah merge",
+        "en": "pandas raises an error automatically, because duplicate keys are never allowed in a merge"
+       },
+       {
+        "id": "Duplikat dibuang diam-diam, dan jumlah baris setelah join sama dengan jumlah sebelumnya",
+        "en": "The duplicates are removed quietly, and the number of rows after the join is the same as before"
+       },
+       {
+        "id": "Pesanan yang cocok diulang, sehingga baris dan omset naik tanpa error kecuali `validate` diatur",
+        "en": "Matching orders are repeated, so rows and revenue grow with no error unless `validate` is set"
+       },
+       {
+        "id": "Hanya pelanggan pertama yang cocok dipakai dan yang kedua diabaikan, sehingga totalnya tetap benar",
+        "en": "Only the first matching customer is used and the second is ignored, so the totals remain correct"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Inilah fan-out: 1.911 pesanan menjadi 2.187 baris dan omset naik 14,1%. `validate=\"m:1\"` membuat pandas memunculkan `MergeError`.",
+       "en": "This is the fan-out: 1,911 orders became 2,187 rows and revenue rose by 14.1%. `validate=\"m:1\"` makes pandas raise `MergeError` instead."
+      }
+     },
+     {
+      "question": {
+       "id": "Anda harus menjumlah omset per negara dari CSV 40 GB di laptop berkapasitas memori 16 GB. Pendekatan mana yang berhasil?",
+       "en": "You must total revenue per country from a 40 GB CSV on a laptop with 16 GB of memory. Which approach works?"
+      },
+      "options": [
+       {
+        "id": "Baca seluruh file sekaligus dengan pengaturan default, karena pandas memampatkan data di memori",
+        "en": "Read the whole file at once with the default settings, because pandas compresses data in memory"
+       },
+       {
+        "id": "Baca hanya kolom yang dibutuhkan per chunk dan tambahkan jumlah parsial tiap chunk ke total berjalan",
+        "en": "Read only the needed columns in chunks and add each chunk's partial sums to the running totals"
+       },
+       {
+        "id": "Ubah setiap kolom menjadi `category`, yang membuat seluruh file muat dengan sendirinya di ukuran memori berapa pun",
+        "en": "Convert every column to `category`, which makes the whole file fit by definition in any memory size"
+       },
+       {
+        "id": "Urutkan file lebih dulu, karena data yang terurut memakai memori lebih sedikit dari yang tidak terurut",
+        "en": "Sort the file first, since sorted data uses less memory than unsorted data in a DataFrame"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "`usecols` ditambah `chunksize` menjaga hanya satu chunk di memori, dan jumlah bisa digabungkan antar chunk. Operasi yang butuh seluruh file (median, rank global, join besar) butuh alat lain.",
+       "en": "`usecols` plus `chunksize` keeps only one chunk in memory, and sums combine across chunks. Operations that need the whole file (median, global rank, big joins) need another tool."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang membuat Parquet format yang lebih baik daripada CSV untuk data yang akan dibaca langkah-langkah berikutnya?",
+       "en": "What makes Parquet a better format than CSV for data that later steps will read?"
+      },
+      "options": [
+       {
+        "id": "Ia teks biasa yang bisa dibuka di editor apa pun, sehingga lebih mudah ditinjau daripada sebuah CSV",
+        "en": "It is plain text that people can open in any editor, so it is easier to review than a CSV"
+       },
+       {
+        "id": "Ia menyimpan tipe dan memampatkan per kolom; pada tes kami ia 5 kali lebih kecil dan lebih cepat dibaca",
+        "en": "It stores types and compresses by column; in our test it was 5 times smaller and read faster"
+       },
+       {
+        "id": "Ia satu-satunya format yang bisa ditulis pandas, sehingga setiap langkah pipeline wajib memakainya untuk ekspor",
+        "en": "It is the only format that pandas can write, so every pipeline step must use it for exports"
+       },
+       {
+        "id": "Ia membuang baris duplikat secara otomatis, yang berarti tidak perlu langkah pembersihan sebelum menulis",
+        "en": "It removes duplicate rows automatically, which means no cleaning step is needed before writing"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Parquet menyimpan tipe dan memampatkan per kolom, sehingga pembaca bisa melewati kolom yang tidak dibutuhkan: 9,1 MB dibanding 47,7 MB, dan 0,03 detik dibanding 0,27 untuk dua kolom.",
+       "en": "Parquet stores types and compresses by column, so readers can skip the columns they do not need: 9.1 MB against 47.7 MB, and 0.03 s against 0.27 s for two columns."
+      }
+     },
+     {
+      "question": {
+       "id": "Anda mendeduplikasi file besar dengan memanggil `drop_duplicates` pada tiap chunk secara terpisah. Apa risikonya?",
+       "en": "You deduplicate a large file by calling `drop_duplicates` on each chunk separately. What is the risk?"
+      },
+      "options": [
+       {
+        "id": "Tidak ada; hasilnya selalu identik dengan mendeduplikasi seluruh file sekaligus, apa pun urutannya",
+        "en": "None; the result is always identical to deduplicating the whole file at once, whatever the order"
+       },
+       {
+        "id": "pandas menolak menjalankan `drop_duplicates` pada sebuah chunk, sehingga panggilannya langsung error",
+        "en": "pandas refuses to run `drop_duplicates` on a chunk, so the call fails with an error immediately"
+       },
+       {
+        "id": "Duplikat di chunk berbeda tidak pernah dibandingkan, sehingga sebagian salinan lolos ke tabel keluaran",
+        "en": "Duplicates in different chunks are never compared, so some copies survive in the output tables."
+       },
+       {
+        "id": "Chunk digabung kembali dalam urutan acak, sehingga salinan pertama yang disimpan berbeda di setiap proses",
+        "en": "The chunks are merged back in random order, so the first copy kept differs on every single run"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Deduplikasi butuh seluruh ruang kunci. Chunking aman untuk jumlah, hitungan, dan hasil lain yang bisa digabung, bukan untuk operasi global; pakai database atau pendekatan dua tahap untuk itu.",
+       "en": "Deduplication needs the whole key space. Chunking is safe for sums, counts and similar combinable results, not for global operations; use a database or a two-pass approach for those."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "pandas: 10 minutes to pandas",
+       "en": "pandas: 10 minutes to pandas"
+      },
+      "url": "https://pandas.pydata.org/docs/user_guide/10min.html"
+     },
+     {
+      "label": {
+       "id": "pandas: merge, join, concatenate (lihat `validate`)",
+       "en": "pandas: merge, join, concatenate (see `validate`)"
+      },
+      "url": "https://pandas.pydata.org/docs/user_guide/merging.html"
+     },
+     {
+      "label": {
+       "id": "pandas: group by (split, apply, combine)",
+       "en": "pandas: group by (split, apply, combine)"
+      },
+      "url": "https://pandas.pydata.org/docs/user_guide/groupby.html"
+     },
+     {
+      "label": {
+       "id": "pandas: scaling to large datasets",
+       "en": "pandas: scaling to large datasets"
+      },
+      "url": "https://pandas.pydata.org/docs/user_guide/scale.html"
+     },
+     {
+      "label": {
+       "id": "pandas: copy-on-write",
+       "en": "pandas: copy-on-write"
+      },
+      "url": "https://pandas.pydata.org/docs/user_guide/copy_on_write.html"
+     },
+     {
+      "label": {
+       "id": "Dokumentasi Apache Parquet",
+       "en": "Apache Parquet documentation"
+      },
+      "url": "https://parquet.apache.org/docs/"
+     }
+    ],
+    "idPending": false
+   },
+   {
     "id": "mod-1-6",
     "number": "1.6",
     "title": {

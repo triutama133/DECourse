@@ -192,6 +192,15 @@ window.PROOF = {
   "starter": "42aef1e4",
   "reference": "ab0717ef"
  },
+ "mod-1-5": {
+  "arg": null,
+  "requireVenv": false,
+  "needsEnv": [],
+  "command": "python3 scripts/prove.py mod-1-5",
+  "tests": "440b33c1",
+  "starter": "b1279c68",
+  "reference": "0f481807"
+ },
  "mod-1-6": {
   "arg": null,
   "requireVenv": false,

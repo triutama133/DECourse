@@ -463,6 +463,26 @@
    "labs/mod-2-6/reference/warehouse_lab.py"
   ]
  },
+ "mod-1-5": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-1-5/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-1-5/test_lab.py",
+   "labs/mod-1-5/orders_data.py"
+  ],
+  "work": [
+   "labs/mod-1-5/orders_lab.py"
+  ],
+  "reference": [
+   "labs/mod-1-5/reference/orders_lab.py"
+  ]
+ },
  "mod-1-6": {
   "run": [
    {
