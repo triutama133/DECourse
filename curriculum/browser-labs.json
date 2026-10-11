@@ -1,0 +1,42 @@
+{
+  "mod-0-1": {
+    "note": {
+      "id": "Seluruh lab ini bisa dikerjakan langsung di browser: edit pipeline.py di bawah, lalu klik Jalankan tes. Python berjalan di komputer Anda (WebAssembly); tidak ada yang dikirim ke server. Hasilnya sama dengan menjalankan pytest di terminal.",
+      "en": "You can do this whole lab right here in the browser: edit pipeline.py below, then click Run tests. Python runs on your own computer (WebAssembly); nothing is sent to a server. The result is the same as running pytest in a terminal."
+    },
+    "editable": "labs/mod-0-1/pipeline.py",
+    "reference": "labs/mod-0-1/reference/pipeline.py",
+    "tests": ["labs/mod-0-1/test_lab.py"],
+    "extra": ["labs/shared/labtools.py", "labs/shared/shopgen.py"]
+  },
+  "mod-3-2": {
+    "note": {
+      "id": "Bagian A (mini Kafka) bisa dikerjakan di browser: edit minilog.py di bawah, lalu klik Jalankan tes. Bagian B dan C memerlukan broker Kafka dan PostgreSQL, jadi dijalankan di komputer Anda atau Codespaces.",
+      "en": "Part A (the mini Kafka) can be done in the browser: edit minilog.py below, then click Run tests. Parts B and C need a Kafka broker and PostgreSQL, so run them on your computer or in Codespaces."
+    },
+    "editable": "labs/mod-3-2/minilog.py",
+    "reference": "labs/mod-3-2/reference/minilog.py",
+    "tests": ["labs/mod-3-2/test_minilog.py"],
+    "extra": ["labs/shared/labtools.py", "labs/shared/shopgen.py"]
+  },
+  "mod-3-3": {
+    "note": {
+      "id": "Bagian A (model watermark dalam Python murni) bisa dikerjakan di browser: edit windows.py di bawah, lalu klik Jalankan tes. Bagian B memerlukan Spark dan Java, jadi dijalankan di komputer Anda atau Codespaces.",
+      "en": "Part A (the watermark model in plain Python) can be done in the browser: edit windows.py below, then click Run tests. Part B needs Spark and Java, so run it on your computer or in Codespaces."
+    },
+    "editable": "labs/mod-3-3/windows.py",
+    "reference": "labs/mod-3-3/reference/windows.py",
+    "tests": ["labs/mod-3-3/test_windows.py"],
+    "extra": ["labs/shared/labtools.py", "labs/shared/shopgen.py"]
+  },
+  "mod-3-4": {
+    "note": {
+      "id": "Bagian B (fungsi FinOps dalam Python murni) bisa dikerjakan di browser: edit finops.py di bawah, lalu klik Jalankan tes. Bagian A memerlukan Terraform, jadi dijalankan di komputer Anda atau Codespaces.",
+      "en": "Part B (the FinOps functions in plain Python) can be done in the browser: edit finops.py below, then click Run tests. Part A needs Terraform, so run it on your computer or in Codespaces."
+    },
+    "editable": "labs/mod-3-4/finops.py",
+    "reference": "labs/mod-3-4/reference/finops.py",
+    "tests": ["labs/mod-3-4/test_finops.py"],
+    "extra": ["labs/shared/labtools.py", "labs/shared/shopgen.py", "labs/shared/querylog.py"]
+  }
+}

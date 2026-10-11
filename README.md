@@ -18,6 +18,8 @@ python3 server.py                             # then open http://localhost:3000
 
 No Git? Download the ZIP of this repository instead. Prefer not to install anything? Open the repository in **GitHub Codespaces** (the `.devcontainer/` folder sets up Python, Java, Terraform and every lab's dependencies). Press **Ctrl+K** inside the site to search every lesson.
 
+**Python in the browser:** the Module 0.1 lab (and the plain-Python parts of 3.2, 3.3 and 3.4) run directly in the page with the real pytest tests: edit the code, click *Run tests*. Python runs in WebAssembly (vendored Pyodide in `app/vendor/pyodide/`, about 15 MB, no CDN); nothing is sent to a server. `node scripts/verify_browser_labs.js` proves each of these labs in the real Pyodide (reference passes, starter fails).
+
 ## Run it
 
 ```bash

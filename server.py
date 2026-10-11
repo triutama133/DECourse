@@ -9,7 +9,8 @@ import sys
 PORT = int(os.environ.get("PORT", "3000"))
 DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app")
 
-mimetypes.add_type("application/wasm", ".wasm")  # sql.js loads a .wasm file
+mimetypes.add_type("application/wasm", ".wasm")  # sql.js and Pyodide load .wasm files
+mimetypes.add_type("application/javascript", ".mjs")  # Pyodide loads a JavaScript module
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):

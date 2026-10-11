@@ -234,6 +234,129 @@ class DataForgeApp {
     if (this.currentView === "playground") this.afterPlaygroundRender();
   }
 
+  // ================= IN-BROWSER PYTHON LABS (Pyodide, in a Web Worker) =================
+  browserLabCard(modId) {
+    const bl = window.BROWSER_LABS && window.BROWSER_LABS[modId];
+    if (!bl) return "";
+    const draft = readStore("df_bl_" + modId, null);
+    const code = typeof draft === "string" ? draft : bl.starter;
+    const passed = (readStore("df_browser_labs", {}) || {})[modId];
+    const last = (this._blOut && this._blOut[modId]) || {};
+    return `
+      <div class="card browser-lab stack-sm" id="browser-lab">
+        <div class="row between">
+          <h3>${this.l("Kerjakan di browser (tanpa instalasi)", "Do it in your browser (no setup)")}</h3>
+          ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Tes lulus di browser", "Passed in the browser")}</span>` : `<span id="bl-passed"></span>`}
+        </div>
+        <p class="small muted">${this.esc(this.t(bl.note))}</p>
+        <label class="label" for="bl-code"><code>${this.esc(bl.editable)}</code></label>
+        <textarea id="bl-code" class="bl-code" rows="18" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="bl-hint"
+          oninput="app.saveBlDraft('${modId}', this.value)" onkeydown="app.blKey(event, '${modId}')">${this.esc(code)}</textarea>
+        <p class="small muted" id="bl-hint">${this.l("Tab menambah indentasi; tekan Esc lalu Tab untuk keluar dari kotak ini. Ctrl+Enter menjalankan tes. Pekerjaan Anda tersimpan otomatis di browser ini.", "Tab indents; press Esc then Tab to leave this box. Ctrl+Enter runs the tests. Your work is saved automatically in this browser.")}</p>
+        <div class="row">
+          <button class="btn btn-primary" id="bl-run" onclick="app.runBrowserLab('${modId}')">${this.l("Jalankan tes", "Run tests")}</button>
+          <button class="btn btn-quiet" onclick="app.resetBrowserLab('${modId}')">${this.l("Kembalikan ke kode awal", "Reset to starter code")}</button>
+          <span class="small muted" id="bl-status" role="status" aria-live="polite">${last.status || ""}</span>
+        </div>
+        <div id="bl-summary" aria-live="polite">${last.summary || ""}</div>
+        <pre class="bl-out" id="bl-out"${last.out ? "" : " hidden"}>${this.esc(last.out || "")}</pre>
+        <details class="file"><summary>${this.l("Lihat solusi referensi", "Show the reference solution")} <span class="muted small">${this.l("(coba sendiri dulu)", "(try it yourself first)")}</span></summary>
+          <pre><code>${this.esc(bl.reference)}</code></pre></details>
+      </div>`;
+  }
+  saveBlDraft(modId, value) {
+    clearTimeout(this._blSave);
+    this._blSave = setTimeout(() => writeStore("df_bl_" + modId, value), 400);
+  }
+  blKey(e, modId) {
+    if (e.key === "Escape") { this._blEsc = true; return; }
+    if (e.key === "Tab" && !e.shiftKey && !this._blEsc) {
+      e.preventDefault();
+      const t = e.target, a = t.selectionStart, b = t.selectionEnd;
+      t.value = t.value.slice(0, a) + "    " + t.value.slice(b);
+      t.selectionStart = t.selectionEnd = a + 4;
+      this.saveBlDraft(modId, t.value);
+    } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.runBrowserLab(modId); }
+    if (e.key !== "Escape") this._blEsc = false;
+  }
+  resetBrowserLab(modId) {
+    const bl = window.BROWSER_LABS[modId];
+    if (!window.confirm(this.l("Kembalikan ke kode awal? Perubahan Anda di kotak ini akan hilang.", "Reset to the starter code? Your changes in this box will be lost."))) return;
+    writeStore("df_bl_" + modId, bl.starter);
+    document.getElementById("bl-code").value = bl.starter;
+  }
+  blStatus(modId, status, summary, out) {
+    this._blOut = this._blOut || {};
+    this._blOut[modId] = { status, summary, out };
+    const set = (id, html, text) => { const el = document.getElementById(id); if (el) { if (text) el.textContent = html; else el.innerHTML = html; } };
+    set("bl-status", status, true);
+    set("bl-summary", summary || "");
+    const pre = document.getElementById("bl-out");
+    if (pre) { pre.textContent = out || ""; pre.hidden = !out; }
+  }
+  runBrowserLab(modId) {
+    const bl = window.BROWSER_LABS[modId];
+    const area = document.getElementById("bl-code");
+    if (!bl || !area) return;
+    if (this._blBusy) return;
+    if (!window.Worker || location.protocol === "file:") {
+      this.blStatus(modId, "", `<div class="feedback bad">${this.l("Browser ini tidak bisa menjalankan Python di halaman yang dibuka dari file. Jalankan situs dengan python3 server.py lalu buka http://localhost:3000.", "This browser cannot run Python on a page opened from a file. Run the site with python3 server.py and open http://localhost:3000.")}</div>`, "");
+      return;
+    }
+    writeStore("df_bl_" + modId, area.value);
+    const btn = document.getElementById("bl-run");
+    this._blBusy = true;
+    if (btn) btn.disabled = true;
+    const id = (this._blId = (this._blId || 0) + 1);
+    const finish = () => { this._blBusy = false; clearTimeout(this._blTimer); const b = document.getElementById("bl-run"); if (b) b.disabled = false; };
+    const kill = (msg) => {
+      if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; }
+      finish();
+      this.blStatus(modId, "", `<div class="feedback bad">${msg}</div>`, "");
+    };
+    if (!this._blWorker) {
+      try { this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" }); }
+      catch (e) { kill(this.l("Tidak bisa memulai Python di browser ini.", "Could not start Python in this browser.")); return; }
+    }
+    const w = this._blWorker;
+    const loadingTxt = { "loading-python": this.l("Memuat Python (sekitar 12 MB, hanya sekali)…", "Loading Python (about 12 MB, only once)…"), "loading-pytest": this.l("Memuat pytest…", "Loading pytest…"), "running": this.l("Menjalankan tes…", "Running tests…") };
+    this.blStatus(modId, loadingTxt["loading-python"], "", "");
+    this._blTimer = setTimeout(() => kill(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
+    w.onmessage = (ev) => {
+      const m = ev.data;
+      if (m.type === "status") {
+        this.blStatus(modId, loadingTxt[m.text] || "", "", "");
+        if (m.text === "running") { clearTimeout(this._blTimer); this._blTimer = setTimeout(() => kill(this.l("Tes berjalan lebih dari 60 detik, jadi dihentikan. Kode Anda mungkin berulang tanpa henti (infinite loop). Periksa perulangan <code>while</code>, lalu jalankan lagi.", "The tests ran for over 60 seconds, so they were stopped. Your code may loop forever (an infinite loop). Check your <code>while</code> loops, then run again.")), 60000); }
+      } else if (m.type === "result" && m.id === id) {
+        finish();
+        const lines = String(m.output).trim().split("\n").filter(Boolean);
+        const last = lines[lines.length - 1] || "";
+        const num = (re) => { const x = last.match(re); return x ? parseInt(x[1], 10) : 0; };
+        const passed = num(/(\d+) passed/), failed = num(/(\d+) failed/), errors = num(/(\d+) errors?/);
+        let summary;
+        if (m.code === 0 && passed > 0) {
+          const done = readStore("df_browser_labs", {}) || {};
+          done[modId] = new Date().toISOString();
+          writeStore("df_browser_labs", done);
+          const mark = document.getElementById("bl-passed");
+          if (mark) { mark.className = "state-done"; mark.textContent = "✓ " + this.l("Tes lulus di browser", "Passed in the browser"); }
+          summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus. Lanjutkan ke tab Chaos dan Kuis.`, `All ${passed} tests pass. Continue with the Chaos and Quiz tabs.`)}</div>`;
+        } else {
+          summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one function, then run again.`)}</div>`;
+        }
+        const out = String(m.output).replace(/\/lab\//g, "");
+        this.blStatus(modId, "", summary, out.length > 8000 ? "…\n" + out.slice(-8000) : out);
+      } else if (m.type === "error" && m.id === id) {
+        if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; }
+        finish();
+        this.blStatus(modId, "", `<div class="feedback bad">${this.l("Python gagal dimulai:", "Python failed to start:")} ${this.esc(m.message)}</div>`, "");
+      }
+    };
+    w.onerror = (e) => kill(this.l("Python gagal dimuat. Muat ulang halaman dan coba lagi.", "Python failed to load. Reload the page and try again.") + " " + this.esc(e.message || ""));
+    const files = Object.assign({}, bl.files, { [bl.editable]: area.value });
+    w.postMessage({ type: "run", id, files, args: bl.tests });
+  }
+
   // ================= TOOLS: copy, search, export/import =================
   copyText(text, btn) {
     const done = () => { if (btn) { const old = btn.textContent; btn.textContent = this.l("Tersalin", "Copied"); setTimeout(() => { btn.textContent = old; }, 1200); } };
@@ -343,7 +466,8 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs"];
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -373,6 +497,8 @@ class DataForgeApp {
         writeStore("df_solved_challenges", this.solvedChallenges);
         writeStore("df_resume_edited", this.resumeEdited);
         writeStore("df_resume_data", this.resumeData);
+        if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
+        for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
         this.renderChrome(); this.renderView();
         alert(this.l("Progres berhasil diimpor.", "Progress imported."));
       } catch (e) {
@@ -395,7 +521,7 @@ class DataForgeApp {
           <p class="muted" style="max-width:760px;font-size:15px">${this.l(
             "Kursus ini dipelajari dengan menjalankan kode, bukan hanya membaca. Halaman ini membawa Anda ke titik di mana lab pertama berjalan di komputer Anda. Anda tidak perlu pengalaman sebelumnya. Kalau ada langkah yang macet, itu bukan salah Anda: lihat bagian \"Kalau macet\" di bawah.",
             "You learn this course by running code, not only by reading. This page takes you to the point where the first lab runs on your computer. You do not need any experience. If a step gets stuck, it is not your fault: see \"If you get stuck\" below.")}</p>
-          <div class="callout"><p>${this.l("Anda bisa membaca semua materi dan memakai SQL Sandbox langsung di browser ini tanpa instalasi apa pun. Instalasi hanya diperlukan untuk lab Python/terminal.", "You can read every lesson and use the SQL Sandbox right here in the browser with nothing installed. Setup is only needed for the Python/terminal labs.")}</p></div>
+          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi, memakai SQL Sandbox, dan mengerjakan lab Python Modul 0.1 (serta bagian Python-murni di Modul 3.2, 3.3, dan 3.4) dengan tes asli. Instalasi diperlukan untuk lab lain dan untuk belajar memakai terminal.", "With nothing installed, you can already read every lesson, use the SQL Sandbox, and do the Module 0.1 Python lab (plus the plain-Python parts of Modules 3.2, 3.3 and 3.4) with the real tests, all in this browser. Setup is needed for the other labs and to learn the terminal.")}</p></div>
         </div>
 
         ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
@@ -605,6 +731,7 @@ class DataForgeApp {
           ${this.md(lab.description)}
         </div>
         ${hasSandbox ? `<div class="callout success"><p>${this.l("Sebagian lab ini bisa dikerjakan langsung di browser dengan pengecekan otomatis:", "Part of this lab can be done in your browser with automatic checking:")} <a href="#/playground">${this.l("buka SQL Sandbox", "open the SQL Sandbox")} →</a></p></div>` : ""}
+        ${this.browserLabCard(mod.id)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
         ${this.md(lab.steps)}
         ${lab.files.length ? `<h3>${this.l("File lab", "Lab files")}</h3>

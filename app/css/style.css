@@ -303,3 +303,7 @@ main:focus { outline: none; }
   .copy-btn { position: static; margin: 0 0 4px auto; display: block; }
   .code-wrap pre { padding-right: 16px; }
 }
+
+.bl-code { width: 100%; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; tab-size: 4; padding: 12px; border: 1px solid var(--border-strong); border-radius: 6px; background: #fbfbfa; color: var(--text); resize: vertical; min-height: 220px; white-space: pre; overflow: auto; }
+.bl-out { white-space: pre-wrap; max-height: 380px; overflow: auto; font-size: 12px; }
+.bl-out[hidden] { display: none; }

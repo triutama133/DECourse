@@ -26,7 +26,7 @@ jobs:
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js
-          git diff --exit-code app/js/curriculum-data.js
+          git diff --exit-code app/js/curriculum-data.js app/js/browser-labs-data.js
 
       - name: Validate JavaScript Syntax
         run: |
@@ -34,8 +34,13 @@ jobs:
           node -c scripts/build-curriculum.js
           node -c scripts/export-sandbox-lab.js
           for f in app/js/*.js; do
+            # the worker is an ES module (uses import); node -c only checks classic scripts
+            [ "$f" = "app/js/pyodide-worker.js" ] && continue
             node -c "$f"
           done
+
+      - name: Verify in-browser Python labs (real Pyodide)
+        run: node scripts/verify_browser_labs.js
 
   test-labs-core:
     name: Verify Labs (Core & Level 0-1)
