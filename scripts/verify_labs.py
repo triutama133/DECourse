@@ -38,6 +38,7 @@ PLAN = {
     "mod-2-3": ("pytest", ["labs/mod-2-3/test_lab.py"]),
     "mod-2-4": ("pytest", ["labs/mod-2-4/test_lab.py"]),
     "mod-2-5": ("pytest", ["labs/mod-2-5/test_lab.py"]),
+    "mod-3-0": ("pytest", ["labs/mod-3-0/test_lab.py"]),
     "mod-3-1": ("pytest", ["labs/mod-3-1/test_lab.py"]),
     "mod-3-2": ("pytest", ["labs/mod-3-2/test_minilog.py", "labs/mod-3-2/test_cdc.py", "labs/mod-3-2/test_real_kafka.py"]),
     "mod-3-3": ("pytest", ["labs/mod-3-3/test_windows.py", "labs/mod-3-3/test_stream.py"]),

@@ -6524,6 +6524,490 @@ window.CURRICULUM_DATA = [
   "badgeColor": "rose",
   "modules": [
    {
+    "id": "mod-3-0",
+    "number": "3.0",
+    "title": {
+     "id": "Dari Hadoop ke Spark: HDFS, MapReduce, YARN, dan Hive",
+     "en": "From Hadoop to Spark: HDFS, MapReduce, YARN and Hive"
+    },
+    "duration": {
+     "id": "2 minggu",
+     "en": "2 weeks"
+    },
+    "summary": {
+     "id": "Pahami tumpukan big data yang ada sebelum Spark dan lakehouse: bagaimana HDFS menyimpan file di banyak mesin, bagaimana MapReduce menghitung di atasnya, bagaimana YARN membagi klaster, dan bagaimana Hive menaruh SQL di atasnya. Anda membangun ulang setiap gagasan dalam model Python kecil yang bisa diuji, dan melihat bagian mana yang masih penting hari ini.",
+     "en": "Understand the big-data stack that came before Spark and the lakehouse: how HDFS stores files across machines, how MapReduce computes over them, how YARN shares the cluster and how Hive puts SQL on top. You rebuild each idea in a small, testable Python model, and see which parts still matter today."
+    },
+    "whyTutorialsLie": {
+     "id": "Wawancara dan lowongan kerja masih menyebut Hadoop, HDFS, dan Hive, tetapi kebanyakan tutorial melewatkannya. Tanpa sejarah ini, shuffle, partisi, dan \"pindahkan kode ke data\" di Spark tampak seperti sulap, dan Anda tidak bisa menjelaskan mengapa tumpukan modern berbentuk seperti sekarang.",
+     "en": "Interviews and job posts still say Hadoop, HDFS and Hive, but most tutorials skip them. Without this history Spark's shuffle, partitions and \"move the code to the data\" look like magic, and you cannot explain why the modern stack looks the way it does."
+    },
+    "outcomes": [
+     {
+      "id": "Menjelaskan mengapa data yang terlalu besar untuk satu mesin melahirkan penyimpanan dan komputasi scale-out, dan mengapa \"kegagalan itu normal\" membentuk desainnya",
+      "en": "Explain why data too big for one machine led to scale-out storage and compute, and why \"failure is normal\" shaped the design"
+     },
+     {
+      "id": "Menjelaskan bagaimana HDFS memecah file menjadi blok, mereplikasinya lintas rak, dan bertahan dari kegagalan node, serta menjelaskan masalah file kecil dengan angka",
+      "en": "Describe how HDFS splits files into blocks, replicates them across racks, and survives node failures, and explain the small-files problem with numbers"
+     },
+     {
+      "id": "Menelusuri job MapReduce (map, shuffle, reduce) dengan tangan, menjelaskan fungsi combiner, dan menulis reduce-side join",
+      "en": "Trace a MapReduce job (map, shuffle, reduce) by hand, explain what a combiner does, and write a reduce-side join"
+     },
+     {
+      "id": "Menjelaskan apa yang dijadwalkan YARN dan mengapa manajemen sumber daya dipisahkan dari MapReduce",
+      "en": "Explain what YARN schedules and why resource management was separated from MapReduce"
+     },
+     {
+      "id": "Menjelaskan apa itu Hive dan metastore-nya, mengapa tabel adalah \"schema on read\" di atas file, dan bagaimana Hive mengarah ke Iceberg",
+      "en": "Explain what Hive and its metastore are, why tables are \"schema on read\" over files, and how Hive led to Iceberg"
+     },
+     {
+      "id": "Memetakan setiap komponen era Hadoop ke padanan modernnya dan membicarakannya secara akurat dalam wawancara",
+      "en": "Map each Hadoop-era component to its modern equivalent and talk about it accurately in an interview"
+     }
+    ],
+    "prerequisites": {
+     "id": "Modul 0.0 (Python) dan Modul 2.1 (file kolumnar) membantu. Lab ini memakai Python murni dan tidak butuh klaster. Modul 3.1 (Spark) dibangun langsung di atas modul ini.",
+     "en": "Module 0.0 (Python) and Module 2.1 (columnar files) help. The lab is plain Python and needs no cluster. Module 3.1 (Spark) builds directly on this one."
+    },
+    "lessons": [
+     {
+      "title": {
+       "id": "Mengapa Hadoop diciptakan",
+       "en": "Why Hadoop was invented"
+      },
+      "body": {
+       "id": "Sekitar tahun 2003, sebuah perusahaan pencarian tidak bisa menyimpan web di satu komputer. Satu mesin, sebesar apa pun, punya batas: satu disk menampung beberapa terabyte, membacanya makan waktu berjam-jam, dan mesin terbesar harganya jauh lebih dari sepuluh kali harga sepuluh mesin biasa. Ada dua cara tumbuh. **Scale up** berarti membeli mesin yang lebih besar; ia menabrak langit-langit dan tembok harga. **Scale out** berarti menyambung banyak mesin biasa dan membiarkan mereka berbagi pekerjaan; ia tidak punya langit-langit, tetapi melahirkan masalah baru.\n\nMasalah utamanya adalah kegagalan. Jika satu disk rusak sekali dalam beberapa tahun, klaster 4.000 mesin dengan masing-masing 12 disk kehilangan sebuah disk **hampir setiap hari**. Google menjelaskan jawabannya dalam dua makalah: Google File System (2003) untuk penyimpanan, dan MapReduce (2004) untuk komputasi. Doug Cutting dan rekan-rekannya membangun versi open source-nya, dan Apache **Hadoop** (sejak 2006) menjadi fondasi dekade big data pertama. Gagasan desainnya, yang akan Anda temui lagi di Spark dan Kafka, adalah: **anggap mesin pasti gagal, simpan beberapa salinan data, dan buat komputasi bisa dijalankan ulang**.\n\nHadoop adalah keluarga empat bagian yang diikuti modul ini berurutan:\n\n| Bagian | Tugas | Gagasan satu kalimat |\n|---|---|---|\n| **HDFS** | menyimpan file | potong file menjadi blok dan salin tiap blok ke beberapa mesin |\n| **MapReduce** | menghitung | kirim fungsi kecil ke tempat data berada, lalu gabungkan hasilnya |\n| **YARN** | membagi klaster | memutuskan job mana mendapat mesin mana |\n| **Hive** | query dengan SQL | tabel adalah deskripsi yang dibentangkan di atas file |\n\nGagasan kedua mengalir melalui semuanya: **pindahkan komputasi ke data, bukan data ke komputasi**. Memindahkan blok 1 GB lewat jaringan untuk menjalankan program satu kilobyte itu boros; mengirim program ke mesin yang sudah menyimpan blok itu murah. Prinsip yang sama akan Anda temui lagi sebagai partition pruning, predicate pushdown, dan data locality.",
+       "en": "Around 2003 a search company could not store the web on one computer. A single machine, however large, has limits: a disk holds a few terabytes, reading it takes hours, and the biggest machines cost far more than ten times what ten ordinary ones cost. There are two ways to grow. **Scale up** means buying a bigger machine; it hits a ceiling and a price wall. **Scale out** means connecting many ordinary machines and letting them share the work; it has no ceiling, but it creates new problems.\n\nThe central problem is failure. If one disk fails once every few years, a cluster of 4,000 machines with 12 disks each loses a disk **every day or so**. Google described the answer in two papers: the Google File System (2003) for storage, and MapReduce (2004) for computation. Doug Cutting and colleagues built open-source versions, and Apache **Hadoop** (from 2006) became the foundation of the first big-data decade. The design idea, which you will meet again in Spark and Kafka, is: **assume machines fail, keep several copies of data, and make computations re-runnable**.\n\nHadoop is a family of four parts that this module follows in order:\n\n| Part | Job | One-line idea |\n|---|---|---|\n| **HDFS** | store files | cut files into blocks and copy each block to several machines |\n| **MapReduce** | compute | send small functions to where the data lives, and combine the results |\n| **YARN** | share the cluster | decide which job gets which machines |\n| **Hive** | query with SQL | tables are descriptions laid over files |\n\nA second idea runs through all of it: **move the computation to the data, not the data to the computation**. Moving a 1 GB block across a network to run a one-kilobyte program is wasteful; sending the program to the machine that already holds the block is cheap. You will see the same principle again as partition pruning, predicate pushdown and data locality."
+      }
+     },
+     {
+      "title": {
+       "id": "HDFS: sistem file yang terbuat dari banyak mesin",
+       "en": "HDFS: a file system made of many machines"
+      },
+      "body": {
+       "id": "Hadoop Distributed File System menyimpan file raksasa di mesin biasa. Sebuah **file** dipotong menjadi **blok** berukuran tetap (bawaannya **128 MiB**; sistem file disk biasa memakai blok 4 KiB). Setiap blok **direplikasi**: secara bawaan **tiga salinan** pada tiga mesin berbeda. Blok terakhir sebuah file sepanjang yang dibutuhkan saja (file 300 MiB menjadi blok 128, 128, dan 44 MiB; `split_into_blocks` di lab melakukan persis ini).\n\nDua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di memori namespace (folder dan file) dan, untuk setiap file, daftar blok serta mesin mana yang menyimpan masing-masing. **DataNode** menyimpan byte yang sesungguhnya. DataNode mengirim heartbeat ke NameNode setiap beberapa detik beserta laporan blok miliknya. Jika heartbeat berhenti, NameNode menyatakan node itu mati dan memerintahkan pembuatan salinan blok-bloknya di tempat lain sampai setiap blok kembali punya tiga replika. Begitulah HDFS menyembuhkan dirinya.\n\n**Membaca** sebuah file: klien bertanya kepada NameNode \"di mana blok-blok file ini?\", lalu membaca setiap blok **langsung dari DataNode** (salinan terdekat). NameNode tidak pernah membawa data file, jadi ia bukan hambatan throughput. **Menulis**: klien meminta NameNode memberi DataNode untuk blok pertama, dan data mengalir lewat sebuah **pipeline** (klien ke DataNode 1, yang meneruskan ke DataNode 2, yang meneruskan ke DataNode 3).\n\n**Rack awareness.** Mesin berada di rak yang berbagi satu switch dan satu catu daya. Kehilangan satu rak utuh adalah kejadian nyata. Kebijakan penempatan bawaan untuk tiga replika: **replika pertama di mesin penulis sendiri, kedua di mesin pada rak yang berbeda, ketiga di mesin lain pada rak yang sama dengan yang kedua**. Ini memberi toleransi kegagalan tingkat rak sambil menjaga sebagian besar lalu lintas tulis di dalam satu rak. `place_replicas` di lab mengimplementasikannya persis, dan `blocks_lost` menunjukkan bahwa sebuah blok hilang hanya jika mesin dari *setiap* replikanya gagal.\n\n**Masalah file kecil.** NameNode menyimpan satu objek di memori untuk setiap file, direktori, dan blok; aturan praktis yang sering dikutip adalah sekitar **150 byte** per objek. `metadata_objects` di lab membuat akibatnya terlihat. Satu terabyte yang disimpan sebagai file 1 GiB adalah 1.024 file dengan 8 blok masing-masing: **9.216 objek**, sekitar 1,4 MB memori NameNode. Terabyte yang sama sebagai file 1 MiB adalah **2.097.152 objek**, sekitar **300 MB**, atau 227 kali lebih banyak, untuk data yang identik. Puluhan juta file kecil bisa menghabiskan memori NameNode dan menjatuhkan seluruh klaster (lihat skenario chaos). HDFS dibuat untuk **file yang sedikit dan besar**.\n\nBatasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HDFS cocok untuk data \"tulis sekali, baca berkali-kali\"; satu NameNode tunggal akan menjadi titik kegagalan tunggal, sehingga klaster produksi menjalankan NameNode standby dengan journal bersama (**HA**); dan **erasure coding** (Hadoop 3) menyimpan blok paritas, bukan salinan penuh, misalnya enam blok data ditambah tiga blok paritas, yang berbiaya 1,5 kali data dan bukan 3 kali.",
+       "en": "The Hadoop Distributed File System stores huge files on ordinary machines. A **file** is cut into **blocks** of a fixed size (the default is **128 MiB**; an ordinary disk file system uses 4 KiB blocks). Every block is **replicated**: by default **three copies** on three different machines. The last block of a file is just as long as it needs to be (a 300 MiB file becomes blocks of 128, 128 and 44 MiB; the lab's `split_into_blocks` does exactly this).\n\nTwo kinds of machine cooperate. The **NameNode** is the directory: it keeps in memory the namespace (folders and files) and, for every file, the list of blocks and which machines hold each one. The **DataNodes** hold the actual bytes. DataNodes send the NameNode a heartbeat every few seconds and a report of their blocks. If heartbeats stop, the NameNode declares the node dead and orders copies of its blocks to be made elsewhere until every block again has three replicas. That is how HDFS heals itself.\n\n**Reading** a file: the client asks the NameNode \"where are the blocks of this file?\", then reads each block **directly from a DataNode** (the nearest copy). The NameNode never carries file data, so it is not a bottleneck for throughput. **Writing**: the client asks the NameNode for a DataNode for the first block, and the data flows through a **pipeline** (client to DataNode 1, which forwards to DataNode 2, which forwards to DataNode 3).\n\n**Rack awareness.** Machines sit in racks that share a switch and a power supply. Losing a whole rack is a real event. The default placement policy for three replicas is: **1st replica on the writer's own machine, 2nd on a machine in a different rack, 3rd on a different machine in the same rack as the 2nd**. That gives rack-level fault tolerance while keeping most of the write traffic inside a rack. The lab's `place_replicas` implements this exactly, and `blocks_lost` shows that a block is lost only when *every* replica's machine failed.\n\n**The small-files problem.** The NameNode keeps one in-memory object per file, per directory and per block; a commonly quoted rule of thumb is about **150 bytes** each. The lab's `metadata_objects` makes the consequence visible. One terabyte stored as 1 GiB files is 1,024 files with 8 blocks each: **9,216 objects**, about 1.4 MB of NameNode memory. The same terabyte stored as 1 MiB files is **2,097,152 objects**, about **300 MB**, which is 227 times more, for identical data. Tens of millions of tiny files can exhaust the NameNode's memory and take down the whole cluster (see the chaos scenario). HDFS is built for **few, large files**.\n\nOther limits: files can be appended to but not edited in the middle, so HDFS suits \"write once, read many\" data; a single NameNode would be a single point of failure, so production clusters run a standby NameNode with shared journals (**HA**); and **erasure coding** (Hadoop 3) stores parity blocks instead of full copies, for example six data blocks plus three parity blocks, which costs 1.5 times the data instead of 3 times."
+      }
+     },
+     {
+      "title": {
+       "id": "MapReduce: menghitung dengan memindahkan kode",
+       "en": "MapReduce: compute by moving the code"
+      },
+      "body": {
+       "id": "MapReduce adalah cara menulis komputasi terdistribusi sebagai dua fungsi sederhana. Anda menyediakan **mapper** dan **reducer**; framework mengerjakan bagian sulit menjalankannya di banyak mesin.\n\nContoh klasiknya menghitung kata. Masukan dipecah menjadi potongan (satu per blok). Setiap potongan ditangani **map task**, yang membaca record dan mengeluarkan pasangan **(key, value)**: untuk baris `\"to be or not to be\"` mapper mengeluarkan `(\"to\", 1), (\"be\", 1), (\"or\", 1), ...`. Lalu datang langkah yang membuat semuanya berfungsi, yaitu **shuffle**: setiap pasangan dengan key yang sama dikirim ke **reducer yang sama**, dan setiap reducer menerima key-nya dalam keadaan terurut. Sebuah **reduce task** lalu melihat `(\"be\", [1, 1])` dan mengeluarkan `(\"be\", 2)`.\n\n```\npotongan input --> MAP --> pasangan (key,value) --> SHUFFLE (kelompokkan per key, kirim ke reducer) --> REDUCE --> keluaran\n```\n\nReducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah_reducer`. Ia harus memberi jawaban yang sama di setiap mesin, jadi dipakai hash yang stabil (lab memakai CRC32; `hash()` bawaan Python berubah antar eksekusi dan akan salah). Semua soal **skew** dari Modul 3.1 bermula di sini: satu key yang sangat umum mengirim semua pasangannya ke satu reducer.\n\n**Combiner** adalah reducer mini yang berjalan di sisi map, sebelum shuffle, untuk memperkecil apa yang harus melewati jaringan. Pada word count di lab, 13 kata menghasilkan 13 pasangan; dengan combiner hanya **7 pasangan** (satu per kata berbeda) yang di-shuffle, dan jawabannya identik. Jaringan adalah sumber daya yang mahal, jadi ini penting.\n\n**Join** memakai mesin yang sama. Pada **reduce-side join**, kedua masukan dipetakan ke `(customer_id, record bertag)`, sehingga shuffle membawa baris seorang pelanggan dan semua pesanan pelanggan itu ke reducer yang sama, yang kemudian bisa menggabungkannya. Anda menulisnya di lab (`revenue_per_city`). Ini juga persis yang dilakukan Spark pada sort-merge join.\n\n**Toleransi kegagalan** berasal dari sifat sederhana: sebuah task bersifat **deterministik** (masukan sama, keluaran sama) dan masukannya tersimpan tahan lama. Jika mesin mati di tengah task, framework menjalankan task yang sama lagi di tempat lain. `retry_task` di lab menunjukkan gagasannya, dan pelajaran fungsi murni di Modul 0.0 adalah mengapa ini aman. Framework juga bisa menjalankan duplikat task yang sangat lambat (**speculative execution**) dan mengambil mana yang selesai lebih dulu.\n\n**Mengapa MapReduce memudar.** Di antara map dan reduce, dan di antara akhir satu job dan awal job berikutnya, data ditulis ke disk dan (untuk keluaran job) ke HDFS dengan tiga replika. Tugas seperti machine learning, yang memutari data yang sama berkali-kali, membayar biaya itu di setiap iterasi. Menulis analisis nyata sebagai rantai job MapReduce juga lambat ditulis dan lambat dijalankan. Spark menyimpan data antara di memori dan merencanakan seluruh rantai sebagai satu graf (Modul 3.1), tetapi ia tetap **melakukan shuffle per key persis seperti dijelaskan di sini**. Jika Anda paham pelajaran ini, shuffle Spark bukan lagi misteri.",
+       "en": "MapReduce is a way to write a distributed computation as two simple functions. You supply a **mapper** and a **reducer**; the framework does the hard work of running them on many machines.\n\nThe classic example is counting words. The input is split into pieces (one per block). Each piece is handled by a **map task**, which reads records and emits **(key, value)** pairs: for the line `\"to be or not to be\"` the mapper emits `(\"to\", 1), (\"be\", 1), (\"or\", 1), ...`. Then comes the step that makes it all work, the **shuffle**: every pair with the same key is sent to the **same reducer**, and each reducer receives its keys sorted. A **reduce task** then sees `(\"be\", [1, 1])` and emits `(\"be\", 2)`.\n\n```\ninput splits --> MAP --> (key,value) pairs --> SHUFFLE (group by key, send to reducers) --> REDUCE --> output\n```\n\nWhich reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers`. It must give the same answer on every machine, so a stable hash is used (the lab uses CRC32; Python's built-in `hash()` changes between runs and would be wrong). Everything about **skew** from Module 3.1 starts here: one very common key sends all its pairs to a single reducer.\n\nA **combiner** is a mini-reducer that runs on the map side, before the shuffle, to shrink what must cross the network. In the lab's word count, 13 words produce 13 pairs; with a combiner only **7 pairs** (one per distinct word) are shuffled, and the answer is identical. Network is the expensive resource, so this matters.\n\n**Joins** use the same machinery. In a **reduce-side join** both inputs are mapped to `(customer_id, tagged record)`, so the shuffle brings a customer's row and all that customer's orders to the same reducer, which can then combine them. You write this in the lab (`revenue_per_city`). It is also exactly what Spark does for a sort-merge join.\n\n**Fault tolerance** comes from a simple property: a task is **deterministic** (same input, same output) and its input is stored durably. If a machine dies mid-task, the framework starts the same task again elsewhere. The lab's `retry_task` shows the idea, and Module 0.0's lesson on pure functions is why it is safe. The framework can also start a duplicate of a very slow task (**speculative execution**) and keep whichever finishes first.\n\n**Why MapReduce faded.** Between map and reduce, and between the end of one job and the start of the next, data is written to disk and (for the output of a job) to HDFS with three replicas. A task such as machine learning, which loops over the same data many times, pays that cost on every iteration. Writing a real analysis as a chain of MapReduce jobs was also slow to write and slow to run. Spark keeps intermediate data in memory and plans the whole chain as one graph (Module 3.1), but it still **shuffles by key exactly as described here**. If you understand this lesson, Spark's shuffle is no mystery."
+      }
+     },
+     {
+      "title": {
+       "id": "YARN: membagi klaster",
+       "en": "YARN: sharing the cluster"
+      },
+      "body": {
+       "id": "Pada Hadoop pertama, satu komponen menjalankan job MapReduce *dan* memutuskan mesin mana mengerjakan apa. Akibatnya klaster hanya bisa menjalankan MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) memisahkan kedua tugas itu, sehingga Spark, Tez, Flink, dan lainnya bisa berbagi mesin yang sama.\n\nBagian-bagiannya: sebuah **ResourceManager** (satu per klaster) tahu memori dan CPU yang bebas di setiap mesin dan memutuskan siapa mendapat apa. Sebuah **NodeManager** di setiap mesin meluncurkan dan mengawasi **container**, yaitu irisan memori dan CPU pada satu mesin. Setiap aplikasi punya **ApplicationMaster**: container pertama sebuah job, yang meminta container tambahan kepada ResourceManager dan menjalankan task job di dalamnya.\n\nSebuah **scheduler** menentukan urutan ketika permintaan melebihi kapasitas. Yang paling sederhana adalah FIFO: siapa datang dulu dilayani dulu, yang membuat satu job raksasa bisa menghalangi semua orang. Scheduler **Capacity** dan **Fair** membagi klaster antar tim atau job. `allocate_containers` di lab adalah scheduler FIFO first-fit mainan: ia menaruh tiap permintaan pada mesin pertama yang muat dan membiarkan sisanya **pending**. Pekerjaan pending yang menunggu sumber daya adalah tanda paling umum dari klaster yang kelebihan beban, di YARN maupun di Kubernetes.\n\nHari ini Spark bisa berjalan di YARN (masih umum di on-premises), di Kubernetes (kini lebih umum di cloud), atau di layanan terkelola yang tidak memperlihatkan scheduler. Konsepnya sama: aplikasi meminta container dengan ukuran memori dan CPU, dan sesuatu memutuskan di mana ia berjalan. Ketika executor Spark dimatikan karena melebihi batas memorinya (Modul 3.1), itu adalah YARN atau Kubernetes yang menegakkan ukuran container.",
+       "en": "In the first Hadoop, one component ran MapReduce jobs *and* decided which machine ran what. That meant the cluster could run only MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) split the two jobs apart, so that Spark, Tez, Flink and others could share the same machines.\n\nThe pieces: a **ResourceManager** (one per cluster) knows the free memory and CPU on every machine and decides who gets what. A **NodeManager** on every machine launches and watches **containers**, a container being a slice of memory and CPU on one machine. Each application has an **ApplicationMaster**: the first container of a job, which asks the ResourceManager for more containers and runs the job's tasks inside them.\n\nA **scheduler** decides the order when requests exceed capacity. The simplest is FIFO: first come, first served, which lets one huge job block everyone. The **Capacity** and **Fair** schedulers divide the cluster between teams or jobs. The lab's `allocate_containers` is a toy first-fit FIFO scheduler: it places each request on the first machine with room and leaves the rest **pending**. Pending work waiting for resources is the commonest sign of an overloaded cluster, in YARN just as in Kubernetes.\n\nToday Spark can run on YARN (still common on-premises), on Kubernetes (now more common in the cloud), or on managed services where you never see the scheduler. The concept is the same: an application asks for containers with a memory and CPU size, and something decides where they run. When a Spark executor is killed for exceeding its memory limit (Module 3.1), that is YARN or Kubernetes enforcing the container size."
+      }
+     },
+     {
+      "title": {
+       "id": "Hive: SQL di atas file",
+       "en": "Hive: SQL over files"
+      },
+      "body": {
+       "id": "Menulis MapReduce dalam Java untuk setiap pertanyaan itu pekerjaan lambat. **Hive** (dari Facebook, sekitar 2008) membiarkan Anda menulis **SQL**; Hive menerjemahkannya menjadi job. Gagasan kuncinya: tabel Hive bukan format penyimpanan khusus. Ia adalah **deskripsi yang dibentangkan di atas file** di HDFS: nama tabel, daftar kolom dan tipenya, serta folder tempat file berada.\n\nDeskripsi itu tinggal di **Hive Metastore**, sebuah database relasional kecil. Untuk setiap tabel ia menyimpan skema, lokasi, format file, dan yang penting, daftar **partisi** (folder seperti `order_date=2026-01-15/`). File datanya sendiri tidak disentuh, sehingga ini disebut **schema on read**: skema diterapkan saat Anda membaca, bukan ditegakkan saat menulis. File yang salah di folder itu tidak ditolak saat tiba; ia gagal (atau memberi NULL) ketika seseorang mengkuerinya. Anda akan mengenali masalah yang diciptakan data contract (Modul 2.5) untuk diselesaikan.\n\nHive dimulai dengan file teks dan pindah ke format kolumnar, **ORC** dan **Parquet**, dengan alasan dari Modul 2.1. Mesin eksekusinya pindah dari MapReduce ke **Tez** dan kemudian juga Spark, karena MapReduce terlalu lambat untuk SQL interaktif. Mesin terpisah seperti **Impala** dan **Presto/Trino** membaca tabel yang sama di memori untuk query cepat.\n\nHive Metastore bertahan melewati semua ini, dan ia bagian yang paling mungkin Anda temui di tumpukan modern: Spark, Trino, Athena, dan lainnya masih memakainya (atau AWS Glue Catalog, yang berperan sama) untuk mengetahui \"tabel apa yang ada dan di mana\". Kelemahannya ada pada format tabel: tabel Hive adalah folder berisi file, tanpa commit atomik, listing direktori yang lambat di penyimpanan cloud, tanpa penulis konkuren yang aman, dan tanpa time travel. **Apache Iceberg** (Modul 2.2) dibuat untuk memperbaiki persis ini sambil mempertahankan gagasan \"file terbuka ditambah katalog\".",
+       "en": "Writing MapReduce in Java for every question was slow work. **Hive** (from Facebook, around 2008) lets you write **SQL**; Hive translates it into jobs. The key idea is that a Hive table is not a special storage format. It is a **description laid over files** in HDFS: a table name, a list of columns and types, and the folder where the files live.\n\nThat description lives in the **Hive Metastore**, a small relational database. For each table it stores the schema, the location, the file format and, importantly, the list of **partitions** (folders such as `order_date=2026-01-15/`). The data files themselves are untouched, so this is called **schema on read**: the schema is applied when you read, not enforced when you write. A wrong file in the folder is not rejected on arrival; it fails (or gives NULLs) when someone queries it. You will recognise the problem that data contracts (Module 2.5) were invented to solve.\n\nHive started with text files and moved to columnar formats, **ORC** and **Parquet**, for the reasons of Module 2.1. Its execution engine moved from MapReduce to **Tez** and later also Spark, because MapReduce was too slow for interactive SQL. Separate engines such as **Impala** and **Presto/Trino** read the same tables in memory for fast queries.\n\nThe Hive Metastore survived all of this, and it is the part you will most likely meet in a modern stack: Spark, Trino, Athena and others still use it (or the AWS Glue Catalog, which has the same role) to know \"what tables exist and where\". Its weakness was the table format: Hive tables are folders of files, with no atomic commits, slow directory listing on cloud storage, no safe concurrent writers and no time travel. **Apache Iceberg** (Module 2.2) was created to fix exactly this while keeping the idea of \"open files plus a catalog\"."
+      }
+     },
+     {
+      "title": {
+       "id": "Mengapa Spark dan lakehouse menggantikan sebagian besarnya, dan apa yang tersisa",
+       "en": "Why Spark and the lakehouse replaced most of it, and what remains"
+      },
+      "body": {
+       "id": "Tiga perubahan bersama menjelaskan pergeseran itu:\n\n1. **Memori dan graf.** Spark menyimpan data antara di memori dan merencanakan seluruh job sebagai satu graf, bukan rantai job yang terikat disk. Untuk pekerjaan bertahap dan iteratif ia jauh lebih cepat, dan API-nya (DataFrame, SQL) jauh lebih ramah daripada MapReduce yang ditulis tangan.\n2. **Object storage.** Penyimpanan objek cloud (S3, GCS, Azure storage) menjadi murah, tahan lama, dan nyaris tak terbatas. Mereka memisahkan **penyimpanan dari komputasi**: Anda menyimpan data di S3 dengan biaya receh dan menyalakan klaster hanya selama dibutuhkan. Klaster HDFS sebaliknya membayar mesin (dan disknya) sepanjang waktu karena komputasi dan penyimpanan berada di kotak yang sama.\n3. **Layanan terkelola dan format tabel terbuka.** Mengoperasikan klaster Hadoop adalah kerja berat. Spark terkelola, warehouse, dan tabel Iceberg/Delta memindahkan pekerjaan itu ke penyedia.\n\nApa yang tersisa, agar Anda bicara akurat: banyak perusahaan **on-premises** masih menjalankan HDFS dan YARN, terutama bank besar, telekomunikasi, dan platform lama; **Hive Metastore** dan folder berpartisi ala Hive ada di mana-mana; **pustaka Hadoop** (konektor S3A, pembaca Parquet dan ORC) ada di dalam Spark; dan konsepnya (blok, replikasi, shuffle, locality, scheduler) adalah kosakata sistem terdistribusi. Apakah keahlian Hadoop muncul di lowongan di pasar *Anda* adalah hal yang perlu dicek pada lowongan nyata sebelum Anda memutuskan seberapa dalam mempelajarinya.\n\nTabel terjemahan untuk wawancara:\n\n| Era Hadoop | Hari ini, biasanya |\n|---|---|\n| HDFS | S3, GCS, atau Azure storage (object storage), kadang masih HDFS |\n| MapReduce | Spark (juga Flink, dan mesin SQL seperti Trino) |\n| YARN | Kubernetes, atau YARN di on-premises, atau layanan terkelola |\n| Tabel Hive | Tabel Iceberg atau Delta dengan katalog |\n| Hive Metastore | Hive Metastore, AWS Glue Catalog, atau katalog Iceberg |\n| Oozie (workflow) | Airflow atau Dagster (Modul 2.4) |\n| HBase | Cassandra, DynamoDB, atau Bigtable (Modul 1.7) |\n| Sqoop (impor database) | Debezium dan Kafka Connect (Modul 3.2), atau Airbyte/Fivetran |\n| ZooKeeper (koordinasi) | konsensus bawaan, seperti KRaft milik Kafka |\n\n**Pertanyaan yang kini bisa Anda jawab:** \"Mengapa tiga replika?\" (kegagalan itu normal; dua akan menyisakan satu salinan saat gagal; tiga juga memungkinkan satu salinan di luar rak). \"Apa itu shuffle?\" (pengelompokan keluaran map per key lewat jaringan; langkah yang mahal di MapReduce dan Spark). \"Mengapa Spark menggantikan MapReduce?\" (di memori, perencanaan graf, API lebih ramah). \"Apa itu masalah file kecil?\" (objek metadata menghabiskan memori NameNode; di S3 itu biaya listing dan membuka banyak file).",
+       "en": "Three changes together explained the shift:\n\n1. **Memory and graphs.** Spark keeps intermediate data in memory and plans the whole job as one graph, instead of a chain of disk-bound jobs. For multi-step and iterative work it is much faster, and its API (DataFrames, SQL) is far friendlier than hand-written MapReduce.\n2. **Object storage.** Cloud object stores (S3, GCS, Azure storage) became cheap, durable and effectively unlimited. They separate **storage from compute**: you keep data on S3 for pennies and start a cluster only while you need it. An HDFS cluster, by contrast, pays for machines (and their disks) around the clock because compute and storage live on the same boxes.\n3. **Managed services and open table formats.** Operating a Hadoop cluster was hard work. Managed Spark, warehouses and Iceberg/Delta tables moved that work to the provider.\n\nWhat remains, so that you speak accurately: many **on-premises** companies still run HDFS and YARN, especially large banks, telecoms and older platforms; the **Hive Metastore** and Hive-style partitioned folders are everywhere; the **Hadoop libraries** (the S3A connector, Parquet and ORC readers) sit inside Spark; and the concepts (blocks, replication, shuffle, locality, schedulers) are the vocabulary of distributed systems. Whether Hadoop skills appear in the postings of *your* market is something to check on real job posts before you decide how deep to go.\n\nA translation table for interviews:\n\n| Hadoop era | Today, usually |\n|---|---|\n| HDFS | S3, GCS or Azure storage (object storage), sometimes still HDFS |\n| MapReduce | Spark (also Flink, and SQL engines such as Trino) |\n| YARN | Kubernetes, or YARN on-premises, or a managed service |\n| Hive tables | Iceberg or Delta tables with a catalog |\n| Hive Metastore | Hive Metastore, AWS Glue Catalog, or an Iceberg catalog |\n| Oozie (workflows) | Airflow or Dagster (Module 2.4) |\n| HBase | Cassandra, DynamoDB or Bigtable (Module 1.7) |\n| Sqoop (database import) | Debezium and Kafka Connect (Module 3.2), or Airbyte/Fivetran |\n| ZooKeeper (coordination) | built-in consensus, such as Kafka's KRaft |\n\n**Questions you can now answer:** \"Why three replicas?\" (failures are normal; two would leave a single copy during a failure; three also allows one copy off the rack). \"What is the shuffle?\" (grouping map output by key across the network; the costly step in MapReduce and Spark). \"Why did Spark replace MapReduce?\" (in-memory, graph planning, friendlier API). \"What is the small-files problem?\" (metadata objects exhaust the NameNode memory; on S3 it is the cost of listing and opening many files)."
+      }
+     }
+    ],
+    "lab": {
+     "title": {
+      "id": "Lab: HDFS, MapReduce, dan YARN dalam miniatur",
+      "en": "Lab: HDFS, MapReduce and YARN in miniature"
+     },
+     "description": {
+      "id": "Bangun tiga model kecil yang deterministik dalam Python murni: pemecahan blok HDFS, penempatan replika sadar-rak, kegagalan, dan aritmetika file kecil; mesin MapReduce (map, partisi, shuffle, reduce, combiner, reduce-side join, pengulangan task); dan scheduler YARN mainan. Tidak perlu klaster, dan tesnya (38) memeriksa setiap perilaku yang dijelaskan pelajaran.",
+      "en": "Build three small, deterministic models in plain Python: HDFS block splitting, rack-aware replica placement, failure and the small-files arithmetic; a MapReduce engine (map, partition, shuffle, reduce, combiner, a reduce-side join, task retries); and a toy YARN scheduler. No cluster is needed, and the tests (38) check each behaviour the lessons describe."
+     },
+     "steps": {
+      "id": "1. Baca `labs/mod-3-0/hadoop_lab.py` dari atas ke bawah. Docstring tiap fungsi punya contoh dan menyebut pelajaran mana yang menjelaskannya.\n2. Kerjakan sesuai urutan file, dan jalankan tes setelah SETIAP fungsi:\n\n```bash\npytest labs/mod-3-0/test_lab.py -v\npytest labs/mod-3-0/test_lab.py -v -k \"Blocks or Replica\"      # satu kelompok pada satu waktu\n```\n\n3. **HDFS dulu.** Sebelum menulis `place_replicas`, gambar enam mesin dan tiga rak pada tes di kertas dan putuskan dengan tangan ke mana replika blok yang ditulis dari `a1` pergi. Lalu kodekan dan bandingkan.\n4. **MapReduce berikutnya.** Tulis `partition` dan `shuffle`, lalu cetak `lab.shuffle(pairs, 3)` untuk masukan kecil dan baca hasilnya: inilah yang diterima setiap reducer di klaster sungguhan. Lalu bangun `run_job` dan combiner. Bandingkan `shuffled_pairs` dengan dan tanpa combiner.\n5. **Join-nya.** Tulis `revenue_per_city` sebagai reduce-side join. Sebelum menjalankan, tebak apa yang dilihat reducer untuk satu pelanggan.\n6. Eksperimen: ubah jumlah reducer, ukuran blok, atau combiner dan tebak setiap hasilnya lebih dulu. Lalu pakai `metadata_objects` untuk menghitung berapa memori NameNode yang dibutuhkan 50 juta file kecil.\n7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.",
+      "en": "1. Read `labs/mod-3-0/hadoop_lab.py` from top to bottom. Each function's docstring has an example and says which lesson explains it.\n2. Work in file order, and run the tests after EACH function:\n\n```bash\npytest labs/mod-3-0/test_lab.py -v\npytest labs/mod-3-0/test_lab.py -v -k \"Blocks or Replica\"      # one group at a time\n```\n\n3. **HDFS first.** Before you write `place_replicas`, draw the six machines and three racks of the test on paper and decide by hand where the replicas of a block written from `a1` go. Then code it and compare.\n4. **MapReduce next.** Write `partition` and `shuffle`, then print `lab.shuffle(pairs, 3)` for a small input and read it: this is what every reducer in a real cluster receives. Then build `run_job` and the combiner. Compare `shuffled_pairs` with and without the combiner.\n5. **The join.** Write `revenue_per_city` as a reduce-side join. Predict, before you run it, what the reducer sees for one customer.\n6. Experiment: change the number of reducers, the block size, or the combiner and predict each result first. Then use `metadata_objects` to work out how much NameNode memory 50 million small files would need.\n7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page."
+     },
+     "verify": {
+      "id": "```bash\npytest labs/mod-3-0/test_lab.py -v\npython3 scripts/prove.py mod-3-0\n```\n\nJalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`.",
+      "en": "```bash\npytest labs/mod-3-0/test_lab.py -v\npython3 scripts/prove.py mod-3-0\n```\n\nKnown-good run: prefix the first command with `LAB_DIR=reference`."
+     },
+     "files": [
+      {
+       "path": "labs/mod-3-0/hadoop_lab.py",
+       "name": "hadoop_lab.py",
+       "kind": "starter",
+       "label": {
+        "id": "File kerja Anda: implementasikan lima belas fungsi TODO",
+        "en": "Your working file: implement the fifteen TODO functions"
+       },
+       "code": "\"\"\"Lab 3.0: HDFS, MapReduce and YARN in miniature (pure Python, no Hadoop needed).\n\nImplement the functions below, in order, and run the tests after each one:\n    pytest labs/mod-3-0/test_lab.py -v\nEverything is deterministic: no randomness, no real cluster. The lessons explain what each function models.\n\"\"\"\nimport zlib  # noqa: F401  (partition() needs it)\nfrom collections import defaultdict  # noqa: F401\n\nMiB = 1024 * 1024\nBLOCK_SIZE = 128 * MiB  # the HDFS default block size\n\n\n# ------------------------------------------------------------------ HDFS (lesson 2)\n\ndef split_into_blocks(file_size, block_size=BLOCK_SIZE):\n    \"\"\"Cut a file of `file_size` bytes into HDFS blocks. Return the list of block sizes in bytes.   (lesson 2)\n\n    split_into_blocks(300 * MiB)  ->  [128 MiB, 128 MiB, 44 MiB]       split_into_blocks(0) -> []\n    Every block is `block_size` except possibly the last, which is the remainder (a short last block takes only the space it needs).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement split_into_blocks\")\n\n\n\ndef place_replicas(nodes, writer, factor=3):\n    \"\"\"Choose the nodes that store the replicas of one block.   (lesson 2: rack awareness)\n\n    `nodes` is a dict {node_name: rack_name}; `writer` is the node that writes the block. Default HDFS policy for factor 3:\n      1st replica: the writer node itself\n      2nd replica: a node on a DIFFERENT rack (take the first such node in sorted name order)\n      3rd replica: a different node on the SAME rack as the 2nd replica (first in sorted order)\n    For factor 1 or 2 stop earlier. For factor > 3 add further nodes not yet used, in sorted order.\n    If a rule cannot be met (for example there is only one rack), use the first unused node in sorted order instead.\n    Return the list of node names in that order.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement place_replicas\")\n\n\n\ndef blocks_lost(placements, failed_nodes):\n    \"\"\"Return the sorted ids of blocks that have NO surviving replica.   (lesson 2: why replication)\n\n    `placements` is {block_id: [nodes holding a replica]}; `failed_nodes` is an iterable of failed node names.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement blocks_lost\")\n\n\n\ndef metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE):\n    \"\"\"How many objects must the NameNode keep in memory when `total_bytes` of data is stored as files of `file_size` bytes?   (lesson 2: the small-files problem)\n\n    Count one object per file plus one per block of each file. Use ceiling division for the number of files\n    (a last, smaller file still counts), and split_into_blocks for the blocks of one file.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement metadata_objects\")\n\n\n\ndef namenode_memory_bytes(objects, bytes_per_object=150):\n    \"\"\"Memory needed for `objects` metadata objects, at roughly `bytes_per_object` bytes each (a commonly quoted rule of thumb is 150).\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement namenode_memory_bytes\")\n\n\n\n# ------------------------------------------------------------------ MapReduce (lesson 3)\n\ndef map_phase(records, mapper):\n    \"\"\"Apply `mapper` to every record and collect ALL the (key, value) pairs it yields, in order.   (lesson 3)\n\n    `mapper(record)` returns a list of (key, value) pairs; one record may give zero, one or many pairs.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement map_phase\")\n\n\n\ndef partition(key, num_reducers):\n    \"\"\"Which reducer gets this key?  zlib.crc32(str(key).encode(\"utf-8\")) % num_reducers.   (lesson 3)\n\n    It must be the same answer every time and on every machine: that is why Python's built-in hash() (which changes between runs) is not used.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement partition\")\n\n\n\ndef shuffle(pairs, num_reducers):\n    \"\"\"Group the map output by key and send every key to its reducer.   (lesson 3: the shuffle)\n\n    Return a list with one entry per reducer. Each entry is the list of (key, [values...]) for the keys partitioned to that reducer,\n    sorted by key; the values of one key stay in the order the pairs arrived.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement shuffle\")\n\n\n\ndef reduce_phase(groups, reducer):\n    \"\"\"For one reducer's groups [(key, [values])], return [(key, reducer(key, values))] in the same order.   (lesson 3)\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement reduce_phase\")\n\n\n\ndef run_job(splits, mapper, reducer, num_reducers=2, combiner=None):\n    \"\"\"Run a whole MapReduce job.   (lesson 3)\n\n    `splits` is a list of lists of records (one list per mapper task). For each split run map_phase.\n    If `combiner` is given, first combine on the mapper side: for each key in that split's output call combiner(key, values) and keep ONE\n    pair (key, combined_value) (this reduces what is sent over the network).\n    Then shuffle all pairs to `num_reducers` reducers, reduce, and return (results, stats):\n      results = list of (key, reduced_value) for all reducers, sorted by key\n      stats   = {\"map_output_pairs\": pairs produced by the mappers BEFORE combining, \"shuffled_pairs\": pairs sent to the shuffle}\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement run_job\")\n\n\n\ndef wordcount_mapper(line):\n    \"\"\"The classic: one line of text -> [(word, 1), ...], words lower-cased and split on whitespace.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement wordcount_mapper\")\n\n\n\ndef wordcount_reducer(word, counts):\n    \"\"\"The classic: (word, [1, 1, 1]) -> the total count.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement wordcount_reducer\")\n\n\n\ndef revenue_per_city(orders, customers, num_reducers=2):\n    \"\"\"Revenue per city with a REDUCE-SIDE JOIN, using run_job.   (lesson 3: joins in MapReduce)\n\n    `orders` are dicts with customer_id and total_idr (text); `customers` are dicts with customer_id and city.\n    Idea: the mapper emits both kinds of record under the SAME key (customer_id), tagged so the reducer can tell them apart;\n    the reducer then sees one customer's city and all of that customer's orders together.\n    Return a sorted list of (city, total_idr_as_int); orders whose customer is unknown count under \"(unknown)\".\n    A city appears only if at least one of its customers has an order.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement revenue_per_city\")\n\n\n\ndef retry_task(task, max_attempts=4):\n    \"\"\"Run `task(attempt)` (attempt starts at 1) and return its result. If it raises RuntimeError, run it again, up to `max_attempts` times.\n    If every attempt fails raise RuntimeError(f\"task failed after {max_attempts} attempts: {last_error}\").   (lesson 3: fault tolerance)\n    This only works because a task is deterministic: running it again gives the same output.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement retry_task\")\n\n\n\n# ------------------------------------------------------------------ YARN (lesson 4)\n\ndef allocate_containers(requests, nodes):\n    \"\"\"A toy YARN scheduler: first fit, first come first served.   (lesson 4)\n\n    `requests` is [(app, memory_mb)] in arrival order, `nodes` is {node_name: free_mb}. Give each request to the first node (sorted by name)\n    that still has enough free memory and subtract it. Return (placed, pending): placed = [(app, mb, node)], pending = requests that did not fit.\n    \"\"\"\n    raise NotImplementedError(\"TODO: implement allocate_containers\")"
+      },
+      {
+       "path": "labs/mod-3-0/test_lab.py",
+       "name": "test_lab.py",
+       "kind": "test",
+       "label": {
+        "id": "Ke-38 tes yang memeriksa pekerjaan Anda",
+        "en": "The 38 tests that check your work"
+       },
+       "code": "\"\"\"Tests for Lab 3.0.   pip install pytest && pytest labs/mod-3-0/test_lab.py -v\"\"\"\nimport sys\nimport zlib\nfrom pathlib import Path\n\nimport pytest\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / \"shared\"))\nimport labtools  # noqa: E402\n\nlab = labtools.load(__file__, \"hadoop_lab.py\")\nMiB = 1024 * 1024\nNODES = {\"a1\": \"rack1\", \"a2\": \"rack1\", \"a3\": \"rack1\", \"b1\": \"rack2\", \"b2\": \"rack2\", \"c1\": \"rack3\"}\n\n\nclass TestBlocks:\n    def test_a_file_is_cut_into_full_blocks_and_a_remainder(self):\n        assert lab.split_into_blocks(300 * MiB) == [128 * MiB, 128 * MiB, 44 * MiB]\n\n    def test_exact_multiple_has_no_short_block(self):\n        assert lab.split_into_blocks(256 * MiB) == [128 * MiB, 128 * MiB]\n\n    def test_a_small_file_is_one_short_block(self):\n        assert lab.split_into_blocks(1000) == [1000]\n\n    def test_empty_file_has_no_blocks(self):\n        assert lab.split_into_blocks(0) == []\n\n    def test_custom_block_size_and_nothing_is_lost(self):\n        blocks = lab.split_into_blocks(1000, block_size=300)\n        assert blocks == [300, 300, 300, 100] and sum(blocks) == 1000\n\n\nclass TestReplicaPlacement:\n    def test_default_policy_writer_other_rack_same_rack_as_second(self):\n        assert lab.place_replicas(NODES, writer=\"a1\") == [\"a1\", \"b1\", \"b2\"]\n\n    def test_the_replicas_are_on_distinct_nodes_and_two_racks(self):\n        r = lab.place_replicas(NODES, writer=\"b2\")\n        assert len(set(r)) == 3 and r[0] == \"b2\" and NODES[r[1]] != \"rack2\" and NODES[r[2]] == NODES[r[1]]\n        assert len({NODES[n] for n in r}) == 2\n\n    def test_a_block_survives_the_loss_of_a_whole_rack(self):\n        r = lab.place_replicas(NODES, writer=\"a1\")\n        assert any(NODES[n] != \"rack1\" for n in r)  # at least one copy outside the writer's rack\n\n    def test_factor_one_and_two(self):\n        assert lab.place_replicas(NODES, \"a1\", factor=1) == [\"a1\"]\n        assert lab.place_replicas(NODES, \"a1\", factor=2) == [\"a1\", \"b1\"]\n\n    def test_factor_above_three_adds_unused_nodes_in_sorted_order(self):\n        assert lab.place_replicas(NODES, \"a1\", factor=5) == [\"a1\", \"b1\", \"b2\", \"a2\", \"a3\"]\n\n    def test_a_single_rack_cluster_still_gives_distinct_nodes(self):\n        one = {\"n1\": \"r\", \"n2\": \"r\", \"n3\": \"r\", \"n4\": \"r\"}\n        assert lab.place_replicas(one, \"n3\") == [\"n3\", \"n1\", \"n2\"]\n\n\nclass TestBlockLoss:\n    PLACEMENTS = {\"blk1\": [\"a1\", \"b1\", \"b2\"], \"blk2\": [\"a2\", \"b1\", \"b2\"], \"blk3\": [\"a1\", \"a2\", \"c1\"]}\n\n    def test_nothing_is_lost_while_one_replica_lives(self):\n        assert lab.blocks_lost(self.PLACEMENTS, {\"a1\", \"b1\"}) == []\n\n    def test_a_block_is_lost_only_when_all_its_replicas_failed(self):\n        assert lab.blocks_lost(self.PLACEMENTS, {\"a1\", \"b1\", \"b2\"}) == [\"blk1\"]\n\n    def test_a_double_failure_can_lose_several_blocks(self):\n        assert lab.blocks_lost(self.PLACEMENTS, {\"a1\", \"a2\", \"c1\", \"b1\", \"b2\"}) == [\"blk1\", \"blk2\", \"blk3\"]\n\n\nclass TestSmallFilesProblem:\n    def test_one_big_file_is_a_few_objects(self):\n        # 1 file + 8 blocks of 128 MiB\n        assert lab.metadata_objects(1024 * MiB, 1024 * MiB) == 9\n\n    def test_the_same_data_as_tiny_files_is_millions_of_objects(self):\n        one_tib = 1024 * 1024 * MiB\n        big = lab.metadata_objects(one_tib, 1024 * MiB)\n        small = lab.metadata_objects(one_tib, 1 * MiB)\n        assert big == 1024 * 9 and small == 1024 * 1024 * 2\n        assert small > 200 * big\n\n    def test_a_last_smaller_file_still_counts(self):\n        assert lab.metadata_objects(150, 100) == 4  # 2 files, 1 block each\n\n    def test_memory_estimate(self):\n        assert lab.namenode_memory_bytes(2_000_000) == 300_000_000\n        assert lab.namenode_memory_bytes(10, bytes_per_object=100) == 1000\n\n\nclass TestMapReduceSteps:\n    def test_map_phase_collects_every_pair_in_order(self):\n        pairs = lab.map_phase([\"a b\", \"c\"], lambda line: [(w, 1) for w in line.split()])\n        assert pairs == [(\"a\", 1), (\"b\", 1), (\"c\", 1)]\n\n    def test_a_record_may_produce_no_pairs(self):\n        assert lab.map_phase([1, 2, 3, 4], lambda x: [(\"even\", x)] if x % 2 == 0 else []) == [(\"even\", 2), (\"even\", 4)]\n\n    def test_partition_is_stable_and_uses_crc32(self):\n        assert lab.partition(\"kopi\", 4) == zlib.crc32(b\"kopi\") % 4\n        assert lab.partition(\"kopi\", 4) == lab.partition(\"kopi\", 4)\n        assert all(0 <= lab.partition(k, 3) < 3 for k in [\"a\", \"b\", 7, (\"x\", 1)])\n\n    def test_shuffle_sends_each_key_to_exactly_one_reducer(self):\n        pairs = [(\"a\", 1), (\"b\", 2), (\"a\", 3), (\"c\", 4), (\"b\", 5)]\n        reducers = lab.shuffle(pairs, 3)\n        assert len(reducers) == 3\n        seen = [k for groups in reducers for k, _ in groups]\n        assert sorted(seen) == [\"a\", \"b\", \"c\"] and len(seen) == 3\n        merged = {k: v for groups in reducers for k, v in groups}\n        assert merged == {\"a\": [1, 3], \"b\": [2, 5], \"c\": [4]}\n\n    def test_shuffle_sorts_keys_inside_a_reducer(self):\n        for groups in lab.shuffle([(k, 1) for k in \"zyxwvu\"], 2):\n            keys = [k for k, _ in groups]\n            assert keys == sorted(keys)\n\n    def test_reduce_phase_applies_the_reducer_per_key(self):\n        assert lab.reduce_phase([(\"a\", [1, 2]), (\"b\", [5])], lambda k, v: sum(v)) == [(\"a\", 3), (\"b\", 5)]\n\n\nclass TestWordCountJob:\n    LINES = [\"to be or not to be\", \"to do is to be\", \"be quick\"]\n\n    def test_counts_words(self):\n        results, _ = lab.run_job([self.LINES], lab.wordcount_mapper, lab.wordcount_reducer)\n        assert dict(results) == {\"to\": 4, \"be\": 4, \"or\": 1, \"not\": 1, \"do\": 1, \"is\": 1, \"quick\": 1}\n\n    def test_the_result_does_not_depend_on_splits_or_reducer_count(self):\n        a, _ = lab.run_job([self.LINES], lab.wordcount_mapper, lab.wordcount_reducer, num_reducers=1)\n        b, _ = lab.run_job([[l] for l in self.LINES], lab.wordcount_mapper, lab.wordcount_reducer, num_reducers=5)\n        assert a == b\n\n    def test_results_are_sorted_by_key(self):\n        results, _ = lab.run_job([self.LINES], lab.wordcount_mapper, lab.wordcount_reducer)\n        assert [k for k, _ in results] == sorted(k for k, _ in results)\n\n    def test_case_is_ignored(self):\n        results, _ = lab.run_job([[\"Kopi kopi KOPI\"]], lab.wordcount_mapper, lab.wordcount_reducer)\n        assert results == [(\"kopi\", 3)]\n\n    def test_a_combiner_gives_the_same_answer_with_less_network_traffic(self):\n        plain, s1 = lab.run_job([self.LINES], lab.wordcount_mapper, lab.wordcount_reducer)\n        combined, s2 = lab.run_job([self.LINES], lab.wordcount_mapper, lab.wordcount_reducer, combiner=lambda k, v: sum(v))\n        assert plain == combined\n        assert s1[\"map_output_pairs\"] == s2[\"map_output_pairs\"] == 13\n        assert s1[\"shuffled_pairs\"] == 13 and s2[\"shuffled_pairs\"] == 7\n\n\nclass TestReduceSideJoin:\n    CUSTOMERS = [{\"customer_id\": \"1\", \"city\": \"Jakarta\"}, {\"customer_id\": \"2\", \"city\": \"Bandung\"}, {\"customer_id\": \"3\", \"city\": \"Jakarta\"}]\n    ORDERS = [\n        {\"order_id\": \"10\", \"customer_id\": \"1\", \"total_idr\": \"100000\"},\n        {\"order_id\": \"11\", \"customer_id\": \"2\", \"total_idr\": \"50000\"},\n        {\"order_id\": \"12\", \"customer_id\": \"1\", \"total_idr\": \"25000\"},\n        {\"order_id\": \"13\", \"customer_id\": \"3\", \"total_idr\": \"10000\"},\n        {\"order_id\": \"14\", \"customer_id\": \"99\", \"total_idr\": \"7000\"},\n    ]\n\n    def test_revenue_per_city(self):\n        assert lab.revenue_per_city(self.ORDERS, self.CUSTOMERS) == [(\"(unknown)\", 7000), (\"Bandung\", 50000), (\"Jakarta\", 135000)]\n\n    def test_does_not_depend_on_the_number_of_reducers(self):\n        assert lab.revenue_per_city(self.ORDERS, self.CUSTOMERS, num_reducers=1) == lab.revenue_per_city(self.ORDERS, self.CUSTOMERS, num_reducers=7)\n\n    def test_a_customer_without_orders_adds_nothing(self):\n        assert lab.revenue_per_city([], self.CUSTOMERS) == []\n\n\nclass TestFaultTolerance:\n    def test_a_failed_task_is_simply_run_again(self):\n        calls = []\n\n        def flaky(attempt):\n            calls.append(attempt)\n            if attempt < 3:\n                raise RuntimeError(\"node lost\")\n            return \"done\"\n\n        assert lab.retry_task(flaky) == \"done\" and calls == [1, 2, 3]\n\n    def test_gives_up_after_max_attempts(self):\n        def always(attempt):\n            raise RuntimeError(\"disk full\")\n\n        with pytest.raises(RuntimeError, match=\"task failed after 3 attempts: disk full\"):\n            lab.retry_task(always, max_attempts=3)\n\n    def test_other_errors_are_not_retried(self):\n        def bug(attempt):\n            raise KeyError(\"my bug\")\n\n        with pytest.raises(KeyError):\n            lab.retry_task(bug)\n\n\nclass TestYarnScheduler:\n    def test_first_fit_in_arrival_order(self):\n        placed, pending = lab.allocate_containers([(\"etl\", 4000), (\"etl\", 4000), (\"bi\", 2000)], {\"n1\": 8000, \"n2\": 4000})\n        assert placed == [(\"etl\", 4000, \"n1\"), (\"etl\", 4000, \"n1\"), (\"bi\", 2000, \"n2\")] and pending == []\n\n    def test_what_does_not_fit_waits(self):\n        placed, pending = lab.allocate_containers([(\"a\", 3000), (\"b\", 3000), (\"c\", 3000)], {\"n1\": 4000, \"n2\": 4000})\n        assert placed == [(\"a\", 3000, \"n1\"), (\"b\", 3000, \"n2\")] and pending == [(\"c\", 3000)]\n\n    def test_nodes_are_not_changed(self):\n        nodes = {\"n1\": 1000}\n        lab.allocate_containers([(\"a\", 500)], nodes)\n        assert nodes == {\"n1\": 1000}"
+      },
+      {
+       "path": "labs/mod-3-0/requirements.txt",
+       "name": "requirements.txt",
+       "kind": "config",
+       "label": {
+        "id": "pytest",
+        "en": "pytest"
+       },
+       "code": "pytest>=8"
+      },
+      {
+       "path": "labs/mod-3-0/reference/hadoop_lab.py",
+       "name": "hadoop_lab.py",
+       "kind": "reference",
+       "label": {
+        "id": "Satu solusi yang mungkin (coba sendiri dulu!)",
+        "en": "One possible solution (try first!)"
+       },
+       "code": "\"\"\"Reference solution for Lab 3.0: HDFS, MapReduce and YARN in miniature (pure Python).\"\"\"\nimport zlib\nfrom collections import defaultdict\n\nMiB = 1024 * 1024\nBLOCK_SIZE = 128 * MiB  # the HDFS default block size\n\n\n# ------------------------------------------------------------------ HDFS\ndef split_into_blocks(file_size, block_size=BLOCK_SIZE):\n    blocks = []\n    remaining = file_size\n    while remaining > 0:\n        blocks.append(min(block_size, remaining))\n        remaining -= blocks[-1]\n    return blocks\n\n\ndef place_replicas(nodes, writer, factor=3):\n    \"\"\"nodes: {node_name: rack_name}. Default HDFS policy: 1st on the writer, 2nd on another rack, 3rd on the 2nd's rack.\"\"\"\n    names = sorted(nodes)\n    chosen = [writer]\n    other_rack = [n for n in names if nodes[n] != nodes[writer]]\n    if factor >= 2:\n        second = other_rack[0] if other_rack else next(n for n in names if n not in chosen)\n        chosen.append(second)\n    if factor >= 3:\n        same_as_second = [n for n in names if nodes[n] == nodes[chosen[1]] and n not in chosen]\n        third = same_as_second[0] if same_as_second else next(n for n in names if n not in chosen)\n        chosen.append(third)\n    for n in names:\n        if len(chosen) >= factor:\n            break\n        if n not in chosen:\n            chosen.append(n)\n    return chosen[:factor]\n\n\ndef blocks_lost(placements, failed_nodes):\n    failed = set(failed_nodes)\n    return sorted(b for b, replicas in placements.items() if all(r in failed for r in replicas))\n\n\ndef metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE):\n    files = -(-total_bytes // file_size)  # ceiling division\n    blocks_per_file = len(split_into_blocks(file_size, block_size))\n    return files + files * blocks_per_file\n\n\ndef namenode_memory_bytes(objects, bytes_per_object=150):\n    return objects * bytes_per_object\n\n\n# ------------------------------------------------------------------ MapReduce\ndef map_phase(records, mapper):\n    pairs = []\n    for record in records:\n        pairs.extend(mapper(record))\n    return pairs\n\n\ndef partition(key, num_reducers):\n    return zlib.crc32(str(key).encode(\"utf-8\")) % num_reducers\n\n\ndef shuffle(pairs, num_reducers):\n    buckets = [defaultdict(list) for _ in range(num_reducers)]\n    for key, value in pairs:\n        buckets[partition(key, num_reducers)][key].append(value)\n    return [sorted(b.items(), key=lambda kv: kv[0]) for b in buckets]\n\n\ndef reduce_phase(groups, reducer):\n    return [(key, reducer(key, values)) for key, values in groups]\n\n\ndef run_job(splits, mapper, reducer, num_reducers=2, combiner=None):\n    shuffled = []\n    map_output = 0\n    for split in splits:\n        pairs = map_phase(split, mapper)\n        map_output += len(pairs)\n        if combiner:\n            local = defaultdict(list)\n            for key, value in pairs:\n                local[key].append(value)\n            pairs = [(key, combiner(key, values)) for key, values in local.items()]\n        shuffled.extend(pairs)\n    reducers = shuffle(shuffled, num_reducers)\n    results = []\n    for groups in reducers:\n        results.extend(reduce_phase(groups, reducer))\n    results.sort(key=lambda kv: kv[0])\n    return results, {\"map_output_pairs\": map_output, \"shuffled_pairs\": len(shuffled)}\n\n\ndef wordcount_mapper(line):\n    return [(word, 1) for word in line.lower().split()]\n\n\ndef wordcount_reducer(word, counts):\n    return sum(counts)\n\n\ndef revenue_per_city(orders, customers, num_reducers=2):\n    \"\"\"Reduce-side join: orders ('order_id','customer_id','total_idr') with customers ('customer_id','city').\"\"\"\n    def mapper(record):\n        tag, row = record\n        if tag == \"customer\":\n            return [(row[\"customer_id\"], (\"city\", row[\"city\"]))]\n        return [(row[\"customer_id\"], (\"total\", int(row[\"total_idr\"])))]\n\n    def reducer(customer_id, values):\n        cities = [v for tag, v in values if tag == \"city\"]\n        totals = [v for tag, v in values if tag == \"total\"]\n        return (cities[0] if cities else \"(unknown)\", sum(totals), len(totals))\n\n    tagged = [(\"customer\", c) for c in customers] + [(\"order\", o) for o in orders]\n    joined, _ = run_job([tagged], mapper, reducer, num_reducers)\n    totals = defaultdict(int)\n    for _, (city, total, n_orders) in joined:\n        if n_orders:\n            totals[city] += total\n    return sorted(totals.items())\n\n\ndef retry_task(task, max_attempts=4):\n    last = None\n    for attempt in range(1, max_attempts + 1):\n        try:\n            return task(attempt)\n        except RuntimeError as error:\n            last = error\n    raise RuntimeError(f\"task failed after {max_attempts} attempts: {last}\")\n\n\n# ------------------------------------------------------------------ YARN\ndef allocate_containers(requests, nodes):\n    \"\"\"First-fit FIFO: requests [(app, memory_mb)] in arrival order; nodes {name: free_mb}. -> (placements, pending).\"\"\"\n    free = dict(nodes)\n    placed, pending = [], []\n    for app, mb in requests:\n        for name in sorted(free):\n            if free[name] >= mb:\n                free[name] -= mb\n                placed.append((app, mb, name))\n                break\n        else:\n            pending.append((app, mb))\n    return placed, pending"
+      }
+     ],
+     "deliverables": [
+      {
+       "id": "Semua 38 tes lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri** (lab ini tidak punya pratinjau browser)",
+       "en": "All 38 tests pass **on your own computer, run from your own terminal** (a browser preview does not exist for this lab)"
+      },
+      {
+       "id": "Anda bisa menjelaskan penempatan replika bawaan HDFS dan mengapa sebuah blok bertahan dari hilangnya satu rak",
+       "en": "You can explain the default HDFS replica placement and why a block survives the loss of a rack"
+      },
+      {
+       "id": "Anda bisa menjelaskan apa yang diubah combiner dan apa yang tidak bisa diubahnya (jawabannya), memakai angka 13 dan 7 dari tes word count",
+       "en": "You can explain what a combiner changes and what it cannot change (the answer), using the numbers 13 and 7 from the word-count test"
+      },
+      {
+       "id": "Anda bisa menjelaskan masalah file kecil dengan contoh 9.216 versus 2.097.152 objek",
+       "en": "You can explain the small-files problem with the 9,216 versus 2,097,152 objects example"
+      }
+     ]
+    },
+    "chaosLab": {
+     "title": {
+      "id": "Empat puluh juta file kecil",
+      "en": "The forty million tiny files"
+     },
+     "scenario": {
+      "id": "Sebuah tim memasukkan event clickstream ke HDFS. Agar data cepat masuk ke lake, sebuah job menulis **satu file per micro-batch per partisi** setiap menit, masing-masing file beberapa ratus kilobyte. Ini berjalan berbulan-bulan. Setelah kampanye pemasaran jumlah partisi bertambah, dan jumlah file melewati empat puluh juta.\n\nPertama, listing direktori menjadi lambat, dan setiap query menghabiskan beberapa menit hanya untuk membuka file. Lalu NameNode mulai berhenti lama karena garbage collection, dan akhirnya kehabisan heap dan restart, membawa seluruh klaster bersamanya. Setiap job gagal dengan error koneksi, padahal tidak ada DataNode dan tidak ada disk yang bermasalah. Memulai ulang NameNode memakan lebih dari satu jam karena ia harus memuat dan memverifikasi metadata setiap file.",
+      "en": "A team ingests clickstream events into HDFS. To get data into the lake quickly, a job writes **one file per micro-batch per partition** every minute, each file a few hundred kilobytes. It works for months. After a marketing campaign the number of partitions grows, and the file count passes forty million.\n\nFirst, listing directories becomes slow, and every query spends minutes just opening files. Then the NameNode begins to pause for long garbage collections, and finally it runs out of heap and restarts, taking the whole cluster with it. Every job fails with connection errors, although no DataNode and no disk has any problem. Restarting the NameNode takes more than an hour because it must reload and verify the metadata of every file."
+     },
+     "breakageReason": {
+      "id": "Setiap file dan setiap blok adalah objek di memori NameNode. Empat puluh juta file, masing-masing dengan setidaknya satu blok, sekitar 80 juta objek; pada kira-kira 150 byte masing-masing itu **sekitar 12 GB** heap hanya untuk metadata, sebelum beban kerja apa pun (aritmetika yang sama dengan `metadata_objects` dan `namenode_memory_bytes` di lab: satu terabyte sebagai file 1 MiB adalah 227 kali lebih banyak objek daripada sebagai file 1 GiB). HDFS dirancang untuk file yang sedikit dan besar, dan volume datanya kecil; yang menjadi masalah adalah *jumlahnya*. Dashboard pemantauan yang menampilkan pemakaian disk dan CPU tetap hijau, karena tidak satu pun dari keduanya adalah batasnya.\n\nKesalahan yang sama di object storage (S3) tidak merusak NameNode, tetapi merugikan dengan cara lain: listing yang lambat, satu permintaan per file, dan Spark lebih banyak menghabiskan waktu membuka file daripada membacanya.",
+      "en": "Each file and each block is an object in the NameNode's memory. Forty million files, each with at least one block, are about 80 million objects; at roughly 150 bytes each that is **about 12 GB** of heap just for metadata, before any workload (the same arithmetic as the lab's `metadata_objects` and `namenode_memory_bytes`: one terabyte as 1 MiB files is 227 times more objects than as 1 GiB files). HDFS was designed for few large files, and the data volume was tiny; the *count* was the problem. A monitoring dashboard that showed disk usage and CPU stayed green, because neither resource was the limit.\n\nThe same mistake on object storage (S3) does not break a NameNode, but it costs in different ways: slow listings, one request per file, and Spark spending more time opening files than reading them."
+     },
+     "fixGuide": {
+      "id": "1. Hentikan penulisnya dan **compact**: gabungkan file kecil menjadi file sedikitnya satu blok (128 MiB atau lebih) dengan job batch, lalu hapus yang kecil. Lakukan partisi demi partisi agar klaster tetap bisa dipakai.\n2. Ubah pipeline agar tidak pernah membuat file kecil: tulis batch lebih besar lebih jarang, atau tulis ke log (Kafka) dan biarkan sebuah job menghasilkan file besar, atau pakai format tabel dengan compaction bawaan (Iceberg, Modul 2.2).\n3. **Pantau jumlah objek** (file ditambah blok) dan heap NameNode, dengan alert jauh sebelum batasnya, bukan hanya disk dan CPU.\n4. Tetapkan kebijakan dan pemeriksaan di code review: target ukuran file untuk setiap dataset, dan tes yang gagal jika sebuah job menulis file jauh lebih kecil dari itu.\n5. Untuk keamanan jangka panjang, partisi berdasarkan sesuatu dengan nilai lebih sedikit, dan pakai **federation** atau pindahkan penyimpanan ke object storage yang metadatanya tidak ditahan di memori satu mesin.",
+      "en": "1. Stop the writer and **compact**: merge small files into files of at least a block (128 MiB or more) with a batch job, then delete the small ones. Do it partition by partition so the cluster stays usable.\n2. Change the pipeline so that it never creates tiny files: write larger batches less often, or write to a log (Kafka) and let a job produce big files, or use a table format with built-in compaction (Iceberg, Module 2.2).\n3. **Monitor the object count** (files plus blocks) and NameNode heap, with alerts well before the limit, not only disk and CPU.\n4. Set a policy and a check in code review: a target file size for every dataset, and a test that fails if a job writes files far smaller than that.\n5. For long-term safety, partition by something with fewer values, and use **federation** or move storage to object storage where metadata is not held in one machine's memory."
+     },
+     "defensivePattern": {
+      "id": "Sumber daya yang langka tidak selalu yang tampak jelas. Metadata dan jumlah file bisa menghabiskan sistem yang punya banyak disk dan CPU, jadi ukurlah hal yang sungguh-sungguh menjadi batasnya.",
+      "en": "The scarce resource is not always the obvious one. Metadata and file counts can exhaust a system that has plenty of disk and CPU, so measure the thing that actually limits you."
+     }
+    },
+    "quiz": [
+     {
+      "question": {
+       "id": "Mengapa HDFS secara bawaan menyimpan setiap blok di beberapa mesin?",
+       "en": "Why does HDFS store each block on several machines by default?"
+      },
+      "options": [
+       {
+        "id": "Membaca dari tiga mesin sekaligus selalu membuat satu file terunduh tiga kali lebih cepat",
+        "en": "Reading from three machines at once always makes a single file download three times faster"
+       },
+       {
+        "id": "Mesin dan disk sering rusak di klaster besar, jadi salinan tambahan menjaga data tetap utuh",
+        "en": "Machines and disks fail often in a large cluster, so extra copies keep the data available"
+       },
+       {
+        "id": "Setiap salinan dienkripsi secara berbeda, sehingga penyerang butuh ketiganya untuk membacanya",
+        "en": "Each copy is encrypted differently, so that an attacker would need all three to read it"
+       },
+       {
+        "id": "NameNode tidak bisa menyimpan lokasi sebuah blok kecuali blok itu ada di setidaknya tiga node",
+        "en": "The NameNode cannot store a block's location unless the block exists on at least three nodes"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Pada skala klaster kegagalan itu normal. Tiga replika (satu di luar rak) membuat blok bertahan dari hilangnya satu mesin atau satu rak utuh, dan NameNode mereplikasi ulang ketika node mati.",
+       "en": "At cluster scale failure is normal. Three replicas (one off the rack) let a block survive the loss of a machine or a whole rack, and the NameNode re-replicates when a node dies."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang dilakukan NameNode?",
+       "en": "What does the NameNode do?"
+      },
+      "options": [
+       {
+        "id": "Ia menyimpan data file dan mengirimkannya ke klien yang memintanya lewat kartu jaringannya",
+        "en": "It stores the file data and sends it to the clients that ask for it through its network card"
+       },
+       {
+        "id": "Ia menyimpan direktori dan lokasi blok di memori, sedangkan DataNode menyimpan byte asli",
+        "en": "It keeps the directory and block locations in memory, while DataNodes hold the actual bytes"
+       },
+       {
+        "id": "Ia menjalankan task map dan reduce, karena ia tahu mesin mana yang bebas setiap saat",
+        "en": "It runs the map and reduce tasks, because it knows which machine is free at any moment"
+       },
+       {
+        "id": "Ia mengompresi blok sebelum ditulis dan mendekompresinya untuk setiap pembacaan klien",
+        "en": "It compresses the blocks before they are written and decompresses them for every client read"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "NameNode adalah direktori (namespace dan peta blok). Klien lalu membaca blok langsung dari DataNode, jadi data file tidak pernah mengalir melaluinya.",
+       "en": "The NameNode is the directory (namespace and block map). Clients then read blocks directly from DataNodes, so file data never flows through it."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa jutaan file kecil menjadi masalah bagi HDFS?",
+       "en": "Why are millions of small files a problem for HDFS?"
+      },
+      "options": [
+       {
+        "id": "File kecil tidak bisa direplikasi, sehingga hanya ada di satu mesin tanpa salinan tambahan",
+        "en": "Small files cannot be replicated, so they would exist on a single machine without any extra copy"
+       },
+       {
+        "id": "HDFS menolak membuka file yang lebih kecil dari ukuran blok 128 MiB saat ia dibaca kembali",
+        "en": "HDFS refuses to open a file that is smaller than the block size of 128 MiB when it is read back"
+       },
+       {
+        "id": "Setiap file dan blok adalah objek metadata di memori NameNode, sehingga bisa habis",
+        "en": "Each file and block is a metadata object held in NameNode memory, so the count can exhaust it"
+       },
+       {
+        "id": "File kecil disimpan tanpa kompresi, yang membuat disk setiap DataNode cepat penuh",
+        "en": "Small files are stored uncompressed, which makes the disks of every DataNode fill up quickly"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Biayanya adalah metadata, bukan byte. Di lab satu terabyte sebagai file 1 MiB butuh 2.097.152 objek, 227 kali lebih banyak daripada sebagai file 1 GiB.",
+       "en": "The cost is metadata, not bytes. In the lab one terabyte as 1 MiB files needs 2,097,152 objects, 227 times more than as 1 GiB files."
+      }
+     },
+     {
+      "question": {
+       "id": "Pada word count MapReduce, apa tujuan shuffle?",
+       "en": "In a MapReduce word count, what is the purpose of the shuffle?"
+      },
+      "options": [
+       {
+        "id": "Mengacak urutan kata agar tidak ada reducer yang menerima terlalu banyak masukan",
+        "en": "To put the words into a random order so that no reducer receives too much of the input"
+       },
+       {
+        "id": "Menyalin blok masukan ke tiga mesin sebelum task map mana pun boleh dimulai",
+        "en": "To copy the input blocks to three machines before any map task is allowed to start"
+       },
+       {
+        "id": "Mengirim pasangan ber-key sama ke satu reducer, agar ia melihat semua nilai key itu",
+        "en": "To send all pairs with the same key to the same reducer, so it sees all values of each key"
+       },
+       {
+        "id": "Mengurutkan keluaran akhir menurut jumlah agar kata terbanyak dicetak di baris pertama",
+        "en": "To sort the final output by count so that the most frequent word is printed on the first line"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Shuffle mengelompokkan keluaran map per key lewat jaringan. Ia juga langkah yang mahal, dan operasi yang sama disebut shuffle oleh Spark.",
+       "en": "The shuffle groups map output by key across the network. It is also the expensive step, and the same operation Spark calls a shuffle."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang diubah combiner pada job MapReduce?",
+       "en": "What does a combiner change in a MapReduce job?"
+      },
+      "options": [
+       {
+        "id": "Ia mengubah jawaban akhir, karena menggabungkan key berbeda yang tampak mirip sebelum direduksi",
+        "en": "It changes the final answer, because it merges different keys that look similar before reducing"
+       },
+       {
+        "id": "Ia membuat mapper berjalan di lebih banyak mesin, sehingga job butuh lebih sedikit task reduce lagi",
+        "en": "It makes the mappers run on more machines, so that the job needs fewer reduce tasks overall"
+       },
+       {
+        "id": "Ia memperkecil data di sisi map sebelum shuffle, sehingga lebih sedikit lewat jaringan, hasil sama",
+        "en": "It reduces data on the map side before the shuffle, so less crosses the network, same answer"
+       },
+       {
+        "id": "Ia menyimpan keluaran map di HDFS dengan tiga replika, agar mapper yang gagal tidak perlu diulang",
+        "en": "It stores the map output in HDFS with three replicas, so that a failed mapper does not need to be re-run"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Di lab, 13 pasangan keluaran map menjadi 7 pasangan yang di-shuffle dengan combiner, dengan hasil identik. Combiner hanya bekerja untuk operasi yang hasil parsialnya bisa digabung, seperti penjumlahan.",
+       "en": "In the lab, 13 map output pairs became 7 shuffled pairs with a combiner, with an identical result. A combiner only works for operations where partial results can be combined, like sums."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa task MapReduce yang gagal bisa langsung dijalankan lagi di mesin lain?",
+       "en": "Why can a failed MapReduce task simply be started again on another machine?"
+      },
+      "options": [
+       {
+        "id": "Task deterministik dan masukannya tahan lama, jadi menjalankannya lagi memberi keluaran yang sama",
+        "en": "A task is deterministic and its input is stored durably, so re-running it gives the same output"
+       },
+       {
+        "id": "Mesin yang gagal menyimpan snapshot memorinya yang dimuat mesin berikutnya sebelum melanjutkan",
+        "en": "The failed machine keeps a snapshot of its memory that the next machine loads before it continues"
+       },
+       {
+        "id": "YARN menjamin tidak ada mesin yang gagal saat menjalankan task, sehingga kasus itu tidak terjadi",
+        "en": "YARN guarantees that no machine fails while it is running a task, so the case does not occur"
+       },
+       {
+        "id": "Reducer menunggu sampai semua mapper berhasil sekali, lalu jawaban akhir diambil dari proses pertama",
+        "en": "The reducers wait until all mappers succeed once, and the final answer is then taken from the first run"
+       }
+      ],
+      "correct": 0,
+      "explanation": {
+       "id": "Task murni yang bisa diulang atas masukan yang tahan lama membuat pengulangan aman. Sifat yang sama membuat langkah pipeline idempoten (Modul 0.1).",
+       "en": "Pure, repeatable tasks over durable inputs make retries safe. It is the same property that makes pipeline steps idempotent (Module 0.1)."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa itu Hive Metastore?",
+       "en": "What is the Hive Metastore?"
+      },
+      "options": [
+       {
+        "id": "Cache yang menyimpan hasil query terbaru agar Hive bisa menjawabnya tanpa membaca file apa pun",
+        "en": "A cache that holds the results of recent queries so that Hive can answer them without reading any files"
+       },
+       {
+        "id": "Format file khusus yang menyimpan tabel Hive di HDFS dengan transaksi dan time travel bawaan",
+        "en": "A special file format that stores Hive tables in HDFS with built-in transactions and time travel"
+       },
+       {
+        "id": "Database kecil yang mencatat skema, lokasi, dan partisi setiap tabel di atas file yang mendasarinya",
+        "en": "A small database that records each table's schema, location and partitions over the underlying files"
+       },
+       {
+        "id": "Scheduler yang memutuskan query Hive mana yang berjalan lebih dulu saat mesin klaster terlalu sedikit",
+        "en": "The scheduler that decides which Hive query may run first when the cluster has too few free machines"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Tabel Hive adalah deskripsi yang dibentangkan di atas file. Metastore menyimpan deskripsi itu, dan ia hidup lebih lama daripada Hive: Spark, Trino, dan Athena masih memakainya atau Glue Catalog.",
+       "en": "A Hive table is a description laid over files. The metastore stores that description, and it outlived Hive itself: Spark, Trino and Athena still use it or the Glue Catalog."
+      }
+     },
+     {
+      "question": {
+       "id": "Pernyataan mana yang paling baik menjelaskan mengapa Spark dan object storage cloud sebagian besar menggantikan MapReduce dan HDFS?",
+       "en": "Which statement best explains why Spark and cloud object storage largely replaced MapReduce and HDFS?"
+      },
+      "options": [
+       {
+        "id": "MapReduce tidak bisa memproses lebih dari satu terabyte data, dan HDFS tidak bisa menyimpan jenis file apa pun",
+        "en": "MapReduce could not process more than one terabyte of data, and HDFS could not store files of any kind"
+       },
+       {
+        "id": "Spark menyimpan data di memori dengan API ramah, dan object storage memisahkan penyimpanan dari komputasi",
+        "en": "Spark keeps data in memory and has a friendlier API, and object storage separates storage from compute"
+       },
+       {
+        "id": "Perusahaan berhenti menyimpan data dalam file sama sekali, karena database modern tidak butuh format file",
+        "en": "Companies stopped storing data in files at all, since modern databases do not need any file formats"
+       },
+       {
+        "id": "Hadoop dilarang oleh penyedia cloud, sehingga setiap perusahaan harus pindah ke vendor lain sekaligus",
+        "en": "Hadoop was banned by cloud providers, so every company had to switch to another vendor at the same time"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Eksekusi graf di memori, object storage tahan lama yang murah dengan komputasi sesuai kebutuhan, dan layanan terkelola membuat tumpukan lama mahal dijalankan. Konsepnya (blok, shuffle, locality) tetap hidup.",
+       "en": "In-memory graph execution, cheap durable object storage with on-demand compute, and managed services made the old stack costly to run. The concepts (blocks, shuffle, locality) live on."
+      }
+     }
+    ],
+    "resources": [
+     {
+      "label": {
+       "id": "Apache Hadoop: Arsitektur HDFS",
+       "en": "Apache Hadoop: HDFS Architecture"
+      },
+      "url": "https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html"
+     },
+     {
+      "label": {
+       "id": "Makalah Google File System (2003)",
+       "en": "Google File System paper (2003)"
+      },
+      "url": "https://research.google/pubs/the-google-file-system/"
+     },
+     {
+      "label": {
+       "id": "MapReduce: Simplified Data Processing on Large Clusters (2004)",
+       "en": "MapReduce: Simplified Data Processing on Large Clusters (2004)"
+      },
+      "url": "https://research.google/pubs/mapreduce-simplified-data-processing-on-large-clusters/"
+     },
+     {
+      "label": {
+       "id": "Apache Hadoop YARN",
+       "en": "Apache Hadoop YARN"
+      },
+      "url": "https://hadoop.apache.org/docs/stable/hadoop-yarn/hadoop-yarn-site/YARN.html"
+     },
+     {
+      "label": {
+       "id": "Apache Hive: Memulai",
+       "en": "Apache Hive: Getting Started"
+      },
+      "url": "https://hive.apache.org/docs/latest/"
+     }
+    ],
+    "idPending": false
+   },
+   {
     "id": "mod-3-1",
     "number": "3.1",
     "title": {

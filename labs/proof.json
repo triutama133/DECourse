@@ -1,4 +1,23 @@
 {
+ "mod-3-0": {
+  "run": [
+   {
+    "kind": "pytest",
+    "targets": [
+     "labs/mod-3-0/test_lab.py"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-3-0/test_lab.py"
+  ],
+  "work": [
+   "labs/mod-3-0/hadoop_lab.py"
+  ],
+  "reference": [
+   "labs/mod-3-0/reference/hadoop_lab.py"
+  ]
+ },
  "mod-0-0": {
   "run": [
    {

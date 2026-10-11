@@ -82,6 +82,7 @@
     },
     "badgeColor": "rose",
     "modules": [
+      "mod-3-0",
       "mod-3-1",
       "mod-3-2",
       "mod-3-3",
