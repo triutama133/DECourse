@@ -252,5 +252,15 @@ window.PROOF = {
   "tests": "2ef89112",
   "starter": "a4e6c4c7",
   "reference": "03056952"
+ },
+ "mod-4-3": {
+  "arg": "workspace",
+  "requireVenv": true,
+  "needsEnv": [],
+  "command": "python3 scripts/prove.py mod-4-3 ~/fleet",
+  "argExample": "~/fleet",
+  "tests": "ce8edc8d",
+  "starter": "eb350562",
+  "reference": "eb7ed5b3"
  }
 };

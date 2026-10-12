@@ -557,5 +557,33 @@
    "labs/mod-4-2/starter/pipeline.py"
   ],
   "require_venv": true
+ },
+ "mod-4-3": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-4-3/check.py",
+    "args": [
+     "{arg0}",
+     "--step",
+     "all"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-4-3/check.py"
+  ],
+  "work": [
+   "{arg0}/stream_processor.py"
+  ],
+  "reference": [
+   "labs/mod-4-3/reference/stream_processor.py"
+  ],
+  "arg": "workspace",
+  "arg_example": "~/fleet",
+  "starter": [
+   "labs/mod-4-3/starter/stream_processor.py"
+  ],
+  "require_venv": true
  }
 }

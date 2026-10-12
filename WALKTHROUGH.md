@@ -102,9 +102,10 @@ LEVEL 3: Sistem Terdistribusi, Streaming, & AI Data (Minggu 41-58)
  ├── Modul 3.4: Infrastruktur Cloud Terotomasi (Terraform) & FinOps (Cost Control)
  └── Modul 3.5: AI & Vector Data Engineering (pgvector, Semantic Search, RAG Pipeline)
       │
-LEVEL 4: Capstone (Minggu 59-64)
+LEVEL 4: Capstone (Minggu 59-67)
  ├── Modul 4.1: Pipeline Batch Nyata di Data Taksi NYC (kontrak + pemeriksa, Anda mengerjakan sendiri)
- └── Modul 4.2: Ingesti API Inkremental Berdaya Tahan Tinggi & Checkpointing (USGS Gempa Bumi, retries, DLQ, CDC)
+ ├── Modul 4.2: Ingesti API Inkremental Berdaya Tahan Tinggi & Checkpointing (USGS Gempa Bumi, retries, DLQ, CDC)
+ └── Modul 4.3: Real-Time Event Streaming, Watermark & Penanganan Late Data (Telemetri Armada, DLQ, Sliding Windows)
 ```
 
 ---

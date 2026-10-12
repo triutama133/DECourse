@@ -111,7 +111,8 @@
     "badgeColor": "violet",
     "modules": [
       "mod-4-1",
-      "mod-4-2"
+      "mod-4-2",
+      "mod-4-3"
     ]
   }
 ]

@@ -1765,8 +1765,8 @@ class DataForgeApp {
       {
         id: "streaming",
         name: this.l("5. Sistem Terdistribusi & Real-Time Streaming", "5. Distributed Scale & Real-Time Streaming"),
-        mods: ["mod-3-0", "mod-3-1", "mod-3-2", "mod-3-3"],
-        topics: this.l("Dari Hadoop ke Spark (HDFS, MapReduce), Spark shuffle & memory tuning, Skew salting, Apache Kafka KRaft (leader, ISR, Schema Registry), Debezium CDC Postgres WAL replication slot, Watermarks & sliding windows", "From Hadoop to Spark (HDFS, MapReduce), Spark shuffle & memory tuning, Skew salting, Kafka KRaft (leaders, ISR, Schema Registry), Debezium CDC Postgres WAL, Watermarks & sliding windows")
+        mods: ["mod-3-0", "mod-3-1", "mod-3-2", "mod-3-3", "mod-4-3"],
+        topics: this.l("Dari Hadoop ke Spark (HDFS, MapReduce), Spark shuffle & memory tuning, Skew salting, Apache Kafka KRaft (leader, ISR, Schema Registry), Debezium CDC Postgres WAL replication slot, Watermarks & sliding windows, capstone engine streaming armada (DLQ & offset checkpoint)", "From Hadoop to Spark (HDFS, MapReduce), Spark shuffle & memory tuning, Skew salting, Kafka KRaft (leaders, ISR, Schema Registry), Debezium CDC Postgres WAL, Watermarks & sliding windows, fleet streaming engine capstone (DLQ & offset checkpoint)")
       },
       {
         id: "ops_ai",

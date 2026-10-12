@@ -59,10 +59,10 @@ try:
                     ignore=lambda d, names: set(big(d, names)) | ({"data"} if Path(d).name == "mod-4-1" else set()))
     shutil.copy(ROOT / "scripts" / "prove.py", work / "scripts" / "prove.py")
     print("creating a virtual environment with pytest ...")
-    sh([sys.executable, "-m", "venv", str(tmp / "venv")])
+    sh([sys.executable, "-m", "venv", "--system-site-packages", str(tmp / "venv")])
     py = str(tmp / "venv" / ("Scripts" if os.name == "nt" else "bin") / "python")
     rc, out = sh([py, "-m", "pip", "install", "-q", "pytest"])
-    check(rc == 0, "pytest installed in the temporary venv")
+    check(rc == 0 or sh([py, "-c", "import pytest"])[0] == 0, "pytest installed in the temporary venv")
     env = {k: v for k, v in os.environ.items() if k not in ("LAB_DIR", "VIRTUAL_ENV")}
     prove = lambda *a, e=env: sh([py, str(work / "scripts" / "prove.py"), *a], cwd=str(work), env=e)  # noqa: E731
     lab = work / "labs" / "mod-0-1"
@@ -134,7 +134,7 @@ try:
     if (data4 / "yellow_tripdata_2024-01.parquet").is_file() and (data4 / "taxi_zone_lookup.csv").is_file():
         (work / "labs" / "mod-4-1" / "data").symlink_to(data4, target_is_directory=True)
         rc, out = sh([py, "-m", "pip", "install", "-q", "duckdb", "pyarrow"])
-        check(rc == 0, "duckdb and pyarrow installed in the temporary venv")
+        check(rc == 0 or sh([py, "-c", "import duckdb, pyarrow"])[0] == 0, "duckdb and pyarrow installed in the temporary venv")
         cap = work / "labs" / "mod-4-1"
         ws4 = tmp / "taxi"
         ws4.mkdir()
@@ -175,6 +175,28 @@ try:
         check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.2: honest work run in a venv is accepted ({r})")
     else:
         print("SKIP Capstone 4.2 proof test: run  python3 labs/mod-4-2/fetch_data.py  first")
+
+    # Capstone 4.3: Real-Time Event Streaming, Watermarks & Late Data Handling
+    data43 = ROOT / "labs" / "mod-4-3" / "data"
+    if (data43 / "events_seed.jsonl").is_file():
+        cap3 = work / "labs" / "mod-4-3"
+        ws43 = tmp / "fleet"
+        ws43.mkdir()
+        rc, out = sh([py, "-c", "import json, sys; sys.path.insert(0, 'labs/mod-4-3'); import check; print(json.dumps(check.truth()['profile']))"], cwd=str(work), env=env)
+        (ws43 / "profile.json").write_text(out.strip().splitlines()[-1], encoding="utf-8")
+        shutil.copy(cap3 / "starter" / "stream_processor.py", ws43 / "stream_processor.py")
+        rc, out = prove("mod-4-3", str(ws43))
+        check(rc == 1 and code_of(out) is None, "Capstone 4.3 starter: the checker fails, no code is printed")
+        ref43 = (cap3 / "reference" / "stream_processor.py").read_text(encoding="utf-8")
+        (ws43 / "stream_processor.py").write_text(ref43, encoding="utf-8")
+        rc, out = prove("mod-4-3", str(ws43))
+        check(rc == 0 and code_of(out) and app_check("mod-4-3", code_of(out))["reason"] == "copied", "Capstone 4.3: the copied reference stream processor is rejected")
+        (ws43 / "stream_processor.py").write_text(ref43 + "\n# my own streaming processor notes\n", encoding="utf-8")
+        rc, out = prove("mod-4-3", str(ws43))
+        r = app_check("mod-4-3", code_of(out) or "")
+        check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.3: honest work run in a venv is accepted ({r})")
+    else:
+        print("SKIP Capstone 4.3 proof test: run  python3 labs/mod-4-3/fetch_data.py  first")
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

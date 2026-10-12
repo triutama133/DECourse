@@ -50,6 +50,7 @@ PLAN = {
     "mod-3-5": ("pytest", ["labs/mod-3-5/test_rag.py"]),
     "mod-4-1": ("capstone", ["labs/mod-4-1/check.py"]),
     "mod-4-2": ("capstone", ["labs/mod-4-2/check.py"]),
+    "mod-4-3": ("capstone", ["labs/mod-4-3/check.py"]),
 }
 
 
@@ -106,9 +107,10 @@ def check_capstone(module):
     spec.loader.exec_module(chk)
     with tempfile.TemporaryDirectory() as tmp:
         ref, st = Path(tmp) / "reference", Path(tmp) / "starter"
-        for ws, src in ((ref, lab / "reference" / "pipeline.py"), (st, lab / "starter" / "pipeline.py")):
+        main_py = "stream_processor.py" if (lab / "reference" / "stream_processor.py").is_file() else "pipeline.py"
+        for ws, src in ((ref, lab / "reference" / main_py), (st, lab / "starter" / main_py)):
             ws.mkdir()
-            shutil.copy(src, ws / "pipeline.py")
+            shutil.copy(src, ws / main_py)
         (ref / "profile.json").write_text(json.dumps(chk.truth()["profile"]))
         (st / "profile.json").write_text("{}")
         code, out, secs = run([sys.executable, str(lab / "check.py"), str(ref), "--step", "all"])
