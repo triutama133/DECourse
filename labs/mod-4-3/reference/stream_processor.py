@@ -79,9 +79,14 @@ def write_late_events(output_dir, late_records):
     dlq_dir = Path(output_dir) / "dlq"
     dlq_dir.mkdir(parents=True, exist_ok=True)
     dlq_file = dlq_dir / "late_events.jsonl"
+    # Replaying events after a crash must not write the same dead letter twice: skip event_ids that are already in the file.
+    known = set()
+    if dlq_file.is_file():
+        known = {json.loads(l)["event_id"] for l in dlq_file.read_text(encoding="utf-8").splitlines() if l.strip()}
     with open(dlq_file, "a", encoding="utf-8") as f:
         for r in late_records:
-            f.write(json.dumps(r) + "\n")
+            if r["event_id"] not in known:
+                f.write(json.dumps(r) + "\n")
 
 
 def emit_windows_to_duckdb(conn, windows_to_emit):

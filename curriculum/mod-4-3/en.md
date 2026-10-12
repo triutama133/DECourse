@@ -74,6 +74,8 @@ If you group events by **processing time**, your pipeline will register 0 trips 
 Only **event-time windowing** provides truthful analytical metrics. Regardless of when the data arrives at the server, an event from 08:02:30 must be assigned to the `[08:00:00, 08:05:00)` window.
 
 ### Meet the Seed Dataset:
+**Honest note: this stream is synthetic.** `fetch_data.py` generates it from a fixed random seed to imitate vehicles with delayed, out-of-order delivery; it is not real taxi telemetry (for real data, see Module 4.1 and 4.2). What is real is the problem: every number below was measured on these 1,000 events.
+
 Our seed stream (`labs/mod-4-3/data/events_seed.jsonl`) consists of 1,000 deterministic fleet telemetry events spanning 50 vehicles across dense urban taxi zones:
 ```json
 {
@@ -103,24 +105,25 @@ Event Stream:  [e1: t=100] ──> [e2: t=250] ──> [e3: t=190] ──> [e4: 
 ```
 
 ### 1. Watermark Definition:
-A watermark is a monotonically non-decreasing metric timestamp representing temporal completeness. When watermark $W = t$, the streaming engine asserts:
-$$\text{"We expect no further events with event\_time } \le t \text{ to arrive."}$$
+A watermark is a monotonically non-decreasing metric timestamp representing temporal completeness. When watermark `W = t`, the streaming engine asserts:
+`"We expect no further events with event_time <= t to arrive."`
 
-In our streaming engine, we implement **bounded out-of-orderness watermarks** with an allowed lateness delay $D$:
-$$W_{\text{candidate}} = t_{\text{event}} - D$$
-$$W = \max(W_{\text{previous}}, W_{\text{candidate}})$$
+In our streaming engine, we implement **bounded out-of-orderness watermarks** with an allowed lateness delay `D`:
+`W_candidate = t_event - D`
+`W = max(W_previous, W_candidate)`
 
 Watermarks must **never move backward**, even when an out-of-order event arrives with a timestamp smaller than the newest event seen.
 
 ### 2. Window Lifecycles and Eviction:
-A window is defined by a half-open temporal interval $[t_{\text{start}}, t_{\text{end}})$.
-- **Open Window:** While $t_{\text{end}} > W$, the window remains open in memory. Any event falling into this interval is aggregated into the window accumulator.
-- **Eviction / Closure:** When watermark advances such that $t_{\text{end}} \le W$, the window is closed. Its final aggregates are emitted to analytical storage (DuckDB), and its in-memory accumulator is evicted to reclaim RAM.
+A window is defined by a half-open temporal interval `[t_start, t_end)`.
+- **Open Window:** While `t_end > W`, the window remains open in memory. Any event falling into this interval is aggregated into the window accumulator.
+- **Eviction / Closure:** When watermark advances such that `t_end <= W`, the window is closed. Its final aggregates are emitted to analytical storage (DuckDB), and its in-memory accumulator is evicted to reclaim RAM.
 
 ### 3. Out-of-Order vs. Late Data:
 It is crucial to distinguish **out-of-order events** from **late events**:
-- **Out-of-order event:** An event whose $t_{\text{event}} < t_{\text{newest\_seen}}$, but whose candidate window has not closed yet ($t_{\text{end}} > W$). This event is **valid and welcomed**; it is folded into the open window accumulator.
-- **Late event:** An event whose candidate window has already been closed and evicted ($t_{\text{end}} \le W$). The window aggregate was already emitted and published to downstream consumers. The event cannot be included without rewriting published history, so it is **dropped and quarantined**.
+- **Out-of-order event:** An event whose `t_event < t_newest_seen`, but whose candidate window has not closed yet (`t_end > W`). This event is **valid and welcomed**; it is folded into the open window accumulator.
+- **Late event:** An event whose candidate window has already been closed and evicted (`t_end <= W`). The window aggregate was already emitted and published to downstream consumers. The event cannot be included without rewriting published history, so it is **dropped and quarantined**.
+- **Sliding windows (a known limitation):** an event is dead-lettered only when *all* of its windows are closed. If some are closed and some still open, the event updates the open ones and the closed windows silently miss it. Real engines count such partial drops in a metric; keep that in mind when you compare sliding results with a batch recount.
 
 ## @lesson Consumer offsets, checkpointing & analytical idempotency
 Streaming engines run continuously for months. Hardware failures, operating system kernel updates, and container restarts are guaranteed occurrences. A robust engine must survive crashes with **exactly-once processing semantics** at the storage layer.
@@ -211,24 +214,24 @@ Sliding Windows (Size = 300s, Slide = 60s): Overlapping moving blocks
 
 ### 1. Tumbling Windows:
 Tumbling windows partition time into non-overlapping, contiguous chunks.
-For window size $L$, an event at timestamp $t$ belongs to exactly **one** window starting at:
-$$t_{\text{start}} = \left\lfloor \frac{t}{L} \right\rfloor \times L$$
-$$t_{\text{end}} = t_{\text{start}} + L$$
+For window size `L`, an event at timestamp `t` belongs to exactly **one** window starting at:
+`t_start = floor(t / L) * L`
+`t_end = t_start + L`
 Tumbling windows are ideal for discrete periodic financial settlements (e.g., hourly revenue reconciliation, daily driver payouts).
 
 ### 2. Sliding Windows:
 Sliding windows provide a continuous smoothed metric over time (e.g., 5-minute moving average speed computed every 60 seconds).
-Given window duration $L$ and slide step $S$ (where $S < L$):
-A single event at timestamp $t$ falls into multiple overlapping windows starting at integer multiples $k \times S$ such that:
-$$k \times S \le t < k \times S + L$$
-Solving for integer $k$:
-$$t - L < k \times S \le t \implies \frac{t - L}{S} < k \le \frac{t}{S}$$
-The discrete window indices $k$ range from:
-$$k_{\min} = \left\lfloor \frac{t - L + S}{S} \right\rfloor \quad \text{to} \quad k_{\max} = \left\lfloor \frac{t}{S} \right\rfloor$$
-For $L = 300\text{s}$ and $S = 60\text{s}$, an event falls into exactly $\frac{300}{60} = 5$ overlapping windows! Your accumulator logic must update all 5 buckets simultaneously.
+Given window duration `L` and slide step `S` (where `S < L`):
+A single event at timestamp `t` falls into multiple overlapping windows starting at integer multiples `k * S` such that:
+`k * S <= t < k * S + L`
+Solving for integer `k`:
+`t - L < k * S <= t`, so `(t - L) / S < k <= t / S`
+The discrete window indices `k` range from:
+`k_min = floor((t - L + S) / S)` to `k_max = floor(t / S)`
+For `L = 300s` and `S = 60s`, an event falls into exactly `(300 / 60) = 5` overlapping windows! Your accumulator logic must update all 5 buckets simultaneously.
 
 ### 3. Dead-Letter Queue (DLQ) Quarantine:
-When an event arrives whose candidate windows have all been evicted ($t_{\text{end}} \le W$), what should happen?
+When an event arrives whose candidate windows have all been evicted (`t_end <= W`), what should happen?
 Silently discarding the event destroys financial traceability; allowing it into closed windows corrupts historical ledger reports.
 The production solution is a **Dead-Letter Queue (DLQ)**. The dropped event is appended to `<output-dir>/dlq/late_events.jsonl` with audit metadata:
 ```json
@@ -244,15 +247,15 @@ The production solution is a **Dead-Letter Queue (DLQ)**. The dropped event is a
 Site reliability engineers can monitor DLQ arrival rates, alert when cellular towers cause excessive packet lag, and replay quarantined records into batch reconciliation pipelines.
 
 ## @lab Lab: five steps to a production streaming engine
-Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds real fleet streaming telemetry, introduces network jitter, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
+Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see the first lesson) and short streams it builds itself, with out-of-order and late events, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
 
 ### @steps
 1. **Setup.** Follow the setup instructions in Lesson 1 (create `~/fleet`, activate virtual environment, install requirements, run `fetch_data.py`, copy `starter/stream_processor.py`). Inspect `events_seed.jsonl` with Python or DuckDB.
 2. **Step 1: Raw stream profiling.** Profile the 1,000 seed events and write `profile.json` with 7 keys: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, and `busiest_zone_event_count`. Verify with `--step 1`.
 3. **Step 2: Baseline tumbling event-time windows.** Implement CLI argument parsing and tumbling window aggregation (`--window-size 300`, `--watermark-delay 120`). Aggregate `total_trips`, `total_passengers`, `total_fare`, and `avg_fare` into `<output-dir>/warehouse.duckdb` (table `windowed_metrics`). Ensure re-running the processor produces zero duplicate rows. Verify with `--step 2`.
-4. **Step 3: Watermark progression & late event DLQ.** Track monotonic watermark ($W = \max(W, t - \text{delay})$). Evict closed windows when $t_{\text{end}} \le W$. Quarantine late-arriving events that fall outside open windows into `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`. Verify with `--step 3`.
+4. **Step 3: Watermark progression & late event DLQ.** Track monotonic watermark (`W = max(W, t - delay)`). Evict closed windows when `t_end <= W`. Quarantine late-arriving events that fall outside open windows into `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`. The checker also feeds a stream in which an out-of-order event would lower a careless watermark, and a stream in which the watermark lands exactly on the end of a window (a window is closed when `t_end <= W`, equal included). Verify with `--step 3`.
 5. **Step 4: Consumer offset checkpointing & recovery.** Save stream offsets and open window accumulators atomically to `--state-file` (`.tmp` + `os.replace`). The checker simulates a process crash after 150 events, resumes with the full stream, and verifies that the engine completes without duplicating or losing records. Verify with `--step 4`.
-6. **Step 5: Sliding windows.** Add support for `--window-slide` (e.g., size 300s, slide 60s). Route each incoming event to all active overlapping window buckets. Verify that total aggregated trip and fare counts match the theoretical multi-window factor ($\frac{\text{size}}{\text{slide}} \times \text{raw}$). Verify with `--step 5` and `--step all`.
+6. **Step 5: Sliding windows.** Add support for `--window-slide` (e.g., size 300s, slide 60s). Route each incoming event to all active overlapping window buckets. Verify that total aggregated trip and fare counts match the theoretical multi-window factor (`(size / slide) * raw`). Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-3 ~/fleet` to generate your proof code for the course app.
 
 ### @files
@@ -306,7 +309,7 @@ Decouple event time from network arrival time in all real-time architectures. Al
 - [ ] The processor crashes with an unhandled timestamp exception and purges all active consumer group offsets from the brokers
 - [ ] The watermark pauses the entire distributed streaming pipeline until an external human administrator confirms network health
 
-> Watermarks represent a guarantee of temporal completeness and are strictly monotonic (non-decreasing). When an out-of-order event arrives, the watermark retains its current high value: $W = \max(W_{\text{prev}}, \text{ts} - \text{delay})$. It never regresses backward.
+> Watermarks represent a guarantee of temporal completeness and are strictly monotonic (non-decreasing). When an out-of-order event arrives, the watermark retains its current high value: `W = max(W_prev, ts - delay)`. It never regresses backward.
 
 ### In event-time stream processing, what is the critical difference between an out-of-order event and a late event?
 - [ ] Out-of-order events arrive from cellular modems while late events are generated exclusively by fixed fiber-optic IoT sensor infrastructure
@@ -314,7 +317,7 @@ Decouple event time from network arrival time in all real-time architectures. Al
 - [ ] Out-of-order events are routed to a Dead-Letter Queue while late events are silently dropped without any audit log recording
 - [ ] Out-of-order events contain missing primary key identifiers while late events contain negative financial transaction amounts
 
-> An event is out of order if it arrives after events with higher timestamps, but its candidate window remains open ($t_{\text{end}} > W$). It is successfully aggregated. An event is late when its window has already closed ($t_{\text{end}} \le W$); because that window was already published, the late event is quarantined into a DLQ.
+> An event is out of order if it arrives after events with higher timestamps, but its candidate window remains open (`t_end > W`). It is successfully aggregated. An event is late when its window has already closed (`t_end <= W`); because that window was already published, the late event is quarantined into a DLQ.
 
 ### For sliding windows with duration 300 seconds and slide step 60 seconds, how many distinct overlapping windows will an event at timestamp 1704067250 belong to?
 - [ ] Exactly one window because streaming engines assign each discrete record to a single unique window bucket to avoid duplicate counts
@@ -322,7 +325,7 @@ Decouple event time from network arrival time in all real-time architectures. Al
 - [ ] Exactly ten overlapping windows because each sliding window bucket requires a separate bidirectional pairing with adjacent bounds
 - [ ] Exactly zero windows until the high watermark advances past the upper boundary of the entire hourly analytical partition block
 
-> In sliding windows, the number of overlapping windows containing any timestamp is $\frac{\text{duration}}{\text{slide}}$. With duration 300s and slide 60s, $\frac{300}{60} = 5$. The event belongs to all five windows spanning $[1704067020, 1704067320)$ through $[1704067260, 1704067560)$.
+> In sliding windows, the number of overlapping windows containing any timestamp is `(duration / slide)`. With duration 300s and slide 60s, `(300 / 60) = 5`. The event belongs to all five windows spanning `[1704067020, 1704067320)` through `[1704067260, 1704067560)`.
 
 ### Why must a stream processor checkpoint its in-memory window accumulators alongside consumer stream offsets in state.json?
 - [ ] Because the DuckDB storage engine requires external JSON state files to recreate its internal columnar compression tables

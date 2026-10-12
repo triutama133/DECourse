@@ -251,11 +251,10 @@ def run_ingest(args):
             "orderby": "time-asc"
         }
         if query_start_epoch > 0:
-            # Fixed query filter for this session
-            start_iso = datetime.datetime.fromtimestamp(
-                (query_start_epoch + 1) / 1000.0, tz=datetime.timezone.utc
-            ).strftime("%Y-%m-%dT%H:%M:%S")
-            params["starttime"] = start_iso
+            # Ask only for events CREATED OR REVISED since the last committed watermark (the 'updated' time, not the event time).
+            # One second of overlap is deliberate: re-reading a few records is harmless because the upsert is idempotent.
+            since = datetime.datetime.fromtimestamp((query_start_epoch - 1000) / 1000.0, tz=datetime.timezone.utc)
+            params["updatedafter"] = since.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         
         url_parts = list(urllib.parse.urlparse(base_url))
         query = dict(urllib.parse.parse_qsl(url_parts[4]))
@@ -277,15 +276,16 @@ def run_ingest(args):
         
         valid_records = []
         invalid_records = []
+        page_watermark = new_watermark
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         for f in features:
             ok, err_code, reason = validate_feature(f)
             if ok:
                 valid_records.append(f)
-                feat_time = f["properties"]["time"]
-                if feat_time > new_watermark:
-                    new_watermark = feat_time
+                feat_updated = f["properties"].get("updated") or f["properties"]["time"]
+                if feat_updated > page_watermark:
+                    page_watermark = feat_updated
             else:
                 invalid_records.append({
                     "error_code": err_code,
@@ -304,7 +304,8 @@ def run_ingest(args):
             write_dlq(out_dir, invalid_records)
             total_dlq += len(invalid_records)
         
-        # 3. Commit state checkpoint atomically per page
+        # 3. Commit state checkpoint atomically per page (only now: the data of this page is safely in DuckDB)
+        new_watermark = page_watermark
         watermark_iso = datetime.datetime.fromtimestamp(
             new_watermark / 1000.0, tz=datetime.timezone.utc
         ).isoformat() if new_watermark > 0 else None
@@ -327,7 +328,7 @@ def run_ingest(args):
 
 
 def run_backfill(args):
-    """Historical backfill. MUST NOT modify high_watermark in state_file!"""
+    """Historical backfill. It receives --state-file only so that the caller can prove it is never written: do not touch it."""
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     db_path = out_dir / "warehouse.duckdb"
@@ -428,6 +429,7 @@ def main():
     p_backfill = subparsers.add_parser("backfill")
     p_backfill.add_argument("--api-url", required=True, help="Base API URL")
     p_backfill.add_argument("--output-dir", required=True, help="Target storage directory")
+    p_backfill.add_argument("--state-file", default=None, help="Production checkpoint: accepted but NEVER modified by a backfill")
     p_backfill.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     p_backfill.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
     p_backfill.add_argument("--batch-size", type=int, default=100, help="Page limit")

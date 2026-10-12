@@ -52,7 +52,7 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 The **United States Geological Survey (USGS)** operates the Earthquake Hazards Program, providing open real-time and historical seismic data worldwide. Their public API endpoint returns GeoJSON feeds:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`
 
-We seed our baseline dataset with global seismic events of magnitude $\ge 2.5$ from the first week of January 2024 (513 events), including the catastrophic $M_w\ 7.5$ earthquake on the Noto Peninsula, Japan (`us6000m0xl`).
+We seed our baseline dataset with global seismic events of magnitude 2.5 or greater from the first week of January 2024 (513 events), including the catastrophic magnitude 7.5 earthquake on the Noto Peninsula, Japan (`us6000m0xl`).
 
 ```
 GeoJSON Feature Collection
@@ -76,13 +76,13 @@ GeoJSON Feature Collection
 
 ### The Pitfalls of Real Scientific APIs:
 1. **The Coordinate Order Inversion:** In geographic mathematics, people say "Latitude, Longitude". But in GeoJSON (RFC 7946), coordinates are strictly `[longitude, latitude, elevation/depth]`.
-   - `coordinates[0]` is **Longitude** (valid range: $[-180.0, 180.0]$)
-   - `coordinates[1]` is **Latitude** (valid range: $[-90.0, 90.0]$)
+   - `coordinates[0]` is **Longitude** (valid range: -180.0 to 180.0)
+   - `coordinates[1]` is **Latitude** (valid range: -90.0 to 90.0)
    - `coordinates[2]` is **Depth in kilometers**
-   If you accidentally map `lat = coords[0]`, any earthquake with longitude exceeding $\pm 90^{\circ}$ (such as Japan or Indonesia at $\sim 130^{\circ}-140^{\circ}\text{E}$) will crash your coordinate bounds validation!
-2. **SCD Type 1 & Revision Timestamps (`updated`):** Seismological data evolves over time. When a tremor occurs, automated seismographs generate a preliminary event (`status: "automatic"`). Hours or days later, geophysicists recalculate the epicenter, refine the magnitude, and promote the record to `status: "reviewed"` with an updated timestamp (`updated > time`). A naive pipeline that only checks `time` will miss revisions or create duplicate records.
-3. **Nullable and Negative Measures:** Micro-earthquakes or quarry blasts can have null or negative magnitudes (logarithmic Richter scale allows values $< 0$). Depths can be $0$ or negative (mountainous quakes above sea level). Your schema must accommodate nullable floats without crashing.
-4. **Pagination Strategies (Offset vs Watermark Keysets):** REST APIs commonly offer offset pagination (`limit` and `offset`). While intuitive, pure offset pagination suffers from $O(N)$ scanning on deep offsets and drifts if records are inserted concurrently. In modern data architecture, we pair high-watermark timestamps (`starttime`) with small local offsets per batch, keeping extraction queries fast and idempotent.
+   If you accidentally map `lat = coords[0]`, any earthquake with longitude beyond +/-90 degrees (such as Japan or Indonesia, roughly 95 to 145 degrees East) will crash your coordinate bounds validation!
+2. **SCD Type 1 & Revision Timestamps (`updated`):** Seismological data evolves over time. When a tremor occurs, automated seismographs generate a preliminary event (`status: "automatic"`). Hours or days later, geophysicists recalculate the epicenter, refine the magnitude, and promote the record to `status: "reviewed"` with an updated timestamp (`updated > time`). A pipeline whose watermark follows only the event `time` never sees these revisions. **Track the watermark on `updated`** (the time of the last change) and ask the API for what changed with `updatedafter`; upsert by event id.
+3. **Nullable and Negative Measures:** Micro-earthquakes or quarry blasts can have null or negative magnitudes (logarithmic Richter scale allows values below 0). Depths can be 0 or negative (mountainous quakes above sea level). Your schema must accommodate nullable floats without crashing.
+4. **Pagination Strategies (Offset vs Watermark Keysets):** REST APIs commonly offer offset pagination (`limit` and `offset`). While intuitive, pure offset pagination suffers from O(N) scanning on deep offsets and drifts if records are inserted concurrently. In modern data architecture, we pair a high-watermark on the `updated` time (the `updatedafter` filter) with small page offsets inside one sync session, keeping extraction queries fast and idempotent. The filter stays constant while the offset moves.
 5. **Preserving Data Dictionaries:** Scientific APIs carry domain-specific codes such as `magType` (`ml` local Richter, `mw` moment magnitude, `md` duration). Never discard these attributes during extraction; analysts rely on magnitude types to determine physical sensor calibration accuracy.
 
 ## @lesson Network resilience: Backoff, Jitter & Rate Limits
@@ -107,8 +107,10 @@ if response.status_code == 429:
 
 ### 2. Truncated Exponential Backoff with Jitter:
 For transient server errors (HTTP 500, 502, 503, 504) or network timeouts, retrying immediately (*thundering herd problem*) only overwhelms an already struggling server. Instead, increase wait time exponentially:
-$$t_{\text{wait}} = \text{base} \times 2^{\text{attempt}} + \text{jitter}$$
-Where jitter is a small randomized offset ($\pm 10\%$) preventing multiple concurrent extraction workers from retrying in lockstep synchronization.
+```text
+wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; with base = 1 s: about 1 s, 2 s, 4 s, 8 s)
+```
+Where jitter is a small randomized offset (about plus or minus 10%) preventing multiple concurrent extraction workers from retrying in lockstep synchronization.
 
 ### 3. Non-Retryable Fatal Errors (HTTP 4xx):
 Not all errors should be retried. If the upstream server returns `HTTP 400 Bad Request`, `401 Unauthorized`, or `404 Not Found`, retrying 5 times will simply fail 5 times and waste time. Fatal client errors must log clear diagnostic details and exit immediately with exit code `2` without altering checkpoint state.
@@ -122,7 +124,7 @@ An incremental pipeline is defined by its ability to ingest **only what is new s
 ```
 State Checkpoint (state.json):
 {
-  "high_watermark_epoch_ms": 1704367849415,
+  "high_watermark_epoch_ms": 1704367849415,       <-- the largest properties.updated you have COMMITTED
   "high_watermark_iso": "2024-01-04T11:30:49Z",
   "last_sync_utc": "2024-01-08T00:00:00Z",
   "total_records_ingested": 450,
@@ -173,7 +175,7 @@ In production, upstream schemas mutate and sensor data gets corrupted. If 1 reco
 Frequently, upstream fixes a historical sensor calibration bug and asks: *"Please re-ingest all data from December 2023."*
 Your pipeline provides a `backfill` subcommand:
 ```bash
-python pipeline.py backfill --api-url URL --output-dir OUT --start 2023-12-01 --end 2023-12-31
+python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/state.json --start 2023-12-01 --end 2023-12-31
 ```
 **The Cardinal Rule of Backfills:** A backfill must load historical records into the analytical warehouse using the same upsert rules, **BUT IT MUST NEVER MODIFY OR REGRESS THE INCREMENTAL WATERMARK IN `state.json`!** If a December 2023 backfill rewrote `state.json`, your next hourly production run would think the current high-watermark is December 2023 and re-fetch an entire month of data redundantly.
 
@@ -185,10 +187,10 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 ### @steps
 1. **Setup.** Follow the setup instructions in Lesson 1 (create `~/seismic`, activate venv, install requirements, run `fetch_data.py`, copy `starter/pipeline.py`). Inspect `earthquakes_seed.json` with Python or DuckDB.
 2. **Step 1: Raw data profiling.** Profile the seed dataset and create `profile.json` with 9 keys: `total_features`, `max_magnitude`, `min_magnitude`, `tsunami_alert_count`, `max_depth_km`, `min_depth_km`, `min_time_epoch_ms`, `max_time_epoch_ms`, and `noto_peninsula_event_id`. Verify with `--step 1`.
-3. **Step 2: Baseline ingestion contract.** Implement `pipeline.py ingest` with CLI flags (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Paginate through events, extract coordinates correctly (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), store clean records into `<output-dir>/warehouse.duckdb` (table `events`), and save `state.json`. Verify with `--step 2`.
-4. **Step 3: Stateful watermarking & crash recovery.** Query events newer than `high_watermark_epoch_ms`. Use atomic temporary file swap (`.tmp` + `os.replace`) for `state.json`. The checker tests a mid-sync socket disconnection and verifies that resuming produces zero duplicates and zero missing rows. Verify with `--step 3`.
-5. **Step 4: Network resilience.** Add retry loop with exponential backoff for transient 5xx errors. Inspect HTTP 429 `Retry-After` header and pause accordingly. Exit with code `2` on fatal non-retryable 4xx errors. Verify with `--step 4`.
-6. **Step 5: DLQ, CDC upsert & historical backfill.** Validate coordinates, timestamps, and IDs. Route poisoned records to `<output-dir>/dlq/rejected.jsonl`. Upsert updated records in DuckDB without creating duplicate rows. Implement the `backfill` subcommand while keeping `state.json` high-watermark untouched. Verify with `--step 5` and `--step all`.
+3. **Step 2: Baseline ingestion contract.** Implement `pipeline.py ingest` with CLI flags (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Paginate through events (`limit` and a 1-based `offset`), extract coordinates correctly (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), store clean records into `<output-dir>/warehouse.duckdb` in a table `events` with at least the columns `event_id` (primary key), `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude` and `status`, and save `state.json`. Verify with `--step 2`.
+4. **Step 3: Stateful watermarking & crash recovery.** Record the largest committed `updated` timestamp as `high_watermark_epoch_ms`, and on the next run send `updatedafter` (an ISO-8601 UTC time, for example `2024-01-04T11:30:49.415`) so that only new or revised events come back; subtracting one second as overlap is safe because your upsert is idempotent. Use atomic temporary file swap (`.tmp` + `os.replace`) for `state.json`. The checker tests a mid-sync socket disconnection, verifies that the checkpoint is never ahead of the data, locks the warehouse so that a write fails and the checkpoint must not move, and verifies that resuming produces zero duplicates and zero missing rows. Verify with `--step 3`.
+5. **Step 4: Network resilience.** Add retry loop with exponential backoff for transient 5xx errors. Inspect the HTTP 429 `Retry-After` header and pause for at least that long (the checker measures the gap between requests). Exit with code `2`, without retrying, on fatal non-retryable 4xx errors. Verify with `--step 4`.
+6. **Step 5: DLQ, CDC upsert & historical backfill.** Validate coordinates, timestamps, and IDs. Route poisoned records to `<output-dir>/dlq/rejected.jsonl`. Upsert updated records in DuckDB without creating duplicate rows. Implement the `backfill` subcommand (`--api-url --output-dir --state-file --start --end --batch-size`); it receives `--state-file` only so that the checker can prove you never write it, and an older revision of an event must never overwrite a newer one. Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-2 ~/seismic` to generate your proof code for the course app.
 
 ### @files
@@ -214,16 +216,16 @@ python3 scripts/prove.py mod-4-2 ~/seismic
 ### @scenario
 At 03:15 UTC on a Saturday morning, an upstream API server experienced an unexpected memory exhaustion crash while streaming Page 4 of an hourly batch. Halfway through transmission, the TCP connection reset. When the ingestion cron job ran an hour later, a junior engineer's pipeline had updated its state watermark before persisting records to disk—permanently skipping 150 seismic events, including an offshore tsunami warning.
 
-Simultaneously, a newly deployed upstream seismic sensor in the South Pacific began emitting coordinates with longitude and latitude reversed, broadcasting `[lat, lon]` instead of standard `[lon, lat]`. Pipelines without explicit coordinate bounds checking inserted latitudes of $175^\circ\text{S}$, corrupting spatial GIS layers and breaking downstream dashboard aggregations.
+Simultaneously, a newly deployed upstream seismic sensor in the South Pacific began emitting coordinates with longitude and latitude reversed, broadcasting `[lat, lon]` instead of standard `[lon, lat]`. Pipelines without explicit coordinate bounds checking inserted latitudes of 175 degrees South, corrupting spatial GIS layers and breaking downstream dashboard aggregations.
 
 ### @cause
-The pipeline was neither transactional nor defensive. It updated its watermark before writes were committed, causing permanent data loss on process termination. It also lacked input schema validation, trusting upstream geographic coordinates blindly without verifying that latitude is strictly bounded within $[-90, 90]$.
+The pipeline was neither transactional nor defensive. It updated its watermark before writes were committed, causing permanent data loss on process termination. It also lacked input schema validation, trusting upstream geographic coordinates blindly without verifying that latitude is strictly bounded between -90 and 90.
 
 ### @fix
 1. **Commit storage before checkpointing:** Write the analytical batch to DuckDB first. Only when the commit succeeds do you advance the watermark and write `state.json`.
 2. **Atomic state swaps:** Write `state.json.tmp` and use `os.replace` to prevent corrupted half-written checkpoint files.
 3. **Idempotent upserts:** Deduplicate by `event_id` and `updated_epoch_ms` so re-processing a batch after a crash never introduces duplicate rows.
-4. **Dead-Letter Queue quarantine:** Validate latitude in $[-90, 90]$ and longitude in $[-180, 180]$. Route corrupted coordinates to `dlq/rejected.jsonl` with diagnostic metadata.
+4. **Dead-Letter Queue quarantine:** Validate latitude between -90 and 90 and longitude between -180 and 180. Route corrupted coordinates to `dlq/rejected.jsonl` with diagnostic metadata.
 
 ### @pattern
 An ingestion pipeline must treat upstream networks and data producers as untrusted and volatile. Persist data before updating checkpoints, make storage writes idempotent, and quarantine poisoned records into a DLQ without crashing the entire batch.

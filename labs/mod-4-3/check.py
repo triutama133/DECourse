@@ -124,14 +124,13 @@ def step_1(ws):
         check("profile.json is valid JSON", False, f"JSON error: {e}")
         return
 
+    # The expected values are deliberately NOT printed: finding them in the data is the exercise.
     exp = truth()["profile"]
-    check("total_stream_events is correct (1000)", user_prof.get("total_stream_events") == exp["total_stream_events"], f"Expected {exp['total_stream_events']}")
-    check("min_event_time is correct (1704067266)", user_prof.get("min_event_time") == exp["min_event_time"], f"Expected {exp['min_event_time']}")
-    check("max_event_time is correct (1704091951)", user_prof.get("max_event_time") == exp["max_event_time"], f"Expected {exp['max_event_time']}")
-    check("distinct_vehicles is correct (50)", user_prof.get("distinct_vehicles") == exp["distinct_vehicles"], f"Expected {exp['distinct_vehicles']}")
-    check("out_of_order_count is correct (346)", user_prof.get("out_of_order_count") == exp["out_of_order_count"], f"Expected {exp['out_of_order_count']}")
-    check("busiest_zone_id is correct (186)", user_prof.get("busiest_zone_id") == exp["busiest_zone_id"], f"Expected {exp['busiest_zone_id']}")
-    check("busiest_zone_event_count is correct (116)", user_prof.get("busiest_zone_event_count") == exp["busiest_zone_event_count"], f"Expected {exp['busiest_zone_event_count']}")
+    for key, want in exp.items():
+        got = user_prof.get(key)
+        ok = isinstance(got, (int, float)) and not isinstance(got, bool) and got == want
+        check(f"profile.json: {key}", ok, "missing" if key not in user_prof else
+              "your value does not match the data; re-check how you count (read the key's definition in the lab steps)")
 
 
 def step_2(ws, proc):
@@ -294,6 +293,45 @@ def step_3(ws, proc):
         shutil.rmtree(test_out, ignore_errors=True)
 
 
+def step_3b(ws, proc):
+    print("\n--- Step 3b: Watermarks never move backwards, and a window ends exactly at the watermark ---")
+    base = 1704067200   # a multiple of 300
+
+    def run_stream(name, events):
+        out = ws / name
+        shutil.rmtree(out, ignore_errors=True)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "s.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
+        rc, _, err = run_cmd([sys.executable, str(proc), "--input-stream", str(out / "s.jsonl"), "--output-dir", str(out),
+                              "--state-file", str(out / "offsets.json"), "--window-size", "300", "--watermark-delay", "120"])
+        dlq = out / "dlq" / "late_events.jsonl"
+        ids = [json.loads(l)["event_id"] for l in dlq.read_text(encoding="utf-8").splitlines() if l.strip()] if dlq.is_file() else []
+        trips = None
+        if (out / "warehouse.duckdb").is_file():
+            conn = duckdb.connect(str(out / "warehouse.duckdb"))
+            trips = conn.execute("SELECT coalesce(sum(total_trips), 0) FROM windowed_metrics").fetchone()[0]
+            conn.close()
+        shutil.rmtree(out, ignore_errors=True)
+        return rc, err, ids, trips
+
+    def ev(i, t):
+        return {"event_id": f"m{i}", "vehicle_id": "taxi_01", "event_time": base + t, "zone_id": 7, "fare_amount": 10.0, "trip_distance": 1.0, "passenger_count": 1}
+
+    # t=750 moves the watermark to 630 and closes window [0,300) and [300,600). Then an out-of-order event at t=700 has a
+    # candidate watermark of only 580: a watermark that follows it BACKWARDS would re-open window [300,600) and accept m3 at t=310.
+    rc, err, ids, trips = run_stream("test_run_step3b_monotonic", [ev(1, 50), ev(2, 750), ev(3, 700) | {"event_id": "m_ooo"}, ev(4, 310) | {"event_id": "m_late"}])
+    check("monotonic watermark: the stream is processed (exit code 0)", rc == 0, err[-200:])
+    check("monotonic watermark: an out-of-order event does not lower the watermark (the later straggler is dead-lettered)", ids == ["m_late"],
+          f"dead-lettered: {ids}. The watermark must be max(previous watermark, event_time - delay), never just event_time - delay")
+    check("monotonic watermark: the three accepted events are in the warehouse", trips == 3, f"trips in warehouse: {trips}")
+
+    # a window [start, end) is closed as soon as the watermark equals its end
+    rc, err, ids, trips = run_stream("test_run_step3b_boundary", [ev(1, 50), ev(2, 420) | {"event_id": "m_close"}, ev(3, 60) | {"event_id": "m_late"}])
+    check("boundary: the stream is processed (exit code 0)", rc == 0, err[-200:])
+    check("boundary: the watermark (420 - 120 = 300) equals the end of window [0,300), so that window is closed and the straggler is dead-lettered",
+          ids == ["m_late"], f"dead-lettered: {ids}. A window is closed when its end is less than OR EQUAL TO the watermark")
+
+
 def step_4(ws, proc):
     print("\n--- Step 4: Consumer offset checkpointing & recovery ---")
     test_out = ws / "test_run_step4"
@@ -452,6 +490,7 @@ def main():
         step_2(ws, proc)
     if args.step in ("3", "all"):
         step_3(ws, proc)
+        step_3b(ws, proc)
     if args.step in ("4", "all"):
         step_4(ws, proc)
     if args.step in ("5", "all"):
@@ -466,3 +505,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

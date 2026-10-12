@@ -52,7 +52,7 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 **United States Geological Survey (USGS)** mengoperasikan Earthquake Hazards Program yang menyediakan data seismik gempa bumi global secara terbuka (public domain). Endpoint API publik mereka mengembalikan feed berformat GeoJSON:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`
 
-Kita menggunakan data gempa global bermagnitudo $\ge 2.5$ dari minggu pertama Januari 2024 (513 rekaman), termasuk gempa bumi berkekuatan dahsyat $M_w\ 7.5$ di Semenanjung Noto, Jepang (`us6000m0xl`).
+Kita menggunakan data gempa global bermagnitudo 2,5 atau lebih dari minggu pertama Januari 2024 (513 rekaman), termasuk gempa bumi berkekuatan dahsyat magnitudo 7,5 di Semenanjung Noto, Jepang (`us6000m0xl`).
 
 ```
 GeoJSON Feature Collection
@@ -76,13 +76,13 @@ GeoJSON Feature Collection
 
 ### Jebakan Data Ilmiah di Dunia Nyata:
 1. **Urutan Koordinat yang Terbalik:** Dalam bahasa lisan, orang biasa menyebut "Latitude, Longitude" (Lintang, Bujur). Namun dalam standar formal GeoJSON (RFC 7946), koordinat selalu diurutkan sebagai `[longitude, latitude, elevation/depth]`.
-   - `coordinates[0]` adalah **Longitude / Bujur** (rentang valid: $[-180.0, 180.0]$)
-   - `coordinates[1]` adalah **Latitude / Lintang** (rentang valid: $[-90.0, 90.0]$)
+   - `coordinates[0]` adalah **Longitude / Bujur** (rentang valid: -180,0 sampai 180,0)
+   - `coordinates[1]` adalah **Latitude / Lintang** (rentang valid: -90,0 sampai 90,0)
    - `coordinates[2]` adalah **Kedalaman (depth) dalam kilometer**
-   Jika Anda memetakan `lat = coords[0]`, gempa bumi dengan bujur melebihi $\pm 90^{\circ}$ (seperti Jepang atau Indonesia pada $\sim 120^{\circ}-140^{\circ}\text{BT}$) akan langsung menggagalkan validasi rentang lintang Anda!
-2. **SCD Type 1 & Waktu Revisi (`updated`):** Data kegempaan berevolusi seiring waktu. Ketika getaran terdeteksi, stasiun seismik otomatis membuat rekaman awal (`status: "automatic"`). Beberapa jam kemudian, ahli geofisika mengoreksi episentrum dan magnitudo, lalu memperbarui status menjadi `status: "reviewed"` dengan nilai timestamp `updated > time`. Pipeline yang naif hanya akan mengecek `time` sehingga melewatkan revisi atau menghasilkan baris duplikat.
-3. **Nilai Null dan Pengukuran Negatif:** Gempa mikro atau ledakan tambang dapat memiliki magnitudo null atau bernilai negatif (skala logaritmik Richter memperbolehkan angka $< 0$). Kedalaman dapat bernilai $0$ atau negatif (gempa di pegunungan di atas permukaan laut). Skema Anda harus menerima float nullable tanpa mengalami error.
-4. **Strategi Paginasi (Offset vs Keyset Watermark):** REST API umumnya menawarkan paginasi offset (`limit` dan `offset`). Walau mudah dipahami, paginasi murni offset mengalami pemindaian $O(N)$ pada offset dalam dan dapat bergeser jika ada data baru masuk bersamaan. Dalam arsitektur data modern, kita menggabungkan watermark timestamp (`starttime`) dengan offset lokal kecil per batch untuk menjamin eksekusi yang cepat dan idempoten.
+   Jika Anda memetakan `lat = coords[0]`, gempa bumi dengan bujur di luar +/-90 derajat (seperti Jepang atau Indonesia, kira-kira 95 sampai 145 derajat Bujur Timur) akan langsung menggagalkan validasi rentang lintang Anda!
+2. **SCD Type 1 & Waktu Revisi (`updated`):** Data kegempaan berevolusi seiring waktu. Ketika getaran terdeteksi, stasiun seismik otomatis membuat rekaman awal (`status: "automatic"`). Beberapa jam kemudian, ahli geofisika mengoreksi episentrum dan magnitudo, lalu memperbarui status menjadi `status: "reviewed"` dengan nilai timestamp `updated > time`. Pipeline yang watermark-nya hanya mengikuti `time` kejadian tidak akan pernah melihat revisi ini. **Lacak watermark pada `updated`** (waktu perubahan terakhir) dan minta ke API hanya yang berubah dengan `updatedafter`; lakukan upsert berdasarkan id event.
+3. **Nilai Null dan Pengukuran Negatif:** Gempa mikro atau ledakan tambang dapat memiliki magnitudo null atau bernilai negatif (skala logaritmik Richter memperbolehkan angka di bawah 0). Kedalaman dapat bernilai 0 atau negatif (gempa di pegunungan di atas permukaan laut). Skema Anda harus menerima float nullable tanpa mengalami error.
+4. **Strategi Paginasi (Offset vs Keyset Watermark):** REST API umumnya menawarkan paginasi offset (`limit` dan `offset`). Walau mudah dipahami, paginasi murni offset mengalami pemindaian O(N) pada offset dalam dan dapat bergeser jika ada data baru masuk bersamaan. Dalam arsitektur data modern, kita menggabungkan watermark pada waktu `updated` (filter `updatedafter`) dengan offset halaman di dalam satu sesi sinkronisasi untuk menjamin eksekusi yang cepat dan idempoten. Filter tetap konstan selama offset bergerak.
 5. **Menjaga Kamus Data Domain:** API ilmiah memuat kode spesifik domain seperti `magType` (`ml` skala Richter lokal, `mw` magnitudo momen, `md` durasi). Jangan pernah membuang atribut domain ini saat ekstraksi; analis bergantung pada tipe magnitudo untuk memvalidasi akurasi kalibrasi sensor fisik.
 
 ## @lesson Ketahanan jaringan: Backoff, Jitter & Rate Limits
@@ -107,8 +107,10 @@ if response.status_code == 429:
 
 ### 2. Exponential Backoff dengan Jitter:
 Untuk kesalahan sementara di sisi server (HTTP 500, 502, 503, 504) atau batas waktu koneksi, melakukan retry seketika (*masalah thundering herd*) justru akan merobohkan server yang sedang pulih. Sebaliknya, naikkan waktu tunggu secara eksponensial:
-$$t_{\text{wait}} = \text{base} \times 2^{\text{attempt}} + \text{jitter}$$
-Jitter adalah penambahan nilai acak kecil ($\pm 10\%$) agar ribuan worker ekstraksi tidak menembak server secara bersamaan pada detik yang sama persis.
+```text
+wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; dengan base = 1 detik: sekitar 1, 2, 4, 8 detik)
+```
+Jitter adalah penambahan nilai acak kecil (sekitar plus minus 10%) agar ribuan worker ekstraksi tidak menembak server secara bersamaan pada detik yang sama persis.
 
 ### 3. Kesalahan Fatal Klien yang Tidak Boleh Di-retry (HTTP 4xx):
 Tidak semua error boleh di-retry. Jika server mengembalikan `HTTP 400 Bad Request`, `401 Unauthorized`, atau `404 Not Found`, mengulang 5 kali hanya akan menghasilkan kegagalan 5 kali dan membuang waktu. Kesalahan fatal klien harus mencatat pesan diagnostik yang jelas dan segera keluar dengan exit code `2` tanpa merusak state checkpoint.
@@ -122,7 +124,7 @@ Pipeline inkremental didefinisikan oleh kemampuannya mengekstrak **hanya data ba
 ```
 State Checkpoint (state.json):
 {
-  "high_watermark_epoch_ms": 1704367849415,
+  "high_watermark_epoch_ms": 1704367849415,       <-- nilai properties.updated terbesar yang sudah DI-COMMIT
   "high_watermark_iso": "2024-01-04T11:30:49Z",
   "last_sync_utc": "2024-01-08T00:00:00Z",
   "total_records_ingested": 450,
@@ -156,7 +158,7 @@ Atau kebalikannya:
 
 ## @lesson Dead-Letter Queue (DLQ) & Backfill Historis
 Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dapat rusak. Jika 1 rekaman dari 10.000 memuat `latitude = 999.0` atau kehilangan ID, apa yang harus dilakukan pipeline Anda?
-- **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama akhir pekan sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
+- **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama 48 jam sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
 - **Opsi B (Buang baris rusak diam-diam):** Data hilang tanpa jejak audit. Saat auditor menanyakan hilangnya rekaman penting, tidak ada bukti yang tertinggal. (Sangat berbahaya).
 - **Opsi C (Dead-Letter Queue - DLQ):** Pipeline memvalidasi setiap rekaman masuk terhadap kontrak skema yang ketat. Rekaman valid disimpan ke warehouse; rekaman rusak diisolasi ke Dead-Letter Queue (`dlq/rejected.jsonl`) beserta metadata audit:
   ```json
@@ -173,7 +175,7 @@ Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dap
 Seringkali tim hulu memperbaiki kalibrasi sensor masa lalu dan meminta: *"Tolong ambil ulang seluruh data untuk bulan Desember 2023."*
 Pipeline Anda menyediakan subperintah `backfill`:
 ```bash
-python pipeline.py backfill --api-url URL --output-dir OUT --start 2023-12-01 --end 2023-12-31
+python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/state.json --start 2023-12-01 --end 2023-12-31
 ```
 **Aturan Emas Backfill:** Perintah backfill harus memuat data historis ke dalam warehouse menggunakan aturan upsert yang sama, **TETAPI SAMA SEKALI TIDAK BOLEH MENGUBAH ATAU MENGGESER WATERMARK DI `state.json`!** Jika proses backfill Desember 2023 mengubah `state.json`, eksekusi terjadwal berikutnya akan mengira watermark saat ini berada di bulan Desember 2023 dan menyedot ulang seluruh data berbulan-bulan secara mubazir.
 
@@ -185,10 +187,10 @@ Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi 
 ### @steps
 1. **Setup.** Ikuti petunjuk setup di Lesson 1 (buat folder `~/seismic`, aktifkan venv, instal requirements, jalankan `fetch_data.py`, salin `starter/pipeline.py`). Periksa berkas `earthquakes_seed.json` dengan Python atau DuckDB.
 2. **Langkah 1: Profiling data mentah.** Analisis dataset mentah dan buat `profile.json` dengan 9 nilai kunci: `total_features`, `max_magnitude`, `min_magnitude`, `tsunami_alert_count`, `max_depth_km`, `min_depth_km`, `min_time_epoch_ms`, `max_time_epoch_ms`, dan `noto_peninsula_event_id`. Periksa dengan `--step 1`.
-3. **Langkah 2: Kontrak ingesti baseline.** Implementasikan subperintah `pipeline.py ingest` dengan argumen CLI (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Lakukan paginasi, ekstrak koordinat dengan benar (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), simpan data bersih ke `<output-dir>/warehouse.duckdb` tabel `events`, dan simpan `state.json`. Periksa dengan `--step 2`.
-4. **Langkah 3: Watermarking stateful & pemulihan crash.** Filter query agar hanya meminta data yang lebih baru dari `high_watermark_epoch_ms`. Gunakan penulisan file sementara atomik (`.tmp` + `os.replace`) untuk `state.json`. Pemeriksa menyimulasikan pemutusan soket di tengah jalan dan memverifikasi bahwa eksekusi lanjutan menghasilkan nol duplikat dan nol data hilang. Periksa dengan `--step 3`.
-5. **Langkah 4: Ketahanan jaringan.** Tambahkan mekanisme retry dengan exponential backoff untuk error 5xx. Periksa header HTTP 429 `Retry-After` dan tunggu sesuai waktu yang diminta. Keluar dengan kode `2` jika terjadi error fatal 4xx yang tidak bisa di-retry. Periksa dengan `--step 4`.
-6. **Langkah 5: DLQ, CDC upsert & backfill.** Validasi koordinat, timestamp, dan ID. Arahkan rekaman rusak ke `<output-dir>/dlq/rejected.jsonl`. Lakukan upsert rekaman hasil revisi di DuckDB tanpa membuat baris ganda. Implementasikan subperintah `backfill` dengan menjaga `state.json` tetap terisolasi. Periksa dengan `--step 5` dan `--step all`.
+3. **Langkah 2: Kontrak ingesti baseline.** Implementasikan subperintah `pipeline.py ingest` dengan argumen CLI (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Lakukan paginasi (`limit` dan `offset` berbasis 1), ekstrak koordinat dengan benar (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), simpan data bersih ke `<output-dir>/warehouse.duckdb` dalam tabel `events` dengan minimal kolom `event_id` (primary key), `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, dan `status`, lalu simpan `state.json`. Periksa dengan `--step 2`.
+4. **Langkah 3: Watermarking stateful & pemulihan crash.** Catat timestamp `updated` terbesar yang sudah di-commit sebagai `high_watermark_epoch_ms`, dan pada eksekusi berikutnya kirim `updatedafter` (waktu ISO-8601 UTC, misalnya `2024-01-04T11:30:49.415`) agar hanya event baru atau yang direvisi yang kembali; mengurangi satu detik sebagai tumpang tindih aman karena upsert Anda idempoten. Gunakan penulisan file sementara atomik (`.tmp` + `os.replace`) untuk `state.json`. Pemeriksa menyimulasikan pemutusan soket di tengah jalan, memastikan checkpoint tidak pernah mendahului data, mengunci warehouse agar penulisan gagal dan checkpoint tidak boleh bergerak, serta memverifikasi bahwa eksekusi lanjutan menghasilkan nol duplikat dan nol data hilang. Periksa dengan `--step 3`.
+5. **Langkah 4: Ketahanan jaringan.** Tambahkan mekanisme retry dengan exponential backoff untuk error 5xx. Periksa header HTTP 429 `Retry-After` dan tunggu setidaknya selama itu (pemeriksa mengukur jeda antar permintaan). Keluar dengan kode `2`, tanpa retry, jika terjadi error fatal 4xx. Periksa dengan `--step 4`.
+6. **Langkah 5: DLQ, CDC upsert & backfill.** Validasi koordinat, timestamp, dan ID. Arahkan rekaman rusak ke `<output-dir>/dlq/rejected.jsonl`. Lakukan upsert rekaman hasil revisi di DuckDB tanpa membuat baris ganda. Implementasikan subperintah `backfill` (`--api-url --output-dir --state-file --start --end --batch-size`); ia menerima `--state-file` hanya agar pemeriksa dapat membuktikan Anda tidak pernah menulisnya, dan revisi yang lebih lama dari sebuah event tidak boleh menimpa yang lebih baru. Periksa dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Saat `--step all` lulus, jalankan `python3 scripts/prove.py mod-4-2 ~/seismic` untuk mencetak kode bukti bagi aplikasi kursus.
 
 ### @files
@@ -214,16 +216,16 @@ python3 scripts/prove.py mod-4-2 ~/seismic
 ### @scenario
 Pada hari Sabtu pukul 03.15 UTC, server API hulu mengalami kehabisan memori saat menyajikan Halaman 4 dari pengiriman batch berkala. Di tengah pengiriman data, koneksi soket TCP terputus mendadak. Saat cron job berjalan satu jam kemudian, pipeline seorang engineer junior telah memperbarui watermark state sebelum data berhasil ditulis ke disk—akibatnya 150 rekaman gempa hilang permanen, termasuk peringatan tsunami lepas pantai.
 
-Pada saat yang sama, stasiun sensor seismik baru di Pasifik Selatan memancarkan data dengan posisi lintang dan bujur terbalik, mengirim `[lat, lon]` alih-alih standar `[lon, lat]`. Pipeline tanpa validasi batas koordinat langsung memasukkan nilai lintang $175^\circ\text{LS}$, merusak layer spasial GIS analitik dan mengacaukan visualisasi peta.
+Pada saat yang sama, stasiun sensor seismik baru di Pasifik Selatan memancarkan data dengan posisi lintang dan bujur terbalik, mengirim `[lat, lon]` alih-alih standar `[lon, lat]`. Pipeline tanpa validasi batas koordinat langsung memasukkan nilai lintang 175 derajat Selatan, merusak layer spasial GIS analitik dan mengacaukan visualisasi peta.
 
 ### @cause
-Pipeline tersebut tidak bersifat transaksional dan tidak defensif. Watermark diperbarui sebelum penulisan selesai, sehingga penghentian mendadak menghilangkan data permanen. Pipeline juga tidak memiliki validasi skema masuk, memercayai koordinat geografis dari hulu secara buta tanpa memeriksa bahwa lintang selalu berada dalam rentang $[-90, 90]$.
+Pipeline tersebut tidak bersifat transaksional dan tidak defensif. Watermark diperbarui sebelum penulisan selesai, sehingga penghentian mendadak menghilangkan data permanen. Pipeline juga tidak memiliki validasi skema masuk, memercayai koordinat geografis dari hulu secara buta tanpa memeriksa bahwa lintang selalu berada dalam rentang -90 sampai 90.
 
 ### @fix
 1. **Tulis penyimpanan sebelum checkpoint:** Tulis data batch ke DuckDB terlebih dahulu. Hanya ketika penulisan sukses barulah Anda menaikkan watermark dan menyimpan `state.json`.
 2. **Swap berkas atomik:** Tulis ke `state.json.tmp` dan gunakan `os.replace` agar berkas checkpoint tidak pernah tertinggal dalam keadaan rusak sebagian.
 3. **Upsert yang idempoten:** Lakukan deduplikasi berdasarkan `event_id` dan `updated_epoch_ms` agar pemrosesan ulang tidak pernah melipatgandakan baris.
-4. **Karantina ke Dead-Letter Queue:** Validasi lintang dalam $[-90, 90]$ dan bujur dalam $[-180, 180]$. Arahkan koordinat bermasalah ke `dlq/rejected.jsonl` beserta metadata diagnostik.
+4. **Karantina ke Dead-Letter Queue:** Validasi lintang antara -90 dan 90 serta bujur antara -180 dan 180. Arahkan koordinat bermasalah ke `dlq/rejected.jsonl` beserta metadata diagnostik.
 
 ### @pattern
 Pipeline ingesti harus memperlakukan jaringan dan penyedia data hulu sebagai komponen yang tidak tepercaya dan rentan gagal. Simpan data sebelum memperbarui checkpoint, pastikan penulisan bersifat idempoten, dan karantina data beracun ke DLQ tanpa menghentikan pemrosesan data bersih lainnya.

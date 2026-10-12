@@ -37,7 +37,7 @@ def run_ingest(args):
     #              Extract latitude = coords[1], longitude = coords[0], depth = coords[2].
     # TODO Step 3: Implement watermark-based state persistence in args.state_file.
     #              Ensure atomic write (write to .tmp and replace) so crash mid-sync never corrupts state.
-    #              Resume from high_watermark_epoch_ms on next run.
+    #              high_watermark_epoch_ms = the largest properties.updated you have COMMITTED; resume with the updatedafter parameter.
     # TODO Step 4: Add HTTP retry loop with exponential backoff on HTTP 429 (Retry-After) and 5xx.
     #              On fatal HTTP 400 or auth error, exit with code 2.
     # TODO Step 5: Route invalid records (bad coords, missing ID, invalid time) to <args.output_dir>/dlq/rejected.jsonl.
@@ -72,6 +72,7 @@ def main():
     p_backfill = subparsers.add_parser("backfill")
     p_backfill.add_argument("--api-url", required=True, help="Base API URL")
     p_backfill.add_argument("--output-dir", required=True, help="Target storage directory")
+    p_backfill.add_argument("--state-file", default=None, help="Production checkpoint: accepted but NEVER modified by a backfill")
     p_backfill.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     p_backfill.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
     p_backfill.add_argument("--batch-size", type=int, default=100, help="Page limit")

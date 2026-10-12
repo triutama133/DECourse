@@ -74,6 +74,8 @@ Jika Anda mengelompokkan data berdasarkan **processing time**, pipeline Anda aka
 Hanya **event-time windowing** yang mampu menyajikan kebenaran analitis. Tidak peduli kapan data tiba di server pengolah, event dari 08:02:30 harus secara akurat dimasukkan ke dalam window `[08:00:00, 08:05:00)`.
 
 ### Mengenal Dataset Seed:
+**Catatan jujur: aliran ini sintetis.** `fetch_data.py` membuatnya dari random seed tetap untuk meniru kendaraan dengan pengiriman tertunda dan tidak berurutan; ini bukan telemetri taksi sungguhan (untuk data nyata, lihat Modul 4.1 dan 4.2). Yang nyata adalah masalahnya: setiap angka di bawah ini diukur pada 1.000 event tersebut.
+
 Dataset seed kita (`labs/mod-4-3/data/events_seed.jsonl`) berisi 1.000 event telemetri armada deterministik dari 50 kendaraan di berbagai zona taksi perkotaan:
 ```json
 {
@@ -103,24 +105,25 @@ Event Stream:  [e1: t=100] ──> [e2: t=250] ──> [e3: t=190] ──> [e4: 
 ```
 
 ### 1. Definisi Watermark:
-Watermark adalah metrik temporal yang monotonik dan tidak pernah mundur, yang mewakili tingkat kelengkapan aliran data. Ketika nilai watermark $W = t$, sistem menyatakan jaminan:
-$$\text{"Kami memperkirakan tidak ada lagi event dengan event\_time } \le t \text{ yang akan tiba di masa mendatang."}$$
+Watermark adalah metrik temporal yang monotonik dan tidak pernah mundur, yang mewakili tingkat kelengkapan aliran data. Ketika nilai watermark `W = t`, sistem menyatakan jaminan:
+`"Kami memperkirakan tidak ada lagi event dengan event_time <= t yang akan tiba di masa mendatang."`
 
-Dalam engine streaming kita, kita menerapkan **bounded out-of-orderness watermark** dengan jeda toleransi keterlambatan (allowed lateness delay) sebesar $D$:
-$$W_{\text{kandidat}} = t_{\text{event}} - D$$
-$$W = \max(W_{\text{sebelumnya}}, W_{\text{kandidat}})$$
+Dalam engine streaming kita, kita menerapkan **bounded out-of-orderness watermark** dengan jeda toleransi keterlambatan (allowed lateness delay) sebesar `D`:
+`W_kandidat = t_event - D`
+`W = max(W_sebelumnya, W_kandidat)`
 
 Nilai watermark **tidak boleh bergerak mundur**, bahkan ketika event yang out of order tiba dengan timestamp yang lebih tua dari timestamp terbaru yang pernah dicatat.
 
 ### 2. Siklus Hidup dan Penggusuran Window (Eviction):
-Sebuah window didefinisikan oleh interval setengah terbuka $[t_{\text{start}}, t_{\text{end}})$.
-- **Window Terbuka:** Selama $t_{\text{end}} > W$, window berstatus terbuka di memori RAM. Setiap event yang berada di rentang waktu tersebut ditambahkan ke akumulator window.
-- **Penggusuran / Penutupan Window:** Begitu watermark bergerak maju hingga $t_{\text{end}} \le W$, window dinyatakan ditutup. Hasil agregasi final dipancarkan ke database analitik (DuckDB), dan akumulator di memori dihapus untuk menghemat RAM.
+Sebuah window didefinisikan oleh interval setengah terbuka `[t_start, t_end)`.
+- **Window Terbuka:** Selama `t_end > W`, window berstatus terbuka di memori RAM. Setiap event yang berada di rentang waktu tersebut ditambahkan ke akumulator window.
+- **Penggusuran / Penutupan Window:** Begitu watermark bergerak maju hingga `t_end <= W`, window dinyatakan ditutup. Hasil agregasi final dipancarkan ke database analitik (DuckDB), dan akumulator di memori dihapus untuk menghemat RAM.
 
 ### 3. Out-of-Order vs. Late Data:
 Sangat penting membedakan **event yang out of order** dengan **event yang late (terlambat)**:
-- **Out-of-order event:** Event yang memiliki $t_{\text{event}} < t_{\text{terbaru\_dilihat}}$, namun window tempatnya berada masih berstatus terbuka ($t_{\text{end}} > W$). Event ini **valid dan diterima**; metriknya langsung diakumulasikan ke window yang bersangkutan.
-- **Late event:** Event yang window tujuannya sudah ditutup dan digusur dari memori ($t_{\text{end}} \le W$). Agregasi window tersebut sudah terlanjur dipancarkan ke konsumen hilir. Memasukkannya kembali akan merusak keabsahan laporan keuangan yang sudah terbit, sehingga event ini **ditolak dan dikarantina**.
+- **Out-of-order event:** Event yang memiliki `t_event < t_terbaru_dilihat`, namun window tempatnya berada masih berstatus terbuka (`t_end > W`). Event ini **valid dan diterima**; metriknya langsung diakumulasikan ke window yang bersangkutan.
+- **Late event:** Event yang window tujuannya sudah ditutup dan digusur dari memori (`t_end <= W`). Agregasi window tersebut sudah terlanjur dipancarkan ke konsumen hilir. Memasukkannya kembali akan merusak keabsahan laporan keuangan yang sudah terbit, sehingga event ini **ditolak dan dikarantina**.
+- **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
 
 ## @lesson Consumer offset, checkpointing & idempotensi analitik
 Engine streaming beroperasi terus-menerus tanpa henti. Gangguan perangkat keras, restart kontainer, dan pembaruan sistem operasi adalah keniscayaan di lingkungan produksi. Engine yang tangguh harus mampu bertahan dari crash dengan semantik **exactly-once processing** di lapisan database.
@@ -211,24 +214,24 @@ Sliding Window (Size = 300s, Slide = 60s): Blok bergerak, saling tumpang-tindih
 
 ### 1. Tumbling Window:
 Tumbling window mempartisi aliran waktu menjadi blok-blok tetap yang tidak saling tumpang-tindih.
-Untuk ukuran window $L$, sebuah event pada timestamp $t$ dimasukkan tepat ke **satu** window yang dimulai pada:
-$$t_{\text{start}} = \left\lfloor \frac{t}{L} \right\rfloor \times L$$
-$$t_{\text{end}} = t_{\text{start}} + L$$
+Untuk ukuran window `L`, sebuah event pada timestamp `t` dimasukkan tepat ke **satu** window yang dimulai pada:
+`t_start = floor(t / L) * L`
+`t_end = t_start + L`
 Tumbling window sangat ideal untuk penyelesaian transaksi finansial periodik (misalnya rekonsiliasi pendapatan per jam, rekap komisi harian pengemudi).
 
 ### 2. Sliding Window:
 Sliding window menghasilkan metrik yang diperhalus secara kontinu seiring berjalannya waktu (misalnya rata-rata kecepatan armada 5 menit terakhir yang diperbarui setiap 60 detik).
-Dengan durasi window $L$ dan interval pergeseran $S$ (di mana $S < L$):
-Sebuah event pada timestamp $t$ berada di beberapa window tumpang-tindih yang dimulai pada kelipatan bulat $k \times S$:
-$$k \times S \le t < k \times S + L$$
-Maka batas indeks bilangan bulat $k$ adalah:
-$$t - L < k \times S \le t \implies \frac{t - L}{S} < k \le \frac{t}{S}$$
-Rentang nilai integer $k$ bergerak dari:
-$$k_{\min} = \left\lfloor \frac{t - L + S}{S} \right\rfloor \quad \text{hingga} \quad k_{\max} = \left\lfloor \frac{t}{S} \right\rfloor$$
-Untuk $L = 300\text{ detik}$ dan $S = 60\text{ detik}$, setiap event masuk ke tepat $\frac{300}{60} = 5$ window yang saling tumpang-tindih! Logika akumulator Anda harus memperbarui kelima bucket tersebut secara simultan.
+Dengan durasi window `L` dan interval pergeseran `S` (di mana `S < L`):
+Sebuah event pada timestamp `t` berada di beberapa window tumpang-tindih yang dimulai pada kelipatan bulat `k * S`:
+`k * S <= t < k * S + L`
+Maka batas indeks bilangan bulat `k` adalah:
+`t - L < k * S <= t`, sehingga `(t - L) / S < k <= t / S`
+Rentang nilai integer `k` bergerak dari:
+`k_min = floor((t - L + S) / S)` hingga `k_max = floor(t / S)`
+Untuk `L = 300 detik` dan `S = 60 detik`, setiap event masuk ke tepat `(300 / 60) = 5` window yang saling tumpang-tindih! Logika akumulator Anda harus memperbarui kelima bucket tersebut secara simultan.
 
 ### 3. Karantina Dead-Letter Queue (DLQ):
-Ketika event tiba di mana seluruh window kandidatnya sudah digusur ($t_{\text{end}} \le W$), apa yang harus dilakukan?
+Ketika event tiba di mana seluruh window kandidatnya sudah digusur (`t_end <= W`), apa yang harus dilakukan?
 Membuang data secara diam-diam menghilangkan jejak audit keuangan; memasukkannya ke window tertutup merusak integritas laporan analitik yang sudah diterbitkan.
 Solusi standar industri adalah **Dead-Letter Queue (DLQ)**. Event yang terlambat dicatat ke dalam `<output-dir>/dlq/late_events.jsonl` beserta metadata audit:
 ```json
@@ -244,15 +247,15 @@ Solusi standar industri adalah **Dead-Letter Queue (DLQ)**. Event yang terlambat
 Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu peringatan jika menara seluler tertentu mengalami keterlambatan paket parah, dan memproses ulang data tersebut di pipeline rekonsiliasi batch offline.
 
 ## @lab Lab: lima langkah membangun engine streaming produksi
-Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan menyimulasikan aliran telemetri armada riil, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.
+Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat pelajaran pertama) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.
 
 ### @steps
 1. **Persiapan.** Ikuti instruksi persiapan di Lesson 1 (buat direktori `~/fleet`, aktifkan virtual environment, pasang dependensi, jalankan `fetch_data.py`, salin template `starter/stream_processor.py`). Teliti struktur `events_seed.jsonl` menggunakan Python atau DuckDB.
 2. **Langkah 1: Profiling data stream.** Lakukan profiling terhadap 1.000 event seed dan tuliskan hasilnya ke `profile.json` dengan 7 kunci utama: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, dan `busiest_zone_event_count`. Uji dengan opsi `--step 1`.
 3. **Langkah 2: Kontrak dasar tumbling event-time window.** Bangun penguraian argumen CLI dan kalkulasi tumbling window (`--window-size 300`, `--watermark-delay 120`). Agregasikan `total_trips`, `total_passengers`, `total_fare`, dan `avg_fare` ke file `<output-dir>/warehouse.duckdb` (tabel `windowed_metrics`). Pastikan eksekusi ulang menghasilkan nol duplikasi data. Uji dengan `--step 2`.
-4. **Langkah 3: Perkembangan watermark & DLQ data terlambat.** Lacak high watermark monotonik ($W = \max(W, t - \text{delay})$). Gusur window yang telah tertutup ketika $t_{\text{end}} \le W$. Karantina event terlambat yang berada di luar window terbuka ke file `<output-dir>/dlq/late_events.jsonl` dengan kode kesalahan `error_code: "LATE_EVENT"`. Uji dengan `--step 3`.
+4. **Langkah 3: Perkembangan watermark & DLQ data terlambat.** Lacak high watermark monotonik (`W = max(W, t - delay)`). Gusur window yang telah tertutup ketika `t_end <= W`. Karantina event terlambat yang berada di luar window terbuka ke file `<output-dir>/dlq/late_events.jsonl` dengan kode kesalahan `error_code: "LATE_EVENT"`. Pemeriksa juga memberi aliran di mana event out-of-order akan menurunkan watermark yang ceroboh, dan aliran di mana watermark jatuh tepat di akhir sebuah window (window ditutup ketika `t_end <= W`, sama dengan termasuk). Uji dengan `--step 3`.
 5. **Langkah 4: Checkpointing consumer offset & pemulihan crash.** Simpan offset stream dan akumulator window terbuka secara atomik ke `--state-file` (`.tmp` + `os.replace`). Penguji akan menyimulasikan proses mati mendadak setelah 150 event, melanjutkan kembali dengan stream penuh, dan memastikan engine berhasil menyelesaikan tugas tanpa ada data ganda atau hilang. Uji dengan `--step 4`.
-6. **Langkah 5: Sliding window.** Tambahkan dukungan untuk argumen `--window-slide` (misalnya ukuran 300 detik dengan pergeseran 60 detik). Salurkan setiap event masuk ke seluruh bucket window tumpang-tindih yang aktif. Buktikan total perjalanan dan tarif teragregasi cocok dengan rasio perkalian teoritis ($\frac{\text{size}}{\text{slide}} \times \text{raw}$). Uji dengan `--step 5` dan `--step all`.
+6. **Langkah 5: Sliding window.** Tambahkan dukungan untuk argumen `--window-slide` (misalnya ukuran 300 detik dengan pergeseran 60 detik). Salurkan setiap event masuk ke seluruh bucket window tumpang-tindih yang aktif. Buktikan total perjalanan dan tarif teragregasi cocok dengan rasio perkalian teoritis (`(size / slide) * raw`). Uji dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Setelah opsi `--step all` berhasil lolos tanpa kegagalan, jalankan perintah `python3 scripts/prove.py mod-4-3 ~/fleet` untuk memperoleh kode verifikasi yang dapat dimasukkan ke aplikasi kursus.
 
 ### @files
@@ -306,7 +309,7 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 - [ ] Processor langsung mengalami crash fatal dan menghapus seluruh riwayat consumer offset yang tersimpan pada klaster broker streaming
 - [ ] Watermark menghentikan sementara seluruh pemrosesan pipeline terdistribusi sampai administrator manusia mengonfirmasi status jaringan
 
-> Watermark memberikan jaminan kelengkapan data temporal dan bersifat monotonik murni (tidak pernah bergerak mundur). Ketika event out of order tiba, watermark mempertahankan nilai tertingginya: $W = \max(W_{\text{sebelumnya}}, \text{ts} - \text{delay})$. Nilainya tidak akan pernah surut.
+> Watermark memberikan jaminan kelengkapan data temporal dan bersifat monotonik murni (tidak pernah bergerak mundur). Ketika event out of order tiba, watermark mempertahankan nilai tertingginya: `W = max(W_sebelumnya, ts - delay)`. Nilainya tidak akan pernah surut.
 
 ### Dalam pemrosesan streaming berbasis event time, apa perbedaan mendasar antara out-of-order event dan late event?
 - [ ] Out-of-order event berasal dari modem seluler sedangkan late event dihasilkan secara eksklusif oleh sensor IoT berbasis kabel serat optik
@@ -314,7 +317,7 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 - [ ] Out-of-order event dialihkan menuju Dead-Letter Queue sedangkan late event langsung dibuang tanpa meninggalkan catatan log audit sama sekali
 - [ ] Out-of-order event tidak memiliki primary key yang valid sedangkan late event memiliki nilai nominal transaksi keuangan yang bernilai negatif
 
-> Event berstatus out of order jika tiba setelah event lain dengan timestamp lebih baru, tetapi window tujuannya masih terbuka ($t_{\text{end}} > W$). Event ini berhasil diakumulasikan. Event berstatus late (terlambat) jika window tujuannya sudah ditutup ($t_{\text{end}} \le W$); karena metrik window tersebut sudah terlanjur dipancarkan, data terlambat dikarantina ke DLQ.
+> Event berstatus out of order jika tiba setelah event lain dengan timestamp lebih baru, tetapi window tujuannya masih terbuka (`t_end > W`). Event ini berhasil diakumulasikan. Event berstatus late (terlambat) jika window tujuannya sudah ditutup (`t_end <= W`); karena metrik window tersebut sudah terlanjur dipancarkan, data terlambat dikarantina ke DLQ.
 
 ### Untuk sliding window dengan durasi 300 detik dan slide step 60 detik, ke dalam berapa window yang tumpang-tindih sebuah event pada timestamp 1704067250 akan dimasukkan?
 - [ ] Tepat satu window karena engine streaming selalu membatasi setiap baris data agar hanya berkontribusi pada satu bucket agregasi data
@@ -322,7 +325,7 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 - [ ] Tepat sepuluh window tumpang-tindih karena setiap bucket sliding window mewajibkan pasangan dua arah dengan batas interval di sebelahnya
 - [ ] Tepat nol window sampai high watermark bergerak melampaui batas atas seluruh blok partisi analitik per jam pada database target
 
-> Pada sliding window, jumlah window tumpang-tindih yang mencakup suatu timestamp adalah $\frac{\text{durasi}}{\text{slide}}$. Dengan durasi 300 detik dan slide 60 detik, didapat $\frac{300}{60} = 5$. Event tersebut masuk ke lima window mulai dari $[1704067020, 1704067320)$ hingga $[1704067260, 1704067560)$.
+> Pada sliding window, jumlah window tumpang-tindih yang mencakup suatu timestamp adalah `(durasi / slide)`. Dengan durasi 300 detik dan slide 60 detik, didapat `(300 / 60) = 5`. Event tersebut masuk ke lima window mulai dari `[1704067020, 1704067320)` hingga `[1704067260, 1704067560)`.
 
 ### Mengapa stream processor wajib menyimpan akumulator window di memori bersamaan dengan consumer offset ke dalam state.json?
 - [ ] Karena storage engine DuckDB membutuhkan file state JSON eksternal untuk merekonstruksi tabel kamus kompresi data berbasis kolom
@@ -361,3 +364,4 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 - [Streaming Systems: What, Where, When, and How of Large-Scale Data Processing (O'Reilly)](https://www.oreilly.com/library/view/streaming-systems/9781491983867/)
 - [Apache Flink Documentation: Timely Stream Processing & Watermarks](https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/time-attribute/)
 - [DuckDB Documentation: Window Functions and Upsert Statements](https://duckdb.org/docs/sql/statements/insert#insert-on-conflict)
+

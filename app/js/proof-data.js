@@ -249,9 +249,9 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-4-2 ~/seismic",
   "argExample": "~/seismic",
-  "tests": "2ef89112",
-  "starter": "a4e6c4c7",
-  "reference": "03056952"
+  "tests": "7364dc00",
+  "starter": "1ec714c5",
+  "reference": "9c4110d5"
  },
  "mod-4-3": {
   "arg": "workspace",
@@ -259,8 +259,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-4-3 ~/fleet",
   "argExample": "~/fleet",
-  "tests": "ce8edc8d",
+  "tests": "3225bcc8",
   "starter": "eb350562",
-  "reference": "eb7ed5b3"
+  "reference": "9d283c08"
  }
 };
