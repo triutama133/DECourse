@@ -49,6 +49,7 @@ PLAN = {
     "mod-3-4": ("pytest", ["labs/mod-3-4/test_terraform.py", "labs/mod-3-4/test_finops.py"]),
     "mod-3-5": ("pytest", ["labs/mod-3-5/test_rag.py"]),
     "mod-4-1": ("capstone", ["labs/mod-4-1/check.py"]),
+    "mod-4-2": ("capstone", ["labs/mod-4-2/check.py"]),
 }
 
 

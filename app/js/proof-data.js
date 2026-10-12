@@ -242,5 +242,15 @@ window.PROOF = {
   "tests": "c12b19e2",
   "starter": "ee476600",
   "reference": "0a093891"
+ },
+ "mod-4-2": {
+  "arg": "workspace",
+  "requireVenv": true,
+  "needsEnv": [],
+  "command": "python3 scripts/prove.py mod-4-2 ~/seismic",
+  "argExample": "~/seismic",
+  "tests": "2ef89112",
+  "starter": "a4e6c4c7",
+  "reference": "03056952"
  }
 };

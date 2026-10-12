@@ -1747,8 +1747,8 @@ class DataForgeApp {
       {
         id: "python",
         name: this.l("2. Software Craftsmanship & Production Python", "2. Software Craftsmanship & Production Python"),
-        mods: ["mod-0-0", "mod-0-2", "mod-1-1", "mod-1-2", "mod-1-5", "mod-1-6"],
-        topics: this.l("Linux Shell piping, Docker container limits (code 137), Pydantic v2 validation, Python Generators (flat RAM), Idempotensi, Pytest TDD, pandas, ingestion API (retry, pagination, checkpoint)", "Linux Shell pipes, Docker resource limits (code 137), Pydantic v2, Python Generators (flat RAM), Idempotency, Pytest TDD, pandas, API ingestion (retries, pagination, checkpoints)")
+        mods: ["mod-0-0", "mod-0-2", "mod-1-1", "mod-1-2", "mod-1-5", "mod-1-6", "mod-4-2"],
+        topics: this.l("Linux Shell piping, Docker container limits (code 137), Pydantic v2 validation, Python Generators (flat RAM), Idempotensi, Pytest TDD, pandas, ingestion API (retry, pagination, checkpoint, DLQ, capstone seismik)", "Linux Shell pipes, Docker resource limits (code 137), Pydantic v2, Python Generators (flat RAM), Idempotency, Pytest TDD, pandas, API ingestion (retries, pagination, checkpoints, DLQ, seismic capstone)")
       },
       {
         id: "lakehouse",

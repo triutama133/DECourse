@@ -153,6 +153,28 @@ try:
         check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.1: honest work run in a venv is accepted ({r})")
     else:
         print("SKIP Capstone 4.1 proof test: run  python3 labs/mod-4-1/fetch_data.py  first")
+
+    # Capstone 4.2: Fault-tolerant incremental API ingestion & checkpointing
+    data42 = ROOT / "labs" / "mod-4-2" / "data"
+    if (data42 / "earthquakes_seed.json").is_file():
+        cap2 = work / "labs" / "mod-4-2"
+        ws42 = tmp / "seismic"
+        ws42.mkdir()
+        rc, out = sh([py, "-c", "import json, sys; sys.path.insert(0, 'labs/mod-4-2'); import check; print(json.dumps(check.truth()['profile']))"], cwd=str(work), env=env)
+        (ws42 / "profile.json").write_text(out.strip().splitlines()[-1], encoding="utf-8")
+        shutil.copy(cap2 / "starter" / "pipeline.py", ws42 / "pipeline.py")
+        rc, out = prove("mod-4-2", str(ws42))
+        check(rc == 1 and code_of(out) is None, "Capstone 4.2 starter: the checker fails, no code is printed")
+        ref42 = (cap2 / "reference" / "pipeline.py").read_text(encoding="utf-8")
+        (ws42 / "pipeline.py").write_text(ref42, encoding="utf-8")
+        rc, out = prove("mod-4-2", str(ws42))
+        check(rc == 0 and code_of(out) and app_check("mod-4-2", code_of(out))["reason"] == "copied", "Capstone 4.2: the copied reference pipeline is rejected")
+        (ws42 / "pipeline.py").write_text(ref42 + "\n# my own pipeline notes\n", encoding="utf-8")
+        rc, out = prove("mod-4-2", str(ws42))
+        r = app_check("mod-4-2", code_of(out) or "")
+        check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.2: honest work run in a venv is accepted ({r})")
+    else:
+        print("SKIP Capstone 4.2 proof test: run  python3 labs/mod-4-2/fetch_data.py  first")
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
