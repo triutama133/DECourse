@@ -676,7 +676,7 @@ class DataForgeApp {
         ${step(5, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
           <ul style="margin-left:18px">
-            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 60 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 60 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
+            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 68 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 68 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
@@ -1759,7 +1759,7 @@ class DataForgeApp {
       {
         id: "transformation",
         name: this.l("4. Transformasi Data, Orkestrasi & Kualitas", "4. Data Transformation, Orchestration & Quality"),
-        mods: ["mod-2-3", "mod-2-4", "mod-2-5", "mod-4-1"],
+        mods: ["mod-2-3", "mod-2-4", "mod-2-5", "mod-4-1", "mod-4-4"],
         topics: this.l("dbt Core Staging/Marts, Jinja macros, Dagster asset-based DAGs, Airflow, Data Contracts formal, Total Variation Distance drift, Dead-letter quarantine, capstone pipeline nyata (NYC taxi)", "dbt Core Staging/Marts, Jinja macros, Dagster assets, Airflow, Data Contracts, Drift detection, Dead-letter quarantine, real capstone pipeline (NYC taxi)")
       },
       {

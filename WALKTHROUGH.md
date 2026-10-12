@@ -12,7 +12,7 @@ Di dunia kerja nyata, seorang Data Engineer tidak dinilai dari berapa banyak vid
 2. Apakah Anda mengerti apa yang terjadi di balik layar (memori, partisi disk, query execution plan, network shuffle)?
 3. Ketika pipeline produksi meledak jam 3 pagi (OOM, disk WAL penuh, data duplikat), apakah Anda tahu cara mendiagnosis akar masalahnya (*root cause*) dan memperbaikinya?
 
-Kurikulum 24 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
+Kurikulum 27 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
 
 ---
 
@@ -102,10 +102,11 @@ LEVEL 3: Sistem Terdistribusi, Streaming, & AI Data (Minggu 41-58)
  ├── Modul 3.4: Infrastruktur Cloud Terotomasi (Terraform) & FinOps (Cost Control)
  └── Modul 3.5: AI & Vector Data Engineering (pgvector, Semantic Search, RAG Pipeline)
       │
-LEVEL 4: Capstone (Minggu 59-67)
+LEVEL 4: Capstone (Minggu 59-70)
  ├── Modul 4.1: Pipeline Batch Nyata di Data Taksi NYC (kontrak + pemeriksa, Anda mengerjakan sendiri)
  ├── Modul 4.2: Ingesti API Inkremental Berdaya Tahan Tinggi & Checkpointing (USGS Gempa Bumi, retries, DLQ, CDC)
- └── Modul 4.3: Real-Time Event Streaming, Watermark & Penanganan Late Data (Telemetri Armada, DLQ, Sliding Windows)
+ ├── Modul 4.3: Real-Time Event Streaming, Watermark & Penanganan Late Data (Telemetri Armada, DLQ, Sliding Windows)
+ └── Modul 4.4: Orkestrasi Pipeline Harian dengan Apache Airflow (lowongan kerja, retry, backfill, quality gate)
 ```
 
 ---
@@ -179,8 +180,8 @@ docker compose up -d postgres redpanda connect redpanda-console
 
 | Jalur | Komitmen Waktu | Estimasi Durasi | Target Capaian |
 |---|---|---|---|
-| **Standar (Disarankan)** | 10–12 jam / minggu | ~36 minggu (9 bulan) | Penguasaan menyeluruh, menyelesaikan semua 24 lab, membangun 2 proyek portofolio penuh. |
-| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~18 minggu (4 bulan) | Fokus penuh, sekitar 1 modul per minggu. Butuh disiplin tinggi; jangan melewatkan lab dan kode bukti. |
+| **Standar (Disarankan)** | 10–12 jam / minggu | ~40 minggu (10 bulan) | Penguasaan menyeluruh, menyelesaikan semua 27 lab, membangun 2 proyek portofolio penuh. |
+| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~20 minggu (5 bulan) | Fokus penuh, sekitar 1 modul per minggu. Butuh disiplin tinggi; jangan melewatkan lab dan kode bukti. |
 
 ### Aturan Emas Belajar:
 1. **Jangan copy-paste membabi buta**: Ketik kode sendiri agar memori motorik tangan dan logika terbentuk.

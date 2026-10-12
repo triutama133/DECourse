@@ -51,6 +51,7 @@ PLAN = {
     "mod-4-1": ("capstone", ["labs/mod-4-1/check.py"]),
     "mod-4-2": ("capstone", ["labs/mod-4-2/check.py"]),
     "mod-4-3": ("capstone", ["labs/mod-4-3/check.py"]),
+    "mod-4-4": ("capstone", ["labs/mod-4-4/check.py"]),
 }
 
 
@@ -99,6 +100,8 @@ def check_capstone(module):
     import shutil
     import tempfile
     lab = LABS / module
+    if module == "mod-4-4" and importlib.util.find_spec("airflow") is None:
+        return True, "skipped: Apache Airflow is not installed in this Python (see labs/mod-4-4/requirements.txt); nothing verified here"
     code, out, _ = run([sys.executable, str(lab / "fetch_data.py")])
     if code != 0:
         return True, "skipped: the input data could not be downloaded (offline?); nothing verified here"
@@ -107,11 +110,12 @@ def check_capstone(module):
     spec.loader.exec_module(chk)
     with tempfile.TemporaryDirectory() as tmp:
         ref, st = Path(tmp) / "reference", Path(tmp) / "starter"
-        main_py = "stream_processor.py" if (lab / "reference" / "stream_processor.py").is_file() else "pipeline.py"
+        main_py = sorted(p.name for p in (lab / "reference").glob("*.py"))[0]
         for ws, src in ((ref, lab / "reference" / main_py), (st, lab / "starter" / main_py)):
             ws.mkdir()
             shutil.copy(src, ws / main_py)
-        (ref / "profile.json").write_text(json.dumps(chk.truth()["profile"]))
+        profile = chk.profile_truth() if hasattr(chk, "profile_truth") else chk.truth()["profile"]
+        (ref / "profile.json").write_text(json.dumps(profile))
         (st / "profile.json").write_text("{}")
         code, out, secs = run([sys.executable, str(lab / "check.py"), str(ref), "--step", "all"])
         last = [l for l in out.strip().splitlines() if "passed" in l][-1:] or [out.strip()[-200:]]

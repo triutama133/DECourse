@@ -38,7 +38,7 @@ cp labs/mod-4-1/starter/pipeline.py ~/taxi/pipeline.py
 Alokasikan waktu sekitar 15 hingga 25 jam secara keseluruhan. Setiap eksekusi penuh pipeline Anda akan menghasilkan data sekitar 300 MB, dan skrip pemeriksa akan menjalankannya beberapa kali di dalam folder sementara yang otomatis dihapus setelah selesai.
 
 ## @lesson Mengenal datanya
-**NYC Taxi and Limousine Commission (TLC)** menerbitkan setiap rekaman perjalanan taksi kuning sebagai file bulanan berformat Parquet (data publik resmi Kota New York). Kita menggunakan data **Januari 2024**: satu file berukuran sekitar 50 MB yang memuat **2.964.624 perjalanan** dengan 19 kolom. Skrip pemeriksa memverifikasi hash SHA-256 dari file unduhan Anda, sehingga setiap peserta bekerja di atas data biner yang identik.
+**NYC Taxi and Limousine Commission (TLC)** menerbitkan setiap rekaman perjalanan taksi kuning sebagai file bulanan berformat Parquet (data publik resmi Kota New York). Kita menggunakan data **Januari 2024**: satu file berukuran sekitar 50 MB yang memuat hampir tiga juta perjalanan dengan 19 kolom. Skrip pemeriksa memverifikasi hash SHA-256 dari file unduhan Anda, sehingga setiap peserta bekerja di atas data biner yang identik.
 
 | Kolom | Arti |
 |---|---|
@@ -57,12 +57,12 @@ File pendukung kedua, `taxi_zone_lookup.csv`, mendeskripsikan **265 zona lokasi*
 
 **Temuan anomali saat data ini di-profile** (Anda akan menemukan angka yang sama, dan step 1 meminta sembilan angka ini):
 
-- File "Januari" ini memuat perjalanan dengan waktu penjemputan seawal **2002-12-31** dan selambat **2024-02-01**: terdapat **18** perjalanan di luar bulan Januari.
-- **870** perjalanan berakhir pada atau sebelum waktu berangkat (56 perjalanan dropoff lebih awal dari pickup, 814 perjalanan berakhir di detik yang sama). Terdapat **16** perjalanan yang berdurasi lebih dari 24 jam.
-- **35.920** perjalanan memiliki nilai total nol atau negatif (transaksi refund dan sengketa); nilai paling ekstrem adalah -900,00, dan total argo terbesar mencapai 5.000,00. Terdapat **59** perjalanan dengan klaim jarak di atas 100 mil, bahkan yang terjauh tertulis 312.722,3 mil.
-- **140.162** baris (4,7%) bernilai NULL serentak pada kolom `passenger_count`, `RatecodeID`, `store_and_fwd_flag`, `congestion_surcharge`, dan `Airport_fee`, dan persis sebanyak itu pula yang memiliki `payment_type` 0: ini adalah rekaman tipe *Flex Fare*, skema baru yang tidak mengisi kolom-kolom lama. Selain itu, **31.465** perjalanan lainnya mencatat 0 penumpang.
-- Zona **132** (JFK Airport) adalah lokasi penjemputan tersibuk dengan 145.240 perjalanan; 260 dari 265 zona muncul sebagai lokasi jemput.
-- **Perjalanan tunai**: Tercatat 439.191 perjalanan, namun hanya **128** di antaranya yang tercatat memberikan tip. Dari 2.319.046 perjalanan kartu kredit, **95,1%** mencatatkan tip. Tip tunai memang tidak terekam oleh argo taksi, sehingga statistik tip yang menggabungkan transaksi tunai akan menyesatkan analisis bisnis.
+- File "Januari" ini memuat perjalanan dengan waktu penjemputan seawal **2002-12-31** dan selambat **2024-02-01**: ada sejumlah perjalanan di luar bulan Januari.
+- Sebagian perjalanan berakhir sebelum dimulai, dan sebagian berakhir tepat di detik yang sama. Beberapa berdurasi lebih dari 24 jam.
+- Banyak perjalanan memiliki nilai total nol atau negatif (transaksi refund dan sengketa); nilai paling ekstrem adalah -900,00, dan total argo terbesar mencapai 5.000,00. Beberapa perjalanan mengklaim jarak di atas 100 mil, bahkan yang terjauh tertulis 312.722,3 mil.
+- Sekelompok baris (beberapa persen dari file) bernilai NULL serentak pada kolom `passenger_count`, `RatecodeID`, `store_and_fwd_flag`, `congestion_surcharge`, dan `Airport_fee`, dan baris-baris itu juga yang memiliki `payment_type` 0: rekaman tipe *Flex Fare*, skema baru yang tidak mengisi kolom-kolom lama. Perjalanan lain mencatat 0 penumpang.
+- Zona penjemputan tersibuk adalah sebuah bandara besar; tidak semua dari 265 zona muncul sebagai lokasi jemput.
+- **Perjalanan tunai** hampir tidak pernah mencatat tip, sedangkan sebagian besar perjalanan kartu kredit mencatatnya. Tip tunai memang tidak terekam oleh argo taksi, sehingga statistik tip yang menggabungkan transaksi tunai akan menyesatkan analisis bisnis.
 - Tabel zona juga memiliki jebakan: ID 264 dan 265 adalah "Unknown" dan "Outside of NYC", serta ID **56 dan 57 dua-duanya bernama "Corona"**. Nama zona bukanlah primary key yang unik.
 
 File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dapat mengirimkan file yang sama dua kali, itulah sebabnya pipeline Anda wajib menangani potensi duplikasi.
@@ -95,7 +95,7 @@ Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `s
 **Rutinitas debugging untuk pipeline data produksi**:
 
 1. Jalankan pipeline dan buka hasilnya dengan DuckDB. Periksa sampel sepuluh baris data sebelum Anda memeriksa angka agregat total.
-2. Bandingkan setiap jumlah baris dengan tolok ukur di pelajaran ini (2.964.624 masuk, 36.824 ditolak, 2.927.800 bersih). Jika ada selisih, besaran selisih memberi tahu letak masalahnya: selisih kecil biasanya terkait urutan aturan, sedangkan selisih kelipatan dua umumnya dipicu oleh join atau duplikasi data.
+2. Bandingkan setiap jumlah baris dengan tolok ukur di pelajaran ini (sekitar 1,2% ditolak, 2.927.800 baris bersih). Jika ada selisih, besaran selisih memberi tahu letak masalahnya: selisih kecil biasanya terkait urutan aturan, sedangkan selisih kelipatan dua umumnya dipicu oleh join atau duplikasi data.
 3. Uji aturan satu per satu pada file mentah dengan query sederhana `SELECT count(*) ... WHERE ...`, lalu cocokkan dengan jumlah per kategori alasan di file data yang Anda tolak.
 4. Ketika pemeriksaan skrip checker gagal, baca pesannya secara harfiah. Pesan "expected 2,927,800, you have 2,927,801" berarti ada kelebihan satu baris; temukan baris tersebut dengan memfilter baris bersih yang melanggar aturan.
 5. Ubah satu hal dalam satu waktu lalu uji kembali. Pipeline sebesar ini selesai dalam hitungan detik, sehingga tidak ada alasan untuk menebak-nebak tanpa data.
@@ -117,7 +117,7 @@ Bagian ini adalah spesifikasi teknis formal. Baca secara menyeluruh sebelum memu
 | 4 | `non_positive_total` | Nilai `total_amount` bernilai 0 atau negatif |
 | 5 | `implausible_distance` | Jarak `trip_distance` melebihi 100 mil |
 
-Pada file data nyata, aturan ini menolak **36.824** baris (1,24%): masing-masing 18, 870, 16, 35.864, dan 56 baris sesuai urutan prioritas tabel. Kelima aturan tersebut secara mandiri berjumlah 36.883 jika dihitung terpisah, namun terdapat **59 baris yang melanggar lebih dari satu aturan**; aturan yang urutannya lebih awal menang, sehingga setiap baris yang ditolak hanya dihitung satu kali. Baris yang lolos dari kelima aturan dinyatakan **bersih (clean)**. Nilai NULL pada `passenger_count` *bukanlah* alasan penolakan, dan nilai tersebut harus tetap dibiarkan NULL (jangan mengarang nilai 0 atau 1).
+Pada file data nyata, aturan ini menolak sekitar 1,2% baris, dan pemeriksa membandingkan hitungan per alasan Anda dengan hitungannya sendiri. Jika tiap aturan dihitung terpisah, jumlahnya melebihi jumlah baris yang ditolak, karena **beberapa baris melanggar lebih dari satu aturan**; aturan yang urutannya lebih awal menang, sehingga setiap baris yang ditolak hanya dihitung satu kali. Baris yang lolos dari kelima aturan dinyatakan **bersih (clean)**. Nilai NULL pada `passenger_count` *bukanlah* alasan penolakan, dan nilai tersebut harus tetap dibiarkan NULL (jangan mengarang nilai 0 atau 1).
 
 **Berkas Luaran.**
 
@@ -176,7 +176,7 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 
 ### @deliverables
 - Perintah `python3 labs/mod-4-1/check.py ~/taxi --step all` berhasil lulus **di komputer Anda sendiri, di dalam virtual environment Anda**
-- Anda dapat menjelaskan dengan kata-kata sendiri mengapa ada 59 baris yang melanggar lebih dari satu aturan dan apa arti "aturan pertama menang" bagi konsistensi perhitungan
+- Anda dapat menjelaskan dengan kata-kata sendiri mengapa beberapa baris melanggar lebih dari satu aturan dan apa arti "aturan pertama menang" bagi konsistensi perhitungan
 - Anda dapat menjelaskan mengapa pipeline dibangun di dalam folder sementara dan mengapa gerbang kualitas dievaluasi sebelum penulisan dilakukan
 - Anda dapat menjelaskan dua jebakan yang ada pada data (tip transaksi tunai dan kesamaan nama zona lokasi) serta cara pipeline Anda menanganinya
 - Berkas `NOTES.md` Anda mencatat temuan anomali data serta metrik observabilitas harian
@@ -191,7 +191,7 @@ python3 scripts/prove.py mod-4-1 ~/taxi
 ### @scenario
 Sebuah tim analitik taksi memuat file data bulanan TLC menggunakan skrip yang membersihkan baris data lalu melakukan operasi **append** ke tabel database warehouse. Sebuah dashboard laporan eksekutif menjumlahkan angka dari tabel tersebut. Suatu pagi, pimpinan keuangan bertanya mengapa total omset bulan Januari melonjak dua kali lipat dibandingkan angka yang dilaporkan minggu sebelumnya.
 
-Penyebabnya sederhana: proses ekspor data dari sistem mitra mengalami kegagalan pada percobaan pertama, lalu di-restart otomatis oleh scheduler, dan mengirimkan file bulan Januari untuk kedua kalinya ke folder penerimaan. Skrip pemuat mendeteksi adanya file baru dan langsung memprosesnya. Sebanyak 2.964.624 rekaman perjalanan duplikat ditambahkan ke tabel fakta. Tidak ada error yang muncul, tidak ada tes yang gagal, dan dashboard menggambar grafik omset dua kali lebih tinggi dari realitas. Masalah kedua menyusul: ketika tim mencoba menghapus baris ekstra tersebut secara manual di database produksi, pengiriman data baru tiba dengan nama kolom yang berubah. Skrip mengalami crash setelah menghapus data bulan sebelumnya, meninggalkan database dalam kondisi rusak.
+Penyebabnya sederhana: proses ekspor data dari sistem mitra mengalami kegagalan pada percobaan pertama, lalu di-restart otomatis oleh scheduler, dan mengirimkan file bulan Januari untuk kedua kalinya ke folder penerimaan. Skrip pemuat mendeteksi adanya file baru dan langsung memprosesnya. Hampir tiga juta rekaman perjalanan duplikat ditambahkan ke tabel fakta. Tidak ada error yang muncul, tidak ada tes yang gagal, dan dashboard menggambar grafik omset dua kali lebih tinggi dari realitas. Masalah kedua menyusul: ketika tim mencoba menghapus baris ekstra tersebut secara manual di database produksi, pengiriman data baru tiba dengan nama kolom yang berubah. Skrip mengalami crash setelah menghapus data bulan sebelumnya, meninggalkan database dalam kondisi rusak.
 
 ### @cause
 Pipeline tersebut tidak bersifat **idempoten**: memproses data yang sama dua kali menghasilkan status akhir yang berbeda karena menggunakan operasi append alih-alih membangun ulang atau melakukan merge berdasarkan kunci yang stabil. Pipeline juga tidak memiliki **aturan deduplikasi** dan tidak memiliki identifier unik deterministik untuk setiap perjalanan. Selain itu, pipeline melakukan penulisan **sebelum memverifikasi skema data**: masalah skema baru disadari di tengah proses setelah data lama terlanjur diubah, tanpa mekanisme pergantian atomik sehingga kegagalan skrip merusak integritas tabel.
@@ -218,15 +218,15 @@ Pipeline adalah fungsi murni dari data masukan ke folder keluaran: masukan yang 
 
 > Sifat idempoten berarti luaran adalah fungsi dari masukan data, bukan berapa kali pipeline dijalankan. Operasi append mengubah setiap percobaan ulang menjadi duplikasi data.
 
-### Dihitung secara independen, kelima aturan menandai 36.883 baris, namun pipeline menolak 36.824 baris. Apa penyebab selisih tersebut?
-- [ ] Pipeline kehilangan 59 baris akibat bug tersembunyi pada writer Parquet yang dipakai untuk menulis output
+### Dihitung secara independen, kelima aturan menandai lebih banyak baris secara total daripada yang ditolak pipeline. Apa penyebab selisih tersebut?
+- [ ] Pipeline kehilangan beberapa baris akibat bug tersembunyi pada writer Parquet yang dipakai untuk menulis output
 - [ ] Perhitungan independen mencakup baris duplikat, yang dihapus oleh pipeline sebelum aturan dijalankan
-- [x] 59 baris melanggar beberapa aturan; dengan aturan pertama yang menang, tiap baris dihitung sekali saja
+- [x] Beberapa baris melanggar beberapa aturan; dengan aturan pertama yang menang, tiap baris dihitung sekali saja
 - [ ] Aturan hanya memeriksa 2,9 juta baris pertama, sehingga baris-baris terakhir pada file tidak pernah diuji
 
 > Penjumlahan hitungan independen menghitung ganda baris yang melanggar beberapa aturan sekaligus. Memberikan satu alasan penolakan per baris memastikan total alasan cocok dengan jumlah baris yang ditolak.
 
-### Sebanyak 140.162 perjalanan memiliki nilai NULL pada kolom `passenger_count`. Apa tindakan kontrak terhadapnya, dan mengapa?
+### Ribuan perjalanan memiliki nilai NULL pada kolom `passenger_count`. Apa tindakan kontrak terhadapnya, dan mengapa?
 - [ ] Mengubahnya menjadi 1, karena perjalanan taksi membutuhkan minimal satu penumpang agar bisa terjadi
 - [ ] Menolak baris tersebut, karena nilai yang hilang selalu membuat baris data tidak berguna bagi analitik
 - [x] Mempertahankan baris dan nilai NULL, karena angka rekaan adalah fakta palsu yang tidak pernah diukur
@@ -237,10 +237,10 @@ Pipeline adalah fungsi murni dari data masukan ke folder keluaran: masukan yang 
 ### Mengapa `mart_daily` hanya menghitung persentase tip untuk perjalanan yang menggunakan kartu kredit?
 - [ ] Perjalanan kartu kredit adalah satu-satunya metode bayar di file, karena metode lain disembunyikan
 - [ ] Tip tunai bernilai lebih besar dari tip kartu, sehingga persentase harian akan tampak terlalu tinggi
-- [x] Tip tunai hampir tidak pernah dicatat (128 dari 439.191 perjalanan tunai), sehingga mencemari angka
+- [x] Tip tunai hampir tidak pernah dicatat dalam data, sehingga memasukkannya mencemari angka persentase
 - [ ] Mesin DuckDB tidak mampu menjumlahkan tip dari beberapa metode pembayaran berbeda dalam satu query
 
-> Sebuah metrik harus dihitung dari data yang benar-benar merefleksikan nilai aslinya. Sebanyak 95,1% transaksi kartu kredit mencatatkan tip; sebaliknya hanya 0,03% transaksi tunai yang mencatatkan tip karena argo fisik tidak merekam uang tip tunai.
+> Sebuah metrik harus dihitung dari data yang benar-benar merefleksikan nilai aslinya. Hampir semua transaksi kartu kredit mencatatkan tip; sebaliknya hampir tidak ada transaksi tunai yang mencatatkan tip karena argo fisik tidak merekam uang tip tunai.
 
 ### Zona 56 dan 57 dua-duanya bernama "Corona". Bagaimana seharusnya `mart_top_routes` mendefinisikan sebuah rute?
 - [ ] Berdasarkan nama zona jemput dan antar, karena nama tempat jauh lebih mudah dipahami daripada nomor ID angka

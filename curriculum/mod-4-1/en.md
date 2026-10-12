@@ -38,7 +38,7 @@ cp labs/mod-4-1/starter/pipeline.py ~/taxi/pipeline.py
 Expect roughly 15 to 25 hours in total. Each full run of your pipeline writes about 300 MB, and the checker runs it several times in a temporary folder that it deletes at the end.
 
 ## @lesson Meet the data
-The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip as a monthly Parquet file (public data of the City of New York). We use **January 2024**: one file of about 50 MB with **2,964,624 trips** and 19 columns. The checker verifies the SHA-256 hash of your download, so everybody works on identical bytes.
+The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip as a monthly Parquet file (public data of the City of New York). We use **January 2024**: one file of about 50 MB with almost three million trips and 19 columns. The checker verifies the SHA-256 hash of your download, so everybody works on identical bytes.
 
 | Column | Meaning |
 |---|---|
@@ -55,14 +55,14 @@ The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip
 
 A second file, `taxi_zone_lookup.csv`, describes the **265 zones**: `LocationID`, `Borough`, `Zone`, `service_zone`.
 
-**What we found when we profiled it** (you will find the same, and step 1 asks you for nine of these numbers):
+**What we found when we profiled it** (we give no counts here on purpose: step 1 asks you to find them, and you will find the same things):
 
-- The "January" file holds trips whose pickup time is as early as **2002-12-31** and as late as **2024-02-01**: **18** trips are outside January.
-- **870** trips end at or before the moment they start (56 end earlier, 814 end at the same second). **16** last longer than 24 hours.
-- **35,920** trips have a total of zero or less (refunds and disputes); the most extreme is -900.00, the largest total is 5,000.00. **59** trips claim more than 100 miles, and the longest says 312,722.3 miles.
-- **140,162** rows (4.7%) have NULL in `passenger_count`, `RatecodeID`, `store_and_fwd_flag`, `congestion_surcharge` and `Airport_fee` at once, and exactly that many have `payment_type` 0: these are *Flex Fare* trips, a newer kind of record that does not fill the old fields. **31,465** more trips say 0 passengers.
-- Zone **132** (JFK Airport) is the busiest pickup zone with 145,240 trips; 260 of the 265 zones appear as a pickup.
-- **Cash trips**: 439,191, of which only **128** have a tip. Of the 2,319,046 credit-card trips, **95.1%** have a tip. Cash tips are simply not recorded, so any tip statistic that includes cash is nonsense.
+- The "January" file holds trips whose pickup time is as early as **2002-12-31** and as late as **2024-02-01**: some trips are outside January.
+- Some trips end before they start, and some end at the very same second. A few last longer than 24 hours.
+- Many trips have a total of zero or less (refunds and disputes); the most extreme is -900.00, the largest total is 5,000.00. A few trips claim more than 100 miles, and the longest says 312,722.3 miles.
+- A block of rows (a few percent of the file) has NULL in `passenger_count`, `RatecodeID`, `store_and_fwd_flag`, `congestion_surcharge` and `Airport_fee` at once, and these are the very rows with `payment_type` 0: *Flex Fare* trips, a newer kind of record that does not fill the old fields. Other trips say 0 passengers.
+- The busiest pickup zone is a major airport; not every one of the 265 zones appears as a pickup.
+- **Cash trips** almost never have a tip, while most credit-card trips do. Cash tips are simply not recorded, so any tip statistic that includes cash is nonsense.
 - The zone table has traps too: ids 264 and 265 are "Unknown" and "Outside of NYC", and ids **56 and 57 are both named "Corona"**. A zone *name* is not a key.
 
 No duplicates exist in the real file, but a partner can send the same file twice, which is why your pipeline must handle it.
@@ -95,7 +95,7 @@ Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to r
 **A debugging routine that works for any pipeline.**
 
 1. Run your pipeline and open the output with DuckDB. Look at ten rows before you look at totals.
-2. Compare each count with the number in this lesson (2,964,624 in, 36,824 rejected, 2,927,800 clean). If a count is off, the difference tells you where to look: a small difference is a rule, a factor of two is a join or a duplicate.
+2. Compare each count with the number in this lesson (about 1.2% rejected, 2,927,800 clean rows). If a count is off, the difference tells you where to look: a small difference is a rule, a factor of two is a join or a duplicate.
 3. Test one rule at a time on the raw file with a plain `SELECT count(*) ... WHERE ...`, then compare with the reason counts in your rejected file.
 4. When a checker line fails, read it literally. "expected 2,927,800, you have 2,927,801" means one row too many, so find that row: select the rows of your clean file that break a rule.
 5. Change one thing at a time and rerun. A pipeline of this size runs in seconds, so there is no reason to guess.
@@ -117,7 +117,7 @@ This lesson is the specification. Read it fully before step 2; the checker follo
 | 4 | `non_positive_total` | `total_amount` is 0 or less |
 | 5 | `implausible_distance` | `trip_distance` is above 100 miles |
 
-On the real file this rejects **36,824** rows (1.24%): 18, 870, 16, 35,864 and 56 in the order of the table. The five rules alone add up to 36,883 when you count each independently, but **59 rows break more than one rule**; the first one wins, so each rejected row is counted once. Rows that pass all five rules are **clean**. A NULL `passenger_count` does *not* reject a row, and it stays NULL (do not invent 0 or 1).
+On the real file this rejects about 1.2% of the rows, and the checker compares your count per reason with its own. If you count each rule independently, the counts add up to more than the number of rejected rows, because **a few rows break more than one rule**; the first one wins, so each rejected row is counted once. Rows that pass all five rules are **clean**. A NULL `passenger_count` does *not* reject a row, and it stays NULL (do not invent 0 or 1).
 
 **Output files.**
 
@@ -176,7 +176,7 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 
 ### @deliverables
 - `python3 labs/mod-4-1/check.py ~/taxi --step all` passes **on your own computer, in your own virtual environment**
-- You can explain, in your own words, why 59 rows break more than one rule and what "the first rule wins" means for the counts
+- You can explain, in your own words, why a few rows break more than one rule and what "the first rule wins" means for the counts
 - You can explain why the pipeline builds in a temporary folder and why the gate runs before anything is written
 - You can say which two traps are in the data (cash tips, zone names) and how your pipeline avoids them
 - Your `NOTES.md` states what surprised you and what you would monitor nightly
@@ -191,7 +191,7 @@ python3 scripts/prove.py mod-4-1 ~/taxi
 ### @scenario
 A taxi analytics team loads each monthly TLC file with a script that cleans the rows and **appends** them to a warehouse table. A revenue dashboard sums that table. One morning the finance lead asks why January revenue has doubled compared with the figure published last week.
 
-The cause is dull: the partner's export job failed on its first attempt, was restarted, and delivered the January file a second time into the landing folder. The loader found a new file, so it processed it. 2,964,624 duplicate trips were appended. Nothing failed, no test was red, and the dashboard drew a beautiful column twice as high as it should be. A second incident follows the first: while the team deleted the extra rows by hand, a bad delivery arrived in which a column had been renamed. The script crashed after it had already deleted the previous month from the table.
+The cause is dull: the partner's export job failed on its first attempt, was restarted, and delivered the January file a second time into the landing folder. The loader found a new file, so it processed it. almost three million duplicate trips were appended. Nothing failed, no test was red, and the dashboard drew a beautiful column twice as high as it should be. A second incident follows the first: while the team deleted the extra rows by hand, a bad delivery arrived in which a column had been renamed. The script crashed after it had already deleted the previous month from the table.
 
 ### @cause
 The pipeline was not **idempotent**: processing the same data twice changed the result, because it appended instead of rebuilding or merging by a stable key. It had no **de-duplication rule** and no stable identifier for a trip. It also wrote **before it checked**: the schema problem was discovered halfway through, after the old data had already been modified, and there was no atomic swap, so a crash left the table in a state that matched neither the old nor the new delivery.
@@ -218,15 +218,15 @@ A pipeline is a pure function from a delivery to an output folder: same input, s
 
 > Idempotence means the output is a function of the input, not of how many times the pipeline ran. Appending turns every retry into a duplicate.
 
-### Counted independently, the five rules flag 36,883 rows, but the pipeline rejects 36,824. What explains the difference?
-- [ ] The pipeline loses 59 rows through a bug that is hidden in the Parquet writer used for the output
+### Counted independently, the five rules flag more rows in total than the pipeline rejects. What explains the difference?
+- [ ] The pipeline loses some rows through a bug that is hidden in the Parquet writer used for the output
 - [ ] The independent counts include the duplicate rows, which the pipeline removes before applying the rules
-- [x] 59 rows break more than one rule, and with "first rule wins" each rejected row is counted only once
+- [x] A few rows break more than one rule, and with "first rule wins" each rejected row is counted only once
 - [ ] The rules apply only to the first 2.9 million rows, so the last rows of the file are never checked
 
 > The sum of independent counts double-counts rows that break several rules. Assigning one reason per row makes the counts add up to the number of rejected rows.
 
-### 140,162 trips have a NULL `passenger_count`. What does the contract do with them, and why?
+### Thousands of trips have a NULL `passenger_count`. What does the contract do with them, and why?
 - [ ] Set the count to 1, since a taxi trip needs at least one passenger to exist at all
 - [ ] Reject them, because a missing value always makes the whole row useless for any analysis
 - [x] Keep the rows and the NULL, because an invented number would be a fact nobody measured
@@ -237,10 +237,10 @@ A pipeline is a pure function from a delivery to an output folder: same input, s
 ### Why does `mart_daily` compute the tip percentage over credit-card trips only?
 - [ ] Credit-card trips are the only ones present in the file, because the other payment types are hidden
 - [ ] Cash tips are larger than card tips, which would make the daily percentage look much too high
-- [x] Cash tips are hardly ever recorded (128 of 439,191 cash trips), so cash would drag the figure down
+- [x] Cash tips are hardly ever recorded in the data, so including cash would drag the whole figure down
 - [ ] The DuckDB engine cannot add the tips of different payment types together in one single query
 
-> A metric must use data that measures what it claims to. Of 2,319,046 credit-card trips 95.1% show a tip; of the cash trips only 0.03% do, because the meter does not capture cash tips.
+> A metric must use data that measures what it claims to. Almost every credit-card trip shows a tip; almost no cash trip does, because the meter does not capture cash tips.
 
 ### Zones 56 and 57 are both named "Corona". How should `mart_top_routes` define a route?
 - [ ] By the pickup and dropoff zone names, because names are easier to read than numbers are

@@ -129,12 +129,14 @@ try:
         rc, out = prove("mod-0-2", str(ws))
         check(rc == 0 and app_check("mod-0-2", code_of(out))["ok"], "Lab 0.2: an own workspace is accepted")
 
+    # the capstone checkers need DuckDB and PyArrow in the temporary venv (installed once here, whichever capstone data is present)
+    rc, out = sh([py, "-m", "pip", "install", "-q", "duckdb", "pyarrow"])
+    check(rc == 0 or sh([py, "-c", "import duckdb, pyarrow"])[0] == 0, "duckdb and pyarrow installed in the temporary venv")
+
     # Capstone 4.1: a workspace-based lab whose checker runs the learner's pipeline (needs the 50 MB input data; skipped when it was not downloaded)
     data4 = ROOT / "labs" / "mod-4-1" / "data"
     if (data4 / "yellow_tripdata_2024-01.parquet").is_file() and (data4 / "taxi_zone_lookup.csv").is_file():
         (work / "labs" / "mod-4-1" / "data").symlink_to(data4, target_is_directory=True)
-        rc, out = sh([py, "-m", "pip", "install", "-q", "duckdb", "pyarrow"])
-        check(rc == 0 or sh([py, "-c", "import duckdb, pyarrow"])[0] == 0, "duckdb and pyarrow installed in the temporary venv")
         cap = work / "labs" / "mod-4-1"
         ws4 = tmp / "taxi"
         ws4.mkdir()
@@ -197,6 +199,31 @@ try:
         check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.3: honest work run in a venv is accepted ({r})")
     else:
         print("SKIP Capstone 4.3 proof test: run  python3 labs/mod-4-3/fetch_data.py  first")
+
+    # Capstone 4.4: Apache Airflow (needs Airflow in the Python that runs this test; skipped otherwise because the install is large)
+    import importlib.util
+    data44 = ROOT / "labs" / "mod-4-4" / "data" / "inbox"
+    in_venv = sys.prefix != getattr(sys, "base_prefix", sys.prefix)
+    if list(data44.glob("jobs_*.jsonl")) and importlib.util.find_spec("airflow") is not None and in_venv:
+        prove = lambda *a, e=env: sh([sys.executable, str(work / "scripts" / "prove.py"), *a], cwd=str(work), env=e)  # noqa: E731 (Airflow lives in THIS venv)
+        cap4 = work / "labs" / "mod-4-4"
+        ws44 = tmp / "airflow-lab"
+        ws44.mkdir()
+        rc, out = sh([sys.executable, "-c", "import json, sys; sys.path.insert(0, 'labs/mod-4-4'); import check; print(json.dumps(check.profile_truth()))"], cwd=str(work), env=env)
+        (ws44 / "profile.json").write_text(out.strip().splitlines()[-1], encoding="utf-8")
+        shutil.copy(cap4 / "starter" / "jobs_pipeline.py", ws44 / "jobs_pipeline.py")
+        rc, out = prove("mod-4-4", str(ws44))
+        check(rc == 1 and code_of(out) is None, "Capstone 4.4 starter: the checker fails, no code is printed")
+        ref44 = (cap4 / "reference" / "jobs_pipeline.py").read_text(encoding="utf-8")
+        (ws44 / "jobs_pipeline.py").write_text(ref44, encoding="utf-8")
+        rc, out = prove("mod-4-4", str(ws44))
+        check(rc == 0 and code_of(out) and app_check("mod-4-4", code_of(out))["reason"] == "copied", "Capstone 4.4: the copied reference DAG is rejected")
+        (ws44 / "jobs_pipeline.py").write_text(ref44 + "\n# my own DAG notes\n", encoding="utf-8")
+        rc, out = prove("mod-4-4", str(ws44))
+        r = app_check("mod-4-4", code_of(out) or "")
+        check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.4: honest work run in a venv is accepted ({r})")
+    else:
+        print("SKIP Capstone 4.4 proof test: run this test from a virtual environment that has Apache Airflow (see labs/mod-4-4/requirements.txt)")
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

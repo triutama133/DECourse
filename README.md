@@ -2,7 +2,7 @@
 
 A self-study data engineering course that runs in your browser: a curriculum with hands-on labs and "chaos" scenarios, a SQL sandbox with auto-checked challenges, interview practice, portfolio blueprints and a resume builder. UI languages: Indonesian and English.
 
-> **Status:** 23 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes). The Level 4 capstone (4.1) is complete in English; its Indonesian version is still to be written.
+> **Status:** 23 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes). The Level 4 capstones 4.1 to 4.3 are complete in both languages; 4.4 (Airflow) is English only so far.
 > 
 > 💡 **New to Data Engineering?** Read the [Beginner Walkthrough / Panduan Belajar Pemula](WALKTHROUGH.md) for a complete zero-to-pro study guide and learning loop.
 
@@ -38,7 +38,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 
 | Part | What you get |
 |---|---|
-| **Curriculum** | 5 levels, 26 modules, about 65 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8 to 10 question quiz with explanations (80% to pass). |
+| **Curriculum** | 5 levels, 27 modules, about 68 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8 to 10 question quiz with explanations (80% to pass). |
 | **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
 | **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and 48 challenges whose results are checked against a reference query (`node scripts/verify_sandbox.js` runs every solution on the same engine). SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
 | **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |
@@ -46,7 +46,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 | **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
 | **Job Readiness Dashboard** | Overall readiness score, 6 competency domain matrices, hiring checklist, next action steps, and exportable PDF report. |
 
-### The 26 modules
+### The 27 modules
 
 | | Module |
 |---|---|
@@ -54,7 +54,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 | **Level 1** | 1.1 Linux, shell and Docker · 1.2 Production Python · 1.3 Advanced SQL, execution plans and dialects · 1.4 Dimensional modeling · 1.5 pandas for data engineers · 1.6 Getting data in: files, APIs, databases · 1.7 Beyond SQL: key-value, document, wide-column and graph stores |
 | **Level 2** | 2.1 Parquet, DuckDB and Polars · 2.2 Iceberg and Delta Lake · 2.3 dbt · 2.4 Dagster and Airflow · 2.5 Data quality and contracts · 2.6 Cloud data warehouses (Snowflake, BigQuery, Redshift) |
 | **Level 3** | 3.0 From Hadoop to Spark (HDFS, MapReduce, YARN, Hive) · 3.1 Spark internals · 3.2 Kafka (clusters, Schema Registry) and CDC · 3.3 Event time, windows and watermarks · 3.4 Terraform and FinOps · 3.5 AI and vector data engineering (pgvector) |
-| **Level 4** | 4.1 Capstone: a real pipeline on NYC taxi trips · 4.2 Capstone: fault-tolerant incremental API ingestion & checkpointing (USGS seismic data) · 4.3 Capstone: real-time event streaming, watermarks & late data handling (fleet telemetry) |
+| **Level 4** | 4.1 Capstone: a real pipeline on NYC taxi trips · 4.2 Capstone: fault-tolerant incremental API ingestion & checkpointing (USGS seismic data) · 4.3 Capstone: real-time event streaming, watermarks & late data handling (fleet telemetry) · 4.4 Capstone: orchestrate a daily pipeline with Apache Airflow (job postings) |
 
 ### How the labs were verified
 

@@ -262,5 +262,15 @@ window.PROOF = {
   "tests": "3225bcc8",
   "starter": "eb350562",
   "reference": "9d283c08"
+ },
+ "mod-4-4": {
+  "arg": "workspace",
+  "requireVenv": true,
+  "needsEnv": [],
+  "command": "python3 scripts/prove.py mod-4-4 ~/airflow-lab",
+  "argExample": "~/airflow-lab",
+  "tests": "c51f55d4",
+  "starter": "0fb269a7",
+  "reference": "a2c9a46c"
  }
 };

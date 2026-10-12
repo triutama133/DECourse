@@ -65,7 +65,7 @@ jobs:
       - name: Install Base Test Requirements
         run: |
           python -m pip install --upgrade pip
-          pip install pytest duckdb polars pydantic pandas pyarrow
+          pip install pytest duckdb polars pydantic pandas pyarrow "psycopg[binary]" pgserver   # psycopg + pgserver: the PostgreSQL EXPLAIN lab (1.3)
 
       - name: Run Level 0 & Level 1 Shell Verifications
         run: |
@@ -80,3 +80,24 @@ jobs:
       - name: Run Core Lab Tests
         run: |
           python3 scripts/verify_labs.py mod-0-0 mod-0-1 mod-0-2 mod-0-3 mod-1-1 mod-1-2 mod-1-3 mod-1-4 mod-1-5 mod-1-6 mod-1-7 mod-2-1 mod-2-6 mod-3-0 mod-4-1 mod-4-2 mod-4-3
+
+  test-airflow-capstone:
+    name: Verify Capstone 4.4 (Apache Airflow)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Airflow with the official constraint file
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r labs/mod-4-4/requirements.txt \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt"
+
+      - name: Reference DAG passes the checker, starter fails it
+        run: python3 scripts/verify_labs.py mod-4-4

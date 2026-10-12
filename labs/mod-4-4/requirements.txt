@@ -1,0 +1,5 @@
+apache-airflow==3.1.8
+duckdb>=1.0
+# install with the official constraints so that Airflow gets versions it was tested with:
+#   pip install -r labs/mod-4-4/requirements.txt --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt
+# (replace 3.12 by your Python version, for example 3.11 or 3.13)

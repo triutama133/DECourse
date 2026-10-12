@@ -585,5 +585,33 @@
    "labs/mod-4-3/starter/stream_processor.py"
   ],
   "require_venv": true
+ },
+ "mod-4-4": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-4-4/check.py",
+    "args": [
+     "{arg0}",
+     "--step",
+     "all"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-4-4/check.py"
+  ],
+  "work": [
+   "{arg0}/jobs_pipeline.py"
+  ],
+  "reference": [
+   "labs/mod-4-4/reference/jobs_pipeline.py"
+  ],
+  "arg": "workspace",
+  "arg_example": "~/airflow-lab",
+  "starter": [
+   "labs/mod-4-4/starter/jobs_pipeline.py"
+  ],
+  "require_venv": true
  }
 }
