@@ -16,6 +16,14 @@ why: Many courses show you def and for for ten minutes and rush on. You copy the
 ## @prereq
 None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.2 then teaches the proper setup on your own computer.
 
+> [!IMPORTANT]
+> **How to Work on Labs (Beginner Guide):**
+> The code file `labs/mod-0-0/basics.py` is a **source code text document**, NOT a shell terminal command!
+> - **Do NOT** type `labs/mod-0-0/basics.py` directly into your bash terminal (this will trigger `Permission denied` or `command not found` errors!).
+> - **Open in editor:** Click the file name in your editor's sidebar (VS Code / Cursor), or type `code labs/mod-0-0/basics.py`, or edit directly in the browser editor on the Lab tab.
+> - **Terminal is only for tests:** Use the terminal to run automated test commands (`pytest labs/mod-0-0/test_lab.py -v`).
+> - **Ping-Pong Study Rhythm:** Do not read the entire chapter before coding! Follow the **👉 Practice Pause** callouts at the end of each lesson to implement functions step by step.
+
 ## @lesson How a program runs: values, variables and types
 A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens "in the background" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.
 
@@ -45,6 +53,12 @@ Two traps to learn now. First, money must be an `int` in the smallest unit, beca
 
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
 
+> 💡 **Practice Pause 1 (Try It Now):**
+> Do not read the next section yet! Open your working file `labs/mod-0-0/basics.py` in your text editor (click the file in your editor's sidebar or type `code labs/mod-0-0/basics.py`).
+> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then test it in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
+> If all 4 tests turn green, congratulations! You have implemented your first function. Proceed to Lesson 2 below.
+
 ## @lesson Collections: one value is never enough
 One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
 
@@ -69,6 +83,13 @@ A real data file is therefore usually **a list of dictionaries**: the list is th
 
 One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
+> 💡 **Practice Pause 2 (Try It Now):**
+> Switch back to `labs/mod-0-0/basics.py` in your editor. Apply the dictionary and set concepts you just learned:
+> 1. Implement `count_by_status(orders)` using the dict counting pattern `counts[status] = counts.get(status, 0) + 1`.
+> 2. Implement `unique_customer_ids(orders)` using `set` and `sorted()`.
+> Test both functions in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
+
 ## @lesson Decisions: if, elif, else
 A decision is how a program chooses between paths. In data engineering almost all **validation** is decisions: is this total a number? is the status one we know?
 
@@ -91,6 +112,10 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 **Why decisions are everywhere in pipelines.** The rule of Module 0.1 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
 
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
+
+> 💡 **Practice Pause 3 (Try It Now):**
+> Open `labs/mod-0-0/basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then test it in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Repetition: for, while and comprehensions
 A file has 100,000 rows. You cannot write 100,000 lines, so you write the instruction **once** and let the computer repeat it. That is a loop, and it is the engine of every data pipeline.
@@ -116,6 +141,14 @@ A **comprehension** is a loop written as one expression: `ids = [int(o["customer
 **Sorting and ranking with `sorted()`**: In data pipelines, you frequently rank items (e.g. highest spending customers). The built-in `sorted(data, key=...)` accepts a `key` function telling Python what property to rank by. A short one-line function called a **lambda** (`lambda x: ...`) is often used as the key. For example, to sort `(customer_id, total)` pairs by total descending, write `sorted(pairs, key=lambda pair: -pair[1])` (the minus sign turns highest into smallest so Python puts it first). When two customers spent the exact same total and you want to break ties by smaller customer ID, return a tuple from the key: `key=lambda pair: (-pair[1], pair[0])`. Python compares the first tuple element first, and only inspects the second when there is a tie.
 
 A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing in the loop ever makes the condition false, it runs forever. Always ask: "what changes inside the loop so that it ends?"
+
+> 💡 **Practice Pause 4 (Try It Now):**
+> Apply for-loops, accumulators, slicing, and ranking:
+> 1. Implement `total_revenue(orders)` to sum uncancelled orders.
+> 2. Implement `batches(items, size)` using a `range(0, len(items), size)` loop.
+> 3. Implement `top_customers(orders, n)` using `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
+> Test in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Functions: def, parameters and return
 Look at the loop that sums totals. If you need the same sum in five places, you do not copy five loops. You give the loop a **name** and reuse it. That is a function, and it exists for three reasons: **reuse** (write once), **clarity** (a good name explains the purpose, so `total_revenue(orders)` is read like a sentence), and **testing** (a small function with one input and one output can be checked automatically, which is how the lab works).
@@ -165,6 +198,14 @@ Three rules that separate good pipelines from dangerous ones:
 
 A bad row from a customer is *expected* data, so you handle it (put it aside with a reason). A missing file or a programming mistake is *not* expected, so let it fail loudly.
 
+> 💡 **Practice Pause 5 (Try It Now):**
+> Apply pure functions, error handling, and avoiding the mutable default bug:
+> 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
+> 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
+> 3. Implement `split_valid(orders)` using your `safe_int` function.
+> Test in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
+
 ## @lesson Files, imports and running a script
 Programs read files. The standard pattern:
 
@@ -189,6 +230,12 @@ if __name__ == "__main__":
 Python sets the special name `__name__` to `"__main__"` only when the file is *run directly*. When another file imports it, `__name__` is the module's name instead, so `main()` does not run. The effect: the file works both as a program and as a library you can test.
 
 Paths: use `pathlib.Path("data") / "orders.csv"` instead of gluing strings, and remember that a relative path is relative to the folder you started Python in, which is the usual reason for `FileNotFoundError`.
+
+> 💡 **Practice Pause 6 (Complete the Entire Lab):**
+> Open `labs/mod-0-0/basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
+> Now, run the full suite of 31 unit tests in your terminal:
+> `pytest labs/mod-0-0/test_lab.py -v`
+> If all 31 tests are GREEN, your entire Python foundation is proven to work!
 
 ## @lesson Putting it together, and how to debug
 You now have every piece of a tiny pipeline: read the file (lesson 7), loop over the rows (4), decide what is valid (3), set the bad ones aside (6), count with a dict (2), wrap each step in a function (5). Here it is as a plan you can read like a story:
@@ -222,8 +269,8 @@ You will not remember everything after one reading, and you are not supposed to.
 Write eleven short functions, each practising one idea from the lessons: formatting numbers, converting text safely, looping and summing, counting with dictionaries, removing duplicates with a set, splitting valid from invalid, averaging without dividing by zero, ranking, cutting a list into batches, avoiding the mutable default trap, and reading a CSV file. The tests (31) tell you what each function must do.
 
 ### @steps
-1. Open `labs/mod-0-0/basics.py` and read it from top to bottom first. Every function has a docstring with examples; the lesson numbers tell you where the idea is explained.
-2. Work in this order, and run the tests after EACH function: `format_rupiah`, `safe_int`, `total_revenue`, `count_by_status`, `unique_customer_ids`, `split_valid`, `average_total`, `top_customers`, `batches`, `add_to_batch`, `read_orders`.
+1. Open your working file `labs/mod-0-0/basics.py` in your text editor (e.g. click the file in your VS Code/Cursor sidebar or type `code labs/mod-0-0/basics.py`; *DO NOT execute directly in bash!*). Read through it from top to bottom first. Every function has a docstring with examples and the corresponding lesson number.
+2. Work in order following the **Practice Pause** prompts after each lesson, and run tests after EACH function: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, `top_customers`, `safe_int`, `add_to_batch`, `split_valid`, `read_orders`.
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # all of them

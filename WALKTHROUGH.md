@@ -41,10 +41,18 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 - **Test suite (`test_*.py` atau `verify.sh`)**: Kumpulan pengujian otomatis untuk memvalidasi solusi Anda.
 - **Reference solution (`reference/`)**: Kunci jawaban berstandar industri jika Anda benar-benar mentok.
 
+> [!IMPORTANT]
+> **Cara Mengedit File Lab (PENTING untuk Pemula):**
+> File kode seperti `labs/mod-0-0/basics.py` atau `labs/mod-1-2/pipeline.py` adalah **file dokumen teks kode sumber**, BUKAN perintah shell terminal!
+> - **JANGAN** mengetik `labs/mod-0-0/basics.py` langsung di terminal bash (Anda akan mendapat pesan error `Permission denied` atau `command not found`).
+> - **Buka file tersebut di text editor** Anda: klik nama file di panel explorer editor (VS Code / Cursor), atau ketik perintah editor: `code labs/mod-X-Y/nama_file.py`. (Atau gunakan kotak editor interaktif di tab Lab pada aplikasi web).
+> - **Terminal HANYA dipakai untuk menjalankan perintah uji coba**: seperti `pytest labs/mod-X-Y/test_lab.py -v` atau `bash labs/mod-X-Y/verify.sh`.
+> - **Gunakan Metode Ping-Pong:** Jangan membaca seluruh teks bab sampai habis baru mengoding! Baca satu topik pelajaran, jeda sejenak, buka file di editor, kerjakan fungsinya, lalu jalankan tesnya di terminal.
+
 **Cara mengerjakan lab:**
-1. Buka terminal di folder kursus. Belum punya foldernya? Buka halaman **Mulai di sini** di aplikasi (atau lihat bagian Quick Start di README): di sana ada perintah `git clone`, tautan ZIP, dan opsi GitHub Codespaces tanpa instalasi. Lalu:
+1. Buka terminal di folder kursus:
    ```bash
-   cd DECourse    # nama folder hasil clone atau ekstrak ZIP
+   cd DECourse    # atau direktori tempat Anda membuka workspace ini
    ```
 2. Jalankan pengujian awal untuk melihat kegagalan yang diharapkan:
    ```bash
@@ -52,8 +60,8 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
    # atau untuk lab berbasis bash:
    bash labs/mod-X-Y/verify.sh
    ```
-3. Edit file implementasi yang diminta di petunjuk modul (misal `labs/mod-1-2/pipeline.py`).
-4. Jalankan kembali pengujian sampai semua indikator tes berwarna **hijau (PASSED)**.
+3. Buka dan edit file implementasi di text editor (misal: buka `labs/mod-0-0/basics.py` di VS Code).
+4. Jalankan kembali pengujian sampai indikator tes berubah menjadi **hijau (PASSED)**.
 5. *Jika Anda buntu*: Intip implementasi di `labs/mod-X-Y/reference/`, pelajari mengapa polanya seperti itu, lalu tutup kembali dan tulis dengan pemahaman Anda sendiri.
 
 ### Langkah 3: Bedah Chaos Scenario

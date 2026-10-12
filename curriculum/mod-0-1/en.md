@@ -15,6 +15,10 @@ why: Most courses start by typing SELECT * on a clean file. On the job, nobody h
 ## @prereq
 Module 0.0 (Python from zero) is strongly recommended: the lab uses functions, loops, dictionaries and error handling that Module 0.0 explains. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works.
 
+> [!IMPORTANT]
+> **Editor vs Terminal Reminder:**
+> Open and edit code files (such as `labs/mod-0-1/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-1/pipeline.py` in your shell). Use the terminal only for test commands, such as `python3 labs/mod-0-1/test_lab.py -v`.
+
 ## @lesson Why this job exists: two kinds of database
 Imagine **KopiKu**, a small online shop that sells specialty coffee beans from Gayo, Toraja and Flores. Every time a customer taps "Pay", the website writes one new row to a database: who bought, what, how much, when. That database exists to run the shop. It must answer small questions very fast ("what is in this customer's cart?") and it must never lose an order. This kind of database is called **OLTP** (Online Transaction Processing). PostgreSQL and MySQL are the usual choices.
 
@@ -134,7 +138,7 @@ grep -c ",-" data/orders.csv      # negative totals
 cat data/manifest.json            # what was planted, and how much
 ```
 
-3. Open `labs/mod-0-1/pipeline.py`. Four functions raise `NotImplementedError`. Implement them in this order, running the tests after each one:
+3. Open `labs/mod-0-1/pipeline.py` in your text editor (e.g. click it in your editor sidebar or type `code labs/mod-0-1/pipeline.py`; do not execute directly in bash!). Four functions raise `NotImplementedError`. Implement them in this order, running the tests after each one:
    `parse_total`, then `parse_ts`, then `clean_orders`, then `daily_revenue`.
 4. Decide what to do with a row you cannot trust. The rule for this lab: **never guess and never drop silently.** Every dropped row goes into `rejected` with a short reason.
 5. Run the program on the real file and compare the count of rows in and out:

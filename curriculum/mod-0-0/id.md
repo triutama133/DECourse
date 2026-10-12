@@ -16,6 +16,14 @@ why: Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-bur
 ## @prereq
 Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.2 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.
 
+> [!IMPORTANT]
+> **Cara Mengerjakan Lab (Panduan Pemula):**
+> File kode `labs/mod-0-0/basics.py` adalah **file dokumen teks kode sumber**, bukan perintah shell terminal!
+> - **Jangan** mengetik `labs/mod-0-0/basics.py` langsung di terminal bash (akan memicu error `Permission denied` atau `command not found`!).
+> - **Buka di editor:** Klik nama file di sidebar editor (VS Code / Cursor), atau ketik `code labs/mod-0-0/basics.py`, atau edit langsung di kotak browser pada tab Lab.
+> - **Terminal hanya untuk tes:** Gunakan terminal untuk menjalankan perintah tes otomatis (`pytest labs/mod-0-0/test_lab.py -v`).
+> - **Ritme Belajar Ping-Pong:** Jangan membaca seluruh bab sampai habis baru mengoding! Ikuti tanda **👉 Jeda Praktik** di akhir setiap pelajaran untuk mencoba fungsi secara bertahap.
+
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
 Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.
 
@@ -45,6 +53,12 @@ Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dal
 
 Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
 
+> 💡 **Jeda Praktik 1 (Coba Sekarang):**
+> Jangan membaca materi berikutnya dulu! Buka file kerja `labs/mod-0-0/basics.py` di Text Editor Anda (klik file di sidebar editor Anda atau ketik `code labs/mod-0-0/basics.py`). 
+> Temukan fungsi `format_rupiah(amount)` (baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu uji di terminal:
+> `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
+> Jika 4 tes berhasil hijau, selamat! Anda telah memecahkan fungsi pertama. Lanjut ke Pelajaran 2 di bawah.
+
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
 
@@ -69,6 +83,13 @@ Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adala
 
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
 
+> 💡 **Jeda Praktik 2 (Coba Sekarang):**
+> Buka kembali `labs/mod-0-0/basics.py` di editor Anda. Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
+> 1. Kerjakan `count_by_status(orders)` menggunakan pola penghitungan dict `counts[status] = counts.get(status, 0) + 1`.
+> 2. Kerjakan `unique_customer_ids(orders)` menggunakan `set` dan `sorted()`.
+> Uji kedua fungsi ini di terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
+
 ## @lesson Keputusan: if, elif, else
 Keputusan adalah cara program memilih di antara jalur. Dalam data engineering hampir semua **validasi** adalah keputusan: apakah total ini angka? apakah status ini kita kenal?
 
@@ -91,6 +112,10 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 **Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.1 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.
 
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
+
+> 💡 **Jeda Praktik 3 (Coba Sekarang):**
+> Buka `labs/mod-0-0/basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu uji di terminal:
+> `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Pengulangan: for, while, dan comprehension
 Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah perulangan (loop), dan ia adalah mesin dari setiap pipeline data.
@@ -116,6 +141,14 @@ Alat-alat yang berguna, masing-masing menyelesaikan satu gangguan tertentu:
 **Mengurutkan dan memeringkat dengan `sorted()`**: Dalam pipeline data, Anda akan sering memeringkat data (misalnya pelanggan dengan total belanjaan terbesar). Fungsi bawaan `sorted(data, key=...)` menerima fungsi `key` yang memberi tahu Python nilai apa yang dijadikan patokan urutan. Fungsi kecil satu baris bernama **lambda** (`lambda x: ...`) sering dipakai sebagai key ini. Sebagai contoh, untuk mengurutkan pasangan `(customer_id, total)` dari total terbesar ke terkecil, tulis `sorted(pairs, key=lambda pair: -pair[1])` (tanda minus membalik urutan sehingga nilai terbesar muncul pertama). Jika dua pelanggan memiliki total yang sama persis dan Anda ingin memecah seri berdasarkan ID pelanggan terkecil, kembalikan sebuah tuple dari fungsi key: `key=lambda pair: (-pair[1], pair[0])`. Python membandingkan elemen pertama tuple terlebih dahulu, dan hanya memeriksa elemen kedua jika elemen pertama bernilai sama.
 
 Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. Pakai saat Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: jika tidak ada yang membuat kondisi menjadi salah di dalam loop, ia berjalan selamanya. Selalu tanyakan: "apa yang berubah di dalam loop sehingga ia berakhir?"
+
+> 💡 **Jeda Praktik 4 (Coba Sekarang):**
+> Terapkan perulangan for, accumulator, pemotongan slicing, dan pemeringkatan:
+> 1. Kerjakan `total_revenue(orders)` untuk menjumlahkan pesanan yang tidak dibatalkan.
+> 2. Kerjakan `batches(items, size)` menggunakan loop `range(0, len(items), size)`.
+> 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
+> Uji di terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Fungsi: def, parameter, dan return
 Lihat loop yang menjumlahkan total. Jika Anda butuh jumlah yang sama di lima tempat, Anda tidak menyalin lima loop. Anda memberi loop itu sebuah **nama** dan memakainya ulang. Itulah fungsi, dan ia ada karena tiga alasan: **pemakaian ulang** (tulis sekali), **kejelasan** (nama yang baik menjelaskan tujuannya, jadi `total_revenue(orders)` terbaca seperti kalimat), dan **pengujian** (fungsi kecil dengan satu masukan dan satu keluaran bisa diperiksa otomatis, begitulah lab ini bekerja).
@@ -165,6 +198,14 @@ Tiga aturan yang memisahkan pipeline yang baik dari yang berbahaya:
 
 Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (menyisihkannya beserta alasan). File hilang atau kesalahan pemrograman *tidak diduga*, jadi biarkan gagal dengan lantang.
 
+> 💡 **Jeda Praktik 5 (Coba Sekarang):**
+> Terapkan fungsi murni, penanganan error, dan pencegahan bug mutable default:
+> 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
+> 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
+> 3. Kerjakan `split_valid(orders)` menggunakan fungsi `safe_int` yang Anda buat.
+> Uji di terminal:
+> `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
+
 ## @lesson File, import, dan menjalankan skrip
 Program membaca file. Pola standarnya:
 
@@ -189,6 +230,12 @@ if __name__ == "__main__":
 Python mengisi nama khusus `__name__` dengan `"__main__"` hanya saat file *dijalankan langsung*. Ketika file lain meng-import-nya, `__name__` adalah nama modulnya, sehingga `main()` tidak berjalan. Akibatnya: file bisa berfungsi sebagai program dan sebagai pustaka yang bisa Anda uji.
 
 Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, dan ingat bahwa path relatif dihitung dari folder tempat Anda memulai Python, yang biasanya jadi sebab `FileNotFoundError`.
+
+> 💡 **Jeda Praktik 6 (Lengkapi Seluruh Lab):**
+> Buka `labs/mod-0-0/basics.py`, kerjakan fungsi terakhir `read_orders(path)` menggunakan `with open(...)` dan `csv.DictReader`.
+> Sekarang, jalankan seluruh rangkaian 31 unit test di terminal:
+> `pytest labs/mod-0-0/test_lab.py -v`
+> Jika semua 31 tes berwarna HIJAU, seluruh fondasi Python Anda telah terbukti bekerja!
 
 ## @lesson Menyatukan semuanya, dan cara men-debug
 Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (pelajaran 7), ulangi baris-barisnya (4), putuskan mana yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus tiap langkah dalam fungsi (5). Berikut sebagai rencana yang bisa dibaca seperti cerita:
@@ -222,8 +269,8 @@ Anda tidak akan mengingat semuanya setelah sekali membaca, dan memang tidak diha
 Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran: memformat angka, mengonversi teks dengan aman, mengulang dan menjumlahkan, menghitung dengan dictionary, membuang duplikat dengan set, memisahkan yang valid dari yang tidak, merata-rata tanpa membagi dengan nol, membuat peringkat, memotong list menjadi batch, menghindari jebakan nilai bawaan mutable, dan membaca file CSV. Tesnya (31) memberi tahu apa yang harus dilakukan setiap fungsi.
 
 ### @steps
-1. Buka `labs/mod-0-0/basics.py` dan baca dari atas ke bawah lebih dulu. Setiap fungsi punya docstring dengan contoh; nomor pelajaran memberi tahu di mana gagasannya dijelaskan.
-2. Kerjakan berurutan, dan jalankan tes setelah SETIAP fungsi: `format_rupiah`, `safe_int`, `total_revenue`, `count_by_status`, `unique_customer_ids`, `split_valid`, `average_total`, `top_customers`, `batches`, `add_to_batch`, `read_orders`.
+1. Buka file kerja `labs/mod-0-0/basics.py` di Text Editor Anda (misal: klik file di sidebar VS Code/Cursor atau ketik `code labs/mod-0-0/basics.py`; *JANGAN dieksekusi langsung di bash!*). Baca isinya dari atas ke bawah. Setiap fungsi memiliki docstring dengan contoh dan nomor pelajaran yang bersangkutan.
+2. Kerjakan berurutan mengikuti panduan **Jeda Praktik** di setiap akhir pelajaran, dan jalankan tes setelah SETIAP fungsi: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, `top_customers`, `safe_int`, `add_to_batch`, `split_valid`, `read_orders`.
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # semuanya

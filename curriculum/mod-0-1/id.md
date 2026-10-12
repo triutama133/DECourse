@@ -15,6 +15,10 @@ why: Kebanyakan kursus langsung mengetik SELECT * di file yang sudah bersih. Di 
 ## @prereq
 Modul 0.0 (Python dari nol) sangat disarankan: lab ini memakai fungsi, perulangan, dictionary, dan penanganan error yang dijelaskan Modul 0.0. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.
 
+> [!IMPORTANT]
+> **Pengingat Editor vs Terminal:**
+> Buka dan edit file kode (seperti `labs/mod-0-1/pipeline.py`) menggunakan Text Editor Anda (VS Code / Cursor / tab Lab di aplikasi). Jangan menjalankan file kode langsung di terminal bash tanpa interpreter python (misal: jangan ketik `labs/mod-0-1/pipeline.py` di terminal). Perintah terminal hanya untuk pengujian, seperti `python3 labs/mod-0-1/test_lab.py -v`.
+
 ## @lesson Mengapa profesi ini ada: dua jenis database
 Bayangkan **KopiKu**, toko online kecil yang menjual biji kopi spesialti dari Gayo, Toraja, dan Flores. Setiap kali pelanggan menekan "Bayar", website menulis satu baris baru ke database: siapa yang membeli, apa, berapa, kapan. Database itu ada untuk menjalankan toko. Ia harus menjawab pertanyaan kecil dengan sangat cepat ("apa isi keranjang pelanggan ini?") dan tidak boleh kehilangan satu pesanan pun. Jenis database seperti ini disebut **OLTP** (Online Transaction Processing). PostgreSQL dan MySQL adalah pilihan yang umum.
 
@@ -134,7 +138,7 @@ grep -c ",-" data/orders.csv      # total negatif
 cat data/manifest.json            # apa yang ditanam, dan berapa banyak
 ```
 
-3. Buka `labs/mod-0-1/pipeline.py`. Empat fungsi melempar `NotImplementedError`. Implementasikan dengan urutan ini, jalankan tes setelah masing-masing:
+3. Buka `labs/mod-0-1/pipeline.py` di Text Editor Anda (misal: klik di sidebar editor atau ketik `code labs/mod-0-1/pipeline.py`; jangan jalankan langsung di bash!). Empat fungsi melempar `NotImplementedError`. Implementasikan dengan urutan ini, jalankan tes setelah masing-masing:
    `parse_total`, lalu `parse_ts`, lalu `clean_orders`, lalu `daily_revenue`.
 4. Putuskan apa yang dilakukan pada baris yang tidak bisa dipercaya. Aturan lab ini: **jangan menebak dan jangan membuang diam-diam.** Setiap baris yang dibuang masuk ke `rejected` dengan alasan singkat.
 5. Jalankan program pada file asli dan bandingkan jumlah baris masuk dan keluar:
