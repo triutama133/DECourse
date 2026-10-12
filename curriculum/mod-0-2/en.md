@@ -44,6 +44,14 @@ The commands you will use every day:
 
 **Windows users.** Install WSL2 (`wsl --install` in an administrator PowerShell), then open "Ubuntu" from the Start menu. Inside it, everything in this course works exactly as written. If you stay in plain PowerShell, many commands have equivalents (`dir` for `ls`, `type` for `cat`, `Select-String` for `grep`) but tutorials, Docker and data tools will keep assuming a Linux shell, so WSL2 saves you a lot of friction.
 
+> 💡 **Practice Pause 1 (Terminal Command Exploration):**
+> Do not just read the table above! Open your terminal right now in this course directory and try basic navigation commands:
+> Type `pwd` to check your current working directory.
+> Type `ls -la data` to list KopiKu's transaction files.
+> Type `head -5 data/orders.csv` to inspect the first 5 order rows.
+> Type `wc -l data/orders.csv` to count the total lines.
+> Once you see the output stream in your terminal, proceed to Lesson 2 below.
+
 ## @lesson Paths, files and the environment
 Every file has a **path**, its address in the file system. An **absolute path** starts at the root (`/home/budi/kopiku/data/orders.csv`). A **relative path** starts from where you are now (`data/orders.csv`). Some shortcuts you will use constantly: `~` is your home folder, `.` is the current folder, `..` is the parent folder. If a script says "file not found", the cause is nearly always that you are standing in a different folder than you think; run `pwd` and `ls` first.
 
@@ -57,6 +65,14 @@ Two pieces of the environment matter early:
 **Text encoding and line endings** cause quiet bugs. Text files are bytes interpreted through an encoding; use **UTF-8** everywhere and say so when opening files in code. Windows and Linux end lines differently (`\r\n` vs `\n`); a CSV created on Windows may leave an invisible `\r` at the end of the last column, which breaks comparisons that "look" identical.
 
 **Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them (`-rwxr-xr-x`). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file. Do not "fix" it with `sudo` blindly: that runs the command with full power and creates files only the administrator can later change.
+
+> 💡 **Practice Pause 2 (Paths & Environment Exploration):**
+> Inspect your shell environment directly in your terminal:
+> Type `echo $HOME` to see your home directory path.
+> Type `echo $PATH` to see where your shell looks for executables.
+> Type `which python3` to find the absolute path of your system's Python interpreter.
+> Type `ls -l data/orders.csv` to view the file's permission flags.
+> You now understand how the shell resolves paths and tools. Proceed to Lesson 3.
 
 ## @lesson Redirects and pipes: small tools, joined together
 The most powerful idea in the terminal is that commands do one small job, and you connect them. Two symbols do the connecting.
@@ -77,6 +93,12 @@ Notice the output also reveals the data problem from Module 0.1: you will see `p
 > **Warning:** `>` replaces the target file immediately and silently. `sort data.csv > data.csv` destroys the file (the shell empties it before `sort` reads it). Write to a new file, then rename.
 
 Every program has three standard streams: input (`stdin`), output (`stdout`) and errors (`stderr`). Pipes carry `stdout`; error messages still appear on your screen. To save errors too, use `2>` (for example `python job.py > out.txt 2> errors.txt`). Separating them is why a pipeline can fail loudly even when its output is being piped away.
+
+> 💡 **Practice Pause 3 (Piping KopiKu Data):**
+> Prove the power of pipes directly in your terminal without writing a Python script:
+> Run this pipeline from the course root:
+> `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
+> Notice how you aggregated thousands of KopiKu transaction rows into status counts in milliseconds! Proceed to Lesson 4 to isolate your Python environment.
 
 ## @lesson Python: install it once, then isolate every project
 Check what you have: `python3 --version`. For this course use Python 3.10 or newer. On Linux and macOS, use the system's package manager or the official installer; on Windows, work inside WSL2.
@@ -104,6 +126,14 @@ Newer tools (`uv`, `poetry`) do the same job faster and add lock files; the conc
 **Running scripts.** `python summarize.py data/orders.csv` runs a file; the words after the file name arrive in `sys.argv` and are parsed nicely by the standard-library `argparse` module. The idiom `if __name__ == "__main__":` at the bottom means "run this part only when the file is executed directly, not when it is imported", which you will use in every script that might later become a library.
 
 **Reading a traceback.** When Python fails it prints a *stack trace*. Read it **from the bottom**: the last line names the error type and message (`FileNotFoundError: [Errno 2] No such file or directory: 'data/orders.csv'`); the lines above show which line of which file called which. The last frame in your own code is usually where to look. Copy the last line when you search for help or ask someone.
+
+> 💡 **Practice Pause 4 (Build Workspace & Virtual Environment):**
+> Time to build your own local workbench! Open your terminal and run:
+> 1. Create your project folder: `mkdir -p ~/kopiku && cd ~/kopiku`
+> 2. Create an isolated virtual environment: `python3 -m venv venv`
+> 3. Activate the environment: `source venv/bin/activate`
+> 4. Verify: `which python` (ensure it points to `~/kopiku/venv/bin/python`).
+> Keep it activated! Proceed to Lesson 5 to set up Git.
 
 ## @lesson Git: a safety net for everything you write
 Git records snapshots of your project so you can see what changed, go back to any earlier state, work on experiments without risk, and collaborate. Three areas explain nearly everything:
@@ -138,6 +168,15 @@ git diff                         # see unstaged changes line by line
 
 > **Warning:** Git history is permanent by design. A file committed once lives in every clone and every old commit, even if you delete it in the next commit. This is why secrets must never be committed, even "temporarily".
 
+> 💡 **Practice Pause 5 (Initialize Git & Guard with .gitignore):**
+> Still inside `~/kopiku` in your terminal:
+> 1. Initialize Git tracking: `git init`
+> 2. Create a `.gitignore` so venv and data are never tracked:
+> `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
+> 3. Make your first commit:
+> `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
+> 4. Check your history: `git log --oneline` (you have your first commit!). Proceed to Lesson 6.
+
 ## @lesson Secrets and configuration
 A **secret** is anything that grants access: passwords, API keys, tokens, private keys, database connection strings with passwords. A **configuration** is a setting that differs between environments (the database host in development vs production). Both belong *outside* your code.
 
@@ -153,6 +192,14 @@ For local work, put variables in a file named `.env` that is listed in `.gitigno
 
 If a secret does get committed or pushed: **assume it is stolen**, because bots scan public repositories within minutes. The fix order matters: (1) **revoke and replace the secret** at its provider, (2) then clean the repository history if you must, (3) then add the file to `.gitignore` and enable secret scanning. Deleting the file in a later commit is *not* a fix.
 
+> 💡 **Practice Pause 6 (Protect Secrets):**
+> Guard your credentials before any leak can happen!
+> Inside `~/kopiku`, add `.env` to your `.gitignore` (if not already added).
+> Create a safe public template: `echo "DATABASE_URL=sqlite:///data/warehouse.db" > .env.example`
+> Commit the changes:
+> `git add .env.example && git commit -m "chore: add env template"`
+> Your repository is now protected against leaked secrets. Proceed to Lesson 7.
+
 ## @lesson Working habits that make you faster
 A few small disciplines separate people who ship from people who struggle with their tools.
 
@@ -163,6 +210,18 @@ A few small disciplines separate people who ship from people who struggle with t
 - **Use an editor that helps.** Visual Studio Code with the Python extension gives syntax highlighting, an integrated terminal and a debugger. The terminal skills in this module work the same inside it.
 
 Finally, **practise the loop** until it is automatic: make a small change, run it, look at the result, commit. Everything later in the course (tests, containers, orchestrators) is that same loop with better tools.
+
+> 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
+> Prove that your entire workbench functions as intended:
+> 1. Inside `~/kopiku`, copy the generator and generate data:
+> `cp ~/Documents/Projects/dataengineeringCourse/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 2. Copy the starter script: `cp ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/starter/summarize.py .`
+> 3. Open `summarize.py` in your editor and implement order counting grouped by lower-case status.
+> 4. Commit script and generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
+> 5. Freeze requirements: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
+> 6. Run the automated checker from the course repo:
+> `python3 ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/check.py ~/kopiku`
+> When all checks PASS, congratulations! You have a verified professional data engineering environment!
 
 ## @lab Lab: build your KopiKu workspace
 Create the project folder that you will use for the rest of the course, and prove it is set up correctly with an automatic checker. Your workspace needs an isolated environment, a Git history with sensible commits, a `.gitignore` that protects you, and a small script that counts orders by status.

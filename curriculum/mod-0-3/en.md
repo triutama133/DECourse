@@ -65,6 +65,13 @@ Other essentials: `SELECT DISTINCT payment_method` removes repeated values; `LIM
 
 Note on dates: databases have date types, but a lot of real data stores dates as text like `'2026-01-15'`. The ISO format (year-month-day) is special because text order equals date order, which is why `BETWEEN` works on it. Dates written as `15/01/2026` do not sort or compare correctly: normalise them early.
 
+> 💡 **Practice Pause 1 (SELECT & WHERE):**
+> Open `labs/mod-0-3/answers.sql` in your editor (or open the SQL Sandbox in the web app).
+> Solve challenge `-- k-1`: write a query returning `name` and `tier` from `customers` whose city is Jakarta (`WHERE city = 'Jakarta'`).
+> Test your query in your terminal:
+> `python3 labs/mod-0-3/check.py`
+> Once k-1 reports PASS, congratulations! You have written your first query. Proceed to Lesson 3 to explore the NULL trap.
+
 ## @lesson NULL: the value that is not a value
 `NULL` means **unknown or missing**. It is not zero and not an empty string, and it behaves differently from everything else. This is the single biggest source of silent errors for beginners, so spend time here.
 
@@ -91,6 +98,13 @@ More places NULL bites:
 - **`COALESCE(a, b, ...)`** returns the first non-NULL argument. `COALESCE(city, 'Unknown')` makes missing cities show as `Unknown`.
 
 > **Warning:** When a count or sum looks "a bit low", suspect NULL before suspecting the data. Add `OR col IS NULL`, or `COALESCE`, and see whether the numbers move.
+
+> 💡 **Practice Pause 2 (Three-Valued Logic NULL Trap):**
+> Open `labs/mod-0-3/answers.sql` and find marker `-- k-4`.
+> Write a query returning the name of all customers whose city is NOT Jakarta (`city <> 'Jakarta'`), but REMEMBER to include customers whose city is unknown: add `OR city IS NULL`.
+> Test in your terminal:
+> `python3 labs/mod-0-3/check.py`
+> Verify that k-4 reports PASS (returning 7 customers, not 5!). Proceed to Lesson 4 below.
 
 ## @lesson Text, number and date functions
 Real columns are messy: names in mixed case, ratios that must be computed, dates stored as text. A **function** transforms a value inside the query, one result per row (an aggregate such as `SUM` collapses rows; a function does not). The examples run on the KopiKu dataset in the SQL Sandbox.
@@ -155,6 +169,15 @@ You cannot put `COUNT(*) >= 3` in `WHERE`, because at that stage the groups do n
 
 Beware integer division: in many databases `7 / 2` is `3`. Write `7.0 / 2` or cast to a decimal when you want a fraction (for example percentages: `100.0 * part / total`).
 
+> 💡 **Practice Pause 3 (Aggregation: GROUP BY & HAVING):**
+> Apply aggregation logic to three challenges in `labs/mod-0-3/answers.sql`:
+> 1. `-- k-2`: count orders per status (`GROUP BY status`, then `COUNT(*)`).
+> 2. `-- k-3`: compute each order's total value (`SUM(qty * unit_price_idr)` grouped by `order_id`).
+> 3. `-- k-7`: find customers with at least 2 delivered orders (`HAVING COUNT(*) >= 2`).
+> Test these three queries in your terminal:
+> `python3 labs/mod-0-3/check.py`
+> When k-2, k-3, and k-7 PASS, you have mastered aggregation! Proceed to Lesson 6 on Joins.
+
 ## @lesson Joins: combining tables, and how they go wrong
 A **join** puts together rows from two tables that match on a key.
 
@@ -195,6 +218,15 @@ The second query runs without any error and reports a shipping income 49% too hi
 
 A join on a key that is not unique on *both* sides is a **many-to-many join**, which multiplies rows even more. If the row count after joining is larger than you can explain, stop and find out why before continuing.
 
+> 💡 **Practice Pause 4 (JOIN, Anti-Join & Fan-Out Prevention):**
+> Solve the multi-table challenges in `labs/mod-0-3/answers.sql`:
+> 1. `-- k-5`: find customers who never placed an order (`LEFT JOIN orders` then `WHERE o.order_id IS NULL`).
+> 2. `-- k-6`: revenue per city for delivered orders, mapping NULL cities to 'Unknown' using `COALESCE(c.city, 'Unknown')`.
+> 3. `-- k-8`: compute total shipping fees without fan-out (sum over the `orders` table alone!).
+> Test in your terminal:
+> `python3 labs/mod-0-3/check.py`
+> Verify that k-5, k-6, and k-8 PASS! Proceed to Lesson 7 below.
+
 ## @lesson CASE, subqueries and CTEs
 **CASE** is SQL's if/else, used to create categories. Here `order_totals` is the per-order total, defined in the CTE example below:
 
@@ -216,7 +248,7 @@ FROM orders
 GROUP BY payment_method;
 ```
 
-A **CTE** (common table expression, `WITH name AS (...)`) names an intermediate result so a long query reads from top to bottom, like a recipe:
+**CTE** (common table expression, `WITH name AS (...)`) names an intermediate result so a long query reads from top to bottom, like a recipe:
 
 ```sql
 WITH order_totals AS (
@@ -232,6 +264,14 @@ JOIN order_totals t ON t.order_id = o.order_id;
 This is also the safe way to avoid the fan-out trap: compute the finer-grain total in a CTE (one row per order) before joining. Prefer CTEs over deeply nested subqueries: they are easier to read, debug (select from each step on its own) and review.
 
 Style matters because other people will maintain your SQL. Put each clause on its own line, use clear aliases, keep keywords consistent in case, and add a comment that says *why* a filter exists ("exclude test accounts") rather than what it does.
+
+> 💡 **Practice Pause 5 (CASE & CTE - Complete the Entire Lab):**
+> Complete the final two queries in `labs/mod-0-3/answers.sql`:
+> 1. `-- k-9`: categorize orders into 'small', 'medium', and 'large' using a CTE (`WITH ... AS`) and `CASE WHEN`.
+> 2. `-- k-10`: compute the percentage share of each payment method using a scalar subquery `(SELECT COUNT(*) FROM orders)`.
+> Now test all 10 answers in your terminal:
+> `python3 labs/mod-0-3/check.py`
+> If your score is **10/10 answers correct**, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 8 for DML & Transactions.
 
 ## @lesson Changing data safely: DML, constraints and transactions
 Besides reading, SQL changes data:

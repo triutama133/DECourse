@@ -44,6 +44,14 @@ Perintah yang akan Anda pakai setiap hari:
 
 **Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti tertulis. Jika Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker, dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak kerepotan.
 
+> 💡 **Jeda Praktik 1 (Eksplorasi Perintah Terminal):**
+> Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang di direktori kursus ini dan coba perintah navigasi dasar:
+> Ketik `pwd` untuk melihat direktori aktif Anda.
+> Ketik `ls -la data` untuk melihat daftar file transaksi KopiKu.
+> Ketik `head -5 data/orders.csv` untuk mengintip 5 baris pertama pesanan.
+> Ketik `wc -l data/orders.csv` untuk menghitung total baris file.
+> Setelah melihat data tampil di terminal Anda, lanjut ke Pelajaran 2 di bawah.
+
 ## @lesson Path, file, dan lingkungan
 Setiap file punya **path**, alamatnya di sistem file. **Path absolut** dimulai dari root (`/home/budi/kopiku/data/orders.csv`). **Path relatif** dimulai dari tempat Anda sekarang (`data/orders.csv`). Beberapa jalan pintas yang konstan dipakai: `~` adalah folder home Anda, `.` adalah folder saat ini, `..` adalah folder induk. Kalau sebuah skrip bilang "file not found", penyebabnya hampir selalu Anda berdiri di folder yang berbeda dari dugaan; jalankan `pwd` dan `ls` lebih dulu.
 
@@ -57,6 +65,14 @@ Dua bagian lingkungan penting sejak awal:
 **Encoding teks dan akhir baris** menyebabkan bug yang diam-diam. File teks adalah byte yang ditafsirkan lewat sebuah encoding; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris dengan cara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
 
 **Izin (permission).** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya (`-rwxr-xr-x`). `chmod +x script.sh` membuat skrip bisa dijalankan langsung. Anda akan lebih sering menemuinya sebagai "Permission denied", yang artinya pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file tersebut. Jangan "memperbaikinya" dengan `sudo` secara membabi buta: itu menjalankan perintah dengan kuasa penuh dan membuat file yang kemudian hanya bisa diubah administrator.
+
+> 💡 **Jeda Praktik 2 (Eksplorasi Path & Variabel Lingkungan):**
+> Coba periksa lingkungan shell Anda langsung di terminal:
+> Ketik `echo $HOME` untuk melihat path direktori home Anda.
+> Ketik `echo $PATH` untuk melihat daftar folder program yang dicari shell.
+> Ketik `which python3` untuk mengetahui path absolut interpreter Python sistem Anda.
+> Ketik `ls -l data/orders.csv` untuk melihat hak akses izin (permission) file tersebut.
+> Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Pelajaran 3 di bawah.
 
 ## @lesson Redirect dan pipe: alat kecil yang disambung
 Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, dan Anda menyambungkannya. Dua simbol melakukan penyambungan.
@@ -77,6 +93,12 @@ Perhatikan keluarannya juga memperlihatkan masalah data dari Modul 0.1: Anda aka
 > **Peringatan:** `>` mengganti file tujuan seketika dan tanpa suara. `sort data.csv > data.csv` menghancurkan file itu (shell mengosongkannya sebelum `sort` membaca). Tulis ke file baru, lalu ganti namanya.
 
 Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python job.py > out.txt 2> errors.txt`). Pemisahan inilah yang membuat pipeline bisa gagal dengan jelas meski keluarannya sedang dialirkan ke tempat lain.
+
+> 💡 **Jeda Praktik 3 (Piping Data KopiKu):**
+> Mari buktikan kekuatan pipe langsung di terminal tanpa menulis program Python:
+> Jalankan perintah berikut di root folder kursus:
+> `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
+> Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
 
 ## @lesson Python: pasang sekali, lalu isolasi setiap proyek
 Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2.
@@ -104,6 +126,14 @@ Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cep
 **Menjalankan skrip.** `python summarize.py data/orders.csv` menjalankan sebuah file; kata-kata setelah nama file masuk ke `sys.argv` dan diurai dengan rapi oleh modul standar `argparse`. Idiom `if __name__ == "__main__":` di bagian bawah berarti "jalankan bagian ini hanya ketika file dieksekusi langsung, bukan saat di-import", yang akan Anda pakai di setiap skrip yang kelak mungkin menjadi library.
 
 **Membaca traceback.** Ketika Python gagal, ia mencetak *stack trace*. Bacalah **dari bawah**: baris terakhir menyebut jenis dan pesan error (`FileNotFoundError: [Errno 2] No such file or directory: 'data/orders.csv'`); baris di atasnya menunjukkan baris file mana yang memanggil apa. Frame terakhir di kode Anda sendiri biasanya tempat yang harus dilihat. Salin baris terakhir saat mencari bantuan atau bertanya ke orang.
+
+> 💡 **Jeda Praktik 4 (Bangun Workspace & Virtual Environment):**
+> Saatnya membangun bengkel kerja lokal Anda sendiri! Buka terminal dan jalankan:
+> 1. Buat folder workspace: `mkdir -p ~/kopiku && cd ~/kopiku`
+> 2. Buat virtual environment terisolasi: `python3 -m venv venv`
+> 3. Aktifkan environment: `source venv/bin/activate`
+> 4. Verifikasi: `which python` (pastikan outputnya menunjuk ke `~/kopiku/venv/bin/python`).
+> Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Pelajaran 5 untuk menyiapkan Git.
 
 ## @lesson Git: jaring pengaman untuk semua yang Anda tulis
 Git mencatat snapshot proyek Anda sehingga Anda bisa melihat apa yang berubah, kembali ke kondisi mana pun sebelumnya, bereksperimen tanpa risiko, dan berkolaborasi. Tiga area menjelaskan hampir semuanya:
@@ -138,6 +168,15 @@ git diff                         # lihat perubahan yang belum di-stage baris dem
 
 > **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu rahasia tidak boleh di-commit, bahkan "sementara".
 
+> 💡 **Jeda Praktik 5 (Inisialisasi Git & Proteksi .gitignore):**
+> Masih di dalam folder `~/kopiku` dengan terminal Anda:
+> 1. Inisialisasi pelacakan Git: `git init`
+> 2. Buat file `.gitignore` agar folder venv dan data tidak ter-commit:
+> `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
+> 3. Buat commit pertama Anda:
+> `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
+> 4. Periksa riwayat Anda: `git log --oneline` (Anda resmi memiliki snapshot Git pertama!). Lanjut ke Pelajaran 6.
+
 ## @lesson Rahasia dan konfigurasi
 **Rahasia (secret)** adalah apa pun yang memberi akses: password, API key, token, private key, connection string database yang berisi password. **Konfigurasi** adalah pengaturan yang berbeda antar lingkungan (host database di development vs produksi). Keduanya harus berada *di luar* kode Anda.
 
@@ -153,6 +192,14 @@ Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.git
 
 Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena bot memindai repositori publik dalam hitungan menit. Urutan perbaikan penting: (1) **cabut dan ganti rahasia** di penyedianya, (2) baru bersihkan riwayat repositori bila perlu, (3) lalu tambahkan file ke `.gitignore` dan aktifkan secret scanning. Menghapus file di commit berikutnya *bukan* perbaikan.
 
+> 💡 **Jeda Praktik 6 (Proteksi File Rahasia):**
+> Lindungi rahasia sebelum terlanjur bocor!
+> Di dalam `~/kopiku`, tambahkan aturan `.env` ke `.gitignore` (jika belum ada).
+> Buat file contoh publik: `echo "DATABASE_URL=sqlite:///data/warehouse.db" > .env.example`
+> Simpan ke Git:
+> `git add .env.example && git commit -m "chore: add env template"`
+> Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Pelajaran 7.
+
 ## @lesson Kebiasaan kerja yang membuat Anda lebih cepat
 Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang yang bergulat dengan alatnya.
 
@@ -163,6 +210,18 @@ Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang
 - **Pakai editor yang membantu.** Visual Studio Code dengan ekstensi Python memberi syntax highlighting, terminal terintegrasi, dan debugger. Keterampilan terminal di modul ini bekerja sama di dalamnya.
 
 Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, lihat hasilnya, commit. Semua yang datang kemudian di kursus ini (tes, container, orchestrator) adalah siklus yang sama dengan alat yang lebih baik.
+
+> 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
+> Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
+> 1. Masih di `~/kopiku`, salin generator dan buat datanya:
+> `cp ~/Documents/Projects/dataengineeringCourse/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 2. Salin starter skrip: `cp ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/starter/summarize.py .`
+> 3. Buka `summarize.py` di editor Anda, implementasikan penghitungan pesanan per status huruf kecil.
+> 4. Commit skrip dan generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
+> 5. Catat dependensi: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
+> 6. Jalankan pemeriksa otomatis dari repositori kursus:
+> `python3 ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/check.py ~/kopiku`
+> Jika semua baris PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional!
 
 ## @lab Lab: bangun workspace KopiKu Anda
 Buat folder proyek yang akan Anda pakai di sisa kursus ini, dan buktikan ia disiapkan dengan benar lewat pemeriksa otomatis. Workspace Anda butuh lingkungan terisolasi, riwayat Git dengan commit yang masuk akal, `.gitignore` yang melindungi Anda, dan skrip kecil yang menghitung pesanan per status.

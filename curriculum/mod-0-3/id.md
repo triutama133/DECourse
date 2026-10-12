@@ -65,6 +65,13 @@ Hal penting lain: `SELECT DISTINCT payment_method` membuang nilai berulang; `LIM
 
 Catatan soal tanggal: database punya tipe tanggal, tetapi banyak data nyata menyimpan tanggal sebagai teks seperti `'2026-01-15'`. Format ISO (tahun-bulan-hari) istimewa karena urutan teksnya sama dengan urutan tanggalnya, itulah sebabnya `BETWEEN` bekerja padanya. Tanggal yang ditulis `15/01/2026` tidak terurut dan terbandingkan dengan benar: seragamkan sejak awal.
 
+> 💡 **Jeda Praktik 1 (SELECT & WHERE):**
+> Buka file `labs/mod-0-3/answers.sql` di editor Anda (atau buka SQL Sandbox di aplikasi web).
+> Kerjakan tantangan `-- k-1`: tulis query untuk mengembalikan kolom `name` dan `tier` dari tabel `customers` yang berdomisili di Jakarta (`WHERE city = 'Jakarta'`).
+> Uji query Anda di terminal:
+> `python3 labs/mod-0-3/check.py`
+> Jika k-1 mencetak PASS, selamat! Anda telah menulis query pertama Anda. Lanjut ke Pelajaran 3 untuk mengenal jebakan NULL.
+
 ## @lesson NULL: nilai yang bukan nilai
 `NULL` berarti **tidak diketahui atau hilang**. Ia bukan nol dan bukan string kosong, dan perilakunya berbeda dari yang lain. Ini sumber terbesar kesalahan diam-diam bagi pemula, jadi luangkan waktu di sini.
 
@@ -91,6 +98,13 @@ Tempat lain di mana NULL menggigit:
 - **`COALESCE(a, b, ...)`** mengembalikan argumen pertama yang bukan NULL. `COALESCE(city, 'Unknown')` membuat kota yang hilang tampil sebagai `Unknown`.
 
 > **Peringatan:** Ketika hitungan atau jumlah tampak "agak rendah", curigai NULL sebelum mencurigai datanya. Tambahkan `OR col IS NULL`, atau `COALESCE`, dan lihat apakah angkanya bergeser.
+
+> 💡 **Jeda Praktik 2 (Jebakan Tiga Nilai Logika NULL):**
+> Buka `labs/mod-0-3/answers.sql`, temukan penanda `-- k-4`.
+> Tulis query untuk mengambil nama semua pelanggan yang kotanya BUKAN Jakarta (`city <> 'Jakarta'`), tetapi INGAT menyertakan pelanggan yang kotanya tidak diketahui: tambahkan `OR city IS NULL`.
+> Uji di terminal:
+> `python3 labs/mod-0-3/check.py`
+> Pastikan k-4 mencetak PASS (menghasilkan 7 pelanggan, bukan 5!). Lanjut ke Pelajaran 4 di bawah.
 
 ## @lesson Fungsi teks, angka, dan tanggal
 Kolom di dunia nyata berantakan: nama dengan huruf campur aduk, rasio yang harus dihitung, tanggal yang disimpan sebagai teks. Sebuah **fungsi** mengubah nilai di dalam query, satu hasil per baris (agregat seperti `SUM` meleburkan baris; fungsi tidak). Contohnya berjalan pada dataset KopiKu di SQL Sandbox.
@@ -155,6 +169,15 @@ Anda tidak bisa menaruh `COUNT(*) >= 3` di `WHERE`, karena pada tahap itu kelomp
 
 Waspadai pembagian bilangan bulat: di banyak database `7 / 2` adalah `3`. Tulis `7.0 / 2` atau cast ke desimal bila Anda ingin pecahan (misalnya persentase: `100.0 * bagian / total`).
 
+> 💡 **Jeda Praktik 3 (Agregasi GROUP BY & HAVING):**
+> Terapkan logika agregasi pada tiga tantangan di `labs/mod-0-3/answers.sql`:
+> 1. `-- k-2`: hitung jumlah pesanan per status (`GROUP BY status`, lalu `COUNT(*)`).
+> 2. `-- k-3`: hitung nilai tiap pesanan (`SUM(qty * unit_price_idr)` dikelompokkan per `order_id`).
+> 3. `-- k-7`: cari pelanggan dengan minimal 2 pesanan berstatus delivered (`HAVING COUNT(*) >= 2`).
+> Uji ketiga query ini di terminal:
+> `python3 labs/mod-0-3/check.py`
+> Jika k-2, k-3, dan k-7 PASS, Anda telah menguasai agregasi data! Lanjut ke Pelajaran 6 tentang Join.
+
 ## @lesson Join: menggabungkan tabel, dan bagaimana ia bisa salah
 **Join** menyatukan baris dari dua tabel yang cocok pada sebuah kunci.
 
@@ -195,6 +218,15 @@ Query kedua berjalan tanpa error apa pun dan melaporkan pendapatan ongkir 49% te
 
 Join pada kunci yang tidak unik di *kedua* sisi adalah **join many-to-many**, yang melipatgandakan baris lebih jauh lagi. Jika jumlah baris setelah join lebih besar dari yang bisa Anda jelaskan, berhenti dan cari tahu mengapa sebelum lanjut.
 
+> 💡 **Jeda Praktik 4 (JOIN, Anti-Join & Pencegahan Fan-Out):**
+> Kerjakan tantangan penggabungan tabel di `labs/mod-0-3/answers.sql`:
+> 1. `-- k-5`: cari pelanggan yang belum pernah memesan (`LEFT JOIN orders` lalu `WHERE o.order_id IS NULL`).
+> 2. `-- k-6`: omset per kota untuk pesanan delivered, ubah kota NULL menjadi 'Unknown' dengan `COALESCE(c.city, 'Unknown')`.
+> 3. `-- k-8`: hitung total ongkir pesanan delivered tanpa terkena fan-out (jumlahkan kolom dari tabel `orders` saja!).
+> Uji di terminal:
+> `python3 labs/mod-0-3/check.py`
+> Pastikan k-5, k-6, dan k-8 mencetak PASS! Lanjut ke Pelajaran 7 di bawah.
+
 ## @lesson CASE, subquery, dan CTE
 **CASE** adalah if/else-nya SQL, dipakai untuk membuat kategori. Di sini `order_totals` adalah total per pesanan, didefinisikan di contoh CTE di bawah:
 
@@ -232,6 +264,14 @@ JOIN order_totals t ON t.order_id = o.order_id;
 Ini juga cara aman menghindari jebakan fan-out: hitung total grain yang lebih halus di CTE (satu baris per pesanan) sebelum join. Pilih CTE daripada subquery bersarang dalam: lebih mudah dibaca, di-debug (pilih dari tiap langkah sendiri-sendiri), dan ditinjau.
 
 Gaya penulisan penting karena orang lain akan merawat SQL Anda. Taruh tiap klausa di barisnya sendiri, pakai alias yang jelas, jaga konsistensi huruf kapital keyword, dan tambahkan komentar yang menjelaskan *mengapa* sebuah filter ada ("kecualikan akun uji") bukan apa yang dilakukannya.
+
+> 💡 **Jeda Praktik 5 (CASE & CTE - Tuntaskan Seluruh Lab):**
+> Tuntaskan dua query terakhir di `labs/mod-0-3/answers.sql`:
+> 1. `-- k-9`: kelompokkan pesanan menjadi 'small', 'medium', dan 'large' menggunakan CTE `WITH ... AS` dan `CASE WHEN`.
+> 2. `-- k-10`: hitung persentase porsi tiap metode pembayaran menggunakan subquery skalar `(SELECT COUNT(*) FROM orders)`.
+> Sekarang uji seluruh 10 jawaban Anda di terminal:
+> `python3 labs/mod-0-3/check.py`
+> Jika skor Anda **10/10 answers correct**, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 8 untuk DML & Transaksi.
 
 ## @lesson Mengubah data dengan aman: DML, constraint, dan transaksi
 Selain membaca, SQL mengubah data:

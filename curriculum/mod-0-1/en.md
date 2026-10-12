@@ -91,6 +91,15 @@ There is a sixth category worth naming: **infrastructure failures** (a server re
 
 > **Warning:** The most dangerous failures are the *silent* ones. A crash is visible and gets fixed in an hour. A pipeline that runs "successfully" and writes wrong numbers can mislead decisions for weeks. When you design anything in this course, ask: "if this went wrong, how would I find out?"
 
+> 💡 **Practice Pause 1 (Explore Dirty Data):**
+> Before reading about data formats, prove these five problems on your computer! Open a terminal in the course folder, generate the dataset, and inspect the order file:
+> `python3 labs/shared/shopgen.py --out data`
+> `head -20 data/orders.csv`
+> `grep -c "Rp " data/orders.csv` (totals written as formatted text)
+> `grep -c ",-" data/orders.csv` (negative/corrupted totals)
+> `cat data/manifest.json` (inspect the anomalies planted by the generator)
+> You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 5 below.
+
 ## @lesson The formats you will meet
 Data arrives in a handful of file formats. Knowing their traps saves hours.
 
@@ -103,6 +112,15 @@ Data arrives in a handful of file formats. Knowing their traps saves hours.
 **Database tables** are the other main source. You read them with SQL, either as a full copy or by capturing only what changed (change data capture, Module 3.2).
 
 A rule of thumb: CSV and JSON are for *exchange* (humans and other systems send them to you); Parquet and database tables are for *storage and analysis*. A common first step in a pipeline is turning the former into the latter, with types enforced.
+
+> 💡 **Practice Pause 2 (Number & Timestamp Parsers):**
+> Do not read the next section yet! Open `labs/mod-0-1/pipeline.py` in your text editor (click it in the sidebar or type `code labs/mod-0-1/pipeline.py`).
+> Apply the type conversions you just learned:
+> 1. Implement `parse_total(raw)`: strip "Rp" and dots, convert to an integer, and return `None` if unreadable or empty.
+> 2. Implement `parse_ts(raw)`: accept both timestamp formats and return ISO text "YYYY-MM-DDTHH:MM:SS" or `None`.
+> Test both parsers in your terminal:
+> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> When both parser tests show PASSED, you are ready for defensive cleaning rules in Lesson 6.
 
 ## @lesson How this course works, and the KopiKu data
 Each module has four parts, and they are meant to be done in order:
@@ -118,6 +136,16 @@ Two habits will help more than any tool:
 
 - **Look at the data first.** Before writing any code, open the file and read fifty rows. Every serious bug in this course can be seen by eye if you look.
 - **Write down what "correct" means.** For each job, state one or two facts that must be true of its output (for example: "each order appears once"; "daily revenue never counts cancelled orders"). Those sentences become your tests.
+
+> 💡 **Practice Pause 3 (Defensive Cleaning & Revenue Aggregation):**
+> Return to `labs/mod-0-1/pipeline.py` in your editor to complete the full lab:
+> 1. Implement `clean_orders(rows)`: partition rows into `clean` and `rejected` (recording `reason` for each dropped row). Deduplicate order_ids by keeping the first occurrence.
+> 2. Implement `daily_revenue(clean)`: sum revenue per date `YYYY-MM-DD`, excluding cancelled and refunded orders.
+> Run the complete test suite in your terminal:
+> `pytest labs/mod-0-1/test_lab.py -v`
+> Once all 8 tests are GREEN, run the pipeline against the real dataset:
+> `python3 labs/mod-0-1/pipeline.py data/orders.csv`
+> Congratulations! You have built your first defensive data cleaning pipeline!
 
 ## @lab Lab: clean the KopiKu orders file
 You have a file of order rows with the problems described above. Write four small functions that turn it into trustworthy data and compute daily revenue. This is a miniature version of what every pipeline does: read, validate, normalise, quarantine what you cannot trust, then compute.

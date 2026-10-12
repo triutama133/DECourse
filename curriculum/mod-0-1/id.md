@@ -91,6 +91,15 @@ Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server rest
 
 > **Peringatan:** Kegagalan paling berbahaya adalah yang *diam-diam*. Crash terlihat dan beres dalam sejam. Pipeline yang berjalan "sukses" dan menulis angka salah bisa menyesatkan keputusan berminggu-minggu. Setiap kali merancang sesuatu di kursus ini, tanyakan: "kalau ini salah, bagaimana saya akan mengetahuinya?"
 
+> 💡 **Jeda Praktik 1 (Eksplorasi Data Kotor):**
+> Sebelum lanjut membaca teori format, buktikan kelima masalah ini di komputer Anda! Buka terminal di folder kursus, buat datanya, lalu intip file pesanan:
+> `python3 labs/shared/shopgen.py --out data`
+> `head -20 data/orders.csv`
+> `grep -c "Rp " data/orders.csv` (total yang ditulis format teks)
+> `grep -c ",-" data/orders.csv` (total bernilai minus/rusak)
+> `cat data/manifest.json` (lihat daftar anomali yang sengaja ditanam generator)
+> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 5 di bawah.
+
 ## @lesson Format data yang akan Anda temui
 Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-jam.
 
@@ -103,6 +112,15 @@ Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-j
 **Tabel database** adalah sumber utama lainnya. Anda membacanya dengan SQL, baik sebagai salinan penuh maupun dengan menangkap hanya yang berubah (change data capture, Modul 3.2).
 
 Aturan praktis: CSV dan JSON untuk *pertukaran* (manusia dan sistem lain mengirimkannya kepada Anda); Parquet dan tabel database untuk *penyimpanan dan analisis*. Langkah pertama pipeline yang umum adalah mengubah yang pertama menjadi yang kedua, dengan tipe yang dipaksakan.
+
+> 💡 **Jeda Praktik 2 (Parser Angka & Timestamp):**
+> Jangan baca materi berikutnya dulu! Buka `labs/mod-0-1/pipeline.py` di Text Editor Anda (klik di sidebar atau ketik `code labs/mod-0-1/pipeline.py`).
+> Terapkan konversi tipe data yang baru Anda pelajari:
+> 1. Kerjakan `parse_total(raw)`: bersihkan "Rp" dan titik, ubah ke integer Rupiah, dan return `None` jika teks rusak/kosong.
+> 2. Kerjakan `parse_ts(raw)`: terima kedua format timestamp dan ubah menjadi teks ISO "YYYY-MM-DDTHH:MM:SS" atau `None`.
+> Uji kedua parser di terminal:
+> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> Jika 2 tes parser PASSED, Anda siap melangkah ke aturan pembersihan defensif di Pelajaran 6.
 
 ## @lesson Cara kerja kursus ini, dan data KopiKu
 Setiap modul punya empat bagian, dan sebaiknya dikerjakan berurutan:
@@ -118,6 +136,16 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 
 - **Lihat datanya dulu.** Sebelum menulis kode, buka file dan baca lima puluh baris. Setiap bug serius di kursus ini bisa terlihat dengan mata kalau Anda mau melihat.
 - **Tuliskan arti "benar".** Untuk setiap job, nyatakan satu atau dua fakta yang harus berlaku pada outputnya (misalnya: "tiap pesanan muncul sekali"; "omset harian tidak pernah menghitung pesanan yang dibatalkan"). Kalimat-kalimat itu menjadi tes Anda.
+
+> 💡 **Jeda Praktik 3 (Pembersihan Defensif & Agregasi Omset):**
+> Buka kembali `labs/mod-0-1/pipeline.py` di editor Anda untuk menuntaskan seluruh lab:
+> 1. Kerjakan `clean_orders(rows)`: pisahkan data menjadi `clean` dan `rejected` (dengan mencatat `reason` untuk setiap baris yang dibuang). Tangani duplikat order_id dengan mempertahankan baris pertama.
+> 2. Kerjakan `daily_revenue(clean)`: hitung total omset per tanggal `YYYY-MM-DD` dengan mengabaikan status cancelled dan refunded.
+> Jalankan seluruh pengujian di terminal:
+> `pytest labs/mod-0-1/test_lab.py -v`
+> Setelah semua 8 tes HIJAU, jalankan pipeline pada data riil:
+> `python3 labs/mod-0-1/pipeline.py data/orders.csv`
+> Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!
 
 ## @lab Lab: bersihkan file pesanan KopiKu
 Anda punya file berisi baris pesanan dengan masalah-masalah di atas. Tulis empat fungsi kecil yang mengubahnya menjadi data yang bisa dipercaya dan menghitung omset harian. Ini versi mini dari apa yang dilakukan setiap pipeline: baca, validasi, seragamkan, karantina apa yang tidak bisa dipercaya, lalu hitung.
