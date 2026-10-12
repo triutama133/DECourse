@@ -41,7 +41,7 @@ Setiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakuka
 
 **Mengapa tipe penting, dengan masalah data engineering yang nyata.** File CSV hanya berisi teks. Total `150000` tiba sebagai *teks* `"150000"`, dan `"150000" + 1` gagal karena Python tidak mau menebak apakah Anda ingin menyambung teks atau berhitung. Anda mengonversi dengan sengaja: `int("150000") + 1` menghasilkan `150001`. Teks seperti `"Rp 1.250.000"` sama sekali tidak bisa dikonversi (Python memunculkan error), dan begitulah data kotor muncul di pipeline sungguhan. Periksa tipe dengan `type(total)`.
 
-Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f"Order {1001}: Rp {total}"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`.
+Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f"Order {1001}: Rp {total}"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`. Fungsi angka bawaan yang sangat berguna adalah `abs(n)`, yang mengembalikan jarak positif dari nol: `abs(-45000)` menghasilkan `45000`. Ini sangat membantu saat memformat mata uang negatif di mana tanda minus harus berada di depan awalan rupiah (`"-Rp 45.000"`, bukan `"Rp -45.000"`).
 
 Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
 
@@ -59,11 +59,11 @@ print(order.get("note"))       # None: .get memberi None, bukan error, jika kunc
 order["status"] = "shipped"    # ubah sebuah nilai
 ```
 
-Membaca kunci yang tidak ada dengan `order["note"]` memunculkan `KeyError`; `.get("note", "")` memberi nilai bawaan. Dict juga alat untuk **menghitung**: `counts[status] = counts.get(status, 0) + 1`. Ingat baris ini; Anda akan menulisnya berkali-kali.
+Membaca kunci yang tidak ada dengan `order["note"]` memunculkan `KeyError`; `.get("note", "")` memberi nilai bawaan. Dict juga alat untuk **menghitung**: `counts[status] = counts.get(status, 0) + 1`. Ingat baris ini; Anda akan menulisnya berkali-kali. Untuk memeriksa kunci dan nilai secara bersamaan, gunakan `order.items()`: ia menghasilkan deretan pasangan `(kunci, nilai)`, yang memungkinkan Anda menelusuri keduanya atau mengurutkannya dalam pemeringkatan.
 
 **Tuple** (`(...)`): kelompok kecil tetap yang tidak seharusnya berubah, seperti `("paid", 3)`. Fungsi sering mengembalikan tuple untuk memberi dua hal sekaligus.
 
-**Set** (`{...}` tanpa kunci): kantong nilai **unik** tanpa urutan. `set([7, 3, 7, 5])` adalah `{3, 5, 7}`. Pakai untuk membuang duplikat, dan untuk bertanya "pernahkah saya melihat ini?" dengan sangat cepat memakai `x in seen`.
+**Set** (`{...}` tanpa kunci): kantong nilai **unik** tanpa urutan. `set([7, 3, 7, 5])` adalah `{3, 5, 7}`. Pakai untuk membuang duplikat, dan untuk bertanya "pernahkah saya melihat ini?" dengan sangat cepat memakai `x in seen`. Karena set tidak berurutan, gunakan fungsi bawaan `sorted(my_set)` kapan pun Anda memerlukan nilai-nilai unik tersebut kembali sebagai list yang terurut (misalnya, ID pelanggan dari terkecil ke terbesar: `sorted({7, 3, 5})` menghasilkan `[3, 5, 7]`).
 
 Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adalah file, setiap dict adalah satu baris, kuncinya adalah nama kolom. `orders` di lab terlihat persis seperti ini.
 
@@ -112,6 +112,8 @@ Alat-alat yang berguna, masing-masing menyelesaikan satu gangguan tertentu:
 - `continue` melompat ke putaran berikutnya (pesanan dibatalkan: tidak ada yang ditambah). `break` keluar dari loop sepenuhnya.
 
 **Comprehension** adalah loop yang ditulis sebagai satu ekspresi: `ids = [int(o["customer_id"]) for o in orders]` membangun list; `{int(o["customer_id"]) for o in orders}` membangun set; `{k: v for ...}` membangun dict. Ia loop yang sama dalam bentuk singkat. Pakai bila muat di satu baris yang jelas; bila perlu cabang `if/else` atau beberapa langkah, tulis loop biasa. Mudah dibaca lebih baik daripada akal-akalan.
+
+**Mengurutkan dan memeringkat dengan `sorted()`**: Dalam pipeline data, Anda akan sering memeringkat data (misalnya pelanggan dengan total belanjaan terbesar). Fungsi bawaan `sorted(data, key=...)` menerima fungsi `key` yang memberi tahu Python nilai apa yang dijadikan patokan urutan. Fungsi kecil satu baris bernama **lambda** (`lambda x: ...`) sering dipakai sebagai key ini. Sebagai contoh, untuk mengurutkan pasangan `(customer_id, total)` dari total terbesar ke terkecil, tulis `sorted(pairs, key=lambda pair: -pair[1])` (tanda minus membalik urutan sehingga nilai terbesar muncul pertama). Jika dua pelanggan memiliki total yang sama persis dan Anda ingin memecah seri berdasarkan ID pelanggan terkecil, kembalikan sebuah tuple dari fungsi key: `key=lambda pair: (-pair[1], pair[0])`. Python membandingkan elemen pertama tuple terlebih dahulu, dan hanya memeriksa elemen kedua jika elemen pertama bernilai sama.
 
 Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. Pakai saat Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: jika tidak ada yang membuat kondisi menjadi salah di dalam loop, ia berjalan selamanya. Selalu tanyakan: "apa yang berubah di dalam loop sehingga ia berakhir?"
 

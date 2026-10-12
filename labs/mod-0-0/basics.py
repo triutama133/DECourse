@@ -15,6 +15,7 @@ def format_rupiah(amount):
 
     1250000 -> "Rp 1.250.000"      0 -> "Rp 0"      -45000 -> "-Rp 45.000"
     Hint: f"{n:,}" puts commas between thousands; .replace(",", ".") swaps them for dots.
+    For negative numbers, separate the sign: use abs(amount) for digits, and put "-" before "Rp".
     """
     raise NotImplementedError("TODO: implement format_rupiah")
 
@@ -41,7 +42,10 @@ def count_by_status(orders):
 
 
 def unique_customer_ids(orders):
-    """The distinct customer ids as ints, smallest first, each once.   (lesson 2: set)"""
+    """The distinct customer ids as ints, smallest first, each once.   (lesson 2: set)
+    
+    Hint: Add int(cid) to a set to remove duplicates, then use sorted(ids) to get a sorted list.
+    """
     raise NotImplementedError("TODO: implement unique_customer_ids")
 
 
@@ -62,7 +66,11 @@ def top_customers(orders, n):
     """The n customers who spent the most, as a list of (customer_id, total) tuples, biggest total first.
 
     customer_id is an int. If two customers have the same total, the smaller id comes first.   (lessons 2, 4: dict, for, tuple)
-    Hint: collect totals in a dict, then sorted(d.items(), key=...) with a key function; slicing [:n] keeps the first n.
+    Hint:
+    1. Collect totals in a dict: spent[cid] = spent.get(cid, 0) + total.
+    2. Sort dict items: sorted(spent.items(), key=lambda pair: (-pair[1], pair[0]))
+       Here -pair[1] sorts total descending, and pair[0] breaks ties with smaller customer_id first.
+    3. Slice the first n: [:n].
     """
     raise NotImplementedError("TODO: implement top_customers")
 

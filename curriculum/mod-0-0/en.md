@@ -41,7 +41,7 @@ Every value has a **type**, which tells Python what you are allowed to do with i
 
 **Why types matter, with a real data engineering problem.** A CSV file contains only text. The total `150000` arrives as the *text* `"150000"`, and `"150000" + 1` fails because Python will not guess whether you mean text joining or arithmetic. You convert on purpose: `int("150000") + 1` gives `150001`. Text such as `"Rp 1.250.000"` cannot be converted at all (Python raises an error), which is exactly how dirty data shows up in real pipelines. Check a type with `type(total)`.
 
-Two traps to learn now. First, money must be an `int` in the smallest unit, because decimals are stored in binary and cannot always be exact: `0.1 + 0.2` is `0.30000000000000004`. Second, build text with an **f-string**: `f"Order {1001}: Rp {total}"` puts the values inside the text, and it is easier to read than gluing pieces with `+`.
+Two traps to learn now. First, money must be an `int` in the smallest unit, because decimals are stored in binary and cannot always be exact: `0.1 + 0.2` is `0.30000000000000004`. Second, build text with an **f-string**: `f"Order {1001}: Rp {total}"` puts the values inside the text, and it is easier to read than gluing pieces with `+`. A useful number helper is `abs(n)`, which returns the positive distance from zero: `abs(-45000)` is `45000`. It is handy when formatting negative currency where the minus sign must go before the currency prefix (`"-Rp 45.000"` instead of `"Rp -45.000"`).
 
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
 
@@ -59,11 +59,11 @@ print(order.get("note"))       # None: .get gives None instead of an error when 
 order["status"] = "shipped"    # change a value
 ```
 
-Reading a missing key with `order["note"]` raises `KeyError`; `.get("note", "")` gives a default instead. A dict is also the tool for **counting**: `counts[status] = counts.get(status, 0) + 1`. Remember this line; you will write it many times.
+Reading a missing key with `order["note"]` raises `KeyError`; `.get("note", "")` gives a default instead. A dict is also the tool for **counting**: `counts[status] = counts.get(status, 0) + 1`. Remember this line; you will write it many times. To inspect keys and values together, use `order.items()`: it gives a sequence of `(key, value)` pairs, which is how you loop over both or sort them for ranking.
 
 **Tuple** (`(...)`): a small fixed group that should not change, such as `("paid", 3)`. Functions often return a tuple to give back two things at once.
 
-**Set** (`{...}` with no keys): a bag of **unique** values with no order. `set([7, 3, 7, 5])` is `{3, 5, 7}`. Use it to remove duplicates, and to ask "have I seen this before?" very quickly with `x in seen`.
+**Set** (`{...}` with no keys): a bag of **unique** values with no order. `set([7, 3, 7, 5])` is `{3, 5, 7}`. Use it to remove duplicates, and to ask "have I seen this before?" very quickly with `x in seen`. Because a set is unordered, use the built-in function `sorted(my_set)` whenever you need the unique values back as an ordered list (for example, customer IDs in ascending order: `sorted({7, 3, 5})` produces `[3, 5, 7]`).
 
 A real data file is therefore usually **a list of dictionaries**: the list is the file, each dict is a row, the keys are the column names. The lab's `orders` looks exactly like this.
 
@@ -112,6 +112,8 @@ Useful tools, each solving a specific annoyance:
 - `continue` skips to the next round (a cancelled order: nothing to add). `break` leaves the loop entirely.
 
 A **comprehension** is a loop written as one expression: `ids = [int(o["customer_id"]) for o in orders]` builds a list; `{int(o["customer_id"]) for o in orders}` builds a set; `{k: v for ...}` a dict. It is the same loop in short form. Use it when it fits on one clear line; when you need `if/else` branches or several steps, write the normal loop. Readable beats clever.
+
+**Sorting and ranking with `sorted()`**: In data pipelines, you frequently rank items (e.g. highest spending customers). The built-in `sorted(data, key=...)` accepts a `key` function telling Python what property to rank by. A short one-line function called a **lambda** (`lambda x: ...`) is often used as the key. For example, to sort `(customer_id, total)` pairs by total descending, write `sorted(pairs, key=lambda pair: -pair[1])` (the minus sign turns highest into smallest so Python puts it first). When two customers spent the exact same total and you want to break ties by smaller customer ID, return a tuple from the key: `key=lambda pair: (-pair[1], pair[0])`. Python compares the first tuple element first, and only inspects the second when there is a tie.
 
 A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing in the loop ever makes the condition false, it runs forever. Always ask: "what changes inside the loop so that it ends?"
 
