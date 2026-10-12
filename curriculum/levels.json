@@ -93,5 +93,24 @@
       "mod-3-4",
       "mod-3-5"
     ]
+  },
+  {
+    "levelId": "capstone",
+    "levelTitle": {
+      "id": "Level 4: Capstone (Kerjakan Sendiri dengan Data Nyata)",
+      "en": "Level 4: Capstone (Do It Yourself on Real Data)"
+    },
+    "levelSubtitle": {
+      "id": "Tidak ada kerangka fungsi, hanya kontrak, data publik yang nyata, dan pemeriksa yang menilai hasilnya langkah demi langkah.",
+      "en": "No function skeletons, only a contract, real public data and a checker that verifies your results step by step."
+    },
+    "badge": {
+      "id": "Capstone",
+      "en": "Capstone"
+    },
+    "badgeColor": "violet",
+    "modules": [
+      "mod-4-1"
+    ]
   }
 ]

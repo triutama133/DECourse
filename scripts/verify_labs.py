@@ -48,6 +48,7 @@ PLAN = {
     "mod-3-3": ("pytest", ["labs/mod-3-3/test_windows.py", "labs/mod-3-3/test_stream.py"]),
     "mod-3-4": ("pytest", ["labs/mod-3-4/test_terraform.py", "labs/mod-3-4/test_finops.py"]),
     "mod-3-5": ("pytest", ["labs/mod-3-5/test_rag.py"]),
+    "mod-4-1": ("capstone", ["labs/mod-4-1/check.py"]),
 }
 
 
@@ -89,6 +90,37 @@ def check_shell(script):
     return code == 0, (out.strip().splitlines() or [""])[-1] + f" ({secs:.0f}s)"
 
 
+def check_capstone(module):
+    """Capstone labs: the reference workspace must pass every checker step and the starter workspace must fail."""
+    import importlib.util
+    import json
+    import shutil
+    import tempfile
+    lab = LABS / module
+    code, out, _ = run([sys.executable, str(lab / "fetch_data.py")])
+    if code != 0:
+        return True, "skipped: the input data could not be downloaded (offline?); nothing verified here"
+    spec = importlib.util.spec_from_file_location("capstone_check", lab / "check.py")
+    chk = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(chk)
+    with tempfile.TemporaryDirectory() as tmp:
+        ref, st = Path(tmp) / "reference", Path(tmp) / "starter"
+        for ws, src in ((ref, lab / "reference" / "pipeline.py"), (st, lab / "starter" / "pipeline.py")):
+            ws.mkdir()
+            shutil.copy(src, ws / "pipeline.py")
+        (ref / "profile.json").write_text(json.dumps(chk.truth()["profile"]))
+        (st / "profile.json").write_text("{}")
+        code, out, secs = run([sys.executable, str(lab / "check.py"), str(ref), "--step", "all"])
+        last = [l for l in out.strip().splitlines() if "passed" in l][-1:] or [out.strip()[-200:]]
+        if code != 0:
+            return False, f"REFERENCE FAILS the checker ({last[0]})"
+        code2, out2, _ = run([sys.executable, str(lab / "check.py"), str(st), "--step", "all"])
+        if code2 == 0:
+            return False, "STARTER ALREADY PASSES the checker"
+        fails = sum(1 for l in out2.splitlines() if l.startswith("FAIL"))
+        return True, f"reference: {last[0].strip()} in {secs:.0f}s; starter fails {fails} checks"
+
+
 def main(argv):
     wanted = [a for a in argv if not a.startswith("-")]
     if "--list" in argv:
@@ -100,7 +132,7 @@ def main(argv):
         if wanted and module not in wanted:
             continue
         for t in targets:
-            ok, msg = check_shell(t) if t.endswith(".sh") else check_pytest(t)
+            ok, msg = check_capstone(module) if kind == "capstone" else check_shell(t) if t.endswith(".sh") else check_pytest(t)
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'} {module}  {Path(t).name:<24} {msg}", flush=True)
     print("\n" + ("all labs verified" if not failed else f"{failed} lab check(s) FAILED"))

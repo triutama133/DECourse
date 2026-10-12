@@ -501,5 +501,33 @@
   "reference": [
    "labs/mod-1-6/reference/ingest_lab.py"
   ]
+ },
+ "mod-4-1": {
+  "run": [
+   {
+    "kind": "check",
+    "script": "labs/mod-4-1/check.py",
+    "args": [
+     "{arg0}",
+     "--step",
+     "all"
+    ]
+   }
+  ],
+  "tests": [
+   "labs/mod-4-1/check.py"
+  ],
+  "work": [
+   "{arg0}/pipeline.py"
+  ],
+  "reference": [
+   "labs/mod-4-1/reference/pipeline.py"
+  ],
+  "arg": "workspace",
+  "arg_example": "~/taxi",
+  "starter": [
+   "labs/mod-4-1/starter/pipeline.py"
+  ],
+  "require_venv": true
  }
 }

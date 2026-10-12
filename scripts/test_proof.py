@@ -54,7 +54,9 @@ tmp = Path(tempfile.mkdtemp(prefix="proof_test_"))
 try:
     work = tmp / "repo"
     (work / "scripts").mkdir(parents=True)
-    shutil.copytree(ROOT / "labs", work / "labs", ignore=shutil.ignore_patterns("__pycache__", ".terraform", "*.tfstate*"))
+    big = shutil.ignore_patterns("__pycache__", ".terraform", "*.tfstate*")
+    shutil.copytree(ROOT / "labs", work / "labs",
+                    ignore=lambda d, names: set(big(d, names)) | ({"data"} if Path(d).name == "mod-4-1" else set()))
     shutil.copy(ROOT / "scripts" / "prove.py", work / "scripts" / "prove.py")
     print("creating a virtual environment with pytest ...")
     sh([sys.executable, "-m", "venv", str(tmp / "venv")])
@@ -126,6 +128,31 @@ try:
         sh(["git", "-C", str(ws), "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "my notes on the summarize script"])
         rc, out = prove("mod-0-2", str(ws))
         check(rc == 0 and app_check("mod-0-2", code_of(out))["ok"], "Lab 0.2: an own workspace is accepted")
+
+    # Capstone 4.1: a workspace-based lab whose checker runs the learner's pipeline (needs the 50 MB input data; skipped when it was not downloaded)
+    data4 = ROOT / "labs" / "mod-4-1" / "data"
+    if (data4 / "yellow_tripdata_2024-01.parquet").is_file() and (data4 / "taxi_zone_lookup.csv").is_file():
+        (work / "labs" / "mod-4-1" / "data").symlink_to(data4, target_is_directory=True)
+        rc, out = sh([py, "-m", "pip", "install", "-q", "duckdb", "pyarrow"])
+        check(rc == 0, "duckdb and pyarrow installed in the temporary venv")
+        cap = work / "labs" / "mod-4-1"
+        ws4 = tmp / "taxi"
+        ws4.mkdir()
+        rc, out = sh([py, "-c", "import json, sys; sys.path.insert(0, 'labs/mod-4-1'); import check; print(json.dumps(check.truth()['profile']))"], cwd=str(work), env=env)
+        (ws4 / "profile.json").write_text(out.strip().splitlines()[-1], encoding="utf-8")
+        shutil.copy(cap / "starter" / "pipeline.py", ws4 / "pipeline.py")
+        rc, out = prove("mod-4-1", str(ws4))
+        check(rc == 1 and code_of(out) is None, "Capstone 4.1 starter: the checker fails, no code is printed")
+        ref4 = (cap / "reference" / "pipeline.py").read_text(encoding="utf-8")
+        (ws4 / "pipeline.py").write_text(ref4, encoding="utf-8")
+        rc, out = prove("mod-4-1", str(ws4))
+        check(rc == 0 and code_of(out) and app_check("mod-4-1", code_of(out))["reason"] == "copied", "Capstone 4.1: the copied reference pipeline is rejected")
+        (ws4 / "pipeline.py").write_text(ref4 + "\n# my own pipeline notes\n", encoding="utf-8")
+        rc, out = prove("mod-4-1", str(ws4))
+        r = app_check("mod-4-1", code_of(out) or "")
+        check(rc == 0 and r["ok"] and r["info"]["venv"] == "v", f"Capstone 4.1: honest work run in a venv is accepted ({r})")
+    else:
+        print("SKIP Capstone 4.1 proof test: run  python3 labs/mod-4-1/fetch_data.py  first")
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

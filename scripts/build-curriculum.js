@@ -268,7 +268,7 @@ for (const [id, c] of Object.entries(proofCfg)) {
   const starter = hashTexts(starterPaths.map((p) => readProof(p, id)));
   const reference = hashTexts(c.reference.map((r, i) => readProof(r || starterPaths[i], id)));
   const needsEnv = c.run.map((s) => s.needs_env).filter(Boolean);
-  proof[id] = { arg: c.arg || null, requireVenv: Boolean(c.require_venv), needsEnv, command: `python3 scripts/prove.py ${id}` + (c.arg ? ' ~/kopiku' : ''), tests, starter, reference };
+  proof[id] = { arg: c.arg || null, requireVenv: Boolean(c.require_venv), needsEnv, command: `python3 scripts/prove.py ${id}` + (c.arg ? ' ' + (c.arg_example || '~/kopiku') : ''), argExample: c.arg ? (c.arg_example || '~/kopiku') : null, tests, starter, reference };
 }
 for (const id of Object.keys(built)) if (!proof[id]) errors.push(`labs/proof.json: module ${id} has no proof entry`);
 if (missing.length) console.log(`\nnot written yet: ${missing.join(', ')}`);

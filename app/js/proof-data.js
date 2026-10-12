@@ -6,6 +6,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-0",
+  "argExample": null,
   "tests": "584b207d",
   "starter": "a10ad64a",
   "reference": "405fabc1"
@@ -15,6 +16,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-0",
+  "argExample": null,
   "tests": "6c539931",
   "starter": "ee67fbba",
   "reference": "99af3274"
@@ -24,6 +26,7 @@ window.PROOF = {
   "requireVenv": true,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-1",
+  "argExample": null,
   "tests": "6f8a8745",
   "starter": "b6a8fadc",
   "reference": "660c89a8"
@@ -33,6 +36,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-2 ~/kopiku",
+  "argExample": "~/kopiku",
   "tests": "b6a56e49",
   "starter": "5648690a",
   "reference": "6bbd565a"
@@ -42,6 +46,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-3",
+  "argExample": null,
   "tests": "cb79ec77",
   "starter": "6cd13368",
   "reference": "c2df4d16"
@@ -51,6 +56,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-1",
+  "argExample": null,
   "tests": "362441e7",
   "starter": "4ef29b2a",
   "reference": "e622f01f"
@@ -60,6 +66,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-2",
+  "argExample": null,
   "tests": "bc629f29",
   "starter": "7899ee00",
   "reference": "c648b682"
@@ -69,6 +76,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-3",
+  "argExample": null,
   "tests": "9406611d",
   "starter": "22ccc349",
   "reference": "4d1689f4"
@@ -78,6 +86,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-4",
+  "argExample": null,
   "tests": "0a31d3e3",
   "starter": "479bbc4e",
   "reference": "d2ae8a70"
@@ -87,6 +96,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-1",
+  "argExample": null,
   "tests": "65e72380",
   "starter": "e0a581fc",
   "reference": "95a121d6"
@@ -96,6 +106,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-2",
+  "argExample": null,
   "tests": "390f45f5",
   "starter": "c0198ea1",
   "reference": "f08f9c05"
@@ -105,6 +116,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-3",
+  "argExample": null,
   "tests": "55b1936d",
   "starter": "c6832a2b",
   "reference": "f998317e"
@@ -114,6 +126,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-4",
+  "argExample": null,
   "tests": "e33484a1",
   "starter": "bcd55b7b",
   "reference": "d0e33b9a"
@@ -123,6 +136,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-5",
+  "argExample": null,
   "tests": "bce94f80",
   "starter": "62fbe336",
   "reference": "b5fdf05a"
@@ -132,6 +146,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-1",
+  "argExample": null,
   "tests": "3747f473",
   "starter": "b7c26e97",
   "reference": "ea1e9960"
@@ -143,6 +158,7 @@ window.PROOF = {
    "KAFKA_BOOTSTRAP"
   ],
   "command": "python3 scripts/prove.py mod-3-2",
+  "argExample": null,
   "tests": "1b18d176",
   "starter": "c1b688f3",
   "reference": "f158f7e4"
@@ -152,6 +168,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-3",
+  "argExample": null,
   "tests": "435c1d78",
   "starter": "b07866a3",
   "reference": "24329ad4"
@@ -161,6 +178,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-4",
+  "argExample": null,
   "tests": "af5f49bb",
   "starter": "63a04fea",
   "reference": "0e564158"
@@ -170,6 +188,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-5",
+  "argExample": null,
   "tests": "3ef42ade",
   "starter": "6e325526",
   "reference": "582121df"
@@ -179,6 +198,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-7",
+  "argExample": null,
   "tests": "bd0049e7",
   "starter": "5494068f",
   "reference": "1a96bf18"
@@ -188,6 +208,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-6",
+  "argExample": null,
   "tests": "1ac1ee5c",
   "starter": "42aef1e4",
   "reference": "ab0717ef"
@@ -197,6 +218,7 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-5",
+  "argExample": null,
   "tests": "440b33c1",
   "starter": "b1279c68",
   "reference": "0f481807"
@@ -206,8 +228,19 @@ window.PROOF = {
   "requireVenv": false,
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-6",
+  "argExample": null,
   "tests": "bbfb6510",
   "starter": "16cd8ac0",
   "reference": "ac597a02"
+ },
+ "mod-4-1": {
+  "arg": "workspace",
+  "requireVenv": true,
+  "needsEnv": [],
+  "command": "python3 scripts/prove.py mod-4-1 ~/taxi",
+  "argExample": "~/taxi",
+  "tests": "c12b19e2",
+  "starter": "ee476600",
+  "reference": "0a093891"
  }
 };

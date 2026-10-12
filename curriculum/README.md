@@ -13,7 +13,7 @@ python3 scripts/test_proof.py                # lab proof codes end to end (needs
 
 ## Language status
 
-English is the source of truth and both English and Indonesian (`id.md`) are complete for all 23 modules. `node scripts/build-curriculum.js` checks that both maintain identical structure (same number of lessons, steps, files, deliverables, quiz questions and options, correct answers and code fences). If you change an English file, update `id.md` too.
+English is the source of truth and both English and Indonesian (`id.md`) are complete for all modules except the Level 4 capstone (4.1), which is English-only until its Indonesian version is written. `node scripts/build-curriculum.js` checks that both maintain identical structure (same number of lessons, steps, files, deliverables, quiz questions and options, correct answers and code fences). If you change an English file, update `id.md` too.
 
 ## File format of a module
 

@@ -36,3 +36,4 @@ dbt_packages/
 *.tfstate.*
 tfplan*
 plan-*
+labs/mod-4-1/data/

@@ -411,7 +411,7 @@ class DataForgeApp {
         <ul class="small muted" style="margin-left:18px">
           <li>${this.l("Kode hanya tercetak jika semua tes lulus dan tidak ada yang dilewati.", "A code is printed only if every test passes and none is skipped.")}</li>
           ${P.requireVenv ? `<li>${this.l("Untuk lab ini, jalankan di dalam venv Anda (Modul 0.2).", "For this lab, run it inside your venv (Module 0.2).")}</li>` : ""}
-          ${P.arg ? `<li>${this.l("Ganti ~/kopiku dengan folder workspace yang Anda buat di lab ini.", "Replace ~/kopiku with the workspace folder you made in this lab.")}</li>` : ""}
+          ${P.arg ? `<li>${this.l(`Ganti ${P.argExample || "~/kopiku"} dengan folder workspace yang Anda buat di lab ini.`, `Replace ${P.argExample || "~/kopiku"} with the workspace folder you made in this lab.`)}</li>` : ""}
           ${envNote}
           <li>${this.l("Ini pemeriksaan kejujuran, bukan keamanan: siapa pun bisa membaca skripnya. Gunanya agar Anda menyatakan \"saya mengerjakannya\" dengan bukti, demi kebaikan Anda sendiri.", "This is an honesty check, not security: anyone can read the script. It exists so you can state \"I did it\" with evidence, for your own benefit.")}</li>
         </ul>
@@ -676,7 +676,7 @@ class DataForgeApp {
         ${step(5, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
           <ul style="margin-left:18px">
-            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 57 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 57 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
+            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 60 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 60 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
@@ -1759,8 +1759,8 @@ class DataForgeApp {
       {
         id: "transformation",
         name: this.l("4. Transformasi Data, Orkestrasi & Kualitas", "4. Data Transformation, Orchestration & Quality"),
-        mods: ["mod-2-3", "mod-2-4", "mod-2-5"],
-        topics: this.l("dbt Core Staging/Marts, Jinja macros, Dagster asset-based DAGs, Airflow, Data Contracts formal, Total Variation Distance drift, Dead-letter quarantine", "dbt Core Staging/Marts, Jinja macros, Dagster assets, Airflow, Data Contracts, Drift detection, Dead-letter quarantine")
+        mods: ["mod-2-3", "mod-2-4", "mod-2-5", "mod-4-1"],
+        topics: this.l("dbt Core Staging/Marts, Jinja macros, Dagster asset-based DAGs, Airflow, Data Contracts formal, Total Variation Distance drift, Dead-letter quarantine, capstone pipeline nyata (NYC taxi)", "dbt Core Staging/Marts, Jinja macros, Dagster assets, Airflow, Data Contracts, Drift detection, Dead-letter quarantine, real capstone pipeline (NYC taxi)")
       },
       {
         id: "streaming",
