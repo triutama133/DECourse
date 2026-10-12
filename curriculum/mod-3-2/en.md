@@ -8,9 +8,11 @@ why: Tutorials push random messages into Kafka and print them. Real systems must
 ## @outcomes
 - Explain the log abstraction (topics, partitions, offsets, retention, compaction) and how keys give ordering and scale
 - Reason about producer and consumer delivery guarantees (at-most-once, at-least-once, exactly-once effect) and make a consumer idempotent
+- Explain leaders, followers and in-sync replicas, what `acks=all` with `min.insync.replicas` guarantees, and what a broker failure looks like
 - Describe consumer groups, assignment, rebalances and lag, and monitor them
 - Explain how log-based CDC reads PostgreSQL's WAL (publications, slots, replica identity) and what a Debezium event contains
 - Consume CDC events into a replica that stays correct under duplicates and reordering, and identify the operational risks
+- Evolve a schema safely with a schema registry (compatibility modes, defaults, upgrade order) and read the registry's wire format
 
 ## @prereq
 Modules 1.2 (idempotency), 2.2 (table formats) and 2.4 (orchestration). Part A of the lab needs no installation. Part B needs a Kafka-compatible broker (`docker compose up -d redpanda`, or any Kafka). Part C needs PostgreSQL with logical decoding (an embedded one is installed by `pip`).
@@ -50,6 +52,29 @@ Ordering is the property people misunderstand. Kafka guarantees order **only wit
 
 The lab's Part A has you build these ideas in a miniature in-memory Kafka, so the rules become concrete: stable key-to-partition mapping, per-partition offsets, lag, range assignment, and compaction with tombstones. (It uses a CRC hash for determinism; real Kafka uses murmur2. The behaviour, not the hash function, is the lesson.)
 
+## @lesson Inside the cluster: leaders, in-sync replicas and surviving a broker failure
+"Replication factor 3" is easy to say. What actually happens when a broker dies? We ran a real three-broker Apache Kafka 4.0.0 cluster (KRaft mode, no ZooKeeper; `labs/mod-3-2/cluster/docker-compose.yml`) and broke it on purpose. First the topic:
+
+```text
+$ kafka-topics.sh --create --topic orders --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+$ kafka-topics.sh --describe --topic orders
+Partition: 0  Leader: 2  Replicas: 2,3,1  Isr: 2,3,1
+Partition: 1  Leader: 3  Replicas: 3,1,2  Isr: 3,1,2
+Partition: 2  Leader: 1  Replicas: 1,2,3  Isr: 1,2,3
+```
+
+Each partition has one **leader** (all reads and writes go through it) and two **followers** that continuously fetch from the leader to copy its log. `Replicas` lists the brokers that should hold a copy (the first is the *preferred* leader, so leaders are spread over the brokers). `Isr` lists the **in-sync replicas**: the followers that are caught up. Only an in-sync replica may become leader, which is why a new leader never lacks an acknowledged record.
+
+**What `acks=all` and `min.insync.replicas` mean together.** With `acks=all`, the leader answers only after **every replica currently in the ISR** has the record. `min.insync.replicas=2` adds a floor: if the ISR is smaller than 2, the leader **refuses** the write instead of accepting it with fewer copies. So `replication.factor=3`, `min.insync.replicas=2` and `acks=all` is the standard recipe: any single broker can fail without losing an acknowledged record *and* without stopping writers.
+
+**Experiment 1: crash the leader under load.** We started a producer sending 20 records per second with `acks=all` and, after about 9 seconds, killed (`docker kill`, a crash, not a clean shutdown) the broker leading partition 0. The producer received `NOT_LEADER_OR_FOLLOWER`, **retried by itself**, and finished: all 500 records were delivered, the slowest took **7.46 seconds**, and the throughput in that interval fell from 20 to 7.5 records per second. `describe` then showed the survivors as the new world: `Leader: 3, Isr: 3,1`. After the broker was restarted it rejoined every ISR (`Isr: 3,1,2`) within the 40 seconds we waited, but leadership stayed with broker 3; Kafka moves leaders back to the preferred broker later, in the background. The final offsets summed to **507 = 6 + 500 + 1**, exactly the records we sent: no loss and no duplicates, because the Java producer is idempotent by default when `acks=all` (since Kafka 3.0).
+
+**Experiment 2: the cost of a strict floor.** We made a second topic with `min.insync.replicas=3` (every replica must be present) and killed one broker. Producers with `acks=all` failed with **`NOT_ENOUGH_REPLICAS`** until the broker returned: the topic had chosen *consistency over availability*. A producer with `acks=1` kept succeeding, writing to a leader with only two copies: **availability won and the durability promise was silently lowered**. The topic with `min.insync.replicas=2` accepted `acks=all` writes with one broker down, which is why 2 is the usual value. Remember that `acks=1` or `acks=0` can lose a record that was acknowledged only by a leader that then crashed.
+
+**Watch for it.** `kafka-topics.sh --describe --under-replicated-partitions` lists partitions with fewer in-sync replicas than replicas (in the experiment: all four partitions while one broker was down), and `--under-min-isr-partitions` lists those that **refuse `acks=all` writes** (the strict topic). Both should be empty and are the first alerts of a Kafka operator. Related settings: `unclean.leader.election.enable` (default `false`) would let an *out-of-sync* replica become leader when no in-sync one exists, restoring availability by **throwing away acknowledged records**; leave it off for important data. Rack-aware placement (`broker.rack`) spreads the replicas over failure zones.
+
+**Who decides the leaders?** In KRaft mode a quorum of **controller** nodes keeps the cluster metadata with the Raft protocol and elects partition leaders. In our small cluster every node was both broker and controller. The broker we killed in the first attempt was also the active controller, and the others elected a new one within **5 seconds** (the log shows the new controller recorded exactly 5.0 s after the kill). Raft needs a **majority**: three controllers survive one failure, five survive two. Production clusters therefore run 3 or 5 dedicated controller nodes separate from the brokers, so a busy broker cannot starve the cluster's brain.
+
 ## @lesson Producers and consumers: delivery guarantees
 **Producers.** Important settings:
 
@@ -82,6 +107,28 @@ The mainstream choice is **at-least-once with idempotent processing**: commit af
 Records are bytes; you choose the format. **JSON** is easy to read and debug but verbose and with no enforced structure. **Avro** and **Protobuf** are compact, typed and designed for evolution. With them you normally run a **schema registry**: a service that stores schemas, gives each a numeric id embedded in the message, and enforces **compatibility rules** when a schema changes (backward: new readers can read old data; forward: old readers can read new data; full: both). This is the streaming counterpart of the data contracts of Module 2.5: a producer cannot publish an incompatible change without being told.
 
 **Kafka Connect** is the framework for moving data in and out of Kafka **without writing code**. **Source connectors** pull from a system into topics (the Debezium PostgreSQL connector is one); **sink connectors** push topics into systems (object storage, Iceberg, warehouses, search indexes). Connect handles scaling, offset tracking, retries and converters (JSON, Avro), and lets you apply small **single message transforms (SMTs)**. Misbehaving sink records can be routed to a dead-letter topic. For a first version of "database to lakehouse", a Debezium source plus a sink connector is often all you need.
+
+## @lesson Schema Registry in practice: evolving a topic without breaking consumers
+The schema registry from the previous lesson becomes real when a team wants to *change* a message. We ran Redpanda's built-in registry, which speaks the same REST API as Confluent's, with an Avro subject `orders-value` and the default rule, **BACKWARD** ("a consumer using the new schema can read data written with the old one"). Starting from `{id: int, customer: string, total: int}`, we asked the registry whether each change is allowed:
+
+| Change to the schema | BACKWARD | FORWARD | FULL |
+|---|---|---|---|
+| Add an **optional** field (`["null","string"]`, default `null`) | accepted | accepted | accepted |
+| Add a **required** field with no default | **rejected** | accepted | **rejected** |
+| **Remove** a field that has no default (`total`) | accepted | **rejected** | **rejected** |
+
+(The columns come from tests on the same subject after switching its compatibility setting. Changing a type, `int` to `string`, was **rejected** under BACKWARD, because Avro can only promote numeric types, for example `int` to `long`.) Registering a rejected schema returns **HTTP 409** with the reason, for example `READER_FIELD_MISSING_DEFAULT_VALUE: the field 'channel' has no default value and is missing in the old schema`. The registry therefore stops a producer team from shipping a breaking change; it **does not** make your consumers correct, only the two schemas compatible.
+
+Practical rules:
+
+- **Always give new fields a default** (or make them optional). This is the single habit that keeps you out of trouble.
+- **Never reuse a field name with a different meaning or type.** Add a new field, migrate readers, and retire the old one later.
+- **Choose the order of upgrades.** BACKWARD means *upgrade consumers first* (they can read old and new data); FORWARD means *upgrade producers first*; FULL allows either order. Compatibility **across all versions** (`BACKWARD_TRANSITIVE`) matters when old data stays in the topic for months or forever, as in a compacted topic.
+- **Test the change before registering** with the `/compatibility/subjects/<subject>/versions/latest` endpoint in CI. A failed check in CI is cheaper than an incident.
+
+**What is in the message.** With a registry the producer does not embed the schema in every record. We produced `{"id":1,"customer":"Budi","total":150000}` through the registry and read the raw bytes: `00 00000001 02 08 42756469 e0a712`. The first byte is a **magic byte** (0), the next four bytes are the **schema id** (1), and the rest is the compact Avro binary: **16 bytes in total, against 41 bytes of the same record as JSON**. The consumer reads the id, fetches (and caches) the schema from the registry, and decodes. That is also why a registry outage hurts only consumers that meet an id they have not cached.
+
+**Where stream processing fits.** Kafka itself stores and delivers records; transforming them is another layer. **Kafka Streams** is a Java library you embed in your own application (no separate cluster) to filter, join and aggregate topics, keeping its state in local stores backed up to *changelog topics* in Kafka. **ksqlDB** offers SQL over topics. **Flink** and **Spark Structured Streaming** (Module 3.3) are separate engines for larger or more complex jobs. This is a description from the projects' documentation: the lab does not run them.
 
 ## @lesson Change data capture: turning a database into a stream
 How do you get an operational database's changes into the platform? The naive way is **query-based**: every few minutes, `SELECT * FROM orders WHERE updated_at > :last_run`. Problems: it **misses deletes** (a deleted row is simply gone), it misses intermediate states (two updates between polls look like one), it needs a reliable `updated_at`, and it puts repeated load on the production database.
@@ -165,6 +212,19 @@ docker compose exec redpanda rpk topic consume shop.public.orders -o start
 ```
 
    You should see three snapshot reads (`op: "r"`) for the three seeded rows, then an update (`u`), and after an insert (`c`) and a delete (`d`) also a **tombstone** (the same key with a null value, which lets a compacted topic forget the key). Then repeat the experiment after `ALTER TABLE orders REPLICA IDENTITY FULL` and compare the `before` field. Redpanda Console at http://localhost:8080 shows the topic and consumer lag.
+7. Optional, with Docker (about 1.5 GB of memory): **break a real cluster**. Start three Apache Kafka brokers with `docker compose -f labs/mod-3-2/cluster/docker-compose.yml up -d`, wait about 30 seconds, and run the Kafka tools inside a broker:
+
+```bash
+K="docker exec df_kafka1 /opt/kafka/bin"
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --create --topic orders --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --describe --topic orders           # who leads, who is in sync
+docker kill df_kafka2                                                                  # crash a broker
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --describe --under-replicated-partitions
+docker start df_kafka2                                                                 # watch the Isr column recover
+docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v                      # clean up when you are done
+```
+
+   Before you kill the broker, **predict** the new `Leader` and `Isr` of each partition, then compare. Next create a topic with `--config min.insync.replicas=3`, kill a broker, and produce with `kafka-console-producer.sh ... --producer-property acks=all`; explain the `NOT_ENOUGH_REPLICAS` you get. For the schema registry, `docker compose up -d redpanda` also exposes it on `localhost:8081`: register an Avro schema with `POST /subjects/orders-value/versions`, then check an incompatible change against `POST /compatibility/subjects/orders-value/versions/latest` and see the answer change when you set `FORWARD` or `FULL` with `PUT /config/orders-value`. (These parts were run by hand against Apache Kafka 4.0.0 and Redpanda; they are not covered by automated tests.)
 
 ### @files
 - labs/mod-3-2/minilog.py :: Part A working file: the mini Kafka :: starter
@@ -172,6 +232,7 @@ docker compose exec redpanda rpk topic consume shop.public.orders -o start
 - labs/mod-3-2/real_kafka.py :: Part B working file: real broker functions :: starter
 - labs/mod-3-2/test_real_kafka.py :: Part B tests (4; need KAFKA_BOOTSTRAP) :: test
 - labs/mod-3-2/pgoutput.py :: Provided decoder of PostgreSQL's replication stream :: data
+- labs/mod-3-2/cluster/docker-compose.yml :: Optional: a real three-broker Kafka cluster to break on purpose :: config
 - labs/mod-3-2/cdc.py :: Part C working file: events and an idempotent replica :: starter
 - labs/mod-3-2/test_cdc.py :: Part C tests (8) :: test
 - labs/mod-3-2/debezium-orders.json :: Debezium connector configuration for the Docker stack (step 6) :: config
@@ -218,7 +279,7 @@ A replication slot is a promise made by the source database. A CDC consumer that
 ## @quiz
 ### In Kafka, what does a message key determine?
 - [ ] Which consumer in the group will receive the message, regardless of how the partitions are assigned
-- [x] Which partition the message goes to, so that messages with the same key stay in their order
+- [x] Which partition the message goes to, so that messages with the same key keep their relative order
 - [ ] How long the message is retained by the broker before the retention rule finally deletes it
 - [ ] Whether the producer waits for an acknowledgement from the follower replicas of that partition
 
@@ -251,7 +312,7 @@ A replication slot is a promise made by the source database. A CDC consumer that
 ### What is consumer lag?
 - [ ] The time that a consumer takes to open its first connection to the broker when the application starts
 - [ ] The number of messages that a producer has queued locally before it finally sends them to the broker
-- [x] For each partition, the end offset minus the group's committed offset, summed over the topic
+- [x] For each partition, the end offset minus the group's committed offset, summed over the whole topic
 - [ ] The difference in clock time between the producer's server and the consumer's own server machine
 
 > Lag shows how far behind a group is. It is the main health metric: rising lag means consumers are slower than producers.
@@ -274,11 +335,27 @@ A replication slot is a promise made by the source database. A CDC consumer that
 
 ### Why can a stopped CDC connector bring down the source PostgreSQL database?
 - [ ] The connector holds an exclusive lock on the replicated tables for as long as it is down
-- [x] The replication slot keeps all unconfirmed WAL, which accumulates until the disk is full
+- [x] The replication slot keeps all unconfirmed WAL, which then accumulates until the disk is full
 - [ ] The database restarts itself repeatedly when its replication client fails to reconnect in time
 - [ ] The topic in Kafka sends back pressure to the source, which fills the memory of the database
 
 > A logical slot pins WAL until the consumer confirms it. A long outage makes WAL pile up on the production server. Limit it with max_slot_wal_keep_size and alert on slot lag.
+
+### A topic has replication factor 3 and `min.insync.replicas=2`. A producer uses `acks=all`. One broker crashes. What is the correct expectation?
+- [ ] Writes stop, because Kafka requires every one of the three replicas to be alive before it accepts data
+- [x] Writes continue and acknowledged records survive, because two replicas still stay in the in-sync set
+- [ ] Writes continue, but any acknowledged record that the dead broker held is lost for good
+- [ ] Writes stop until an operator picks a new leader, since followers can never be promoted automatically
+
+> With two in-sync replicas left, the ISR still meets the floor of 2. A caught-up follower becomes leader and the producer retries. We measured a 7.5 second stall, no lost records and no duplicates.
+
+### A team must add a field `channel` to an Avro schema registered with BACKWARD compatibility, without breaking existing consumers. Which change does the registry accept?
+- [ ] A required field `channel` with no default value, because every new record contains the field anyway
+- [ ] Renaming the field `customer` to `channel`, as long as the type of the field stays a string
+- [x] An optional field `channel` with a default of null, so records written without it can still be read
+- [ ] Changing `total` from `int` to `string`, because a string can hold any integer value in text form
+
+> Under BACKWARD, a new reader must be able to read old data, so a new field needs a default. We saw the registry accept an optional field and answer HTTP 409 for a required one without a default.
 
 ## @resources
 - [Apache Kafka documentation](https://kafka.apache.org/documentation/)

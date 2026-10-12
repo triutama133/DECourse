@@ -1,0 +1,46 @@
+# A real three-broker Apache Kafka cluster (KRaft mode: no ZooKeeper) for Module 3.2, "Inside the cluster".
+#   docker compose -f labs/mod-3-2/cluster/docker-compose.yml up -d
+#   docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v        <- remove everything when you are done
+# Needs about 1.5 GB of memory. There are no published ports: you run the Kafka tools INSIDE a broker container (see the lesson).
+# Tested with apache/kafka 4.0.0.
+x-kafka: &kafka
+  image: apache/kafka:4.0.0
+  restart: "no"
+  environment: &env
+    CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+    KAFKA_PROCESS_ROLES: "broker,controller"
+    KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka1:9093,2@kafka2:9093,3@kafka3:9093"
+    KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+    KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+    KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+    KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+
+services:
+  kafka1:
+    <<: *kafka
+    container_name: df_kafka1
+    hostname: kafka1
+    environment:
+      <<: *env
+      KAFKA_NODE_ID: "1"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka1:9092"
+  kafka2:
+    <<: *kafka
+    container_name: df_kafka2
+    hostname: kafka2
+    environment:
+      <<: *env
+      KAFKA_NODE_ID: "2"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka2:9092"
+  kafka3:
+    <<: *kafka
+    container_name: df_kafka3
+    hostname: kafka3
+    environment:
+      <<: *env
+      KAFKA_NODE_ID: "3"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka3:9092"

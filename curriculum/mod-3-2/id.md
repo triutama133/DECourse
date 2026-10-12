@@ -8,9 +8,11 @@ why: Banyak tutorial pemula hanya mengirim pesan teks acak ke Kafka lalu menampi
 ## @outcomes
 - Menjelaskan abstraksi log (topics, partitions, offsets, retention, log compaction) serta bagaimana penentuan key menghasilkan pengurutan data deterministik dan skalabilitas paralel
 - Memahami trade-off jaminan pengiriman pesan producer dan consumer (at-most-once, at-least-once, exactly-once effect) dan merancang consumer yang idempoten
+- Menjelaskan leader, follower, dan in-sync replica, apa yang dijamin `acks=all` bersama `min.insync.replicas`, dan seperti apa kegagalan broker
 - Menguraikan arsitektur consumer groups, algoritma assignment partisi, rebalancing, dan metrik consumer lag, serta memantaunya secara real-time
 - Menjelaskan mekanisme kerja log-based CDC dalam membaca PostgreSQL WAL (publications, replication slots, replica identity) serta anatomi payload event Debezium
 - Mengonsumsi event CDC ke dalam tabel replika yang tetap konsisten terhadap duplikasi dan perubahan urutan pesan, serta memitigasi risiko operasionalnya
+- Mengubah skema dengan aman memakai schema registry (mode kompatibilitas, default, urutan upgrade) dan membaca wire format registry
 
 ## @prereq
 Modul 1.2 (idempotensi), Modul 2.2 (open table formats), dan Modul 2.4 (orkestrasi). Bagian A dari lab praktikum tidak membutuhkan instalasi eksternal apa pun. Bagian B membutuhkan Kafka-compatible broker (`docker compose up -d redpanda`, atau Kafka standar). Bagian C membutuhkan PostgreSQL dengan logical decoding (embedded PostgreSQL otomatis diinstal via `pip`).
@@ -50,6 +52,29 @@ Jaminan urutan adalah konsep yang paling sering disalahpahami. Kafka menjamin ke
 
 Pada Bagian A lab praktikum modul ini, Anda akan membangun konsep-konsep ini dari nol ke dalam implementasi mini Kafka in-memory, sehingga Anda menguasai aturan internalnya secara mendalam: pemetaan key-to-partition yang deterministik, pelacakan offset per partisi, perhitungan lag, algoritma range assignment, serta mekanisme log compaction lengkap dengan penanganan tombstone.
 
+## @lesson Di dalam cluster: leader, in-sync replica, dan bertahan dari kegagalan broker
+"Replication factor 3" mudah diucapkan. Apa yang sebenarnya terjadi ketika sebuah broker mati? Kami menjalankan cluster Apache Kafka 4.0.0 tiga broker sungguhan (mode KRaft, tanpa ZooKeeper; `labs/mod-3-2/cluster/docker-compose.yml`) dan sengaja merusaknya. Pertama topiknya:
+
+```text
+$ kafka-topics.sh --create --topic orders --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+$ kafka-topics.sh --describe --topic orders
+Partition: 0  Leader: 2  Replicas: 2,3,1  Isr: 2,3,1
+Partition: 1  Leader: 3  Replicas: 3,1,2  Isr: 3,1,2
+Partition: 2  Leader: 1  Replicas: 1,2,3  Isr: 1,2,3
+```
+
+Setiap partisi punya satu **leader** (semua baca dan tulis lewat dia) dan dua **follower** yang terus-menerus mengambil dari leader untuk menyalin lognya. `Replicas` mendaftar broker yang seharusnya menyimpan salinan (yang pertama adalah leader *pilihan utama*, sehingga leader tersebar di seluruh broker). `Isr` mendaftar **in-sync replicas**: follower yang sudah menyusul. Hanya replika in-sync yang boleh menjadi leader, itulah sebabnya leader baru tidak pernah kekurangan record yang sudah di-acknowledge.
+
+**Arti `acks=all` dan `min.insync.replicas` bersama-sama.** Dengan `acks=all`, leader menjawab hanya setelah **setiap replika yang saat ini ada di ISR** memiliki record itu. `min.insync.replicas=2` menambahkan batas bawah: jika ISR lebih kecil dari 2, leader **menolak** tulisan alih-alih menerimanya dengan salinan lebih sedikit. Jadi `replication.factor=3`, `min.insync.replicas=2`, dan `acks=all` adalah resep standar: satu broker mana pun boleh gagal tanpa kehilangan record yang sudah di-acknowledge *dan* tanpa menghentikan penulis.
+
+**Eksperimen 1: crash leader saat ada beban.** Kami menjalankan producer yang mengirim 20 record per detik dengan `acks=all` dan, setelah sekitar 9 detik, mematikan paksa (`docker kill`, sebuah crash, bukan shutdown bersih) broker yang memimpin partisi 0. Producer menerima `NOT_LEADER_OR_FOLLOWER`, **mencoba ulang sendiri**, dan selesai: semua 500 record terkirim, yang paling lambat memakan **7,46 detik**, dan throughput pada interval itu turun dari 20 menjadi 7,5 record per detik. `describe` lalu menunjukkan dunia baru para penyintas: `Leader: 3, Isr: 3,1`. Setelah broker dihidupkan kembali ia bergabung lagi ke setiap ISR (`Isr: 3,1,2`) dalam 40 detik yang kami tunggu, tetapi kepemimpinan tetap di broker 3; Kafka memindahkan leader kembali ke broker pilihan utama kemudian, di latar belakang. Offset akhir berjumlah **507 = 6 + 500 + 1**, persis record yang kami kirim: tanpa kehilangan dan tanpa duplikat, karena producer Java bersifat idempoten secara default ketika `acks=all` (sejak Kafka 3.0).
+
+**Eksperimen 2: harga batas bawah yang ketat.** Kami membuat topik kedua dengan `min.insync.replicas=3` (setiap replika harus ada) dan mematikan satu broker. Producer dengan `acks=all` gagal dengan **`NOT_ENOUGH_REPLICAS`** sampai broker kembali: topik itu memilih *konsistensi daripada ketersediaan*. Producer dengan `acks=1` terus berhasil, menulis ke leader yang hanya punya dua salinan: **ketersediaan menang dan janji durabilitas diturunkan secara diam-diam**. Topik dengan `min.insync.replicas=2` menerima tulisan `acks=all` dengan satu broker mati, itulah mengapa 2 adalah nilai yang umum. Ingat bahwa `acks=1` atau `acks=0` bisa kehilangan record yang hanya di-acknowledge oleh leader yang kemudian crash.
+
+**Pantau.** `kafka-topics.sh --describe --under-replicated-partitions` mendaftar partisi dengan replika in-sync lebih sedikit daripada replikanya (pada eksperimen: keempat partisi saat satu broker mati), dan `--under-min-isr-partitions` mendaftar yang **menolak tulisan `acks=all`** (topik yang ketat). Keduanya harus kosong dan merupakan alert pertama seorang operator Kafka. Pengaturan terkait: `unclean.leader.election.enable` (default `false`) akan membiarkan replika yang *tidak in-sync* menjadi leader ketika tidak ada yang in-sync, memulihkan ketersediaan dengan **membuang record yang sudah di-acknowledge**; biarkan mati untuk data penting. Penempatan sadar rak (`broker.rack`) menyebar replika ke seluruh zona kegagalan.
+
+**Siapa yang menentukan leader?** Dalam mode KRaft, sebuah kuorum node **controller** menyimpan metadata cluster dengan protokol Raft dan memilih leader partisi. Pada cluster kecil kami setiap node adalah broker sekaligus controller. Broker yang kami matikan pada percobaan pertama juga controller aktif, dan yang lain memilih controller baru dalam **5 detik** (log menunjukkan controller baru tercatat tepat 5,0 detik setelah dimatikan). Raft butuh **mayoritas**: tiga controller bertahan dari satu kegagalan, lima bertahan dari dua. Cluster produksi karena itu menjalankan 3 atau 5 node controller khusus yang terpisah dari broker, agar broker yang sibuk tidak menghabiskan sumber daya otak cluster.
+
 ## @lesson Producer dan consumer: jaminan pengiriman pesan
 **Konfigurasi Esensial Producer:**
 
@@ -82,6 +107,28 @@ Pilihan standar industri enterprise adalah **at-least-once dengan pemrosesan ide
 Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya ditentukan oleh aplikasi Anda. Format **JSON** sangat ramah manusia dan mudah di-debug, namun memakan bandwidth besar dan tidak memiliki penegakan skema yang kaku. Format biner seperti **Apache Avro** dan **Protocol Buffers (Protobuf)** jauh lebih ringkas, bertipe data ketat, dan dirancang untuk evolusi skema jangka panjang. Penggunaan Avro umumnya dipadukan dengan **Confluent Schema Registry**: sebuah layanan terpusat yang menyimpan versi skema data, menyematkan ID skema berukuran 4 byte pada setiap payload pesan, dan menegakkan **aturan kompatibilitas skema** saat skema diperbarui (Backward, Forward, atau Full Compatibility). Ini adalah wujud nyata dari konsep data contract (Modul 2.5) pada dunia streaming: producer tidak akan diizinkan mempublikasikan perubahan skema yang merusak aplikasi consumer downstream.
 
 **Kafka Connect** adalah kerangka kerja siap pakai untuk memindahkan data masuk dan keluar dari Apache Kafka **tanpa perlu menulis kode aplikasi dari nol**. **Source Connectors** menarik data dari sistem eksternal ke dalam Kafka topic (seperti Debezium untuk database PostgreSQL); sedangkan **Sink Connectors** menyalurkan isi topic ke sistem penyimpanan tujuan (seperti Amazon S3, Google Cloud Storage, Apache Iceberg, Snowflake, Elasticsearch, atau ClickHouse). Kafka Connect secara otomatis mengelola skalabilitas worker, pelacakan offset, penanganan retry, transformasi pesan ringan (**Single Message Transforms / SMT**), dan perutean error ke Dead-Letter Queue. Untuk pipeline "database replika menuju data lakehouse", kombinasi Debezium source connector dan cloud storage sink connector sering kali sudah mencukupi kebutuhan produksi tanpa ribuan baris kode kustom.
+
+## @lesson Schema Registry dalam praktik: mengubah topik tanpa merusak consumer
+Schema registry dari pelajaran sebelumnya menjadi nyata ketika sebuah tim ingin *mengubah* pesan. Kami menjalankan registry bawaan Redpanda, yang berbicara dengan REST API sama seperti milik Confluent, dengan subject Avro `orders-value` dan aturan default, **BACKWARD** ("consumer yang memakai skema baru bisa membaca data yang ditulis dengan skema lama"). Mulai dari `{id: int, customer: string, total: int}`, kami bertanya kepada registry apakah setiap perubahan diizinkan:
+
+| Perubahan skema | BACKWARD | FORWARD | FULL |
+|---|---|---|---|
+| Menambah field **opsional** (`["null","string"]`, default `null`) | diterima | diterima | diterima |
+| Menambah field **wajib** tanpa default | **ditolak** | diterima | **ditolak** |
+| **Menghapus** field yang tak punya default (`total`) | diterima | **ditolak** | **ditolak** |
+
+(Kolom-kolom ini berasal dari tes pada subject yang sama setelah mengganti pengaturan kompatibilitasnya. Mengubah tipe, `int` menjadi `string`, **ditolak** pada BACKWARD, karena Avro hanya bisa mempromosikan tipe numerik, misalnya `int` ke `long`.) Mendaftarkan skema yang ditolak mengembalikan **HTTP 409** beserta alasannya, misalnya `READER_FIELD_MISSING_DEFAULT_VALUE: the field 'channel' has no default value and is missing in the old schema`. Registry dengan demikian menghentikan tim producer mengirim perubahan yang merusak; ia **tidak** membuat consumer Anda benar, hanya membuat kedua skema kompatibel.
+
+Aturan praktis:
+
+- **Selalu beri field baru sebuah default** (atau jadikan opsional). Ini kebiasaan tunggal yang menjauhkan Anda dari masalah.
+- **Jangan pernah memakai ulang nama field dengan arti atau tipe berbeda.** Tambahkan field baru, migrasikan pembaca, dan pensiunkan yang lama kemudian.
+- **Pilih urutan upgrade.** BACKWARD berarti *upgrade consumer lebih dulu* (mereka bisa membaca data lama dan baru); FORWARD berarti *upgrade producer lebih dulu*; FULL mengizinkan urutan mana pun. Kompatibilitas **lintas semua versi** (`BACKWARD_TRANSITIVE`) penting ketika data lama tetap ada di topik berbulan-bulan atau selamanya, seperti pada topik compacted.
+- **Uji perubahan sebelum mendaftarkan** dengan endpoint `/compatibility/subjects/<subject>/versions/latest` di CI. Pemeriksaan yang gagal di CI lebih murah daripada insiden.
+
+**Apa isi pesannya.** Dengan registry, producer tidak menyematkan skema di setiap record. Kami memproduksi `{"id":1,"customer":"Budi","total":150000}` lewat registry dan membaca byte mentahnya: `00 00000001 02 08 42756469 e0a712`. Byte pertama adalah **magic byte** (0), empat byte berikutnya adalah **schema id** (1), dan sisanya adalah biner Avro yang ringkas: **16 byte total, dibanding 41 byte untuk record yang sama sebagai JSON**. Consumer membaca id, mengambil (dan men-cache) skema dari registry, lalu mendekode. Itu juga sebabnya registry yang mati hanya merugikan consumer yang menemui id yang belum di-cache.
+
+**Di mana pemrosesan stream berada.** Kafka sendiri menyimpan dan mengirimkan record; mengubahnya adalah lapisan lain. **Kafka Streams** adalah pustaka Java yang Anda sematkan di aplikasi sendiri (tanpa cluster terpisah) untuk memfilter, menggabungkan, dan mengagregasi topik, menyimpan state-nya di store lokal yang dicadangkan ke *changelog topic* di Kafka. **ksqlDB** menawarkan SQL atas topik. **Flink** dan **Spark Structured Streaming** (Modul 3.3) adalah engine terpisah untuk job yang lebih besar atau lebih kompleks. Ini deskripsi dari dokumentasi proyek-proyeknya: lab tidak menjalankannya.
 
 ## @lesson Change Data Capture: mengubah database transaksional menjadi event stream
 Bagaimana cara terbaik mengekstrak mutasi data dari database transaksional operasional ke platform analitik? Pendekatan amatir yang kerap digunakan adalah **query-based polling**: mengeksekusi query berkala setiap beberapa menit seperti `SELECT * FROM orders WHERE updated_at > :last_run`. Kelemahan fatal metode ini: ia **kehilangan operasi DELETE** (baris yang dihapus di database lenyap begitu saja tanpa jejak), melewatkan status mutasi perantara (dua kali update yang terjadi di antara siklus polling hanya terlihat sebagai satu status akhir), sangat bergantung pada kolom timestamp yang rawan tidak akurat, serta membebani CPU database produksi dengan query scanning berulang.
@@ -165,6 +212,19 @@ docker compose exec redpanda rpk topic consume shop.public.orders -o start
 ```
 
    Anda akan melihat tiga rekaman snapshot awal (`op: "r"`) untuk tiga baris data awal, disusul oleh event update (`op: "u"`), serta event tombstone pasca operasi delete. Ulangi eksperimen setelah menjalankan `ALTER TABLE orders REPLICA IDENTITY FULL` dan amati perbedaan isi atribut `before`. Buka Redpanda Console di browser untuk memantau metrik lag secara visual.
+7. Opsional, dengan Docker (sekitar 1,5 GB memori): **rusak cluster sungguhan**. Nyalakan tiga broker Apache Kafka dengan `docker compose -f labs/mod-3-2/cluster/docker-compose.yml up -d`, tunggu sekitar 30 detik, dan jalankan alat Kafka di dalam sebuah broker:
+
+```bash
+K="docker exec df_kafka1 /opt/kafka/bin"
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --create --topic orders --partitions 3 --replication-factor 3 --config min.insync.replicas=2
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --describe --topic orders           # siapa memimpin, siapa in-sync
+docker kill df_kafka2                                                                  # crash sebuah broker
+$K/kafka-topics.sh --bootstrap-server kafka1:9092 --describe --under-replicated-partitions
+docker start df_kafka2                                                                 # saksikan kolom Isr pulih
+docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v                      # bersihkan setelah selesai
+```
+
+   Sebelum mematikan broker, **prediksikan** `Leader` dan `Isr` baru tiap partisi, lalu bandingkan. Berikutnya buat topik dengan `--config min.insync.replicas=3`, matikan satu broker, dan produksi dengan `kafka-console-producer.sh ... --producer-property acks=all`; jelaskan `NOT_ENOUGH_REPLICAS` yang Anda dapat. Untuk schema registry, `docker compose up -d redpanda` juga membukanya di `localhost:8081`: daftarkan skema Avro dengan `POST /subjects/orders-value/versions`, lalu periksa perubahan yang tidak kompatibel lewat `POST /compatibility/subjects/orders-value/versions/latest` dan lihat jawabannya berubah ketika Anda mengatur `FORWARD` atau `FULL` dengan `PUT /config/orders-value`. (Bagian-bagian ini dijalankan manual terhadap Apache Kafka 4.0.0 dan Redpanda; tidak tercakup tes otomatis.)
 
 ### @files
 - labs/mod-3-2/minilog.py :: File kerja Bagian A: implementasi mini Kafka in-memory :: starter
@@ -172,6 +232,7 @@ docker compose exec redpanda rpk topic consume shop.public.orders -o start
 - labs/mod-3-2/real_kafka.py :: File kerja Bagian B: interaksi dengan broker Kafka nyata :: starter
 - labs/mod-3-2/test_real_kafka.py :: Suite pengujian Bagian B (4 pengujian; membutuhkan KAFKA_BOOTSTRAP) :: test
 - labs/mod-3-2/pgoutput.py :: Pustaka parser decoding biner replikasi logis PostgreSQL bawaan :: data
+- labs/mod-3-2/cluster/docker-compose.yml :: Opsional: cluster Kafka tiga broker sungguhan untuk dirusak dengan sengaja :: config
 - labs/mod-3-2/cdc.py :: File kerja Bagian C: transformasi event CDC dan replika idempoten :: starter
 - labs/mod-3-2/test_cdc.py :: Suite pengujian Bagian C (8 pengujian) :: test
 - labs/mod-3-2/debezium-orders.json :: Konfigurasi konektor Debezium PostgreSQL untuk stack Docker (langkah 6) :: config
@@ -279,6 +340,22 @@ Replication slot adalah janji komitmen penyimpanan dari database sumber. CDC con
 - [ ] Topic di Kafka mengirimkan sinyal backpressure balik ke server sumber yang mengakibatkan kehabisan memori pada proses database
 
 > Replication slot logis menahan file segmen WAL hingga dikonfirmasi oleh consumer. Downtime berkepanjangan menyebabkan WAL menumpuk di server produksi. Batasi risikonya dengan max_slot_wal_keep_size dan pasang alarm pemantauan slot lag.
+
+### Sebuah topik punya replication factor 3 dan `min.insync.replicas=2`. Producer memakai `acks=all`. Satu broker crash. Apa ekspektasi yang benar?
+- [ ] Penulisan berhenti, karena Kafka mewajibkan ketiga replika hidup sebelum menerima data apa pun
+- [x] Penulisan berlanjut dan record yang sudah di-acknowledge selamat, karena dua replika tetap in-sync
+- [ ] Penulisan berlanjut, tetapi record yang sudah di-acknowledge dan disimpan broker mati itu hilang selamanya
+- [ ] Penulisan berhenti sampai operator memilih leader baru, karena follower tidak pernah dipromosikan otomatis
+
+> Dengan dua replika in-sync tersisa, ISR masih memenuhi batas bawah 2. Follower yang sudah menyusul menjadi leader dan producer mencoba ulang. Kami mengukur jeda 7,5 detik, tanpa record hilang dan tanpa duplikat.
+
+### Sebuah tim harus menambah field `channel` ke skema Avro yang terdaftar dengan kompatibilitas BACKWARD tanpa merusak consumer yang ada. Perubahan mana yang diterima registry?
+- [ ] Field wajib `channel` tanpa nilai default, karena setiap record baru toh akan memuat field itu
+- [ ] Mengganti nama field `customer` menjadi `channel`, selama tipe field itu tetap string
+- [x] Field opsional `channel` dengan default null, agar record yang ditulis tanpanya tetap bisa dibaca
+- [ ] Mengubah `total` dari `int` menjadi `string`, karena string bisa memuat bilangan bulat apa pun sebagai teks
+
+> Pada BACKWARD, pembaca baru harus bisa membaca data lama, sehingga field baru butuh default. Kami melihat registry menerima field opsional dan menjawab HTTP 409 untuk field wajib tanpa default.
 
 ## @resources
 - [Dokumentasi Resmi Apache Kafka](https://kafka.apache.org/documentation/)

@@ -1,6 +1,7 @@
 # Local lab stack. Start only what a lab needs, e.g.:
 #   docker compose up -d s3 s3-init                            (Lab 2.2, optional S3 storage)
-#   docker compose up -d postgres redpanda connect redpanda-console   (Lab 3.2)
+#   docker compose up -d postgres redpanda connect redpanda-console   (Lab 3.2; Schema Registry on localhost:8081)
+#   docker compose -f labs/mod-3-2/cluster/docker-compose.yml up -d     (Lab 3.2 step 7: a real three-broker Kafka cluster)
 #
 # Image versions are pinned to the ones this stack was tested with (Debezium 2.7, PostgreSQL 16, Redpanda v26.2.4).
 # Bump them deliberately and re-run the Lab 3.2 step 6 check.
@@ -72,6 +73,7 @@ services:
     ports:
       - "19092:19092" # Kafka API for clients on your machine
       - "9644:9644"   # Admin API
+      - "8081:8081"   # Schema Registry (Confluent-compatible REST API)
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
       interval: 5s
