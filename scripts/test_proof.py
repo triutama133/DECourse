@@ -61,6 +61,9 @@ try:
     print("creating a virtual environment with pytest ...")
     sh([sys.executable, "-m", "venv", "--system-site-packages", str(tmp / "venv")])
     py = str(tmp / "venv" / ("Scripts" if os.name == "nt" else "bin") / "python")
+    for sp in (tmp / "venv").glob("lib/python*/site-packages"):
+        for parent_sp in Path(sys.prefix).glob("lib/python*/site-packages"):
+            (sp / "parent_venv.pth").write_text(str(parent_sp) + "\n")
     rc, out = sh([py, "-m", "pip", "install", "-q", "pytest"])
     check(rc == 0 or sh([py, "-c", "import pytest"])[0] == 0, "pytest installed in the temporary venv")
     env = {k: v for k, v in os.environ.items() if k not in ("LAB_DIR", "VIRTUAL_ENV")}
