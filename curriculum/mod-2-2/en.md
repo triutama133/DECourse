@@ -237,7 +237,7 @@ In a table format, delete hides and maintenance erases. Make expiry and orphan r
 ### In Iceberg's metadata tree, which is the correct order from the top down?
 - [ ] Data file, manifest, manifest list, metadata file, and then the catalog entry for the table
 - [ ] Manifest list, catalog entry, data file, metadata file, and then the manifest of partitions
-- [x] Catalog entry, then metadata file, then manifest list, then manifest, then data file
+- [x] Catalog entry, then the metadata file, then the manifest list, then manifest, then data file
 - [ ] Metadata file, data file, catalog entry, manifest, and then the manifest list of each snapshot
 
 > The catalog points to the current metadata file, which lists snapshots; each snapshot points to a manifest list, which lists manifests, which list the data files with their statistics.
@@ -278,13 +278,13 @@ In a table format, delete hides and maintenance erases. Make expiry and orphan r
 - [ ] By listing every file in the folder and reading the newest ones that were created lately
 - [ ] By asking an external database server which files belong to the table at the present time
 - [x] By replaying the add and remove actions in `_delta_log`, starting from the last checkpoint
-- [ ] By reading a single manifest file that is rewritten completely every time a commit is made
+- [ ] By reading a single manifest file that is rewritten completely every time a commit is made to it
 
 > The transaction log is an ordered list of JSON commits. Replaying add and remove actions yields the set of live files; checkpoints avoid replaying from version zero.
 
 ### A streaming job appends to a table every minute for three months, and queries have become slow. What is the most likely cause and the standard fix?
 - [ ] The table has too few partitions, so you should partition it by customer id to spread the load
-- [x] There are thousands of small files and many snapshots, so schedule compaction and expiry
+- [x] There are thousands of small files and many snapshots, so schedule compaction and expiry jobs
 - [ ] Parquet files become slower as they age, so the data should be converted to CSV before reading it
 - [ ] The catalog is running out of room, so the tables must be moved to a bigger catalog server
 

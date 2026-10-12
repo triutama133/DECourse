@@ -276,7 +276,7 @@ A backfill multiplies your pipeline's load by the number of partitions. Limit co
 ### What is the main difference between Airflow's classic model and Dagster's asset model?
 - [ ] Airflow can only run Python code, while Dagster is also able to run SQL and shell commands
 - [ ] Dagster has no scheduling features at all, so it always needs to be used together with cron
-- [x] Airflow centres on tasks that run, while Dagster centres on data assets and their dependencies
+- [x] Airflow centres on the tasks that run, while Dagster centres on data assets and their links
 - [ ] Airflow does not support retries of failed work, while Dagster retries every single operation
 
 > Task-centric systems model what runs and in what order; asset-centric systems model what data should exist and what it depends on, which makes lineage, staleness and partition backfills first-class.
@@ -292,7 +292,7 @@ A backfill multiplies your pipeline's load by the number of partitions. Limit co
 ### What should be passed directly from one orchestrated step to the next?
 - [ ] Complete DataFrames of millions of rows, carried through the orchestrator's metadata database
 - [ ] Open database connections that were created inside the first step of the whole pipeline
-- [x] Small references or values such as a path or a row count, with the data itself kept in storage
+- [x] Small values or references, such as a path or a row count, with the data kept in storage
 - [ ] Nothing at all, since steps are never allowed to depend on the output of any other step
 
 > Task outputs travel through the orchestrator's metadata store, so they should be small. Data goes through storage that the next step reads.
@@ -308,7 +308,7 @@ A backfill multiplies your pipeline's load by the number of partitions. Limit co
 ### Which alert is most often missing from a pipeline's monitoring?
 - [ ] An alert when a task fails with an exception that was written to the run's logs by the worker
 - [ ] An alert when the cost of the warehouse goes up by more than ten percent within one month
-- [x] An alert when a scheduled run never started or finished late, because silence looks like success
+- [x] An alert when a scheduled run never started or ran late, because silence looks like success
 - [ ] An alert when a developer merges a change into the repository that holds the pipeline code
 
 > Failures are visible; absences are not. Monitor for missing and late runs (freshness and SLA) as well as for errors.

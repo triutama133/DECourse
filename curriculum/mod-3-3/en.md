@@ -217,7 +217,7 @@ In event-time processing, the watermark is what bounds state and defines "final"
 ## @quiz
 ### What is the main reason to aggregate by event time rather than processing time?
 - [ ] Event time is always smaller than processing time, so the aggregations finish a lot faster
-- [x] Late and out-of-order arrivals would otherwise put events into the wrong time windows
+- [x] Late and out-of-order arrivals would otherwise put events into the wrong time windows of a job
 - [ ] Processing time cannot be read by streaming engines, so they have no other choice but this one
 - [ ] Event time lets the job skip the checkpoint, because no state has to be kept at all in that case
 
@@ -233,7 +233,7 @@ In event-time processing, the watermark is what bounds state and defines "final"
 
 ### With a 2-minute watermark delay, the newest event seen so far is 10:07. What does the watermark say?
 - [ ] That every window ending before 10:09 is finished, because it adds the delay to the newest time
-- [x] That events older than 10:05 are unlikely to arrive, so windows ending by then can close
+- [x] That events older than 10:05 are unlikely to arrive, so windows ending by then can be closed
 - [ ] That the stream will be paused until 10:09 to give the late events time to arrive in good order
 - [ ] That all events with a timestamp after 10:05 are going to be dropped from the final result
 
@@ -242,7 +242,7 @@ In event-time processing, the watermark is what bounds state and defines "final"
 ### An event with event time 10:03 arrives when the watermark is 10:05, and its window [10:00, 10:05) has not been emitted yet. What happens?
 - [ ] It is dropped immediately, since its time is older than the current watermark of the stream
 - [ ] It creates a new, extra window for itself so that the late event can be reported separately
-- [x] It is counted in its own window, which is emitted at the end of that same batch
+- [x] It is counted in its own window, which is emitted when that same batch comes to an end
 - [ ] The whole job fails with an exception that reports a violation of the watermark rule
 
 > Late is not dropped: an event behind the watermark is still counted as long as its window is open. Only events for windows that have already been emitted are dropped.
@@ -275,7 +275,7 @@ In event-time processing, the watermark is what bounds state and defines "final"
 - [ ] Spark cannot read from Kafka, while Flink includes a built-in Kafka server inside its own engine
 - [ ] Flink is only able to process data in batches, and Spark is the only engine that really streams
 - [x] Spark runs small batches with seconds of latency, while Flink handles records one at a time
-- [ ] Spark does not support event-time windows, which are only available in Flink and Kafka Streams
+- [ ] Spark has no event-time windows, which are only available in Flink and Kafka Streams
 
 > Spark's model is micro-batch on a batch engine (simple, high throughput, seconds of latency); Flink processes record by record with millisecond latency and richer state and timer control. Both support event time and watermarks.
 

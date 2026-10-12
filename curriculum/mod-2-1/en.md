@@ -278,7 +278,7 @@ Fix the format and the layout before you scale the hardware. Columnar, typed, so
 ### What is the main difference between `pl.read_parquet` and `pl.scan_parquet` in Polars?
 - [ ] `scan_parquet` only works with local files, and `read_parquet` is needed for cloud storage
 - [ ] `read_parquet` is lazy and builds a plan, while `scan_parquet` loads the whole file at once
-- [x] `scan_parquet` is lazy, so the optimiser can push down filters and columns before reading anything
+- [x] `scan_parquet` is lazy, so the optimiser can push filters and columns down before any reading
 - [ ] There is no difference except the name, since Polars always optimises every query before it runs
 
 > `scan_*` returns a LazyFrame whose plan is optimised on `.collect()`. `read_*` is eager: it loads everything first and cannot prune columns or rows.
@@ -286,7 +286,7 @@ Fix the format and the layout before you scale the hardware. Columnar, typed, so
 ### Why should money be stored as an integer in the smallest unit instead of a float?
 - [ ] Integers use less disk space in Parquet than floating point numbers do in every case
 - [ ] Floating point numbers cannot be summed together by engines such as DuckDB and Polars
-- [x] Binary floating point cannot represent many decimal fractions exactly, so sums drift and mismatch
+- [x] Binary floating point cannot store many decimal fractions exactly, so sums drift apart
 - [ ] Parquet does not support floating point columns, so they would be converted to text on writing
 
 > `0.1 + 0.2 != 0.3` in binary floating point. Integers (rupiah or cents) or fixed-precision decimals keep totals exact and reconcilable.
@@ -303,7 +303,7 @@ Fix the format and the layout before you scale the hardware. Columnar, typed, so
 - [ ] Agree, since any dataset larger than the memory of a laptop requires a distributed system
 - [ ] Reject the idea, because clusters are always slower than a single machine for any workload
 - [x] Convert to sorted zstd Parquet and measure one aggregation in DuckDB or Polars before deciding
-- [ ] Load the whole 20 GB into pandas first, because pandas is the standard tool for analysis
+- [ ] Load the whole 20 GB into pandas first, because pandas is the standard tool for all data analysis
 
 > Measurement should decide. With a columnar format and a pruning engine, 20 GB often processes on one machine in seconds, and larger-than-memory spilling is supported. Move to a cluster when the numbers say so.
 

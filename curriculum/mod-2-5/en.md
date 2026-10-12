@@ -235,7 +235,7 @@ Tests judge what arrived; monitors judge what should have arrived. A pipeline ne
 > A volume check detects absent data, which row-level validity or uniqueness tests cannot see. It is a completeness (and monitoring) check.
 
 ### What is the main benefit of a data contract between a producer and a consumer team?
-- [ ] It makes the data warehouse queries run faster, since both teams then use exactly the same naming
+- [ ] It makes warehouse queries run faster, since both teams then use exactly the same naming
 - [ ] It removes the need for any testing, because the contract itself guarantees that the data is clean
 - [x] It makes expectations explicit and testable, so breaking changes are discussed before a release
 - [ ] It transfers the responsibility for all quality problems from the producer team to the consumer team
@@ -243,7 +243,7 @@ Tests judge what arrived; monitors judge what should have arrived. A pipeline ne
 > A contract documents schema, meaning, SLAs and ownership in a machine-readable form, so both sides can test against it and plan changes. It does not remove the need for checks.
 
 ### A row has `status = "PAID"` and the contract allows only lower-case `paid`. What should the strict ingestion gate do?
-- [ ] Silently convert it to lower case so that the row can continue into the warehouse without delay
+- [ ] Silently convert it to lower case so the row can continue into the warehouse unhindered
 - [x] Quarantine the row with its reason, and let staging normalise known cases in a deliberate step
 - [ ] Drop the row without keeping any record, because the status is only a cosmetic difference in case
 - [ ] Stop the whole load immediately, since a single invalid value is enough to make the feed unusable
@@ -278,7 +278,7 @@ Tests judge what arrived; monitors judge what should have arrived. A pipeline ne
 - [ ] Delete the quarantine files and the logs so that the next run starts from a completely clean state
 - [ ] Restore the previous version of the dashboard and close the ticket once everybody has been notified
 - [x] Hold a blameless post-mortem with concrete actions and owners, such as a new check or contract clause
-- [ ] Remove the alert that fired, because it would otherwise keep notifying the team about the same issue
+- [ ] Remove the alert that fired, because it would otherwise keep notifying the team about the very same issue
 
 > Learning closes the loop: identify what detected the problem, what would have detected it sooner, and add a check, alert or contract rule so it is caught automatically next time.
 
@@ -286,7 +286,7 @@ Tests judge what arrived; monitors judge what should have arrived. A pipeline ne
 - [ ] Load the 65% of rows that are valid, and send the 35% to quarantine without raising any alert
 - [x] Fail the whole load and alert, because the feed itself is most likely broken at its source
 - [ ] Raise the limit in the contract to 40% so that this delivery passes and the pipeline continues
-- [ ] Repair the rejected rows automatically by guessing the intended values, then load everything
+- [ ] Repair the rejected rows by guessing the intended values, then load them all
 
 > A few percent of messy rows is routine and goes to quarantine. A reject rate far above the agreed limit signals a systemic problem, so the load fails loudly instead of publishing a mostly missing table.
 

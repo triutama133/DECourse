@@ -365,7 +365,7 @@ An incremental model is only correct if it handles rows that change after they f
 ### Why does dbt report "unable to infer all dependencies" when a `ref()` is placed inside `{% if is_incremental() %}`?
 - [ ] The `is_incremental()` function is only available in dbt Cloud, and not in the dbt Core command line
 - [ ] Jinja does not allow SQL keywords to appear inside a conditional block of a model file at all
-- [x] dbt reads every ref when it builds the graph, before it knows whether the run is incremental
+- [x] dbt reads every ref when it builds the graph, before it knows whether the run is incremental or not
 - [ ] The referenced model is not materialized as a table, so it cannot be used inside an incremental model
 
 > Refs are collected at parse time. Declare them outside the conditional (for example in a CTE) or add a depends_on comment.

@@ -225,7 +225,7 @@ Skew is a property of the data, not the cluster. Measure partition balance, fix 
 ### In a Spark job, what is a stage boundary?
 - [ ] The point at which the driver program copies all intermediate results back into its own memory
 - [ ] The line where one DataFrame is cached and the next transformation starts reading from disk
-- [x] A shuffle, where rows must be redistributed across the network according to a new key
+- [x] A shuffle, where rows must be redistributed across the whole network by a new grouping key
 - [ ] The moment at which a task finishes and a free executor takes the next partition in line
 
 > Narrow transformations are pipelined inside a stage. A wide transformation (groupBy, join) needs data from many partitions, so it requires a shuffle, which ends one stage and begins another.
@@ -256,7 +256,7 @@ Skew is a property of the data, not the cluster. Measure partition balance, fix 
 
 ### Adaptive query execution's skew join handling works by doing what?
 - [ ] Removing the rows of the hot key from the result so that the join can finish without them at all
-- [ ] Converting every join in the query into a cartesian product so that the keys no longer matter at all
+- [ ] Converting every join in the query into a cartesian product so that the join keys no longer matter at all
 - [x] Splitting oversized shuffle partitions into smaller ones, replicating the other side's matching rows
 - [ ] Permanently increasing `spark.sql.shuffle.partitions` to 2,000 for every query in the whole session
 
@@ -273,7 +273,7 @@ Skew is a property of the data, not the cluster. Measure partition balance, fix 
 ### Why should you usually avoid a Python UDF in a PySpark job?
 - [ ] Python functions cannot read columns of type string or numbers, only whole rows of data at once
 - [ ] Spark refuses to run any job that contains user code unless the cluster is in local mode only
-- [x] Each row must leave the JVM for Python and return, which is slow and blocks optimisation
+- [x] Each row must leave the JVM for Python and return, which is slow and blocks query optimisation
 - [ ] UDFs always produce wrong results with null values, which makes them unsafe for use in joins
 
 > Built-in functions run inside the optimised JVM and can be pushed down. A row-at-a-time Python UDF pays serialisation costs and hides logic from Catalyst. Use built-ins, or a vectorised pandas UDF.
@@ -281,7 +281,7 @@ Skew is a property of the data, not the cluster. Measure partition balance, fix 
 ### A nightly job's runtime jumps from 12 minutes to over an hour after a product change that put the placeholder id 0 on 70% of rows. What should you try first?
 - [ ] Double the number of machines in the cluster, so that the hot key is processed in parallel
 - [ ] Replace the join with a loop in the driver, since loops are easier to debug than stages
-- [x] Check partition skew, then try a broadcast join or adaptive skew handling before heavier fixes
+- [x] Check partition skew, then try a broadcast join or adaptive skew handling before scale-up
 - [ ] Set the number of shuffle partitions to one, so that the whole dataset stays on one machine
 
 > One key cannot be split by hash partitioning, so more machines do not help. Confirm skew with partition sizes, and fix it with broadcast, AQE skew handling or salting.

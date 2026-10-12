@@ -5997,7 +5997,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "`scan_parquet` bersifat lazy, sehingga optimizer dapat mendorong filter dan pemilihan kolom sebelum data dibaca dari disk",
-        "en": "`scan_parquet` is lazy, so the optimiser can push down filters and columns before reading anything"
+        "en": "`scan_parquet` is lazy, so the optimiser can push filters and columns down before any reading"
        },
        {
         "id": "Tidak ada perbedaan teknis selain penamaan fungsi karena Polars selalu mengoptimasi seluruh query sebelum dieksekusi",
@@ -6026,7 +6026,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Floating-point biner tidak bisa menyimpan banyak pecahan desimal secara eksak, sehingga jumlahnya melenceng",
-        "en": "Binary floating point cannot represent many decimal fractions exactly, so sums drift and mismatch"
+        "en": "Binary floating point cannot store many decimal fractions exactly, so sums drift apart"
        },
        {
         "id": "Format Parquet tidak mendukung tipe data floating-point sehingga akan otomatis dikonversi menjadi teks string saat ditulis",
@@ -6088,7 +6088,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Muat seluruh 20 GB data tersebut ke dalam pandas terlebih dahulu karena pandas adalah standar de facto pengolahan data Python",
-        "en": "Load the whole 20 GB into pandas first, because pandas is the standard tool for analysis"
+        "en": "Load the whole 20 GB into pandas first, because pandas is the standard tool for all data analysis"
        }
       ],
       "correct": 2,
@@ -6389,7 +6389,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Entri katalog, lalu metadata file, lalu manifest list, lalu manifest, lalu data file",
-        "en": "Catalog entry, then metadata file, then manifest list, then manifest, then data file"
+        "en": "Catalog entry, then the metadata file, then the manifest list, then manifest, then data file"
        },
        {
         "id": "Metadata file, data file, entri katalog, manifest, lalu manifest list setiap snapshot",
@@ -6538,7 +6538,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Membaca satu file manifest tunggal yang ditulis ulang secara utuh setiap kali ada commit baru",
-        "en": "By reading a single manifest file that is rewritten completely every time a commit is made"
+        "en": "By reading a single manifest file that is rewritten completely every time a commit is made to it"
        }
       ],
       "correct": 2,
@@ -6559,7 +6559,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Ada ribuan file kecil dan snapshot berlebih, sehingga compaction dan snapshot expiry perlu dijadwalkan",
-        "en": "There are thousands of small files and many snapshots, so schedule compaction and expiry"
+        "en": "There are thousands of small files and many snapshots, so schedule compaction and expiry jobs"
        },
        {
         "id": "File Parquet melambat seiring bertambahnya usia sehingga data harus dikonversi ke CSV sebelum dibaca",
@@ -7042,7 +7042,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "dbt membaca semua ref saat menyusun grafik DAG, sebelum tahu apakah proses berjalan inkremental",
-        "en": "dbt reads every ref when it builds the graph, before it knows whether the run is incremental"
+        "en": "dbt reads every ref when it builds the graph, before it knows whether the run is incremental or not"
        },
        {
         "id": "Model yang dirujuk tidak dimaterialisasikan sebagai tabel fisik sehingga tidak dapat digunakan di model inkremental",
@@ -7489,7 +7489,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Airflow berpusat pada task yang dieksekusi, sedangkan Dagster berpusat pada data asset yang harus tersedia beserta dependensinya",
-        "en": "Airflow centres on tasks that run, while Dagster centres on data assets and their dependencies"
+        "en": "Airflow centres on the tasks that run, while Dagster centres on data assets and their links"
        },
        {
         "id": "Airflow tidak mendukung mekanisme retry saat terjadi kegagalan, sedangkan Dagster melakukan retry secara otomatis untuk seluruh operasi",
@@ -7547,7 +7547,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Referensi atau metadata kecil seperti path file atau jumlah baris, sedangkan payload data utuh disimpan di storage persisten",
-        "en": "Small references or values such as a path or a row count, with the data itself kept in storage"
+        "en": "Small values or references, such as a path or a row count, with the data kept in storage"
        },
        {
         "id": "Tidak ada data apa pun, karena suatu langkah tidak pernah diizinkan untuk memiliki dependensi terhadap output langkah lainnya",
@@ -7605,7 +7605,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Notifikasi saat run terjadwal tidak terpicu atau terlambat, karena tanpa kabar sering dikira sukses",
-        "en": "An alert when a scheduled run never started or finished late, because silence looks like success"
+        "en": "An alert when a scheduled run never started or ran late, because silence looks like success"
        },
        {
         "id": "Notifikasi saat seorang insinyur melakukan merge commit kode baru ke repository repositori pipeline",
@@ -7915,7 +7915,7 @@ window.CURRICULUM_DATA = [
       "options": [
        {
         "id": "Membuat query analitik di data warehouse berjalan jauh lebih cepat karena kedua tim menggunakan konvensi penamaan yang sama",
-        "en": "It makes the data warehouse queries run faster, since both teams then use exactly the same naming"
+        "en": "It makes warehouse queries run faster, since both teams then use exactly the same naming"
        },
        {
         "id": "Menghilangkan kebutuhan untuk melakukan pengujian data karena kontrak itu sendiri menjamin data sudah bersih",
@@ -7944,7 +7944,7 @@ window.CURRICULUM_DATA = [
       "options": [
        {
         "id": "Mengubahnya secara diam-diam menjadi huruf kecil agar baris tersebut dapat langsung masuk ke data warehouse tanpa penundaan",
-        "en": "Silently convert it to lower case so that the row can continue into the warehouse without delay"
+        "en": "Silently convert it to lower case so the row can continue into the warehouse unhindered"
        },
        {
         "id": "Mengkarantina baris tersebut beserta alasan penolakannya, dan biarkan proses staging menormalisasi kasus yang diketahui secara terencana",
@@ -8072,7 +8072,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Menghapus alert yang sempat berbunyi karena jika dibiarkan akan terus membunyikan alarm peringatan yang sama",
-        "en": "Remove the alert that fired, because it would otherwise keep notifying the team about the same issue"
+        "en": "Remove the alert that fired, because it would otherwise keep notifying the team about the very same issue"
        }
       ],
       "correct": 2,
@@ -8101,7 +8101,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Memperbaiki baris yang ditolak secara otomatis dengan menebak nilai yang dimaksud, lalu memuat seluruh data ke database",
-        "en": "Repair the rejected rows automatically by guessing the intended values, then load everything"
+        "en": "Repair the rejected rows by guessing the intended values, then load them all"
        }
       ],
       "correct": 1,
@@ -9373,7 +9373,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Titik terjadinya shuffle, saat baris harus didistribusikan ulang melintasi jaringan berdasarkan kunci baru",
-        "en": "A shuffle, where rows must be redistributed across the network according to a new key"
+        "en": "A shuffle, where rows must be redistributed across the whole network by a new grouping key"
        },
        {
         "id": "Momen ketika sebuah task selesai dieksekusi dan executor yang bebas mengambil partisi antrean berikutnya",
@@ -9485,7 +9485,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Mengubah setiap join di dalam query menjadi cartesian product sehingga nilai kunci tidak lagi dipedulikan",
-        "en": "Converting every join in the query into a cartesian product so that the keys no longer matter at all"
+        "en": "Converting every join in the query into a cartesian product so that the join keys no longer matter at all"
        },
        {
         "id": "Memecah partisi shuffle raksasa menjadi sub-partisi lebih kecil, lalu menduplikasi baris pasangannya dari tabel lawan",
@@ -9547,7 +9547,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Setiap baris harus dikirim keluar dari JVM ke runtime Python lalu kembali lagi, sehingga lambat dan mematikan optimasi",
-        "en": "Each row must leave the JVM for Python and return, which is slow and blocks optimisation"
+        "en": "Each row must leave the JVM for Python and return, which is slow and blocks query optimisation"
        },
        {
         "id": "Fungsi UDF selalu menghasilkan kalkulasi salah jika menemukan nilai NULL, sehingga tidak aman digunakan pada operasi join",
@@ -9576,7 +9576,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Periksa rasio skew partisi, lalu coba broadcast join atau aktifkan AQE skew handling sebelum solusi yang lebih berat",
-        "en": "Check partition skew, then try a broadcast join or adaptive skew handling before heavier fixes"
+        "en": "Check partition skew, then try a broadcast join or adaptive skew handling before scale-up"
        },
        {
         "id": "Menyetel jumlah partisi shuffle menjadi satu agar keseluruhan dataset dapat diproses terkonsentrasi di satu mesin",
@@ -10524,7 +10524,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Keterlambatan jaringan dan kedatangan data tidak berurutan akan memasukkan event ke dalam window waktu yang salah",
-        "en": "Late and out-of-order arrivals would otherwise put events into the wrong time windows"
+        "en": "Late and out-of-order arrivals would otherwise put events into the wrong time windows of a job"
        },
        {
         "id": "Processing time tidak dapat dibaca oleh engine streaming, sehingga tidak ada pilihan lain selain event time",
@@ -10582,7 +10582,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Event lebih lama dari 10:05 dianggap tak akan tiba, sehingga window yang berakhir $\\le$ 10:05 dapat ditutup",
-        "en": "That events older than 10:05 are unlikely to arrive, so windows ending by then can close"
+        "en": "That events older than 10:05 are unlikely to arrive, so windows ending by then can be closed"
        },
        {
         "id": "Bahwa aliran stream akan dihentikan sementara hingga pukul 10:09 untuk memberi waktu event terlambat tiba",
@@ -10615,7 +10615,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Event tersebut tetap dihitung di dalam windownya itu, yang kemudian dipancarkan hasilnya di akhir batch yang sama",
-        "en": "It is counted in its own window, which is emitted at the end of that same batch"
+        "en": "It is counted in its own window, which is emitted when that same batch comes to an end"
        },
        {
         "id": "Keseluruhan job streaming gagal seketika dengan pesan exception error yang melaporkan pelanggaran aturan watermark",
@@ -10735,7 +10735,7 @@ window.CURRICULUM_DATA = [
        },
        {
         "id": "Spark tidak mendukung jendela waktu berbasis event-time, yang hanya tersedia pada Flink dan Kafka Streams",
-        "en": "Spark does not support event-time windows, which are only available in Flink and Kafka Streams"
+        "en": "Spark has no event-time windows, which are only available in Flink and Kafka Streams"
        }
       ],
       "correct": 2,

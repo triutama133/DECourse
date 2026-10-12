@@ -12,7 +12,7 @@ Di dunia kerja nyata, seorang Data Engineer tidak dinilai dari berapa banyak vid
 2. Apakah Anda mengerti apa yang terjadi di balik layar (memori, partisi disk, query execution plan, network shuffle)?
 3. Ketika pipeline produksi meledak jam 3 pagi (OOM, disk WAL penuh, data duplikat), apakah Anda tahu cara mendiagnosis akar masalahnya (*root cause*) dan memperbaikinya?
 
-Kurikulum 18 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
+Kurikulum 23 modul di platform ini dirancang berjenjang untuk melatih insting tersebut dari hari pertama.
 
 ---
 
@@ -62,7 +62,7 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 - Ini adalah materi emas untuk menjawab pertanyaan wawancara kerja teknis bertipe: *"Ceritakan pengalaman ketika sistem data Anda mengalami kegagalan dan bagaimana Anda menanganinya."*
 
 ### Langkah 4: Kerjakan Kuis Evaluasi
-- 8 pertanyaan skenario per modul.
+- 8 sampai 10 pertanyaan skenario per modul.
 - Ambang batas kelulusan adalah **80%** (minimal 7 dari 8 benar).
 - Soal-soal tidak menguji hafalan sintaks, melainkan pemahaman konsep dan penalaran arsitektural.
 
@@ -71,27 +71,33 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 ## 2. Roadmap Pembelajaran: 4 Level Menuju Profesional
 
 ```
-LEVEL 0: Fondasi Pemula (Minggu 1-6)
+LEVEL 0: Fondasi Pemula (Minggu 1-7)
+ ├── Modul 0.0: Python dari Nol (variabel, def, for, if, error, file, tes)
  ├── Modul 0.1: Lansekap Data Engineering (Batch vs Streaming, OLTP vs OLAP)
  ├── Modul 0.2: Terminal Linux Dasar, Git, dan Python Virtual Environments
- └── Modul 0.3: Relational Database & Fondasi SQL (SQLite & Postgres)
+ └── Modul 0.3: Relational Database & Fondasi SQL (SQLite & Postgres; fungsi, DDL, view)
       │
-LEVEL 1: Core Engineering & Pemodelan Data (Minggu 7-18)
+LEVEL 1: Core Engineering & Pemodelan Data (Minggu 8-25)
  ├── Modul 1.1: Shell Scripting Lanjutan, CLI Tools (jq, awk) & Docker Dasar
  ├── Modul 1.2: Production Python (Generators, Pydantic, Retry/Idempotency)
- ├── Modul 1.3: Advanced SQL, Window Functions & EXPLAIN Execution Plans
- └── Modul 1.4: Dimensional Modeling (Star Schema, Fact/Dim, SCD Type 2)
+ ├── Modul 1.3: Advanced SQL, Window Functions, EXPLAIN & Dialek SQL
+ ├── Modul 1.4: Dimensional Modeling (Star Schema, Fact/Dim, SCD Type 2)
+ ├── Modul 1.5: pandas untuk Data Engineer (membersihkan, join, memori, Parquet)
+ ├── Modul 1.6: Memasukkan Data (API, retry, pagination, checkpoint, schema drift)
+ └── Modul 1.7: Di Luar SQL (key-value, dokumen, wide-column, graph; CAP, hashing)
       │
-LEVEL 2: Modern Data Stack & Lakehouse (Minggu 19-32)
+LEVEL 2: Modern Data Stack & Lakehouse (Minggu 26-40)
  ├── Modul 2.1: Format Kolumnar (Parquet), DuckDB & Polars Engine
  ├── Modul 2.2: Open Table Formats (Apache Iceberg & Delta Lake, ACID S3)
  ├── Modul 2.3: Data Transformation dengan dbt & Testing Framework
  ├── Modul 2.4: Orkestrasi Pipeline (Dagster & Airflow, Asset-Based DAG)
- └── Modul 2.5: Kualitas Data, Data Contracts & Schema Evolution
+ ├── Modul 2.5: Kualitas Data, Data Contracts & Schema Evolution
+ └── Modul 2.6: Cloud Data Warehouse (Snowflake, BigQuery, Redshift; partisi, biaya)
       │
-LEVEL 3: Sistem Terdistribusi, Streaming, & AI Data (Minggu 33-45)
+LEVEL 3: Sistem Terdistribusi, Streaming, & AI Data (Minggu 41-58)
+ ├── Modul 3.0: Dari Hadoop ke Spark (HDFS, MapReduce, YARN, Hive)
  ├── Modul 3.1: Apache Spark Internals (Shuffle, Memory Management, Skew Mitigation)
- ├── Modul 3.2: Event Streaming (Apache Kafka, Confluent Schema Registry & CDC Debezium)
+ ├── Modul 3.2: Event Streaming (Kafka: leader/ISR, Schema Registry, CDC Debezium)
  ├── Modul 3.3: Stream Processing Lanjutan (Event-Time, Watermarks, Tumbling/Sliding Windows)
  ├── Modul 3.4: Infrastruktur Cloud Terotomasi (Terraform) & FinOps (Cost Control)
  └── Modul 3.5: AI & Vector Data Engineering (pgvector, Semantic Search, RAG Pipeline)
@@ -168,8 +174,8 @@ docker compose up -d postgres redpanda connect redpanda-console
 
 | Jalur | Komitmen Waktu | Estimasi Durasi | Target Capaian |
 |---|---|---|---|
-| **Standar (Disarankan)** | 10–12 jam / minggu | ~45 minggu (10 bulan) | Penguasaan menyeluruh, menyelesaikan semua 17 lab, membangun 2 proyek portofolio penuh. |
-| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~24 minggu (5–6 bulan) | Fokus penuh 1 modul per 7–10 hari, siap melamar kerja remote di akhir bulan ke-6. |
+| **Standar (Disarankan)** | 10–12 jam / minggu | ~34 minggu (8 bulan) | Penguasaan menyeluruh, menyelesaikan semua 23 lab, membangun 2 proyek portofolio penuh. |
+| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~17 minggu (4 bulan) | Fokus penuh, sekitar 1 modul per minggu. Butuh disiplin tinggi; jangan melewatkan lab dan kode bukti. |
 
 ### Aturan Emas Belajar:
 1. **Jangan copy-paste membabi buta**: Ketik kode sendiri agar memori motorik tangan dan logika terbentuk.
