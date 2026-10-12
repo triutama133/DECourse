@@ -190,3 +190,84 @@ docker compose up -d postgres redpanda connect redpanda-console
 
 Selamat belajar, dan selamat bertumbuh menjadi Data Engineer profesional!
 
+---
+
+## 6. Playbook Skala Produksi & Ekstensi Cloud (Zero-Cost & Local-First)
+
+Untuk menjawab tantangan industri tanpa kartu kredit atau biaya sewa cloud, Anda dapat melatih 3 skenario produksi nyata berikut:
+
+### Skenario A: Simulasi Failover Kluster Terdistribusi (3-Broker Kafka KRaft)
+Latihan ini membuktikan pemahaman Anda tentang *quorum*, *replication factor*, dan *high availability*:
+1. Jalankan kluster 3 broker Kafka independen:
+   ```bash
+   docker compose -f labs/mod-3-2/cluster/docker-compose.yml up -d
+   ```
+2. Buat topik dengan faktor replikasi 3 dan 3 partisi di dalam container:
+   ```bash
+   docker exec -it df_kafka1 /opt/kafka/bin/kafka-topics.sh \
+     --bootstrap-server localhost:9092 \
+     --create --topic orders.replicated --partitions 3 --replication-factor 3
+   ```
+3. Simulasikan bencana produksi: matikan broker utama (`df_kafka1`):
+   ```bash
+   docker stop df_kafka1
+   ```
+4. Amati log dan metadata dari broker 2 (`df_kafka2`):
+   ```bash
+   docker exec -it df_kafka2 /opt/kafka/bin/kafka-topics.sh \
+     --bootstrap-server localhost:9092 --describe --topic orders.replicated
+   ```
+   *Pelajaran:* Pemimpin partisi (*Leader*) otomatis dialihkan ke broker 2 atau 3, dan daftar *In-Sync Replicas* (ISR) menyusut tanpa kehilangan data (*zero data loss*).
+5. Bersihkan kluster setelah selesai:
+   ```bash
+   docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v
+   ```
+
+### Skenario B: Ekstensi Lakehouse S3 Asli (Boto3 & SeaweedFS S3)
+Ambil hasil pipeline dari **Capstone 4.1** atau **Capstone 4.4** dan simpan langsung ke *Object Storage* standar S3:
+1. Nyalakan layanan S3 lokal:
+   ```bash
+   docker compose up -d s3 s3-init
+   ```
+2. Unggah file Parquet hasil pembersihan menggunakan AWS SDK (`boto3`) dengan kredensial lokal aman:
+   ```python
+   import boto3
+
+   s3 = boto3.client(
+       "s3",
+       endpoint_url="http://localhost:8333",
+       aws_access_key_id="dataforge",
+       aws_secret_access_key="dataforge-secret",
+       region_name="us-east-1",
+   )
+   s3.upload_file("warehouse/fact_trip.parquet", "warehouse", "nyc_taxi/fact_trip.parquet")
+   ```
+3. Lakukan query langsung dari S3 menggunakan DuckDB (tanpa mengunduh file ke lokal):
+   ```sql
+   INSTALL httpfs;
+   LOAD httpfs;
+   SET s3_endpoint = 'localhost:8333';
+   SET s3_use_ssl = false;
+   SET s3_url_style = 'path';
+   SET s3_access_key_id = 'dataforge';
+   SET s3_secret_access_key = 'dataforge-secret';
+
+   SELECT count(*), avg(fare_amount) FROM read_parquet('s3://warehouse/nyc_taxi/fact_trip.parquet');
+   ```
+
+### Skenario C: Latihan Cloud Data Warehouse Publik (Google BigQuery Sandbox Gratis)
+1. Buka browser dan kunjungi `console.cloud.google.com/bigquery`.
+2. Login dengan akun Google reguler Anda (tanpa perlu kartu kredit untuk Sandbox).
+3. Jalankan query analitik langsung pada dataset terbuka publik NYC Taxi yang dikelola Google:
+   ```sql
+   SELECT 
+     DATE(pickup_datetime) AS trip_date,
+     COUNT(1) AS total_trips,
+     ROUND(SUM(total_amount), 2) AS total_revenue
+   FROM `bigquery-public-data.new_york_taxi_trips.tlc_yellow_trips_2022`
+   WHERE EXTRACT(YEAR FROM pickup_datetime) = 2022
+   GROUP BY 1
+   ORDER BY 1;
+   ```
+4. Perhatikan metrik **Bytes processed** di panel kanan atas sebelum query dijalankan. Ini melatih insting FinOps Anda tentang optimasi biaya query di cloud modern.
+
