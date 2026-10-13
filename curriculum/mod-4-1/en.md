@@ -69,6 +69,13 @@ No duplicates exist in the real file, but a partner can send the same file twice
 
 **Questions to ask any new dataset**, which you can reuse at work: What is one row (the grain)? What is the time range, and are there values outside it? Which columns can be NULL, and is NULL one reason or several? Which values are impossible (negative, zero, in the future)? Is there an identifier, and is it unique? Which codes need a dictionary? Which columns look similar but are not (the same name for two different things)? What is *missing on purpose* (cash tips)? Write the answers down before you write code.
 
+> 💡 **Practice Pause 1 (Step 1: Raw Data Profiling & profile.json Creation):**
+> 1. Create `profile.json` in your workspace (`~/taxi/profile.json`) using your text editor.
+> 2. Compute the 9 statistical metrics directly from the raw Parquet file using DuckDB queries: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, and `cash_trips_with_tip`.
+> 3. Run the step 1 check in terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
+> 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw data profiling matches reference truth.
+
 ## @lesson Your toolbox: DuckDB and a few lines of Python
 The checker does not care which tools you use. We suggest **DuckDB**, because it reads Parquet and CSV directly, handles millions of rows in seconds on a laptop (the whole reference pipeline runs in about 4 seconds), and writes the Parquet and `.duckdb` files the contract asks for. Everything below is a generic reminder, tested on this very file, not a solution. Module 2.1 covers DuckDB in depth.
 
@@ -140,6 +147,13 @@ On the real file this rejects about 1.2% of the rows, and the checker compares y
 
 **Quality gates** (the pipeline refuses the delivery and exits with 2 if any is true): one of the 19 required columns is missing; the delivery has zero rows; the reject rate is **above 5%**. On refusal, print one JSON line on stderr that says why (for example `{"status": "failed", "failure": "missing_columns"}`).
 
+> 💡 **Practice Pause 2 (Step 2: Cleaning, Quarantine & Quality Report):**
+> 1. Open `pipeline.py` in your workspace (`~/taxi/pipeline.py`) using your text editor.
+> 2. Implement 19-column deduplication, evaluation of the 5 sequential cleaning rules (first rule wins), and output files `clean/trips.parquet` (exactly 2,927,800 rows with 16 columns), `rejected/trips_rejected.parquet`, and `quality_report.json`.
+> 3. Run the step 2 check in terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 2`
+> 4. **Success Indicator:** All step 2 checks report `PASS`, validating clean data schemas, quarantine integrity, and row reconciliation `rows_in - duplicates = clean + rejected`.
+
 ## @lesson Designing it so that it survives
 The checker's step 5 is where most real pipelines fail, so design for it from the beginning instead of patching it on.
 
@@ -155,6 +169,13 @@ The checker's step 5 is where most real pipelines fail, so design for it from th
 
 **Work in small, visible steps.** Open `warehouse.duckdb` and the Parquet files in the DuckDB command line or a notebook and look at them after every step. Print counts. Compare with the numbers in this lesson. The profile you write in step 1 is not busywork: it is the table of numbers you will keep comparing your pipeline against.
 
+> 💡 **Practice Pause 3 (Step 3: Star Schema Dimensional Modeling in DuckDB):**
+> 1. Open `pipeline.py` in your workspace using your text editor.
+> 2. Build the star schema inside `OUT/warehouse.duckdb`: create dimension tables `dim_zone`, `dim_date`, and `dim_payment`, plus fact table `fact_trip` with a 1-to-1 grain matching clean trips.
+> 3. Run the step 3 check in terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 3`
+> 4. **Success Indicator:** All step 3 checks report `PASS`, confirming table creation, foreign key references, and fact table row counts.
+
 ## @lab Lab: five steps to a pipeline you can trust
 Build `pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your pipeline on the real January file and on broken deliveries, and compares the results with answers it computes independently from the raw data.
 
@@ -164,9 +185,25 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 3. **Checker step 2: clean and reject.** In `pipeline.py` implement de-duplication, the five rules in order, the clean file, the rejected file and `quality_report.json` exactly as in the contract. Run it yourself first and compare with the numbers in the lesson. Check: `--step 2`. Before you run the checker, predict whether your count for `non_positive_total` will equal your step 1 number, and why not.
 4. **Checker step 3: star schema.** Add `warehouse.duckdb` with the three dimensions and `fact_trip`. Reconcile the fact table with the clean file before you ask the checker. Check: `--step 3`.
 5. **Checker step 4: marts.** Add `mart_daily` and `mart_top_routes`. Defend each definition to yourself (why only credit cards for tips? why ids and not names?). The checker also runs your pipeline on a small delivery built to expose a naming trap. Check: `--step 4`.
+
+> 💡 **Practice Pause 4 (Step 4: Publishing Data Marts & Zone Ambiguity Handling):**
+> 1. Open `pipeline.py` in your workspace using your text editor.
+> 2. Implement `mart_daily` (with tip percentage restricted to credit card transactions) and `mart_top_routes` (grouping routes by location zone ID pairs to avoid traps from duplicate zone names like Corona).
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS` on both January data and the synthetic test delivery.
+
 6. **Checker step 5: survive.** Make the pipeline idempotent, atomic and gated, as in the last lesson. The checker runs it five more times: twice on the same file, on a delivery in which every row appears twice, on a delivery with a renamed column, and on a delivery in which 40% of the rows are broken (the last two must exit with code 2 and leave your output folder byte-for-byte unchanged). Check: `--step 5` (under a minute with a fast pipeline).
 7. **Stuck?** Re-read the matching lesson section, query the data, and only then ask for a hint: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (then 2, then 3).
 8. **Finish.** When `--step all` passes, run `python3 scripts/prove.py mod-4-1 ~/taxi` to get the proof code for the **Proof** box on this lab page. Then write down, in a file `NOTES.md` in your workspace, three sentences about what surprised you in the data and one thing you would monitor if this ran every night.
+
+> 💡 **Practice Pause 5 (Step 5: Production Hardening & Capstone Proof Token):**
+> 1. Enhance `pipeline.py` with atomic directory swaps (write to a temporary staging folder, then rename) and quality gate checks (exit with code 2 on missing columns, empty data, or reject rate > 5%).
+> 2. Run the full verification in terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step all`
+> 3. Generate your Capstone verification proof token:
+>    `python3 scripts/prove.py mod-4-1 ~/taxi`
+> 4. **Success Indicator:** All checks report `PASS` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-4-1/starter/pipeline.py :: Your working file: copy it to your workspace and build the pipeline there :: starter

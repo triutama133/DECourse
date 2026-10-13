@@ -69,6 +69,13 @@ File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dap
 
 **Pertanyaan wajib sebelum memproses dataset baru**: Apa definisi satu baris (grain)? Berapa rentang waktunya, dan apakah ada data yang bocor di luar rentang? Kolom mana saja yang bisa bernilai NULL, dan apakah ada alasan berbeda di balik nilai NULL tersebut? Nilai apa saja yang tidak masuk akal (negatif, nol, tanggal masa depan)? Apakah ada identifier unik? Kode status mana yang membutuhkan kamus referensi? Kolom apa yang terlihat mirip namun sebenarnya berbeda (nama sama untuk ID berbeda)? Apa yang *sengaja tidak dicatat oleh sistem hulu* (seperti tip tunai)? Catat jawabannya sebelum Anda menulis kode.
 
+> 💡 **Jeda Praktik 1 (Langkah 1: Profiling Data Mentah & Pembuatan profile.json):**
+> 1. Buat file `profile.json` di folder workspace Anda (`~/taxi/profile.json`) menggunakan teks editor.
+> 2. Hitung 9 metrik statistik langsung dari file mentah Parquet menggunakan query DuckDB: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, dan `cash_trips_with_tip`.
+> 3. Jalankan pemeriksaan langkah 1 di terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
+> 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan pemahaman profiling data mentah Anda cocok 100% dengan standar referensi.
+
 ## @lesson Kotak perkakas Anda: DuckDB dan beberapa baris Python
 Pemeriksa tidak membatasi perkakas apa yang Anda pakai. Kami menyarankan **DuckDB**, karena DuckDB dapat membaca Parquet dan CSV secara langsung, memproses jutaan baris dalam hitungan detik di satu laptop (seluruh pipeline referensi selesai dalam waktu sekitar 4 detik), serta mampu menulis berkas Parquet dan file database `.duckdb` yang disyaratkan kontrak. Penjelasan di bawah ini adalah penyegar konsep generik yang diuji langsung pada file ini, bukan jawaban kode utuh. Modul 2.1 membahas DuckDB secara mendalam.
 
@@ -140,6 +147,13 @@ Pada file data nyata, aturan ini menolak sekitar 1,2% baris, dan pemeriksa memba
 
 **Gerbang Kualitas (Quality Gates)** (Pipeline wajib menolak pengiriman data dan keluar dengan kode 2 jika kondisi ini terjadi): Salah satu dari 19 kolom wajib tidak ditemukan; file pengiriman berisi 0 baris; atau rasio baris ditolak melebihi **5% (reject_rate > 0.05)**. Saat penolakan terjadi, cetak satu baris JSON ke stderr yang menjelaskan alasannya (contohnya `{"status": "failed", "failure": "missing_columns"}`).
 
+> 💡 **Jeda Praktik 2 (Langkah 2: Pembersihan, Karantina, & Laporan Kualitas):**
+> 1. Buka file `pipeline.py` di workspace Anda (`~/taxi/pipeline.py`) menggunakan teks editor.
+> 2. Implementasikan logika deduplikasi 19 kolom, evaluasi 5 aturan pembersihan berurutan (aturan pertama menang), serta penulisan file `clean/trips.parquet` (tepat 2.927.800 baris dengan 16 kolom), `rejected/trips_rejected.parquet`, dan `quality_report.json`.
+> 3. Jalankan pemeriksaan langkah 2 di terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 2`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema data bersih, integritas data karantina, dan rekonsiliasi jumlah baris `rows_in - duplicates = clean + rejected`.
+
 ## @lesson Merancang agar pipeline bertahan di produksi
 Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data gagal, oleh karena itu rancanglah ketahanan ini sejak awal arsitektur.
 
@@ -155,6 +169,13 @@ Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data
 
 **Bekerja dalam tahapan kecil yang terverifikasi.** Buka file Parquet dan database `warehouse.duckdb` melalui terminal DuckDB atau notebook di setiap langkah. Cetak jumlah barisnya. Cocokkan dengan angka panduan pada pelajaran ini. File `profile.json` yang Anda buat di langkah 1 bukan sekadar tugas administratif: file tersebut adalah tabel kebenaran yang akan terus Anda jadikan patokan rekonsiliasi.
 
+> 💡 **Jeda Praktik 3 (Langkah 3: Pemodelan Skema Bintang di DuckDB):**
+> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Bangun skema bintang di dalam `OUT/warehouse.duckdb`: buat tabel dimensi `dim_zone`, `dim_date`, dan `dim_payment`, serta tabel fakta `fact_trip` dengan grain 1-to-1 terhadap data bersih.
+> 3. Jalankan pemeriksaan langkah 3 di terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 3`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi pembuatan tabel dimensional, referensi foreign key, dan kesesuaian jumlah baris tabel fakta.
+
 ## @lab Lab: lima langkah menuju pipeline yang dapat dipercaya
 Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, lalu uji dengan skrip pemeriksa setelah menyelesaikan tiap langkah. Pemeriksa akan mengeksekusi pipeline Anda di atas file Januari asli dan beberapa file uji anomali, lalu membandingkannya dengan tolok ukur referensi.
 
@@ -164,9 +185,25 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 3. **Pemeriksa langkah 2: bersihkan dan karantina.** Di dalam `pipeline.py`, implementasikan logika deduplikasi, evaluasi 5 aturan pembersihan berurutan, pembuatan file data bersih, file data karantina, serta `quality_report.json` persis sesuai kontrak. Jalankan secara mandiri terlebih dahulu dan cocokkan angkanya dengan panduan. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 2`. Sebelum menjalankan pemeriksa, prediksi apakah angka penolakan `non_positive_total` Anda akan sama persis dengan angka di langkah 1, dan jelaskan mengapa ada selisih.
 4. **Pemeriksa langkah 3: skema bintang.** Tambahkan pembuatan berkas database `warehouse.duckdb` yang memuat tiga tabel dimensi dan tabel `fact_trip`. Rekonsiliasi jumlah baris dan total argo tabel fakta dengan file data bersih sebelum menjalankan pengujian. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 3`.
 5. **Pemeriksa langkah 4: data mart.** Tambahkan pembuatan `mart_daily` dan `mart_top_routes`. Pastikan Anda memahami rasionalisasi di balik tiap formula (mengapa tip hanya dihitung dari transaksi kartu kredit? mengapa rute didefinisikan berdasarkan ID dan bukan nama zona?). Skrip pemeriksa juga akan menguji pipeline Anda di atas file kecil yang dirancang khusus untuk menguji jebakan nama zona ganda. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 4`.
+
+> 💡 **Jeda Praktik 4 (Langkah 4: Penerbitan Data Mart & Penanganan Ambiguitas Zona):**
+> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Implementasikan pembuatan tabel `mart_daily` (dengan formula persentase tip khusus kartu kredit) dan `mart_top_routes` (agregasi rute berbasis pasangan ID zona lokasi untuk menghindari jebakan nama zona duplikat seperti Corona).
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS` pada data Januari dan file pengujian sintetis khusus.
+
 6. **Pemeriksa langkah 5: ketahanan produksi.** Buat pipeline Anda idempoten, atomik, dan dilindungi gerbang kualitas sesuai petunjuk pelajaran terakhir. Skrip pemeriksa akan menjalankannya lima kali lagi: dua kali pada file yang sama, satu kali pada file di mana setiap baris muncul dua kali, satu kali pada file dengan kolom yang diubah namanya, dan satu kali pada file dengan 40% data rusak (dua skenario terakhir harus keluar dengan kode 2 dan tidak mengubah folder keluaran Anda sama sekali). Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 5` (selesai di bawah satu menit pada pipeline yang optimal).
 7. **Mengalami kebuntuan?** Baca kembali materi terkait, teliti datanya dengan query, dan baru gunakan opsi petunjuk: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (kemudian level 2, lalu level 3).
 8. **Penyelesaian.** Ketika pengujian `--step all` lulus seluruhnya, jalankan `python3 scripts/prove.py mod-4-1 ~/taxi` untuk memperoleh kode bukti verifikasi dan tempelkan ke kotak **Bukti** pada halaman web lab ini. Kemudian tuliskan 3 kalimat di berkas `NOTES.md` di workspace Anda mengenai hal apa yang paling mengejutkan Anda pada data ini serta satu metrik yang wajib dipantau jika pipeline ini berjalan setiap malam.
+
+> 💡 **Jeda Praktik 5 (Langkah 5: Ketahanan Produksi & Bukti Kelulusan Capstone):**
+> 1. Lengkapi `pipeline.py` dengan mekanisme atomic swap (tulis ke folder staging sementara lalu ganti nama) dan evaluasi gerbang kualitas (keluar dengan kode 2 jika kolom hilang, data kosong, atau reject rate > 5%).
+> 2. Jalankan pemeriksaan menyeluruh di terminal:
+>    `python3 labs/mod-4-1/check.py ~/taxi --step all`
+> 3. Hasilkan kode bukti kelulusan Capstone:
+>    `python3 scripts/prove.py mod-4-1 ~/taxi`
+> 4. **Indikator Sukses:** Seluruh rangkaian pengujian berstatus `PASS` dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-4-1/starter/pipeline.py :: Berkas kerja awal: salin ke workspace Anda dan bangun pipeline di sana :: starter
