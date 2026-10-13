@@ -89,6 +89,13 @@ Karena file kontrak berbentuk *machine-readable*, artefak ini dapat mengendalika
 
 Data contract bukan alat untuk saling melempar kesalahan, melainkan sarana untuk membuat **ekspektasi antar tim dapat diuji secara otomatis**. Kontrak ini hanya akan berhasil jika tim produsen menganggap kualitas data sebagai bagian dari kriteria "Definition of Done" fitur mereka.
 
+> 💡 **Jeda Praktik 1 (Mendefinisikan Data Contract YAML):**
+> 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-5/contracts/orders.yaml` (ingat: jangan mengeksekusi file `.yaml` langsung di bash terminal).
+> 2. Lengkapi spesifikasi kontrak: tetapkan `name: orders`, `version: 1.0.0`, `owner: checkout-team`, dan deklarasikan 6 field (`order_id`, `customer_id`, `order_ts`, `status`, `payment_method`, `total_idr`) beserta batasan nilai dan SLA (`freshness_hours: 24`, `max_reject_rate: 0.10`).
+> 3. Uji keabsahan kontrak data di terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
+> 4. **Indikator Sukses:** Seluruh tes `TestContractFile` berstatus `PASSED` membuktikan kontrak valid dan lengkap.
+
 ## @lesson Ingestion gate: ketat di pintu masuk, karantina data yang gagal
 Di perbatasan gerbang penyerapan (ingestion boundary), terapkan validasi **secara ketat** terhadap spesifikasi kontrak data, dan alihkan setiap baris yang cacat ke **tabel karantina (quarantine)** lengkap beserta alasan spesifik kegagalannya (mengadopsi pola dari Modul 1.2). Sikap ketat di lapisan ini sangat disengaja: jika kontrak menetapkan bahwa `total_idr` bertipe integer, maka kemunculan nilai teks seperti `"Rp 1.250.000"` adalah pelanggaran kontrak yang harus dilaporkan kembali ke produsen, bukan sesuatu yang ditebak-tebak secara diam-diam. Proses parsing dan standardisasi untuk ketidakteraturan yang sudah dimaklumi adalah tugas eksplisit dari staging layer (Modul 2.3).
 
@@ -114,6 +121,13 @@ Prinsip perancangan ingestion gate produksi:
 - **Urutan evaluasi berjenjang (Fail-Fast).** Jika skema struktural sudah menyimpang (seperti nama kolom utama hilang), pengecekan level baris tidak ada gunanya: segera hentikan proses dengan pesan kegagalan skema yang jelas.
 - **Simpan bukti historis**: tulis file karantina dan laporan ringkasan evaluasi di setiap siklus run agar tren anomali kualitas data dapat dipantau dari waktu ke waktu.
 
+> 💡 **Jeda Praktik 2 (Membangun Ingestion Gate & Karantina):**
+> 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
+> 2. Implementasikan fungsi `load_contract(path)` dan `validate_rows(rows, contract)`: periksa secara ketat aturan field (missing, wrong type, minimum, allowed, duplicate) dan masukkan baris bermasalah ke list `quarantined` beserta daftar errornya.
+> 3. Uji validasi baris di terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
+> 4. **Indikator Sukses:** Sebanyak 13 tes berstatus `PASSED`, memverifikasi bahwa 3.394 baris valid diterima dan 240 baris cacat dikarantina dengan pesan error yang presisi.
+
 ## @lesson Monitoring: freshness, volume, schema, dan distribution
 Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per satu baris individual. **Pemantauan di tingkat dataset (dataset-level monitoring)** mengamati *karakteristik bentuk dari keseluruhan pengiriman data* dan mampu mendeteksi anomali berbahaya di mana setiap baris tampak valid secara individu namun secara kolektif salah total. Inilah pilar utama dari **observabilitas data (data observability)**:
 
@@ -137,6 +151,13 @@ Panduan praktis lapangan:
 - **Perhatikan Pola Musiman (Seasonality).** Volume transaksi hari Sabtu tentu berbeda dengan hari Selasa. Bandingkan volume data dengan hari yang sama di minggu-minggu sebelumnya, atau gunakan model baseline harian agar tim on-call Anda tidak terbangun oleh alarm palsu setiap akhir pekan.
 - **Deteksi Pergeseran Distribusi (Distribution Shift)** dapat dihitung dengan mudah menggunakan rumus **Total Variation Distance** antara dua distribusi kategori: setengah dari jumlah selisih absolut persentase proporsi. Nilainya bergerak dari 0 (identik sempurna) hingga 1 (berbeda total). Sebagai contoh, perbandingan `{paid: 0.8, cancelled: 0.2}` terhadap `{paid: 0.6, cancelled: 0.4}` menghasilkan nilai TVD sebesar 0,2: menandakan 20% distribusi status mengalami pergeseran yang layak untuk diinvestigasi.
 - **Kelelahan Notifikasi (Alert Fatigue) adalah musuh utama.** Banjir peringatan yang terlalu berisik akan melatih manusia untuk mengabaikannya, hingga akhirnya insiden bencana nyata luput dari perhatian. Mulailah dengan sedikit assertions bernilai tinggi, tetapkan level keparahan yang jelas (`block` vs `warn`), sertakan pesan kontekstual yang dapat ditindaklanjuti ("volume pada 2026-01-30 adalah 69, batas ekspektasi 96 hingga 130"), dan evaluasi ambang batas setiap kali terjadi false alarm.
+
+> 💡 **Jeda Praktik 3 (Pemeriksaan Statistik Monitoring Dataset):**
+> 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
+> 2. Implementasikan empat fungsi monitoring: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` menggunakan Median dan MAD dengan ambang batas bawah, serta `distribution_shift(before, after)` menggunakan rumus Total Variation Distance.
+> 3. Uji seluruh fungsi monitoring di terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
+> 4. **Indikator Sukses:** Seluruh 6 tes `TestSmallChecks` berstatus `PASSED` mengonfirmasi keandalan deteksi statistik terhadap drift dan anomali.
 
 ## @lesson Lineage, perkakas pendukung, dan level layanan (SLA)
 **Data Lineage** merekam jejak aliran data dari hulu ke hilir: dashboard eksekutif ini membaca data mart ini, yang dibangun dari model staging ini, yang bersumber dari tabel mentah ini, yang di-load oleh pipeline job ini. Lineage menjawab dua pertanyaan operasional paling kritis dalam insiden data: *Analisis Dampak (Impact Analysis)*: "Database sumber ini sedang offline, dashboard mana saja yang akan terdampak?" dan *Akar Masalah (Root Cause Analysis)*: "Angka pendapatan di laporan ini salah, dari baris data mana kesalahan ini bermula?". Orkestrator modern dan dbt memproduksi metadata lineage secara otomatis (Modul 2.3 dan 2.4), dan **OpenLineage** adalah standar terbuka universal untuk memancarkan metadata ini dalam bentuk event terstruktur:
@@ -166,6 +187,13 @@ Insiden cacat data pasti akan terjadi di lingkungan produksi suatu hari nanti. H
 
 Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** untuk setiap dataset kritikal (cara memeriksa kesehatan data, prosedur eksekusi ulang, dan eskalasi); simpan riwayat **karantina dan laporan evaluasi** di setiap run agar waktu awal terjadinya masalah dapat dilacak dengan presisi; serta tambahkan **regression check** baru untuk setiap insiden masa lalu agar bug yang sama tidak akan pernah terulang kembali di masa depan.
 
+> 💡 **Jeda Praktik 4 (Orkestrasi Quality Gate & Penanganan Insiden):**
+> 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
+> 2. Implementasikan fungsi `run_gate(orders_csv, contract_yaml, out_dir, now=None)`: jalankan evaluasi berjenjang (periksa skema, validasi baris, kesegaran data, dan volume), tulis `orders_valid.ndjson` serta `quarantine.ndjson`, dan kembalikan ringkasan status (`pass`, `warn`, atau `fail`).
+> 3. Uji perilaku orkestrasi di terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
+> 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.
+
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 
@@ -183,6 +211,13 @@ pytest labs/mod-2-5 -v          # pengujian akan gagal pada awalnya
 4. Implementasikan fungsi-fungsi pengecekan modular: `check_schema`, `check_freshness`, `volume_anomaly` (menggunakan rumus Median dan MAD beserta nilai batas bawahnya), serta `distribution_shift` (Total Variation Distance).
 5. Implementasikan fungsi orkestrasi gerbang `run_gate`, yang menjalankan pengecekan secara berurutan (skema, kontrak baris, freshness, volume), menghasilkan output file `orders_valid.ndjson` dan `quarantine.ndjson`, serta mengembalikan laporan evaluasi berstatus `pass`, `warn`, atau `fail`. Hentikan eksekusi segera pada kegagalan pertama.
 6. Jalankan rangkaian pengujian otomatis. Kemudian **eksekusi quality gate Anda terhadap data transaksi nyata**, baca file laporannya, dan amati beberapa baris pertama file karantina beserta statistik alasan penolakannya.
+
+> 💡 **Jeda Praktik 5 (Verifikasi Menyeluruh & Inspeksi Karantina):**
+> 1. Jalankan seluruh suite pengujian otomatis di terminal:
+>    `pytest labs/mod-2-5 -v`
+> 2. Amati hasil evaluasi: 26 tes berhasil diverifikasi dalam waktu sekitar 1 detik.
+> 3. **Indikator Sukses:** Seluruh 26 pengujian di `test_lab.py` berstatus `PASSED` (100% lulus).
+
 7. Lakukan eksperimen mandiri dengan merusak file data dan perhatikan respons sistem: ubah nama satu kolom, hapus 40% data pada hari terakhir, ganti 25% nilai total menjadi format teks `Rp ...`, dan majukan waktu `now` sebanyak tiga hari. Untuk setiap skenario, evaluasi apakah pesan status yang dihasilkan memberi instruksi yang jelas bagi engineer on-call.
 8. Tantangan lanjutan (stretch goals): tambahkan pengecekan rasio nilai NULL per kolom; bandingkan volume hari terakhir terhadap hari yang sama pada minggu sebelumnya; tulis ulang spesifikasi kontrak ke format Open Data Contract Standard; tambahkan argumen CLI `--now` beserta kode exit (0 pass, 1 warn, 2 fail) agar gate dapat diintegrasikan ke dalam orkestrator seperti Airflow atau Dagster.
 

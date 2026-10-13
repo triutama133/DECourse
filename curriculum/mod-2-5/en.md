@@ -89,6 +89,13 @@ Because it is machine-readable, the same file can drive **both sides**: the prod
 
 Contracts are not about blame; they make **expectations testable**. They work only when producers see them as part of their own definition of done, which is a people problem as much as a technical one.
 
+> 💡 **Practice Pause 1 (Defining the YAML Data Contract):**
+> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-5/contracts/orders.yaml` (do not run `.yaml` files directly in bash).
+> 2. Complete the contract specification: specify `name: orders`, `version: 1.0.0`, `owner: checkout-team`, declare all 6 fields (`order_id`, `customer_id`, `order_ts`, `status`, `payment_method`, `total_idr`) with constraints, and configure the SLA block (`freshness_hours: 24`, `max_reject_rate: 0.10`).
+> 3. Verify the contract definition in terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
+> 4. **Success Indicator:** Both `TestContractFile` tests report `PASSED`, verifying schema and SLA completeness.
+
 ## @lesson The ingestion gate: strict at the door, quarantine what fails
 At the boundary, validate **strictly** against the contract and send failing rows to a **quarantine** with reasons (the pattern from Module 1.2). Strictness here is deliberate: the contract says `total_idr` is an integer, so `"Rp 1.250.000"` is a violation to report to the producer, not something to guess at. Cleaning and normalising for known messiness belongs in the staging layer (Module 2.3), where you do it explicitly and knowingly.
 
@@ -114,6 +121,13 @@ Design decisions of a gate:
 - **Order matters, and stopping early is fine.** If the schema has drifted (a column renamed), row-level checks are meaningless: fail immediately with a clear reason.
 - **Keep the evidence**: write the quarantine file and a report (counts by reason) for each run so trends are visible.
 
+> 💡 **Practice Pause 2 (Building the Ingestion Gate & Quarantine):**
+> 1. Open `labs/mod-2-5/quality.py` in your text editor.
+> 2. Implement `load_contract(path)` and `validate_rows(rows, contract)`: enforce field constraints strictly (missing, wrong type, minimum, allowed, duplicate) and route invalid rows to `quarantined` with detailed error messages.
+> 3. Test row validation in terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
+> 4. **Success Indicator:** All 13 tests in `TestValidateRows` report `PASSED`, confirming 3,394 valid rows and 240 quarantined rows on the real shop dataset.
+
 ## @lesson Monitoring: freshness, volume, schema, distribution
 Row-level checks see one row at a time. **Dataset-level monitoring** looks at the *shape of the whole delivery* and catches problems that make every row individually valid. The common pillars of **data observability**:
 
@@ -137,6 +151,13 @@ Practical tuning:
 - **Seasonality.** Orders on Saturdays differ from Tuesdays. Compare with the same weekday of past weeks, or with a model that includes day-of-week, or you will page people every weekend.
 - **Distribution shift** can be measured simply with the **total variation distance** between two category distributions: half the sum of absolute differences in shares. It runs from 0 (identical) to 1 (completely different). For example, `{paid: 80, cancelled: 20}` against `{paid: 60, cancelled: 40}` gives 0.2: a quarter of the orders changed status mix, worth a look.
 - **Alert fatigue is the enemy.** Too many noisy alerts train people to ignore them, and then the real one is missed. Start with few, high-value checks; set severity (`block`, `warn`); require a human-actionable message ("volume on 2026-01-30 was 69, expected 96 to 130"); and review thresholds after every false alarm.
+
+> 💡 **Practice Pause 3 (Dataset Monitoring & Robust Statistics):**
+> 1. Open `labs/mod-2-5/quality.py` in your text editor.
+> 2. Implement the four monitoring functions: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` using Median and MAD with safety floors, and `distribution_shift(before, after)` using Total Variation Distance.
+> 3. Run the statistical monitoring tests in terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
+> 4. **Success Indicator:** All 6 tests in `TestSmallChecks` report `PASSED`, proving detection resilience against outliers and drift.
 
 ## @lesson Lineage, tools and service levels
 **Lineage** records how data flows: this dashboard reads this mart, built from these staging models, from these raw tables, loaded by this job. It answers two operational questions. *Impact analysis*: "this source is broken, which reports are affected?" *Root cause*: "this number is wrong, where did it come from?" Orchestrators and dbt produce lineage (Modules 2.3 and 2.4), and **OpenLineage** is an open standard for emitting it: each job run sends an event describing the run, the job, and its input and output datasets.
@@ -166,6 +187,13 @@ Quality problems will reach production. What distinguishes a mature team is the 
 
 A few habits make this easier: keep a **runbook** per critical dataset (how to check health, how to re-run, who to ask); keep **quarantine and reports** for every run so you can see when a problem began; and add a **regression check** for every incident, so the same problem is caught automatically next time.
 
+> 💡 **Practice Pause 4 (Quality Gate Orchestration & Incident Prevention):**
+> 1. Open `labs/mod-2-5/quality.py` in your text editor.
+> 2. Implement `run_gate(orders_csv, contract_yaml, out_dir, now=None)`: execute hierarchical checks (schema, row validation, freshness, volume), write `orders_valid.ndjson` and `quarantine.ndjson`, and return an evaluation dictionary with status `pass`, `warn`, or `fail`.
+> 3. Test gate orchestration in terminal:
+>    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
+> 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.
+
 ## @lab Lab: build a data quality gate
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.
 
@@ -183,6 +211,13 @@ pytest labs/mod-2-5 -v          # everything fails at first
 4. Implement the small checks: `check_schema`, `check_freshness`, `volume_anomaly` (median and MAD, with the floors), and `distribution_shift` (total variation distance).
 5. Implement `run_gate`, which runs the checks in order (schema, contract, freshness, volume), writes `orders_valid.ndjson` and `quarantine.ndjson`, and returns a report with a status of `pass`, `warn` or `fail`. Stop at the first failure.
 6. Run the tests. Then **use your gate on the real data** and read the report; look at the first lines of the quarantine file and the count of reasons.
+
+> 💡 **Practice Pause 5 (Full Suite Verification & Quarantine Inspection):**
+> 1. In your terminal, run the complete automated test suite:
+>    `pytest labs/mod-2-5 -v`
+> 2. Observe the execution output: all 26 test cases are evaluated in about 1 second.
+> 3. **Success Indicator:** All 26 tests in `test_lab.py` report `PASSED` (100% pass rate).
+
 7. Break the feed yourself and watch the gate respond: rename a column, delete 40% of the last day, change 25% of totals to `Rp ...` text, advance `now` by three days. For each, ask whether the status and the message tell an on-call engineer what to do.
 8. Stretch goals: add a null-rate check per column; compare the last day with the same weekday of earlier weeks; write the same contract in the Open Data Contract Standard format; add a `--now` command-line argument and an exit code (0 pass, 1 warn, 2 fail) so the gate can run in a scheduler.
 
