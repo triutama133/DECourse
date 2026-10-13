@@ -89,6 +89,14 @@ Three layouts for the same data:
 
 Modern columnar engines compress repeated values so well that wide tables are cheap to *store*, which is why people declared the star schema dead. The claim confuses storage with design. The trouble with an OBT as the *only* model is not size; it is that it hides the grain, makes updates (a customer changing city) touch billions of rows, and invites each team to build its own variant. Treat the star as the shared, tested model and derive an OBT from it if a tool wants one.
 
+> 💡 **Practice Pause 1 (Gap-free Calendar Date Dimension):**
+> Practice generating a calendar date dimension table:
+> 1. Open `labs/mod-1-4/answers.sql` in your text editor (or open the SQL Sandbox in your browser).
+> 2. Solve challenge `d-4`: Generate 7 contiguous calendar days starting `2026-01-01` using `WITH RECURSIVE`. Compute integer `date_key` (YYYYMMDD), `full_date`, `day_name`, and `is_weekend` flag (1 for Saturday and Sunday).
+> 3. Test in the terminal:
+> `python3 labs/mod-1-4/check.py`
+> When challenge d-4 shows PASS, you understand analytical calendar generation! Proceed to Lessons 4 & 5 on keys and SCD dimensions.
+
 ## @lesson Keys: surrogate keys and the unknown member
 **Natural keys** come from the source (`customer_id`, `product_id`). **Surrogate keys** are meaningless integers the warehouse assigns (`customer_sk`). Fact tables should join to dimensions on surrogate keys. Reasons:
 
@@ -138,6 +146,16 @@ If you forget the range and join on `customer_id` alone, every order matches *ev
 
 **Loading a Type 2 dimension incrementally** (when you do not have a clean change feed, only today's snapshot): compare each incoming row with the current version on the *tracked* attributes; if different, close the current row (`valid_to = now`, `is_current = 0`) and insert a new current row. Use `IS DISTINCT FROM` rather than `<>` so a change to or from NULL is detected, and make the step idempotent (running twice must not create a second identical version). Two real-world complications: **late-arriving changes** (an update that happened Tuesday arrives on Thursday must be inserted *between* existing versions, re-cutting the ranges) and **out-of-order events** (always order by the source's event time, not by arrival time).
 
+> 💡 **Practice Pause 2 (SCD Type 2 & As-of Joins):**
+> Master customer history tracking and point-in-time joins:
+> 1. In `labs/mod-1-4/answers.sql` (or SQL Sandbox), solve 3 SCD challenges:
+>    - `d-1`: Build an SCD Type 2 dimension from `customer_changes` using `LEAD(effective_ts)` for `valid_to` and `is_current`.
+>    - `d-2`: Connect orders to the customer's tier at the time of purchase (as-of join: `order_ts >= valid_from AND order_ts < valid_to`).
+>    - `d-3`: Aggregate revenue per customer tier at purchase time and verify no fan-out duplication occurred.
+> 2. Test in the terminal:
+> `python3 labs/mod-1-4/check.py`
+> When all 4 challenges `d-1` through `d-4` show PASS (4/4 correct), your SCD foundation is solid! Proceed to Lesson 6 on testing and star schema assembly.
+
 ## @lesson Making models trustworthy: tests, tools and where modeling lives
 A model is code and deserves tests. A minimum set, all of which the lab enforces:
 
@@ -152,6 +170,16 @@ A model is code and deserves tests. A minimum set, all of which the lab enforces
 Other methodologies exist and are worth knowing by name: **Inmon** (a normalised enterprise warehouse feeding marts), **Data Vault** (hubs, links and satellites, built for auditability and many sources) and **semantic layers** (a shared definition of metrics on top of the tables). Kimball's star schema remains the most common model for the layer analysts actually query.
 
 Common mistakes to avoid: mixing grains; putting descriptive text in the fact table instead of a dimension; NULL foreign keys; using the natural key in the fact so history is impossible; summing a non-additive measure; making a dimension per flag instead of one junk dimension; and designing before asking what questions the business needs answered. Start from the questions, write the grain, and let the rest follow.
+
+> 💡 **Practice Pause 3 (Build the KopiKu Star Schema in warehouse.sql):**
+> Time to build the full production star schema warehouse!
+> 1. Prepare the staging tables first in your terminal:
+> `python3 labs/mod-1-4/stage.py data warehouse.db`
+> 2. Open `labs/mod-1-4/warehouse.sql` in your text editor (remember: do not execute directly in bash without arguments!).
+> 3. Write DDL & DML for the 4 tables: `dim_date` (gap-free), `dim_product` (surrogate key), `dim_customer` (SCD Type 2 with unknown member `customer_sk = -1`), and `fact_order_items` (order line grain with as-of join).
+> 4. Test the complete star schema integrity in the terminal:
+> `python3 labs/mod-1-4/test_lab.py -v`
+> When all 13 unit tests show PASSED (OK), your KopiKu star schema meets enterprise standards!
 
 ## @lab Lab: build the KopiKu star schema
 Build a data warehouse for KopiKu in SQL: a date dimension, a product dimension (Type 1), a customer dimension (Type 2, with an unknown member), and a fact table at the order-line grain whose customer key is the version valid when the order was placed. 13 tests check grain, integrity, reconciliation and a revenue-by-tier calculation done independently in Python. You also get four sandbox challenges on SCD logic in your browser.

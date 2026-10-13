@@ -89,6 +89,14 @@ Perbandingan tiga pola tata letak penyimpanan data:
 
 Mesin database kolumnar modern (seperti DuckDB, BigQuery, Snowflake) mengompresi data berulang dengan sangat efisien, sehingga tabel lebar (OBT) murah untuk disimpan di disk. Hal ini membuat sebagian orang tergesa-gesa menyatakan star schema sudah usang. Pernyataan tersebut mencampuradukkan format penyimpanan fisik dengan perancangan logika bisnis. Masalah mendasar OBT jika dijadikan satu-satunya model data adalah hilangnya kepastian grain, pembaruan data (misal pelanggan pindah kota) terpaksa memodifikasi miliaran baris transaksi historis, dan setiap departemen akan tergoda membuat varian OBT versinya sendiri. Perlakukan star schema sebagai model kebenaran bersama yang teruji, lalu turunkan OBT di atasnya jika alat visualisasi tertentu membutuhkannya.
 
+> 💡 **Jeda Praktik 1 (Dimensi Tanggal Tanpa Celah Kalender):**
+> Latih pembuatan tabel dimensi tanggal kalender:
+> 1. Buka file `labs/mod-1-4/answers.sql` di Text Editor Anda (atau buka SQL Sandbox di browser).
+> 2. Selesaikan tantangan `d-4`: Bangkitkan 7 hari kalender tanpa celah mulai `2026-01-01` menggunakan `WITH RECURSIVE`. Hitung `date_key` integer (YYYYMMDD), `full_date`, `day_name`, dan flag `is_weekend` (1 untuk Sabtu dan Minggu).
+> 3. Uji di terminal:
+> `python3 labs/mod-1-4/check.py`
+> Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Pelajaran 4 & 5 tentang kunci dan dimensi SCD.
+
 ## @lesson Pengelolaan kunci: surrogate key dan anggota unknown
 **Natural key (business key)** berasal langsung dari sistem sumber (`customer_id`, `product_id`). **Surrogate key** adalah bilangan bulat (integer) tanpa makna bisnis yang diterbitkan sendiri oleh gudang data (`customer_sk`). Tabel fakta wajib melakukan join ke dimensi menggunakan surrogate key. Alasannya sangat mendasar:
 
@@ -138,6 +146,16 @@ Jika Anda lupa menyertakan syarat rentang tanggal dan hanya melakukan join pada 
 
 **Pemuatan bertahap (incremental load) pada Tipe 2** (saat Anda tidak memiliki feed mutasi bersih, melainkan hanya snapshot harian): bandingkan setiap baris baru yang masuk dengan versi aktif saat ini pada atribut yang dilacak; jika berbeda, tutup baris aktif (`valid_to = now`, `is_current = 0`) dan masukkan baris aktif baru. Gunakan operator `IS DISTINCT FROM` alih-alih `<>` agar perubahan dari atau ke nilai NULL tetap terdeteksi, dan pastikan langkah ini bersifat idempoten. Dua komplikasi dunia nyata yang harus diantisipasi: **perubahan yang datang terlambat (late-arriving changes)** yang mengharuskan pemotongan ulang rentang tanggal di antara versi yang sudah ada, serta **event yang tiba tidak berurutan (out-of-order events)** di mana Anda wajib mengurutkan data berdasarkan waktu kejadian di sistem sumber, bukan waktu data tiba di pipeline.
 
+> 💡 **Jeda Praktik 2 (SCD Tipe 2 & As-of Join):**
+> Kuasai pelacakan histori pelanggan dan join berbasis rentang waktu:
+> 1. Di `labs/mod-1-4/answers.sql` (atau SQL Sandbox), selesaikan 3 tantangan SCD:
+>    - `d-1`: Bangun dimensi SCD Tipe 2 dari `customer_changes` menggunakan `LEAD(effective_ts)` untuk menentukan `valid_to` dan flag `is_current`.
+>    - `d-2`: Hubungkan pesanan ke tier pelanggan saat transaksi terjadi (as-of join: `order_ts >= valid_from AND order_ts < valid_to`).
+>    - `d-3`: Agregasikan total omset per tier pelanggan saat transaksi dan pastikan tidak terjadi duplikasi baris fan-out.
+> 2. Uji di terminal:
+> `python3 labs/mod-1-4/check.py`
+> Ketika semua 4 tantangan `d-1` sampai `d-4` berstatus PASS (4/4 correct), pemahaman SCD Anda sudah solid! Lanjut ke Pelajaran 6 untuk pengujian dan perakitan skema bintang.
+
 ## @lesson Menjamin keandalan model: pengujian, alat, dan implementasi modern
 Model data adalah kode program dan wajib memiliki rangkaian pengujian otomatis (automated testing). Kumpulan pengujian minimum yang wajib diterapkan (dan seluruhnya diuji dalam lab ini):
 
@@ -152,6 +170,16 @@ Model data adalah kode program dan wajib memiliki rangkaian pengujian otomatis (
 Metodologi alternatif lain yang layak dipahami wawasannya: **Inmon** (enterprise data warehouse ternormalisasi yang mendistribusikan data ke data mart departemen), **Data Vault** (arsitektur berbasis hub, link, dan satellite yang dirancang untuk auditabilitas ekstrem dan integrasi puluhan sumber data), serta **Semantic Layer** (definisi metrik bisnis terpusat di atas tabel analitik). Star schema Ralph Kimball tetap menjadi standar industri paling umum untuk lapisan data yang dikonsumsi langsung oleh analis bisnis.
 
 Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh teks deskriptif panjang di tabel fakta alih-alih di dimensi; membiarkan foreign key bernilai NULL; menggunakan natural key di tabel fakta sehingga histori mustahil dicatat; menjumlahkan ukuran numerik non-aditif; membuat satu dimensi untuk setiap status flag alih-alih menyatukannya ke dalam junk dimension; dan merancang tabel sebelum memahami pertanyaan bisnis apa yang ingin dijawab. Selalu mulai dari pertanyaan bisnis, rumuskan grain dalam satu kalimat tegas, dan biarkan struktur tabel mengikuti secara alami.
+
+> 💡 **Jeda Praktik 3 (Bangun Star Schema KopiKu di warehouse.sql):**
+> Waktunya membangun gudang data star schema produksi lengkap!
+> 1. Siapkan tabel staging terlebih dahulu di terminal:
+> `python3 labs/mod-1-4/stage.py data warehouse.db`
+> 2. Buka `labs/mod-1-4/warehouse.sql` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash tanpa argumen!).
+> 3. Tulis DDL & DML untuk 4 tabel: `dim_date` (tanpa celah), `dim_product` (surrogate key), `dim_customer` (SCD Tipe 2 dengan anggota unknown `customer_sk = -1`), dan `fact_order_items` (grain item pesanan dengan as-of join).
+> 4. Uji seluruh integritas skema bintang di terminal:
+> `python3 labs/mod-1-4/test_lab.py -v`
+> Ketika ke-13 unit test berstatus PASSED (OK), star schema KopiKu Anda telah memenuhi standar enterprise!
 
 ## @lab Lab: membangun star schema KopiKu
 Bangun data warehouse untuk KopiKu menggunakan SQL: dimensi tanggal, dimensi produk (SCD Tipe 1), dimensi pelanggan (SCD Tipe 2 lengkap dengan anggota unknown), dan tabel fakta pada grain item pesanan yang terhubung ke versi pelanggan yang valid pada saat pesanan dibuat. 13 unit test otomatis akan menguji integritas grain, referensial, rekonsiliasi nilai omset, serta verifikasi independen menggunakan script Python. Anda juga dibekali empat latihan sandbox interaktif di browser untuk melatih intuisi logika SCD.
