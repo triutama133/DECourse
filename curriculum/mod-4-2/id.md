@@ -85,6 +85,13 @@ GeoJSON Feature Collection
 4. **Strategi Paginasi (Offset vs Keyset Watermark):** REST API umumnya menawarkan paginasi offset (`limit` dan `offset`). Walau mudah dipahami, paginasi murni offset mengalami pemindaian O(N) pada offset dalam dan dapat bergeser jika ada data baru masuk bersamaan. Dalam arsitektur data modern, kita menggabungkan watermark pada waktu `updated` (filter `updatedafter`) dengan offset halaman di dalam satu sesi sinkronisasi untuk menjamin eksekusi yang cepat dan idempoten. Filter tetap konstan selama offset bergerak.
 5. **Menjaga Kamus Data Domain:** API ilmiah memuat kode spesifik domain seperti `magType` (`ml` skala Richter lokal, `mw` magnitudo momen, `md` durasi). Jangan pernah membuang atribut domain ini saat ekstraksi; analis bergantung pada tipe magnitudo untuk memvalidasi akurasi kalibrasi sensor fisik.
 
+> 💡 **Jeda Praktik 1 (Langkah 1: Profiling Data Mentah & Pembuatan profile.json):**
+> 1. Buat file `profile.json` di folder workspace Anda (`~/seismic/profile.json`) menggunakan teks editor.
+> 2. Hitung 9 metrik statistik dari file `earthquakes_seed.json` (perhatikan urutan koordinat GeoJSON `[lon, lat, depth]`): `total_features`, `max_magnitude`, `min_magnitude`, `tsunami_alert_count`, `max_depth_km`, `min_depth_km`, `min_time_epoch_ms`, `max_time_epoch_ms`, dan `noto_peninsula_event_id`.
+> 3. Jalankan pemeriksaan langkah 1 di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
+> 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, memvalidasi ekstraksi profiling data seismik Anda cocok 100% dengan data acuan.
+
 ## @lesson Ketahanan jaringan: Backoff, Jitter & Rate Limits
 Dalam sistem terdistribusi, jaringan pada dasarnya tidak pernah dapat dipercaya 100% (*Fallacies of Distributed Computing #1: Jaringan selalu andal*). Pipeline data produksi wajib bertahan dari gangguan jaringan tanpa perlu bantuan manusia.
 
@@ -117,6 +124,13 @@ Tidak semua error boleh di-retry. Jika server mengembalikan `HTTP 400 Bad Reques
 
 ### 4. Batas Waktu Soket dan Higienitas Koneksi:
 Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas waktu eksplisit (misalnya `urllib.request.urlopen(url)`). Jika middlebox jaringan memutus paket diam-diam, thread dapat menggantung selamanya tanpa batas, mengunci cron job dan menghentikan pipeline. Selalu terapkan timeout eksplisit (misalnya 15-30 detik). Selain itu, gunakan context manager Python (`with ... as resp:`) guna menjamin soket ditutup seketika dan mencegah kebocoran file descriptor pada pemrosesan batch bervolume tinggi.
+
+> 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Ingesti Baseline & Penyimpanan DuckDB):**
+> 1. Buka file `pipeline.py` di workspace Anda (`~/seismic/pipeline.py`) menggunakan teks editor.
+> 2. Implementasikan subperintah CLI `pipeline.py ingest` dengan paginasi (`limit` dan `offset`), ekstraksi koordinat presisi (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), pembuatan tabel `events` di DuckDB, dan penulisan awal `state.json`.
+> 3. Jalankan pemeriksaan langkah 2 di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema tabel DuckDB, rentang koordinat geografis, dan ketepatan paginasi API.
 
 ## @lesson Checkpointing stateful & penyimpanan tahan crash
 Pipeline inkremental didefinisikan oleh kemampuannya mengekstrak **hanya data baru sejak eksekusi terakhir**, serta melanjutkan proses secara aman setelah proses dihentikan paksa.
@@ -156,6 +170,13 @@ Atau kebalikannya:
 4. **Penulisan Idempoten di Tujuan (Upsert):** Saat pulih dari crash, pipeline pasti akan memproses kembali sebagian rekaman yang sudah sempat tersimpan. Tabel tujuan wajib menggunakan operasi `UPSERT` atau query deduplikasi berdasarkan `event_id` dengan mempertahankan baris yang memiliki nilai `updated_epoch_ms` terbesar.
 5. **Semantik Rename POSIX:** Di Linux dan sistem operasi turunan POSIX, fungsi `os.replace` memetakan langsung ke pemanggilan sistem `rename(2)`. Jika berkas `state.json` sudah ada sebelumnya, berkas tersebut diganti secara atomik dalam satu siklus filesystem tunggal. Klien pembaca yang berjalan bersamaan akan selalu membaca versi JSON valid sebelumnya atau versi JSON valid terbaru, tidak pernah membaca potongan buffer yang rusak setengah jadi.
 
+> 💡 **Jeda Praktik 3 (Langkah 3: Watermarking Stateful & Atomic Crash Recovery):**
+> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Implementasikan pelacakan `high_watermark_epoch_ms` berbasis timestamp `updated` terbesar yang telah di-commit, kirim filter `updatedafter` pada pemanggilan berikutnya, dan amankan penulisan `state.json` via atomic rename (`.tmp` + `os.replace`).
+> 3. Jalankan pemeriksaan langkah 3 di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi bahwa pemutusan koneksi soket di tengah jalan tidak merusak watermark dan eksekusi lanjutan menghasilkan nol data hilang serta nol duplikasi.
+
 ## @lesson Dead-Letter Queue (DLQ) & Backfill Historis
 Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dapat rusak. Jika 1 rekaman dari 10.000 memuat `latitude = 999.0` atau kehilangan ID, apa yang harus dilakukan pipeline Anda?
 - **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama 48 jam sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
@@ -181,6 +202,13 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 
 Terakhir, selalu terapkan perhitungan **rekonsiliasi** yang ketat: di akhir setiap sesi sinkronisasi, verifikasi hukum invariansi `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. Jika penjumlahan angka ini tidak cocok, berarti ada baris data yang bocor diam-diam di memori tanpa jejak audit.
 
+> 💡 **Jeda Praktik 4 (Langkah 4: Ketahanan Jaringan: HTTP 429 Rate-Limits & 5xx Backoff):**
+> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Lengkapi fungsi pemanggilan HTTP dengan retry loop: baca header `Retry-After` saat menerima HTTP 429, terapkan exponential backoff dengan jitter untuk status 5xx, dan langsung keluar dengan kode 2 untuk error fatal 4xx (misalnya 400 Bad Request).
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, membuktikan pipeline mundur secara tertib saat server mengalami throttling dan server outage.
+
 ## @lab Lab: lima tahapan membangun pipeline yang dapat diandalkan
 Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi langkah, menggunakan alat pemeriksa setelah setiap tahap. Pemeriksa menjalankan pipeline Anda pada data nyata USGS, menyimulasikan pemutusan koneksi, memicu throttle HTTP 429, menyuntikkan data beracun, dan menguji isolasi backfill.
 
@@ -192,6 +220,14 @@ Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi 
 5. **Langkah 4: Ketahanan jaringan.** Tambahkan mekanisme retry dengan exponential backoff untuk error 5xx. Periksa header HTTP 429 `Retry-After` dan tunggu setidaknya selama itu (pemeriksa mengukur jeda antar permintaan). Keluar dengan kode `2`, tanpa retry, jika terjadi error fatal 4xx. Periksa dengan `--step 4`.
 6. **Langkah 5: DLQ, CDC upsert & backfill.** Validasi koordinat, timestamp, dan ID. Arahkan rekaman rusak ke `<output-dir>/dlq/rejected.jsonl`. Lakukan upsert rekaman hasil revisi di DuckDB tanpa membuat baris ganda. Implementasikan subperintah `backfill` (`--api-url --output-dir --state-file --start --end --batch-size`); ia menerima `--state-file` hanya agar pemeriksa dapat membuktikan Anda tidak pernah menulisnya, dan revisi yang lebih lama dari sebuah event tidak boleh menimpa yang lebih baru. Periksa dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Saat `--step all` lulus, jalankan `python3 scripts/prove.py mod-4-2 ~/seismic` untuk mencetak kode bukti bagi aplikasi kursus.
+
+> 💡 **Jeda Praktik 5 (Langkah 5: Isolasi DLQ, CDC Upsert, Backfill Historis & Bukti Kelulusan):**
+> 1. Di `pipeline.py`, validasi batas koordinat dan alirkan rekaman rusak ke `dlq/rejected.jsonl`. Implementasikan CDC upsert di DuckDB dan subperintah `backfill` (`--start`, `--end`) tanpa pernah memodifikasi `state.json`.
+> 2. Jalankan pemeriksaan menyeluruh di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step all`
+> 3. Hasilkan kode bukti verifikasi Capstone:
+>    `python3 scripts/prove.py mod-4-2 ~/seismic`
+> 4. **Indikator Sukses:** Seluruh tahapan pengujian berstatus `PASS` dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-4-2/starter/pipeline.py :: Template kerja awal Anda: salin ke workspace dan bangun pipeline di sana :: starter

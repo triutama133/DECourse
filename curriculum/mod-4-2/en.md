@@ -85,6 +85,13 @@ GeoJSON Feature Collection
 4. **Pagination Strategies (Offset vs Watermark Keysets):** REST APIs commonly offer offset pagination (`limit` and `offset`). While intuitive, pure offset pagination suffers from O(N) scanning on deep offsets and drifts if records are inserted concurrently. In modern data architecture, we pair a high-watermark on the `updated` time (the `updatedafter` filter) with small page offsets inside one sync session, keeping extraction queries fast and idempotent. The filter stays constant while the offset moves.
 5. **Preserving Data Dictionaries:** Scientific APIs carry domain-specific codes such as `magType` (`ml` local Richter, `mw` moment magnitude, `md` duration). Never discard these attributes during extraction; analysts rely on magnitude types to determine physical sensor calibration accuracy.
 
+> 💡 **Practice Pause 1 (Step 1: Raw Data Profiling & profile.json Creation):**
+> 1. Create `profile.json` in your workspace folder (`~/seismic/profile.json`) using your text editor.
+> 2. Compute the 9 statistical metrics from `earthquakes_seed.json` (remember GeoJSON coordinate ordering `[lon, lat, depth]`): `total_features`, `max_magnitude`, `min_magnitude`, `tsunami_alert_count`, `max_depth_km`, `min_depth_km`, `min_time_epoch_ms`, `max_time_epoch_ms`, and `noto_peninsula_event_id`.
+> 3. Run the step 1 check in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
+> 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw seismic profiling matches reference truth.
+
 ## @lesson Network resilience: Backoff, Jitter & Rate Limits
 In distributed systems, networks are fundamentally unreliable (Fallacies of Distributed Computing #1: *The network is reliable*). A production data pipeline must survive transient disruptions without human intervention.
 
@@ -117,6 +124,13 @@ Not all errors should be retried. If the upstream server returns `HTTP 400 Bad R
 
 ### 4. Socket Timeouts and Connection Hygiene:
 A common rookie mistake is issuing HTTP requests without an explicit timeout (e.g. `urllib.request.urlopen(url)`). If a network middlebox drops packets silently, the thread can hang indefinitely, locking cron jobs and stalling pipelines. Always enforce an explicit timeout (e.g. 15-30 seconds). Furthermore, use Python context managers (`with ... as resp:`) to guarantee sockets are closed immediately, preventing file descriptor leaks in high-frequency batch runs.
+
+> 💡 **Practice Pause 2 (Step 2: Baseline Ingestion Contract & DuckDB Storage):**
+> 1. Open `pipeline.py` in your workspace (`~/seismic/pipeline.py`) using your text editor.
+> 2. Implement the CLI subcommand `pipeline.py ingest` with pagination (`limit` and `offset`), exact coordinate parsing (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), creation of table `events` in DuckDB, and initial `state.json` write.
+> 3. Run the step 2 check in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
+> 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, geographic coordinate bounds, and API pagination.
 
 ## @lesson Stateful checkpointing & crash-safe storage
 An incremental pipeline is defined by its ability to ingest **only what is new since the last run**, while safely resuming after an unexpected termination.
@@ -156,6 +170,13 @@ Or the inverse:
 4. **Idempotent Destination Writes (Upsert):** When resuming from a crash, the pipeline will inevitably re-process records that were already partially written. The destination table must use an idempotent `UPSERT` or deduplication query on `event_id`, keeping the row with the greatest `updated_epoch_ms`.
 5. **POSIX Rename Semantics:** In Linux and POSIX systems, `os.replace` maps directly to the `rename(2)` system call. If `state.json` already exists, it is atomically unlinked and replaced in a single filesystem operation. Any concurrent reader opens either the previous valid JSON or the new valid JSON, never a half-flushed buffer.
 
+> 💡 **Practice Pause 3 (Step 3: Stateful Watermarking & Atomic Crash Recovery):**
+> 1. Open `pipeline.py` in your workspace using your text editor.
+> 2. Implement `high_watermark_epoch_ms` tracking on the largest committed `updated` timestamp, query with `updatedafter` on subsequent runs, and protect `state.json` writes via atomic rename (`.tmp` + `os.replace`).
+> 3. Run the step 3 check in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
+> 4. **Success Indicator:** All step 3 checks report `PASS`, proving mid-flight socket drops do not advance checkpoints prematurely and subsequent runs produce zero loss and zero duplicates.
+
 ## @lesson The Dead-Letter Queue (DLQ) & Historical Backfills
 In production, upstream schemas mutate and sensor data gets corrupted. If 1 record out of 10,000 contains `latitude = 999.0` or missing event IDs, what should your pipeline do?
 - **Option A (Fail the entire batch):** The pipeline crashes. Business dashboards go stale for 48 hours until an on-call engineer wakes up. (Unacceptable).
@@ -181,6 +202,13 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 
 Finally, always implement strict **reconciliation counters**: at the conclusion of every sync session, verify the invariant that `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. If the numbers do not reconcile, a row was silently leaked in memory.
 
+> 💡 **Practice Pause 4 (Step 4: Network Resilience: HTTP 429 Rate-Limits & 5xx Backoff):**
+> 1. Open `pipeline.py` in your workspace using your text editor.
+> 2. Enhance your HTTP fetching logic with a retry loop: parse `Retry-After` on HTTP 429, apply exponential backoff with jitter on 5xx server errors, and immediately exit with code 2 on fatal 4xx client errors without retrying.
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming orderly backoff during rate limits and upstream outages.
+
 ## @lab Lab: five steps to a resilient incremental ingestion pipeline
 Build `pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your pipeline on real USGS seismic events, simulates connection drops, triggers HTTP 429 throttles, injects toxic payloads, and tests historical backfill isolation.
 
@@ -192,6 +220,14 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 5. **Step 4: Network resilience.** Add retry loop with exponential backoff for transient 5xx errors. Inspect the HTTP 429 `Retry-After` header and pause for at least that long (the checker measures the gap between requests). Exit with code `2`, without retrying, on fatal non-retryable 4xx errors. Verify with `--step 4`.
 6. **Step 5: DLQ, CDC upsert & historical backfill.** Validate coordinates, timestamps, and IDs. Route poisoned records to `<output-dir>/dlq/rejected.jsonl`. Upsert updated records in DuckDB without creating duplicate rows. Implement the `backfill` subcommand (`--api-url --output-dir --state-file --start --end --batch-size`); it receives `--state-file` only so that the checker can prove you never write it, and an older revision of an event must never overwrite a newer one. Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-2 ~/seismic` to generate your proof code for the course app.
+
+> 💡 **Practice Pause 5 (Step 5: DLQ Isolation, CDC Upsert, Historical Backfill & Proof Token):**
+> 1. In `pipeline.py`, validate coordinate bounds and route malformed records to `dlq/rejected.jsonl`. Implement CDC upsert in DuckDB and the `backfill` subcommand (`--start`, `--end`) without modifying `state.json`.
+> 2. Run the complete verification suite in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step all`
+> 3. Generate your Capstone verification proof token:
+>    `python3 scripts/prove.py mod-4-2 ~/seismic`
+> 4. **Success Indicator:** All verification checks report `PASS` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-4-2/starter/pipeline.py :: Your starter template: copy it to your workspace and build the pipeline there :: starter
