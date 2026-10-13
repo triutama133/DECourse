@@ -68,6 +68,14 @@ Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `re
 
 **Mencari dan memproses berkelompok.** `find data -name '*.gz' -print0 | xargs -0 -n1 gzip -t` menguji setiap file terkompresi, satu per perintah; `-print0` dan `-0` membuatnya aman untuk nama file yang mengandung spasi.
 
+> 💡 **Jeda Praktik 1 (Eksplorasi Data Stream di Terminal):**
+> Mari buktikan konsep pemrosesan teks Unix ini langsung di komputer Anda! Buka terminal di folder repositori kursus:
+> 1. Buat data event jika belum ada: `python3 labs/shared/shopgen.py --out data`
+> 2. Intip 3 baris pertama event NDJSON: `head -3 data/events.ndjson`
+> 3. Hitung total baris log event: `wc -l data/events.ndjson`
+> 4. Hitung event bertipe purchase: `grep -c "purchase" data/events.ndjson`
+> Data Anda sudah siap! Lanjut ke Pelajaran 3 untuk membedah data JSON dengan `jq`.
+
 ## @lesson jq: gagasan yang sama untuk JSON
 Event klik dan log biasanya berupa **NDJSON**: satu objek JSON per baris. `jq` adalah `awk` untuk JSON. Hal pokoknya:
 
@@ -91,6 +99,12 @@ jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | wc -l
 > **Peringatan:** `jq -s` ("slurp") memuat *seluruh* masukan ke memori sebagai satu array. Praktis sekaligus berbahaya: pada file besar, inilah cara persis container dimatikan. Pilih bentuk streaming (satu objek per baris) dan agregasikan dengan `sort | uniq -c`, atau pindah ke DuckDB (Modul 2.1) bila Anda butuh analitik sungguhan.
 
 Kapan berhenti memakai alat shell? Ketika logikanya butuh percabangan, state, retry, atau tes. Pipeline shell lima tahap itu menyenangkan; skrip Bash 300 baris adalah beban. Beralihlah ke Python (Modul 1.2) ketika Anda mulai butuh array berisi array atau ingin menguji logikanya dengan unit test.
+
+> 💡 **Jeda Praktik 2 (Eksperimen Parsing JSON dengan jq):**
+> Coba perkakas `jq` langsung di terminal Anda untuk mengekstrak field:
+> 1. Ambil event_id dan event_type ringkas: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 2. Uji parsing defensif yang menahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
+> Perhatikan bagaimana baris buruk diabaikan tanpa membuat proses crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
 
 ## @lesson Menulis skrip yang gagal dengan jelas
 Skrip hanyalah perintah dalam sebuah file. Baris pertama, **shebang**, menyebut interpreternya: `#!/usr/bin/env bash`. Jalankan dengan `bash script.sh`, atau `chmod +x script.sh && ./script.sh`.
@@ -117,6 +131,14 @@ Kebiasaan yang menjaga skrip tetap andal:
 - **Log ke stderr, hasil ke stdout**: `echo "starting" >&2`. Ini menjaga aliran data tetap bersih untuk pipe.
 - **Buat idempoten**: jalankan dua kali, hasil sama. Pakai path keluaran yang deterministik lalu timpa, atau tulis per partisi tanggal.
 - **Lint**: `shellcheck script.sh` menemukan sebagian besar kesalahan kutip dan logika secara otomatis. Jalankan di CI.
+
+> 💡 **Jeda Praktik 3 (Bangun report.sh - Bagian A):**
+> Saatnya mengerjakan Bagian A dari lab ini!
+> 1. Buka `labs/mod-1-1/report.sh` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash tanpa argumen file!).
+> 2. Terapkan mode ketat `set -euo pipefail`, validasi argumen input `$1`, dan bangun pipeline ringkasan metrik menggunakan `jq`, `sort -u`, dan `wc -l`.
+> 3. Uji pekerjaan Anda di terminal:
+> `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
+> Jika semua pengujian Bagian A berwarna HIJAU (PASSED), Anda telah menyelesaikan skrip stream Unix profesional! Lanjut ke Pelajaran 5 tentang Cron.
 
 ## @lesson Menjadwalkan job dengan cron
 **cron** menjalankan perintah menurut jadwal. Ubah tabel Anda dengan `crontab -e`. Setiap baris punya lima field waktu lalu perintahnya:
@@ -179,6 +201,15 @@ Mengapa setiap baris tampak seperti itu:
 - **`.dockerignore`** mendaftar file yang tidak boleh dikirim ke proses build: virtual environment, data, `.git`, `.env`. Ia mempercepat build dan mencegah rahasia terpanggang ke dalam image.
 
 Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar container (container itu sekali pakai: apa pun yang ditulis di dalamnya hilang bersamanya); **environment variable** (`-e KEY=value`) mengirim konfigurasi; **`docker compose`** menggambarkan beberapa layanan (database, broker, job Anda) dalam satu file YAML dan menaruhnya di jaringan bersama tempat mereka saling menemukan lewat nama layanan; dan **multi-stage build** mengompilasi di satu tahap dan hanya menyalin hasilnya ke image akhir yang kecil.
+
+> 💡 **Jeda Praktik 4 (Optimasi Dockerfile & .dockerignore - Bagian B):**
+> Saatnya mengemas aplikasi ke container standar produksi:
+> 1. Buka `labs/mod-1-1/Dockerfile` dan `labs/mod-1-1/.dockerignore` di Text Editor Anda.
+> 2. Perbaiki Dockerfile: gunakan pin image `python:3.12-slim`, pasang dependencies sebelum copy kode, tambahkan non-root `USER appuser`, dan gunakan bentuk exec `ENTRYPOINT ["python", "etl.py"]`.
+> 3. Pastikan `.dockerignore` mengecualikan folder `venv/`, `data/`, `.git/`, dan `.env`.
+> 4. Uji di terminal:
+> `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
+> Jika semua tes Dockerfile PASSED, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
 
 ## @lesson Batas sumber daya dan job yang mati dengan kode 137
 Container bisa diberi batas: `docker run --memory 512m --cpus 1 ...`, atau di konfigurasi orchestrator. Jika sebuah proses di container memakai memori melebihi batasnya, **OOM killer** kernel Linux mematikannya dengan SIGKILL. Anda melihat exit code **137** dan, di `docker inspect`, `"OOMKilled": true`. Tidak ada traceback Python, karena proses tidak sempat mencetaknya: dari dalam ia hanya lenyap, itulah sebabnya kegagalan ini membingungkan pemula.

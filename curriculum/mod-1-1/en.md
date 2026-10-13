@@ -68,6 +68,14 @@ On the KopiKu data this prints `cancelled 362`, `delivered 2148`, `paid 374`, `r
 
 **Finding and batching.** `find data -name '*.gz' -print0 | xargs -0 -n1 gzip -t` tests every compressed file, one per command; `-print0` and `-0` make it safe for file names containing spaces.
 
+> 💡 **Practice Pause 1 (Data Stream Exploration in Terminal):**
+> Prove these Unix text processing concepts right now on your machine! Open your terminal in the course directory:
+> 1. Generate event data if not done already: `python3 labs/shared/shopgen.py --out data`
+> 2. Inspect the first 3 NDJSON event lines: `head -3 data/events.ndjson`
+> 3. Count total event log lines: `wc -l data/events.ndjson`
+> 4. Count purchase events: `grep -c "purchase" data/events.ndjson`
+> Your data is ready! Proceed to Lesson 3 to slice JSON data with `jq`.
+
 ## @lesson jq: the same idea for JSON
 Click events and logs are usually **NDJSON**: one JSON object per line. `jq` is `awk` for JSON. The essentials:
 
@@ -91,6 +99,12 @@ jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | wc -l
 > **Warning:** `jq -s` ("slurp") loads the *entire* input into memory as one array. It is convenient and dangerous: on a large file it is exactly how a container gets killed. Prefer streaming forms (one object per line) and aggregate with `sort | uniq -c`, or move to DuckDB (Module 2.1) when you need real analytics.
 
 When should you stop using shell tools? When the logic needs branching, state, retries or tests. A shell pipeline of five stages is a joy; a 300-line Bash script is a liability. Switch to Python (Module 1.2) when you reach for arrays of arrays or when you want to unit-test the logic.
+
+> 💡 **Practice Pause 2 (JSON Parsing with jq):**
+> Try `jq` directly in your terminal to extract fields:
+> 1. Extract compact event_id and event_type: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 2. Test error-resilient parsing: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
+> Notice how damaged lines are skipped without crashing! Proceed to Lesson 4 to write safe shell scripts.
 
 ## @lesson Writing scripts that fail loudly
 A script is just commands in a file. The first line, the **shebang**, names the interpreter: `#!/usr/bin/env bash`. Run it with `bash script.sh`, or `chmod +x script.sh && ./script.sh`.
@@ -117,6 +131,14 @@ Habits that keep scripts reliable:
 - **Log to stderr, results to stdout**: `echo "starting" >&2`. This keeps the data stream clean for pipes.
 - **Make it idempotent**: run twice, same result. Use deterministic output paths and overwrite, or write by date partition.
 - **Lint it**: `shellcheck script.sh` finds most quoting and logic mistakes automatically. Run it in CI.
+
+> 💡 **Practice Pause 3 (Build report.sh - Part A):**
+> Time to build Part A of this lab!
+> 1. Open `labs/mod-1-1/report.sh` in your text editor (remember: do not execute directly in bash without an input argument!).
+> 2. Apply strict mode `set -euo pipefail`, validate input argument `$1`, and build the metric summary pipeline using `jq`, `sort -u`, and `wc -l`.
+> 3. Test your script in the terminal:
+> `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
+> When all Part A tests are GREEN (PASSED), your professional Unix stream script is done! Proceed to Lesson 5 on Cron.
 
 ## @lesson Scheduling jobs with cron
 **cron** runs commands on a schedule. Edit your table with `crontab -e`. Each line has five time fields then the command:
@@ -179,6 +201,15 @@ Why each line looks the way it does:
 - **`.dockerignore`** lists files that must never be sent to the build: virtual environments, data, `.git`, `.env`. It speeds builds and prevents secrets from being baked into an image.
 
 Other things you will use: **volumes and bind mounts** keep data outside the container (containers are disposable: anything written inside disappears with them); **environment variables** (`-e KEY=value`) pass configuration; **`docker compose`** describes several services (a database, a broker, your job) in one YAML file and puts them on a shared network where they find each other by service name; and **multi-stage builds** compile in one stage and copy only the result into a small final image.
+
+> 💡 **Practice Pause 4 (Optimize Dockerfile & .dockerignore - Part B):**
+> Time to package your job into a production-ready container:
+> 1. Open `labs/mod-1-1/Dockerfile` and `labs/mod-1-1/.dockerignore` in your text editor.
+> 2. Fix the Dockerfile: pin image `python:3.12-slim`, install dependencies before copying code, add non-root `USER appuser`, and use exec-form `ENTRYPOINT ["python", "etl.py"]`.
+> 3. Verify `.dockerignore` excludes `venv/`, `data/`, `.git/`, and `.env`.
+> 4. Test in the terminal:
+> `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
+> When all Dockerfile tests show PASSED, your container is production ready! Proceed to Lesson 7 to learn about memory limits & exit code 137.
 
 ## @lesson Resource limits and the job that dies with code 137
 Containers can be given limits: `docker run --memory 512m --cpus 1 ...`, or in an orchestrator's configuration. If a process in a container uses more memory than its limit, the Linux kernel's **OOM killer** terminates it with SIGKILL. You see exit code **137** and, in `docker inspect`, `"OOMKilled": true`. There is no Python traceback, because the process never got a chance to print one: from the inside it simply vanishes, which is why this failure confuses beginners.
