@@ -75,6 +75,14 @@ warehouse/shop/orders/
 
 Perhatikan bahwa **tidak ada satu pun file yang pernah dimodifikasi di tempat**. Operasi penulisan baru akan menambahkan file data baru, file manifest baru, manifest list baru, dan satu file `metadata.json` baru. Seluruh file versi lama tetap utuh di tempatnya. Karakteristik inilah yang memungkinkan fitur histori masa lalu, time travel, dan pembacaan paralel yang sepenuhnya aman. Iceberg juga mendukung **delete files** (catatan baris yang harus disembunyikan) untuk operasi row-level delete.
 
+> 💡 **Jeda Praktik: Pembuatan Tabel Iceberg & Inspeksi Layout Metadata**
+> 1. Buka file `labs/mod-2-2/lakehouse.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
+> 2. Temukan fungsi `create_orders_table(catalog)`. Buat namespace `shop` dan tabel `shop.orders` dengan skema lima kolom (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) menggunakan `NestedField` ber-ID eksplisit, serta `PartitionSpec` dengan `DayTransform` pada `order_ts` (bernama `order_day`).
+> 3. Implementasikan fungsi `append_batch(table, rows)` untuk menambahkan data sebagai satu snapshot baru, serta fungsi `layout(table)` untuk menghitung file `.metadata.json`, manifest list (`snap-*.avro`), manifest (`*.avro`), dan data parquet di disk.
+> 4. Buka terminal Anda dan uji pembentukan tabel Iceberg:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
+> 5. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana folder `metadata/` dan `data/` terbentuk di direktori penyimpanan lokal Anda.
+
 ## @lesson Mekanisme Commit, transaksi ACID, dan penulis konkuren
 Setiap modifikasi pada tabel Iceberg dieksekusi melalui prosedur **commit**: (1) tulis file-file data Parquet yang baru, (2) tulis file manifest baru, manifest list baru, dan file `metadata.json` baru, (3) minta katalog metadata untuk **menukar pointer tabel secara atomik (atomic swap)** dari file metadata lama ke file metadata baru, *namun hanya jika pointer katalog saat itu masih sama dengan versi saat proses dimulai*. Langkah 1 dan 2 tidak terlihat oleh pembaca (hanya file yatim tanpa referensi). Langkah 3 adalah satu operasi atomik tunggal (compare-and-swap di katalog). Hasilnya, pembaca hanya akan melihat versi lama yang utuh atau versi baru yang utuh, tidak pernah separuh versi. Pipeline yang mengalami crash di langkah 1 hanya meninggalkan file tanpa referensi yang tidak berbahaya, bukan tabel yang rusak. Inilah prinsip **Atomisitas (Atomicity)**.
 
@@ -87,6 +95,13 @@ Panduan implementasi praktis:
 - Operasi append dari banyak pipeline paralel berjalan sangat mulus; namun *operasi overwrite bersamaan* memerlukan koordinasi yang cermat. Pola umum di industri: pipeline streaming melakukan append terus-menerus, dan satu job pemeliharaan melakukan pemadatan (compaction); atur konfigurasi pemadatan agar tidak menimpa partisi yang sedang aktif ditulis oleh streaming.
 - Katalog metadata adalah koordinator pusat tunggal: katalog wajib mendukung pembaruan pointer secara atomik (misalnya PostgreSQL, layanan REST Catalog, AWS Glue, Nessie, atau Unity Catalog). Katalog juga menjadi tempat penegakan aturan hak akses (**access control**).
 - Percobaan ulang komit memiliki batas (PyIceberg melakukan retry beberapa kali dengan backoff). Pipeline produksi Anda wajib memicu alert monitoring jika sebuah commit akhirnya gagal permanen.
+
+> 💡 **Jeda Praktik: Operasi Snapshot & Optimistic Concurrency Control**
+> 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, buka fungsi `snapshot_ops(table)`.
+> 2. Ambil riwayat snapshot tabel (`table.snapshots()`) dan kembalikan daftar jenis operasi pembuatannya (`s.summary.operation.value`, misalnya `['append', 'append', ...]`).
+> 3. Jalankan pengujian di terminal untuk membuktikan bahwa dua proses penulisan bersamaan dapat diselesaikan secara otomatis oleh OCC:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_a_writer_with_a_stale_view_still_commits"`
+> 4. Pastikan pengujian lulus (`1 passed`). Perhatikan pesan log yang menunjukkan PyIceberg melakukan retry commit secara otomatis ketika terjadi pembaruan konkuren.
 
 ## @lesson Time travel, penghapusan baris, dan alasan data tidak langsung musnah
 Karena setiap commit menghasilkan snapshot baru dan snapshot lama tetap disimpan, Anda mendapatkan kapabilitas **Time Travel** secara cuma-cuma: membaca kondisi tabel pada snapshot id atau timestamp tertentu di masa lalu. Pada lab praktis, setelah tabel menerima penambahan data berturut-turut sebanyak 3, 2, dan 2 baris, membaca snapshot 0 menghasilkan 3 baris dan membaca snapshot 2 menghasilkan 7 baris. Fitur ini sangat berharga untuk debugging insiden ("seperti apa kondisi data saat dashboard eksekutif rusak tadi malam?"), mereproduksi dataset pelatihan model machine learning, audit regulasi, dan melakukan **rollback instan** jika ada pemuatan batch yang rusak.
@@ -102,6 +117,14 @@ Copy-on-write ideal untuk tabel analitik yang jarang diperbarui namun rutin diba
 
 Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DELETE pada format tabel terbuka hanya menyembunyikan baris dari snapshot aktif; operasi tersebut sama sekali tidak memusnahkan data dari media penyimpanan fisik.** File data Parquet lama yang memuat baris tersebut masih tersimpan di bucket storage dan masih dirujuk oleh snapshot-snapshot lama, sehingga data tersebut masih bisa dibaca melalui query time travel. Untuk koreksi bisnis biasa, ini adalah fitur proteksi data yang luar biasa. Namun untuk **permintaan penghapusan data privasi (GDPR / Hak untuk Dilupakan)**, ini adalah jebakan kepatuhan hukum: data pribadi pengguna sebenarnya masih tersimpan di storage Anda. Untuk menghapusnya secara fisik, Anda wajib **mengusangkan snapshot lama (expire snapshots)** sehingga tidak ada lagi metadata yang merujuk file tersebut, kemudian **menghapus file yatim (remove orphan files)** dari bucket penyimpanan fisik, serta menangani cadangan backup dan tabel turunan. Rancang kebijakan retensi dan penghapusan data secara sadar untuk setiap tabel.
 
+> 💡 **Jeda Praktik: Time Travel & Row-Level Delete**
+> 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, buka fungsi `count_as_of(table, snapshot_index)` dan `delete_status(table, status)`.
+> 2. Pada `count_as_of`, ambil snapshot pada indeks yang diminta lalu jalankan `table.scan(snapshot_id=snap.snapshot_id).to_arrow().num_rows` untuk membaca kondisi masa lalu.
+> 3. Pada `delete_status`, jalankan penghapusan baris dengan `table.delete(EqualTo("status", status))`.
+> 4. Jalankan pengujian time travel dan delete di terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_time_travel_sees_the_past or test_delete_creates_a_snapshot"`
+> 5. Pastikan kedua pengujian lulus (`2 passed`). Buktikan sendiri bahwa snapshot sebelum delete tetap mengembalikan 7 baris, meskipun data aktif kini hanya menampilkan 5 baris.
+
 ## @lesson Evolusi skema, evolusi partisi, dan hidden partitioning
 **Evolusi Skema (Schema Evolution).** Iceberg mengidentifikasi setiap kolom menggunakan **numeric field id** permanen yang tidak pernah berubah, bukan berdasarkan nama teks atau posisi urutan kolom. Field ID ini tercatat di metadata (`{"id": 4, "name": "status"}`) dan di dalam setiap file Parquet data. Konsekuensinya sangat revolusioner dan terbukti pada pengujian lab:
 
@@ -115,6 +138,13 @@ Bandingkan dengan file Parquet biasa yang mencocokkan kolom berdasarkan *nama te
 **Hidden Partitioning.** Pada format Hive lama, Anda terpaksa membuat kolom tiruan `month`, struktur folder `month=2026-01/`, dan setiap pengguna wajib menyertakan filter `WHERE month = '2026-01'` jika tidak ingin query-nya memindai seluruh data. Iceberg menyimpan **fungsi transformasi partisi (partition transform)** dari kolom yang sudah ada: contohnya transformasi `day(order_ts)` yang dinamai `order_day`. Pengguna cukup menulis filter alami `WHERE order_ts >= '2026-01-10'`; mesin query memahami relasi transformasi tersebut, secara otomatis menerjemahkannya ke nilai partisi yang relevan, dan memangkas file data yang tidak perlu. Tidak ada kolom tiruan tambahan dan pengguna mustahil salah melakukan filter. Transformasi partisi yang didukung mencakup `year`, `month`, `day`, `hour`, `bucket(N, col)` (hashing ke N bucket untuk id berkardinalitas tinggi), dan `truncate(W, col)`.
 
 **Evolusi Partisi (Partition Evolution).** Jika volume data meningkat drastis sehingga partisi bulanan menjadi terlalu besar, Anda dapat mengubah skema partisi (misalnya dari `month` menjadi `day`) **tanpa menulis ulang data historis**. File data lama tetap menggunakan skema partisi lama, file data baru menggunakan skema partisi baru, dan metadata Iceberg mencatat skema partisi mana yang berlaku untuk setiap file, sehingga query optimizer mampu mengeksekusi rencana query melintasi kedua era partisi dengan benar. Pada format direktori konvensional, mengubah skema partisi berarti menulis ulang seluruh isi tabel data lake Anda dari awal.
+
+> 💡 **Jeda Praktik: Evolusi Skema Tanpa Rewrite Data File**
+> 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, arahkan ke fungsi `evolve(table)`.
+> 2. Gunakan context manager `with table.update_schema() as update:` untuk menambahkan kolom opsional `channel` bertipe string dan mengubah nama kolom `status` menjadi `order_status` dalam satu commit atomik.
+> 3. Jalankan pengujian evolusi skema di terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_schema_evolution or test_new_schema"`
+> 4. Pastikan kedua pengujian lulus (`2 passed`). Verifikasi bahwa daftar file data Parquet di disk tidak berubah sama sekali (nol byte yang ditulis ulang) dan data lama membaca kolom baru sebagai `NULL`.
 
 ## @lesson Delta Lake: arsitektur berbasis transaction log
 **Delta Lake** mencapai tujuan yang serupa menggunakan arsitektur yang berbeda: buku besar transaksi terurut (**transaction log**) yang terdiri dari kumpulan file commit JSON di dalam folder `_delta_log/` tepat di samping file data Parquet.
@@ -154,6 +184,13 @@ Perbandingan komparatif Apache Iceberg dan Delta Lake:
 
 Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir untuk menghubungkan kedua format tersebut. Panduan praktis memilih: gunakan **Delta Lake** jika ekosistem utama Anda berpusat pada Databricks dan Spark; gunakan **Apache Iceberg** jika Anda memprioritaskan independensi arsitektur bebas vendor di berbagai mesin komputasi (Trino, Flink, DuckDB, Spark). Opsi ketiga adalah **Apache Hudi**, yang sangat kuat untuk pemrosesan inkremental dan upsert berkecepatan tinggi. Prinsip-prinsip inti dalam modul ini (snapshot, atomic commit, field id, pruning, pemeliharaan) berlaku setara untuk ketiganya.
 
+> 💡 **Jeda Praktik: Mengelola Transaction Log Delta Lake**
+> 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, navigasikan ke Bagian B (Delta Lake).
+> 2. Implementasikan `delta_write_versions(path, batches)` menggunakan `write_deltalake`, `delta_rows_at(path, version)` untuk time travel Delta, `delta_delete(path, predicate)` untuk menghapus baris, dan `delta_log_actions(path, version)` untuk membaca aksi JSON di folder `_delta_log/`.
+> 3. Jalankan rangkaian pengujian Delta Lake di terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k TestDelta`
+> 4. Pastikan ke-3 pengujian Delta Lake lulus (`3 passed`). Perhatikan bagaimana operasi delete di Delta Lake menuliskan aksi `remove` untuk file lama dan aksi `add` untuk file baru hasil rewrite.
+
 ## @lesson Pengoperasian tabel di produksi: pemeliharaan dan katalog
 Tabel lakehouse bukanlah sesuatu yang "dibuat lalu ditinggalkan". Setiap commit menambahkan file baru ke storage, dan tanpa perawatan rutin, performa tabel akan mengalami degradasi. Rangkaian tugas pemeliharaan berkala yang wajib dijadwalkan:
 
@@ -166,6 +203,12 @@ Tabel lakehouse bukanlah sesuatu yang "dibuat lalu ditinggalkan". Setiap commit 
 **Peran Katalog Metadata.** Katalog memetakan nama tabel ke file metadata aktif terkini dan menjamin operasi pointer swap atomik. Ragam pilihan katalog meliputi: katalog berbasis basis data relasional (seperti SQLite di lab ini; bagus untuk belajar lokal), **Hive Metastore (HMS)**, **AWS Glue Data Catalog**, **REST Catalog** (antarmuka HTTP API standar terbuka yang diimplementasikan oleh Apache Polaris, Project Nessie, Unity Catalog, dan Tabular), serta katalog terkelola cloud. Katalog juga merupakan tempat penegakan tata kelola data (**governance** dan RBAC). Pilihlah katalog yang didukung oleh seluruh mesin query Anda, karena kataloglah yang menentukan mesin mana saja yang dapat mengakses dan berbagi tabel lakehouse Anda.
 
 Praktik perancangan terbaik: buat partisi secara moderat (partisi harian adalah standar paling umum) dan biarkan pengurutan data serta statistik min/max menangani filter beresolusi tinggi; jangan pernah partisi pada kolom ber-kardinalitas tinggi. Lakukan penulisan dalam batch besar. Tetapkan kebijakan batas retensi snapshot dan prosedur penghapusan sejak awal. Rancang jalur penulisan data yang terpusat dan teruji konkurensinya, karena kegagalan data di lapisan lakehouse membutuhkan biaya investigasi yang sangat mahal.
+
+> 💡 **Jeda Praktik: Verifikasi Seluruh Rangkaian Pengujian Lakehouse**
+> 1. Setelah semua fungsi Iceberg dan Delta Lake selesai diimplementasikan di `labs/mod-2-2/lakehouse.py`, jalankan seluruh unit test dari terminal:
+> `pytest labs/mod-2-2 -v`
+> 2. Pastikan ke-12 pengujian lulus sempurna (`12 passed`).
+> 3. Selamat! Anda telah membuktikan secara nyata bagaimana transaksi ACID, time travel, evolusi skema, dan transaction log bekerja di disk pada dua format tabel terbuka standar industri.
 
 ## @lab Lab: membangun tabel lakehouse dan membedah struktur internalnya
 Bangun tabel Apache Iceberg produksi, lakukan manipulasi data bertahap, dan buktikan janji-janji arsitektur table format melalui unit test otomatis: verifikasi pembuatan snapshot, pembacaan time travel, operasi delete yang mempertahankan histori, evolusi skema tanpa penulisan ulang data, dan inspeksi langsung struktur file metadata di disk. Kemudian lakukan observasi yang sama terhadap transaction log Delta Lake.

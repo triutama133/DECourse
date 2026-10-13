@@ -75,6 +75,14 @@ warehouse/shop/orders/
 
 Notice that **nothing is ever modified in place**. A write adds new data files, new manifests, a new manifest list and a new metadata file. The old ones remain, which is exactly what makes history, time travel and safe concurrent reads possible. Iceberg also tracks **delete files** (rows to hide) for row-level deletes, covered below.
 
+> 💡 **Practice Pause: Creating Iceberg Table & Inspecting Metadata Layout**
+> 1. Open `labs/mod-2-2/lakehouse.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
+> 2. Locate function `create_orders_table(catalog)`. Create namespace `shop` and table `shop.orders` with a five-column schema (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) using explicit `NestedField` ids, and a `PartitionSpec` with `DayTransform` on `order_ts` (named `order_day`).
+> 3. Implement `append_batch(table, rows)` to append data as a single new snapshot, and `layout(table)` to count `.metadata.json` files, manifest lists (`snap-*.avro`), manifests (`*.avro`), and data parquet files on disk.
+> 4. Open your terminal and test the Iceberg table setup:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
+> 5. Ensure all 4 tests pass (`4 passed`). Observe how the `metadata/` and `data/` directories are laid out in your local warehouse.
+
 ## @lesson Commits, ACID and concurrent writers
 A change to an Iceberg table is a **commit**: (1) write the new data files, (2) write new manifests, a manifest list and a new `metadata.json`, (3) ask the catalog to **atomically swap the table's pointer** from the old metadata file to the new one, *but only if the pointer still equals what you started from*. Steps 1 and 2 are invisible to readers (they are just unreferenced files). Step 3 is a single atomic operation, a compare-and-swap in the catalog. So a reader either sees the old complete version or the new complete version, never half of one. A job that dies at step 1 leaves harmless orphan files, not a half-written table. That is **atomicity**.
 
@@ -87,6 +95,13 @@ Practical points:
 - Appends from many jobs work well; *competing overwrites* need care. A frequent pattern: streaming jobs append continuously and one maintenance job compacts; configure the compaction to avoid conflicting with the writers' partitions.
 - The catalog is the single point of coordination: it must support atomic pointer updates (a database, a REST catalog service, the Hive Metastore, AWS Glue, Nessie and others). That is why the catalog is also where **access control** and table discovery live.
 - Retries are bounded (PyIceberg retries a few times with backoff). Your job should still treat a final commit failure as an error to alert on, not ignore.
+
+> 💡 **Practice Pause: Snapshot Operations & Optimistic Concurrency Control**
+> 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate function `snapshot_ops(table)`.
+> 2. Retrieve the table's snapshot history (`table.snapshots()`) and return the list of operation names that created each snapshot (`s.summary.operation.value`, e.g. `['append', 'append', ...]`).
+> 3. Run the unit test in your terminal to verify that two concurrent writers are resolved cleanly by OCC:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_a_writer_with_a_stale_view_still_commits"`
+> 4. Ensure the test passes (`1 passed`). Notice the log message showing PyIceberg automatically retrying the commit when a concurrent update occurs.
 
 ## @lesson Time travel, deletes and why data does not vanish
 Because every commit creates a snapshot and old snapshots are kept, you get **time travel** for free: read the table as of a snapshot id or a timestamp. In the lab, after the table received appends of 3, 2 and 2 rows, reading snapshot 0 returns 3 rows and snapshot 2 returns 7. This supports debugging ("what did the table look like when the dashboard broke?"), reproducing a model's training data, auditing, and **rollback** (point the table back at an earlier snapshot after a bad load).
@@ -102,6 +117,14 @@ Copy-on-write suits read-heavy tables with infrequent changes. Merge-on-read sui
 
 That last fact has a serious consequence. **A delete in a table format hides rows from the current version; it does not erase them from storage.** The old data files that still contain the rows remain referenced by older snapshots, so they stay in the bucket and can still be read via time travel. For ordinary corrections that is a feature. For a **privacy deletion request** it is a compliance trap: the user's data is still there. To physically remove it you must **expire the old snapshots** (so nothing references the old files) and then **remove the orphaned files** from storage, and also deal with backups and any derived tables built from the original data. Plan data retention and deletion deliberately, per table.
 
+> 💡 **Practice Pause: Time Travel & Row-Level Deletes**
+> 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate functions `count_as_of(table, snapshot_index)` and `delete_status(table, status)`.
+> 2. In `count_as_of`, fetch the snapshot at the given position and run `table.scan(snapshot_id=snap.snapshot_id).to_arrow().num_rows` to query past table states.
+> 3. In `delete_status`, perform a row-level delete using `table.delete(EqualTo("status", status))`.
+> 4. Run the time travel and delete tests in your terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_time_travel_sees_the_past or test_delete_creates_a_snapshot"`
+> 5. Ensure both tests pass (`2 passed`). Prove to yourself that the snapshot prior to the delete still yields 7 rows, even though active queries only show 5 rows.
+
 ## @lesson Schema evolution, partition evolution and hidden partitioning
 **Schema evolution.** Iceberg identifies every column by a permanent **numeric field id**, not by its name or its position. The ids are in the metadata (`{"id": 4, "name": "status"}`) and in each Parquet file. Consequences, all demonstrated in the lab's tests:
 
@@ -115,6 +138,13 @@ Compare with plain Parquet files matched by *column name*: rename a column and t
 **Hidden partitioning.** In a Hive-style layout you create a `month` column, folders `month=2026-01/`, and every query must filter on `month` or it scans everything. Iceberg stores a **partition transform** of an existing column: here `day(order_ts)`, named `order_day`. Users write `WHERE order_ts >= '2026-01-10'`; the engine knows the transform, converts that predicate to the partition values it implies, and prunes files. There is no extra column to keep in sync and no way to filter wrongly. Available transforms include `year`, `month`, `day`, `hour`, `bucket(N, col)` (hash into N buckets, good for high-cardinality ids) and `truncate(W, col)`.
 
 **Partition evolution.** If the data grows and daily partitions become too fine or too coarse, you can change the partition spec (for instance, from `month` to `day`) **without rewriting old data**. Old files keep the old spec, new files use the new one, and the metadata records which spec each file follows, so queries plan correctly across both. With folder partitioning, changing the scheme means rewriting the whole table.
+
+> 💡 **Practice Pause: Schema Evolution Without Data Rewrites**
+> 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate function `evolve(table)`.
+> 2. Use the context manager `with table.update_schema() as update:` to add optional string column `channel` and rename column `status` to `order_status` in a single atomic commit.
+> 3. Run the schema evolution tests in your terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_schema_evolution or test_new_schema"`
+> 4. Ensure both tests pass (`2 passed`). Verify that the list of Parquet data files on disk remains strictly identical (zero bytes rewritten) and old rows read the new column as `NULL`.
 
 ## @lesson Delta Lake: the transaction log
 **Delta Lake** reaches the same goals with a different structure: an ordered **transaction log** of JSON commit files in a `_delta_log/` folder beside the data.
@@ -154,6 +184,13 @@ How do the two compare?
 
 The formats have been converging, and tools exist to expose one format's tables to readers of another. For a first project, choose by your ecosystem: **Delta** if you live on Databricks, **Iceberg** if you want maximum engine and vendor neutrality. **Hudi** is the third option, strong for incremental processing and upserts. Everything in this module (snapshots, atomic commits, field ids, pruning, maintenance) applies to all three.
 
+> 💡 **Practice Pause: Managing Delta Lake Transaction Logs**
+> 1. In your text editor in `labs/mod-2-2/lakehouse.py`, navigate to Part B (Delta Lake).
+> 2. Implement `delta_write_versions(path, batches)` with `write_deltalake`, `delta_rows_at(path, version)` for Delta time travel, `delta_delete(path, predicate)` for row deletions, and `delta_log_actions(path, version)` to read the JSON action keys in `_delta_log/`.
+> 3. Run the Delta Lake test suite in your terminal:
+> `pytest labs/mod-2-2/test_lab.py -v -k TestDelta`
+> 4. Ensure all 3 Delta Lake tests pass (`3 passed`). Notice how deleting a row in Delta Lake logs a `remove` action for the old file and an `add` action for the rewritten file.
+
 ## @lesson Operating tables: maintenance and catalogs
 Tables are not "create and forget". Every commit adds files, and without care a table slowly degrades. The routine maintenance tasks:
 
@@ -166,6 +203,12 @@ Tables are not "create and forget". Every commit adds files, and without care a 
 **Catalogs.** A catalog maps table names to the current metadata and provides the atomic pointer. Options include a database-backed catalog (the lab's SQLite file; fine for learning), the **Hive Metastore**, **AWS Glue**, **REST catalogs** (a standard HTTP API implemented by Polaris, Nessie, Unity and others) and managed catalogs from cloud vendors. The catalog is also the natural place for **governance**: who may read or write which table. Choose one that your engines all support, because the catalog, not the file format alone, decides which tools can share your tables.
 
 **Design advice.** Partition coarsely (daily is common) and let sorting and file statistics handle fine-grained filters; never partition by a high-cardinality column. Write in large batches. Define retention for snapshots and deletes up front. Write through a single, well-understood path where possible, and test concurrency, because the failures in this area are rare and expensive.
+
+> 💡 **Practice Pause: Full Lakehouse Test Suite Verification**
+> 1. Once all Iceberg and Delta Lake functions in `labs/mod-2-2/lakehouse.py` are implemented, run the complete unit test suite from your terminal:
+> `pytest labs/mod-2-2 -v`
+> 2. Ensure all 12 tests pass cleanly (`12 passed`).
+> 3. Congratulations! You have proven firsthand how ACID transactions, time travel, schema evolution, and transaction logs operate on disk across both leading open table formats.
 
 ## @lab Lab: build a lakehouse table, then look inside it
 Create an Iceberg table, make it change over time, and prove the format's promises with tests: snapshots, time travel, deletes that keep history, schema evolution that rewrites no data, and a metadata layout you verify on disk. Then do the same observations for Delta Lake's transaction log.
