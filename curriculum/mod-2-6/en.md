@@ -36,6 +36,10 @@ A **lakehouse** (Module 2.2) keeps data in open files such as Parquet on object 
 
 Where it fits: raw data lands in object storage (Modules 2.2, 3.4), a tool such as dbt (Module 2.3) builds modelled tables inside the warehouse, and analysts and BI tools query those. Everything you learned about grain, dimensions and facts (Module 1.4) is how those tables should be shaped.
 
+> 🛠 **Try it (10 min, Python).** Reuse the `orders.parquet` from Module 2.1 (or create it again with `df.to_parquet`). From its metadata, take each column's `total_compressed_size` and work out the share of the bytes that `SELECT status, SUM(total_idr) ... GROUP BY status` needs. Pretend the real table is 2 TB at $5 per TB, and print the cost of one run of that query against `SELECT *`, and the cost per day if a dashboard tile runs it 96 times.
+>
+> **You should see:** a share of `9.1%`, so `0.181 TB` scanned: about `$0.91` per run and `$87` per day, against `$10` per run and `$960` per day for `SELECT *`. A warehouse's "dry run" works out this estimate from metadata before running anything. (BigQuery bills the uncompressed size of the columns rather than the compressed bytes you used here, but the idea is the same.)
+
 ## @lesson How data is stored: micro-partitions, zone maps and pruning
 A warehouse does not store a table as one big file. It cuts it into many **micro-partitions** (Snowflake's name; BigQuery and Redshift have equivalents), each holding a slice of the rows in columnar form, typically tens to hundreds of megabytes. For every partition and every column it records cheap **statistics**: the smallest and the largest value, a **zone map**. These live in metadata, so reading them costs almost nothing.
 

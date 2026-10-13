@@ -41,6 +41,10 @@ Real numbers from a 5,000,000-row event table with seven columns (ids, timestamp
 
 The last two rows show something important: the *same* data, in a different row order, is 65% larger, because sorted timestamps and repeated values sit next to each other and compress better. How you order data before writing it is a performance decision.
 
+> 🛠 **Try it (10 min, Python).** Run `pip install pandas pyarrow`. Load `data/orders.csv` with `pd.read_csv(..., dtype={"customer_id": "string"})` and save it with `df.to_parquet("orders.parquet")`. Compare the two file sizes with `os.path.getsize`. Then open `pq.ParquetFile("orders.parquet").metadata.row_group(0)` and, for every `column(i)`, print `path_in_schema` and `total_compressed_size`. Which column is biggest, which are smallest, and why? Finally work out what share of the Parquet bytes a "total by status" query (columns `status` and `total_idr`) has to read, and compare that with the CSV, where every byte must be read.
+>
+> **You should see:** the CSV is `195075` bytes and the Parquet file roughly 77,000 (the exact number moves a little with the library version), well under half. `order_ts` is the biggest column (about 37 KB: almost every value is different), `status` and `payment_method` are the smallest (1 to 2 KB: a handful of repeated values), and `status` plus `total_idr` are about 9% of the Parquet bytes.
+
 ## @lesson Inside a Parquet file
 **Apache Parquet** is the standard open columnar file format for analytics, read by DuckDB, Polars, Spark, pandas, Snowflake, BigQuery and almost every other tool. A Parquet file has a layered structure:
 
@@ -93,6 +97,10 @@ Practical consequences:
 How does an engine compute on columns quickly? Older databases processed **one row at a time** ("tuple-at-a-time"), paying function-call and branching overhead per value. Modern analytical engines are **vectorised**: they process a **batch of values** (DuckDB uses vectors of 2,048 values) at once, in tight loops over arrays. Benefits: data stays in the CPU cache, the overhead is amortised over thousands of values, the compiler can use **SIMD** instructions (one CPU instruction operating on several numbers), and filters are evaluated before the other columns are even read (**late materialisation**). Combined with multiple threads (each handles different row groups), a laptop saturates its memory bandwidth on a scan.
 
 The practical takeaway is not the mechanism but the habit: **express work as whole-column operations** (SQL, dataframe expressions) and let the engine run the loop. A Python `for` loop over rows pays interpreter overhead per value (Module 1.2); the same logic as a SQL aggregate or a Polars expression runs orders of magnitude faster.
+
+> 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query over `range(2000000) t(x)`. Time each with `time.perf_counter()` and check that the two answers are equal.
+>
+> **You should see:** both answers are `1333332666666`; the loop takes roughly 160 ms and DuckDB roughly 20 ms. The exact ratio depends on your machine (expect somewhere between 5 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
 
 ## @lesson DuckDB: SQL on files, in your process
 **DuckDB** is an analytical database that runs **inside your Python process**, like SQLite but built for scans and aggregations (columnar, vectorised, parallel). No server, nothing to install beyond the package, and it queries files directly:

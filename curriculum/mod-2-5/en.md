@@ -32,6 +32,10 @@ Why it matters is practical. Analysts stop trusting a dashboard after one wrong 
 
 Where do problems come from? Mostly **upstream and from change**, not from your code: a source team changes a field, a deploy introduces a bug, a partner is late, a definition ("what counts as an active customer?") differs between teams. A data engineer cannot prevent all of that, but can make the problems **visible, early and owned**.
 
+> 🛠 **Try it (15 min, Python).** Run one check per dimension on `data/orders.csv` and `data/customers.csv`. Read everything as text (`csv.DictReader`), because letting pandas guess types would hide some of the problems. Count: rows with an empty `order_id` (completeness); rows whose `status` is not exactly one of `delivered`, `shipped`, `paid`, `cancelled`, `refunded`, rows whose `total_idr` is not a plain non-negative integer (`re.fullmatch(r"\d+", value)`), and rows whose `order_ts` does not parse with `datetime.strptime(..., "%Y-%m-%dT%H:%M:%S")` (validity); extra copies of an `order_id` (uniqueness); orders whose `customer_id` is missing from the customers file (integrity); and the newest valid `order_ts` (timeliness). Print one line per check.
+>
+> **You should see:** `0` empty ids; `112` bad statuses, `54` bad totals, `41` bad timestamps; `35` extra copies of an order id; `16` orders with an unknown customer; newest order `2026-01-30T23:59:00`. Which dimension would you have forgotten if the table above had not listed it?
+
 ## @lesson Defence in layers
 No single check catches everything, so quality is built as layers, each catching what the previous cannot. The principle is **shift left**: catch problems as close to the source as possible.
 
@@ -46,6 +50,10 @@ No single check catches everything, so quality is built as layers, each catching
 Two facts to keep in mind. First, **tests catch the problems you thought of; monitoring catches the ones you did not.** A schema test cannot warn you that one third of the orders vanished because of a checkout bug; a volume monitor can. Second, **a check is only useful if it is wired to action**: a failing test that nobody sees is decoration. Decide for each check whether it should *block* (stop the pipeline so bad data does not spread), *warn* (alert and continue) or only *record*.
 
 The lab builds layers 1 to 4 in miniature, in one gate.
+
+> 🛠 **Try it (15 min, Python).** Write a layer-2 gate for `data/orders.csv`: `gate(rows, max_reject_share)` splits the rows into accepted and rejected (a row is rejected when `total_idr` is not a plain non-negative integer or `order_ts` is not a real ISO timestamp) and raises `ValueError` when the rejected share is above `max_reject_share`. Run it with `0.05` and with `0.02`. Then run two layer-3 style checks on the *accepted* rows: extra copies of an `order_id`, and orders whose customer is not in `data/customers.csv`.
+>
+> **You should see:** `3539` accepted and `95` rejected (2.61%); the gate passes with `0.05` and raises with `0.02`. The accepted rows still contain `34` extra copies of an order id and `16` orders with an unknown customer: a gate that looks at one row at a time cannot see them, which is why the next layer exists. For each of the three findings, would you block, warn or only record?
 
 ## @lesson Data contracts: write the agreement down
 A **data contract** is an explicit, versioned agreement between a data **producer** (the checkout team) and its **consumers** (the data team). Without one, the producer changes a column and finds out from an angry email a week later. With one, the change is discussed before it ships.
@@ -175,6 +183,10 @@ Practical tuning:
 **Tools.** You rarely build all this by hand. *Great Expectations* and *Soda* define expectations (checks) as code or YAML and run them in a pipeline; *dbt tests* cover the transformation layer; *pandera* validates DataFrames; *Elementary* and commercial *observability platforms* add anomaly detection and lineage. The concepts are identical to what you build in the lab. A sensible path: dbt tests plus a handful of ingestion checks first, anomaly monitoring on your most important tables next, and a platform when manual upkeep stops scaling.
 
 **Service levels for data.** Borrowing from reliability engineering: an **SLI** is a measurement (hours since the newest order), an **SLO** is the target ("under 24 hours for 99% of days"), and an **SLA** is an agreement with consequences. They make quality negotiable and measurable instead of aspirational. Track **data downtime** (time the data was wrong or missing) and how long it took to detect and to fix. Define **ownership** for every important dataset: a named team that gets the alert.
+
+> 🛠 **Try it (10 min, Python).** Write the lineage as a dict from each dataset to the datasets built from it: `raw_orders` to `stg_orders`; `raw_customers` to `stg_customers`; `stg_orders` and `stg_customers` to `fct_orders`; `fct_orders` to `mart_daily` and `mart_tier`; `mart_daily` to `dashboard_revenue`; `mart_tier` to `dashboard_loyalty`. Write `downstream(node)` (everything affected by a broken node) and `upstream(node)` (everything a node was built from), then print `downstream("raw_customers")`, `downstream("stg_orders")` and `upstream("dashboard_loyalty")`.
+>
+> **You should see:** `downstream("raw_customers")` has `6` datasets (`stg_customers`, `fct_orders`, `mart_daily`, `mart_tier`, `dashboard_revenue`, `dashboard_loyalty`), `downstream("stg_orders")` has `5`, and `upstream("dashboard_loyalty")` has `6` (`mart_tier`, `fct_orders`, `stg_orders`, `stg_customers`, `raw_orders`, `raw_customers`). The first two are *impact analysis*, the third is *root cause*.
 
 ## @lesson When it breaks: incident response
 Quality problems will reach production. What distinguishes a mature team is the response.

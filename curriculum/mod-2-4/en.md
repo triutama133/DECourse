@@ -32,6 +32,10 @@ What it does *not* do: it is not where the heavy data processing happens. A good
 
 The two systems you will meet most are **Apache Airflow** (the long-standing standard, task-centric, in use at a very large number of companies) and **Dagster** (asset-centric, designed around the data being produced). Others exist (Prefect, Kestra, Mage, cloud-native schedulers); the concepts transfer.
 
+> 🛠 **Try it (20 min, Python).** Build a mini orchestrator. The dependencies are `{"extract": [], "clean": ["extract"], "audit": ["extract"], "load": ["clean"], "report": ["load"]}`, and every task is a small Python function. Make `load` raise `RuntimeError("warehouse busy")` on its first two calls and succeed on the third. Write `run(retries)`: start a task only when all its upstream tasks succeeded, retry it up to `retries` extra times when it raises, mark it `failed` when the retries run out, and mark everything downstream of a failure `skipped`. Print one line per attempt and the final state of every task. Run it with `retries=2` and again with `retries=1`.
+>
+> **You should see:** with `retries=2`, `load` fails twice (`warehouse busy`) and succeeds on attempt 3, and all five tasks end `success`. With `retries=1`, `load` ends `failed`, `report` is `skipped`, and `extract`, `clean` and `audit` are still `success`: `audit` does not depend on `load`, so the failure does not stop it. That small loop is the core of every orchestrator: dependencies, retries, and a state for each task.
+
 ## @lesson Core concepts: runs, intervals and partitions
 **A DAG** (directed acyclic graph) is the graph of steps: nodes are tasks or assets, arrows are "runs after" or "depends on", and **acyclic** means no loops, so there is always a valid order.
 
@@ -218,6 +222,10 @@ Neither is "fundamentally superior". Airflow is the most widely deployed, and it
 - **Document ownership and runbooks**: who is paged, what the first checks are, how to safely re-run.
 
 Anti-patterns to avoid: using `now()` inside tasks; appending instead of replacing; passing large data through XCom; heavy imports or queries at the top of an Airflow DAG file; retrying deterministic failures forever; and launching a huge backfill with no concurrency limit.
+
+> 🛠 **Try it (10 min, Python).** A job is supposed to succeed every day at 02:00. Its successful runs in January 2026 were on the 1st, 2nd, 4th, 5th, 8th, 9th and 10th. Using `datetime.date` and `timedelta`, write `missing_runs(success_dates, start, end)` that returns the days with no successful run, and print the missing days between 2026-01-01 and 2026-01-10 plus the longest stretch of consecutive missing days.
+>
+> **You should see:** `2026-01-03`, `2026-01-06` and `2026-01-07`, and a longest stretch of `2` days. Notice that nothing failed on those days: nothing ran at all, so no failure alert would ever fire. This is the "missing run" alert from the list above.
 
 ## @lab Lab: a daily pipeline in Dagster, tested like software
 Build the KopiKu daily pipeline as Dagster assets: clean orders per day, compute daily revenue, a report over all days, checks, a retry policy, and a Jakarta-time schedule. The tests exercise it with the real orchestration engine against temporary folders.

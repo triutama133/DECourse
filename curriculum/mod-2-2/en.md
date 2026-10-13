@@ -31,6 +31,10 @@ A **table format** solves all of these with one idea: **define the table not as 
 
 The main open formats are **Apache Iceberg**, **Delta Lake** and **Apache Hudi**. They are not storage formats (the data is still Parquet) and not engines: Spark, Trino, Flink, DuckDB, Snowflake, BigQuery and others read and write them. Together with an engine and a catalog they make a **lakehouse**: the cheap storage of a lake with the reliability of a warehouse.
 
+> 🛠 **Try it (10 min, Python).** Load `data/orders.csv` and cut it into five chunks of 727 rows (`df.iloc[i*727:(i+1)*727]`). Write them as `lake/orders/part-0.parquet` to `part-4.parquet`, but make the job die with `raise RuntimeError("job killed")` just before it writes the fourth file. Now read the folder with `pd.read_parquet("lake/orders")` and compare the row count with 3634. Then repair the writer so a reader can never see half a table: write into `lake/orders.tmp` and only `os.rename` it to `lake/orders` after all five files exist. Crash it again in a fresh folder and check what a reader finds. Delete `lake/` when you are done.
+>
+> **You should see:** the broken writer leaves `lake/orders` with 3 files and the reader returns `2181` rows out of 3634 with **no error at all**. With the temp-folder-then-rename writer, `lake/orders` does not exist after the crash, so the reader fails loudly with `FileNotFoundError` instead of silently returning partial data, and the leftover `orders.tmp` is easy to find and clean up. Table formats (next lessons) do the same trick with a metadata file instead of a folder rename.
+
 ## @lesson Iceberg: the metadata tree
 Iceberg's design is a **tree of immutable files** with a single pointer on top.
 
