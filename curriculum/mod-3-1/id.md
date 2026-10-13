@@ -76,6 +76,13 @@ Baca rencana eksekusi dari baris paling bawah ke atas. Perhatikan bahwa Spark me
 
 Dua kaidah emas performa: (1) action mahal pada DataFrame yang tidak di-cache akan dihitung ulang setiap kali dipanggil, maka gunakan `df.cache()` pada DataFrame yang digunakan berulang kali dan lepaskan dengan `df.unpersist()`; (2) rancangan query yang unggul adalah rancangan dengan **jumlah shuffle paling minimal** dan **volume data shuffle sekecil mungkin**, yang berarti memfilter baris dan membuang kolom yang tidak perlu sebelum operasi join atau group-by dilakukan.
 
+> 💡 **Jeda Praktik 1 (Rencana Eksekusi & Penghitungan Shuffle):**
+> 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda. Jangan jalankan file Python ini langsung di terminal tanpa modul penguji.
+> 2. Implementasikan fungsi `count_exchanges(df)` untuk menghitung kemunculan node `Exchange` pada teks physical plan berformat (`df.explain("formatted")`). Ingat bahwa `BroadcastExchange` bukan shuffle data tabel besar dan tidak boleh dihitung.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
+> 4. **Indikator Sukses:** Sebanyak 3 pengujian berstatus `PASSED`, memvalidasi bahwa transformasi narrow menghasilkan 0 exchange, group-by memicu 1 exchange, dan sort-merge join membutuhkan 2 exchange.
+
 ## @lesson Sang pengoptimal: Catalyst, Tungsten, dan Adaptive Query Execution (AQE)
 Baik Anda menulis query menggunakan DataFrame API maupun Spark SQL murni, seluruh instruksi melewati engine internal yang sama melalui tiga pilar teknologi:
 
@@ -109,6 +116,13 @@ Aturan praktis lapangan: **jika salah satu tabel berukuran kecil, lakukan broadc
 
 **Mengapa shuffle sangat mahal?** Setiap operasi shuffle melibatkan serialisasi objek ke byte, penulisan ke disk lokal worker, transfer paket via kartu jaringan, dan deserialisasi kembali di sisi penerima, ditambah fakta bahwa stage downstream tidak dapat dimulai sebelum seluruh task stage upstream selesai. Teknik menghindari shuffle: terapkan broadcast join, agregasi data sebelum di-join, lakukan teknik **bucketing** pada tabel Parquet/Delta/Iceberg berdasarkan join key (dihitung sekali saat penulisan, mengeliminasi shuffle di seluruh query join di masa depan), serta hindari operasi `distinct` dan `orderBy` global pada dataset mentah jika tidak benar-benar dibutuhkan.
 
+> 💡 **Jeda Praktik 2 (Broadcast Hash Join Tanpa Shuffle):**
+> 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `broadcast_join(large, small, key)` dengan menyiarkan sisi tabel kecil ke seluruh executor via `F.broadcast(small)`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k test_a_broadcast_join_does_not_shuffle_the_big_table -v`
+> 4. **Indikator Sukses:** Pengujian berstatus `PASSED`, membuktikan terbentuknya node `BroadcastHashJoin` pada physical plan dengan 0 exchange pada tabel besar.
+
 ## @lesson Data skew: ketika satu task memikul seluruh beban komputasi
 Operasi shuffle memetakan seluruh baris data yang memiliki nilai hash key yang sama ke dalam satu partisi yang sama. Jika nilai key di dunia nyata **terdistribusi secara tidak merata** (**data skew**), satu partisi akan menerima volume data yang jauh lebih masif dibandingkan partisi lainnya. Karena durasi total sebuah stage ditentukan oleh **task yang paling lambat (straggler)**, maka keseluruhan stage akan tertahan menunggu satu task tersebut sementara ratusan CPU cores lainnya menganggur. Gejala klasiknya di Spark UI: indikator progres stage menunjukkan status "199 of 200 tasks complete" dan tersangkut di angka tersebut selama berjam-jam.
 
@@ -124,6 +138,14 @@ largest / median = 18.8          (the same data with uniform keys: 1.08)
 Satu partisi menampung **73%** dari total data! Task yang menangani partisi tersebut harus memproses data 18 kali lipat lebih banyak dibandingkan task normal. Di klaster produksi nyata, kondisi ini menyebabkan satu task berjalan berjam-jam, memori executor tertekan hebat (tumpah ke disk melalui disk spill, atau mati total akibat JVM Out-Of-Memory error), dan pemborosan biaya server klaster yang luar biasa.
 
 **Cara mendiagnosis di Spark UI.** Buka stage yang lambat dan amati tabel **Task Metrics Summary**: jika metrik *Max* durasi task atau *Shuffle Read Size* bernilai puluhan kali lipat lebih tinggi daripada nilai *Median*, itu adalah bukti mutlak terjadinya data skew. Munculnya indikator "Spill (Memory)" dan "Spill (Disk)" pada task tersebut semakin mengonfirmasinya. Di level kode, hitung nilai **skew ratio** (ukuran partisi terbesar dibagi ukuran partisi median) seperti yang Anda bangun di lab; rasio di atas 5 menandakan masalah serius.
+
+> 💡 **Jeda Praktik 3 (Diagnostik Data Skew & Ukuran Partisi):**
+> 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `partition_sizes(df, cols, n)` untuk mempartisi DataFrame berdasarkan kolom kunci dan menghitung jumlah baris di setiap partisi.
+> 3. Implementasikan fungsi `skew_ratio(sizes)` yang membagi ukuran partisi terbesar dengan nilai median.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k TestSkew -v`
+> 5. **Indikator Sukses:** Sebanyak 3 pengujian di `TestSkew` berstatus `PASSED`, membuktikan secara empiris bahwa dataset hot key menghasilkan skew ratio > 10 dibandingkan < 1,5 pada dataset seragam.
 
 **Solusi penanganan skew, dari yang paling sederhana hingga mahir:**
 
@@ -142,6 +164,14 @@ joined = large_salted.join(small_salted, ["key", "salt"]).drop("salt")
 Pada lab modul ini, teknik salting berhasil memangkas skew ratio dari 18,8 menjadi hanya **1,7** dan memangkas waktu join menjadi 1,82 detik. Teknik ini membutuhkan memori tambahan pada tabel pasangan (karena digandakan N kali) serta kode yang lebih kompleks, gunakan salting ketika broadcast tidak memungkinkan dan optimasi AQE tidak mencukupi (misalnya saat kedua tabel sama-sama raksasa).
 
 Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 s), Salting (1,82 s), dan Plain Sort-Merge Join (2,58 s). Di klaster berskala terabyte, jurang perbedaan waktu ini melonjak dari hitungan detik menjadi selisih berjam-jam lamanya.
+
+> 💡 **Jeda Praktik 4 (Penanganan Skew: Salting & Adaptive Query Execution):**
+> 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `add_salt(df, factor, seed=4)`, `explode_salt(df, factor)`, dan `salted_join(large, small, key, factor)`.
+> 3. Implementasikan konfigurasi `enable_skew_join(spark)` dan fungsi deteksi `uses_skew_join(df)`.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k "TestSalting or TestAdaptiveExecution" -v`
+> 5. **Indikator Sukses:** Sebanyak 5 pengujian berstatus `PASSED`, membuktikan bahwa teknik salting meratakan rasio partisi menjadi < 3 dan konfigurasi AQE berhasil memicu `SortMergeJoin(skew=true)` saat runtime.
 
 ## @lesson Manajemen memori, Python UDFs, tata letak file, dan aturan praktis
 **Memori Executor JVM** dialokasikan ke dalam dua ruang utama: **Execution Memory** (digunakan untuk operasi komputasi shuffle, buffer join hash table, sorting, dan agregasi) dan **Storage Memory** (digunakan untuk menampung cache DataFrame). Kedua area ini berada di bawah model Unified Memory Management dan dapat saling meminjam ruang secara dinamis, ditambah cadangan **Overhead Memory** untuk kebutuhan internal OS, network buffer, dan runtime PySpark. Jika kebutuhan komputasi melampaui kapasitas RAM yang tersedia, Spark melakukan **spill** (menulis kelebihan data ke disk lokal—proses melambat drastis namun aplikasi tidak mati); jika disk spill pun kehabisan ruang atau alokasi kontainer terlampaui, executor akan di-kill oleh cluster manager (`OOMKilled`). Tanda-tanda di Spark UI: metrik "Spill (Memory/Disk)", jeda panjang pada Garbage Collection (GC), atau executor yang restart berulang kali. Solusi: perbesar memori per executor; naikkan jumlah partisi agar data per task lebih kecil; bereskan anomali data skew (salah satu penyebab OOM yang paling sering); dan jangan pernah memanggil `collect()` untuk dataset besar ke memori driver.
@@ -182,6 +212,14 @@ pytest labs/mod-3-1 -v       # seluruh pengujian akan gagal pada awalnya (membut
 6. Implementasikan fungsi `broadcast_join` dan amati perubahan node plan-nya di mana node Exchange pada tabel event lenyap.
 7. Implementasikan fungsi konfigurasi `enable_skew_join` (parameter konfigurasi tercantum pada docstring) serta fungsi verifikasi `uses_skew_join`. Pengujian akan mengeksekusi join dan memverifikasi bahwa plan adaptif akhir memuat atribut `skew=true`.
 8. Eksplorasi mandiri: bandingkan durasi eksekusi antara versi plain join, broadcast, salting, dan AQE untuk ukuran baris data yang lebih besar (`N` jutaan baris) menggunakan modul `time.time()`; cetak physical plan ke terminal; coba ubah parameter `spark.sql.shuffle.partitions`. Buka Spark UI di browser (hapus konfigurasi `spark.ui.enabled=false`; buka port http://localhost:4040) dan temukan task terpanjang pada stage plain join.
+
+> 💡 **Jeda Praktik 5 (Verifikasi Lengkap Spark Lab & Pemeriksaan Java 17):**
+> 1. Pastikan runtime Java 17+ telah aktif di komputer Anda (`java -version`).
+> 2. Di terminal, jalankan seluruh rangkaian pengujian:
+>    `pytest labs/mod-3-1/test_lab.py -v`
+> 3. Jalankan pengujian pembanding terhadap solusi referensi:
+>    `LAB_DIR=reference pytest labs/mod-3-1/test_lab.py -v`
+> 4. **Indikator Sukses:** Seluruh 12 pengujian berstatus `PASSED`, memvalidasi pemahaman komprehensif Anda tentang rencana eksekusi, join terdistribusi, dan penanganan data skew di Apache Spark.
 
 ### @files
 - labs/mod-3-1/spark_lab.py :: File kerja implementasi: fungsi inspeksi physical plan dan penanganan skew :: starter

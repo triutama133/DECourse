@@ -76,6 +76,13 @@ Read from the bottom up. Notice that Spark aggregates *before* shuffling (a **ma
 
 Two more rules from this view: (1) an expensive action on an uncached DataFrame is recomputed every time, so `cache()` or `persist()` a DataFrame you reuse (and release it with `unpersist()`); (2) a good plan has **few shuffles** and shuffles **as little data as possible**, which means filtering and selecting columns first.
 
+> 💡 **Practice Pause 1 (Execution Plans & Shuffle Counting):**
+> 1. Open `labs/mod-3-1/spark_lab.py` in your text editor. Do not execute this Python file directly in terminal without a test runner.
+> 2. Implement `count_exchanges(df)` to count `Exchange` nodes in the formatted physical plan (`df.explain("formatted")`). Remember that `BroadcastExchange` is not a shuffle of the large table and must be excluded.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
+> 4. **Success Indicator:** All 3 tests report `PASSED`, confirming that narrow transformations have 0 exchanges, group-by triggers 1 exchange, and sort-merge join requires 2 exchanges.
+
 ## @lesson The optimiser: Catalyst, Tungsten and adaptive execution
 Whatever API you use (DataFrame, SQL), your query goes through the same engine, in stages:
 
@@ -109,6 +116,13 @@ So: **if one side is small, broadcast it** (`F.broadcast(small_df)`, or raise th
 
 **Shuffles are expensive** because each one serialises data, writes it to local disk, sends it across the network and deserialises it again, and because a stage cannot start until the previous one finishes. Techniques to avoid them: broadcast joins, filtering before joining, aggregating before joining, **bucketing** or pre-partitioning tables by the join key (done once, saves shuffles in every later join), and doing less (`distinct` and `orderBy` over everything are rarely needed).
 
+> 💡 **Practice Pause 2 (Broadcast Hash Join Without Shuffle):**
+> 1. Open `labs/mod-3-1/spark_lab.py` in your text editor.
+> 2. Implement `broadcast_join(large, small, key)` broadcasting the small side to all executors with `F.broadcast(small)`.
+> 3. Run the test in terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k test_a_broadcast_join_does_not_shuffle_the_big_table -v`
+> 4. **Success Indicator:** The test reports `PASSED`, confirming a `BroadcastHashJoin` node appears in the physical plan with 0 exchanges on the large table.
+
 ## @lesson Data skew: when one task does all the work
 A shuffle sends all rows with the same key to the same partition. If the keys are **unevenly distributed** (**skew**), one partition receives far more data than the others. Stage time is set by the **slowest task**, so the whole stage waits for a straggler while the other cores sit idle. The signature symptom: a stage at "199 of 200 tasks complete" for a long time.
 
@@ -124,6 +138,14 @@ largest / median = 18.8          (the same data with uniform keys: 1.08)
 One partition holds **73%** of the rows. That task must process 18 times more than a typical one. On a real cluster that means one task running for an hour, a very large memory footprint on one executor (spill to disk, or an out-of-memory failure and retry), and a wasted cluster.
 
 **Diagnosing it.** In the Spark UI, open the slow stage and look at the **task summary**: if the *max* task duration or shuffle-read size is many times the *median*, it is skew. A single task with a huge "Shuffle Read Size" and "Spill" confirms it. In code, compute the **skew ratio** (largest partition divided by median) as the lab does; above about 5 deserves attention.
+
+> 💡 **Practice Pause 3 (Diagnosing Data Skew & Partition Sizing):**
+> 1. Open `labs/mod-3-1/spark_lab.py` in your text editor.
+> 2. Implement `partition_sizes(df, cols, n)` to partition the DataFrame by key columns and return the row count per partition.
+> 3. Implement `skew_ratio(sizes)` dividing the maximum partition size by the median partition size.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k TestSkew -v`
+> 5. **Success Indicator:** All 3 tests in `TestSkew` report `PASSED`, empirically proving that hot-key datasets yield a skew ratio > 10 compared to < 1.5 for uniform datasets.
 
 **Fixes, from simplest to most elaborate:**
 
@@ -142,6 +164,14 @@ joined = large_salted.join(small_salted, ["key", "salt"]).drop("salt")
 In the lab, salting brought the skew ratio from 18.8 down to **1.7** and the join to 1.82 s. It costs a larger small table (N copies) and more code, and it cannot be applied blindly: use it when neither a broadcast nor AQE is enough, for example when both sides are large.
 
 On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), salting (1.82 s) and the plain join (2.58 s). The differences are modest on a laptop with 3 million rows and grow dramatically at cluster scale, where a straggler costs hours. (These timings are from one machine in local mode; the *ratios* and the mechanisms are the lesson, not the exact seconds.)
+
+> 💡 **Practice Pause 4 (Skew Mitigation: Salting & Adaptive Query Execution):**
+> 1. Open `labs/mod-3-1/spark_lab.py` in your text editor.
+> 2. Implement `add_salt(df, factor, seed=4)`, `explode_salt(df, factor)`, and `salted_join(large, small, key, factor)`.
+> 3. Implement configuration in `enable_skew_join(spark)` and verification in `uses_skew_join(df)`.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-1/test_lab.py -k "TestSalting or TestAdaptiveExecution" -v`
+> 5. **Success Indicator:** All 5 tests report `PASSED`, verifying salting balances partition ratios to < 3 and AQE successfully triggers `SortMergeJoin(skew=true)` at runtime.
 
 ## @lesson Memory, UDFs, files and the rules of thumb
 **Executor memory** is split into **execution memory** (shuffles, joins, sorts, aggregations) and **storage memory** (cached data), which share a unified region and can borrow from each other, plus **overhead** for the JVM and PySpark. When execution needs more memory than it has, Spark **spills** to disk (slow but survives); when even that fails, the executor is killed (out of memory). Signs: "Spill (memory/disk)" in the UI, long GC pauses, `OOMKilled` containers (Module 1.1). Remedies: fewer, larger-memory executors for memory-hungry tasks; more partitions (smaller per-task data); fixing skew (the real cause of most OOMs); and not collecting large results to the driver.
@@ -182,6 +212,14 @@ pytest labs/mod-3-1 -v       # all fail at first (about 20 seconds once implemen
 6. Implement `broadcast_join` and look at its plan.
 7. Implement `enable_skew_join` (the configuration values are in the docstring) and `uses_skew_join`. The test runs the join, then checks that the *final* adaptive plan contains `skew=true`.
 8. Explore: run the plain, broadcast, salted and AQE versions for a larger `N` (a few million rows) with `time.time()`; print the plans; try changing `spark.sql.shuffle.partitions`. Open the Spark UI (remove `spark.ui.enabled=false`; it is on port 4040) and find the longest task of the plain join.
+
+> 💡 **Practice Pause 5 (Full Verification & Java 17 Check):**
+> 1. Ensure Java 17+ is installed and active on your system (`java -version`).
+> 2. In terminal, run the complete test suite:
+>    `pytest labs/mod-3-1/test_lab.py -v`
+> 3. Verify against the reference solution:
+>    `LAB_DIR=reference pytest labs/mod-3-1/test_lab.py -v`
+> 4. **Success Indicator:** All 12 tests report `PASSED`, confirming full mastery of execution plans, distributed joins, and data skew mitigation in Apache Spark.
 
 ### @files
 - labs/mod-3-1/spark_lab.py :: Your working file: plan inspection and skew fixes :: starter
