@@ -54,6 +54,15 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 
 `NaN` deserves a moment. In pandas a missing number is `NaN` (and a missing date `NaT`), and most aggregations **skip** it: `pd.Series([1, None, 3]).sum()` is 4.0 and `.mean()` is 2.0, not 1.33. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many are missing when you quote a number.
 
+> 💡 **Practice Pause 1 (Loading Data & Data Quality Report):**
+> Start building your analytics module with precise type specification:
+> 1. Open `labs/mod-1-5/orders_lab.py` in your text editor (remember: do not execute directly in bash!).
+> 2. Implement `load_orders(source)` with strict types (`dtype={"order_id": "string", "customer_id": "string"}`, nullable `"Int64"` for quantity, `na_values=["-"]` for float64 unit_price_idr NaNs, and `pd.to_datetime` with `errors="coerce"`).
+> 3. Implement `data_quality_report(df)` returning row count, null count per column, and duplicate order id count.
+> 4. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_load_orders or test_data_quality" -v`
+> When tests show PASSED, proceed to Lesson 3 for vectorised data cleaning!
+
 ## @lesson Cleaning with whole-column operations
 Cleaning is a short list of repeated moves. Each has a vectorised form:
 
@@ -70,6 +79,16 @@ Cleaning is a short list of repeated moves. Each has a vectorised form:
 **Do not chain assignments.** `df[df["a"] > 1]["b"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df["b"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).
 
 A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure function from one frame to another, can be tested with a five-row frame, run again on tomorrow's file, and read by a colleague. A notebook with forty cells that must run in the right order cannot.
+
+> 💡 **Practice Pause 2 (Vectorised Cleaning Without Apply):**
+> Clean data efficiently without python loops or apply methods:
+> 1. In `labs/mod-1-5/orders_lab.py` in your text editor, implement 3 cleaning functions:
+>    - `clean_orders(df)`: standardize text with `.str.strip()` and casing, drop duplicate order_ids (`keep="first"`), drop missing rows, cast quantity to `int64`, and reset index.
+>    - `paid_only(df)`: filter rows where status is `"paid"` using boolean masking and reset index.
+>    - `add_revenue(df)`: add `revenue_idr = quantity * unit_price_idr` on a DataFrame copy.
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_clean_orders or test_paid_only or test_add_revenue" -v`
+> When tests show PASSED, proceed to Lesson 4 for aggregations, pivoting, and ranking!
 
 ## @lesson Group, pivot and rank
 **`groupby`** is the heart of analytics in pandas: split the table into groups, compute something per group, put the results back. The clearest form is **named aggregation**:
@@ -100,6 +119,17 @@ The sort comes first and **including a tie-breaker** (`order_id`) makes the resu
 
 Check your aggregates against an independent calculation. The lab tests recompute every total with plain Python over the correct rows and compare; in your own work, spot-check one group by hand and compare the grand total with the source (Module 2.5). A groupby that silently drops rows with a missing key (`groupby` skips `NaN` keys by default) is a classic way to be off by a few percent without noticing.
 
+> 💡 **Practice Pause 3 (Aggregations, Pivots, & Window History):**
+> Build analytical summaries and customer historical metrics:
+> 1. In `labs/mod-1-5/orders_lab.py` in your text editor, implement 4 analytical functions:
+>    - `revenue_by_country(df)`: named aggregation `groupby` (`nunique`, `sum`, `mean`) sorted descending by revenue.
+>    - `monthly_revenue(df)`: pivot table indexed by `"YYYY-MM"` with `fill_value=0`.
+>    - `top_products_per_country(df, n=2)`: top N products per country with alphabetical tie-breaking.
+>    - `add_customer_history(df)`: compute customer order number (`cumcount() + 1`), cumulative revenue (`cumsum()`), and day gap (`diff().dt.days`).
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> When tests show PASSED, proceed to Lesson 5 on defensive table merges!
+
 ## @lesson Joining tables without multiplying rows
 `orders.merge(customers, on="customer_id", how="left")` is `LEFT JOIN`. The `how` argument selects `inner`, `left`, `right` or `outer`, exactly as in SQL (Module 0.3), and the same trap applies: **the fan-out**. If the right-hand table has the same key twice, every matching left row is repeated.
 
@@ -116,6 +146,15 @@ Other join habits:
 - **`concat`** stacks tables with the same columns (several daily files into one). Check the columns line up and reset the index.
 
 A last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it compares two frames and tells you exactly what differs. It is how the lab tests, and how you should test your own transformations.
+
+> 💡 **Practice Pause 4 (Defensive Joins & Orphan Anti-Join):**
+> Merge datasets safely without fan-out revenue doubling risks:
+> 1. In `labs/mod-1-5/orders_lab.py` in your text editor, implement 2 merge functions:
+>    - `join_customers(orders, customers)`: left join with `validate="m:1"` to prevent accidental row multiplication, and fill unmatched customer tiers with `"unknown"`.
+>    - `orphan_customer_ids(orders, customers)`: identify customer ids present in orders but missing from customers (anti-join).
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_join_customers or test_orphan" -v`
+> When tests show PASSED, your joins are fan-out protected! Proceed to Lesson 6 for memory optimization and Parquet.
 
 ## @lesson Memory, chunks and Parquet
 pandas keeps the entire table in RAM. How much RAM? More than the file. We generated an orders table of **1,000,000 rows** (a **47.7 MB** CSV) and read it with default settings: on pandas 3.0.6 it occupied **83 MB** in memory (1.75 times the file), and on pandas 2.2.3 **247 MB, 5.2 times the file**, because older pandas stores every text value as a separate Python object. Rule of thumb: **plan for 2 to 10 times the file size**, measure with `df.memory_usage(deep=True).sum()`, and check before you read a 20 GB export on a 16 GB laptop.
@@ -136,6 +175,16 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 **Use Parquet, not CSV, for data you keep.** CSV is text: it stores `2026-01-15` as ten characters, has no types (lesson 2 existed because of that) and must be read from the first byte to the last. **Parquet** is a binary, **columnar**, compressed format (Module 2.1) that stores types. On the same million rows the Parquet file was **9.1 MB against 47.7 MB** for CSV, about **5 times smaller**, and reading just two columns took **0.03 seconds against 0.27** for CSV (`usecols` still had to scan the whole text file). `df.to_parquet("orders.parquet", index=False)` writes it and `pd.read_parquet(path, columns=[...])` reads only the columns you ask for. Between steps of a pipeline, hand over Parquet, not CSV.
 
 **Testing data code.** The lab shows the habit: each function is small and pure, takes frames in and returns frames out, and has tests built from a few rows whose answer you can work out by hand, plus one test on the realistic file against an independently computed answer. When a function can be tested with five rows, it is simple enough to trust.
+
+> 💡 **Practice Pause 5 (Memory Efficiency, Chunking, & Parquet Format - Lab Complete):**
+> Master large-dataset processing techniques and modern columnar storage:
+> 1. In `labs/mod-1-5/orders_lab.py` in your text editor, complete the 4 performance functions:
+>    - `shrink_memory(df)`: optimize types by converting low-cardinality text (< 50% rows) to `category` and downcasting integers.
+>    - `chunked_revenue_by_country(path, chunksize=500)`: process CSV in batches of select columns and combine partial sums without loading the full file.
+>    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: write Parquet without pandas index and read requested columns.
+> 2. Run the complete test suite in the terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -v`
+> When all 35 tests show PASSED, your production pandas lab is 100% complete!
 
 ## @lab Lab: clean and summarise a messy orders export
 Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops.

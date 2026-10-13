@@ -54,6 +54,15 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 
 `NaN` perlu dibahas sebentar. Di pandas angka kosong adalah `NaN` (dan tanggal kosong `NaT`), dan sebagian besar agregasi **melewatinya**: `pd.Series([1, None, 3]).sum()` adalah 4.0 dan `.mean()` adalah 2.0, bukan 1.33. Biasanya itu yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% kosong menggambarkan 70% sisanya. Selalu tahu berapa banyak yang kosong ketika Anda menyebut sebuah angka.
 
+> 💡 **Jeda Praktik 1 (Memuat Data & Laporan Kualitas Data):**
+> Mulai bangun modul analitik data dengan pemuatan tipe yang presisi:
+> 1. Buka file `labs/mod-1-5/orders_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
+> 2. Implementasikan fungsi `load_orders(source)` dengan parameter tipe ketat (`dtype={"order_id": "string", "customer_id": "string"}`, integer nullable `"Int64"` untuk quantity, `na_values=["-"]` agar unit_price_idr menjadi float64 NaN, dan `pd.to_datetime` dengan `errors="coerce"`).
+> 3. Implementasikan fungsi `data_quality_report(df)` yang menghitung jumlah total baris, jumlah null per kolom, dan jumlah id pesanan duplikat.
+> 4. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_load_orders or test_data_quality" -v`
+> Ketika tes PASSED, lanjut ke Pelajaran 3 untuk pembersihan data secara vektor!
+
 ## @lesson Membersihkan dengan operasi seluruh kolom
 Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bentuk vektornya:
 
@@ -70,6 +79,16 @@ Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bent
 **Jangan merantai assignment.** `df[df["a"] > 1]["b"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df["b"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).
 
 Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> clean`, fungsi murni dari satu frame ke frame lain, bisa diuji dengan frame lima baris, dijalankan lagi pada file besok, dan dibaca rekan kerja. Notebook dengan empat puluh sel yang harus dijalankan dalam urutan yang benar tidak bisa.
+
+> 💡 **Jeda Praktik 2 (Pembersihan Vektor Tanpa Apply):**
+> Bersihkan data secara efisien tanpa loop python atau method apply:
+> 1. Di `labs/mod-1-5/orders_lab.py` pada text editor, implementasikan 3 fungsi pembersihan:
+>    - `clean_orders(df)`: standarisasi teks dengan accessor `.str.strip()` dan casing, buang duplikat dengan `drop_duplicates(subset="order_id", keep="first")`, buang nilai kosong dengan `dropna`, ubah quantity ke `int64`, dan reset index.
+>    - `paid_only(df)`: filter hanya baris dengan status `"paid"` menggunakan boolean mask dan reset index.
+>    - `add_revenue(df)`: tambahkan kolom `revenue_idr = quantity * unit_price_idr` pada salinan DataFrame.
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_clean_orders or test_paid_only or test_add_revenue" -v`
+> Ketika tes PASSED, lanjut ke Pelajaran 4 untuk agregasi, pivot, dan ranking!
 
 ## @lesson Group, pivot, dan rank
 **`groupby`** adalah jantung analitik di pandas: pecah tabel menjadi kelompok, hitung sesuatu per kelompok, gabungkan hasilnya kembali. Bentuk paling jelas adalah **named aggregation**:
@@ -100,6 +119,17 @@ Pengurutan datang lebih dulu dan **menyertakan pemutus seri** (`order_id`) membu
 
 Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang setiap total dengan Python biasa atas baris yang benar lalu membandingkannya; dalam kerja Anda sendiri, periksa satu kelompok dengan tangan dan bandingkan total keseluruhan dengan sumbernya (Modul 2.5). `groupby` yang diam-diam membuang baris dengan kunci kosong (`groupby` melewati kunci `NaN` secara default) adalah cara klasik meleset beberapa persen tanpa disadari.
 
+> 💡 **Jeda Praktik 3 (Agregasi, Pivot, & Window History):**
+> Bangun ringkasan analitik dan metrik historis pelanggan:
+> 1. Di `labs/mod-1-5/orders_lab.py` pada text editor, implementasikan 4 fungsi analitik:
+>    - `revenue_by_country(df)`: named aggregation `groupby` (`nunique`, `sum`, `mean`) diurutkan berdasarkan revenue terbesar.
+>    - `monthly_revenue(df)`: pivot table dengan indeks format `"YYYY-MM"` dan `fill_value=0`.
+>    - `top_products_per_country(df, n=2)`: ambil N produk terlaris per negara dengan pemutus seri alfabet nama produk.
+>    - `add_customer_history(df)`: hitung urutan pesanan per pelanggan (`cumcount() + 1`), total berjalan kumulatif (`cumsum()`), dan selisih hari (`diff().dt.days`).
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> Ketika tes PASSED, lanjut ke Pelajaran 5 tentang penggabungan tabel defensif!
+
 ## @lesson Menggabungkan tabel tanpa melipatgandakan baris
 `orders.merge(customers, on="customer_id", how="left")` adalah `LEFT JOIN`. Argumen `how` memilih `inner`, `left`, `right`, atau `outer`, persis seperti di SQL (Modul 0.3), dan jebakan yang sama berlaku: **fan-out**. Jika tabel kanan punya kunci yang sama dua kali, setiap baris kiri yang cocok diulang.
 
@@ -116,6 +146,15 @@ Kebiasaan join lain:
 - **`concat`** menumpuk tabel dengan kolom sama (beberapa file harian menjadi satu). Pastikan kolomnya sejajar dan reset index.
 
 Alat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: ia membandingkan dua frame dan memberi tahu persis apa yang berbeda. Begitulah tes di lab bekerja, dan begitulah seharusnya Anda menguji transformasi Anda sendiri.
+
+> 💡 **Jeda Praktik 4 (Join Defensif & Anti-Join Deteksi Yatim):**
+> Gabungkan dataset secara aman tanpa risiko fan-out pengganda omset:
+> 1. Di `labs/mod-1-5/orders_lab.py` pada text editor, implementasikan 2 fungsi penggabungan:
+>    - `join_customers(orders, customers)`: left join ke tabel pelanggan dengan `validate="m:1"` untuk mencegah duplikasi baris, serta isi tier yang tidak ditemukan dengan `"unknown"`.
+>    - `orphan_customer_ids(orders, customers)`: temukan id pelanggan yang ada di tabel orders tetapi tidak terdaftar di customers (anti-join).
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_join_customers or test_orphan" -v`
+> Ketika tes PASSED, integritas join Anda terjamin aman! Lanjut ke Pelajaran 6 untuk optimasi memori dan format Parquet.
 
 ## @lesson Memori, chunk, dan Parquet
 pandas menyimpan seluruh tabel di RAM. Berapa banyak RAM? Lebih dari ukuran file. Kami membuat tabel pesanan **1.000.000 baris** (CSV **47,7 MB**) dan membacanya dengan pengaturan default: pada pandas 3.0.6 ia menempati **83 MB** di memori (1,75 kali file), dan pada pandas 2.2.3 **247 MB, 5,2 kali file**, karena pandas lama menyimpan setiap nilai teks sebagai objek Python tersendiri. Aturan praktis: **rencanakan 2 sampai 10 kali ukuran file**, ukur dengan `df.memory_usage(deep=True).sum()`, dan periksa sebelum membaca ekspor 20 GB di laptop 16 GB.
@@ -136,6 +175,16 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 **Pakai Parquet, bukan CSV, untuk data yang Anda simpan.** CSV adalah teks: ia menyimpan `2026-01-15` sebagai sepuluh karakter, tidak punya tipe (pelajaran 2 ada karena itu), dan harus dibaca dari byte pertama sampai terakhir. **Parquet** adalah format biner, **kolumnar**, terkompresi (Modul 2.1) yang menyimpan tipe. Pada sejuta baris yang sama file Parquet berukuran **9,1 MB dibanding 47,7 MB** untuk CSV, sekitar **5 kali lebih kecil**, dan membaca hanya dua kolom memakan **0,03 detik dibanding 0,27** untuk CSV (`usecols` tetap harus memindai seluruh file teks). `df.to_parquet("orders.parquet", index=False)` menulisnya dan `pd.read_parquet(path, columns=[...])` hanya membaca kolom yang diminta. Antar langkah pipeline, serahkan Parquet, bukan CSV.
 
 **Menguji kode data.** Lab memperlihatkan kebiasaannya: tiap fungsi kecil dan murni, menerima frame dan mengembalikan frame, dan punya tes dari beberapa baris yang jawabannya bisa Anda hitung dengan tangan, ditambah satu tes pada file realistis terhadap jawaban yang dihitung secara independen. Ketika sebuah fungsi bisa diuji dengan lima baris, ia cukup sederhana untuk dipercaya.
+
+> 💡 **Jeda Praktik 5 (Efisiensi Memori, Chunking, & Format Parquet - Lab Tuntas):**
+> Kuasai teknik pemrosesan dataset besar dan format data modern:
+> 1. Di `labs/mod-1-5/orders_lab.py` pada text editor, selesaikan 4 fungsi performa:
+>    - `shrink_memory(df)`: optimasi tipe dengan mengubah teks berkardinalitas rendah (< 50% baris) menjadi `category` dan downcast integer.
+>    - `chunked_revenue_by_country(path, chunksize=500)`: baca file CSV per batch kolom tertentu dan akumulasikan omset per negara tanpa memuat seluruh file.
+>    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: simpan dan baca kolom spesifik file Parquet tanpa index pandas.
+> 2. Jalankan seluruh suite pengujian di terminal:
+> `.venv/bin/pytest labs/mod-1-5/test_lab.py -v`
+> Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
 
 ## @lab Lab: bersihkan dan ringkas ekspor pesanan yang berantakan
 Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.
