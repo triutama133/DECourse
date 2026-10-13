@@ -52,6 +52,13 @@ Ordering is the property people misunderstand. Kafka guarantees order **only wit
 
 The lab's Part A has you build these ideas in a miniature in-memory Kafka, so the rules become concrete: stable key-to-partition mapping, per-partition offsets, lag, range assignment, and compaction with tombstones. (It uses a CRC hash for determinism; real Kafka uses murmur2. The behaviour, not the hash function, is the lesson.)
 
+> 💡 **Practice Pause 1 (MiniLog Topic, CRC32 Partitioning & Log Compaction):**
+> 1. Open `labs/mod-3-2/minilog.py` in your text editor. Do not execute this file directly in terminal without pytest.
+> 2. Implement class `Topic`: methods `__init__`, `partition_for(key)` using `zlib.crc32(str(key).encode()) % partitions` (or round-robin if key is `None`), `produce(key, value)`, `end_offsets()`, and `compact()`.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-2/test_minilog.py -k "TestProducing or TestCompaction" -v`
+> 4. **Success Indicator:** All 7 tests report `PASSED`, verifying sequential per-partition offsets, deterministic key-to-partition affinity, and proper compaction with tombstone deletion.
+
 ## @lesson Inside the cluster: leaders, in-sync replicas and surviving a broker failure
 "Replication factor 3" is easy to say. What actually happens when a broker dies? We ran a real three-broker Apache Kafka 4.0.0 cluster (KRaft mode, no ZooKeeper; `labs/mod-3-2/cluster/docker-compose.yml`) and broke it on purpose. First the topic:
 
@@ -102,6 +109,14 @@ The mainstream choice is **at-least-once with idempotent processing**: commit af
 **Lag** is how far behind a group is: for each partition, the end offset minus the committed offset. It is **the** key health metric of a streaming pipeline. Rising lag means consumers are slower than producers. Monitor it, alert on it, and know what normal looks like. Part B of the lab reads it from a real broker: a new group over 60 messages shows a lag of 60, and 0 after consuming.
 
 **Poison messages.** One record that your code cannot process (malformed, unexpected) must not block the partition forever, and must not be dropped silently. Catch the error, send the record (with the error and its coordinates) to a **dead-letter topic**, commit, and continue: the same quarantine pattern as Module 1.2.
+
+> 💡 **Practice Pause 2 (Consumer Groups, Range Assignment & Idempotent Commit):**
+> 1. Open `labs/mod-3-2/minilog.py` in your text editor.
+> 2. Implement `assign(partitions, members)` using contiguous range assignment.
+> 3. Implement class `Consumer`: `__init__` (resuming from committed offset), `poll(max_records)`, `commit()`, and `lag(group)` on `Topic`.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-2/test_minilog.py -k "TestConsuming or TestGroupsAndAssignment" -v`
+> 5. **Success Indicator:** All 8 tests report `PASSED`, confirming non-overlapping partition allocation, committed offset resumption, and idempotent recovery from mid-poll consumer crashes.
 
 ## @lesson Schemas, serialisation and Kafka Connect
 Records are bytes; you choose the format. **JSON** is easy to read and debug but verbose and with no enforced structure. **Avro** and **Protobuf** are compact, typed and designed for evolution. With them you normally run a **schema registry**: a service that stores schemas, gives each a numeric id embedded in the message, and enforces **compatibility rules** when a schema changes (backward: new readers can read old data; forward: old readers can read new data; full: both). This is the streaming counterpart of the data contracts of Module 2.5: a producer cannot publish an incompatible change without being told.
@@ -183,6 +198,14 @@ Other practices: keep the **raw event log** (a bronze layer) so you can rebuild 
 
 **When not to stream.** Streaming adds moving parts, state and operational burden. If a decision can wait an hour, a batch job is simpler and cheaper (Module 0.1). Use streaming for genuinely time-sensitive uses, for many consumers of the same data, or for replicating databases with deletes and low latency.
 
+> 💡 **Practice Pause 3 (Idempotent CDC State Replication & Tombstones):**
+> 1. Open `labs/mod-3-2/cdc.py` in your text editor.
+> 2. Implement `to_events(changes, pk)` converting PostgreSQL WAL mutations into standard Debezium event envelopes.
+> 3. Implement `apply_events(state, events)` tracking `(lsn, seq)` positions per primary key to discard duplicates and out-of-order replays, plus `materialize(state, table)`.
+> 4. Run the tests in terminal (when PostgreSQL dependencies are present):
+>    `pytest labs/mod-3-2/test_cdc.py -v`
+> 5. **Success Indicator:** All CDC tests report `PASSED` (or skip gracefully if local database services are inactive), verifying idempotent state synchronization and tombstone safety.
+
 ## @lab Lab: a mini Kafka, a real broker, and CDC from real WAL
 Three parts, each testable. A: build a miniature Kafka to master the semantics. B: use a real broker (producer with idempotence, a consumer with manual commit, lag). C: consume PostgreSQL's actual replication stream into a replica that is correct under replay and reordering.
 
@@ -194,6 +217,14 @@ python -m pip install -r labs/mod-3-2/requirements.txt
 ```
 
 2. **Part A: the mini log.** Open `labs/mod-3-2/minilog.py` and implement `Topic` (partitions, produce, end offsets, lag, compaction), `assign` (range assignment) and `Consumer` (resume from committed offsets, poll, commit). Run `pytest labs/mod-3-2/test_minilog.py -v`. Pay attention to the at-least-once test: a crash before commit duplicates records, and the idempotent test fixes it.
+
+> 💡 **Practice Pause 4 (Full MiniLog Verification):**
+> 1. In terminal, run the complete test suite for Part A:
+>    `pytest labs/mod-3-2/test_minilog.py -v`
+> 2. Verify against the reference solution:
+>    `LAB_DIR=reference pytest labs/mod-3-2/test_minilog.py -v`
+> 3. **Success Indicator:** All 15 tests in `test_minilog.py` report `PASSED` in < 0.1s in pure Python with zero external servers.
+
 3. **Part B: a real broker.** Start Kafka or Redpanda. With Docker, from the course repository: `docker compose up -d redpanda` (external listener `localhost:19092`). Implement the five functions in `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, `group_lag`) and run:
 
 ```bash
@@ -225,6 +256,13 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
 ```
 
    Before you kill the broker, **predict** the new `Leader` and `Isr` of each partition, then compare. Next create a topic with `--config min.insync.replicas=3`, kill a broker, and produce with `kafka-console-producer.sh ... --producer-property acks=all`; explain the `NOT_ENOUGH_REPLICAS` you get. For the schema registry, `docker compose up -d redpanda` also exposes it on `localhost:8081`: register an Avro schema with `POST /subjects/orders-value/versions`, then check an incompatible change against `POST /compatibility/subjects/orders-value/versions/latest` and see the answer change when you set `FORWARD` or `FULL` with `PUT /config/orders-value`. (These parts were run by hand against Apache Kafka 4.0.0 and Redpanda; they are not covered by automated tests.)
+
+> 💡 **Practice Pause 5 (Full Broker & CDC Verification):**
+> 1. Run the real broker tests (optional, when Redpanda container is running):
+>    `KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v`
+> 2. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-3-2`
+> 3. **Success Indicator:** All active tests report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-2/minilog.py :: Part A working file: the mini Kafka :: starter

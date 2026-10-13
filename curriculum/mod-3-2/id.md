@@ -52,6 +52,13 @@ Jaminan urutan adalah konsep yang paling sering disalahpahami. Kafka menjamin ke
 
 Pada Bagian A lab praktikum modul ini, Anda akan membangun konsep-konsep ini dari nol ke dalam implementasi mini Kafka in-memory, sehingga Anda menguasai aturan internalnya secara mendalam: pemetaan key-to-partition yang deterministik, pelacakan offset per partisi, perhitungan lag, algoritma range assignment, serta mekanisme log compaction lengkap dengan penanganan tombstone.
 
+> 💡 **Jeda Praktik 1 (MiniLog Topic, Partisi CRC32 & Log Compaction):**
+> 1. Buka file `labs/mod-3-2/minilog.py` di teks editor Anda. Jangan eksekusi file ini langsung di terminal tanpa pytest.
+> 2. Implementasikan class `Topic`: method `__init__`, `partition_for(key)` menggunakan `zlib.crc32(str(key).encode()) % partitions` (atau round-robin jika key `None`), `produce(key, value)`, `end_offsets()`, dan `compact()`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-2/test_minilog.py -k "TestProducing or TestCompaction" -v`
+> 4. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, membuktikan bahwa offset berurutan per partisi, kunci yang sama selalu ke partisi yang sama, dan compaction mempertahankan nilai terbaru serta menghapus tombstone.
+
 ## @lesson Di dalam cluster: leader, in-sync replica, dan bertahan dari kegagalan broker
 "Replication factor 3" mudah diucapkan. Apa yang sebenarnya terjadi ketika sebuah broker mati? Kami menjalankan cluster Apache Kafka 4.0.0 tiga broker sungguhan (mode KRaft, tanpa ZooKeeper; `labs/mod-3-2/cluster/docker-compose.yml`) dan sengaja merusaknya. Pertama topiknya:
 
@@ -102,6 +109,14 @@ Pilihan standar industri enterprise adalah **at-least-once dengan pemrosesan ide
 **Consumer Lag** adalah selisih antara offset data paling akhir yang ada di partisi broker dengan offset terakhir yang telah di-commit oleh consumer group. Lag adalah **metrik kesehatan paling vital** dalam ekosistem streaming. Lag yang terus merangkak naik menandakan bahwa consumer Anda kewalahan dan kalah cepat dibandingkan laju kedatangan data dari producer. Pantau metrik lag ini dan siapkan alarm peringatan. Bagian B lab membacanya dari broker sungguhan: consumer group baru di atas 60 pesan menunjukkan lag 60, dan 0 setelah semua pesan dikonsumsi.
 
 **Pesan Beracun (Poison Messages).** Sebuah rekaman data yang cacat atau berformat korup tidak boleh menghentikan pemrosesan seluruh partisi selamanya, dan tidak boleh dibuang diam-diam tanpa jejak. Tangkap error tersebut, kirimkan pesan cacat beserta konteks error dan koordinat partisinya ke sebuah **Dead-Letter Topic (DLQ)**, lakukan commit offset pada partisi utama, dan lanjutkan pembacaan: ini adalah pola karantina yang konsisten dengan Modul 1.2 dan 2.5.
+
+> 💡 **Jeda Praktik 2 (Consumer Groups, Range Assignment & Idempoten Commit):**
+> 1. Buka file `labs/mod-3-2/minilog.py` di teks editor Anda.
+> 2. Implementasikan fungsi `assign(partitions, members)` dengan strategi range assignment berurutan.
+> 3. Implementasikan class `Consumer`: `__init__` (melanjutkan dari committed offset), `poll(max_records)`, `commit()`, serta method `lag(group)` pada `Topic`.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-2/test_minilog.py -k "TestConsuming or TestGroupsAndAssignment" -v`
+> 5. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi alokasi partisi tanpa tumpang tindih, pembacaan resume dari offset komit, dan penanganan crash sebelum komit dengan logika pemrosesan idempoten.
 
 ## @lesson Skema, serialisasi, dan Kafka Connect
 Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya ditentukan oleh aplikasi Anda. Format **JSON** sangat ramah manusia dan mudah di-debug, namun memakan bandwidth besar dan tidak memiliki penegakan skema yang kaku. Format biner seperti **Apache Avro** dan **Protocol Buffers (Protobuf)** jauh lebih ringkas, bertipe data ketat, dan dirancang untuk evolusi skema jangka panjang. Penggunaan Avro umumnya dipadukan dengan **Confluent Schema Registry**: sebuah layanan terpusat yang menyimpan versi skema data, menyematkan ID skema berukuran 4 byte pada setiap payload pesan, dan menegakkan **aturan kompatibilitas skema** saat skema diperbarui (Backward, Forward, atau Full Compatibility). Ini adalah wujud nyata dari konsep data contract (Modul 2.5) pada dunia streaming: producer tidak akan diizinkan mempublikasikan perubahan skema yang merusak aplikasi consumer downstream.
@@ -183,6 +198,14 @@ Praktik operasional terbaik: simpan seluruh aliran **raw event log** ke storage 
 
 **Kapan Sebaiknya TIDAK Menggunakan Streaming.** Sistem streaming menambah komponen infrastruktur bergerak, kompleksitas state, dan beban siaga on-call yang tinggi. Jika keputusan bisnis masih dapat ditoleransi dengan keterlambatan data satu jam, batch pipeline yang idempoten jauh lebih sederhana dan hemat biaya (Modul 0.1). Gunakan streaming hanya untuk kebutuhan yang benar-benar sensitif terhadap latensi detik, skenario data yang dibutuhkan oleh banyak consumer sekaligus, atau replikasi database berfrekuensi tinggi dengan operasi delete.
 
+> 💡 **Jeda Praktik 3 (Idempoten CDC State Replication & Tombstones):**
+> 1. Buka file `labs/mod-3-2/cdc.py` di teks editor Anda.
+> 2. Implementasikan fungsi `to_events(changes, pk)` untuk memetakan mutasi WAL PostgreSQL ke dalam format envelope event Debezium standar.
+> 3. Implementasikan `apply_events(state, events)` dengan pelacakan posisi `(lsn, seq)` per primary key untuk mengabaikan duplikasi dan event out-of-order, serta `materialize(state, table)`.
+> 4. Jalankan pengujian di terminal (jika dependensi PostgreSQL aktif):
+>    `pytest labs/mod-3-2/test_cdc.py -v`
+> 5. **Indikator Sukses:** Seluruh pengujian CDC lulus (atau dilewati secara anggun jika service database lokal belum aktif), mengonfirmasi replikasi state yang idempoten dan bebas bug kebangkitan baris yang telah dihapus.
+
 ## @lab Lab: mini Kafka, broker Kafka nyata, dan CDC dari WAL PostgreSQL nyata
 Lab ini terbagi ke dalam tiga tingkatan yang dapat diuji secara terpisah: Bagian A membangun implementasi mini Kafka in-memory untuk menguasai semantik dasar commit log. Bagian B berinteraksi langsung dengan broker Kafka/Redpanda nyata (producer dengan idempotensi, consumer dengan manual offset commit, serta kalkulasi metrik lag). Bagian C mendecode aliran replikasi biner PostgreSQL nyata dan mengonsumsi event CDC ke dalam tabel replika yang idempoten terhadap replay dan pengacakan urutan event.
 
@@ -194,6 +217,14 @@ python -m pip install -r labs/mod-3-2/requirements.txt
 ```
 
 2. **Bagian A: Mini Commit Log.** Buka `labs/mod-3-2/minilog.py` dan implementasikan kelas `Topic` (manajemen partisi, operasi produce, pelacakan end offset, perhitungan lag, dan log compaction), fungsi `assign` (algoritma alokasi partisi range assignment), serta kelas `Consumer` (resume dari offset yang di-commit, operasi poll, dan commit). Jalankan pengujian otomatis via `pytest labs/mod-3-2/test_minilog.py -v`. Perhatikan pengujian skenario at-least-once di mana crash sebelum commit menghasilkan rekaman duplikat, dan bagaimana pengujian idempoten menangani anomali tersebut dengan sempurna.
+
+> 💡 **Jeda Praktik 4 (Verifikasi Menyeluruh MiniLog):**
+> 1. Di terminal, jalankan seluruh rangkaian uji Bagian A:
+>    `pytest labs/mod-3-2/test_minilog.py -v`
+> 2. Uji kesesuaian terhadap solusi referensi:
+>    `LAB_DIR=reference pytest labs/mod-3-2/test_minilog.py -v`
+> 3. **Indikator Sukses:** Seluruh 15 pengujian di `test_minilog.py` berstatus `PASSED` dalam < 0.1 detik murni Python tanpa server eksternal apa pun.
+
 3. **Bagian B: Broker Kafka Riil.** Jalankan klaster Kafka atau Redpanda. Menggunakan Docker dari repositori course: jalankan perintah `docker compose up -d redpanda` (port eksternal `localhost:19092`). Implementasikan lima fungsi di `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, dan `group_lag`), lalu jalankan pengujian:
 
 ```bash
@@ -225,6 +256,13 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
 ```
 
    Sebelum mematikan broker, **prediksikan** `Leader` dan `Isr` baru tiap partisi, lalu bandingkan. Berikutnya buat topik dengan `--config min.insync.replicas=3`, matikan satu broker, dan produksi dengan `kafka-console-producer.sh ... --producer-property acks=all`; jelaskan `NOT_ENOUGH_REPLICAS` yang Anda dapat. Untuk schema registry, `docker compose up -d redpanda` juga membukanya di `localhost:8081`: daftarkan skema Avro dengan `POST /subjects/orders-value/versions`, lalu periksa perubahan yang tidak kompatibel lewat `POST /compatibility/subjects/orders-value/versions/latest` dan lihat jawabannya berubah ketika Anda mengatur `FORWARD` atau `FULL` dengan `PUT /config/orders-value`. (Bagian-bagian ini dijalankan manual terhadap Apache Kafka 4.0.0 dan Redpanda; tidak tercakup tes otomatis.)
+
+> 💡 **Jeda Praktik 5 (Verifikasi Penuh Broker & CDC):**
+> 1. Jalankan pengujian broker Kafka nyata (opsional, jika container Redpanda menyala):
+>    `KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v`
+> 2. Hasilkan token bukti verifikasi:
+>    `python3 scripts/prove.py mod-3-2`
+> 3. **Indikator Sukses:** Seluruh pengujian aktif berstatus `PASSED` dan token bukti kelulusan dicetak ke terminal.
 
 ### @files
 - labs/mod-3-2/minilog.py :: File kerja Bagian A: implementasi mini Kafka in-memory :: starter
