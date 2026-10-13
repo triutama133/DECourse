@@ -46,7 +46,7 @@ A last principle: the source is **not under your control**. It may be slow, chan
 >
 > Then pick the hardest of the five promises (complete, repeat-safe, raw first, observable, polite) for each case, and say why in one sentence.
 >
-> *Compare when you are done:* 1 is a file you pull (full, or incremental if the file only holds new rows); 2 is an event pushed to you (incremental by nature); 3 is a database you pull incrementally; 4 is an event stream: the app pushes into the log and your consumer pulls from it.
+> *Compare when you are done:* 1 is a file you pull (full, or incremental if the file only holds new rows); 2 is an event pushed to you (incremental by nature); 3 is a database you pull incrementally; 4 is an event stream: the app pushes into the log and your consumer pulls from it. This one has no checker: the answers above are the check.
 
 ## @lesson HTTP APIs in ten minutes
 
@@ -92,6 +92,8 @@ You can do all of this with Python's standard library (`urllib.request`), as the
 > 3. In `try_http.py`, with only `urllib` from the standard library, GET the same URL with the header and print the status code and the list of order ids. Then call it without the header, catch the error and print its code.
 >
 > **You should see:** `401` for step 1, then `HTTP/1.0 200 OK`, `application/json` and `"next_cursor": "3"` for step 2, and from your script `200 [1, 2, 3]` followed by `401`.
+>
+> **Check it:** keep the scripts of these exercises in one folder, for example `~/practice`, and run `python3 labs/tryit/check.py 1.6-2 ~/practice`. The checker starts its own copy of the practice API, so stop yours (Ctrl+C) first.
 
 ## @lesson Reading all the data: pagination, rate limits and retries
 
@@ -127,6 +129,8 @@ In the lab you test all this against a **real HTTP server running on your comput
 > 3. *Rate limits.* Call `/limited` from `limited.py`. On a 429, print the status and the `Retry-After` value, sleep exactly that long, call again and print the new status.
 >
 > **You should see:** page 1 has ids 25 down to 16, and page 2 repeats 18, 17 and 16; the cursor script prints `28 28`; the rate-limit script prints `429 2.0` and then `200`.
+>
+> **Check it:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (it needs `cursor_all.py` and `limited.py`; stop your own practice API first). It also tries your `limited.py` against a server that asks for a different wait, so read the header instead of hard-coding the number.
 
 ## @lesson Incremental loads and checkpoints
 
@@ -167,6 +171,8 @@ The checkpoint is itself state. Store it somewhere durable that survives the mac
 > 3. Now break it on purpose: delete `out.jsonl` and `checkpoint.json`, reset the API, and swap the order (save the checkpoint **first**, sleep, then write the page). Interrupt during the sleep, run it to the end, and run the check from step 2 again.
 >
 > **You should see:** in step 1 more lines than the checkpoint implies (the page in flight was written but not yet checkpointed); `25 25` in step 2; in step 3 fewer than 25 rows, and the missing ids form one page of five. That page is lost forever, which is exactly why the checkpoint is saved last.
+>
+> **Check it:** `python3 labs/tryit/check.py 1.6-4 ~/practice` checks the version of `load.py` from steps 1 and 2 (checkpoint saved last). It interrupts your script itself, as Ctrl+C would, and starts it again.
 
 ## @lesson Landing and shaping raw data
 
@@ -200,9 +206,11 @@ Good landing habits:
 >    `assert flat["customer_id"] == 7`
 >    `assert flat["items"] == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]'`
 >    `assert "customer" not in flat`
-> 2. Make a copy of `flat` in which `total_idr` is the text `"Rp 1.000"`. Write a small function that compares the field types of two records and prints every field whose type changed.
+> 2. Make a copy of `flat` in which `total_idr` is the text `"Rp 1.000"`. In `flat.py` also write `type_changes(old, new)`: it returns a list with one text, such as `total_idr: int -> str`, for every field that exists in both records and whose type changed (an empty list when nothing changed). Print its result for `flat` and your copy.
 >
-> **You should see:** no assertion error, and for step 2 one line: `total_idr: int -> str`. That is schema drift, found in four lines of code.
+> **You should see:** no assertion error, and for step 2 `['total_idr: int -> str']`. That is schema drift, found in four lines of code.
+>
+> **Check it:** `python3 labs/tryit/check.py 1.6-5 ~/practice` tries `flat.py` on other records too.
 
 ## @lesson Files, databases, and running it for real
 
@@ -234,12 +242,14 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 > `pytest labs/mod-1-6/test_lab.py -v`
 > When all 37 tests show PASSED, your ingestion pipeline is enterprise ready!
 
-> 🛠 **Try it (10 min, hands on).** Generate the KopiKu files (`python3 labs/shared/shopgen.py --out data`) and treat `data/orders.csv` as a delivery from a partner.
+> 🛠 **Try it (10 min, hands on).** Generate the KopiKu files (`python3 labs/shared/shopgen.py --out data`) and treat `data/orders.csv` as a delivery from a partner. Write all three steps in one script, `load_orders.py`.
 > 1. With the `csv` module count the rows and the distinct `order_id` values. Compare with `orders_rows`, `orders_distinct` and `orders_duplicate_rows` in `data/manifest.json`.
 > 2. Load the file into a SQLite table whose primary key is `order_id` (use `INSERT OR REPLACE`), and print the row count.
 > 3. Run the load a second time in the same script and print the row count again.
 >
 > **You should see:** `3634 3599` in step 1 (35 duplicate rows, as the manifest says), then `3599` and `3599` in steps 2 and 3. Also compare with `wc -l data/orders.csv`: it shows 3635, because of the header line. Counting rows at every hop is the cheapest way to prove nothing was lost.
+>
+> **Check it:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (your script reads `data/orders.csv` relative to the folder it runs in).
 
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
@@ -263,6 +273,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # one group a
 - labs/mod-1-6/ingest_lab.py :: Your working file: implement the TODO functions and the Checkpoint class :: starter
 - labs/mod-1-6/test_lab.py :: The 37 tests, including the fake HTTP API :: test
 - labs/mod-1-6/fakeapi.py :: A small practice API for the Try it exercises (run it in a second terminal) :: config
+- labs/tryit/check.py :: Checks your Try it exercises, for example: python3 labs/tryit/check.py 1.6-3 ~/practice :: config
 - labs/mod-1-6/requirements.txt :: pytest :: config
 - labs/mod-1-6/reference/ingest_lab.py :: One possible solution (try first!) :: reference
 

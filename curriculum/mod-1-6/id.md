@@ -202,6 +202,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # satu kelomp
 - labs/mod-1-6/ingest_lab.py :: File kerja Anda: implementasikan fungsi TODO dan class Checkpoint :: starter
 - labs/mod-1-6/test_lab.py :: Ke-37 tes, termasuk API HTTP palsunya :: test
 - labs/mod-1-6/fakeapi.py :: API latihan kecil untuk latihan Try it (jalankan di terminal kedua) :: config
+- labs/tryit/check.py :: Pemeriksa latihan Try it, misalnya: python3 labs/tryit/check.py 1.6-3 ~/practice :: config
 - labs/mod-1-6/requirements.txt :: pytest :: config
 - labs/mod-1-6/reference/ingest_lab.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference
 
