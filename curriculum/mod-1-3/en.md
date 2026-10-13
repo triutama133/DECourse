@@ -53,6 +53,17 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 
 Pick by the question: "the top 3 *orders*" is ROW_NUMBER; "the orders with the three highest *distinct totals*" is DENSE_RANK.
 
+> 💡 **Practice Pause 1 (Window Ranking & Partition Share):**
+> Time to try ranking window functions and non-collapsing aggregations:
+> 1. Open `labs/mod-1-3/answers.sql` in your text editor (or open the SQL Sandbox in your web browser!).
+> 2. Solve the following 3 challenges under their markers:
+>    - `w-4`: Compute each order's percentage share of that customer's total (`SUM(order_total) OVER (PARTITION BY customer_id)` without ORDER BY).
+>    - `w-5`: Rank orders by largest `order_total` without skipping numbers on ties (`DENSE_RANK() OVER (ORDER BY order_total DESC)`).
+>    - `w-7`: Split all orders into 4 equal quartiles (`NTILE(4) OVER (ORDER BY order_total, order_id)`).
+> 3. Test in the terminal:
+> `python3 labs/mod-1-3/check.py`
+> When w-4, w-5, and w-7 show PASS, proceed to Lesson 2 to understand frames and running totals!
+
 ## @lesson Frames, running totals and the default-frame trap
 For aggregates used as window functions (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`), the **frame** says which rows are included. The forms:
 
@@ -80,6 +91,15 @@ With the default frame, the three tied rows all show 255,000 because each includ
 
 Aggregates over a partition **without** ORDER BY use the whole partition (a total on every row), which is what the share-of-total example used.
 
+> 💡 **Practice Pause 2 (Frames & Moving Averages):**
+> Master row frame specifications for cumulative sums and rolling averages:
+> 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve 2 frame challenges:
+>    - `w-1`: Running total of customer spend ordered by date (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id)`).
+>    - `w-6`: 7-day moving average per store (`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`).
+> 2. Test in the terminal:
+> `python3 labs/mod-1-3/check.py`
+> When w-1 and w-6 show PASS, proceed to Lesson 3 to inspect neighboring rows with LAG/LEAD!
+
 ## @lesson Looking sideways: LAG, LEAD, latest-per-key and top-N
 `LAG(x, n)` returns the value from `n` rows earlier in the partition, `LEAD(x, n)` from `n` rows later; both return NULL at the edges (or a default you supply). They answer "compared with the previous row":
 
@@ -104,6 +124,15 @@ SELECT * FROM ranked WHERE rn = 1;
 ```
 
 You cannot put a window function directly in `WHERE`, because windows are computed *after* WHERE, so you compute it in a CTE or subquery and filter outside. Snowflake, BigQuery and DuckDB offer `QUALIFY` as a shortcut (`... QUALIFY ROW_NUMBER() OVER (...) = 1`); PostgreSQL and SQLite do not, so know the portable form. The same pattern with `rn <= 3` gives **top-N per group**, and ordering by an update timestamp makes it the standard **de-duplication** step in pipelines. Make the ORDER BY unique (add a tiebreaker like the id) or the surviving row is arbitrary.
+
+> 💡 **Practice Pause 3 (Looking Sideways & De-duplication):**
+> Retrieve the latest records and measure gaps between events:
+> 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve the following challenges:
+>    - `w-2`: Select each customer's latest order using `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC)` filtered to rank 1 in a CTE.
+>    - `w-3`: Compute the day gap since the customer's previous order using `LAG(order_date)` and `julianday` subtraction.
+> 2. Test in the terminal:
+> `python3 labs/mod-1-3/check.py`
+> When w-2 and w-3 show PASS, you have mastered core data engineering de-duplication! Proceed to Lesson 4 on gaps & islands.
 
 ## @lesson Gaps, islands and sessions
 Two classic problems show how window functions combine.
@@ -140,6 +169,15 @@ FROM flagged;
 
 The shape is always the same: **flag the boundary, then cumulative-sum the flags to get a group id.** It reappears in event processing (Module 3.3) and in slowly changing dimensions (Module 1.4).
 
+> 💡 **Practice Pause 4 (Gaps, Islands, & Sessionization):**
+> Combine window functions to solve advanced analytical patterns:
+> 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve the island and session challenges:
+>    - `ch-3`: Find the longest consecutive login streak using the island constant `julianday(login_date) - ROW_NUMBER()`.
+>    - `ch-4`: Sessionize web clickstream data by flagging gaps > 30 mins with `LAG` and accumulating session IDs with `SUM()`.
+> 2. Test in the terminal:
+> `python3 labs/mod-1-3/check.py`
+> When ch-3 and ch-4 show PASS, proceed to Lesson 5 to traverse hierarchies with recursive CTEs!
+
 ## @lesson Recursive CTEs: hierarchies and sequences
 Some data is a tree or a graph: a category tree, an org chart, a bill of materials. The depth is unknown, so a fixed number of self-joins cannot walk it. A **recursive CTE** can:
 
@@ -168,6 +206,14 @@ SELECT d FROM days;
 ```
 
 (PostgreSQL has `generate_series` for this; recursion is the portable fallback.)
+
+> 💡 **Practice Pause 5 (Recursive CTE Hierarchy Tree - Part A Complete):**
+> Traverse nested relations of arbitrary depth:
+> 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve the final Part A challenge:
+>    - `w-8`: Construct the KopiKu category tree with `WITH RECURSIVE`: anchor at roots (`parent_id IS NULL`), join children iteratively, increment `depth`, and concatenate the breadcrumb `path`.
+> 2. Verify all of Part A in the terminal:
+> `python3 labs/mod-1-3/check.py`
+> When you see `10/10 answers correct`, Part A of this lab is 100% complete! Proceed to Lessons 6 & 7 to dissect database query plans and indexing.
 
 ## @lesson How the database runs your query: reading EXPLAIN
 SQL says *what* you want; the database's **planner** decides *how*: which indexes to use, in what order to join, which algorithm to use. It estimates the cost of alternatives from **statistics** (row counts and value distributions per column, refreshed by `ANALYZE`) and picks the cheapest. Your job is to check that its choice is sensible. `EXPLAIN` shows the plan; `EXPLAIN ANALYZE` also **runs** the query and adds actual times and row counts (so wrap writes in a transaction you roll back). In PostgreSQL the useful form is `EXPLAIN (ANALYZE, BUFFERS)`.
@@ -225,6 +271,14 @@ An **index** is a separate sorted structure that maps column values to row locat
 **The cost side.** Every index must be updated on every INSERT, UPDATE and DELETE, takes disk space (the `(customer_id, event_time)` index was 15 MB on a 33 MB table) and slows bulk loads. So the goal is the **fewest** indexes that make your real queries fast. The lab enforces it: at most three, and every one must be used. Columnar warehouses and lakehouses (Module 2.1 onward) mostly replace indexes with sorting, partitioning and statistics; the thinking carries over.
 
 Finally, a few query habits that avoid problems before indexes are needed: select only the columns you need (not `*`), filter early, avoid `DISTINCT` as a band-aid for an accidental join fan-out (fix the join), prefer `EXISTS` to `IN (subquery)` for existence tests, be careful with `OR` across different columns, and avoid running a query per row from application code (the "N+1" pattern): one set-based query beats a thousand small ones.
+
+> 💡 **Practice Pause 6 (Query Tuning & PostgreSQL Index Optimization - Part B):**
+> Apply the art of index tuning to a 500,000-row PostgreSQL table:
+> 1. Open `labs/mod-1-3/explain/indexes.sql` and `labs/mod-1-3/explain/queries.sql` in your text editor.
+> 2. Define at most 3 indexes in `indexes.sql` to eliminate all Sequential Scans and remove the Sort step on Q3. Rewrite Q4 in `queries.sql` to be sargable (using date range filters instead of the `date()` function).
+> 3. Run the plan verification in your terminal:
+> `.venv/bin/pytest labs/mod-1-3/explain -v`
+> When all Part B tests are GREEN (PASSED), you have mastered database query plan optimization at a professional level! Proceed to Lesson 8 to explore SQL dialect nuances.
 
 ## @lesson One question, many dialects: SQLite, PostgreSQL, DuckDB and the warehouses
 SQL is a standard, but every engine speaks its own dialect, and in data engineering you will meet several: SQLite in the sandbox, PostgreSQL in application databases, DuckDB on a laptop, BigQuery or Snowflake in the warehouse (Module 2.6), Spark SQL in the lakehouse. The standard defines a core (SELECT, joins, GROUP BY, window functions, CTEs), and each engine adds functions, types and rules around it. Differences come in two kinds, and the second kind is the dangerous one.

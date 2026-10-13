@@ -53,6 +53,17 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 
 Pilih sesuai pertanyaan: "3 *pesanan* teratas" adalah ROW_NUMBER; "pesanan dengan tiga *total berbeda* tertinggi" adalah DENSE_RANK.
 
+> 💡 **Jeda Praktik 1 (Peringkat Window & Pembagian Partisi):**
+> Saatnya mencoba window function ranking dan agregasi tanpa GROUP BY:
+> 1. Buka file `labs/mod-1-3/answers.sql` di Text Editor Anda (atau buka SQL Sandbox di web browser!).
+> 2. Kerjakan 3 tantangan berikut di bawah penandanya:
+>    - `w-4`: Hitung persentase pesanan terhadap total pesanan pelanggan (`SUM(order_total) OVER (PARTITION BY customer_id)` tanpa ORDER BY).
+>    - `w-5`: Beri peringkat pesanan berdasarkan `order_total` terbesar tanpa ada angka lompat saat seri (`DENSE_RANK() OVER (ORDER BY order_total DESC)`).
+>    - `w-7`: Bagi seluruh pesanan menjadi 4 kuartil seimbang (`NTILE(4) OVER (ORDER BY order_total, order_id)`).
+> 3. Uji di terminal:
+> `python3 labs/mod-1-3/check.py`
+> Ketika w-4, w-5, dan w-7 berstatus PASS, lanjut ke Pelajaran 2 untuk memahami frame dan running total!
+
 ## @lesson Frame, total berjalan, dan jebakan frame bawaan
 Untuk agregat yang dipakai sebagai window function (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`), **frame** menyatakan baris mana yang disertakan. Bentuknya:
 
@@ -80,6 +91,15 @@ Dengan frame bawaan, tiga baris kembar semuanya menampilkan 255.000 karena masin
 
 Agregat atas partisi **tanpa** ORDER BY memakai seluruh partisi (total pada setiap baris), yang dipakai contoh porsi-terhadap-total tadi.
 
+> 💡 **Jeda Praktik 2 (Frame & Moving Average):**
+> Kuasai spesifikasi frame baris untuk akumulasi dan rata-rata berjalan:
+> 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), kerjakan 2 tantangan frame:
+>    - `w-1`: Akumulasi total belanja pelanggan (running total) dari waktu ke waktu (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id)`).
+>    - `w-6`: Rata-rata bergerak 7 hari per toko (`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`).
+> 2. Uji di terminal:
+> `python3 labs/mod-1-3/check.py`
+> Ketika w-1 dan w-6 PASS, lanjut ke Pelajaran 3 untuk melihat data tetangga dengan LAG/LEAD!
+
 ## @lesson Melihat ke samping: LAG, LEAD, terbaru-per-kunci, dan top-N
 `LAG(x, n)` mengembalikan nilai dari `n` baris sebelumnya dalam partisi, `LEAD(x, n)` dari `n` baris sesudahnya; keduanya mengembalikan NULL di tepi (atau nilai bawaan yang Anda berikan). Keduanya menjawab "dibanding baris sebelumnya":
 
@@ -104,6 +124,15 @@ SELECT * FROM ranked WHERE rn = 1;
 ```
 
 Anda tidak bisa menaruh window function langsung di `WHERE`, karena window dihitung *setelah* WHERE, jadi hitung di CTE atau subquery dan filter di luarnya. Snowflake, BigQuery, dan DuckDB menyediakan `QUALIFY` sebagai jalan pintas (`... QUALIFY ROW_NUMBER() OVER (...) = 1`); PostgreSQL dan SQLite tidak, jadi ketahui bentuk portabelnya. Pola yang sama dengan `rn <= 3` menghasilkan **top-N per kelompok**, dan mengurutkan menurut stempel waktu update menjadikannya langkah **deduplikasi** standar di pipeline. Buat ORDER BY unik (tambah pemutus seri seperti id) atau baris yang bertahan akan acak.
+
+> 💡 **Jeda Praktik 3 (Melihat Baris Lain & Deduplikasi):**
+> Ambil baris terbaru dan bandingkan jarak antar-event:
+> 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), kerjakan tantangan berikut:
+>    - `w-2`: Ambil pesanan paling baru per pelanggan menggunakan `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC)` lalu filter rank 1 di CTE.
+>    - `w-3`: Hitung jeda hari sejak pesanan sebelumnya menggunakan `LAG(order_date)` dan selisih `julianday`.
+> 2. Uji di terminal:
+> `python3 labs/mod-1-3/check.py`
+> Ketika w-2 dan w-3 PASS, Anda telah menguasai pola deduplikasi inti data engineering! Lanjut ke Pelajaran 4 tentang gaps & islands.
 
 ## @lesson Gaps, islands, dan sesi
 Dua masalah klasik menunjukkan bagaimana window function digabungkan.
@@ -140,6 +169,15 @@ FROM flagged;
 
 Bentuknya selalu sama: **tandai batasnya, lalu jumlahkan kumulatif tanda itu untuk mendapat id kelompok.** Ia muncul lagi dalam pemrosesan event (Modul 3.3) dan dalam slowly changing dimension (Modul 1.4).
 
+> 💡 **Jeda Praktik 4 (Gaps, Islands, & Sessionization):**
+> Gabungkan window function untuk memecahkan pola analitik tingkat lanjut:
+> 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), selesaikan tantangan pulau dan sesi:
+>    - `ch-3`: Cari rekor streak hari login terpanjang menggunakan trik pulau `julianday(login_date) - ROW_NUMBER()`.
+>    - `ch-4`: Analisis sesi klik web (sessionization) dengan menandai jarak > 30 menit lewat `LAG` lalu akumulasikan session ID dengan `SUM()`.
+> 2. Uji di terminal:
+> `python3 labs/mod-1-3/check.py`
+> Ketika ch-3 dan ch-4 PASS, lanjut ke Pelajaran 5 untuk menelusuri hierarki dengan CTE rekursif!
+
 ## @lesson CTE rekursif: hierarki dan urutan
 Sebagian data berupa pohon atau graf: pohon kategori, bagan organisasi, bill of materials. Kedalamannya tidak diketahui, sehingga self-join dalam jumlah tetap tidak bisa menelusurinya. **CTE rekursif** bisa:
 
@@ -168,6 +206,14 @@ SELECT d FROM days;
 ```
 
 (PostgreSQL punya `generate_series` untuk ini; rekursi adalah cadangan yang portabel.)
+
+> 💡 **Jeda Praktik 5 (CTE Rekursif Pohon Hierarki - Bagian A Tuntas):**
+> Telusuri relasi berjenjang tak terbatas tanpa batasan tingkat kedalaman:
+> 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), selesaikan tantangan terakhir Bagian A:
+>    - `w-8`: Bangun pohon kategori produk KopiKu dengan `WITH RECURSIVE`: tentukan anchor akar (`parent_id IS NULL`), sambungkan ke node turunan, hitung kedalaman `depth`, dan rangkai string `path`.
+> 2. Uji seluruh Bagian A di terminal:
+> `python3 labs/mod-1-3/check.py`
+> Ketika Anda melihat pesan `10/10 answers correct`, Bagian A lab ini 100% tuntas! Lanjut ke Pelajaran 6 & 7 untuk membedah query plan dan index database.
 
 ## @lesson Bagaimana database menjalankan query Anda: membaca EXPLAIN
 SQL menyatakan *apa* yang Anda mau; **planner** database memutuskan *bagaimana*: index mana yang dipakai, urutan join, algoritma apa. Ia memperkirakan biaya berbagai alternatif dari **statistik** (jumlah baris dan sebaran nilai per kolom, diperbarui oleh `ANALYZE`) lalu memilih yang termurah. Tugas Anda adalah memeriksa bahwa pilihannya masuk akal. `EXPLAIN` menampilkan plan; `EXPLAIN ANALYZE` juga **menjalankan** query dan menambahkan waktu serta jumlah baris aktual (jadi bungkus penulisan dalam transaksi yang Anda rollback). Di PostgreSQL bentuk yang berguna adalah `EXPLAIN (ANALYZE, BUFFERS)`.
@@ -225,6 +271,14 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 **Sisi biayanya.** Setiap index harus diperbarui pada setiap INSERT, UPDATE, dan DELETE, memakan ruang disk (index `(customer_id, event_time)` berukuran 15 MB pada tabel 33 MB) dan memperlambat bulk load. Jadi tujuannya adalah index **sesedikit mungkin** yang membuat query nyata Anda cepat. Lab menegakkannya: paling banyak tiga, dan masing-masing harus dipakai. Warehouse kolumnar dan lakehouse (Modul 2.1 dan seterusnya) sebagian besar menggantikan index dengan pengurutan, partisi, dan statistik; cara berpikirnya tetap berlaku.
 
 Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutuhkan: pilih hanya kolom yang Anda perlukan (bukan `*`), filter lebih awal, hindari `DISTINCT` sebagai tambalan untuk fan-out join yang tidak disengaja (perbaiki join-nya), pilih `EXISTS` daripada `IN (subquery)` untuk uji keberadaan, hati-hati dengan `OR` lintas kolom berbeda, dan hindari menjalankan query per baris dari kode aplikasi (pola "N+1"): satu query berbasis himpunan mengalahkan seribu query kecil.
+
+> 💡 **Jeda Praktik 6 (Tuning Query & Optimalisasi Index PostgreSQL - Bagian B):**
+> Terapkan seni tuning indeks pada PostgreSQL tabel 500.000 baris:
+> 1. Buka file `labs/mod-1-3/explain/indexes.sql` dan `labs/mod-1-3/explain/queries.sql` di text editor.
+> 2. Definisikan maksimal 3 indeks di `indexes.sql` untuk menghapus seluruh Sequential Scan dan meniadakan operasi Sort pada Q3. Tulis ulang Q4 di `queries.sql` agar sargable (gunakan rentang tanggal alih-alih fungsi `date()`).
+> 3. Jalankan pengujian plan di terminal:
+> `.venv/bin/pytest labs/mod-1-3/explain -v`
+> Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Pelajaran 8 untuk melihat ragam dialek SQL.
 
 ## @lesson Satu pertanyaan, banyak dialek: SQLite, PostgreSQL, DuckDB, dan warehouse
 SQL adalah standar, tetapi setiap engine berbicara dalam dialeknya sendiri, dan dalam data engineering Anda akan bertemu beberapa: SQLite di sandbox, PostgreSQL di database aplikasi, DuckDB di laptop, BigQuery atau Snowflake di warehouse (Modul 2.6), Spark SQL di lakehouse. Standar mendefinisikan inti (SELECT, join, GROUP BY, window function, CTE), dan setiap engine menambah fungsi, tipe, dan aturan di sekelilingnya. Perbedaan datang dalam dua jenis, dan jenis kedua adalah yang berbahaya.
