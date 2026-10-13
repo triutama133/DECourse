@@ -90,6 +90,13 @@ Dataset seed kita (`labs/mod-4-3/data/events_seed.jsonl`) berisi 1.000 event tel
 ```
 Karena perangkat seluler mengalami fluktuasi latensi jaringan (network jitter), **346 event dalam dataset ini tiba tidak berurutan** (di mana `event_time < previous_event_time`). Engine streaming Anda harus menata keteraturan data ini secara matematis.
 
+> 💡 **Jeda Praktik 1 (Langkah 1: Profiling Stream Mentah & Pembuatan profile.json):**
+> 1. Buat file `profile.json` di folder workspace Anda (`~/fleet/profile.json`) menggunakan teks editor.
+> 2. Hitung 7 metrik statistik dari file `events_seed.jsonl`: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, dan `busiest_zone_event_count`.
+> 3. Jalankan pemeriksaan langkah 1 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
+> 4. **Indikator Sukses:** Seluruh 7 metrik berstatus `PASS`, memvalidasi ekstraksi profiling event stream Anda cocok 100% dengan data acuan.
+
 ## @lesson Watermark, toleransi keterlambatan & mekanisme penggusuran window
 Jika kita mengelompokkan data berdasarkan event time, muncul dilema arsitektur kritis: **berapa lama engine streaming harus menunggu sebelum menyatakan sebuah window selesai dan memancarkan hasilnya?**
 Jika modem kendaraan baru terhubung kembali tiga hari kemudian, apakah kita harus membiarkan seluruh window masa lalu tetap terbuka di memori? Tentu tidak. Mempertahankan jutaan window terbuka di memori RAM akan memicu crash Out Of Memory (OOM).
@@ -124,6 +131,13 @@ Sangat penting membedakan **event yang out of order** dengan **event yang late (
 - **Out-of-order event:** Event yang memiliki `t_event < t_terbaru_dilihat`, namun window tempatnya berada masih berstatus terbuka (`t_end > W`). Event ini **valid dan diterima**; metriknya langsung diakumulasikan ke window yang bersangkutan.
 - **Late event:** Event yang window tujuannya sudah ditutup dan digusur dari memori (`t_end <= W`). Agregasi window tersebut sudah terlanjur dipancarkan ke konsumen hilir. Memasukkannya kembali akan merusak keabsahan laporan keuangan yang sudah terbit, sehingga event ini **ditolak dan dikarantina**.
 - **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
+
+> 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Tumbling Event-Time Window & Penyimpanan DuckDB):**
+> 1. Buka file `stream_processor.py` di workspace Anda (`~/fleet/stream_processor.py`) menggunakan teks editor.
+> 2. Implementasikan argumen CLI (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), kalkulasi tumbling window (`start = floor(ts / size) * size`), dan buat tabel `windowed_metrics` di DuckDB secara idempoten.
+> 3. Jalankan pemeriksaan langkah 2 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema DuckDB, pengelompokan tumbling window, dan pemancaran metrik agregasi.
 
 ## @lesson Consumer offset, checkpointing & idempotensi analitik
 Engine streaming beroperasi terus-menerus tanpa henti. Gangguan perangkat keras, restart kontainer, dan pembaruan sistem operasi adalah keniscayaan di lingkungan produksi. Engine yang tangguh harus mampu bertahan dari crash dengan semantik **exactly-once processing** di lapisan database.
@@ -197,6 +211,13 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 ```
 Saat pemancaran window, baris dimasukkan ke tabel sementara, baris lama di tabel utama yang memiliki kecocokan `(window_start, window_end, zone_id)` dihapus, dan metrik terbaru disisipkan secara bersih.
 
+> 💡 **Jeda Praktik 3 (Langkah 3: Watermark Monotonik & Karantina DLQ Late Data):**
+> 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
+> 2. Terapkan bounded watermark monotonik (`W = max(W, ts - delay)`), gusur dan pancarkan window saat `window_end <= W`, dan salurkan event terlambat ke `<output-dir>/dlq/late_events.jsonl` dengan `error_code: "LATE_EVENT"`.
+> 3. Jalankan pemeriksaan langkah 3 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, membuktikan penanganan event out-of-order berjalan benar dan event late dikarantina tanpa merusak metrik window.
+
 ## @lesson Tumbling vs. sliding window dan Dead-Letter Queue (DLQ)
 Arsitektur streaming real-time menggunakan beberapa pola windowing bergantung pada kebutuhan analitik bisnis.
 
@@ -246,6 +267,13 @@ Solusi standar industri adalah **Dead-Letter Queue (DLQ)**. Event yang terlambat
 ```
 Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu peringatan jika menara seluler tertentu mengalami keterlambatan paket parah, dan memproses ulang data tersebut di pipeline rekonsiliasi batch offline.
 
+> 💡 **Jeda Praktik 4 (Langkah 4: Checkpointing Consumer Offset & Crash Recovery):**
+> 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
+> 2. Simpan `last_offset` dan akumulator in-flight `open_windows` secara atomik (`.tmp` + `os.replace`), serta baca offset pada awal eksekusi untuk melewati event yang sudah terproses.
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa crash mendadak di tengah pemrosesan dapat dipulihkan tanpa duplikasi dan tanpa kehilangan event.
+
 ## @lab Lab: lima langkah membangun engine streaming produksi
 Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat pelajaran pertama) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.
 
@@ -257,6 +285,14 @@ Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara 
 5. **Langkah 4: Checkpointing consumer offset & pemulihan crash.** Simpan offset stream dan akumulator window terbuka secara atomik ke `--state-file` (`.tmp` + `os.replace`). Penguji akan menyimulasikan proses mati mendadak setelah 150 event, melanjutkan kembali dengan stream penuh, dan memastikan engine berhasil menyelesaikan tugas tanpa ada data ganda atau hilang. Uji dengan `--step 4`.
 6. **Langkah 5: Sliding window.** Tambahkan dukungan untuk argumen `--window-slide` (misalnya ukuran 300 detik dengan pergeseran 60 detik). Salurkan setiap event masuk ke seluruh bucket window tumpang-tindih yang aktif. Buktikan total perjalanan dan tarif teragregasi cocok dengan rasio perkalian teoritis (`(size / slide) * raw`). Uji dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Setelah opsi `--step all` berhasil lolos tanpa kegagalan, jalankan perintah `python3 scripts/prove.py mod-4-3 ~/fleet` untuk memperoleh kode verifikasi yang dapat dimasukkan ke aplikasi kursus.
+
+> 💡 **Jeda Praktik 5 (Langkah 5: Sliding Windows, Verifikasi Menyeluruh & Bukti Kelulusan):**
+> 1. Di `stream_processor.py`, tambahkan dukungan sliding window (`--window-slide`) dengan menyalurkan setiap event ke seluruh interval tumpang-tindih `[k * S, k * S + L)`.
+> 2. Jalankan pemeriksaan menyeluruh di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step all`
+> 3. Hasilkan kode bukti verifikasi Capstone:
+>    `python3 scripts/prove.py mod-4-3 ~/fleet`
+> 4. **Indikator Sukses:** Seluruh tahapan pengujian berstatus `PASS` dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-4-3/starter/stream_processor.py :: Template awal: salin ke ruang kerja Anda dan kembangkan engine streaming di sana :: starter

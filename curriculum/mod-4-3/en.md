@@ -90,6 +90,13 @@ Our seed stream (`labs/mod-4-3/data/events_seed.jsonl`) consists of 1,000 determ
 ```
 Because mobile devices experience variable network jitter, **346 events in this stream arrive out of order** (where `event_time < previous_event_time`). Your processor must restore order mathematically.
 
+> 💡 **Practice Pause 1 (Step 1: Raw Stream Profiling & profile.json Creation):**
+> 1. Create `profile.json` in your workspace folder (`~/fleet/profile.json`) using your text editor.
+> 2. Compute the 7 statistical metrics from `events_seed.jsonl`: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, and `busiest_zone_event_count`.
+> 3. Run the step 1 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
+> 4. **Success Indicator:** All 7 metrics report `PASS`, confirming your raw stream profiling matches reference truth.
+
 ## @lesson Watermarks, allowed lateness & window eviction mechanics
 If we aggregate by event time, a critical dilemma arises: **how long must the stream processor wait before declaring a window complete and emitting its metrics?**
 If a taxi's cellular modem reconnects three days late, can we keep all past windows open indefinitely? No. Keeping millions of historical windows open in memory would exhaust RAM (Out Of Memory crash).
@@ -124,6 +131,13 @@ It is crucial to distinguish **out-of-order events** from **late events**:
 - **Out-of-order event:** An event whose `t_event < t_newest_seen`, but whose candidate window has not closed yet (`t_end > W`). This event is **valid and welcomed**; it is folded into the open window accumulator.
 - **Late event:** An event whose candidate window has already been closed and evicted (`t_end <= W`). The window aggregate was already emitted and published to downstream consumers. The event cannot be included without rewriting published history, so it is **dropped and quarantined**.
 - **Sliding windows (a known limitation):** an event is dead-lettered only when *all* of its windows are closed. If some are closed and some still open, the event updates the open ones and the closed windows silently miss it. Real engines count such partial drops in a metric; keep that in mind when you compare sliding results with a batch recount.
+
+> 💡 **Practice Pause 2 (Step 2: Baseline Tumbling Event-Time Windows & DuckDB Storage):**
+> 1. Open `stream_processor.py` in your workspace (`~/fleet/stream_processor.py`) using your text editor.
+> 2. Implement CLI arguments (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), tumbling window calculation (`start = floor(ts / size) * size`), and create table `windowed_metrics` in DuckDB idempotently.
+> 3. Run the step 2 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
+> 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, tumbling window grouping, and aggregate metric emission.
 
 ## @lesson Consumer offsets, checkpointing & analytical idempotency
 Streaming engines run continuously for months. Hardware failures, operating system kernel updates, and container restarts are guaranteed occurrences. A robust engine must survive crashes with **exactly-once processing semantics** at the storage layer.
@@ -197,6 +211,13 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 ```
 During emission, rows are inserted into a temporary staging table, existing rows matching `(window_start, window_end, zone_id)` are deleted in DuckDB, and the latest aggregated metrics are inserted cleanly.
 
+> 💡 **Practice Pause 3 (Step 3: Monotonic Watermark & Late Data DLQ Quarantine):**
+> 1. Open `stream_processor.py` in your workspace using your text editor.
+> 2. Implement monotonic bounded watermark (`W = max(W, ts - delay)`), evict and emit windows when `window_end <= W`, and route late events to `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`.
+> 3. Run the step 3 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
+> 4. **Success Indicator:** All step 3 checks report `PASS`, proving out-of-order events are absorbed correctly and late events are quarantined cleanly.
+
 ## @lesson Tumbling vs. sliding windows and Dead-Letter Queue (DLQ)
 Real-time streaming architectures employ multiple windowing patterns depending on business requirements.
 
@@ -246,6 +267,13 @@ The production solution is a **Dead-Letter Queue (DLQ)**. The dropped event is a
 ```
 Site reliability engineers can monitor DLQ arrival rates, alert when cellular towers cause excessive packet lag, and replay quarantined records into batch reconciliation pipelines.
 
+> 💡 **Practice Pause 4 (Step 4: Consumer Offset Checkpointing & Crash Recovery):**
+> 1. Open `stream_processor.py` in your workspace using your text editor.
+> 2. Persist `last_offset` and in-flight `open_windows` accumulators atomically (`.tmp` + `os.replace`), and read the offset upon startup to skip previously committed events.
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming mid-stream crash recovery resumes without duplicate records or data loss.
+
 ## @lab Lab: five steps to a production streaming engine
 Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see the first lesson) and short streams it builds itself, with out-of-order and late events, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
 
@@ -257,6 +285,14 @@ Build `stream_processor.py` and `profile.json` in your own workspace, one step a
 5. **Step 4: Consumer offset checkpointing & recovery.** Save stream offsets and open window accumulators atomically to `--state-file` (`.tmp` + `os.replace`). The checker simulates a process crash after 150 events, resumes with the full stream, and verifies that the engine completes without duplicating or losing records. Verify with `--step 4`.
 6. **Step 5: Sliding windows.** Add support for `--window-slide` (e.g., size 300s, slide 60s). Route each incoming event to all active overlapping window buckets. Verify that total aggregated trip and fare counts match the theoretical multi-window factor (`(size / slide) * raw`). Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-3 ~/fleet` to generate your proof code for the course app.
+
+> 💡 **Practice Pause 5 (Step 5: Sliding Windows, End-to-End Verification & Proof Token):**
+> 1. In `stream_processor.py`, add sliding window support (`--window-slide`) by dispatching each event into all active overlapping intervals `[k * S, k * S + L)`.
+> 2. Run the complete verification suite in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step all`
+> 3. Generate your Capstone verification proof token:
+>    `python3 scripts/prove.py mod-4-3 ~/fleet`
+> 4. **Success Indicator:** All verification checks report `PASS` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-4-3/starter/stream_processor.py :: Your starter template: copy it to your workspace and build the processor there :: starter
