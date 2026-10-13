@@ -81,6 +81,13 @@ Perubahan manual yang dilakukan seseorang di cloud console di luar kendali Terra
 
 Lingkungan dev dan prod umumnya berbagi file arsitektur `.tf` yang sama namun menggunakan file variabel `.tfvars` yang berbeda; pada lab praktikum, file `dev.tfvars` mengarsipkan data mentah setelah 30 hari sementara `prod.tfvars` menyimpannya selama 90 hari dan hanya lingkungan prod yang mengaktifkan fitur object versioning. Pada sistem berskala enterprise, blok-blok kode yang berulang diabstraksikan ke dalam **Modules** mandiri dan setiap environment memiliki file state yang terisolasi total, idealnya di akun cloud yang berbeda. Kesalahan konfigurasi fatal di dev pantang menjalar ke produksi.
 
+> 💡 **Jeda Praktik 1 (Deklarasi Variabel & Validasi Lingkungan Terraform):**
+> 1. Buka file `labs/mod-3-4/terraform/variables.tf` di teks editor Anda. Jangan jalankan file Terraform secara langsung tanpa CLI.
+> 2. Deklarasikan variabel input: `env` (dengan validasi kondisi hanya menerima dev atau prod), `project`, `owner`, `cost_center`, `raw_archive_days`, dan `enable_versioning` lengkap dengan tipe data dan deskripsinya.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
+> 4. **Indikator Sukses:** Seluruh pengujian di kelas `TestHygiene` berstatus `PASSED` (atau dilewati secara rapi jika Terraform CLI belum terpasang), memvalidasi format HCL, sintaksis yang benar, dan penolakan otomatis terhadap nilai lingkungan yang tidak valid.
+
 ## @lesson Mengamankan data lakehouse
 Lab modul ini memandu Anda membangun lapisan penyimpanan lakehouse dari Modul 2.2 menggunakan Terraform, dengan empat pilar pengamanan wajib standar enterprise:
 
@@ -111,6 +118,13 @@ Bagaimana cara menguji kode infrastruktur tanpa perlu membayar sewa cloud dan ta
 Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsung ke atribut `aws_s3_bucket.lakehouse.arn`, nilai ARN tersebut berstatus *baru diketahui setelah apply (known after apply)*, sehingga isi JSON policy tidak dapat dibaca oleh reviewer pada tahap plan dan hanya menampilkan teks `(known after apply)`. Namun jika Anda mengonstruksi string ARN langsung dari nama bucket (`arn:aws:s3:::${local.bucket_name}`), keseluruhan detail teks kebijakan keamanan dapat dievaluasi secara transparan pada tahap plan review. Desainlah konfigurasi Terraform Anda agar fakta keamanan selalu terlihat jelas saat code review.
 
 **Tagging Resources.** Konfigurasikan blok `default_tags` pada provider AWS agar setiap resource otomatis disematkan tag `Project`, `Environment`, `Owner`, dan `CostCenter`. Tagging inilah yang menjadi kunci transparansi biaya pada materi FinOps berikutnya.
+
+> 💡 **Jeda Praktik 2 (Keamanan Bucket S3 & Kebijakan IAM Least-Privilege):**
+> 1. Buka file `labs/mod-3-4/terraform/main.tf` dan `labs/mod-3-4/terraform/outputs.tf` di teks editor Anda.
+> 2. Lengkapi resource S3 bucket, blokir akses publik (`aws_s3_bucket_public_access_block` keempat flag bernilai `true`), kunci KMS terkelola mandiri dengan rotasi aktif, enkripsi SSE default, aturan lifecycle penyimpanan raw, dan kebijakan IAM policy yang membatasi aksi hanya pada layer silver dan gold.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-4/test_terraform.py -v`
+> 4. **Indikator Sukses:** Seluruh 12 pengujian di `test_terraform.py` berstatus `PASSED` (atau dilewati jika CLI belum terpasang), membuktikan bahwa execution plan offline dev dan prod memenuhi seluruh standar keamanan korporat.
 
 ## @lesson Di mana platform data cloud menghabiskan anggaran Anda
 Model penetapan harga layanan cloud pada dasarnya terbagi ke dalam tiga pola utama:
@@ -144,6 +158,13 @@ Faktur tagihan bulanan yang hanya mencantumkan "Total Biaya Compute: $4.200" aka
 
 Kuasai terminologi standar **FinOps**: *Showback* (menampilkan transparansi biaya kepada setiap divisi tanpa memotong anggaran mereka), *Chargeback* (menagihkan biaya komputasi langsung ke pos anggaran departemen terkait), *Unit Economics* (menghitung biaya komputasi per unit bisnis, misalnya biaya cloud per 1.000 pesanan yang diproses), serta *Commitments* (pembelian komitmen kapasitas jangka panjang dengan diskon besar yang hanya menguntungkan untuk baseline beban kerja konstan).
 
+> 💡 **Jeda Praktik 3 (Pemodelan Biaya Warehouse & Alokasi Tag FinOps):**
+> 1. Buka file `labs/mod-3-4/finops.py` di teks editor Anda.
+> 2. Implementasikan fungsi `query_cost(seconds, credits_per_hour, price_per_credit)` untuk menghitung biaya komputasi warehouse, `billed_seconds(queries, auto_suspend_s, minimum_s)` yang memodelkan penagihan waktu idle dan batas minimum 60 detik, serta `cost_by_tag(log)` untuk mengalokasikan total biaya per tim departemen.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-4/test_finops.py -k "TestQueryCost or TestBilledSeconds or TestCostByTag" -v`
+> 4. **Indikator Sukses:** Sebanyak 14 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, memvalidasi kalkulasi tagihan uptime warehouse dan alokasi biaya per tim.
+
 ## @lesson Guardrails, anggaran biaya, dan prakiraan pembengkakan
 Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat malam. Sistem pembatas kendali biaya (**guardrails**) harus bekerja secara otomatis:
 
@@ -169,6 +190,13 @@ Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat mal
 - Sertakan estimasi perubahan biaya pada setiap review PR (menggunakan tools seperti Infracost) agar penambahan warehouse baru terlihat implikasi biayanya sebelum kode di-merge.
 - Rancang setiap lingkungan development dengan konsep pembersihan mudah: eksekusi `terraform destroy` untuk resource dev harus menjadi rutinitas kerja yang biasa dan aman.
 
+> 💡 **Jeda Praktik 4 (Guardrails FinOps: Deteksi Query Liar, Forecasting & Tiering Storage):**
+> 1. Buka file `labs/mod-3-4/finops.py` di teks editor Anda.
+> 2. Implementasikan fungsi `find_runaway(log, factor)` menggunakan median durasi tim untuk menangkap outlier ekstrem, `forecast_month(daily_costs, days_in_month, budget)` untuk memproyeksikan tanggal jebolnya anggaran bulanan, serta `storage_cost(objects, archive_after_days)` untuk memodelkan trade-off biaya arsip dingin vs retribusi retrieval.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
+> 4. **Indikator Sukses:** Sebanyak 15 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, membuktikan guardrails deteksi anomali query, proyeksi anggaran, dan analisis tiering data bekerja akurat.
+
 ## @lab Lab: bucket lakehouse aman dan perangkat kendali biaya FinOps
 Lab ini terbagi menjadi dua bagian: Bagian A melengkapi konfigurasi Terraform hingga menghasilkan execution plan offline yang memvalidasi bahwa storage bucket S3 lakehouse Anda terisolasi privat, terenkripsi KMS kustom, memiliki aturan lifecycle otomatis, bertag lengkap, dan hanya dapat diakses melalui kebijakan least-privilege. Bagian B membangun fungsi-fungsi Python untuk kendali FinOps: pemodelan penagihan warehouse, alokasi biaya per tim, deteksi query liar berbasis median, forecasting proyeksi anggaran, serta simulasi analisis tiering penyimpanan data.
 
@@ -187,6 +215,13 @@ pytest labs/mod-3-4 -v          # seluruh pengujian awal akan gagal
 5. Cermati pengujian kebijakan IAM policy. Pengujian ini menegaskan aksi yang presisi, pembatasan target direktori, dan kondisi awalan `s3:prefix`. Amati bagaimana penggunaan nama bucket langsung memungkinkan evaluasi policy secara transparan pada tahap plan.
 6. **Bagian B: Toolkit Kendali Biaya FinOps.** Buka `labs/mod-3-4/finops.py` dan implementasikan kelima fungsi analitik biaya. Data log query berasal dari generator deterministik `labs/shared/querylog.py`. Jalankan pengujian otomatis via `pytest labs/mod-3-4/test_finops.py -v`.
 7. Eksplorasi mandiri: gunakan fungsi yang telah Anda bangun untuk menganalisis durasi auto-suspend mana yang paling optimal; identifikasi tim pemilik query liar 11 jam; kalkulasikan akumulasi biaya harian dan uji fungsi `forecast_month` dengan target anggaran $75 pada hari ke-15 dan hari ke-16 (saat query liar terjadi). Pahami mengapa proyeksi hari ke-16 bersifat pesimistis dan bagaimana integrasi `find_runaway` mampu menormalisasi prakiraan tersebut.
+
+> 💡 **Jeda Praktik 5 (Verifikasi Lengkap & Bukti Kelulusan):**
+> 1. Di terminal, jalankan seluruh rangkaian uji FinOps:
+>    `pytest labs/mod-3-4/test_finops.py -v`
+> 2. Hasilkan token bukti verifikasi:
+>    `python3 scripts/prove.py mod-3-4`
+> 3. **Indikator Sukses:** Seluruh pengujian lulus dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-3-4/terraform/variables.tf :: File kerja Bagian A: deklarasi variabel input Terraform :: starter

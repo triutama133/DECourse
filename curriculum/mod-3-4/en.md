@@ -81,6 +81,13 @@ Reality can change behind Terraform's back (a colleague edits something in the c
 
 Dev and prod usually share the same code with different variable files; in the lab `dev.tfvars` archives raw data after 30 days and prod after 90, and only prod keeps object versions. For larger systems you extract repeated blocks into **modules** (a folder with inputs and outputs, called like a function), and give each environment its own state, ideally its own cloud account. The blast radius of a mistake in dev must not include prod.
 
+> 💡 **Practice Pause 1 (Terraform Variable Declaration & Environment Validation):**
+> 1. Open `labs/mod-3-4/terraform/variables.tf` in your text editor. Do not execute Terraform files directly without the CLI.
+> 2. Declare the input variables: `env` (with a validation rule accepting only dev or prod), `project`, `owner`, `cost_center`, `raw_archive_days`, and `enable_versioning`, each with its type and description.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
+> 4. **Success Indicator:** All tests in `TestHygiene` report `PASSED` (or cleanly skip if the Terraform CLI is not installed), verifying HCL formatting, valid syntax, and rejection of invalid environment names.
+
 ## @lesson Securing the lakehouse
 The lab builds the storage layer of the lakehouse from Module 2.2, with four protections that every company that holds customer data expects.
 
@@ -111,6 +118,13 @@ How do you test code that creates cloud resources, without creating them? In lay
 One subtle point from the lab. The IAM policy mentions the bucket's ARN. If you write `aws_s3_bucket.lakehouse.arn`, that value is *known only after apply*, so the planned policy JSON is not visible and the reviewer sees "(known after apply)" instead of the permissions. Building the ARN from the bucket **name** (`arn:aws:s3:::${local.bucket_name}`) makes the entire policy readable at plan time. Design your configuration so that the security-relevant facts are visible in the plan.
 
 **Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
+
+> 💡 **Practice Pause 2 (Lakehouse S3 Security & Least-Privilege IAM Policy):**
+> 1. Open `labs/mod-3-4/terraform/main.tf` and `labs/mod-3-4/terraform/outputs.tf` in your text editor.
+> 2. Complete the S3 bucket resource, block public access (`aws_s3_bucket_public_access_block` with all four flags set to `true`), customer-managed KMS key with rotation enabled, default SSE encryption, raw storage lifecycle rules, and least-privilege IAM policy restricting actions to silver and gold prefixes.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-4/test_terraform.py -v`
+> 4. **Success Indicator:** All 12 tests in `test_terraform.py` report `PASSED` (or cleanly skip if CLI is not installed), proving that the offline dev and prod plans satisfy enterprise security standards.
 
 ## @lesson Where cloud data platforms spend your money
 Cloud pricing has three shapes. Learn which one each service uses and most surprises disappear.
@@ -145,6 +159,13 @@ An invoice that says "compute: $4,200" starts an argument. A report that says "m
 
 Learn the vocabulary of the field, known as **FinOps**: *showback* (show each team what it spent), *chargeback* (bill it internally), *unit economics* (dollars per thousand orders processed, or per dashboard user), and *commitments* (reserved capacity at a discount in exchange for a promise of usage, which only pay off for a steady base load).
 
+> 💡 **Practice Pause 3 (FinOps Warehouse Cost Modeling & Tag Allocation):**
+> 1. Open `labs/mod-3-4/finops.py` in your text editor.
+> 2. Implement `query_cost(seconds, credits_per_hour, price_per_credit)` for warehouse compute costs, `billed_seconds(queries, auto_suspend_s, minimum_s)` modeling idle tails and 60-second minimums, and `cost_by_tag(log)` allocating total spend per team.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-4/test_finops.py -k "TestQueryCost or TestBilledSeconds or TestCostByTag" -v`
+> 4. **Success Indicator:** All 14 tests report `PASSED` in milliseconds in pure Python, validating warehouse uptime billing and team cost allocation.
+
 ## @lesson Guardrails, budgets and forecasts
 You cannot rely on people to be careful at 22:30 on a Friday. Controls must be automatic.
 
@@ -170,6 +191,13 @@ You cannot rely on people to be careful at 22:30 on a Friday. Controls must be a
 - Add cost estimates to the plan review (tools like Infracost do this) so that "this adds a 16-credit warehouse" is visible before it is merged.
 - Start every new environment with a **teardown** in mind: `terraform destroy` for dev environments should be a normal, boring command.
 
+> 💡 **Practice Pause 4 (FinOps Guardrails: Runaway Detection, Forecasting & Storage Tiering):**
+> 1. Open `labs/mod-3-4/finops.py` in your text editor.
+> 2. Implement `find_runaway(log, factor)` using team median duration to flag extreme outliers, `forecast_month(daily_costs, days_in_month, budget)` projecting the day a monthly budget breaches, and `storage_cost(objects, archive_after_days)` modeling cold archive storage vs retrieval economics.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
+> 4. **Success Indicator:** All 15 tests report `PASSED` in milliseconds in pure Python, proving query outlier detection, monthly budget forecasting, and storage tiering trade-offs work accurately.
+
 ## @lab Lab: a secure lakehouse bucket and a cost guardrail toolkit
 Part A: finish a Terraform configuration until an offline plan proves the bucket is private, encrypted, lifecycle-managed, tagged and accessible only through a least-privilege policy. Part B: write the Python functions behind your FinOps controls: warehouse billing, cost by team, runaway detection, a budget forecast and storage tiering.
 
@@ -188,6 +216,13 @@ pytest labs/mod-3-4 -v          # the starter fails at first
 5. Read the failing test for the IAM policy carefully. It asserts the exact actions, resources and the `s3:prefix` condition. Replace `local.bucket_arn` with `aws_s3_bucket.lakehouse.arn` and look at the plan: the policy turns into "known after apply".
 6. **Part B.** Open `labs/mod-3-4/finops.py` and implement the five functions. The query log comes from `labs/shared/querylog.py`: print the first rows and the largest query before you start. Run `pytest labs/mod-3-4/test_finops.py -v`.
 7. Use your functions to answer: what auto-suspend would you choose for the shared warehouse and why? Which team paid for the 11-hour query? Add up each day's cost and try `forecast_month` with a $75 budget: what does it say on day 15, and on day 16 (the day the runaway starts)? Why is the day-16 forecast too pessimistic, and how could `find_runaway` improve it?
+
+> 💡 **Practice Pause 5 (Full Verification & Proof Token):**
+> 1. In terminal, run the complete FinOps test suite:
+>    `pytest labs/mod-3-4/test_finops.py -v`
+> 2. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-3-4`
+> 3. **Success Indicator:** All tests report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-4/terraform/variables.tf :: Part A: declare the input variables :: starter
