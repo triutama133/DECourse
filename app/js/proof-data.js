@@ -18,7 +18,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-0-0",
   "argExample": null,
   "tests": "6c539931",
-  "starter": "0318e499",
+  "starter": "5ce618a8",
   "reference": "99af3274"
  },
  "mod-0-1": {

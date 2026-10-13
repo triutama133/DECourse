@@ -17,6 +17,8 @@ why: Tutorials call one API once and print the result. Real ingestion runs every
 Modules 0.0 and 1.2 (Python, errors, idempotence). The lab needs only the Python standard library and no internet connection: the tests start a small fake API on your own computer.
 
 ## @lesson How data enters a platform
+
+> **In short:** Data arrives as files, API calls, database reads or events. You choose pull or push, and full or incremental. A trustworthy job is complete, repeat-safe, raw-first, observable and polite to the source.
 Everything a data engineer builds starts with **ingestion**: moving data from where it is created to where it can be used. The sources fall into four families:
 
 - **Files**: CSV, JSON, Parquet dropped on a server, an SFTP folder or cloud storage by a partner or an export job.
@@ -36,7 +38,19 @@ What a **trustworthy ingestion job** promises, and what this module teaches you 
 
 A last principle: the source is **not under your control**. It may be slow, change its fields, return errors at 3 a.m. or ban you for abuse. Code written as if the network were perfect breaks the first week.
 
+> 🛠 **Try it (3 min, pen and paper).** For each case write down the source family (file, API, database, event), pull or push, and full or incremental.
+> 1. A partner uploads `sales.csv` to an SFTP folder every night.
+> 2. A payment provider calls a URL of yours whenever a payment succeeds.
+> 3. A job runs `SELECT * FROM orders WHERE updated_at > :last_run` every hour.
+> 4. An app publishes every click to a Kafka topic.
+>
+> Then pick the hardest of the five promises (complete, repeat-safe, raw first, observable, polite) for each case, and say why in one sentence.
+>
+> *Compare when you are done:* 1 is a file you pull (full, or incremental if the file only holds new rows); 2 is an event pushed to you (incremental by nature); 3 is a database you pull incrementally; 4 is an event stream: the app pushes into the log and your consumer pulls from it.
+
 ## @lesson HTTP APIs in ten minutes
+
+> **In short:** A request is a method, a URL and headers; the answer is a status, headers and JSON. 2xx is fine, 4xx means your request is wrong (do not retry), 429 and 5xx mean try again later. Keep secrets out of code and always set a timeout.
 An HTTP API works like a web page for programs. You send a **request** (a method such as GET, a URL, headers and sometimes a body) and receive a **response** (a status code, headers and a body, usually JSON).
 
 ```text
@@ -72,7 +86,16 @@ You can do all of this with Python's standard library (`urllib.request`), as the
 > `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > When TestBuildRequest tests are PASSED, proceed to Lesson 3 to handle pagination and network retries!
 
+> 🛠 **Try it (10 min, hands on).** Start the practice API in a second terminal and leave it running: `python3 labs/mod-1-6/fakeapi.py` (it holds 25 orders; the token is `learner-token`; the file's docstring lists its endpoints).
+> 1. In your first terminal: `curl -i "localhost:8765/orders?limit=3"`. Which status do you get, and why?
+> 2. Fix it yourself by adding the header `-H "Authorization: Bearer learner-token"`. Read the status line, the `Content-Type` header and the JSON. What does `next_cursor` hold?
+> 3. In `try_http.py`, with only `urllib` from the standard library, GET the same URL with the header and print the status code and the list of order ids. Then call it without the header, catch the error and print its code.
+>
+> **You should see:** `401` for step 1, then `HTTP/1.0 200 OK`, `application/json` and `"next_cursor": "3"` for step 2, and from your script `200 [1, 2, 3]` followed by `401`.
+
 ## @lesson Reading all the data: pagination, rate limits and retries
+
+> **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
 An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
 
 - **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched for 25 real orders**: 3 duplicates (an older row slides into the next page). Deleted rows cause the opposite, skipped records. It is also slow on large offsets.
@@ -98,7 +121,16 @@ In the lab you test all this against a **real HTTP server running on your comput
 > `pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
 > When tests show PASSED, proceed to Lesson 4 for incremental checkpoints!
 
+> 🛠 **Try it (15 min, hands on).** Keep the practice API running. Start every step from a clean state with `curl localhost:8765/reset`.
+> 1. *Offset pages drift.* Read page 1 with `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Now let 3 new orders arrive (`.../arrive?n=3`, same header). Read page 2 with `offset=10`. Which ids does page 2 contain that page 1 already had?
+> 2. *Cursors do not.* In `cursor_all.py`, read **all** orders from `/orders?limit=10` by following `next_cursor` until it is empty, and call `/arrive?n=3` once right after the first page. Print how many ids you collected and how many are distinct.
+> 3. *Rate limits.* Call `/limited` from `limited.py`. On a 429, print the status and the `Retry-After` value, sleep exactly that long, call again and print the new status.
+>
+> **You should see:** page 1 has ids 25 down to 16, and page 2 repeats 18, 17 and 16; the cursor script prints `28 28`; the rate-limit script prints `429 2.0` and then `200`.
+
 ## @lesson Incremental loads and checkpoints
+
+> **In short:** A checkpoint says how far you got. Write the data first, then the checkpoint, and make the load safe to repeat (replace or deduplicate), so a crash costs a retry, not data.
 Copying 5 years of orders every night is wasteful. An **incremental load** fetches only what is new or changed. It needs two things: an API parameter such as `updated_since`, and a **checkpoint** (also called a high-water mark or watermark): the point up to which you have already loaded, for example the greatest `updated_at` you have seen.
 
 One run then looks like this:
@@ -129,7 +161,16 @@ The checkpoint is itself state. Store it somewhere durable that survives the mac
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening!
 
+> 🛠 **Try it (15 min, hands on).** Write `load.py` against the practice API: read the orders with a cursor (`limit=5`) and append them to `out.jsonl`; **after** each page is written, save `{"cursor": ...}` to `checkpoint.json` (write a temporary file, then `os.replace`). When the script starts it resumes from `checkpoint.json` if there is one. Put `time.sleep(1)` after writing each page, so that you have time to interrupt.
+> 1. Run `curl localhost:8765/reset`, then start `load.py` and press Ctrl+C after about two pages. Compare `wc -l out.jsonl` with the cursor in `checkpoint.json`: why can the file hold more rows than the checkpoint says?
+> 2. Run `load.py` again to the end, then run `python3 -c "import json; ids=[json.loads(l)['id'] for l in open('out.jsonl')]; print(len(ids), len(set(ids)))"`. Make your loader deduplicate by `id` until it prints `25 25`.
+> 3. Now break it on purpose: delete `out.jsonl` and `checkpoint.json`, reset the API, and swap the order (save the checkpoint **first**, sleep, then write the page). Interrupt during the sleep, run it to the end, and run the check from step 2 again.
+>
+> **You should see:** in step 1 more lines than the checkpoint implies (the page in flight was written but not yet checkpointed); `25 25` in step 2; in step 3 fewer than 25 rows, and the missing ids form one page of five. That page is lost forever, which is exactly why the checkpoint is saved last.
+
 ## @lesson Landing and shaping raw data
+
+> **In short:** Land the raw data untouched, with metadata and a date partition. Flatten nested objects into columns, keep lists as JSON text, and detect when a field changes type.
 Store what you received, as you received it, in a **landing** area (also called raw or bronze, Module 2.2). Do not fix, rename or drop anything at this stage; do the cleaning in a later, repeatable step (Module 2.3). The reason is practical: if your cleaning had a bug, you can fix it and reprocess from the raw copy instead of asking the source for last month's data again, which may no longer be available.
 
 Good landing habits:
@@ -152,7 +193,20 @@ Good landing habits:
 > `pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
 > When tests show PASSED, proceed to Lesson 6 to assemble the complete incremental ingestion pipeline!
 
+> 🛠 **Try it (10 min, hands on).** With the practice API running, fetch one order with nested data: `curl -H "Authorization: Bearer learner-token" localhost:8765/orders/1`.
+> 1. Write `flatten(record)` in `flat.py`: nested objects become columns named by their path (`customer_address_city`), lists are kept as JSON text. Your code must pass these checks (`order1` is the parsed JSON of `/orders/1`):
+>    `flat = flatten(order1)`
+>    `assert flat["customer_address_city"] == "Jakarta"`
+>    `assert flat["customer_id"] == 7`
+>    `assert flat["items"] == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]'`
+>    `assert "customer" not in flat`
+> 2. Make a copy of `flat` in which `total_idr` is the text `"Rp 1.000"`. Write a small function that compares the field types of two records and prints every field whose type changed.
+>
+> **You should see:** no assertion error, and for step 2 one line: `total_idr: int -> str`. That is schema drift, found in four lines of code.
+
 ## @lesson Files, databases, and running it for real
+
+> **In short:** Files: wait until they are complete and record names and checksums. Databases: read from a replica and use an incremental column. Run it with counts, reconciliation and a deliberate backfill.
 **Files.** Partners drop files, and files are full of surprises: encodings (always say UTF-8 explicitly, Module 0.0), quoted line breaks, a header that changes, **late or missing files**, and the same file delivered twice. Practices: wait for the file to be completely written (a marker file, or a stable size), record the **file name and checksum** of everything loaded so a duplicate delivery is recognised, and make arrival a monitored event ("the 06:00 file has not come").
 
 **Databases.** The options are a **full table copy** (simple, heavy on the source), an **incremental copy by a timestamp or increasing id** (the same checkpoint logic as above; it misses deletes and relies on a trustworthy `updated_at`), and **change data capture** from the log (Module 3.2). Whatever you choose, read from a **replica** when possible and avoid long queries on the production primary (Module 1.3). Respect the application team's limits as you would an API's.
@@ -180,6 +234,13 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 > `pytest labs/mod-1-6/test_lab.py -v`
 > When all 37 tests show PASSED, your ingestion pipeline is enterprise ready!
 
+> 🛠 **Try it (10 min, hands on).** Generate the KopiKu files (`python3 labs/shared/shopgen.py --out data`) and treat `data/orders.csv` as a delivery from a partner.
+> 1. With the `csv` module count the rows and the distinct `order_id` values. Compare with `orders_rows`, `orders_distinct` and `orders_duplicate_rows` in `data/manifest.json`.
+> 2. Load the file into a SQLite table whose primary key is `order_id` (use `INSERT OR REPLACE`), and print the row count.
+> 3. Run the load a second time in the same script and print the row count again.
+>
+> **You should see:** `3634 3599` in step 1 (35 duplicate rows, as the manifest says), then `3599` and `3599` in steps 2 and 3. Also compare with `wc -l data/orders.csv`: it shows 3635, because of the header line. Counting rows at every hop is the cheapest way to prove nothing was lost.
+
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
 
@@ -201,6 +262,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # one group a
 ### @files
 - labs/mod-1-6/ingest_lab.py :: Your working file: implement the TODO functions and the Checkpoint class :: starter
 - labs/mod-1-6/test_lab.py :: The 37 tests, including the fake HTTP API :: test
+- labs/mod-1-6/fakeapi.py :: A small practice API for the Try it exercises (run it in a second terminal) :: config
 - labs/mod-1-6/requirements.txt :: pytest :: config
 - labs/mod-1-6/reference/ingest_lab.py :: One possible solution (try first!) :: reference
 
