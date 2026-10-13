@@ -48,6 +48,13 @@ A real model needs an API key or a download of hundreds of megabytes, and return
 
 A vector of 1,536 numbers stored as 4-byte floats is 6,144 bytes. Ten million chunks need about 61 GB for the vectors alone, plus the index, which for HNSW is usually kept in memory for speed. Cost has four parts: **embedding** (billed per input token by hosted models; as an illustration, at $0.10 per million tokens a billion tokens costs $100, but check real prices), **storage and memory**, **queries** (each one embeds the question), and **re-embedding** whenever you change the chunking or the model. Lower dimension, half-precision (`halfvec`) or quantization trade a little accuracy for large savings, and some models can produce shorter vectors on request. Measure on your own eval set before choosing.
 
+> 💡 **Practice Pause 1 (Deterministic Embedding & Content Hashing):**
+> 1. Open `labs/mod-3-5/rag.py` in your text editor. Do not run this file directly in the terminal.
+> 2. Implement `embed(text, dim, model)` using blake2b hashing and L2 unit-norm scaling, and `content_hash(text)` using sha256 after collapsing whitespace.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestEmbed or TestContentHash" -v`
+> 4. **Success Indicator:** All 9 tests report `PASSED` in milliseconds in pure Python, validating deterministic L2 unit vectors and whitespace-invariant hashing.
+
 ## @lesson Chunking and metadata
 You embed *chunks*, not documents. Embedding a whole 40-page manual produces a vector that is an average of everything, and retrieving 40 pages to answer one question fills the prompt with noise. Chunks that are too small lose their context ("It expires after 30 days" - what does?). Chunking is therefore a design decision with consequences for quality and for cost.
 
@@ -65,6 +72,13 @@ Do not assume chunking always helps. In the lab's knowledge base, the 116 docume
 Every chunk is stored with metadata: the source document, its position, a category, a language, a date, the owner team, an access-control label and the model that produced its vector. Metadata supports **filtered search** ("only the *menu* category"), citations ("source: store-kemang-hours"), freshness checks and permission checks. It must travel with the chunk because it is very hard to rebuild later.
 
 Filtering has a trap. If a system runs the approximate vector search first and filters afterwards, a restrictive filter can discard most of the candidates and return *fewer than k results*, or none. The lab's filtered search puts the filter in the same SQL query as the ordering; with an HNSW index, PostgreSQL may still need a wider search for rare filters (pgvector has settings for iterative scans in recent versions). Always test filtered queries with rare filter values.
+
+> 💡 **Practice Pause 2 (Structure-Aware Chunking & Context Preservation):**
+> 1. Open `labs/mod-3-5/rag.py` in your text editor.
+> 2. Implement `chunk_text(text, max_words, overlap)`: separate paragraphs on blank lines, attach heading lines (#) to the following paragraph for context, and split oversized paragraphs into overlapping windows.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
+> 4. **Success Indicator:** All 7 tests report `PASSED`, validating structure-aware chunking, heading context attachment, and overlap windows without tiny trailing fragments.
 
 ## @lesson Vector storage and approximate search
 Finding the exact nearest vectors means comparing the query with every stored vector: it is simple, always correct, and its cost grows linearly. At 20,000 vectors of 64 dimensions the lab's exact scan took about 5 ms per query; at 20 million vectors it takes seconds. **Approximate nearest neighbour (ANN)** indexes answer much faster by accepting that they may miss a true neighbour.
@@ -99,6 +113,13 @@ A dedicated vector database (Qdrant, Weaviate, Milvus, Pinecone and others) adds
 
 **Hybrid search** combines vector similarity with classic keyword search (BM25, or PostgreSQL full-text search) and merges the two ranked lists, for example with reciprocal rank fusion. Keywords find exact identifiers and rare terms (an order number, a product code) that embeddings blur, so hybrid search is a strong default for business data.
 
+> 💡 **Practice Pause 3 (HNSW Graph Indexing & ANN Recall Metrics):**
+> 1. Open `labs/mod-3-5/rag.py` in your text editor.
+> 2. Implement `recall_at_k(approx_ids, exact_ids)`, `create_hnsw_index(conn, table, m, ef_construction)`, and `ann_top_k(conn, table, vec, k, ef_search)` using dynamic `SET LOCAL hnsw.ef_search`.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
+> 4. **Success Indicator:** All 8 tests report `PASSED`, validating exact recall fraction calculation and HNSW graph index traversal in pgvector.
+
 ## @lesson Incremental pipelines: pay only for what changed
 The naive pipeline re-embeds the whole collection every night. It is simple, slow and expensive, and it hides the real problem: *the embedding call is the expensive step, so the pipeline must call it as rarely as possible.*
 
@@ -127,6 +148,13 @@ When a customer asks for deletion, or a document is withdrawn, its vectors must 
 
 A vector is only meaningful together with the model that made it. Vectors from different models live in different spaces: comparing them gives noise, **without any error**. So the model name is stored on every row, search only compares vectors of the same model, and a sync with a new model re-embeds everything even though the text is unchanged. For a large collection do this as a blue/green migration: build a complete second index with the new model, run the evaluation on both, and switch the application only when the new one is not worse. The next sections show why.
 
+> 💡 **Practice Pause 4 (Idempotent Incremental Sync & Atomic Deletion):**
+> 1. Open `labs/mod-3-5/rag.py` in your text editor.
+> 2. Implement `sync_document(conn, doc_id, category, text, model, embed_fn)` inside an atomic transaction block (`with conn.transaction():`) calling embeddings only on changed hashes or models, and `delete_document(conn, doc_id)`.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k TestSync -v`
+> 4. **Success Indicator:** All 11 tests report `PASSED`, validating 0 embedding calls for unchanged text, 1 call for a single edited paragraph, and safe transactional rollback on failure.
+
 ## @lesson Evaluating and operating a RAG data pipeline
 You cannot see whether retrieval works by looking at the chatbot's pleasant sentences. Build an **evaluation set**: a few hundred real or realistic questions, each labelled with the document (or passages) that answers it. The lab generates 116, one per document. Then measure:
 
@@ -145,6 +173,13 @@ Use the evaluation as a **regression test**, in CI and after every change to chu
 - **Reproducibility**: record the model, chunking version and index settings alongside the data, so an answer can be explained and rebuilt.
 - **Cost control**: embed only what changed (above), batch calls, cache embeddings by content hash, and set budgets and alerts as in Module 3.4.
 
+> 💡 **Practice Pause 5 (Vector Similarity Search & Hit Rate / MRR Evaluation):**
+> 1. Open `labs/mod-3-5/rag.py` in your text editor.
+> 2. Implement `search(conn, query, k, category, model, embed_fn)` using pgvector cosine distance `<=>` with strict model filtering, and `evaluate(conn, eval_set, k)` computing Hit Rate @ k and Mean Reciprocal Rank (MRR).
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestSearch or TestEvaluation" -v`
+> 4. **Success Indicator:** All 8 tests report `PASSED`, validating similarity ranking, model isolation enforcement, and retrieval evaluation metrics.
+
 ## @lab Lab: a RAG data pipeline on PostgreSQL and pgvector
 Build the offline half of a RAG system for the KopiKu help center: 116 short documents (store hours, payments, parking, menu items, allergens and policies) and 116 questions with known answers. You write chunking, embedding, content hashing, an incremental atomic sync, filtered search, evaluation, and the HNSW index functions, and the tests prove each behaviour, including the rare ones: nothing is re-embedded when nothing changed, a failed sync changes nothing, and vectors from another model are never compared.
 
@@ -162,6 +197,13 @@ pytest labs/mod-3-5 -v        # fails at first
 5. Implement `search` and `evaluate`. Print the top three results for a question such as "can I use two vouchers on one order" and read the scores.
 6. Implement `create_hnsw_index` and `ann_top_k`, then run `-k Approximate`. Add `EXPLAIN` in a Python shell and confirm the index is used.
 7. Experiments, using your own code: (a) sync every document twice and count the embedding calls; (b) change `max_words` and see how many chunks you get and how `hit_rate` moves; (c) drop the `WHERE model = ...` filter from `search`, re-sync half of the documents with `model="v2"` and compare the hit rate; (d) vary `m`, `ef_construction` and `ef_search` and plot recall against time for your machine.
+
+> 💡 **Practice Pause 6 (Full Verification & Proof Token):**
+> 1. In terminal, run the complete suite of 43 tests:
+>    `pytest labs/mod-3-5/test_rag.py -v`
+> 2. Generate the completion verification proof token:
+>    `python3 scripts/prove.py mod-3-5`
+> 3. **Success Indicator:** All 43 tests report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-5/rag.py :: Working file: chunking, embedding, sync, search, evaluation, HNSW :: starter

@@ -48,6 +48,13 @@ Model embedding produksi umumnya membutuhkan token API berbayar atau mengunduh b
 
 Sebuah vektor 1.536 dimensi yang disimpan sebagai bilangan float 4-byte memakan ruang 6.144 byte. Menyimpan 10 juta potongan teks membutuhkan kapasitas sekitar 61 GB hanya untuk vektor mentahnya saja, belum termasuk struktur indeks HNSW yang umumnya wajib ditampung di RAM agar performa query tetap cepat. Komponen pembiayaan RAG terbagi menjadi empat pilar: **komputasi embedding** (ditagih per juta token input oleh penyedia cloud), **kapasitas storage dan RAM server**, **query realtime** (setiap pertanyaan pengguna wajib di-embed terlebih dahulu), serta **re-embedding menyeluruh** saat Anda mengubah strategi chunking atau mengganti model. Memilih dimensi yang lebih rendah, menggunakan format half-precision (`halfvec` 16-bit float di pgvector), atau teknik kuantisasi skalar menukar sedikit akurasi demi penghematan RAM yang sangat signifikan. Selalu lakukan pengukuran pada dataset evaluasi Anda sendiri sebelum memutuskan arsitektur.
 
+> 💡 **Jeda Praktik 1 (Komputasi Embedding Deterministik & Content Hashing):**
+> 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda. Jangan jalankan file ini langsung di terminal.
+> 2. Implementasikan fungsi `embed(text, dim, model)` menggunakan algoritma blake2b dan normalisasi panjang satuan L2, serta fungsi `content_hash(text)` menggunakan sha256 setelah menormalkan whitespace.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestEmbed or TestContentHash" -v`
+> 4. **Indikator Sukses:** Sebanyak 9 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, memvalidasi vektor satuan deterministik dan hash konten yang kebal terhadap variasi spasi.
+
 ## @lesson Chunking dan manajemen metadata
 Dalam sistem RAG, entitas yang Anda ubah menjadi vektor adalah **potongan teks (chunks)** dan bukan keseluruhan isi dokumen utuh. Menghitung embedding untuk satu buku manual setebal 40 halaman akan menghasilkan vektor rata-rata yang terlalu umum dan kehilangan fokus, dan menyematkan 40 halaman dokumen ke dalam prompt LLM hanya untuk menjawab satu pertanyaan spesifik akan membanjiri model dengan teks sampah yang bising. Di sisi lain, potongan yang terlalu kecil akan kehilangan konteks aslinya (misalnya potongan teks: "Masa berlaku promonya 30 hari" — promo produk yang mana?). Oleh karena itu, strategi chunking adalah keputusan arsitektur krusial yang berdampak langsung pada akurasi jawaban dan tagihan token.
 
@@ -65,6 +72,13 @@ Jangan pernah berasumsi bahwa pemotongan teks selalu lebih unggul secara otomati
 Setiap potongan teks wajib disimpan berdampingan dengan kolom-kolom metadata: ID dokumen sumber, nomor urut posisi dalam dokumen, kategori bisnis, bahasa, tanggal pembaruan, tim pemilik dokumen, label hak akses keamanan (Access Control List / ACL), dan identitas versi model embedding yang menghasilkan vektor tersebut. Metadata menjadi fondasi untuk **Pencarian Terfilter (Filtered Search)** (contoh: "hanya cari dokumen dengan kategori *menu*"), sitasi sumber jawaban ke pengguna ("Sumber: Gerai Kemang - Jam Operasional"), verifikasi kesegaran dokumen, serta penegakan izin otorisasi pengguna. Informasi metadata wajib mengalir bersama chunk sejak awal pembuatan karena hampir mustahil untuk direkonstruksi kembali di kemudian hari.
 
 Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor perkiraan (ANN) terlebih dahulu lalu melakukan pemfilteran metadata setelahnya (*post-filtering*), filter kategori yang ketat dapat membuang sebagian besar kandidat hasil pencarian dan mengembalikan hasil yang **kurang dari nilai k yang diminta** atau bahkan menghasilkan daftar kosong. Query pencarian di lab modul ini menyatukan filter metadata langsung di dalam klausa `WHERE` pada query SQL yang sama dengan perhitungan jarak vektor. Ujilah selalu query terfilter Anda terhadap kategori yang memiliki populasi data langka.
+
+> 💡 **Jeda Praktik 2 (Pemotongan Dokumen Berbasis Struktur & Konteks):**
+> 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
+> 2. Implementasikan fungsi `chunk_text(text, max_words, overlap)`: pisahkan paragraf pada baris kosong, gabungkan judul heading (#) dengan paragraf berikutnya untuk menjaga konteks, dan potong paragraf panjang menjadi jendela bertumpang tindih (sliding windows).
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
+> 4. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemotongan berbasis struktur, pelestarian konteks judul, dan jendela overlap tanpa potongan buntut mini.
 
 ## @lesson Vector storage dan pencarian perkiraan (ANN)
 Mencari tetangga terdekat secara eksak (Exact K-Nearest Neighbor / KNN) mengharuskan sistem menghitung jarak kosinus antara vektor pertanyaan terhadap *seluruh* vektor yang ada di tabel: metode ini sangat sederhana, selalu menghasilkan jawaban akurat 100%, namun kompleksitas biayanya tumbuh linier seiring volume data ($O(N)$). Pada skala 20.000 vektor 64 dimensi di lab, pencarian eksak membutuhkan waktu 5 milidetik per query; namun pada skala 20 juta vektor, pencarian eksak akan memakan waktu beberapa detik. Indeks **Approximate Nearest Neighbor (ANN)** menyelesaikan tantangan skalabilitas ini dengan memangkas waktu pencarian secara drastis melalui kompromi kecil: menerima kemungkinan kecil terlewatnya segelintir tetangga terdekat yang sebenarnya.
@@ -99,6 +113,13 @@ Vector database terdedikasi (seperti Qdrant, Weaviate, Milvus, atau Pinecone) me
 
 **Pencarian Hibrida (Hybrid Search)** memadukan kemiripan vektor (semantic search) dengan pencarian kata kunci tradisional berbasis BM25 atau Full-Text Search PostgreSQL, lalu menggabungkan kedua peringkat hasil menggunakan algoritma seperti Reciprocal Rank Fusion (RRF). Pencarian kata kunci sangat unggul dalam menemukan nomor ID unik yang presisi, kode produk, dan istilah langka yang kerap kabur dalam ruang vektor, menjadikan hybrid search sebagai standar arsitektur terbaik untuk data korporat.
 
+> 💡 **Jeda Praktik 3 (Indeks Graf HNSW & Metrik Recall ANN):**
+> 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
+> 2. Implementasikan fungsi `recall_at_k(approx_ids, exact_ids)`, `create_hnsw_index(conn, table, m, ef_construction)`, dan `ann_top_k(conn, table, vec, k, ef_search)` dengan parameter dinamis `SET LOCAL hnsw.ef_search`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
+> 4. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi perhitungan fraksi recall eksak serta pembuatan dan penelusuran graf HNSW di PostgreSQL pgvector.
+
 ## @lesson Pipeline inkremental: bayar hanya untuk data yang berubah
 Pendekatan naif pemula yang sering dilakukan adalah menjalankan batch job harian yang memproses ulang dan memanggil API embedding untuk seluruh koleksi dokumen dari awal setiap malam. Pola ini sangat lambat, boros biaya, dan mengabaikan fakta mendasar: *pemanggilan API embedding adalah langkah komputasi yang paling mahal, sehingga pipeline rekayasa data wajib memanggilnya sesedikit mungkin.*
 
@@ -127,6 +148,13 @@ Ketika seorang pengguna mengajukan hak penghapusan data pribadi (Right to be For
 
 Sebuah representasi vektor hanya memiliki makna jika dipadukan dengan model embedding spesifik yang menghasilkannya. Dua model embedding yang berbeda memproyeksikan makna ke dalam ruang koordinat multidimensi yang sepenuhnya berlainan: membandingkan vektor dari Model A dengan vektor dari Model B akan menghasilkan angka acak tanpa arti, **tanpa melempar satu pun pesan error!** Oleh karena itu, identitas nama dan versi model wajib disimpan pada setiap baris data vektor di database, query pencarian wajib menyertakan filter `WHERE model = ...` untuk hanya membandingkan vektor dari model yang sama, dan migrasi ke model baru wajib memicu re-embedding menyeluruh. Pada sistem produksi berskala besar, lakukan migrasi model menggunakan strategi **Blue/Green Deployment**: bangun indeks kedua secara lengkap menggunakan model baru di samping indeks lama, jalankan benchmark evaluasi pada kedua indeks, dan alihkan lalu lintas query aplikasi hanya jika model baru terbukti memberikan akurasi yang lebih unggul.
 
+> 💡 **Jeda Praktik 4 (Sinkronisasi Inkremental Idempoten & Penghapusan Atomik):**
+> 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
+> 2. Implementasikan fungsi `sync_document(conn, doc_id, category, text, model, embed_fn)` di dalam blok transaksi atomik (`with conn.transaction():`) yang hanya memanggil embedding pada hash atau model baru, serta fungsi `delete_document(conn, doc_id)`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k TestSync -v`
+> 4. **Indikator Sukses:** Sebanyak 11 pengujian berstatus `PASSED`, memvalidasi 0 panggilan embedding saat teks tidak berubah, 1 panggilan saat 1 paragraf diedit, serta rollback transaksi yang aman saat terjadi kegagalan.
+
 ## @lesson Evaluasi metrik dan pengoperasian pipeline data RAG
 Anda tidak dapat menilai apakah sistem retrieval bekerja dengan baik hanya dengan membaca respon kalimat chatbot yang terdengar sopan dan lancar. Bangun **dataset evaluasi resmi (evaluation set)**: kumpulan ratusan pertanyaan nyata atau representatif yang masing-masing telah dipasangkan dengan dokumen (atau potongan teks) yang menjadi kunci jawaban benarnya. Dataset praktikum lab menghasilkan 116 pasangan pertanyaan dan jawaban berlabel. Dua metrik evaluasi retrieval yang menjadi standar industri:
 
@@ -145,6 +173,13 @@ Gunakan evaluasi sebagai **regression test**, di CI dan setiap kali chunking, mo
 - **Keterlacakan dan Reproduktibilitas**: catat versi model embedding, konfigurasi chunking, dan snapshot indeks bersama dengan data jawaban agar setiap output AI dapat diaudit dan direproduksi kembali saat investigasi.
 - **Kontrol biaya**: embed hanya yang berubah (lihat di atas), kirim panggilan secara batch, cache embedding berdasarkan content hash, dan pasang anggaran serta alert seperti di Modul 3.4.
 
+> 💡 **Jeda Praktik 5 (Pencarian Kemiripan Vektor & Evaluasi Hit Rate / MRR):**
+> 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
+> 2. Implementasikan fungsi `search(conn, query, k, category, model, embed_fn)` menggunakan operator cosine distance `<=>` dengan filter model yang ketat, serta fungsi `evaluate(conn, eval_set, k)` yang menghitung skor Hit Rate @ k dan Mean Reciprocal Rank (MRR).
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-5/test_rag.py -k "TestSearch or TestEvaluation" -v`
+> 4. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi pemeringkatan kemiripan, penegakan isolasi model, dan metrik akurasi evaluasi retrieval.
+
 ## @lab Lab: pipeline data RAG di PostgreSQL dan pgvector
 Bangun separuh arsitektur offline dari sistem RAG untuk pusat bantuan pelanggan KopiKu: mengelola 116 dokumen panduan bisnis (jam operasional gerai, metode pembayaran, aturan parkir, daftar menu, informasi alergen, dan kebijakan refund) serta mengevaluasi 116 pertanyaan pengguna dengan jawaban berlabel. Anda akan mengimplementasikan fungsi pemotongan teks (chunking), komputasi embeddings, content hashing, sinkronisasi inkremental yang atomik, pencarian terfilter, evaluasi metrik akurasi, serta pembuatan indeks HNSW di pgvector. Rangkaian 43 pengujian otomatis akan memverifikasi setiap fungsionalitas dan membuktikan sifat idempotensi serta isolasi versi model.
 
@@ -162,6 +197,13 @@ pytest labs/mod-3-5 -v        # seluruh pengujian akan gagal pada awalnya
 5. Implementasikan fungsi `search` dan `evaluate`. Cetak 3 hasil pencarian teratas untuk pertanyaan riil seperti "apakah saya bisa menggunakan dua voucher dalam satu pesanan?" dan amati skor kemiripan jarak vektornya.
 6. Implementasikan fungsi `create_hnsw_index` dan `ann_top_k`, lalu jalankan pengujian via `pytest labs/mod-3-5 -k Approximate`. Verifikasi penggunaan indeks menggunakan perintah query `EXPLAIN` di sesi shell Python.
 7. Lakukan eksperimen mandiri menggunakan kode Anda: (a) sinkronkan seluruh dokumen sebanyak dua kali berturut-turut dan buktikan jumlah pemanggilan embedding pada putaran kedua bernilai 0; (b) ubah parameter `max_words` pada chunking dan amati pergeseran metrik `hit_rate`; (c) hapus filter `WHERE model = ...` pada query pencarian, sinkronkan separuh dokumen dengan `model="v2"` dan amati bagaimana hit rate anjlok menjadi 50%; (d) variasikan parameter `m`, `ef_construction`, dan `ef_search` lalu petakan grafik hubungan recall vs waktu eksekusi di komputer Anda.
+
+> 💡 **Jeda Praktik 6 (Verifikasi Menyeluruh & Bukti Kelulusan):**
+> 1. Di terminal, jalankan seluruh rangkaian 43 pengujian:
+>    `pytest labs/mod-3-5/test_rag.py -v`
+> 2. Hasilkan token bukti verifikasi kelulusan:
+>    `python3 scripts/prove.py mod-3-5`
+> 3. **Indikator Sukses:** Seluruh 43 pengujian berstatus `PASSED` dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-3-5/rag.py :: File kerja implementasi: fungsi chunking, embedding, sync atomik, search, evaluasi, dan HNSW :: starter
