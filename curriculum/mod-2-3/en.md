@@ -82,6 +82,16 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 
 Twenty-two items: seven models (four views, three tables, one of them incremental), one snapshot and fourteen tests. If a model fails, `dbt build` marks the models and tests downstream of it as `SKIP`, so bad data never flows on to the marts silently.
 
+> 💡 **Practice Pause 1 (CLI Discovery & Project Structure):**
+> 1. Activate your virtual environment in terminal: `source .venv/bin/activate`.
+> 2. Prepare the raw KopiKu data and initialize DuckDB:
+>    `python3 labs/shared/shopgen.py --out data`
+>    `export KOPIKU_DB=$PWD/kopiku.duckdb`
+>    `python3 labs/mod-2-3/load_raw.py data $KOPIKU_DB`
+> 3. Inspect all declared models and data sources without executing transformations:
+>    `dbt ls --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Success Indicator:** Terminal displays `Found 7 models, 1 snapshot, 14 data tests, 5 sources` along with the list of models and tests.
+
 ## @lesson Layers and materializations
 A convention that has proved itself in thousands of projects is three layers:
 
@@ -122,6 +132,13 @@ where rn = 1 and order_ts is not null and total_idr > 0
 ```
 
 `try_strptime` and `try_cast` return NULL instead of failing on bad input, which lets you filter or quarantine explicitly. (Dialects differ: Snowflake and BigQuery have `try_to_timestamp`, `safe_cast`. A **macro**, below, can hide such differences.)
+
+> 💡 **Practice Pause 2 (Building Staging Models):**
+> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql` and `labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql` (do not run `.sql` files directly in bash).
+> 2. Implement cleaning logic: use a `ranked` CTE with `row_number() over (partition by order_id order by _loaded_at desc)` to pick the latest version, standardize string formats, and cast Rupiah totals.
+> 3. Compile and materialize only the staging layer:
+>    `dbt run --select staging --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Success Indicator:** Terminal confirms `OK created sql view model staging.stg_orders` and `staging.stg_customers` without SQL errors.
 
 ## @lesson Tests and documentation: trust, written down
 dbt's tests turn "the data should satisfy X" into code that runs on every build. Two kinds:
@@ -164,6 +181,13 @@ where line_total_idr <> qty * unit_price_idr
 More checks worth knowing: **source freshness** (`freshness: {warn_after: {count: 12, period: hour}}` with a `loaded_at_field` raises an alert when a raw table has not been updated), **unit tests** (since dbt 1.8: give a model small mock inputs and assert the output, testing your logic, not your data), and **model contracts** (`contract: {enforced: true}` with declared column names and types: the build fails if a model's output stops matching, which protects consumers from accidental schema changes; Module 2.5 covers contracts in depth).
 
 **Documentation** lives beside the code: `description:` fields in the YAML, and `dbt docs generate` produces a browsable site with a **lineage graph** showing which models feed which. A model without a description of its **grain** is unfinished.
+
+> 💡 **Practice Pause 3 (Data Quality Testing & Singular Tests):**
+> 1. In your text editor, inspect the test definitions in `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` and `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`. Note the `unique`, `not_null`, and `relationships` rule with `config: { severity: warn }`.
+> 2. Open `labs/mod-2-3/kopiku_dbt/tests/assert_line_total_matches_qty_times_price.sql` to ensure line totals match quantity times unit price.
+> 3. Run the tests in terminal:
+>    `dbt test --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Success Indicator:** All tests pass with exactly 1 `WARN` (32 orphan customers tracked without halting the build).
 
 ## @lesson Incremental models: the part where correctness is easy to lose
 A table model rebuilds everything on every run. When the fact table has billions of rows, that is slow and expensive. An **incremental model** processes only new or changed data and applies it to the existing table:
@@ -209,6 +233,14 @@ Three details that the lab will teach you the hard way:
 - **`ref()` must be outside the `is_incremental()` block.** dbt reads every `ref` when it builds the graph, before it knows whether the run is incremental. A `ref` hidden inside the condition fails with "dbt was unable to infer all dependencies"; declare it in a CTE above (or add a `-- depends_on: {{ ref('...') }}` hint).
 - **Prove it.** The lab's tests compare the incrementally maintained table with a from-scratch calculation on the raw data after the second load. Any incremental model deserves exactly that test, because an incorrect incremental model looks perfectly healthy. `dbt run --full-refresh` rebuilds from scratch (use it after logic changes) and a periodic full refresh is a cheap safety net.
 
+> 💡 **Practice Pause 4 (Incremental Models with Ingestion Watermarks):**
+> 1. In your text editor, open `labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql`.
+> 2. Configure the model header: `{{ config(materialized='incremental', unique_key='order_date', incremental_strategy='delete+insert') }}`.
+> 3. Write the conditional filter `{% if is_incremental() %}` to recompute dates affected by `_loaded_at > (select max(max_loaded_at) from {{ this }})` (not filtering `order_date`).
+> 4. Execute the initial run in terminal:
+>    `dbt run --select fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 5. **Success Indicator:** dbt materializes the physical daily revenue table with valid aggregated numbers.
+
 ## @lesson Snapshots, macros and CI
 **Snapshots** capture the history of a table that is overwritten in place, producing a **Type 2 slowly changing dimension** (Module 1.4) without hand-written SQL:
 
@@ -236,6 +268,13 @@ dbt **packages** (such as `dbt_utils` and `dbt_expectations`) bundle ready-made 
 **CI/CD.** Because dbt code is plain files in Git, a pull request can run a CI job: build the changed models into a temporary schema and run their tests, so a broken model never merges. Building the whole project on every pull request is slow and costly, so use **state comparison** (slim CI). Save the production run's `manifest.json`; on a pull request run `dbt build --select state:modified+ --defer --state path/to/prod-state`. `state:modified+` means "models whose code changed, and everything downstream of them"; `--defer` makes unchanged upstream models read from production instead of rebuilding. In the lab project, changing only `stg_order_items` selects that model and the models downstream of it (`fct_order_items` and `fct_daily_revenue`) together with their tests, while `dim_customers` and `stg_customers` are left out.
 
 A healthy workflow: develop in a personal schema, open a pull request, let CI run slim `dbt build`, get a code review, merge, and let the orchestrator run production on a schedule (Module 2.4). Document the grain and the tests with the code, and treat a failing test as an incident, not noise.
+
+> 💡 **Practice Pause 5 (SCD Type 2 Snapshots for Customer Mutations):**
+> 1. In your text editor, open `labs/mod-2-3/kopiku_dbt/snapshots/customers_snapshot.sql`.
+> 2. Declare `{% snapshot customers_snapshot %}` with `strategy='check'` and `check_cols=['city', 'tier']` reading from `{{ ref('stg_customers') }}`.
+> 3. Execute the snapshot in terminal:
+>    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Success Indicator:** The snapshot builds with status `PASS`, ready to capture city moves and tier changes when the second batch is loaded.
 
 ## @lab Lab: a tested dbt project, run twice
 You get a DuckDB database of raw KopiKu tables (append-only, dirty, with duplicates) and a dbt project with sources configured and every model stubbed. Fill in the staging layer, the marts, the incremental model, the tests and a snapshot. The tests run `dbt build`, then simulate a **second load** (new orders, orders that changed status, customers who moved) and run it again, comparing your incremental table with a full recalculation.
@@ -278,6 +317,12 @@ dbt build --profiles-dir .
 ```bash
 pytest labs/mod-2-3 -v
 ```
+
+> 💡 **Practice Pause 6 (Two-Cycle Verification & Reconciliation Test):**
+> 1. In your terminal, run the full automated test suite:
+>    `pytest labs/mod-2-3 -v`
+> 2. Pytest executes the initial build, simulates the second batch load (`load_raw.py --next`), runs the second build, and validates reconciliation against raw data.
+> 3. **Success Indicator:** All 13 tests report `PASSED` (`TestFirstBuild` and `TestSecondLoad`).
 
 8. Optional: save `target/manifest.json` to a folder, change one staging model, and run `dbt ls --select state:modified+ --state <folder> --profiles-dir .` to see slim CI's selection. Then break the incremental model on purpose (filter on `order_date` instead of `_loaded_at`), re-run the tests and watch exactly which test catches it.
 

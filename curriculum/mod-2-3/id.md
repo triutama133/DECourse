@@ -82,6 +82,16 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 
 Dua puluh dua entitas dieksekusi: tujuh model (empat view, tiga tabel, salah satunya tabel inkremental), satu snapshot histori, dan empat belas pengujian data. Jika ada satu model yang gagal kompilasi atau tesnya bernilai error, perintah `dbt build` secara cerdas menandai model dan pengujian di hilirnya sebagai `SKIP`, sehingga data yang rusak tidak akan pernah mengalir mencemari lapisan data mart pelaporan.
 
+> 💡 **Jeda Praktik 1 (Eksplorasi CLI & Struktur Proyek):**
+> 1. Aktifkan virtual environment di terminal: `source .venv/bin/activate`.
+> 2. Siapkan data mentah KopiKu dan buat database DuckDB:
+>    `python3 labs/shared/shopgen.py --out data`
+>    `export KOPIKU_DB=$PWD/kopiku.duckdb`
+>    `python3 labs/mod-2-3/load_raw.py data $KOPIKU_DB`
+> 3. Pindai seluruh model dan sumber data dbt yang telah dideklarasikan tanpa mengeksekusi transformasi:
+>    `dbt ls --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** Terminal menampilkan ringkasan `Found 7 models, 1 snapshot, 14 data tests, 5 sources` beserta daftar lengkap model staging, mart, dan test.
+
 ## @lesson Arsitektur lapisan model dan strategi materialisasi
 Konvensi arsitektur yang telah terbukti keandalannya di ribuan perusahaan teknologi membagi model ke dalam tiga lapisan:
 
@@ -122,6 +132,13 @@ where rn = 1 and order_ts is not null and total_idr > 0
 ```
 
 Fungsi `try_strptime` dan `try_cast` mengembalikan nilai NULL alih-alih melempar error saat menghadapi input string yang rusak, memungkinkan Anda memfilter atau mengisolasi data anomali secara terkendali. (Dialek SQL bervariasi: Snowflake menggunakan `try_to_timestamp`, BigQuery menggunakan `safe_cast`. Kita dapat menyatukannya melalui macro Jinja).
+
+> 💡 **Jeda Praktik 2 (Membangun Model Staging):**
+> 1. Buka teks editor Anda (VS Code / Cursor), navigasikan ke file `labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql` dan `labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql` (jangan mengeksekusi file `.sql` langsung di bash terminal).
+> 2. Terapkan pembersihan data sesuai panduan materi: gunakan CTE `ranked` dengan `row_number() over (partition by order_id order by _loaded_at desc)` untuk mengambil baris versi terkini, serta standardisasi format string dan casting angka rupiah.
+> 3. Jalankan kompilasi dan materialisasi khusus untuk lapisan staging:
+>    `dbt run --select staging --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** Log dbt menampilkan status `OK created sql view model staging.stg_orders` dan `staging.stg_customers` tanpa syntax error.
 
 ## @lesson Pengujian otomatis dan dokumentasi: membangun kepercayaan data
 Fitur testing dbt mengubah harapan verbal "data ini seharusnya tidak boleh duplikat" menjadi kode program teruji yang otomatis dievaluasi pada setiap proses build. Terdapat dua kategori pengujian:
@@ -164,6 +181,13 @@ where line_total_idr <> qty * unit_price_idr
 Pengujian penting lainnya: **Source Freshness** (`freshness: {warn_after: {count: 12, period: hour}}` dengan kolom `loaded_at_field` memicu alarm jika data mentah tidak diperbarui melebihi batas waktu), **Unit Tests** (sejak dbt 1.8: menguji logika transformasi model menggunakan mock data kecil independen), dan **Model Contracts** (`contract: {enforced: true}` yang menjamin skema kolom output model tidak berubah, melindungi konsumen hilir dari schema drift; dibahas mendalam di Modul 2.5).
 
 **Dokumentasi Terintegrasi** hidup berdampingan dengan kode: atribut `description:` pada file YAML otomatis dirangkum oleh perintah `dbt docs generate` menjadi website dokumentasi interaktif lengkap dengan **lineage graph** yang memperlihatkan peta aliran data hulu ke hilir. Sebuah model yang tidak memiliki dokumentasi definisi grain dianggap belum selesai dikerjakan.
+
+> 💡 **Jeda Praktik 3 (Pengujian Kualitas Data & Singular Tests):**
+> 1. Buka teks editor Anda, tinjau deklarasi tes di file `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` dan `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`. Perhatikan aturan `unique`, `not_null`, serta `relationships` dengan `config: { severity: warn }` pada customer.
+> 2. Buka file singular test `labs/mod-2-3/kopiku_dbt/tests/assert_line_total_matches_qty_times_price.sql` untuk memastikan tidak ada item pesanan yang nilai totalnya tidak sama dengan perkalian kuantitas dan harga satuan.
+> 3. Jalankan pengujian di terminal:
+>    `dbt test --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** Seluruh pengujian menghasilkan `PASS` dengan tepat 1 `WARN` (32 pelanggan yatim yang terpantau tanpa menggagalkan pipeline).
 
 ## @lesson Model inkremental: titik rawan hilangnya kebenaran data
 Model berjenis tabel fisik membangun ulang seluruh isi data pada setiap kali dijalankan. Ketika tabel fakta telah mencapai miliaran baris transaksi, membangun ulang dari awal menjadi sangat lambat dan memboroskan biaya komputasi. **Model inkremental (incremental model)** hanya memproses data baru atau data yang berubah sejak proses terakhir dan menyisipkannya ke tabel yang sudah ada:
@@ -209,6 +233,14 @@ Tiga aturan emas yang akan Anda buktikan di lab:
 - **Deklarasikan `ref()` di luar blok `is_incremental()`.** dbt membaca seluruh pemanggilan `ref()` saat pertama kali menyusun grafik DAG, sebelum dbt mengetahui apakah proses tersebut berjalan secara inkremental atau full-refresh. Menaruh `ref()` di dalam blok kondisional akan memicu error "dbt was unable to infer all dependencies"; deklarasikan di CTE paling atas.
 - **Buktikan dengan pengujian rekonsiliasi.** Pengujian unit test di lab membandingkan output tabel inkremental dengan hasil perhitungan kalkulasi ulang penuh dari data mentah setelah muatan kedua tiba. Selalu sertakan tes rekonsiliasi semacam ini, karena model inkremental yang salah secara logika tetap terlihat normal dan berjalan tanpa error. Jalankan `dbt run --full-refresh` secara berkala sebagai jaring pengaman produksi.
 
+> 💡 **Jeda Praktik 4 (Model Inkremental dengan Watermark Ingestion):**
+> 1. Buka teks editor Anda, buka file `labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql`.
+> 2. Konfigurasikan header model: `{{ config(materialized='incremental', unique_key='order_date', incremental_strategy='delete+insert') }}`.
+> 3. Tuliskan blok kondisional `{% if is_incremental() %}` dengan menyaring tanggal yang terdampak oleh `_loaded_at > (select max(max_loaded_at) from {{ this }})` (bukan memfilter `order_date`).
+> 4. Uji eksekusi awal di terminal:
+>    `dbt run --select fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 5. **Indikator Sukses:** dbt berhasil mematerialisasikan tabel fakta harian pertama dengan ringkasan transaksi yang valid.
+
 ## @lesson Snapshots, macros, dan integrasi CI/CD
 **dbt Snapshots** menangkap histori perubahan dari tabel sumber yang ditimpa di tempat (in-place update), menghasilkan dimensi **Slowly Changing Dimension (SCD) Tipe 2** (Modul 1.4) secara otomatis tanpa penulisan query merge manual:
 
@@ -236,6 +268,13 @@ Paket-paket dbt eksternal (**dbt packages** seperti `dbt_utils` dan `dbt_expecta
 **Integrasi CI/CD (Slim CI).** Karena kode dbt tersimpan murni sebagai file teks di repositori Git, setiap pull request dapat memicu automated testing di GitHub Actions: membangun model-model yang diubah ke dalam skema sandbox sementara dan menjalankan seluruh pengujian terkait. Membangun seluruh isi proyek pada setiap pull request sangat lambat dan boros biaya, sehingga terapkan **State Comparison (Slim CI)**. Simpan file `manifest.json` dari proses build produksi; pada pull request jalankan `dbt build --select state:modified+ --defer --state path/to/prod-state`. Argumen `state:modified+` berarti "bangun hanya model yang kodenya berubah beserta seluruh model hilirnya"; argumen `--defer` memerintahkan dbt membaca tabel hulu yang tidak berubah langsung dari skema produksi alih-alih membangunnya ulang. Pada proyek lab, mengubah file `stg_order_items` hanya akan menyeleksi model tersebut dan model-model hilirnya (`fct_order_items` dan `fct_daily_revenue`) beserta pengujiannya, sementara `dim_customers` dan `stg_customers` tidak akan tersentuh sama sekali.
 
 Alur kerja profesional yang sehat: kembangkan fitur di skema pribadi lokal, buka pull request, biarkan Slim CI memvalidasi kebenaran data dan tes, lakukan peer review kode, merge ke cabang main, dan biarkan orchestrator menjalankan pipeline produksi secara terjadwal (Modul 2.4). Perlakukan pengujian yang gagal sebagai insiden produksi, bukan sekadar kebisingan notifikasi.
+
+> 💡 **Jeda Praktik 5 (Snapshot SCD Tipe 2 untuk Mutasi Pelanggan):**
+> 1. Buka teks editor Anda, buka file `labs/mod-2-3/kopiku_dbt/snapshots/customers_snapshot.sql`.
+> 2. Deklarasikan blok `{% snapshot customers_snapshot %}` dengan konfigurasi `strategy='check'` dan `check_cols=['city', 'tier']` serta sumber data `{{ ref('stg_customers') }}`.
+> 3. Jalankan perintah snapshot di terminal:
+>    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** Snapshot terbentuk dengan status `PASS`, siap mendeteksi perubahan domisili kota dan tier pelanggan ketika data batch kedua dimuat.
 
 ## @lab Lab: membangun proyek dbt teruji dengan dua siklus eksekusi
 Anda dibekali database DuckDB berisi tabel-tabel mentah KopiKu (append-only, tidak rapi, dengan duplikasi data) dan proyek dbt dengan konfigurasi sumber yang sudah disiapkan serta kerangka model awal. Tugas Anda adalah melengkapi lapisan staging, data marts, model inkremental, rangkaian tes data, dan dbt snapshot. Unit test lab akan menjalankan perintah `dbt build`, lalu mensimulasikan **muatan data kedua (second load)** yang membawa pesanan baru, pembatalan pesanan masa lalu, dan mutasi pelanggan, kemudian menjalankan build kembali untuk memverifikasi bahwa tabel inkremental Anda menghasilkan angka yang identik dengan kalkulasi ulang penuh.
@@ -278,6 +317,12 @@ dbt build --profiles-dir .
 ```bash
 pytest labs/mod-2-3 -v
 ```
+
+> 💡 **Jeda Praktik 6 (Verifikasi Dua Siklus & Uji Rekonsiliasi):**
+> 1. Jalankan pengujian menyeluruh di terminal:
+>    `pytest labs/mod-2-3 -v`
+> 2. Pytest akan mengeksekusi build awal, memuat batch kedua (`load_raw.py --next`), menjalankan build kedua, dan memvalidasi rekonsiliasi angka revenue serta riwayat snapshot.
+> 3. **Indikator Sukses:** Seluruh 13 pengujian pytest berstatus `PASSED` (`TestFirstBuild` dan `TestSecondLoad` 100% lulus).
 
 8. Eksplorasi mandiri: simpan file `target/manifest.json` ke folder terpisah, modifikasi satu model staging, dan jalankan perintah `dbt ls --select state:modified+ --state <folder> --profiles-dir .` untuk melihat cara kerja seleksi Slim CI. Kemudian, coba sengaja rusak logika inkremental (filter pada `order_date` alih-alih `_loaded_at`), jalankan pytest kembali, dan amati unit test mana yang berhasil menangkap anomali tersebut.
 
