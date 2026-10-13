@@ -46,6 +46,13 @@ Dua fitur menentukan bagaimana key-value store dipakai:
 
 Data engineer bertemu key-value store sebagai *lapisan penyajian* pipeline (feature store, pencarian real-time) dan sebagai cache yang membuat data pipeline tampak basi. Ingat bahwa cache adalah **salinan**: ketika sumber berubah, salinan itu salah sampai ia kedaluwarsa atau di-invalidasi.
 
+> 💡 **Jeda Praktik: Membangun Key-Value Store & Eviction LRU**
+> 1. Buka file `labs/mod-1-7/nosql_lab.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
+> 2. Temukan kelas `KeyValueStore` (Bagian 1). Implementasikan method `__init__`, `set`, `get`, `delete`, `ttl`, dan `keys`. Gunakan `collections.OrderedDict` bersama method `move_to_end()` untuk menjaga urutan kebaruan (LRU) serta periksa apakah key telah kedaluwarsa (`clock() >= expires_at`).
+> 3. Jalankan pengujian unit spesifik di terminal untuk memverifikasi logika cache Anda:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore`
+> 4. Pastikan ke-7 pengujian lulus (`7 passed`). Amati bagaimana kunci yang paling lama tidak diakses terbuang secara otomatis saat kapasitas maksimum tercapai.
+
 ## @lesson Database dokumen: bentuk yang fleksibel
 Database dokumen menyimpan **dokumen**, biasanya JSON (MongoDB menyimpan bentuk biner bernama BSON; batas 16 MB per dokumen), dikelompokkan dalam **collection**. Sebuah dokumen bisa berisi objek bersarang dan array, dan dua dokumen dalam collection yang sama bisa punya field berbeda. Contoh: **MongoDB**, Couchbase, Firestore.
 
@@ -64,6 +71,14 @@ Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "t
 
 **Bagi data engineer** ini adalah sumber NoSQL yang paling umum. Dokumen harus **diratakan** menjadi baris: objek bersarang menjadi kolom (`customer_city`), array menjadi tabel anak dengan satu baris per elemen dan id induknya (`items` di atas menjadi tabel `order_items`). Rencanakan untuk field yang muncul dan hilang, dan untuk perubahan tipe, dengan gagasan kontrak dari Modul 2.5.
 
+> 💡 **Jeda Praktik: Membangun Document Store & Indexing**
+> 1. Di Text Editor, buka `labs/mod-1-7/nosql_lab.py` dan arahkan ke kelas `DocumentStore` (Bagian 2).
+> 2. Implementasikan method `insert(doc)` (tetapkan `_id` otomatis jika belum ada dan simpan salinan dokumen), `find(query)` yang mendukung dot-path bersarang seperti `"address.city"` serta operator `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, dan `$in`.
+> 3. Implementasikan `create_index(field)` dan pastikan atribut `last_scanned` mencerminkan jumlah dokumen yang benar-benar dipindai (hanya subset index, bukan seluruh koleksi).
+> 4. Jalankan pengujian unit dokumen di terminal Anda:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
+> 5. Pastikan ke-9 pengujian lulus (`9 passed`). Perhatikan bagaimana pembuatan index memangkas jumlah dokumen yang dipindai dari ribuan menjadi hanya yang cocok.
+
 ## @lesson Wide-column dan store berpartisi: skala sejak desain
 Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data ke **banyak mesin** dan tetap bekerja saat sebagian gagal. Meski bernama "wide-column", cara terbaik memahaminya adalah lewat **primary key**, yang punya dua bagian:
 
@@ -74,11 +89,26 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 
 **Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
 
+> 💡 **Jeda Praktik: Menguji Cincin Consistent Hashing**
+> 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka kelas `HashRing` (Bagian 3).
+> 2. Implementasikan `add_node`, `remove_node`, dan `node_for(key)`. Gunakan `zlib.crc32` untuk memetakan nama node dan `vnodes` posisi virtual ke dalam cincin lingkaran terurut, serta `bisect` untuk menemukan node terdekat searah jarum jam.
+> 3. Uji cincin consistent hashing Anda di terminal:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestHashRing`
+> 4. Pastikan ke-6 pengujian lulus (`6 passed`). Perhatikan mengapa penambahan atau penghapusan node hanya memindahkan sekitar seper-N bagian kunci, bukan merombak seluruh klaster.
+
 **Replikasi dan konsistensi yang bisa diatur.** Setiap partisi disalin ke *N* replika (umumnya 3). Sebuah penulisan diakui setelah **W** replika mengonfirmasi; sebuah pembacaan bertanya ke **R** replika dan mengembalikan versi terbaru. Jika **R + W > N**, himpunan baca mana pun beririsan dengan himpunan tulis mana pun, sehingga pembacaan **pasti** melihat tulisan terakhir yang diakui. Dengan N = 3: W=2, R=2 aman ("quorum"); W=1, R=1 cepat tetapi bisa mengembalikan data basi; W=3, R=1 aman untuk pembacaan tetapi penulisan gagal jika satu replika mati. `ReplicaSet` di lab memperlihatkan persis ini, termasuk `Unavailable` ketika terlalu sedikit replika hidup. Anda membayar konsistensi dengan latensi dan ketersediaan, itulah PACELC dalam praktik.
 
 **Penulisan murah** karena desain log-structured: penulisan ditambahkan ke commit log dan tabel memori, lalu di-flush ke file terurut yang tidak bisa diubah (SSTable) yang digabung kemudian (**compaction**). Penghapusan tidak benar-benar menghapus: ia menulis **tombstone**, yang baru dibuang setelah masa aman; banyak tombstone memperlambat pembacaan.
 
 **Apa yang salah:** **hot partition** (satu partition key menerima sebagian besar lalu lintas, seperti tanggal hari ini) membebani satu mesin sementara yang lain tidur; partisi yang tumbuh tanpa batas; dan query yang butuh pemindaian penuh. **DynamoDB** menambah operasi terkelola dan batas keras 400 KB per item, dan Anda membayar menurut kapasitas atau per permintaan.
+
+> 💡 **Jeda Praktik: Quorum Replication & Wide-Column Table**
+> 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka Bagian 4 (`quorum_overlaps`, `ReplicaSet`) dan Bagian 5 (`WideColumnTable`).
+> 2. Lengkapi fungsi `quorum_overlaps(n, r, w)` dengan rumus `r + w > n`, serta kelas `ReplicaSet` yang mensimulasikan penulisan versi dan pembacaan dengan node replika yang sedang down.
+> 3. Lengkapi kelas `WideColumnTable`: kelompokkan baris berdasarkan `partition_key`, urutkan berdasarkan `clustering_key`, dukung upsert jika primary key sama, serta tolak query tanpa partition key (`ValueError`).
+> 4. Jalankan pengujian untuk replikasi dan wide-column di terminal:
+> `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
+> 5. Pastikan ke-14 pengujian lulus (`14 passed`).
 
 ## @lesson Graf, pencarian, time-series, dan lainnya
 Beberapa pola akses bukan satu pun dari yang di atas.
@@ -116,6 +146,13 @@ Perusahaan memakai beberapa sekaligus (**polyglot persistence**): PostgreSQL unt
 5. **Hormati pola akses.** Jika Anda harus mengkueri atribut yang tidak diindeks store, minta tim aplikasi menambah index atau tabel turunan, daripada memindai.
 
 Kini Anda bisa menjawab pertanyaan yang lazim: "Mengapa tidak MongoDB untuk semuanya?" (tanpa join, schema drift, analitik terbatas). "Apa itu partition key?" (menentukan penempatan dan satuan penskalaan). "Apa arti R + W > N?" (pembacaan beririsan dengan penulisan, jadi melihat tulisan terbaru, dengan harga latensi dan ketersediaan). "Mengapa consistent hashing?" (menambah atau membuang node memindahkan sebagian kecil key, bukan hampir semuanya).
+
+> 💡 **Jeda Praktik: Verifikasi Akhir Seluruh Pola Database NoSQL**
+> 1. Setelah semua lima komponen di `labs/mod-1-7/nosql_lab.py` selesai diimplementasikan, jalankan seluruh rangkaian pengujian dari terminal:
+> `pytest labs/mod-1-7/test_lab.py -v`
+> 2. Pastikan ke-36 pengujian lulus sempurna tanpa kesalahan (`36 passed`).
+> 3. Hasilkan kode bukti resmi untuk disalin ke portal pembelajaran dengan menjalankan perintah:
+> `python3 scripts/prove.py mod-1-7`
 
 ## @lab Lab: lima gagasan database dalam Python murni
 Bangun lima model kecil yang deterministik: **key-value store** dengan TTL dan eviction LRU, **document store** dengan query dan index, **cincin consistent hashing**, **replikasi quorum**, dan **tabel wide-column**. Tesnya (36) memeriksa setiap perilaku yang dijelaskan pelajaran, termasuk angkanya: index yang memangkas pemindaian dari 10.000 dokumen menjadi 10, modulo hashing yang memindahkan 79,5% key dibanding 19,9% untuk cincin, dan aturan quorum.

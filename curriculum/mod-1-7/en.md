@@ -46,6 +46,13 @@ Two features define how key-value stores are used:
 
 A data engineer meets key-value stores as the *serving layer* of pipelines (feature stores, real-time lookups) and as caches that make a pipeline's data appear stale. Remember that a cache is a **copy**: when the source changes, the copy is wrong until it expires or is invalidated.
 
+> 💡 **Practice Pause: Building Key-Value Store & LRU Eviction**
+> 1. Open `labs/mod-1-7/nosql_lab.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
+> 2. Locate class `KeyValueStore` (Section 1). Implement methods `__init__`, `set`, `get`, `delete`, `ttl`, and `keys`. Use `collections.OrderedDict` with `move_to_end()` to maintain access recency (LRU) and check if keys have expired (`clock() >= expires_at`).
+> 3. Run the specific unit tests in your terminal to verify your cache logic:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore`
+> 4. Ensure all 7 tests pass (`7 passed`). Observe how the least recently accessed keys are evicted automatically once the maximum capacity limit is reached.
+
 ## @lesson Document databases: flexible shapes
 A document database stores **documents**, usually JSON (MongoDB stores a binary form called BSON; limit 16 MB per document), grouped into **collections**. A document can contain nested objects and arrays, and two documents in the same collection can have different fields. Examples: **MongoDB**, Couchbase, Firestore.
 
@@ -64,6 +71,14 @@ You query with a document-shaped language: `{"customer.city": "Jakarta", "total"
 
 **For data engineers** this is the commonest NoSQL source. Documents must be **flattened** into rows: a nested object becomes columns (`customer_city`), an array becomes a child table with one row per element and the parent's id (the `items` above become an `order_items` table). Plan for fields that appear and disappear, and for type changes, with the contract ideas of Module 2.5.
 
+> 💡 **Practice Pause: Building Document Store & Indexing**
+> 1. In your text editor, open `labs/mod-1-7/nosql_lab.py` and navigate to class `DocumentStore` (Section 2).
+> 2. Implement `insert(doc)` (assign auto-incrementing `_id` if missing and store a copy), and `find(query)` supporting nested dot paths like `"address.city"` and comparison operators `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, and `$in`.
+> 3. Implement `create_index(field)` and ensure `last_scanned` accurately tracks the number of documents inspected (only the indexed subset, not the full collection).
+> 4. Run the document unit tests in your terminal:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
+> 5. Ensure all 9 tests pass (`9 passed`). Notice how secondary indexing reduces the scan count from thousands of documents down to only the matching hits.
+
 ## @lesson Wide-column and partitioned stores: scale by design
 Cassandra, ScyllaDB, DynamoDB, Bigtable and HBase are built to spread data over **many machines** and keep working when some fail. Despite the name "wide-column", the best way to understand them is the **primary key**, which has two parts:
 
@@ -74,11 +89,26 @@ The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders o
 
 **How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.
 
+> 💡 **Practice Pause: Testing the Consistent Hashing Ring**
+> 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to class `HashRing` (Section 3).
+> 2. Implement `add_node`, `remove_node`, and `node_for(key)`. Use `zlib.crc32` to map node names and `vnodes` virtual positions onto a sorted ring, and use `bisect` to find the nearest node clockwise.
+> 3. Test your consistent hashing ring in your terminal:
+> `pytest labs/mod-1-7/test_lab.py -v -k TestHashRing`
+> 4. Verify that all 6 tests pass (`6 passed`). Notice why adding or removing a node shifts only approximately 1/N of keys instead of rehashing the entire cluster.
+
 **Replication and tunable consistency.** Each partition is copied to *N* replicas (commonly 3). A write is acknowledged after **W** replicas confirm; a read asks **R** replicas and returns the newest version. If **R + W > N**, any read set overlaps any write set, so a read **must** see the latest acknowledged write. With N = 3: W=2, R=2 is safe (the "quorum"); W=1, R=1 is fast but can return stale data; W=3, R=1 is safe for reads but writes fail if any replica is down. The lab's `ReplicaSet` demonstrates exactly this, including `Unavailable` when too few replicas are up. You pay in latency and availability for consistency, which is PACELC in practice.
 
 **Writes are cheap** because of the log-structured design: a write is appended to a commit log and a memory table, then flushed to immutable sorted files (SSTables) that are merged later (**compaction**). A delete does not erase: it writes a **tombstone**, which is removed only after a safe period; many tombstones slow reads.
 
 **What goes wrong:** a **hot partition** (one partition key receiving most of the traffic, such as the current date) overloads one machine while the others sleep; a partition that grows without bound; and queries that need a full scan. **DynamoDB** adds managed operation and a hard limit of 400 KB per item, and you pay by capacity or by request.
+
+> 💡 **Practice Pause: Quorum Replication & Wide-Column Table**
+> 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to Section 4 (`quorum_overlaps`, `ReplicaSet`) and Section 5 (`WideColumnTable`).
+> 2. Implement `quorum_overlaps(n, r, w)` using the condition `r + w > n`, and class `ReplicaSet` to simulate versioned writes and reads when specific replica nodes are down.
+> 3. Implement class `WideColumnTable`: group rows by `partition_key`, order them by `clustering_key`, support upserts on identical primary keys, and reject queries without a partition key (`ValueError`).
+> 4. Run the quorum and wide-column test suites in your terminal:
+> `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
+> 5. Ensure all 14 tests pass (`14 passed`).
 
 ## @lesson Graph, search, time-series and the rest
 Some access patterns are none of the above.
@@ -116,6 +146,13 @@ Companies use several at once (**polyglot persistence**): PostgreSQL for orders,
 5. **Respect the access pattern.** If you must query by an attribute the store does not index, ask the application team to add an index or a derived table, instead of scanning.
 
 You can now answer the usual questions: "Why not MongoDB for everything?" (no joins, schema drift, limited analytics). "What is a partition key?" (decides placement and the unit of scaling). "What does R + W > N mean?" (reads overlap writes, so they see the latest write, at a cost in latency and availability). "Why consistent hashing?" (adding or removing a node moves a small share of keys instead of nearly all).
+
+> 💡 **Practice Pause: End-to-End NoSQL Database Pattern Verification**
+> 1. Once all five components in `labs/mod-1-7/nosql_lab.py` are implemented, run the entire test suite in your terminal:
+> `pytest labs/mod-1-7/test_lab.py -v`
+> 2. Verify that all 36 tests pass cleanly without errors (`36 passed`).
+> 3. Generate your verification proof code for the learning portal by running:
+> `python3 scripts/prove.py mod-1-7`
 
 ## @lab Lab: five database ideas in plain Python
 Build five small, deterministic models: a **key-value store** with TTL and LRU eviction, a **document store** with queries and indexes, a **consistent-hashing ring**, **quorum replication**, and a **wide-column table**. The tests (36) check each behaviour the lessons describe, including the numbers: the index that cuts a scan from 10,000 documents to 10, modulo hashing that moves 79.5% of the keys against 19.9% for the ring, and the quorum rule.
