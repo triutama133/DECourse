@@ -61,6 +61,13 @@ Kekacauan yang sengaja disematkan ke dalam file-file data ini:
 
 Pertanyaan yang wajib Anda selesaikan sebelum mulai menulis kode (langkah 1 pada skrip penguji meminta Anda menghitung sembilan angka profil data): berapa total baris teks yang ada, berapa baris yang tidak dapat digunakan dan apa rincian alasan kegagalannya untuk masing-masing dari ketiga kategori, berapa portal sumber data yang tercatat, portal mana yang paling banyak memuat postingan, berapa baris yang mencantumkan informasi gaji, dan hari mana yang memiliki kualitas data terburuk. Hitung angka-angka ini menggunakan skrip Python sederhana. Jangan melewati langkah ini: angka-angka tersebut merupakan tolok ukur rekonsiliasi data pertama Anda yang akan dicocokkan dengan hasil pipeline nantinya.
 
+> 💡 **Jeda Praktik 1 (Langkah 1: Profiling File Pengiriman & Pembuatan profile.json):**
+> 1. Buat file `profile.json` di folder workspace Anda (`~/airflow-lab/profile.json`) menggunakan teks editor.
+> 2. Hitung 9 metrik statistik dari ketujuh file pengiriman di folder inbox: `files`, `lines_total`, `invalid_json_lines`, `lines_missing_required`, `lines_bad_date`, `distinct_sources`, `busiest_source`, `lines_with_salary`, dan `worst_day`.
+> 3. Jalankan pemeriksaan langkah 1 di terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`
+> 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan profiling kualitas data pengiriman Anda cocok 100% dengan nilai acuan.
+
 ## @lesson Airflow dalam lima belas menit
 **Apache Airflow** adalah platform orkestrasi untuk mendefinisikan, menjadwalkan, dan memantau alur kerja data secara terprogram menggunakan bahasa Python. Anda merancang dependensi alur kerja; Airflow mengelola penjadwalannya, mengeksekusi task sesuai urutan, menangani retry otomatis saat terjadi error, mencatat setiap riwayat percobaan eksekusi, serta menyajikan visualisasinya melalui antarmuka web.
 
@@ -76,6 +83,13 @@ Pertanyaan yang wajib Anda selesaikan sebelum mulai menulis kode (langkah 1 pada
 Dekorator `@dag` menerima parameter `dag_id`, `schedule`, `start_date`, `catchup`, `max_active_runs`, `default_args`, dan `tags`. Anda mengimpor dekorator ini melalui `from airflow.sdk import dag, task`. Untuk mencoba secara mandiri: perintah `airflow standalone` menjalankan seluruh sistem lengkap dengan server web (terminal akan menampilkan kredensial login); fungsi `dag.test(logical_date=...)` mengeksekusi satu run penuh di dalam proses terminal Anda sendiri, yang merupakan mekanisme yang dipakai oleh skrip penguji dan sangat disarankan untuk Anda gunakan selama pengembangan. Pengujian kami mencatat waktu eksekusi sekitar 10 detik untuk satu run penuh DAG lima task, di mana sebagian besar waktu dipakai untuk inisialisasi internal Airflow.
 
 Dua prinsip utama yang jauh lebih krusial daripada sekadar operator Airflow: **jadikan setiap task sebagai fungsi murni dari tanggal dan inputnya saja**, serta **jadikan setiap operasi penyimpanan menggantikan (replace) data lama alih-alih menambahkan (append)**. Seluruh materi berikutnya dalam modul ini berfokus pada penerapan kedua prinsip tersebut.
+
+> 💡 **Jeda Praktik 2 (Langkah 2: Struktur DAG & Pengaturan Kontrak Rantai Task):**
+> 1. Buka file `jobs_pipeline.py` di workspace Anda (`~/airflow-lab/jobs_pipeline.py`) menggunakan teks editor.
+> 2. Definisikan DAG `@dag` dengan `dag_id="jobs_pipeline"`, `schedule="@daily"`, `catchup=False`, `max_active_runs=1`, `start_date` tetap (misalnya 2026-03-01 UTC), dan lima fungsi `@task` yang dirangkai berurutan: `extract` → `validate` → `transform` → `load` → `publish_mart` dengan retries minimal 2 dan retry_delay <= 5s.
+> 3. Jalankan pemeriksaan langkah 2 di terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 2`
+> 4. **Indikator Sukses:** Seluruh pemeriksaan konfigurasi DAG berstatus `PASS`, memastikan file DAG diimpor tanpa error dan top-level parsing tuntas dalam tempo cepat.
 
 ## @lesson Kontrak arsitektur teknis
 Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis menguji kepatuhan kode Anda terhadap kontrak ini secara ketat.
@@ -105,6 +119,13 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 
 **Struktur tabel** di dalam `JOBS_WAREHOUSE`: tabel `jobs(ds DATE, job_key, title, company, location, salary_min_idr BIGINT, salary_max_idr BIGINT, n_sources INTEGER)` dengan satu baris per kombinasi `ds` dan `job_key`, serta tabel relasi `job_skills(ds DATE, job_key, skill)`.
 
+> 💡 **Jeda Praktik 3 (Langkah 3: Eksekusi Penuh Satu Hari: Validasi, Transformasi & Warehouse):**
+> 1. Buka file `jobs_pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Lengkapi logika kelima task untuk memproses data berdasarkan parameter `ds`: validasi baris rusak ke karantina, normalisasi gaji dan alias skill, muat ke tabel `jobs` dan `job_skills` di DuckDB, serta publikasikan `mart_skill_demand`.
+> 3. Jalankan pemeriksaan langkah 3 di terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, membuktikan satu hari pemrosesan menghasilkan baris tabel dan metrik mart yang 100% akurat.
+
 ## @lesson Merancang pipeline agar tahan banting
 **Seluruh operasi merupakan fungsi deterministik dari tanggal.** Jika sebuah task menanyakan "hari apa sekarang?" alih-alih "tanggal berapa run ini ditujukan?", menjalankan ulang jadwal masa lalu akan menghasilkan data yang salah. Setiap nama file, filter `WHERE`, dan path output di pipeline ini wajib dibangun berdasarkan parameter `ds`.
 
@@ -118,6 +139,13 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 
 **Lakukan pengujian dini menggunakan `dag.test()`.** Setelah selesai menulis sebuah fungsi task, jalankan DAG untuk satu tanggal tertentu secara lokal dan periksa isi tabel database DuckDB Anda. Skrip pemeriksa otomatis menggunakan mekanisme pengujian yang persis sama, sehingga apa yang Anda amati di terminal lokal adalah apa yang dinilai oleh sistem penguji.
 
+> 💡 **Jeda Praktik 4 (Langkah 4: Idempotensi Rerun & Out-of-Order Backfill):**
+> 1. Buka file `jobs_pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Pastikan operasi pemuatan di `load` menggunakan prinsip replace (DELETE baris tanggal `ds` sebelum INSERT di dalam satu transaksi DuckDB) dan `publish_mart` selalu membangun ulang mart dari awal.
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa rerun berulang kali dan urutan backfill acak tidak pernah melipatgandakan baris data.
+
 ## @lab Lab: lima langkah membangun pipeline produksi harian di Airflow
 Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan mengeksekusi DAG Anda pada file pengiriman riil serta file yang sengaja dirusak, lalu membandingkan isi database warehouse Anda dengan hasil perhitungan independen.
 
@@ -130,6 +158,14 @@ Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda 
 6. **Pemeriksa langkah 5: ketahanan terhadap kegagalan.** Sebuah file pengiriman disimulasikan datang terlambat beberapa detik; kiriman tanggal 5 Maret disimulasikan memuat mayoritas data rusak. Pastikan skrip Anda mampu memulihkan diri pada kasus pertama dan menghentikan pemrosesan secara aman tanpa memodifikasi database pada kasus kedua. Jalankan pengujian `--step 5`.
 7. **Mengalami kendala?** Baca kembali materi pelajaran yang relevan, periksa struktur data mentah serta teks pesan kesalahan dari Airflow, lalu gunakan petunjuk bertingkat jika diperlukan: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3 --hint 1` (kemudian 2, lalu 3).
 8. **Penyelesaian.** Ketika pengujian `--step all` berhasil lulus seutuhnya, jalankan perintah `python3 scripts/prove.py mod-4-4 ~/airflow-lab` untuk menghasilkan kode verifikasi kelulusan. Tuliskan file `NOTES.md` di direktori kerja Anda: tuliskan tiga kalimat mengenai hal yang paling mengejutkan Anda dalam Airflow, serta aspek apa saja yang akan Anda pantau jika pipeline ini berjalan setiap malam di produksi (misalnya persentase baris data yang ditolak per hari dan usia keterlambatan file kiriman terbaru).
+
+> 💡 **Jeda Praktik 5 (Langkah 5: Ketahanan File Terlambat, Gate Kualitas, & Bukti Kelulusan):**
+> 1. Di `jobs_pipeline.py`, pastikan task `extract` melempar exception saat file belum ada (agar di-retry oleh Airflow) dan task `validate` melempar exception jika baris rusak melampaui 50% (menghentikan pipeline tanpa merusak database).
+> 2. Jalankan pemeriksaan langkah 5 dan evaluasi menyeluruh di terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step all`
+> 3. Hasilkan kode bukti verifikasi Capstone:
+>    `python3 scripts/prove.py mod-4-4 ~/airflow-lab`
+> 4. **Indikator Sukses:** Seluruh tahapan pengujian berstatus `PASS` dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-4-4/starter/jobs_pipeline.py :: File template awal kerja: salin ke ruang kerja Anda dan kembangkan DAG di sana :: starter

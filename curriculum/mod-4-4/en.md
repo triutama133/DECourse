@@ -61,6 +61,13 @@ What is wrong with these files, on purpose:
 
 Questions to answer before you write any code (step 1 asks you for nine numbers about these files): how many lines are there, how many are unusable and for which of the three reasons, how many sources exist, which is the busiest, how many lines carry a salary, and which day is the worst. Work them out with a few lines of Python. Do not skip this: the counts are your first reconciliation numbers, the ones you compare your pipeline against.
 
+> 💡 **Practice Pause 1 (Step 1: Delivery Profiling & profile.json Creation):**
+> 1. Create `profile.json` in your workspace folder (`~/airflow-lab/profile.json`) using your text editor.
+> 2. Compute the 9 statistical metrics across all 7 delivery files in inbox: `files`, `lines_total`, `invalid_json_lines`, `lines_missing_required`, `lines_bad_date`, `distinct_sources`, `busiest_source`, `lines_with_salary`, and `worst_day`.
+> 3. Run the step 1 check in terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`
+> 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your delivery profiling matches reference truth.
+
 ## @lesson Airflow in fifteen minutes
 **Apache Airflow** runs and watches workflows that you define in Python. You describe the work; Airflow schedules it, runs it in order, retries failures, records every attempt and shows it all in a web page.
 
@@ -76,6 +83,13 @@ Questions to answer before you write any code (step 1 asks you for nine numbers 
 The `@dag` decorator takes `dag_id`, `schedule`, `start_date`, `catchup`, `max_active_runs`, `default_args` and `tags`. You import the decorators with `from airflow.sdk import dag, task`. To try things yourself: `airflow standalone` starts the whole system with a web page (the terminal prints the login); `dag.test(logical_date=...)` runs one run in your own process, which is what the checker uses and what you should use while developing. We measured about 10 seconds for a complete run of a five-task DAG, most of it Airflow starting up.
 
 Two habits that matter more than any operator: **make every task a function of its date and its inputs only**, and **make every write replace rather than append**. The rest of this module is about exactly that.
+
+> 💡 **Practice Pause 2 (Step 2: DAG Structure & Task Chain Contract Settings):**
+> 1. Open `jobs_pipeline.py` in your workspace (`~/airflow-lab/jobs_pipeline.py`) using your text editor.
+> 2. Define the `@dag` with `dag_id="jobs_pipeline"`, `schedule="@daily"`, `catchup=False`, `max_active_runs=1`, fixed `start_date` (e.g., 2026-03-01 UTC), and five `@task` functions chained sequentially: `extract` → `validate` → `transform` → `load` → `publish_mart` with retries >= 2 and retry_delay <= 5s.
+> 3. Run the step 2 check in terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 2`
+> 4. **Success Indicator:** All DAG configuration checks report `PASS`, ensuring the DAG file imports cleanly and top-level parsing finishes quickly.
 
 ## @lesson The contract
 This lesson is the specification. The checker follows it to the letter.
@@ -105,6 +119,13 @@ This lesson is the specification. The checker follows it to the letter.
 
 **Tables** in `JOBS_WAREHOUSE`: `jobs(ds DATE, job_key, title, company, location, salary_min_idr BIGINT, salary_max_idr BIGINT, n_sources INTEGER)` with one row per `ds` and `job_key`, and `job_skills(ds DATE, job_key, skill)`.
 
+> 💡 **Practice Pause 3 (Step 3: One-Day End-to-End Run: Validation, Transformation & Warehouse):**
+> 1. Open `jobs_pipeline.py` in your workspace using your text editor.
+> 2. Complete all five task implementations using logical date `ds`: quarantine bad lines, normalize salaries and skill aliases, load into DuckDB tables `jobs` and `job_skills`, and rebuild `mart_skill_demand`.
+> 3. Run the step 3 check in terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`
+> 4. **Success Indicator:** All step 3 checks report `PASS`, confirming a single-day run produces 100% accurate warehouse rows and mart metrics.
+
 ## @lesson Designing it so that it survives
 **Everything is a function of the date.** If a task asks "what is today?" instead of "which day is this run for?", rerunning an old day gives a wrong answer. Every file name, every `WHERE`, every output path in this pipeline is built from `ds`.
 
@@ -118,6 +139,13 @@ This lesson is the specification. The checker follows it to the letter.
 
 **Test with `dag.test()` early and often.** After each task you write, run the DAG for one date yourself and look at the warehouse. The checker uses exactly this, so what you see is what it sees.
 
+> 💡 **Practice Pause 4 (Step 4: Rerun Idempotence & Out-of-Order Backfill):**
+> 1. Open `jobs_pipeline.py` in your workspace using your text editor.
+> 2. Ensure task `load` follows the replace pattern (DELETE rows matching `ds` before INSERT inside one DuckDB transaction) and `publish_mart` fully rebuilds the mart from base tables.
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS`, verifying repeated reruns and arbitrary backfill execution order never duplicate records.
+
 ## @lab Lab: five steps to a pipeline Airflow can run every night
 Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your DAG on the real deliveries and on broken ones, and compares the warehouse with answers it computes independently.
 
@@ -130,6 +158,14 @@ Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a
 6. **Checker step 5: survive.** A delivery arrives a few seconds late; a delivery of 5 March is mostly garbage. Make the first heal itself and the second fail without touching anything. Run `--step 5`.
 7. **Stuck?** Re-read the matching lesson, look at the data and at the Airflow error text, and only then ask: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3 --hint 1` (then 2, then 3).
 8. **Finish.** When `--step all` passes, run `python3 scripts/prove.py mod-4-4 ~/airflow-lab` for the proof code. Write `NOTES.md` in your workspace: three sentences about what surprised you in Airflow, and what you would monitor if this ran every night (for example the share of rejected lines per day and the age of the newest delivery).
+
+> 💡 **Practice Pause 5 (Step 5: Late Delivery Healing, Quality Gates, & Proof Token):**
+> 1. In `jobs_pipeline.py`, ensure task `extract` raises an exception when a file is missing (triggering Airflow retries) and task `validate` raises an exception when rejected lines exceed 50% (halting the run safely without modifying warehouse tables).
+> 2. Run step 5 and the complete verification suite in terminal:
+>    `python3 labs/mod-4-4/check.py ~/airflow-lab --step all`
+> 3. Generate your Capstone verification proof token:
+>    `python3 scripts/prove.py mod-4-4 ~/airflow-lab`
+> 4. **Success Indicator:** All verification checks report `PASS` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-4-4/starter/jobs_pipeline.py :: Your working file: copy it to your workspace and build the DAG there :: starter
