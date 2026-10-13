@@ -37,6 +37,10 @@ cp labs/mod-4-1/starter/pipeline.py ~/taxi/pipeline.py
 
 Expect roughly 15 to 25 hours in total. Each full run of your pipeline writes about 300 MB, and the checker runs it several times in a temporary folder that it deletes at the end.
 
+> 🛠 **Try it (20 min, terminal).** Do the setup above exactly as written, in your own `~/taxi` folder. Before you write a single line of the pipeline, run the checker for step 1 on the untouched starter: `python3 labs/mod-4-1/check.py ~/taxi --step 1`. Read the output slowly. Then ask for the lowest hint with `--hint 1` and decide whether it gave away the answer.
+>
+> **You should see:** `fetch_data.py` prints `ok` for the Parquet file and for the zone lookup. The checker prints the title `== Step 1: profile the raw data (profile.json)`, one line `FAIL  profile.json exists in your workspace` with a short hint, and `0 passed, 1 failed`. Hint 1 only points at DuckDB (`DESCRIBE`, `SELECT count(*)`): it nudges, it does not answer. This red-then-green loop is how you will work for the next hours.
+
 ## @lesson Meet the data
 The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip as a monthly Parquet file (public data of the City of New York). We use **January 2024**: one file of about 50 MB with almost three million trips and 19 columns. The checker verifies the SHA-256 hash of your download, so everybody works on identical bytes.
 
@@ -106,6 +110,10 @@ Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to r
 3. Test one rule at a time on the raw file with a plain `SELECT count(*) ... WHERE ...`, then compare with the reason counts in your rejected file.
 4. When a checker line fails, read it literally. "expected 2,927,800, you have 2,927,801" means one row too many, so find that row: select the rows of your clean file that break a rule.
 5. Change one thing at a time and rerun. A pipeline of this size runs in seconds, so there is no reason to guess.
+
+> 🛠 **Try it (20 min, Python).** Practise the one-line patterns on the real file, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. With DuckDB, print: (1) trips per day of the week with `isodow(tpep_pickup_datetime)` for pickups in January 2024 only; (2) how many rows have a pickup outside January 2024; (3) how many rows have a dropoff that is not after the pickup, using `date_diff('second', ...)`. Finally check that `hash('a', 1) = hash('a', 1)` is true and `hash('a', 1) = hash('a', 2)` is false.
+>
+> **You should see:** (1) Monday to Sunday: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` rows outside January; (3) `870` rows whose duration is zero or negative; and the two hash comparisons give `True` and `False`. Each of these is a possible rule in your cleaning step: you now know how big each problem is before you decide what to do about it.
 
 ## @lesson The contract
 This lesson is the specification. Read it fully before step 2; the checker follows it to the letter.

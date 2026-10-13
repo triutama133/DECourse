@@ -27,6 +27,10 @@ Correct analytics use **event time**: group by when it *happened*. The price is 
 
 A related point: if a decision does not need an answer within seconds, **batch is simpler** (Module 0.1). Stream processing earns its complexity for fraud checks, live operations dashboards, alerting, and feeding downstream systems quickly.
 
+> 🛠 **Try it (10 min, Python).** Simulate an outage. There is one event per minute with event minutes 0 to 59. Normally the processing minute equals the event minute, but the events of minutes 20 to 39 are only processed together at processing minute 40, after the pipeline recovers. Count events per processing minute and per event minute with `collections.Counter`. Print the busiest minute of each, and how many distinct minutes have data in each.
+>
+> **You should see:** processing time: minute `40` has `21` events (the spike that never happened), and only `40` minutes have any data (the gap of 20 empty minutes); event time: every one of the `60` minutes has exactly `1` event. The event-time view is the true one, and a window has to wait for the late events to see it.
+
 ## @lesson Windows
 Aggregations over an unbounded stream need a bounded group, usually a **window** of event time.
 
@@ -114,6 +118,10 @@ At production scale (millions of keys, months of data) the second row ends in ex
 
 Without the third condition you have at-least-once with possible duplicates (Module 3.2). With it you have exactly-once *effect*, the realistic goal.
 
+> 🛠 **Try it (20 min, Python).** Write a streaming job in miniature: a source list `["a","b","a","c","a","b","a","a"]` processed in batches of 3, keeping a running count per key. After each batch, write the output to a sink and then write a checkpoint file (`{"offset": ..., "state": ...}`). Make the job crash after the output of batch 1 is written but before its checkpoint, then start it again. Run it twice: once with a sink that **appends** `(batch_id, counts)` rows, and once with a sink that **overwrites** by `batch_id` (a dict). Compare the final state and the number of sink rows.
+>
+> **You should see:** both runs end with the state `{'a': 5, 'b': 2, 'c': 1}` because the checkpoint holds the progress. The appending sink has `4` rows (batch 1 appears twice: duplicated output), the overwriting sink has `3`, one per batch id. Replayable source, checkpoint, and idempotent sink: you have just built the three conditions for exactly-once effect.
+
 ## @lesson Spark Structured Streaming and Flink
 **Structured Streaming** treats a stream as an unbounded table and uses the same DataFrame and SQL API as batch. Your batch logic often runs on streaming data with minimal change. Internally it is **micro-batch**: it repeatedly runs small batch jobs over newly arrived data. That gives high throughput, fault tolerance from the batch engine, and typical end-to-end latency of seconds (sub-second is possible with effort).
 
@@ -174,6 +182,10 @@ A streaming job is a service that never finishes, and it fails in ways batch doe
 - **Data quality still applies** (Module 2.5): late-event rates, dropped counts, null rates and duplicates as metrics with alerts.
 - **Test deterministically.** Do what the lab does: drive the job with files written in a known order (explicit modification times), run it with `availableNow`, and compare with an independent model. Avoid tests that depend on sleeping and wall-clock timing.
 - **Cost.** Always-on clusters cost money around the clock. If a result is needed every ten minutes, a scheduled `availableNow` run may be much cheaper than a continuous stream.
+
+> 🛠 **Try it (10 min, Python).** A job receives 100 events per second but can process only 80. Simulate 600 seconds, keeping `lag += arrived - processed` each second, and print the lag. Then drop the input to 50 per second and count how many more seconds it takes the lag to reach zero (processing stays at 80, and the lag cannot go below 0).
+>
+> **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). Nobody has to be paged for a job that fails, but a job that is merely slower than its input is a failure that grows quietly; that is why lag is the first metric to alert on.
 
 ## @lab Lab: model a watermark, then check it against real Spark
 Part A: write the windowing and watermark logic in plain Python until it reproduces the behaviour in the lesson's table. Part B: write the real Structured Streaming job that reads files as micro-batches, and verify that **Spark agrees with your model**, restarts correctly from its checkpoint, and drops a genuinely late event.

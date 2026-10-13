@@ -35,6 +35,10 @@ The online part is application code. The offline part is a data pipeline like th
 
 Everything in the old checklist applies: idempotence, retries, backfills, data quality, lineage, cost. This module teaches the new parts and reuses the old ones. (The same skills also serve other AI work: assembling training and fine-tuning datasets, building evaluation sets, and feature pipelines for machine-learning models.)
 
+> 🛠 **Try it (20 min, Python).** Build the smallest retrieval pipeline. Three documents: `refund` ("Refunds are possible within 14 days of purchase."), `shipping` ("Standard shipping takes 3 to 5 working days.") and `warranty` ("Devices have a one year warranty."). Tokenise with `re.findall(r"[a-z0-9]+", text.lower())`, make a `Counter` of tokens per document as the "index", and score a question by cosine similarity between its `Counter` and each document's. Print the scores for "Within how many days are refunds possible?" and for "banana pudding recipe". Then change the refund text to say 30 days **without** rebuilding the index and ask again; finally rebuild the index.
+>
+> **You should see:** scores of `0.67` for `refund`, `0.13` for `shipping` and `0.0` for `warranty` on the first question; all `0.0` on the second (a retriever always returns *something* ranked first, so a minimum score is part of the pipeline). With the stale index the retrieved text still says `14` although the source now says 30: the answer is wrong and nothing failed. Only after the rebuild does it say `30`. Sync is the data engineer's job.
+
 ## @lesson Embeddings and similarity
 An **embedding** is a list of numbers (a vector) that a model produces for a piece of text, so that texts with similar meaning get vectors that point in similar directions. Real embedding models have a few hundred to a few thousand dimensions (384, 768, 1,536, 3,072 are common). Search then becomes geometry: embed the question, find the stored vectors nearest to it.
 

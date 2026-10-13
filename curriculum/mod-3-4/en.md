@@ -30,6 +30,10 @@ IaC tools come in two styles. An **imperative** script says *how*: "create a buc
 
 "Click-ops" is not forbidden because clicking is hard. It is forbidden because a console change is invisible to review, impossible to repeat exactly, and the first thing to go wrong during an incident.
 
+> 🛠 **Try it (15 min, Python).** Model a declarative tool. `desired` is a dict of resources: `raw-bucket` (`encryption: True, versioning: True`), `curated-bucket` (`encryption: True, versioning: False`) and `etl-role` (`policy: "read-raw"`). `actual` has `raw-bucket` (`encryption: False, versioning: True`), `old-bucket` (`encryption: True`) and `etl-role` (`policy: "read-raw"`). Write `plan(desired, actual)` returning a list of `("create" | "update" | "destroy", name)` and `apply(...)` that makes `actual` match. Print the plan, apply it, and print the plan again.
+>
+> **You should see:** `[('create', 'curated-bucket'), ('update', 'raw-bucket'), ('destroy', 'old-bucket')]` and then `[]`. The second run finds nothing to do: that is what "safe to run twice" means, and it is the heart of `terraform plan` and `apply`. The `destroy` line is the one a careful reviewer reads twice.
+
 ## @lesson Terraform in practice
 A Terraform project is a folder of `.tf` files written in HCL, a small configuration language. The pieces you will use constantly:
 

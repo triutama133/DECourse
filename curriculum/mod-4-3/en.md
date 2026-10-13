@@ -48,6 +48,10 @@ python3 labs/mod-4-3/fetch_data.py
 cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py
 ```
 
+> 🛠 **Try it (20 min, terminal).** Do the setup above in `~/fleet`. Before you write the processor, run the checker for step 1 on the untouched starter: `python3 labs/mod-4-3/check.py ~/fleet --step 1`, then `--hint 1`. Write down in one sentence what you think "out of order" will mean for the data in `events_seed.jsonl`, then open `labs/mod-4-3/data/events_seed.jsonl` and check your guess against the first twenty lines.
+>
+> **You should see:** `fetch_data.py` reports `events_seed.jsonl` with a matching hash. The checker prints `--- Step 1: Raw stream profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, and `Summary: 0 passed, 1 failed`. In the file, the second line already has an earlier `event_time` than the first. That is what the watermark in this capstone has to deal with.
+
 ## @lesson Time semantics: Event time, processing time & out-of-order streams
 In batch processing, time is static: a file contains historical rows from yesterday, and you run a SQL query over the whole dataset. In stream processing, time is continuous and multifaceted. There are three distinct notions of time:
 

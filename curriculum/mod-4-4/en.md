@@ -42,6 +42,10 @@ The `--constraint` file pins the versions Airflow was tested with; installing Ai
 
 Hints come in three levels (`--hint 1`, `2`, `3`). Try for at least 30 minutes before you ask. Struggling is how you learn to read Airflow's error messages, and you will read many of them at work.
 
+> 🛠 **Try it (30 min, terminal).** Do the setup above in `~/airflow-lab` (the Airflow install takes a few minutes; keep the constraint file). Before you write a DAG, run `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, then `--hint 1`. Then look inside `labs/mod-4-4/data/inbox/`: how many files are there, and what does one line of one file look like?
+>
+> **You should see:** `fetch_data.py` reports `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. The checker prints `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace` and `0 passed, 1 failed`. Hint 1 suggests reading the seven files with `json` and `collections`, counting first and looking at the odd lines by eye. The inbox holds seven files, one per day, and each line is one JSON object.
+
 ## @lesson Meet the deliveries
 Every day one file arrives in the inbox: `jobs_2026-03-01.jsonl` to `jobs_2026-03-07.jsonl`. One line is one posting as a JSON object:
 

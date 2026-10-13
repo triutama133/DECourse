@@ -32,6 +32,10 @@ Hadoop is a family of four parts that this module follows in order:
 
 A second idea runs through all of it: **move the computation to the data, not the data to the computation**. Moving a 1 GB block across a network to run a one-kilobyte program is wasteful; sending the program to the machine that already holds the block is cheap. You will see the same principle again as partition pruning, predicate pushdown and data locality.
 
+> 🛠 **Try it (10 min, Python).** Simulate losing machines. Use `random.Random(seed)`. Put 1,000 blocks on 20 machines: each block gets `r` copies on `r` *different* machines (`rnd.sample(range(20), r)`). Then "kill" 3 random machines (`rnd.sample(range(20), 3)`) and count the blocks whose copies are **all** on dead machines. Write `lost(r, seed)` and print it for `r` = 1, 2 and 3 over seeds 0 to 4.
+>
+> **You should see:** roughly `150` lost blocks with one copy (130 to 162 across the seeds), roughly `15` with two copies (11 to 17), and `0` to `3` with three. The expected values are 150, 15.8 and 0.9. Each extra copy cuts the losses by about a factor of ten, which is why HDFS defaults to three copies on cheap machines.
+
 ## @lesson HDFS: a file system made of many machines
 The Hadoop Distributed File System stores huge files on ordinary machines. A **file** is cut into **blocks** of a fixed size (the default is **128 MiB**; an ordinary disk file system uses 4 KiB blocks). Every block is **replicated**: by default **three copies** on three different machines. The last block of a file is just as long as it needs to be (a 300 MiB file becomes blocks of 128, 128 and 44 MiB; the lab's `split_into_blocks` does exactly this).
 
@@ -122,6 +126,10 @@ Hive started with text files and moved to columnar formats, **ORC** and **Parque
 
 The Hive Metastore survived all of this, and it is the part you will most likely meet in a modern stack: Spark, Trino, Athena and others still use it (or the AWS Glue Catalog, which has the same role) to know "what tables exist and where". Its weakness was the table format: Hive tables are folders of files, with no atomic commits, slow directory listing on cloud storage, no safe concurrent writers and no time travel. **Apache Iceberg** (Module 2.2) was created to fix exactly this while keeping the idea of "open files plus a catalog".
 
+> 🛠 **Try it (10 min, Python).** Run `pip install duckdb`. Make the folder `orders/dt=2026-01-15/` with two CSV files that both have the header `id,amount`. `a.csv` holds the rows `1,100` and `2,250`; `b.csv` holds `3,n/a` and `4,400` (someone else's job wrote a wrong value). Treat the folder as a Hive-style table: query `count(*)` and `sum(amount)` with `read_csv('orders/*/*.csv', header=true, columns={'id':'INTEGER','amount':'INTEGER'})`. Then run the same query again with `ignore_errors=true` added to `read_csv`.
+>
+> **You should see:** the first query fails with a `ConversionException` that names the bad line, and only now, at read time, not when `b.csv` was written (schema on read). With `ignore_errors=true` it returns `(3, 750)`: the row with `n/a` vanished and the sum is wrong without any warning. Which of the two behaviours would you rather have in production, and which contract (Module 2.5) would have caught the bad file at the door?
+
 ## @lesson Why Spark and the lakehouse replaced most of it, and what remains
 Three changes together explained the shift:
 
@@ -146,6 +154,10 @@ A translation table for interviews:
 | ZooKeeper (coordination) | built-in consensus, such as Kafka's KRaft |
 
 **Questions you can now answer:** "Why three replicas?" (failures are normal; two would leave a single copy during a failure; three also allows one copy off the rack). "What is the shuffle?" (grouping map output by key across the network; the costly step in MapReduce and Spark). "Why did Spark replace MapReduce?" (in-memory, graph planning, friendlier API). "What is the small-files problem?" (metadata objects exhaust the NameNode memory; on S3 it is the cost of listing and opening many files).
+
+> 🛠 **Try it (10 min, Python).** Compare two ways to run an iterative job. Write 500,000 random integers (1 to 1000) to a text file, one per line. Version A re-reads and re-parses the whole file in **every** pass (the MapReduce habit); version B reads it once and keeps the list in memory (the Spark habit). Each pass does the same small update, `x = (x + sum(vals) / len(vals)) / 2`, starting from `x = 500.0`. Time both for 1 pass and for 10 passes and check that the final `x` is identical.
+>
+> **You should see:** the same `x` from both versions (about `500.17` after 10 passes). With 1 pass they take about the same time; with 10 passes version A is around 800 ms and version B around 115 ms, roughly seven times faster, because B pays the cost of reading once. The exact times depend on your machine; the pattern does not.
 
 ## @lab Lab: HDFS, MapReduce and YARN in miniature
 Build three small, deterministic models in plain Python: HDFS block splitting, rack-aware replica placement, failure and the small-files arithmetic; a MapReduce engine (map, partition, shuffle, reduce, combiner, a reduce-side join, task retries); and a toy YARN scheduler. No cluster is needed, and the tests (38) check each behaviour the lessons describe.

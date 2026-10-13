@@ -29,6 +29,10 @@ A cluster costs you something real:
 
 Use Spark when measurement says one machine is not enough, and then learn its internals well enough to use the cluster efficiently. That is this module.
 
+> 🛠 **Try it (10 min, Python).** You do not need Spark to feel coordination overhead. Write `work(n)` that returns `sum(i * i % 7 for i in range(n))`. Time `[work(n) for _ in range(tasks)]` in one process, then the same with `multiprocessing.Pool(4).map(work, [n] * tasks)`. Try two jobs: 4 tasks with `n = 1000`, and 8 tasks with `n = 1_500_000`. Check that both ways give the same answers. (Put the code under `if __name__ == "__main__":` and run it as a file.)
+>
+> **You should see:** for the tiny job, one process takes about 0.2 ms and the pool about 20 ms, around a hundred times *slower*; for the big job, one process takes about 780 ms and the pool about 235 ms, around three times faster with 4 workers. Starting workers and sending tasks costs a fixed amount, so parallel only wins when each task is big enough to pay for it.
+
 ## @lesson Architecture: driver, executors, stages and tasks
 A Spark **application** has these parts:
 
@@ -48,6 +52,10 @@ Work is divided in layers, and the vocabulary matters when you read the UI:
 A DataFrame with 200 partitions and an executor fleet with 50 cores runs 50 tasks at a time, in four "waves". The **number and size of partitions** is therefore a central knob: too few leaves cores idle, too many wastes time on scheduling overhead, and a few giant ones (skew) make everything wait for the stragglers. A healthy partition holds on the order of 100 to 200 MB of data.
 
 Your code runs as follows. You write DataFrame or SQL operations in Python; they are translated into JVM plans; tasks execute on executors in the JVM. **PySpark** is a thin layer: DataFrame operations never run Python on the data, which is why they are fast. Python code *does* run on the executors when you use a Python **UDF**, covered below, with a heavy price.
+
+> 🛠 **Try it (15 min, Python).** Model a two-stage job by hand: total `total_idr` per `payment_method` from `data/orders.csv` (keep only rows whose total is all digits, 3,580 of them). **Stage 1:** split the rows into 8 partitions with `rows[i::8]`; each task computes partial sums per payment method for its own partition. **Shuffle:** send each partial sum to one of 4 reduce partitions chosen by `zlib.crc32(key.encode()) % 4`. **Stage 2:** each of the 4 reduce tasks adds up the partial sums it received. Count the tasks in each stage and the records that crossed the shuffle, and compare the result with a pandas `groupby`.
+>
+> **You should see:** `8` tasks in stage 1, `4` in stage 2, only `32` records shuffled instead of 3,580 (partial sums were computed before the shuffle), and a result equal to pandas: `bank_transfer 303975000`, `card 312380000`, `cod 302230000`, `ewallet 291140000`. The 4 reduce partitions hold `[1, 0, 1, 2]` keys: one reduce task gets nothing to do, a miniature of the partition-size problem above.
 
 ## @lesson Lazy evaluation, narrow and wide transformations
 Spark operations come in two kinds:
@@ -91,6 +99,10 @@ Whatever API you use (DataFrame, SQL), your query goes through the same engine, 
 3. **Adaptive Query Execution (AQE)**, on by default in current Spark versions. Statistics before the query runs are often guesses; AQE re-optimises *at runtime*, using the real sizes observed after each shuffle. It can **coalesce** many tiny shuffle partitions into fewer, **switch a sort-merge join to a broadcast join** when one side turns out small, and **split skewed partitions** (below).
 
 Reading a plan is a core skill: use `df.explain("formatted")` and look at (a) the **join type**, (b) the **Exchange** nodes and their partitioning, (c) whether **filters and projections appear inside the scan** (pushdown, as in Module 2.1), and (d) the **partition counts**. The Spark UI's SQL tab shows the same plan with real row counts and times after execution.
+
+> 🛠 **Try it (10 min, Python).** DuckDB has an optimiser with the same pushdown ideas. Save `orders.parquet` as in Module 2.1 and run `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, printing the plan text (`.fetchall()[0][1]`). Then explain `SELECT * FROM 'orders.parquet'`. Find the scan node in both and read its `Projections` and `Filters`.
+>
+> **You should see:** in the first plan the Parquet scan lists only `payment_method` under `Projections` and `status='delivered'` under `Filters`: the optimiser pushed both into the scan, so other columns are never read and rows are filtered while reading. In the second plan the scan projects all six columns and has no filter. Spark's `explain("formatted")` shows the same ideas as `PushedFilters` and `ReadSchema`.
 
 ## @lesson Joins and shuffles
 A join must bring matching keys together. Spark picks from several strategies:
@@ -192,6 +204,10 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 - Test logic on small data in **local mode** (as the lab does) before running on a cluster.
 
 **Operating a job.** Submit with `spark-submit` (or your platform's job runner), choose resources per job (executors, cores, memory), consider **dynamic allocation** (scale executors with load), and watch cost: a cluster left running, or oversized, is the commonest source of waste. The Spark UI is your instrument panel: *Jobs* and *Stages* for progress and the task summary, *SQL* for the plan with real numbers, *Storage* for cached data, *Executors* for memory, GC and spill.
+
+> 🛠 **Try it (15 min, Python).** See the small-files problem. Repeat the rows of `data/orders.csv` 30 times (about 109,000 rows) with `pd.concat([df] * 30)`. Write them once as `sf/one/all.parquet`, and again cut into 1,000 pieces as `sf/many/p0000.parquet` and so on. Compare the total bytes in each folder, and time `SELECT count(*) FROM read_parquet('<folder>/*.parquet')` in DuckDB for both. Delete `sf/` afterwards.
+>
+> **You should see:** both folders answer `109020`, but the 1,000 small files take about 7.4 MB against about 0.4 MB for one file (compression and per-file overhead both suffer), and the query over them is tens of times slower (around 60 ms against 1.5 ms here). Every file costs a listing, an open and a footer read, which is why a cluster that writes thousands of tiny files needs compaction.
 
 ## @lab Lab: read the plan, find the skew, fix it
 Spark in local mode on your laptop. You will write the functions that **inspect** a query (count its shuffles, measure partition skew) and the functions that **fix** it (broadcast, salting, adaptive skew handling), and tests prove each fix gives the same answer as the plain join while changing the plan or the balance in the way the lesson describes.

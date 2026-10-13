@@ -48,6 +48,10 @@ python3 labs/mod-4-2/fetch_data.py
 cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 ```
 
+> 🛠 **Try it (20 min, terminal).** Do the setup above in `~/seismic`. Before you write the pipeline, run the checker for step 1 on the untouched starter: `python3 labs/mod-4-2/check.py ~/seismic --step 1`, then `--hint 1`. Read what the checker tells you literally, and note which of the four "attacks" listed above you have not yet thought about handling.
+>
+> **You should see:** `fetch_data.py` reports `earthquakes_seed.json` with a matching hash. The checker prints `--- Step 1: Raw data profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, and `Summary: 0 passed, 1 failed`; hint 1 tells you to load the seed file with `json.load()` and look at the properties and geometry of the features. Nothing more: the work is yours.
+
 ## @lesson Meet the data: USGS Earthquake Hazards API
 The **United States Geological Survey (USGS)** operates the Earthquake Hazards Program, providing open real-time and historical seismic data worldwide. Their public API endpoint returns GeoJSON feeds:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`

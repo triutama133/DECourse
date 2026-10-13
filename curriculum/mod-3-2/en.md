@@ -35,6 +35,10 @@ That **replayability** is what makes logs a foundation for data platforms: a new
 
 Typical uses for data engineers: **change data capture** (database changes as events, below), clickstream and application events, a buffer between systems, and feeding stream processing (Module 3.3) and lakehouse tables (Module 2.2).
 
+> 🛠 **Try it (10 min, Python).** Build a log in 10 lines: a list `log`, `append(x)` that adds to the end and returns the offset, and `read(offset, n=100)` that returns a slice and removes nothing. Append `order-1` to `order-5`. Reader A reads everything; reader B reads only the first two and remembers its offset. Append `order-6` to `order-8`, then let each reader continue from its own offset. Finally replay from offset 0.
+>
+> **You should see:** A has read 5 and next continues with `order-6`, `order-7`, `order-8`; B continues from offset 2 with `order-3` to `order-8`; the replay from 0 returns the same five records as A's first read. Nothing was deleted by reading, and each reader owns its position, which is exactly what a queue cannot do.
+
 ## @lesson Kafka's building blocks: topics, partitions, offsets, replication
 - A **topic** is a named stream, such as `orders`.
 - A topic is split into **partitions**. Each partition is its own log, ordered and independent. **The partition is the unit of parallelism and of ordering.**
@@ -82,6 +86,10 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 
 **Who decides the leaders?** In KRaft mode a quorum of **controller** nodes keeps the cluster metadata with the Raft protocol and elects partition leaders. In our small cluster every node was both broker and controller. The broker we killed in the first attempt was also the active controller, and the others elected a new one within **5 seconds** (the log shows the new controller recorded exactly 5.0 s after the kill). Raft needs a **majority**: three controllers survive one failure, five survive two. Production clusters therefore run 3 or 5 dedicated controller nodes separate from the brokers, so a busy broker cannot starve the cluster's brain.
 
+> 🛠 **Try it (15 min, Python).** Model one partition with three replicas as lists: broker `A` (leader) and `B` hold messages 1 to 10, broker `C` holds only 1 to 7 and has fallen out of the in-sync set, so the ISR is `[A, B]`. All ten messages were acknowledged with `acks=all`. Kill `A`. Write `elect(isr, unclean)`: a clean election picks a surviving member of the ISR, an unclean one may pick any surviving replica (take `C`). For each, print the new leader and the acknowledged messages that are no longer on it. Then add a `produce` function that refuses writes when the ISR has fewer than `min_isr` members, and check it with `min_isr=2` and `min_isr=3` on the ISR `[A, B]`.
+>
+> **You should see:** a clean election picks `B` and loses `[]`; the unclean election picks `C` and loses `[8, 9, 10]` — acknowledged records, silently. With the ISR `[A, B]`, writes are accepted for `min_isr=2` and refused for `min_isr=3`, the `NOT_ENOUGH_REPLICAS` situation of Experiment 2.
+
 ## @lesson Producers and consumers: delivery guarantees
 **Producers.** Important settings:
 
@@ -123,6 +131,10 @@ Records are bytes; you choose the format. **JSON** is easy to read and debug but
 
 **Kafka Connect** is the framework for moving data in and out of Kafka **without writing code**. **Source connectors** pull from a system into topics (the Debezium PostgreSQL connector is one); **sink connectors** push topics into systems (object storage, Iceberg, warehouses, search indexes). Connect handles scaling, offset tracking, retries and converters (JSON, Avro), and lets you apply small **single message transforms (SMTs)**. Misbehaving sink records can be routed to a dead-letter topic. For a first version of "database to lakehouse", a Debezium source plus a sink connector is often all you need.
 
+> 🛠 **Try it (20 min, Python).** Encode the record `{"id": 1, "customer": "Budi", "total": 150000}` the way a registry-based Avro producer does, by hand. The rules: the message starts with a `0` byte and the schema id (1) as 4 bytes, big-endian. An Avro integer is **zig-zag** coded (`(n << 1) ^ (n >> 63)`), then written in groups of 7 bits, lowest group first, with the high bit set on every byte except the last. A string is its length written as an integer, then its UTF-8 bytes. Print the result as hex with `.hex()` and its length, and compare with the length of the same record as compact JSON (`json.dumps(rec, separators=(",", ":"))`).
+>
+> **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of JSON. Compare it with the bytes in the lesson: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
+
 ## @lesson Schema Registry in practice: evolving a topic without breaking consumers
 The schema registry from the previous lesson becomes real when a team wants to *change* a message. We ran Redpanda's built-in registry, which speaks the same REST API as Confluent's, with an Avro subject `orders-value` and the default rule, **BACKWARD** ("a consumer using the new schema can read data written with the old one"). Starting from `{id: int, customer: string, total: int}`, we asked the registry whether each change is allowed:
 
@@ -141,9 +153,13 @@ Practical rules:
 - **Choose the order of upgrades.** BACKWARD means *upgrade consumers first* (they can read old and new data); FORWARD means *upgrade producers first*; FULL allows either order. Compatibility **across all versions** (`BACKWARD_TRANSITIVE`) matters when old data stays in the topic for months or forever, as in a compacted topic.
 - **Test the change before registering** with the `/compatibility/subjects/<subject>/versions/latest` endpoint in CI. A failed check in CI is cheaper than an incident.
 
-**What is in the message.** With a registry the producer does not embed the schema in every record. We produced `{"id":1,"customer":"Budi","total":150000}` through the registry and read the raw bytes: `00 00000001 02 08 42756469 e0a712`. The first byte is a **magic byte** (0), the next four bytes are the **schema id** (1), and the rest is the compact Avro binary: **16 bytes in total, against 41 bytes of the same record as JSON**. The consumer reads the id, fetches (and caches) the schema from the registry, and decodes. That is also why a registry outage hurts only consumers that meet an id they have not cached.
+**What is in the message.** With a registry the producer does not embed the schema in every record. We produced `{"id":1,"customer":"Budi","total":150000}` through the registry and read the raw bytes: `00 00000001 02 08 42756469 e0a712`. The first byte is a **magic byte** (0), the next four bytes are the **schema id** (1), and the rest is the compact Avro binary: **14 bytes in total, against 41 bytes of the same record as JSON**. The consumer reads the id, fetches (and caches) the schema from the registry, and decodes. That is also why a registry outage hurts only consumers that meet an id they have not cached.
 
 **Where stream processing fits.** Kafka itself stores and delivers records; transforming them is another layer. **Kafka Streams** is a Java library you embed in your own application (no separate cluster) to filter, join and aggregate topics, keeping its state in local stores backed up to *changelog topics* in Kafka. **ksqlDB** offers SQL over topics. **Flink** and **Spark Structured Streaming** (Module 3.3) are separate engines for larger or more complex jobs. This is a description from the projects' documentation: the lab does not run them.
+
+> 🛠 **Try it (20 min, Python).** Write a compatibility checker. Represent a schema as `{field: (type, has_default)}`, with the lesson's starting point `{id: (int, False), customer: (string, False), total: (int, False)}`. `backward(old, new)` (a reader on the new schema reads data written with the old one) fails if the new schema has a field that the old one lacks and that has no default, or if a field changed type. `forward(old, new)` is the same check with the roles swapped. Run four changes: add an optional field `channel` with a default, add `channel` without a default, remove `total`, and change `total` from `int` to `string`. Print backward, forward and full (both) for each.
+>
+> **You should see:** add optional: backward `True`, forward `True`; add required: backward `False`, forward `True`; remove `total`: backward `True`, forward `False`; `int` to `string`: both `False`. That reproduces the table in this lesson. Which of the four would a registry with the default rule BACKWARD reject with HTTP 409?
 
 ## @lesson Change data capture: turning a database into a stream
 How do you get an operational database's changes into the platform? The naive way is **query-based**: every few minutes, `SELECT * FROM orders WHERE updated_at > :last_run`. Problems: it **misses deletes** (a deleted row is simply gone), it misses intermediate states (two updates between polls look like one), it needs a reliable `updated_at`, and it puts repeated load on the production database.
@@ -174,6 +190,10 @@ The lab's `pgoutput.py` decodes that real binary stream. Seeing it demystifies C
 `op` is `c` (create), `u` (update), `d` (delete) or `r` (a row read during the initial snapshot). A delete is followed by a **tombstone** (key with null value) so a compacted topic drops the key. The lab's `to_events` builds this shape (`op`, `before`, `after`, `key`, `pos`) from the decoded stream.
 
 **Snapshot, then stream.** A connector first takes a consistent **snapshot** of the existing table (events with `op = r`) and then switches to streaming from the log position at which the snapshot was taken, so no change is lost between the two. **Schema changes** (a new column) flow through as new fields in later events; renames and type changes need coordination (a contract again).
+
+> 🛠 **Try it (20 min, Python).** Compare polling with change capture in SQLite. Create `orders(order_id INTEGER PRIMARY KEY, status TEXT, updated_at INTEGER)` and a `changes(seq INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, order_id INT, before TEXT, after TEXT)` table, plus three triggers (`AFTER INSERT`, `AFTER UPDATE`, `AFTER DELETE` on `orders`) that write one `changes` row each, using `new.` and `old.`. Insert orders 1, 2, 3 as `paid` with `updated_at = 1`. Then update order 1 to `shipped` (`updated_at = 2`), update it again to `delivered` (`updated_at = 3`), and delete order 2. Poll with `SELECT order_id, status FROM orders WHERE updated_at > 1`. Print the `changes` table, then replay it into a dict (`op = 'd'` removes the key) and compare it with the real table.
+>
+> **You should see:** the poll returns only `[(1, 'delivered')]`: it missed the delete of order 2 and the intermediate `shipped`. The `changes` table has 6 rows: three `c`, then `u` (`paid` to `shipped`), `u` (`shipped` to `delivered`) and a `d` with before `paid`. Replaying them gives `{1: 'delivered', 3: 'paid'}`, equal to the table. Real log-based CDC gives you the same event shape without triggers or load on the tables.
 
 ## @lesson Consuming CDC correctly, and running it safely
 A CDC consumer builds or updates a copy of the table, for example a **lakehouse table** that keeps current state (an Iceberg `MERGE`, Module 2.2) or a search index. Because delivery is at-least-once and consumers restart and rebalance, the apply step must be **idempotent and order-safe**. The lab's `apply_events` shows the pattern in miniature:
