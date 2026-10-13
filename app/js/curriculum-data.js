@@ -2026,7 +2026,7 @@ window.CURRICULUM_DATA = [
    "en": "Stop writing brittle notebooks. Learn Linux, production Python, advanced SQL, and dimensional modeling."
   },
   "badge": {
-   "id": "Fondasi Rekayasa",
+   "id": "Fondasi",
    "en": "Foundations"
   },
   "badgeColor": "emerald",

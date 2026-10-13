@@ -756,12 +756,21 @@ class DataForgeApp {
     const done = this.completedModules.includes(mod.id);
     const tabLabels = { concepts: t.tabConcepts, lab: t.tabLab, chaos: t.tabChaos, quiz: t.tabQuiz };
 
+    const activeLevels = CURRICULUM_DATA.filter((lvl) => lvl.modules.length);
+
     return `
       <div class="split">
         <aside class="stack-sm">
-          <div class="segmented" style="display:flex">
-            ${CURRICULUM_DATA.filter((lvl) => lvl.modules.length).map((lvl) => `
-              <button style="flex:1" aria-pressed="${lvl.levelId === level.levelId}" class="${lvl.levelId === level.levelId ? "active" : ""}" onclick="app.go('curriculum','${lvl.modules[0].id}')">${this.esc(this.t(lvl.badge))}</button>`).join("")}
+          <div class="level-nav-grid" role="tablist" aria-label="${this.l("Pilih Level", "Select Level")}">
+            ${activeLevels.map((lvl, idx) => {
+              const isLastOdd = idx === activeLevels.length - 1 && activeLevels.length % 2 !== 0;
+              const isActive = lvl.levelId === level.levelId;
+              return `
+                <button role="tab" aria-selected="${isActive}" class="level-nav-btn ${isLastOdd ? "level-nav-wide" : ""} ${isActive ? "active" : ""}" onclick="app.go('curriculum','${lvl.modules[0].id}')" title="${this.esc(this.t(lvl.levelTitle))}">
+                  <span class="level-tag">L${idx}</span>
+                  <span class="level-label">${this.esc(this.t(lvl.badge))}</span>
+                </button>`;
+            }).join("")}
           </div>
           <div class="muted small" style="padding:4px 2px">${this.esc(this.t(level.levelTitle))}</div>
           ${level.modules.map((m) => `
