@@ -64,6 +64,14 @@ Baca dokumentasi API untuk empat hal sebelum menulis kode: bagaimana **autentika
 
 Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), seperti di lab, atau dengan paket populer `requests`; gagasannya identik.
 
+> 💡 **Jeda Praktik 1 (Konstruksi Request HTTP & Header Autentikasi):**
+> Mulai bangun modul ingestion Anda dengan penyusunan request HTTP deterministik:
+> 1. Buka file `labs/mod-1-6/ingest_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
+> 2. Implementasikan fungsi `build_request(url, token, params=None)`: buang parameter bernilai None, urutkan nama parameter dengan `urllib.parse.urlencode` (agar URL selalu konsisten), dan pasang header `Authorization: Bearer <token>` serta `Accept: application/json`.
+> 3. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
+> Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Pelajaran 3 untuk menangani pagination dan retry jaringan!
+
 ## @lesson Membaca semua data: pagination, rate limit, dan retry
 API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
 
@@ -78,6 +86,17 @@ API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **ha
 Mengulang hanya aman untuk operasi yang **idempoten**. GET yang membaca data adalah idempoten. POST yang membuat sesuatu bisa membuatnya dua kali jika percobaan pertama berhasil tetapi responsnya hilang; panggilan seperti itu butuh idempotency key bila API menyediakannya. Ingestion kebanyakan membaca, itulah mengapa ini kasus yang ramah.
 
 Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di komputer Anda**, yang menjawab 429 dengan `Retry-After` dan 500 sesuai permintaan. Fungsi `sleep` adalah parameter, sehingga tes mencatat waktu tunggu (1, 2, atau 7 detik) alih-alih benar-benar tidur. Merancang kode agar waktu dan jaringan bisa diganti saat tes adalah keterampilan tersendiri.
+
+> 💡 **Jeda Praktik 2 (Resilient Network Fetching & Pagination):**
+> Tangani fluktuasi jaringan, rate limit 429, dan pagination data:
+> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan:
+>    - `backoff_delay(attempt, base=1.0, cap=30.0)`: jeda eksponensial `min(cap, base * 2 ** (attempt - 1))`.
+>    - `get_json(...)`: tangani retry pada 429 (baca header `Retry-After`), 5xx, dan connection error, tetapi langsung lempar `ApiError` untuk 4xx lainnya (401, 404).
+>    - `fetch_all_cursor(...)`: telusuri seluruh halaman cursor sampai `next_cursor` bernilai None.
+>    - `fetch_all_offset(...)`: loop pagination offset sampai jumlah record halaman < limit.
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
+> Ketika tes PASSED, lanjut ke Pelajaran 4 untuk mekanisme checkpoint pemuatan bertahap!
 
 ## @lesson Pemuatan inkremental dan checkpoint
 Menyalin 5 tahun pesanan setiap malam itu boros. **Pemuatan inkremental** hanya mengambil yang baru atau berubah. Ia membutuhkan dua hal: parameter API seperti `updated_since`, dan sebuah **checkpoint** (disebut juga high-water mark atau watermark): titik sampai mana Anda sudah memuat, misalnya `updated_at` terbesar yang pernah Anda lihat.
@@ -101,6 +120,15 @@ Kasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `
 
 Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih lama dari mesin (file di penyimpanan cloud, sebuah tabel), dan buat mudah diperiksa dan di-reset untuk **backfill** (memuat ulang suatu periode dengan sengaja).
 
+> 💡 **Jeda Praktik 3 (Penyimpanan State Checkpoint Atomik):**
+> Amankan penanda high-water mark dari kegagalan crash sistem:
+> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan kelas `Checkpoint(path)`:
+>    - `load()`: baca file JSON dan kembalikan nilai checkpoint tersimpan, atau None jika file belum ada.
+>    - `save(value)`: tulis `{"value": value}` ke file temporary di folder yang sama lalu tukar atomik dengan `os.replace()` agar crash tidak pernah merusak state.
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
+> Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah!
+
 ## @lesson Mendaratkan dan membentuk data mentah
 Simpan apa yang Anda terima, sebagaimana Anda menerimanya, di area **landing** (disebut juga raw atau bronze, Modul 2.2). Jangan memperbaiki, mengganti nama, atau membuang apa pun pada tahap ini; lakukan pembersihan di langkah berikutnya yang bisa diulang (Modul 2.3). Alasannya praktis: jika pembersihan Anda punya bug, Anda bisa memperbaikinya dan memproses ulang dari salinan mentah alih-alih meminta sumber mengirim data bulan lalu lagi, yang mungkin sudah tidak tersedia.
 
@@ -114,6 +142,15 @@ Kebiasaan landing yang baik:
 **Meratakan JSON bersarang.** API mengembalikan objek dan array bersarang, tetapi tabel itu datar. Objek bersarang menjadi kolom (`customer.address.city` menjadi `customer_address_city`); sebuah **array** butuh keputusan. Menyimpannya sebagai string JSON dalam satu kolom adalah default aman untuk landing (`flatten_record` di lab), dan langkah berikutnya meledakkannya menjadi **tabel anak** dengan satu baris per elemen dan id induknya (`items` sebuah pesanan menjadi tabel `order_items`, grain dari Modul 1.4).
 
 **Schema drift.** Bentuk API akan berubah: field baru muncul, field menghilang, angka tiba sebagai teks `"Rp 6.000"`. Memuatnya diam-diam itu berbahaya. `detect_schema_drift` di lab membandingkan record yang masuk dengan skema yang Anda harapkan dan melaporkan **kolom baru**, **kolom hilang**, dan **perubahan tipe** (dengan setiap tipe yang terlihat). Lalu tentukan kebijakan: **gagalkan** pemuatan (ketat, aman untuk data keuangan), **karantina** record yang janggal dan lanjutkan, atau **evolusikan** skema otomatis (nyaman, berisiko). Tuliskan kebijakan itu sebagai data contract dengan penyedia atau konsumen Anda (Modul 2.5), dan beri alert saat drift terdeteksi.
+
+> 💡 **Jeda Praktik 4 (Perataan JSON & Deteksi Schema Drift):**
+> Bentuk data mentah menjadi tabular dan lindungi kontrak skema data:
+> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, selesaikan 2 fungsi struktur data:
+>    - `flatten_record(record, sep="_")`: ratakan objek bersarang (misal `customer.address.city` -> `customer_address_city`), pertahankan array sebagai string JSON dengan kunci terurut.
+>    - `detect_schema_drift(expected, records)`: bandingkan record masuk terhadap skema ekspektasi dan laporkan kolom baru (`new_columns`), kolom hilang (`missing_columns`), serta anomali perubahan tipe data (`type_changes`).
+> 2. Uji di terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
+> Ketika tes PASSED, lanjut ke Pelajaran 6 untuk merangkai pipeline ingestion inkremental penuh!
 
 ## @lesson File, database, dan menjalankannya sungguhan
 **File.** Mitra menjatuhkan file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau ("file pukul 06:00 belum datang").
@@ -131,6 +168,17 @@ Kebiasaan landing yang baik:
 - **Rahasia dan batas**: token di secret manager, dirotasi; laju permintaan dikonfigurasi dan didokumentasikan.
 
 Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara andal?" (cursor, retry dengan backoff, penanganan rate limit, checkpoint setelah penulisan tahan lama, landing idempoten, pemeriksaan skema). "Bagaimana jika job crash di tengah?" (checkpoint tidak maju, jadi pengulangan mengambil data yang sama dan menimpa file yang sama). "Mengapa bukan pagination offset?" (ia menduplikasi atau melewatkan ketika data berubah saat Anda membaca).
+
+> 💡 **Jeda Praktik 5 (Pipeline Ingestion Inkremental Idempoten - Lab Tuntas):**
+> Rangkai alur kerja ingestion produksi yang tahan banting:
+> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan fungsi `incremental_load(...)`:
+>    - Muat checkpoint, ambil data dengan `fetch_all_cursor(..., since=checkpoint)`.
+>    - Deduplikasi per id (ambil versi dengan `updated_at` tertinggi).
+>    - Tulis data mentah ke `landing_dir/dt=<today>/orders_<run_id>.jsonl` dengan metadata audit (`_run_id`, `_source`, `_ingested_at`) secara atomik.
+>    - Perbarui checkpoint HANYA SETELAH file data berhasil mendarat.
+> 2. Jalankan seluruh rangkaian pengujian di terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -v`
+> Ketika semua 37 tes berstatus PASSED, pipeline data ingestion Anda telah memenuhi standar industri data engineering!
 
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.

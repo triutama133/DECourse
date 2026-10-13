@@ -64,6 +64,14 @@ Read the API documentation for four things before writing code: how **authentica
 
 You can do all of this with Python's standard library (`urllib.request`), as the lab does, or with the popular `requests` package; the ideas are identical.
 
+> 💡 **Practice Pause 1 (HTTP Request Construction & Auth Headers):**
+> Start building your ingestion module with deterministic HTTP request formatting:
+> 1. Open `labs/mod-1-6/ingest_lab.py` in your text editor (remember: do not execute directly in bash!).
+> 2. Implement `build_request(url, token, params=None)`: drop None query values, sort parameters with `urllib.parse.urlencode` (ensuring reproducible URLs), and attach headers `Authorization: Bearer <token>` and `Accept: application/json`.
+> 3. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
+> When TestBuildRequest tests are PASSED, proceed to Lesson 3 to handle pagination and network retries!
+
 ## @lesson Reading all the data: pagination, rate limits and retries
 An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
 
@@ -78,6 +86,17 @@ An API will not return a million records at once. It returns a **page** and tell
 Retrying is only safe for operations that are **idempotent**. A GET that reads data is. A POST that creates something may create it twice if the first attempt succeeded but the response was lost; such calls need an idempotency key if the API offers one. Ingestion mostly reads, which is why it is the friendly case.
 
 In the lab you test all this against a **real HTTP server running on your computer**, which answers 429 with `Retry-After` and 500 on request. The `sleep` function is a parameter, so tests record the waits (1, 2 or 7 seconds) instead of really sleeping. Designing code so that time and the network can be replaced in tests is a skill in itself.
+
+> 💡 **Practice Pause 2 (Resilient Network Fetching & Pagination):**
+> Handle network volatility, 429 rate limits, and multi-page responses:
+> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement:
+>    - `backoff_delay(attempt, base=1.0, cap=30.0)`: exponential delay `min(cap, base * 2 ** (attempt - 1))`.
+>    - `get_json(...)`: retry on 429 (respecting `Retry-After`), 5xx, and connection errors, while failing immediately on non-retryable 4xx codes (401, 404).
+>    - `fetch_all_cursor(...)`: walk cursor-paginated endpoints until `next_cursor` is None.
+>    - `fetch_all_offset(...)`: loop offset pages until record count < limit.
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
+> When tests show PASSED, proceed to Lesson 4 for incremental checkpoints!
 
 ## @lesson Incremental loads and checkpoints
 Copying 5 years of orders every night is wasteful. An **incremental load** fetches only what is new or changed. It needs two things: an API parameter such as `updated_since`, and a **checkpoint** (also called a high-water mark or watermark): the point up to which you have already loaded, for example the greatest `updated_at` you have seen.
@@ -101,6 +120,15 @@ Edge cases to design for. **Updates**: a changed old record has a new `updated_a
 
 The checkpoint is itself state. Store it somewhere durable that survives the machine (a file in cloud storage, a table), and make it easy to inspect and to reset for a **backfill** (reloading a period on purpose).
 
+> 💡 **Practice Pause 3 (Atomic Checkpoint State Storage):**
+> Guard your high-water mark against sudden system crashes:
+> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement the `Checkpoint(path)` class:
+>    - `load()`: parse the JSON file and return the saved checkpoint value, or None if the file does not exist yet.
+>    - `save(value)`: atomically write `{"value": value}` via a temp file swapped with `os.replace()` so crashes never leave corrupt state.
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
+> When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening!
+
 ## @lesson Landing and shaping raw data
 Store what you received, as you received it, in a **landing** area (also called raw or bronze, Module 2.2). Do not fix, rename or drop anything at this stage; do the cleaning in a later, repeatable step (Module 2.3). The reason is practical: if your cleaning had a bug, you can fix it and reprocess from the raw copy instead of asking the source for last month's data again, which may no longer be available.
 
@@ -114,6 +142,15 @@ Good landing habits:
 **Flattening nested JSON.** APIs return nested objects and arrays, but tables are flat. A nested object becomes columns (`customer.address.city` becomes `customer_address_city`); an **array** needs a decision. Keeping it as a JSON string in one column is the safe default for landing (the lab's `flatten_record`), and a later step explodes it into a **child table** with one row per element and the parent's id (an order's `items` become an `order_items` table, the grain of Module 1.4).
 
 **Schema drift.** The API's shape will change: a new field appears, a field disappears, a number arrives as the text `"Rp 6.000"`. Silently loading it is dangerous. The lab's `detect_schema_drift` compares incoming records with the schema you expect and reports **new columns**, **missing columns** and **type changes** (with every type seen). Then decide a policy: **fail** the load (strict, safe for finance data), **quarantine** the odd records and continue, or **evolve** the schema automatically (convenient, risky). Write the policy down as a data contract with the provider or your consumers (Module 2.5), and alert when drift is detected.
+
+> 💡 **Practice Pause 4 (JSON Flattening & Schema Drift Detection):**
+> Shape raw payloads into tabular records and protect data contract schemas:
+> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, complete 2 data shaping functions:
+>    - `flatten_record(record, sep="_")`: unnest nested dictionaries (e.g., `customer.address.city` -> `customer_address_city`), keeping arrays as sorted-key JSON strings.
+>    - `detect_schema_drift(expected, records)`: compare records against expected schema to detect `new_columns`, `missing_columns`, and `type_changes`.
+> 2. Test in the terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
+> When tests show PASSED, proceed to Lesson 6 to assemble the complete incremental ingestion pipeline!
 
 ## @lesson Files, databases, and running it for real
 **Files.** Partners drop files, and files are full of surprises: encodings (always say UTF-8 explicitly, Module 0.0), quoted line breaks, a header that changes, **late or missing files**, and the same file delivered twice. Practices: wait for the file to be completely written (a marker file, or a stable size), record the **file name and checksum** of everything loaded so a duplicate delivery is recognised, and make arrival a monitored event ("the 06:00 file has not come").
@@ -131,6 +168,17 @@ Good landing habits:
 - **Secrets and limits**: tokens in a secret manager, rotated; request rates configured and documented.
 
 You can now answer: "How do you ingest from a paginated API reliably?" (cursor, retries with backoff, rate-limit handling, checkpoint after durable write, idempotent landing, schema checks). "What if the job crashes halfway?" (the checkpoint did not move, so the rerun fetches the same data and overwrites the same file). "Why not offset pagination?" (it duplicates or skips when data changes while you read).
+
+> 💡 **Practice Pause 5 (Idempotent Incremental Ingestion Pipeline - Lab Complete):**
+> Assemble the battle-tested production ingestion workflow:
+> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement the `incremental_load(...)` function:
+>    - Read checkpoint, fetch records with `fetch_all_cursor(..., since=checkpoint)`.
+>    - Deduplicate by id (keeping greatest `updated_at`).
+>    - Land raw records into `landing_dir/dt=<today>/orders_<run_id>.jsonl` with audit metadata (`_run_id`, `_source`, `_ingested_at`) using atomic file writes.
+>    - Update checkpoint ONLY AFTER the data file is safely landed.
+> 2. Run the complete test suite in the terminal:
+> `.venv/bin/pytest labs/mod-1-6/test_lab.py -v`
+> When all 37 tests show PASSED, your ingestion pipeline is enterprise ready!
 
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
