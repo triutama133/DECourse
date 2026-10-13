@@ -36,6 +36,13 @@ Ask of every table, before you query it: **what does one row represent?** This i
 
 A word on spreadsheets. Excel is excellent for small, ad-hoc work. It falls short when data is large (Excel stops at 1,048,576 rows per sheet), shared by many people at once, must stay consistent (anyone can type text into a number column), or must be repeated automatically every night. A database gives you types, constraints, concurrent access, history and speed, and that is why pipelines load data into one.
 
+> 🛠 **Try it (8 min, SQL Sandbox with the KopiKu dataset).**
+> 1. Run `SELECT * FROM customers LIMIT 3;` and `SELECT * FROM order_items LIMIT 3;`. For each table say in one sentence what one row represents (its grain) and name its primary key.
+> 2. Run `SELECT COUNT(*), COUNT(DISTINCT order_id) FROM orders;` and the same query on `order_items`.
+> 3. Try to break a key: `INSERT INTO customers (customer_id, name) VALUES (1, 'Dup');`
+>
+> **You should see:** `18 18` for `orders` (one row per order) but `24 18` for `order_items` (several rows per order, which is why its key has two columns), and the error `UNIQUE constraint failed: customers.customer_id` for step 3.
+
 ## @lesson Reading data: SELECT, WHERE, ORDER BY
 The basic query has a fixed shape:
 
@@ -131,6 +138,10 @@ SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...              
 Two more habits. **Use half-open ranges**: `order_date >= '2026-01-10' AND order_date < '2026-01-20'` (4 KopiKu orders). `BETWEEN '2026-01-10' AND '2026-01-19'` looks the same on plain dates but silently drops anything later than midnight on the 19th when the column holds timestamps: we inserted `'2026-01-19 15:30:00'` and `BETWEEN` missed it while the half-open range found it. And **months are not all equal**: `date('2026-01-31', '+1 month')` is **2026-03-03** in SQLite (it computes February 31 and rolls over), while PostgreSQL's `DATE '2026-01-31' + INTERVAL '1 month'` is 2026-02-28. Store timestamps in UTC and convert to a local time zone only when showing them.
 
 One performance rule that Module 1.3 explains with EXPLAIN: do not wrap an indexed column in a function inside `WHERE`. On a table with an index on `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` made SQLite **scan the whole table**, and the equivalent range `ts >= '2026-01-01' AND ts < '2026-02-01'` **searched the index**.
+
+> 🛠 **Try it (10 min, SQL Sandbox).** Solve the KopiKu challenges **k-16** (first name and name length), **k-17** (unknown cities) and **k-18** (cancellation rate) with the functions of this lesson. Before you run k-18, predict the answer by hand, then try `SUM(status = 'cancelled') / COUNT(*)` without the `100.0` and see what integer division does.
+>
+> **You should see:** the sandbox says Correct for each challenge; the wrong attempt at k-18 shows `0`, the right one `11.1`.
 
 ## @lesson Aggregation: GROUP BY and HAVING
 Aggregation collapses many rows into one number per group. The functions are `COUNT`, `SUM`, `AVG`, `MIN` and `MAX`.
@@ -304,6 +315,10 @@ An **index** is a separate lookup structure that makes finding rows by a column 
 
 Finally, **SQL has dialects**. The core in this lesson works everywhere, but date functions, string functions, `LIMIT` versus `TOP`, and special features differ between SQLite (used in this course's sandbox), PostgreSQL, MySQL, DuckDB, Snowflake and BigQuery. When something fails after copying a query, check the dialect first.
 
+> 🛠 **Try it (8 min, SQL Sandbox).** A transaction lets you try a change and take it back. Run these as two separate runs: (1) `BEGIN; DELETE FROM orders WHERE status = 'cancelled'; SELECT COUNT(*) FROM orders;` and then (2) `ROLLBACK; SELECT COUNT(*) FROM orders;`. Then practise the safe habit: write `SELECT COUNT(*) FROM orders WHERE status = 'cancelled'` first, and only afterwards the `DELETE` with the same `WHERE`.
+>
+> **You should see:** `16` after the delete inside the transaction and `18` after `ROLLBACK`; the check query before the delete says `2`. Without `BEGIN` the delete would stay until you press **Reset data**.
+
 ## @lesson Defining tables: DDL, types and views
 So far you read and changed rows. **DDL** (Data Definition Language) creates and changes the *structure*: `CREATE`, `ALTER` and `DROP`. A table you design yourself looks like this:
 
@@ -339,6 +354,10 @@ CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
 A view stores **the query, not the data**. We created `v_gold` when it matched 1 row, inserted another Gold customer, and the view immediately returned 2 rows. If the table underneath is dropped, the view stays but fails with `no such table` when used. `CREATE TABLE snap AS SELECT ...` (CTAS) is different: it stores a **snapshot** that does not change when the source does (it kept its rows while the view grew), and it loses the constraints of the original (the copy we made had no primary key, no `NOT NULL` and no `CHECK`). PostgreSQL and warehouses also offer **materialized views**: stored results that are **stale until refreshed**. In PostgreSQL a materialized view showed 2 rows after a third was inserted, and 3 only after `REFRESH MATERIALIZED VIEW`.
 
 Why this matters for data engineers: views are how a team defines a metric in one place ("revenue" means this query) and how a warehouse exposes a safe subset of columns. The models you build with dbt in Module 2.3 are views and tables created by DDL that the tool writes for you; knowing what they are underneath is what lets you debug them.
+
+> 🛠 **Try it (10 min, SQL Sandbox).** Create the `reviews` table from this lesson, then break it on purpose, one rule at a time: a review with 9 stars; the same customer reviewing the same product twice; a review without a customer. Read each error. Then create a view `v_delivered` (`SELECT * FROM orders WHERE status = 'delivered'`), count its rows, insert one more delivered order into `orders`, and count again.
+>
+> **You should see:** `CHECK constraint failed: stars BETWEEN 1 AND 5`, then `UNIQUE constraint failed: reviews.customer_id, reviews.product_id`, then `NOT NULL constraint failed: reviews.customer_id`; and a view whose count goes from `12` to `13` without you touching the view.
 
 ## @lab Lab: ten questions about KopiKu
 You are the new data engineer and the founder has ten questions. Answer them in SQL against the KopiKu miniature dataset: a customer table with NULL cities, orders with cancellations and refunds, and a shipping fee that tempts you into a fan-out bug.

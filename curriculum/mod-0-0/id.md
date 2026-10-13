@@ -283,6 +283,7 @@ pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # hanya satu kelompok saat
 
 ### @files
 - labs/mod-0-0/basics.py :: File kerja Anda: implementasikan sebelas fungsi TODO :: starter
+- labs/mod-0-0/debug_me.py :: Latihan debugging: tiga fungsi dengan satu bug masing-masing (pelajaran 8) :: config
 - labs/mod-0-0/test_lab.py :: Ke-31 tes yang memeriksa pekerjaan Anda :: test
 - labs/mod-0-0/requirements.txt :: pytest :: config
 - labs/mod-0-0/reference/basics.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference

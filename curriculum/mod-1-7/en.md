@@ -32,6 +32,10 @@ Two ideas help you reason about the trade. The **CAP theorem** says that when a 
 
 ACID (atomic, consistent, isolated, durable transactions) is the relational promise. Some NoSQL systems relax it (sometimes jokingly called BASE: basically available, soft state, eventually consistent), and many have since added limited transactions. Always read what a specific product guarantees.
 
+> 🛠 **Try it (5 min, pen and paper).** For each need name the family (relational, key-value, document, wide-column, graph, search or time-series) and the pressure it answers: (a) "is this login session still valid?" in under a millisecond; (b) a product catalogue where every category has different attributes; (c) 5 million sensor readings per hour, queried by time range; (d) friends of friends who bought this; (e) free-text search with ranking; (f) invoices that must never be inconsistent.
+>
+> *Compare:* (a) key-value (latency), (b) document (shape of data), (c) time-series or wide-column (write volume), (d) graph, (e) search engine, (f) relational (correctness). Then write one sentence on what you give up when you leave SQL for (a).
+
 ## @lesson Key-value stores: the simplest database
 A key-value store is a giant dictionary: you **set** a value under a **key** and **get** it back by that key. That is all. It looks too simple to be useful, but this is exactly why it is so fast: there is nothing to plan, parse or join. Examples: **Redis**, Memcached, and DynamoDB used in its simplest form.
 
@@ -120,6 +124,12 @@ Some access patterns are none of the above.
 **Time-series databases** (TimescaleDB, InfluxDB) are tuned for append-heavy data indexed by time (metrics, sensor readings), with automatic retention and downsampling. **Vector databases** store embeddings for similarity search (Module 3.5). Many of these are features of other systems: PostgreSQL does time series with extensions and vector search with pgvector.
 
 The lesson to keep: a database family is a set of **optimisations for an access pattern**. If you know the pattern, the family usually follows; if you do not know the pattern, start with a relational database and learn it first.
+
+> 🛠 **Try it (12 min, Python).**
+> 1. Build an **inverted index** for the six KopiKu product names (`Gayo Medium 250g`, `Toraja Dark 250g`, `Kintamani Light 250g`, `Flores Medium 250g`, `Mandheling Dark 250g`, `Java Preanger Light 250g`): a dict from each lower-case word to the set of positions of the names that contain it. Search for `dark`, then for `dark` and `250g` together.
+> 2. Build a friends dict (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) and write a breadth-first search that returns the shortest path from `budi` to `rina`.
+>
+> **You should see:** `dark` giving positions `[1, 4]` (Toraja Dark and Mandheling Dark), `dark` and `250g` together giving the same two, and the path `['budi', 'siti', 'dewi', 'rina']`. You built, in about 15 lines, the core of a search engine and of a graph traversal.
 
 ## @lesson Choosing, and what a data engineer does with them
 A short decision guide, driven by how the data is read:

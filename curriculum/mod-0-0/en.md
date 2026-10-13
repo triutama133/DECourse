@@ -173,6 +173,13 @@ The parts: `def`, the **name**, the **parameters** in brackets (the inputs; `ord
 
 Prefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.1: idempotence).
 
+> 🛠 **Try it (8 min, in a file `fn.py`).** Predict each output in your head first, then run it.
+> 1. Write `def show_square(n): print(n * n)` and `def give_square(n): return n * n` (each on its own lines as usual). Run `a = show_square(4)` and `b = give_square(4)`, then `print(a, b)`.
+> 2. Write `def add(item, box=[]): box.append(item); return box` (on proper lines) and run `print(add(1))`, `print(add(2))`, `print(add(3))`. Then fix it so that every call without a second argument starts with a fresh empty list.
+> 3. Write `total(orders)` that adds up `int(order["total_idr"])` over a list of order dicts, with no `print` inside. Check it with `total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350` and `total([]) == 0`.
+>
+> **You should see:** `16` printed by step 1, then `None 16` (`print` shows, `return` hands back); the buggy `add` prints `[1]`, `[1, 2]`, `[1, 2, 3]` and your fixed one `[1]`, `[2]`, `[3]`; both checks of step 3 are `True`.
+
 ## @lesson When things go wrong: errors and try/except
 Errors are not failures of the learner; they are the program telling you precisely what it could not do. Learn to read them. A **traceback** lists the path of calls; **read it from the bottom**. The last line names the error type and a message (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); the lines above it show where it happened, and the last line that points into *your* code is usually the place to look.
 
@@ -265,6 +272,10 @@ def test_format_rupiah():
 
 You will not remember everything after one reading, and you are not supposed to. Type the examples, break them on purpose, and look at the error messages. Each lab function below practises one lesson; do them in order and run the tests after each.
 
+> 🛠 **Try it (15 min).** Run `python3 labs/mod-0-0/debug_me.py`. It holds three small functions, each with one bug, and prints PASS or FAIL for each. Fix them one at a time with the routine from this lesson: read the error from the bottom, reproduce it with the smallest input, inspect the value just before the failing line. Do not rewrite a function; find the bug.
+>
+> **You should see:** three FAIL lines at first (one `TypeError`, two wrong answers) and `all three fixed` at the end. Then write one sentence per bug: what was the clue that led you to it? That sentence is the skill.
+
 ## @lab Lab: eleven small functions on KopiKu orders
 Write eleven short functions, each practising one idea from the lessons: formatting numbers, converting text safely, looping and summing, counting with dictionaries, removing duplicates with a set, splitting valid from invalid, averaging without dividing by zero, ranking, cutting a list into batches, avoiding the mutable default trap, and reading a CSV file. The tests (31) tell you what each function must do.
 
@@ -283,6 +294,7 @@ pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # only one group while you
 
 ### @files
 - labs/mod-0-0/basics.py :: Your working file: implement the eleven TODO functions :: starter
+- labs/mod-0-0/debug_me.py :: A debugging drill: three functions with one bug each (lesson 8) :: config
 - labs/mod-0-0/test_lab.py :: The 31 tests that check your work :: test
 - labs/mod-0-0/requirements.txt :: pytest :: config
 - labs/mod-0-0/reference/basics.py :: One possible solution (try first!) :: reference

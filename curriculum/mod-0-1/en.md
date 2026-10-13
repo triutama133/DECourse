@@ -39,6 +39,12 @@ So companies copy the data into a **separate system built for analysis** (a data
 
 > **Tip:** When someone says "we need a data warehouse", the real need is almost always: "we need trustworthy numbers without slowing down the product." Keep that sentence in mind; it explains most design decisions in this course.
 
+> 🛠 **Try it (10 min, in Python).** Generate the data (`python3 labs/shared/shopgen.py --out data`) and load `data/orders.csv` into a SQLite table with the `sqlite3` module: `order_id INTEGER PRIMARY KEY`, the other columns TEXT.
+> 1. Insert the rows with a plain `INSERT`. What error do you get, and what does it tell you about the file? Then insert with `INSERT OR REPLACE` and count the rows.
+> 2. Ask SQLite how it would run one OLTP-style and one OLAP-style question: print `EXPLAIN QUERY PLAN SELECT * FROM orders WHERE order_id = 1001` and `EXPLAIN QUERY PLAN SELECT substr(order_ts, 1, 10) AS day, count(*) FROM orders GROUP BY day` (the plan text is the last column of each row).
+>
+> **You should see:** `UNIQUE constraint failed: orders.order_id` (35 order ids appear twice in the file), then `3599` rows; the first plan says `SEARCH orders USING INTEGER PRIMARY KEY` (it jumps straight to one row), the second says `SCAN orders` (it reads every row). That difference is the whole OLTP versus OLAP story.
+
 ## @lesson Who does what: roles around data
 Job titles overlap and differ between companies, so think in terms of **work**, not titles. Here is the usual split, using KopiKu again.
 
@@ -57,6 +63,10 @@ A useful way to describe the data engineer's output is: **the product of a data 
 
 Skills that matter, roughly in the order this course teaches them: SQL, Python, the command line and Git, data modeling, storage formats and engines, transformation, orchestration, data quality, and then distributed and real-time systems. You do not need all of them on day one; you need the first four to get started and a habit of learning the rest on real problems.
 
+> 🛠 **Try it (5 min, pen and paper).** Who does the work? Write the role (software engineer, data engineer, analytics engineer, data analyst, data scientist or platform engineer) for each task: (a) a nightly job that copies orders into the warehouse and alerts when it is late; (b) a dashboard of weekly revenue per city; (c) a model that predicts which customers will stop ordering; (d) the checkout page of the shop; (e) a documented `fct_orders` table with one agreed definition of "revenue"; (f) a cluster that runs all the jobs.
+>
+> *Compare:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Then write two sentences: which of these tasks would be yours at a five-person company, and which would you not want to do alone?
+
 ## @lesson The journey of one order
 Follow a single KopiKu order, #4821, from the customer's phone to the CEO's dashboard. Each step is a stage that data engineers design and maintain.
 
@@ -73,6 +83,10 @@ Two vocabulary points you will meet constantly:
 - **ETL vs ELT.** ETL transforms data *before* loading it into the warehouse. ELT loads the raw data first and transforms it *inside* the warehouse with SQL. Modern cloud warehouses are powerful and cheap enough that ELT is the common default, which is why tools like dbt (Module 2.3) exist.
 
 > **Tip:** Draw the journey for any system you work with: boxes for sources, arrows for jobs, and a mark wherever a failure would go unnoticed. That drawing is a data engineer's most useful first deliverable.
+
+> 🛠 **Try it (10 min, in the terminal).** Walk one file through the journey with commands, from the course folder: `python3 labs/shared/shopgen.py --out data` (source), `mkdir -p raw && cp data/orders.csv raw/orders_$(date +%F).csv` (ingestion and raw storage), and `cut -d, -f4 raw/orders_*.csv | tail -n +2 | sort | uniq -c | sort -rn` (a first transformation: orders per status). Say in one sentence which stages you just did and which are still missing before a dashboard could read this.
+>
+> **You should see:** `2080 delivered` at the top and, further down, `34 DELIVERED` and `34 Delivered`: the same status written three ways. A transformation step has to fix that before anyone can trust a count, and because you copied to `raw/` first, you can fix it again and again without asking the source for the file.
 
 ## @lesson The five ways data goes wrong
 The KopiKu dataset you will use throughout this course is deliberately a little dirty, because real data is. These problems cover most of what you will ever debug. Learn to recognise them early.

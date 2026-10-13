@@ -39,6 +39,10 @@ Some codes you will meet in the wild:
 
 Useful process commands: `ps aux` (list processes), `top` or `htop` (live view of CPU and memory), `kill <pid>` (send SIGTERM), `kill -9 <pid>` (SIGKILL, cannot be caught, use as a last resort), and `Ctrl+C` (send SIGINT to the foreground process).
 
+> 🛠 **Try it (8 min, terminal).** From the course folder, run each command and then `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Then save a script `job.sh` with the lines `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, run `bash job.sh` and check `echo $?`.
+>
+> **You should see:** `0`, `1`, `2`, `1`, `7`; and for the script `start` and then exit code `1`. Remove `set -e` and run it again: the last line now prints too, and the exit code becomes `0`, a lie to every scheduler.
+
 ## @lesson The text-processing toolbox
 Most data on a server arrives as text. These tools let you inspect and summarise it in seconds, and they **stream**: they process one line at a time, so memory use stays flat even on a 50 GB file. Use them for exploration and for simple, robust jobs.
 
@@ -159,6 +163,13 @@ The first line runs at 02:00 every day. Know these surprises before they cost yo
 
 That last point is why real pipelines move to an **orchestrator** such as Airflow or Dagster (Module 2.4), which add dependencies, retries, backfills and a UI. cron is still the right tool for a simple, independent job on a single machine.
 
+> 🛠 **Try it (10 min, terminal).** You cannot wait for midnight, so practise the three things that bite people.
+> 1. Write the five-field cron line for: every day at 02:30; every 15 minutes; 06:00 on weekdays only; midnight on the first day of each month.
+> 2. See what cron's bare environment looks like: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, then `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` in your own shell.
+> 3. Overlapping runs: in one terminal run `flock -n /tmp/demo.lock sleep 20`; in a second terminal run `flock -n /tmp/demo.lock echo second; echo $?`.
+>
+> **You should see:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` in the bare environment (your shell has both); and `1` from the second `flock` without any `second` printed: the lock is held, so the overlapping copy refuses to run.
+
 ## @lesson Containers: the same environment everywhere
 "It works on my machine" is the oldest problem in software. Your job depends on a specific Python version, libraries, system packages and file layout; the server has different ones. A **container** packages the application together with everything it needs to run, isolated from the host, so it behaves the same on your laptop, in CI and in production.
 
@@ -223,6 +234,12 @@ The usual causes in data work:
 The fixes follow the same principle: **process in a stream or in bounded chunks, and keep memory proportional to one batch, not to the whole input.** The shell tools in this module do that naturally; Module 1.2 shows the Python version (generators), and Module 2.1 shows engines (DuckDB, Polars) that spill to disk instead of dying.
 
 Related limits to watch: **disk** (a full disk makes writes fail in odd ways, so clean temp files and monitor usage), **CPU** throttling (your job just becomes slow), and **open files**. When a container misbehaves, the first commands are `docker logs <name>`, `docker stats` (live memory and CPU), `docker inspect <name>` (exit code, OOMKilled) and `docker exec -it <name> sh` (look around inside).
+
+> 🛠 **Try it (10 min).**
+> 1. Exit code 137 is 128 + 9, the signal SIGKILL that kills a container over its memory limit. Prove it: `sleep 100 & kill -9 $!; wait $!; echo $?`.
+> 2. Compare memory. In Python, write two functions that add up the valid totals of `data/orders.csv`: one first reads the whole file into a list (`list(csv.reader(...))`), the other adds row by row. Wrap each call in `tracemalloc` (`tracemalloc.start()` before, `tracemalloc.get_traced_memory()[1]` after, then `tracemalloc.stop()`) and print the peak in KiB.
+>
+> **You should see:** `137`, and a peak of about 1,500 KiB for the list version against about 50 KiB for the streaming one (roughly 30 times less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
 
 ## @lab Lab: a shell report and a container for a KopiKu job
 Part A: write a robust shell script that summarises the website events file, which contains broken lines and duplicates. Part B: package a small Python job into a good Docker image. Both are checked automatically.

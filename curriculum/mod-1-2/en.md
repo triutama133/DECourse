@@ -49,6 +49,17 @@ For this module's lab everything is in one file to keep it readable, but the *se
 
 Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, but they document intent, let editors catch mistakes, and let a checker such as `mypy` or `pyright` find bugs before you run the code. Add them to function signatures from the start.
 
+> 🛠 **Try it (12 min, in `etl_try.py`).** Write a **pure** function `parse_total(raw)` that returns an int, or `None` when the text is not a non-negative whole number (it should understand the `Rp 150.000` style too). It must pass:
+> `assert parse_total("150000") == 150000`
+> `assert parse_total("Rp 150.000") == 150000`
+> `assert parse_total("-5000") is None`
+> `assert parse_total("abc") is None`
+> `assert parse_total("") is None`
+>
+> Then write `run(path)`, the edge: it opens `data/orders.csv`, calls `parse_total` on every `total_idr`, and returns the number of valid and invalid rows. Nothing else may touch the file.
+>
+> **You should see:** no assertion error, and `run("data/orders.csv")` returns `(3617, 17)`. Notice that you tested `parse_total` without any file. Try to do the same with a version that opens the file inside the function and feel the difference.
+
 ## @lesson Validate at the boundary with Pydantic
 The most reliable pipelines distrust their inputs. Data crosses a **boundary** (a file, an API, a queue) and you convert it from "whatever the sender produced" to "a value my code can rely on". Do this once, at the door; everything after the door can then assume clean data.
 
@@ -196,6 +207,10 @@ Levels in practice: `DEBUG` (detail for developers), `INFO` (normal milestones a
 
 The most useful single log line in any pipeline is the **run summary**: how many rows were read, how many were valid, how many rejected and why, how long it took. It is your first and cheapest monitoring: a sudden change in those numbers between nights is often the first sign of an upstream problem, which is why the lab asks you to log it and the exit code reflects the reject rate.
 
+> 🛠 **Try it (12 min, Python).** Extend `run` from the previous Try it: call `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` once, in the entry point, and log the run summary as one INFO line with `read`, `valid`, `duplicates` and `invalid`. Count a row as invalid when its `total_idr` is not plain digits (so `Rp 150.000` and negative numbers are invalid here), and as a duplicate when it is valid and its `order_id` was already seen. If the invalid share is above 1%, log an ERROR and exit with `sys.exit(1)`.
+>
+> **You should see:** a line like `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, then an ERROR (54 of 3,634 is about 1.5%) and `echo $?` printing `1`. The same run with `print` would have no time, no level and no way to be filtered or alerted on.
+
 ## @lesson Testing data code with pytest
 Tests are how you change code without fear. For data jobs they also document, in executable form, what "correct" means. **pytest** is the standard tool: put functions named `test_*` in files named `test_*.py` and run `pytest`.
 
@@ -243,6 +258,10 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 **Performance in one paragraph.** CPython runs one thread of Python bytecode at a time (the **GIL**), so threads help for *waiting* work (many network calls, disk reads) but not for CPU-heavy work; for that use multiple processes (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) or, better, a vectorised engine. Measure before optimising (`cProfile`, or just timing): the slow part is rarely where you guess.
 
 **Choosing the right tool.** Plain Python is excellent for glue: calling APIs, validating records, moving and reshaping data of moderate size, orchestrating other tools. For **heavy aggregation, joins and analytics on large data**, SQL engines (DuckDB, Module 2.1; a warehouse, Module 2.3) and dataframe engines (Polars, Spark) are far faster and use memory far better than hand-written loops. A good data engineer writes the validation and plumbing in Python and pushes the heavy computation to the engine built for it.
+
+> 🛠 **Try it (10 min, terminal).** In a fresh virtual environment run `pip install ruff`. Save `bad.py` with the lines `import os`, `import json`, `x=1` and `print( x )`. Run `ruff check bad.py`, then `ruff check --fix bad.py`, then `ruff format bad.py` and look at the file. Finally run `pip freeze > requirements.txt` and read its first lines.
+>
+> **You should see:** one `F401` ("imported but unused") for `os` and one for `json`; the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
 
 ## @lab Lab: a validated, streaming, idempotent ETL
 Build the production version of the cleaning job from Module 0.1. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.

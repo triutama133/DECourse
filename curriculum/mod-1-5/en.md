@@ -40,6 +40,10 @@ The mental model that matters most: **pandas works on whole columns at once.** `
 
 Two habits to start with. First, **look before you change**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df["country"].value_counts()`. Second, **never edit in place without a reason**: build a new frame from the old one (`assign`, `rename`, `dropna`), which also makes your function easy to test, as in the lab.
 
+> 🛠 **Try it (10 min, Python).** Run `pip install pandas`. Load `data/orders.csv` with `pd.read_csv`. Print `df.shape` and `df.dtypes`. Translate three SQL queries into pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, and the count of rows with `WHERE status = 'delivered'`. Then repeat the status count after `df["status"].str.strip().str.lower()` and compare.
+>
+> **You should see:** `(3634, 6)`; raw status counts that include variants such as `DELIVERED`, exactly `2080` rows with `delivered` in the exact-match count, and after lower-casing five statuses: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
+
 ## @lesson Loading a file correctly
 `pd.read_csv("orders.csv")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:
 

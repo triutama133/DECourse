@@ -250,6 +250,10 @@ Thirteen pages instead of 4,167, and 0.045 ms instead of 21 ms: nearly 500 times
 
 > **Tip:** Test on realistic volumes. On 1,000 rows every plan is fast and tells you nothing. Generate data at production scale (the lab does) before you judge a query.
 
+> 🛠 **Try it (12 min, Python and SQLite).** Load `data/orders.csv` into SQLite (reuse your script from Module 0.1). For each query print `EXPLAIN QUERY PLAN` (last column): (1) `WHERE customer_id = '479'`; (2) the same after `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` with the index in place; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` before and after `CREATE INDEX ix_ts ON orders(order_ts)`.
+>
+> **You should see:** `SCAN orders` for (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` for (2); `SCAN orders` again for (3), because a function on the column defeats the index (sargability); and for (4) a `SCAN` that becomes `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
+
 ## @lesson Indexes: what they are, which to build, what they cost
 An **index** is a separate sorted structure that maps column values to row locations, like the index of a book. The default is a **B-tree**: it supports equality (`=`), ranges (`<`, `BETWEEN`) and ordering (`ORDER BY`), because it keeps keys sorted. Choosing indexes is a design skill with a few rules.
 
@@ -323,6 +327,10 @@ Read the third and fourth rows twice. A report that sorts by a nullable column p
 5. **When you meet a new engine**, answer these before writing queries: how are dates and time zones stored? what does `/` do with integers? where do NULLs sort? how are names quoted and compared (case, spaces)? are constraints and foreign keys enforced? how is a string aggregated? is there `QUALIFY`? how are `LIMIT`/`OFFSET` (or `TOP`, `FETCH FIRST`) spelled? what happens on a bad `CAST`?
 
 The sandbox practice challenges **k-16 to k-23** (text, number, date functions and DDL, Module 0.3) and **w-11 to w-14** (QUALIFY, FILTER, date bucketing, a median without `MEDIAN()`) use exactly these ideas.
+
+> 🛠 **Try it (10 min, Python).** Run `pip install duckdb`. Execute each statement on SQLite (`sqlite3`) and on DuckDB and print both results side by side: `SELECT 7/2`; `SELECT 'abc' LIKE 'ABC'`; `SELECT x FROM (SELECT 1 AS x UNION ALL SELECT NULL UNION ALL SELECT 2) ORDER BY x`; `SELECT x, y FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 1, 3) GROUP BY x` (catch the error).
+>
+> **You should see:** `3` against `3.5`; `1` against `False`; NULL first against NULL last; an arbitrary row `(1, 2)` against a `Binder Error`. Four silent differences in four lines: which one would have fooled you?
 
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.

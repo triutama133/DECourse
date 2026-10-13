@@ -40,6 +40,10 @@ The design is done in four steps, in order. Skipping the order is the most commo
 3. **Choose the dimensions.** Everything that describes a row at that grain: date, customer, product.
 4. **Choose the facts (measures).** The numbers at that grain: quantity, unit price, line total.
 
+> 🛠 **Try it (10 min, SQL Sandbox).** Answer "revenue per city and tier for delivered orders" on the normalised KopiKu tables (revenue = `qty * unit_price_idr`). Count how many tables you had to join and how many `ON` conditions you had to get right. Then sketch on paper the star schema for the same question: which table holds the revenue, which tables hold city and tier?
+>
+> **You should see:** three tables (`orders`, `customers`, `order_items`) and two joins, and a first row `Bandung, Gold, 455000` followed by `Surabaya, Bronze, 365000`. In your sketch there is one fact table of order lines (the revenue) pointing at a customer dimension (city, tier): the analyst writes one join instead of remembering three tables.
+
 ## @lesson The grain: the most important sentence in the model
 The **grain** is a single sentence that says what one row of a fact table means. For KopiKu: *"one row per order line: one product, in one order, at one price."* Everything else follows from it.
 
@@ -64,6 +68,10 @@ Types of fact tables, by how rows arrive:
 | **Accumulating snapshot** | one process instance, updated as it progresses | an order with placed, paid, shipped, delivered dates | dates and durations |
 
 Measures also differ in **additivity**: *additive* (quantity, revenue) can be summed across every dimension; *semi-additive* (account balance, inventory) can be summed across customers but not across time; *non-additive* (ratios, percentages, averages) cannot be summed at all, so store the numerator and denominator and divide at the end.
+
+> 🛠 **Try it (10 min, SQL Sandbox).** `orders` holds a `shipping_fee_idr` per order. Compute the total fee two ways: `SELECT SUM(shipping_fee_idr) FROM orders;` and the same sum after joining `orders` to `order_items` on `order_id`. Then state the grain of each table in one sentence, and at which grain a shipping fee may be summed.
+>
+> **You should see:** `355000` and then `470000`, which is 32% too high: an order with three lines is counted three times. The fee belongs to the order grain, not the order-line grain.
 
 ## @lesson Dimensions: descriptive context
 A dimension row describes one member (one product, one customer, one day) with many attributes you group, filter and label by: `roast_level`, `origin`, `tier`, `city`. Good dimensions are wide and denormalised on purpose, because you want one join, not a chain.
@@ -109,6 +117,10 @@ Keep the natural key in the dimension as an ordinary column too, so you can trac
 **Every fact row must point at a real dimension row.** Real data does not cooperate: an order arrives for a customer who is not in the customer extract yet (a *late-arriving* dimension), a product is deleted at the source, a value is missing. A NULL foreign key is poison: in an inner join the fact row silently vanishes and totals go down. The standard fix is the **unknown member**: a special dimension row with a reserved key (here `customer_sk = -1`, `city = 'Unknown'`) that facts point to when the real row cannot be found. Totals stay correct, the unknowns are visible (and countable, so you can alert on them), and when the real dimension row arrives later you can repair the facts.
 
 In the lab's data, 32 order lines belong to customers who do not exist in the customer table. With an unknown member they appear as the "Unknown" tier with revenue of Rp 5,965,000; without it, that revenue would silently disappear from every report grouped by tier.
+
+> 🛠 **Try it (10 min, Python).** With the generated KopiKu files, find the orders whose `customer_id` does not exist in `data/customers.csv`, and how many order lines belong to them. Then decide: if the fact table required a real customer key, what would happen to those lines, and how would an "Unknown" member save them?
+>
+> **You should see:** `16` orders and `32` order lines (the number this lesson quotes). Write the one sentence you would put in the model's documentation about them.
 
 ## @lesson Slowly changing dimensions: remembering what used to be true
 Customers move, products are renamed, tiers are re-evaluated. A dimension's attributes change **slowly** over time, and you must decide what a report about the *past* should say. That decision is the **slowly changing dimension (SCD) type**, chosen per attribute:
