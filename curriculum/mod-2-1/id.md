@@ -60,6 +60,13 @@ file
 - Seluruh kolom bersifat **strictly typed** (integer, decimal, timestamp, string, struct bertingkat); kekacauan "semua data adalah teks" seperti di CSV lenyap sepenuhnya.
 - Algoritma kompresi dapat ditentukan per file atau per kolom: **snappy** (sangat cepat, kompresi moderat), **zstd** (standar emas modern: rasio kompresi sangat tinggi dengan kecepatan dekompresi impresif), dan **gzip** (arsip lama, lambat).
 
+> 💡 **Jeda Praktik: Konversi CSV ke Parquet dengan DuckDB**
+> 1. Buka file `labs/mod-2-1/analytics.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
+> 2. Temukan fungsi `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Gunakan perintah DuckDB `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` untuk mengonversi CSV ke Parquet terkompresi zstd dengan ukuran row group yang ditentukan. Ingat bahwa klausa target path pada `COPY ... TO` tidak menerima placeholder parameter `?`, jadi susun query SQL sebagai f-string dengan path yang dibersihkan.
+> 3. Buka terminal Anda dan jalankan pengujian unit konversi Parquet:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
+> 4. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana tipe data berhasil diinferensikan secara otomatis dan kompresi ZSTD diterapkan pada tiap row group.
+
 **Dua optimasi kunci yang membuat query Parquet sangat kencang:**
 
 - **Projection Pushdown (Column Pruning).** Mesin analitik hanya membaca kolom-kolom yang secara eksplisit diminta oleh query dan mengabaikan sisa kolom lainnya.
@@ -72,6 +79,13 @@ Pelajaran praktis untuk perancangan pipeline:
 - **Urutkan atau kelompokkan data berdasarkan kolom yang paling sering difilter** (biasanya kolom tanggal/waktu transaksi) saat menulis file Parquet.
 - **Ukuran row group dan file yang ideal.** Ukuran row group sekitar 100.000 hingga 1.000.000 baris memberikan keseimbangan terbaik antara efektivitas skipping dan overhead metadata. Target ukuran satu file Parquet adalah 100 MB hingga 1 GB. Ribuan file berukuran kecil (beberapa kilobyte) akan memperlambat query (dikenal sebagai **small files problem**), yang harus diperbaiki melalui proses pemadatan (compaction).
 - **File Parquet bersifat immutable.** Anda tidak dapat memperbarui satu baris di tempat; modifikasi data berarti menulis file Parquet baru.
+
+> 💡 **Jeda Praktik: Implementasi Predicate Pushdown Mandiri**
+> 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, arahkan ke fungsi `row_groups_to_read(parquet_path, column, lo, hi)`.
+> 2. Buka metadata file menggunakan `pq.ParquetFile(parquet_path).metadata`. Temukan indeks kolom target, lalu lakukan iterasi pada tiap row group. Baca `statistics`: jika statistik tidak ada atau tidak memiliki min/max, row group wajib dibaca (tambahkan ke daftar); jika ada, periksa apakah rentang `[stats.min, stats.max]` beririsan dengan `[lo, hi]` (`stats.max >= lo and stats.min <= hi`).
+> 3. Uji logika skipping Anda di terminal:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestPushdown`
+> 4. Pastikan ke-3 pengujian lulus (`3 passed`). Perhatikan bagaimana data yang terurut waktu hanya membutuhkan 1 hingga 3 row group untuk dibaca, sedangkan data acak memaksa mesin membaca hampir seluruh row group.
 
 ## @lesson Apache Arrow dan eksekusi tervektorisasi (vectorized)
 **Apache Arrow** adalah format data kolumnar standar untuk representasi **di dalam memori RAM**, pasangan serasi dari Parquet yang berada di disk. Nilai terbesar Arrow adalah standardisasi memori bersama: DuckDB, Polars, pandas (dengan backend PyArrow), Spark, dan database dapat bertukar data di RAM **tanpa serialisasi dan tanpa penyalinan memori (zero-copy)**. Itulah mengapa konversi `duckdb_result.pl()` (ke Polars) atau `.arrow()` berlangsung seketika.
@@ -116,6 +130,13 @@ READ_PARQUET
 Perhatikan bahwa **proyeksi kolom** (hanya dua kolom yang dibaca) dan **filter** dieksekusi langsung di dalam node pembacaan file: inilah bukti nyata projection pushdown dan predicate pushdown. Jika filter muncul di node terpisah di *atas* node pembacaan, itu menandakan data dibaca seluruhnya terlebih dahulu baru kemudian disaring. Gunakan `EXPLAIN ANALYZE` untuk melihat metrik durasi waktu nyata per node.
 
 **Mengolah data yang lebih besar dari kapasitas RAM (Out-of-Core Processing).** DuckDB secara otomatis menumpahkan data sementara ke disk (spill to disk) saat kebutuhan memori query melebihi batas yang ditentukan: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. Pada pengujian lab, pengurutan 5.000.000 baris di bawah batas memori 200 MB selesai dalam 0,3 detik dengan puncak konsumsi RAM hanya 194 MB tanpa mengalami crash OOM. Konfigurasi berguna lainnya: `SET threads = 4` untuk membatasi pemakaian core CPU di lingkungan container bersama.
+
+> 💡 **Jeda Praktik: Analisis SQL Kolumnar dengan DuckDB**
+> 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, buka fungsi `revenue_by_month_roast_duckdb(data_dir)`.
+> 2. Tulis query SQL DuckDB yang membaca `order_items.parquet`, `orders.parquet`, dan `products.parquet` menggunakan fungsi `read_parquet(...)`. Gabungkan ketiga tabel (JOIN), kelompokkan berdasarkan format bulan `strftime(o.order_ts, '%Y-%m')` dan `p.roast_level`, lalu hitung omset `SUM(i.qty * i.unit_price_idr)` dengan tipe `BIGINT` (integer). Urutkan hasil berdasarkan bulan dan tingkat sangrai (`ORDER BY 1, 2`).
+> 3. Jalankan pengujian DuckDB di terminal Anda:
+> `pytest labs/mod-2-1/test_lab.py -v -k "test_duckdb_result or test_revenue_is_an_int"`
+> 4. Pastikan pengujian lulus (`2 passed`). Verifikasi bahwa omset yang dihasilkan bertipe integer tanpa kesalahan presisi desimal.
 
 ## @lesson Polars dan panduan memilih alat analitik
 **Polars** adalah library dataframe modern berkecepatan tinggi yang ditulis dalam bahasa Rust, dibangun di atas fondasi Apache Arrow, dengan antarmuka **ekspresi deklaratif**:
@@ -167,6 +188,13 @@ Panduan praktis memilih alat:
 
 DuckDB dan Polars saling terhubung erat melalui format memori Apache Arrow, sehingga Anda dapat mengombinasikannya: gunakan SQL DuckDB untuk join dan agregasi berat, lalu lanjutkan dengan Polars untuk manipulasi logika Python. Fakta di dunia kerja: **satu laptop/server tunggal mampu mengolah data ratusan gigabyte** jika format file dan tata letaknya dirancang dengan benar, jadi beralihlah ke cluster terdistribusi hanya ketika pengukuran data membuktikan Anda benar-benar membutuhkannya.
 
+> 💡 **Jeda Praktik: Analisis Kolumnar Lazy dengan Polars**
+> 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, buka fungsi `revenue_by_month_roast_polars(data_dir)`.
+> 2. Implementasikan pipeline analitik yang sama secara **lazy** menggunakan `pl.scan_parquet(...)`. Gabungkan items dengan orders dan products (`join`), tambahkan kolom turunan bulan transaksi dan subtotal menggunakan `.with_columns()`, lakukan `.group_by("month", "roast_level")`, lalu agregasikan `.agg(pl.col("line").sum().alias("revenue"))`, urutkan dengan `.sort()`, dan jalankan eksekusi dengan `.collect()`.
+> 3. Jalankan pengujian engine di terminal:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
+> 4. Pastikan seluruh 3 pengujian engine lulus (`3 passed`). Amati bagaimana dua mesin berbeda (DuckDB dan Polars) menghasilkan output yang 100% identik dengan hasil independen SQLite.
+
 ## @lesson Tata letak partisi, tipe data, dan jebakan umum
 **Partisi Direktori (Partitioning).** Membagi data ke dalam sub-folder berdasarkan nilai kolom tertentu (`month=2026-01/`) memungkinkan mesin query melewati seluruh folder yang tidak relevan saat ada filter pada kolom tersebut (partition pruning). Panduan praktis: partisi data hanya pada **kolom ber-kardinalitas rendah yang rutin difilter** (seperti tanggal atau wilayah), jangan pernah partisi pada ID transaksi; hindari pembagian partisi yang melahirkan ribuan file mini; dan prioritaskan **pengurutan data di dalam file** untuk kolom ber-kardinalitas tinggi karena statistik row group Parquet dapat menanganinya dengan sangat efisien. Partisi berlebihan (*over-partitioning*) adalah kesalahan paling umum data engineer pemula.
 
@@ -178,6 +206,12 @@ DuckDB dan Polars saling terhubung erat melalui format memori Apache Arrow, sehi
 - **Pergeseran Skema (Schema Drift).** Kolom yang bertipe `int` pada file bulan Januari namun berubah menjadi `string` pada bulan Maret akan menggagalkan query pembacaan banyak file. Lakukan validasi skema ketat pada gerbang ingestion (Modul 2.5).
 
 Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena mematikan column pruning; lakukan filter sedini mungkin pada kolom yang terurut; tulis file Parquet dengan kompresi zstd dan ukuran row group eksplisit; prioritaskan sedikit file berukuran besar daripada ribuan file mini; dan selalu lakukan verifikasi dengan perintah `EXPLAIN` serta pengujian benchmark nyata sebelum mempercayai klaim performa apa pun.
+
+> 💡 **Jeda Praktik: Verifikasi Seluruh Rangkaian Pengujian Kolumnar**
+> 1. Setelah semua empat fungsi dalam `labs/mod-2-1/analytics.py` selesai diimplementasikan, jalankan seluruh rangkaian tes dari terminal:
+> `pytest labs/mod-2-1 -v`
+> 2. Pastikan ke-10 pengujian lulus sempurna tanpa hambatan (`10 passed`).
+> 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
 
 ## @lab Lab: konversi CSV ke Parquet, dua mesin analitik, dan implementasi pushdown
 Konversikan tabel operasional KopiKu ke dalam format Parquet terkompresi, jawab pertanyaan bisnis yang sama menggunakan SQL di DuckDB dan lazy dataframe di Polars (buktikan kedua mesin menghasilkan angka omset yang identik dengan verifikasi independen SQLite), serta implementasikan logika predicate pushdown sendiri langsung dari metadata footer Parquet. Terakhir, lakukan pengujian benchmark mandiri pada data berskala lebih besar untuk membandingkan performa ketiga alat.

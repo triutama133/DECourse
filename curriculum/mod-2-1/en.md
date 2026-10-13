@@ -60,6 +60,13 @@ file
 - Data is **typed** (integers, decimals, timestamps, strings, nested structures); CSV's "everything is text" problem disappears.
 - Compression is chosen per file or column: **snappy** (fast, moderate savings), **zstd** (slower to write, much smaller, an excellent default today), **gzip** (older, slow).
 
+> 💡 **Practice Pause: Converting CSV to Parquet with DuckDB**
+> 1. Open `labs/mod-2-1/analytics.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
+> 2. Locate function `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Use DuckDB's `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` to convert CSV to zstd-compressed Parquet with the requested row group size. Remember that the target path clause in `COPY ... TO` does not accept a bound `?` parameter, so format it as an escaped f-string.
+> 3. Open your terminal and run the Parquet conversion unit tests:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
+> 4. Ensure all 4 tests pass (`4 passed`). Observe how column data types are inferred automatically and ZSTD compression is applied across row groups.
+
 **Two optimisations make Parquet fast**, both visible in query plans:
 
 - **Projection pushdown (column pruning).** Read only the columns the query uses.
@@ -72,6 +79,13 @@ Practical consequences:
 - **Sort or cluster by the column you filter on most** (usually time) when writing.
 - **Row group and file size.** Row groups of roughly 100,000 to a few million rows balance skipping granularity against metadata overhead. Files of roughly 100 MB to 1 GB are a good target. Thousands of tiny files are slow (each needs an open, a footer read, and bookkeeping); this is the **small files problem**, fixed by compaction (Module 2.2).
 - **Parquet files are immutable.** You cannot change one row in place; you rewrite the file. Table formats (Module 2.2) build safe updates on top of this.
+
+> 💡 **Practice Pause: Implementing Predicate Pushdown by Hand**
+> 1. In your text editor in `labs/mod-2-1/analytics.py`, locate function `row_groups_to_read(parquet_path, column, lo, hi)`.
+> 2. Inspect the file metadata using `pq.ParquetFile(parquet_path).metadata`. Find the target column index, then iterate over each row group. Check `statistics`: if statistics are missing or lack min/max bounds, the row group must be read (add it to your list); if present, check whether the range `[stats.min, stats.max]` overlaps `[lo, hi]` (`stats.max >= lo and stats.min <= hi`).
+> 3. Test your pushdown skipping logic in your terminal:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestPushdown`
+> 4. Ensure all 3 tests pass (`3 passed`). Notice how time-sorted data requires inspecting only 1 to 3 row groups, whereas shuffled data forces the engine to read nearly all row groups.
 
 ## @lesson Arrow and vectorised execution
 **Apache Arrow** is a columnar format for data **in memory**, the counterpart of Parquet on disk. Its value is a shared standard: DuckDB, Polars, pandas (with PyArrow), Spark and databases can hand each other Arrow data **without converting or copying** it. That is why `duckdb_result.pl()` (to Polars) and `.arrow()` are nearly instant, and why a stack made of several tools does not pay a heavy translation tax between them.
@@ -116,6 +130,13 @@ READ_PARQUET
 Both the **projection** (only two columns) and the **filter** are part of the scan itself: pushdown in action. If the filter appeared in a separate node *above* the scan, it would mean rows were read first and discarded later. `EXPLAIN ANALYZE` adds timings per node.
 
 **Larger than memory.** DuckDB spills to disk when a query exceeds its budget: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. In a test, sorting all 5,000,000 rows under a 200 MB limit completed in 0.3 seconds with a peak of 194 MB, instead of being killed (Module 1.1). Other useful settings: `SET threads = 4` (limit CPU use in a shared container).
+
+> 💡 **Practice Pause: Columnar SQL Analysis with DuckDB**
+> 1. In your text editor in `labs/mod-2-1/analytics.py`, open function `revenue_by_month_roast_duckdb(data_dir)`.
+> 2. Write a DuckDB SQL query reading `order_items.parquet`, `orders.parquet`, and `products.parquet` via `read_parquet(...)`. Join all three tables, group by month `strftime(o.order_ts, '%Y-%m')` and `p.roast_level`, and sum revenue `SUM(i.qty * i.unit_price_idr)` cast to `BIGINT` (integer). Order the results by month and roast level (`ORDER BY 1, 2`).
+> 3. Run the DuckDB tests in your terminal:
+> `pytest labs/mod-2-1/test_lab.py -v -k "test_duckdb_result or test_revenue_is_an_int"`
+> 4. Verify that both tests pass (`2 passed`). Confirm that revenue is returned as an integer without decimal floating-point inaccuracies.
 
 ## @lesson Polars, and choosing between the tools
 **Polars** is a dataframe library written in Rust, built on Arrow, with an **expression** API:
@@ -167,6 +188,13 @@ A practical guide:
 
 DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the heavy aggregation, Polars for the Python-side shaping. The honest rule of thumb is that **a single machine takes you much further than most teams expect**, into the hundreds of gigabytes with good file layout, so move to a cluster when measurement shows you must, not by default.
 
+> 💡 **Practice Pause: Lazy Columnar Analysis with Polars**
+> 1. In your text editor in `labs/mod-2-1/analytics.py`, open function `revenue_by_month_roast_polars(data_dir)`.
+> 2. Implement the identical analytical pipeline **lazily** using `pl.scan_parquet(...)`. Join items with orders and products (`join`), add the formatted month and line total with `.with_columns()`, group with `.group_by("month", "roast_level")`, aggregate with `.agg(pl.col("line").sum().alias("revenue"))`, sort with `.sort()`, and execute the plan with `.collect()`.
+> 3. Run the engine test suite in your terminal:
+> `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
+> 4. Ensure all 3 engine tests pass (`3 passed`). Observe how two distinct modern engines (DuckDB and Polars) produce 100% identical outputs matching independent SQLite calculations.
+
 ## @lesson Layout, types and the traps to avoid
 **Partitioning.** Splitting data into folders by a column's value (`month=2026-01/`) lets an engine skip entire folders when you filter on that column (partition pruning). Rules: partition on a **low-cardinality column that queries filter on** (date, region), not on ids; avoid partitions that produce tiny files (100 customers x 365 days = tens of thousands of small files); and prefer **sorting within files** for high-cardinality filters, since row group statistics handle those. Over-partitioning is the most common mistake.
 
@@ -178,6 +206,12 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 - **Schema drift.** A column that is `int` in January's files and `string` in March's makes a multi-file read fail or coerce. Validate the schema at ingestion (Module 2.5).
 
 **Other habits.** Avoid `SELECT *` on columnar data (it defeats column pruning); filter early and on the sorted column; write Parquet with explicit compression and row group size; prefer a few large files to many small ones; keep raw data and the converted copy separate (Module 0.1's raw layer); and measure with `EXPLAIN` and a stopwatch before believing any claim, including the ones in this lesson.
+
+> 💡 **Practice Pause: Full Columnar Test Suite Verification**
+> 1. Once all four functions in `labs/mod-2-1/analytics.py` are implemented, run the entire test suite in your terminal:
+> `pytest labs/mod-2-1 -v`
+> 2. Ensure all 10 tests pass cleanly without errors (`10 passed`).
+> 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
 
 ## @lab Lab: from CSV to Parquet, two engines, and pushdown by hand
 Convert the KopiKu tables to Parquet, answer the same business question with DuckDB and with Polars (and prove both give the independently calculated answer), and implement predicate pushdown yourself from nothing but a Parquet footer. Then measure on a bigger dataset and compare engines.
