@@ -49,6 +49,14 @@ Other vocabulary:
 
 Pass **references, not data**, between steps. Task outputs travel through the orchestrator's metadata store (Airflow's XCom); that is for small values such as a file path or a row count. Large data goes through storage (a table, a Parquet folder) and the next step reads it from there.
 
+> 💡 **Practice Pause 1 (Defining Resources & Daily Partitions):**
+> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-4/orchestration.py` (do not run `.py` files directly in bash without arguments or interpreters).
+> 2. Define the resource class `Paths(ConfigurableResource)` with string attributes `data_dir` and `warehouse_dir`.
+> 3. Create the daily partitions definition: `daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")` (note: `end_date` is exclusive, covering 30 days of January 2026).
+> 4. Run the partition test in terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
+> 5. **Success Indicator:** The test passes, confirming exactly 30 partitions from 2026-01-01 through 2026-01-30.
+
 ## @lesson Idempotency and backfills: the rule that makes everything else safe
 Module 0.1 gave you the rule, Module 1.2 the techniques, and the orchestrator is where it becomes non-negotiable. **Every step must be safe to run more than once for the same interval.** Orchestrators retry automatically, humans re-trigger runs, and backfills re-run history; if running twice doubles the numbers, one of those will eventually happen to you.
 
@@ -63,6 +71,14 @@ The patterns, all of which the lab tests:
 A **backfill** is then simple and safe: run the same step for each past interval. Its dangers are operational: 365 partitions started at once can flood the systems they read from (this module's chaos lab), and a backfill that **recomputes upstream data** must make sure downstream partitions are recomputed too, which is exactly what asset-based dependencies keep track of. Backfills should have a concurrency limit, run off-peak, and be launched deliberately with a clear range.
 
 The lab has you test these properties instead of trusting them: materialise a partition twice and compare the bytes; backfill seven days twice and check the report does not double-count; point the resource at a missing directory and check that the run **fails**, not "succeeds" with nothing.
+
+> 💡 **Practice Pause 2 (Partitioned Assets & Atomic Writes):**
+> 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
+> 2. Implement `@asset(partitions_def=daily, ...)` for `daily_orders(context: AssetExecutionContext, paths: Paths)`: read `orders.csv`, filter rows matching `context.partition_key`, clean totals and status, and write sorted rows to `date=<day>/orders.ndjson`.
+> 3. Use an atomic write pattern: write to a temporary file first, then atomically replace the target file (`os.replace`) so reruns remain completely idempotent.
+> 4. Test idempotency in terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
+> 5. **Success Indicator:** Tests report `PASSED`, proving that executing the same partition twice produces byte-for-byte identical output.
 
 ## @lesson Airflow: DAGs of tasks
 **Apache Airflow** defines pipelines as Python files. Its components: a **scheduler** that decides what runs and when, a **DAG processor** that parses your files, **workers** (via an *executor*, local, Celery or Kubernetes) that run tasks, a **metadata database** with the state of everything, and an **API server and UI** to view and trigger runs.
@@ -123,6 +139,14 @@ def daily_revenue(): ...
 
 Many teams run Airflow as a managed service (Amazon MWAA, Google Cloud Composer, Astronomer) rather than operating it themselves.
 
+> 💡 **Practice Pause 3 (Retry Policies & Failing Loudly):**
+> 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
+> 2. Add retry behavior to `daily_orders` using `retry_policy=RetryPolicy(max_retries=2, delay=1)` to absorb transient failures.
+> 3. Ensure your asset raises an explicit error when input data is missing (do not return an empty list or pretend to succeed): verify directory/file existence and let `FileNotFoundError` propagate.
+> 4. Test failure behavior in terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
+> 5. **Success Indicator:** Tests report `PASSED`, verifying explicit failures on missing inputs and automated retries on transient errors.
+
 ## @lesson Dagster: pipelines as assets
 **Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it. Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
 
@@ -159,6 +183,15 @@ Concepts you will use in the lab:
 - **Lineage and observability** come for free, because the dependency graph is explicit: you can answer "which dashboards does this table feed?" and "what is stale?".
 
 Dagster integrates with dbt (every dbt model becomes an asset in the same graph), so staging, marts and Python assets sit in one lineage.
+
+> 💡 **Practice Pause 4 (Asset Checks & Timezone-Aware Schedules):**
+> 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
+> 2. Implement `daily_revenue` (aggregating non-cancelled/refunded orders) and `revenue_report` (aggregating all days via `AllPartitionMapping`).
+> 3. Add two asset checks: `daily_orders_has_unique_ids` and `revenue_is_never_negative`.
+> 4. Configure `daily_schedule` with cron `0 2 * * *` and timezone `Asia/Jakarta`, then register everything in `defs = Definitions(...)`.
+> 5. Test checks and schedules in terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
+> 6. **Success Indicator:** Tests report `PASSED`, confirming asset checks and schedule definitions.
 
 ## @lesson Choosing and operating an orchestrator
 The two philosophies compared honestly:
@@ -209,6 +242,15 @@ dagster dev -f labs/mod-2-4/orchestration.py
 ```
 
    Open the UI (http://localhost:3000), find the asset graph, select a range of partitions of `daily_orders` and `daily_revenue`, launch a backfill, then materialise `revenue_report`. Re-launch the same backfill and confirm the report does not change.
+
+> 💡 **Practice Pause 5 (Backfill Verification & Dagster UI):**
+> 1. In your terminal, run the complete automated test suite:
+>    `pytest labs/mod-2-4 -v`
+> 2. Launch the local Dagster UI to inspect the asset lineage graph:
+>    `dagster dev -f labs/mod-2-4/orchestration.py`
+> 3. Open `http://localhost:3000` in your browser, observe the asset DAG `daily_orders` -> `daily_revenue` -> `revenue_report`, pick date partitions to launch a backfill, and confirm no duplicate data is introduced.
+> 4. **Success Indicator:** All 10 tests in `test_lab.py` report `PASSED` and Dagster UI shows green materializations.
+
 7. Stretch goals: add a sensor that triggers when a new `orders.csv` appears; add a check that fails when a day has zero orders; set a concurrency limit on the backfill; or write the same pipeline as the Airflow DAG shown in the lesson and run it with `airflow dags test`.
 
 ### @files

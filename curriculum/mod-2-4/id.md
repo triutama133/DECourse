@@ -49,6 +49,14 @@ Kosakata penting lainnya dalam dunia orkestrasi:
 
 Aturan emas komunikasi antar-langkah: **alirkan referensi metadata, jangan alirkan payload data utuh**. Output task yang dikirim via metadata store orkestrator (seperti XCom di Airflow) hanya ditujukan untuk nilai kecil (file path, nama partisi, jumlah baris yang diproses). Payload data berukuran besar harus selalu ditulis ke storage persistensi (tabel staging, file Parquet, cloud bucket), dan langkah downstream berikutnya akan membaca data langsung dari storage tersebut.
 
+> 💡 **Jeda Praktik 1 (Mendefinisikan Resource & Partisi Harian):**
+> 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-4/orchestration.py` (ingat: jangan mengeksekusi file `.py` langsung di terminal bash tanpa interpreter atau argumen).
+> 2. Deklarasikan class resource `Paths(ConfigurableResource)` dengan atribut string `data_dir` dan `warehouse_dir`.
+> 3. Buat definisi partisi harian `daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")` (catatan: `end_date` bersifat eksklusif sehingga partisi mencakup 30 hari Januari 2026).
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
+> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi 30 partisi dari 2026-01-01 hingga 2026-01-30.
+
 ## @lesson Idempotensi dan backfill: aturan yang membuat segalanya aman
 Modul 0.1 telah mengenalkan konsepnya dan Modul 1.2 memperdalam tekniknya, namun di dalam orkestrator, idempotensi adalah syarat mutlak yang tidak bisa ditawar: **Setiap langkah dalam pipeline harus aman untuk dieksekusi berkali-kali untuk interval data yang sama tanpa mengubah hasil akhir.** Orkestrator melakukan retry otomatis, teknisi manusia sering kali menekan tombol trigger ulang, dan operasi backfill memproses ulang riwayat data; jika eksekusi ganda mengakibatkan metrik revenue berlipat ganda, maka bencana finansial hanya tinggal menunggu waktu.
 
@@ -63,6 +71,14 @@ Pola-pola arsitektur idempotensi yang diuji dalam lab modul ini:
 Dengan fondasi idempotensi yang kokoh, operasi **backfill** menjadi sangat elegan dan aman: Anda cukup memerintahkan orkestrator untuk menjalankan langkah yang sama untuk setiap interval data di masa lampau. Ancaman backfill bergeser dari risiko korupsi data ke risiko operasional: jika Anda memicu backfill 365 partisi sekaligus tanpa pembatasan kuota, sistem database sumber bisa lumpuh seketika akibat kehabisan resource (skenario chaos lab modul ini). Selain itu, jika Anda melakukan backfill pada **data upstream**, Anda harus memastikan partisi downstream terkait ikut diperbarui—hal yang dilacak secara otomatis dalam paradigma asset-based. Oleh karena itu, selalu pasang batas konkurensi (concurrency limits), jadwalkan backfill di luar jam sibuk operasional (off-peak), dan tentukan rentang eksekusi secara hati-hati.
 
 Dalam lab praktikum modul ini, Anda tidak sekadar mempercayai teori ini di atas kertas, melainkan mengujinya melalui rangkaian pengujian otomatis: mematerialisasi partisi dua kali dan membandingkan byte outputnya; melakukan backfill 7 hari sebanyak dua kali dan memverifikasi laporan pendapatan tidak berlipat ganda; serta mengarahkan resource ke direktori yang hilang dan memastikan pipeline **gagal secara eksplisit (fail loudly)**, bukan pura-pura sukses menghasilkan data kosong.
+
+> 💡 **Jeda Praktik 2 (Asset Terpartisi & Operasi Atomic Write):**
+> 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
+> 2. Implementasikan fungsi `@asset(partitions_def=daily, ...)` untuk `daily_orders(context: AssetExecutionContext, paths: Paths)`: baca file `orders.csv`, saring baris yang tanggalnya cocok dengan `context.partition_key`, bersihkan total Rupiah dan status transaksi, serta tulis baris yang diurutkan ke file output JSON (`date=<day>/orders.ndjson`).
+> 3. Terapkan pola penulisan atomik: tulis ke file temporary terlebih dahulu, lalu timpa file target (`os.replace`) agar eksekusi ulang menghasilkan file yang identik.
+> 4. Uji sifat idempotensi di terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
+> 5. **Indikator Sukses:** Tes berstatus `PASSED` membuktikan eksekusi partisi dua kali menghasilkan output file yang byte demi byte sama persis.
 
 ## @lesson Airflow: DAG berbasis task
 **Apache Airflow** mendefinisikan seluruh pipeline data menggunakan kode Python murni. Arsitektur komponen utamanya meliputi: **scheduler** yang memantau jadwal dan memutuskan kapan task harus jalan, **DAG processor** yang membaca dan mem-parsing file kode Python, **workers** (dijalankan via executor: LocalExecutor, CeleryExecutor, atau KubernetesExecutor) yang mengeksekusi instruksi task, **metadata database** (biasanya PostgreSQL) yang menyimpan state seluruh run dan task, serta **API server dan web UI** tempat insinyur memantau log dan memicu eksekusi.
@@ -123,6 +139,14 @@ def daily_revenue(): ...
 
 Banyak organisasi memilih menggunakan managed service Airflow di cloud (seperti Amazon MWAA, Google Cloud Composer, atau Astronomer) untuk mengeliminasi beban perawatan infrastruktur scheduler dan worker database sendiri.
 
+> 💡 **Jeda Praktik 3 (Retry Policy & Prinsip Fail Loudly):**
+> 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
+> 2. Pasang kebijakan retry pada asset `daily_orders` menggunakan `retry_policy=RetryPolicy(max_retries=2, delay=1)` untuk menangani gangguan sementara secara terencana.
+> 3. Pastikan kode Anda melempar error eksplisit jika path input data tidak ditemukan (jangan mengembalikan list kosong atau pura-pura sukses): periksa keberadaan direktori/file dan biarkan `FileNotFoundError` terangkat.
+> 4. Uji perilaku penanganan kegagalan di terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
+> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi pipeline gagal secara eksplisit saat input hilang dan otomatis mencoba ulang saat terjadi kegagalan sementara.
+
 ## @lesson Dagster: pipeline sebagai asset
 **Dagster** bertolak dari paradigma yang sangat berbeda. Alih-alih bertanya "task mana yang harus berjalan dalam urutan apa?", Dagster bertanya: "**data asset apa yang seharusnya ada di sistem kita, dan apa dependensinya?**". Sebuah **asset** merepresentasikan tabel database, file data lake, atau model machine learning nyata; fungsi berdekorator `@asset` mendefinisikan komputasi logis untuk memproduksi asset tersebut. Relasi dependensi terbentuk langsung antar asset, sehingga orkestrator memahami secara tepat kapan suatu data usang (stale), asset hilir mana yang terdampak oleh perubahan hulu, dan partisi mana yang perlu dihitung ulang.
 
@@ -159,6 +183,15 @@ Konsep esensial yang akan Anda terapkan dalam pengerjaan lab:
 - **Data Lineage dan Observabilitas Bawaan.** Karena graf dependensi didefinisikan secara eksplisit di level data, orkestrator dapat langsung menjawab pertanyaan krusial: "tabel ini memberi makan dashboard analitik mana saja?" dan "jika skema data ini berubah, siapa saja downstream consumers yang terdampak?".
 
 Dagster juga memiliki integrasi native yang luar biasa dengan dbt (setiap model dbt otomatis diidentifikasi sebagai asset dalam graf lineage Dagster), menyatukan transformasi SQL dan proses Python ke dalam satu peta arsitektur data terpadu.
+
+> 💡 **Jeda Praktik 4 (Asset Checks & Schedule Berbasis Zona Waktu):**
+> 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
+> 2. Implementasikan asset `daily_revenue` (agregasi order non-cancelled/refunded) dan `revenue_report` (agregasi seluruh hari menggunakan `AllPartitionMapping`).
+> 3. Pasang dua asset check: `daily_orders_has_unique_ids` dan `revenue_is_never_negative`.
+> 4. Konfigurasikan jadwal harian `daily_schedule` dengan cron `0 2 * * *` dan timezone `Asia/Jakarta`, lalu daftarkan semuanya ke dalam objek `defs = Definitions(...)`.
+> 5. Uji asset check dan schedule di terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
+> 6. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi integrasi asset check dan spesifikasi schedule 02:00 WIB berjalan sempurna.
 
 ## @lesson Memilih dan mengoperasikan orchestrator
 Komparasi objektif antara kedua filosofi orkestrasi data:
@@ -209,6 +242,15 @@ dagster dev -f labs/mod-2-4/orchestration.py
 ```
 
    Buka antarmuka web di browser (http://localhost:3000), buka tampilan graf asset lineage, pilih beberapa rentang partisi tanggal dari `daily_orders` dan `daily_revenue`, luncurkan eksekusi backfill, lalu materialisasikan asset `revenue_report`. Picu kembali backfill untuk rentang tanggal yang sama dan pastikan angka pendapatan pada laporan akhir tidak mengalami perubahan atau duplikasi.
+
+> 💡 **Jeda Praktik 5 (Uji Backfill & Eksplorasi Dagster UI):**
+> 1. Jalankan suite pengujian lengkap di terminal:
+>    `pytest labs/mod-2-4 -v`
+> 2. Luncurkan web UI Dagster di terminal untuk melihat grafik lineage:
+>    `dagster dev -f labs/mod-2-4/orchestration.py`
+> 3. Buka browser pada alamat `http://localhost:3000`, amati DAG asset `daily_orders` -> `daily_revenue` -> `revenue_report`, pilih beberapa tanggal partisi untuk meluncurkan backfill manual, dan pastikan tidak ada duplikasi data.
+> 4. **Indikator Sukses:** Seluruh 10 tes `test_lab.py` berstatus `PASSED` dan UI menampilkan status materialisasi berwarna hijau.
+
 7. Tantangan lanjutan (stretch goals): tambahkan sensor yang otomatis aktif saat file `orders.csv` baru tiba; tambahkan check yang melempar peringatan jika suatu hari menghasilkan 0 pesanan; pasang konfigurasi limit konkurensi pada backfill; atau tulis ulang pipeline tersebut menjadi DAG Airflow TaskFlow ekuivalen dan jalankan menggunakan perintah `airflow dags test`.
 
 ### @files
