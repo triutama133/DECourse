@@ -88,6 +88,14 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 
 > **Tip:** Validasi bukan hanya untuk file. Model yang sama bisa memvalidasi respons API, pesan dari antrean, dan konfigurasi. Satu definisi "pesanan yang valid" yang dipakai ulang di mana-mana adalah sebuah data contract kecil (Modul 2.5).
 
+> 💡 **Jeda Praktik 1 (Validasi Data dengan Pydantic OrderRow):**
+> Mulai bangun modul ETL Anda dengan membuat model validasi batas:
+> 1. Buka file `labs/mod-1-2/etl.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
+> 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
+> 3. Uji model Anda di terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 3 tentang streaming generator.
+
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
 
@@ -124,6 +132,14 @@ Jadi pelajarannya bukan "pandas itu buruk" melainkan "ketahui biaya struktur dat
 
 Satu hal yang tidak bisa dilakukan stream secara gratis adalah **deduplikasi**: mengingat id mana yang sudah terlihat butuh memori sebanding dengan jumlah id berbeda. Set berisi integer murah (jutaan masih muat dengan nyaman), tetapi ketahuilah di sinilah memori bertambah, dan pakai alat yang tepat (database, atau merge terurut) bila ruang id-nya sangat besar.
 
+> 💡 **Jeda Praktik 2 (Streaming Data dengan Generator read_orders):**
+> Buat pembaca data hemat memori yang tidak memuat seluruh file ke RAM:
+> 1. Di file `labs/mod-1-2/etl.py` pada text editor, temukan fungsi `read_orders(path)`.
+> 2. Terapkan generator malas menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
+> 3. Uji konsumsi memori dan sifat generator di terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
+> Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 4 tentang retry dan idempotensi.
+
 ## @lesson Error, retry, dan idempotensi
 **Tangkap exception yang spesifik, tangani yang bisa Anda tangani, biarkan sisanya gagal dengan jelas.** `except Exception: pass` adalah baris termahal yang bisa Anda tulis, karena mengubah setiap bug di masa depan menjadi kehilangan data yang senyap. Tangkap tipe tersempit (`ValidationError`, `FileNotFoundError`), lakukan sesuatu yang disengaja (karantina, retry, keluar dengan kode), dan tambahkan konteks saat melempar ulang: `raise RuntimeError("loading orders failed") from exc` mempertahankan traceback aslinya.
 
@@ -154,6 +170,14 @@ Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.1: menjalanka
 - **Ganti, jangan tambah.** Tulis keluaran sehari ke path yang memuat tanggalnya dan timpa, alih-alih menambahkan ke satu file yang terus membesar.
 
 Ketiganya persis yang diuji Lab 1.2.
+
+> 💡 **Jeda Praktik 3 (Pipeline Idempoten & Karantina run):**
+> Rangkai alur kerja ETL lengkap yang aman dijalankan ulang:
+> 1. Di file `labs/mod-1-2/etl.py` pada text editor, implementasikan fungsi `run(input_path, output_path, quarantine_path)`.
+> 2. Gunakan penulisan atomik (tulis ke file sementara `.tmp` lalu tukar dengan `os.replace`), lacak duplikat `order_id` menggunakan set, kirim data bersih ke `output_path` (format NDJSON dengan kunci terurut), dan kirim baris gagal ke `quarantine_path` mencatat alasan penolakannya.
+> 3. Uji pipeline di terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestRun -v`
+> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 5 & 6 untuk logging dan testing.
 
 ## @lesson Logging dan ringkasan eksekusi
 `print` untuk skrip; **`logging`** untuk job. Ia menambah stempel waktu, tingkat keparahan, dan perutean (ke file, ke konsol, ke pengumpul), dan membiarkan siapa pun yang menjalankan job memilih seberapa banyak yang ingin dilihat tanpa mengubah kode.
@@ -201,6 +225,15 @@ Apa yang diuji dalam pipeline:
 4. **Regresi**: ketika bug produksi ditemukan, tulis dulu tes yang mereproduksinya, baru perbaiki. Bug itu tidak akan bisa kembali dengan diam-diam.
 
 Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjalan dalam hitungan detik dijalankan di setiap perubahan; yang butuh sepuluh menit diabaikan.
+
+> 💡 **Jeda Praktik 4 (CLI Entrypoint & Uji Rangkaian Penuh):**
+> Lengkapi antarmuka command line produksi dan jalankan verifikasi menyeluruh:
+> 1. Di file `labs/mod-1-2/etl.py` pada text editor, lengkapi fungsi `main(argv=None)` dengan `argparse`: terima argumen `input`, `output`, `quarantine`, serta opsi `--max-reject-rate` (default `0.05`). Kembalikan exit code `0` untuk sukses, `1` jika tingkat penolakan melebihi batas, dan `2` jika file input tidak bisa dibaca.
+> 2. Uji CLI dan seluruh suite di terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -v`
+> 3. Coba jalankan skrip langsung lewat terminal pada data KopiKu:
+> `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
+> Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 7 untuk memilih perkakas yang tepat.
 
 ## @lesson Perkakas, dependensi, dan kapan Python adalah alat yang tepat
 **Pin dependensi Anda.** `requirements.txt` dengan versi pasti atau berbatas (`pydantic>=2.5,<3`) membuat build dapat diulang; lock file (`uv`, `pip-tools`, `poetry`) membuatnya dapat diulang secara persis. Instalasi tanpa pin yang menarik versi mayor baru semalam adalah penyebab klasik "kemarin masih jalan".

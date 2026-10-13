@@ -88,6 +88,14 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 
 > **Tip:** Validation is not only for files. The same model can validate API responses, messages from a queue, and configuration. One definition of "a valid order", reused everywhere, is itself a small data contract (Module 2.5).
 
+> 💡 **Practice Pause 1 (Data Validation with Pydantic OrderRow):**
+> Start building your ETL module by crafting the boundary validation model:
+> 1. Open `labs/mod-1-2/etl.py` in your text editor (remember: do not execute directly in bash!).
+> 2. Complete the `OrderRow` class and `validate(row: dict)` function. Add validators to clean Rupiah text (`"Rp 1.250.000"` -> `1250000`), normalize status with lowercase/strip, and support both ISO and `DD/MM/YYYY` timestamps.
+> 3. Test your model in the terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 3 on streaming generators.
+
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
 
@@ -124,6 +132,14 @@ So the lesson is not "pandas is bad" but "know what your data structure costs". 
 
 One thing a stream cannot do for free is **de-duplication**: remembering which ids you saw needs memory proportional to the number of distinct ids. A set of integers is cheap (millions fit comfortably), but know that this is where memory grows, and use the right tool (a database, or a sorted merge) when the id space is huge.
 
+> 💡 **Practice Pause 2 (Data Streaming with read_orders Generator):**
+> Create a memory-efficient data reader that never loads whole files into RAM:
+> 1. In `labs/mod-1-2/etl.py` in your text editor, locate the `read_orders(path)` function.
+> 2. Implement a lazy generator using `with open(path, newline="", encoding="utf-8") as f:` and `csv.DictReader(f)` with `yield from` (never convert it to `list(csv.DictReader(f))`).
+> 3. Test memory consumption and generator laziness in the terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
+> When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 4 on retries and idempotency.
+
 ## @lesson Errors, retries and idempotency
 **Catch specific exceptions, handle what you can, let the rest fail loudly.** `except Exception: pass` is the most expensive line you can write, because it turns every future bug into silent data loss. Catch the narrowest type (`ValidationError`, `FileNotFoundError`), do something deliberate (quarantine, retry, exit with a code), and add context when re-raising: `raise RuntimeError("loading orders failed") from exc` keeps the original traceback attached.
 
@@ -154,6 +170,14 @@ That brings us to **idempotency**, introduced in Module 0.1: running the job twi
 - **Replace, don't append.** Write a day's output to a path that contains the date and overwrite it, instead of appending to one growing file.
 
 These three are exactly what Lab 1.2 tests.
+
+> 💡 **Practice Pause 3 (Idempotent Pipeline & Quarantine run):**
+> Assemble the complete ETL workflow that is safe to re-run:
+> 1. In `labs/mod-1-2/etl.py` in your text editor, implement the `run(input_path, output_path, quarantine_path)` function.
+> 2. Use atomic writes (write to temporary `.tmp` files then swap with `os.replace`), track duplicate `order_id` using a set, stream clean records to `output_path` (sorted-key NDJSON), and route failed rows to `quarantine_path` capturing the rejection reason.
+> 3. Test the pipeline in the terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestRun -v`
+> When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 5 & 6 on logging and testing.
 
 ## @lesson Logging and run summaries
 `print` is for scripts; **`logging`** is for jobs. It adds timestamps, severity levels and routing (to a file, to the console, to a collector), and lets whoever runs your job choose how much to see without editing code.
@@ -201,6 +225,15 @@ What to test in a pipeline:
 4. **Regressions**: when a production bug is found, first write a test that reproduces it, then fix it. The bug can never silently return.
 
 Keep tests fast and independent of the network and the clock. A test suite that runs in seconds gets run on every change; one that takes ten minutes is ignored.
+
+> 💡 **Practice Pause 4 (CLI Entrypoint & Full Test Suite):**
+> Complete the production command-line interface and run full verification:
+> 1. In `labs/mod-1-2/etl.py` in your text editor, complete the `main(argv=None)` function using `argparse`: accept `input`, `output`, `quarantine`, and optional `--max-reject-rate` (default `0.05`). Return exit code `0` on success, `1` if reject rate exceeds threshold, and `2` if input file cannot be read.
+> 2. Test CLI and the entire suite in the terminal:
+> `.venv/bin/pytest labs/mod-1-2/test_lab.py -v`
+> 3. Try running the script directly from terminal on KopiKu data:
+> `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
+> When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 7 on choosing the right tools.
 
 ## @lesson Tooling, dependencies and when Python is the right tool
 **Pin your dependencies.** `requirements.txt` with exact or bounded versions (`pydantic>=2.5,<3`) makes builds repeatable; a lock file (`uv`, `pip-tools`, `poetry`) makes them exactly repeatable. An unpinned install that pulls a new major version overnight is a classic cause of "it worked yesterday".
