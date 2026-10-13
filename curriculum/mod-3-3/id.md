@@ -40,6 +40,13 @@ Setiap event tunggal dipetakan ke dalam: tepat **satu** tumbling window, sebanya
 
 Pada Bagian A lab praktikum, Anda akan mengimplementasikan fungsi `window_starts(ts, size, slide)` yang menghitung batas awal setiap window yang memuat timestamp tertentu, dan memvalidasi bahwa konfigurasi tumbling menghasilkan 1 window sementara konfigurasi sliding 300s/60s menghasilkan tepat 5 window. Pada Apache Spark, ekspresi deklaratif ekuivalennya ditulis sebagai `F.window("event_time", "5 minutes")` (tumbling) atau `F.window("event_time", "5 minutes", "1 minute")` (sliding). State agregasi di memori dilacak secara unik berdasarkan kombinasi kunci waktu dan dimensi bisnis: pasangan `(key, window)`.
 
+> 💡 **Jeda Praktik 1 (Pemetaan Window Starts: Tumbling & Sliding):**
+> 1. Buka file `labs/mod-3-3/windows.py` di teks editor Anda. Jangan jalankan file Python ini langsung di terminal.
+> 2. Implementasikan fungsi `window_starts(ts, size, slide)` yang menghitung seluruh batas awal window `[start, start + size)` yang memuat timestamp `ts`, dimulai pada kelipatan `slide`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-3/test_windows.py -k TestWindowStarts -v`
+> 4. **Indikator Sukses:** Sebanyak 3 pengujian berstatus `PASSED`, memvalidasi bahwa tumbling window menghasilkan 1 start tunggal dan sliding window menghasilkan `size // slide` start yang tumpang tindih.
+
 ## @lesson Watermarks: kapan sebuah window dinyatakan selesai?
 **Watermark** adalah estimasi engine streaming tentang "seberapa jauh kemajuan event time telah tercapai": sebuah komitmen bahwa **event yang stempel waktunya lebih lama dari watermark diprediksi tidak akan tiba lagi**. Pada Apache Spark Structured Streaming, rumus perhitungannya didefinisikan sebagai:
 
@@ -76,6 +83,14 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 - **Append**: setiap baris hasil agregasi hanya ditulis tepat satu kali saat window resmi final ditutup (membutuhkan watermark untuk windowed aggregation).
 - **Update**: hanya menulis baris-baris agregasi yang mengalami perubahan nilai sejak batch terakhir (cocok untuk dashboard yang membutuhkan estimasi awal yang terus direvisi).
 - **Complete**: menulis ulang keseluruhan tabel hasil agregasi di setiap batch (hanya aman untuk hasil agregasi berukuran kecil).
+
+> 💡 **Jeda Praktik 2 (Simulasi Watermark & Agregasi Jendela Waktu):**
+> 1. Buka file `labs/mod-3-3/windows.py` di teks editor Anda.
+> 2. Implementasikan class `WindowedAggregator`: method `__init__`, `add_batch(events)`, dan `advance()`.
+> 3. Terapkan aturan watermark: perbarui watermark dari batch sebelumnya, pancarkan window yang batas akhirnya $\le$ watermark di akhir batch, dan buang event terlambat jika seluruh window penampungnya telah dipancarkan.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
+> 5. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemancaran window tertunda, sifat monotonik naik watermark, dan pembuangan event late yang presisi.
 
 ## @lesson State, checkpoints, dan jaminan exactly-once
 Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedatangan event: seperti subtotal berjalan dan jumlah transaksi untuk setiap window yang masih terbuka. Memori internal ini disebut **State**. Dua implikasi arsitektural krusial:
@@ -145,6 +160,13 @@ Dua jebakan klasik yang sering dilakukan pemula: payload kolom `value` dari Kafk
 
 Pola arsitektur streaming lainnya: **Stream-Static Joins** memperkaya data stream dengan tabel dimensi statis (seperti lookup profil customer); **Stream-Stream Joins** mewajibkan deklarasi watermark di kedua belah pihak beserta rentang waktu toleransi batas agar state pasangan join yang belum cocok dapat dibersihkan; **Deduplikasi Realtime** (`dropDuplicatesWithinWatermark`) menghapus event duplikat berbasis ID dengan memanfaatkan watermark sebagai batas retensi state; serta pengaturan **Triggers**: gunakan `processingTime="1 minute"` untuk micro-batch kontinu, atau opsi `availableNow=True` untuk pemrosesan inkremental terjadwal (memproses seluruh data baru yang tersedia lalu mematikan job), pola cerdas untuk meraih efisiensi biaya tanpa perlu menyalakan server klaster 24 jam nonstop.
 
+> 💡 **Jeda Praktik 3 (Job Structured Streaming & Verifikasi Kesetaraan):**
+> 1. Buka file `labs/mod-3-3/stream_job.py` di teks editor Anda.
+> 2. Implementasikan fungsi `run_available_now(spark, input_dir, checkpoint_dir, size_s, delay_s)` menggunakan `readStream`, `withWatermark`, `groupBy` dengan `F.window`, serta `writeStream` dalam mode `append` dengan trigger `availableNow=True`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-3/test_stream.py -v`
+> 4. **Indikator Sukses:** Pengujian berstatus `PASSED` (atau dilewati secara rapi jika runtime Java belum terpasang), membuktikan bahwa emisi window Spark Structured Streaming nyata identik 100% dengan hasil model Python Anda.
+
 ## @lesson Mengoperasikan sistem streaming di produksi
 Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti berjalan, dan memiliki karakteristik kegagalan yang berbeda dari batch pipeline biasa:
 
@@ -169,10 +191,25 @@ pytest labs/mod-3-3 -v         # seluruh pengujian akan gagal pada awalnya
 
 2. **Bagian A: Model Python Murni.** Buka `labs/mod-3-3/windows.py`. Implementasikan fungsi `window_starts`, kemudian kelas agregator `WindowedAggregator` mengikuti spesifikasi pada docstring. Jalankan pengujian `pytest labs/mod-3-3/test_windows.py -v`. Jadikan tabel kronologi batch pada materi modul sebagai panduan utama; saat ada test yang gagal, petakan posisi watermark dan status open windows pada setiap akhir batch.
 3. Cermati secara mendalam tiga skenario pengujian data terlambat: skenario data terlambat yang tetap dihitung (karena window masih terbuka), skenario data terlambat yang dibuang (karena window telah dipancarkan), dan skenario event purba yang tidak boleh membangun ulang window lama.
+
+> 💡 **Jeda Praktik 4 (Verifikasi Menyeluruh Model Python):**
+> 1. Di terminal, jalankan seluruh rangkaian uji Bagian A:
+>    `pytest labs/mod-3-3/test_windows.py -v`
+> 2. Bandingkan dengan implementasi referensi:
+>    `LAB_DIR=reference pytest labs/mod-3-3/test_windows.py -v`
+> 3. **Indikator Sukses:** Seluruh 10 pengujian di `test_windows.py` berstatus `PASSED` dalam hitungan milidetik murni Python tanpa server eksternal apa pun.
+
 4. **Bagian B: Job Structured Streaming Nyata.** Buka file `labs/mod-3-3/stream_job.py`. Fungsi pembantu `write_batch_file` telah disediakan (perhatikan bahwa fungsi ini menyetel modification time file secara berurutan agar Spark membacanya dalam urutan kronologis yang konsisten). Implementasikan fungsi `run_available_now` mengikuti panduan pada docstring.
 5. Jalankan suite pengujian `pytest labs/mod-3-3/test_stream.py -v` (membutuhkan waktu sekitar 20 detik). Pengujian pertama adalah inti pembuktian modul ini: untuk lima batch data yang sama persis, window yang dipancarkan oleh Spark identik dengan hasil perhitungan model Python Anda.
 6. Lakukan eksplorasi mandiri: hilangkan deklarasi `withWatermark` dan amati bagaimana Spark menolak mode penulisan append; ubah nilai watermark delay menjadi 0 dan 10 menit lalu prediksi window apa saja yang akan dipancarkan oleh model sebelum Anda mengeksekusi Spark; cetak metrik `query.recentProgress` untuk mengamati metrik watermark dan jumlah baris state per batch.
 7. Eksplorasi opsional: nyalakan broker Kafka lokal (`docker compose up -d redpanda`), publikasikan event JSON menggunakan producer dari Modul 3.2, dan jalankan pipeline Kafka Structured Streaming seperti yang dicontohkan pada materi pelajaran.
+
+> 💡 **Jeda Praktik 5 (Verifikasi Lengkap & Bukti Kode):**
+> 1. Di terminal, jalankan seluruh uji yang relevan:
+>    `pytest labs/mod-3-3/test_windows.py -v`
+> 2. Hasilkan token bukti verifikasi:
+>    `python3 scripts/prove.py mod-3-3`
+> 3. **Indikator Sukses:** Seluruh pengujian lulus dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-3-3/windows.py :: File kerja Bagian A: implementasi windowing dan model simulasi watermark :: starter

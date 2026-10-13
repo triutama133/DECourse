@@ -40,6 +40,13 @@ Each event belongs to **one** tumbling window, to `size / slide` **sliding** win
 
 In Part A of the lab you implement `window_starts(ts, size, slide)`, which returns the start of every window containing an event, and test that tumbling windows give 1 and the 300/60 sliding case gives 5. In Spark the same thing is `F.window("event_time", "5 minutes")` (tumbling) or `F.window("event_time", "5 minutes", "1 minute")` (sliding). Windows are keyed by time **and** by your grouping column (for example, per account), so the unit of state is `(key, window)`.
 
+> 💡 **Practice Pause 1 (Window Starts Mapping: Tumbling & Sliding):**
+> 1. Open `labs/mod-3-3/windows.py` in your text editor. Do not execute this Python file directly in terminal.
+> 2. Implement `window_starts(ts, size, slide)` to compute all window start times `[start, start + size)` containing `ts`, aligned to multiples of `slide`.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-3/test_windows.py -k TestWindowStarts -v`
+> 4. **Success Indicator:** All 3 tests report `PASSED`, confirming tumbling windows produce 1 unique start and sliding windows yield `size // slide` overlapping starts.
+
 ## @lesson Watermarks: when is a window finished?
 A **watermark** is the stream processor's estimate of "how far event time has progressed": a promise that **events older than the watermark are unlikely to still arrive**. Spark defines it as:
 
@@ -70,9 +77,17 @@ From this, the rules your model must follow (and the tests check):
 
 The late-event test in the lab shows the other side: after the `[10:00, 10:05)` window was emitted, a 10:02 event with value 5,000 arrives in a later batch. **Nothing is emitted and no state is recreated: it is silently dropped.** It never appears in any result. That is the cost of a finite delay, and the reason you must **choose the delay from data**: measure the lateness distribution of your events (the 99th percentile of "arrival time minus event time") and set the delay to cover it, remembering that **a larger delay means higher latency and more state**.
 
-**What to do with data that is too late.** Count it (a metric of dropped events); write the *raw* events to storage in parallel, so a nightly batch job (Module 2.3) can recompute exact numbers; or, in Flink, route it to a **side output**. The common pattern is a fast, approximate streaming result plus a slower, exact batch correction.
+What to do with data that is too late. Count it (a metric of dropped events); write the *raw* events to storage in parallel, so a nightly batch job (Module 2.3) can recompute exact numbers; or, in Flink, route it to a **side output**. The common pattern is a fast, approximate streaming result plus a slower, exact batch correction.
 
 **Output modes** decide what is written each batch: **append** (each result row once, only when final; needs a watermark for windowed aggregates), **update** (only the rows that changed since the last batch, which gives early, revised results), and **complete** (the whole result table every time; only for small results).
+
+> 💡 **Practice Pause 2 (Watermark Simulation & Windowed Aggregation):**
+> 1. Open `labs/mod-3-3/windows.py` in your text editor.
+> 2. Implement class `WindowedAggregator`: methods `__init__`, `add_batch(events)`, and `advance()`.
+> 3. Enforce watermark semantics: compute watermarks from preceding batches, emit windows ending $\le$ watermark at batch completion, and drop late arrivals whose windows have already been evicted.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
+> 5. **Success Indicator:** All 7 tests report `PASSED`, confirming delayed window emission, monotonic advancement, and strict late-data discarding.
 
 ## @lesson State, checkpoints and exactly-once
 An aggregation over time must **remember** things between events: the running count for each open window. That is **state**. Two consequences:
@@ -142,6 +157,13 @@ The two lines that beginners get wrong: the Kafka `value` is binary, so cast it 
 
 Other patterns: **stream-static joins** enrich a stream with a dimension table (a customer lookup); **stream-stream joins** need watermarks on both sides and a time bound, because state for unmatched rows is kept only until the watermark passes; **deduplication** (`dropDuplicatesWithinWatermark`) removes repeated events by id, using the watermark to bound state; and **triggers** control cadence: `processingTime="1 minute"` for continuous micro-batches, `availableNow=True` for incremental batch (process everything new, then stop), which is a cheap way to get "streaming-as-incremental-batch" from a scheduler without a cluster running all day.
 
+> 💡 **Practice Pause 3 (Structured Streaming Job & Model Equivalence):**
+> 1. Open `labs/mod-3-3/stream_job.py` in your text editor.
+> 2. Implement `run_available_now(spark, input_dir, checkpoint_dir, size_s, delay_s)` using `readStream`, `withWatermark`, `groupBy` on `F.window`, and `writeStream` in `append` mode with `availableNow=True`.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-3/test_stream.py -v`
+> 4. **Success Indicator:** The test suite reports `PASSED` (or skips cleanly if Java runtime is not installed), verifying real Spark Structured Streaming output exactly matches our pure Python watermark model.
+
 ## @lesson Operating streaming systems
 A streaming job is a service that never finishes, and it fails in ways batch does not.
 
@@ -166,10 +188,25 @@ pytest labs/mod-3-3 -v         # fail at first
 
 2. **Part A.** Open `labs/mod-3-3/windows.py`. Implement `window_starts`, then `WindowedAggregator` following the rules in its docstring. Run `pytest labs/mod-3-3/test_windows.py -v`. Use the lesson's table as your reference; when a test fails, draw the watermark and the state after each batch.
 3. Pay special attention to the three tests of the *late* behaviour: late but counted, dropped, and an old event does not recreate a window.
+
+> 💡 **Practice Pause 4 (Full Python Model Verification):**
+> 1. In terminal, run the complete test suite for Part A:
+>    `pytest labs/mod-3-3/test_windows.py -v`
+> 2. Verify against the reference solution:
+>    `LAB_DIR=reference pytest labs/mod-3-3/test_windows.py -v`
+> 3. **Success Indicator:** All 10 tests in `test_windows.py` report `PASSED` in milliseconds in pure Python with zero external servers.
+
 4. **Part B.** Open `labs/mod-3-3/stream_job.py`. `write_batch_file` is provided (note why it sets the file modification times: Spark reads files in that order). Implement `run_available_now` using the recipe in its docstring.
 5. Run `pytest labs/mod-3-3/test_stream.py -v` (about 20 seconds). The first test is the centrepiece: for the same five batches, Spark's emitted windows equal your model's.
 6. Experiment: remove `withWatermark` and watch what changes in the output mode and the state; change the delay to 0 and 10 minutes and predict what your model emits before you run Spark; print `query.recentProgress` to see the watermark and the number of state rows per batch.
 7. Optional: with a Kafka broker (`docker compose up -d redpanda`), publish JSON events with the Part B producer from Module 3.2 and run the Kafka version of the job from the lesson.
+
+> 💡 **Practice Pause 5 (Full Verification & Proof Token):**
+> 1. In terminal, run the relevant tests:
+>    `pytest labs/mod-3-3/test_windows.py -v`
+> 2. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-3-3`
+> 3. **Success Indicator:** All tests report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-3/windows.py :: Part A working file: windows and the watermark model :: starter
