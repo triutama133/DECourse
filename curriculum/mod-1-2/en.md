@@ -93,7 +93,7 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 > 1. Open `labs/mod-1-2/etl.py` in your text editor (remember: do not execute directly in bash!).
 > 2. Complete the `OrderRow` class and `validate(row: dict)` function. Add validators to clean Rupiah text (`"Rp 1.250.000"` -> `1250000`), normalize status with lowercase/strip, and support both ISO and `DD/MM/YYYY` timestamps.
 > 3. Test your model in the terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
 > When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 3 on streaming generators.
 
 ## @lesson Streaming: keeping memory flat
@@ -137,7 +137,7 @@ One thing a stream cannot do for free is **de-duplication**: remembering which i
 > 1. In `labs/mod-1-2/etl.py` in your text editor, locate the `read_orders(path)` function.
 > 2. Implement a lazy generator using `with open(path, newline="", encoding="utf-8") as f:` and `csv.DictReader(f)` with `yield from` (never convert it to `list(csv.DictReader(f))`).
 > 3. Test memory consumption and generator laziness in the terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
 > When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 4 on retries and idempotency.
 
 ## @lesson Errors, retries and idempotency
@@ -176,7 +176,7 @@ These three are exactly what Lab 1.2 tests.
 > 1. In `labs/mod-1-2/etl.py` in your text editor, implement the `run(input_path, output_path, quarantine_path)` function.
 > 2. Use atomic writes (write to temporary `.tmp` files then swap with `os.replace`), track duplicate `order_id` using a set, stream clean records to `output_path` (sorted-key NDJSON), and route failed rows to `quarantine_path` capturing the rejection reason.
 > 3. Test the pipeline in the terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestRun -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
 > When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 5 & 6 on logging and testing.
 
 ## @lesson Logging and run summaries
@@ -230,7 +230,7 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 > Complete the production command-line interface and run full verification:
 > 1. In `labs/mod-1-2/etl.py` in your text editor, complete the `main(argv=None)` function using `argparse`: accept `input`, `output`, `quarantine`, and optional `--max-reject-rate` (default `0.05`). Return exit code `0` on success, `1` if reject rate exceeds threshold, and `2` if input file cannot be read.
 > 2. Test CLI and the entire suite in the terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -v`
+> `pytest labs/mod-1-2/test_lab.py -v`
 > 3. Try running the script directly from terminal on KopiKu data:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
 > When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 7 on choosing the right tools.

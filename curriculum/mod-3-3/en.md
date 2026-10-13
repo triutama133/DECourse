@@ -77,7 +77,7 @@ From this, the rules your model must follow (and the tests check):
 
 The late-event test in the lab shows the other side: after the `[10:00, 10:05)` window was emitted, a 10:02 event with value 5,000 arrives in a later batch. **Nothing is emitted and no state is recreated: it is silently dropped.** It never appears in any result. That is the cost of a finite delay, and the reason you must **choose the delay from data**: measure the lateness distribution of your events (the 99th percentile of "arrival time minus event time") and set the delay to cover it, remembering that **a larger delay means higher latency and more state**.
 
-What to do with data that is too late. Count it (a metric of dropped events); write the *raw* events to storage in parallel, so a nightly batch job (Module 2.3) can recompute exact numbers; or, in Flink, route it to a **side output**. The common pattern is a fast, approximate streaming result plus a slower, exact batch correction.
+**What to do with data that is too late.** Count it (a metric of dropped events); write the *raw* events to storage in parallel, so a nightly batch job (Module 2.3) can recompute exact numbers; or, in Flink, route it to a **side output**. The common pattern is a fast, approximate streaming result plus a slower, exact batch correction.
 
 **Output modes** decide what is written each batch: **append** (each result row once, only when final; needs a watermark for windowed aggregates), **update** (only the rows that changed since the last batch, which gives early, revised results), and **complete** (the whole result table every time; only for small results).
 

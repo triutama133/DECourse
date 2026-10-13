@@ -277,7 +277,7 @@ Finally, a few query habits that avoid problems before indexes are needed: selec
 > 1. Open `labs/mod-1-3/explain/indexes.sql` and `labs/mod-1-3/explain/queries.sql` in your text editor.
 > 2. Define at most 3 indexes in `indexes.sql` to eliminate all Sequential Scans and remove the Sort step on Q3. Rewrite Q4 in `queries.sql` to be sargable (using date range filters instead of the `date()` function).
 > 3. Run the plan verification in your terminal:
-> `.venv/bin/pytest labs/mod-1-3/explain -v`
+> `pytest labs/mod-1-3/explain -v`
 > When all Part B tests are GREEN (PASSED), you have mastered database query plan optimization at a professional level! Proceed to Lesson 8 to explore SQL dialect nuances.
 
 ## @lesson One question, many dialects: SQLite, PostgreSQL, DuckDB and the warehouses

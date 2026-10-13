@@ -69,7 +69,7 @@ You can do all of this with Python's standard library (`urllib.request`), as the
 > 1. Open `labs/mod-1-6/ingest_lab.py` in your text editor (remember: do not execute directly in bash!).
 > 2. Implement `build_request(url, token, params=None)`: drop None query values, sort parameters with `urllib.parse.urlencode` (ensuring reproducible URLs), and attach headers `Authorization: Bearer <token>` and `Accept: application/json`.
 > 3. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
+> `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > When TestBuildRequest tests are PASSED, proceed to Lesson 3 to handle pagination and network retries!
 
 ## @lesson Reading all the data: pagination, rate limits and retries
@@ -95,7 +95,7 @@ In the lab you test all this against a **real HTTP server running on your comput
 >    - `fetch_all_cursor(...)`: walk cursor-paginated endpoints until `next_cursor` is None.
 >    - `fetch_all_offset(...)`: loop offset pages until record count < limit.
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
+> `pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
 > When tests show PASSED, proceed to Lesson 4 for incremental checkpoints!
 
 ## @lesson Incremental loads and checkpoints
@@ -126,7 +126,7 @@ The checkpoint is itself state. Store it somewhere durable that survives the mac
 >    - `load()`: parse the JSON file and return the saved checkpoint value, or None if the file does not exist yet.
 >    - `save(value)`: atomically write `{"value": value}` via a temp file swapped with `os.replace()` so crashes never leave corrupt state.
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
+> `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening!
 
 ## @lesson Landing and shaping raw data
@@ -149,7 +149,7 @@ Good landing habits:
 >    - `flatten_record(record, sep="_")`: unnest nested dictionaries (e.g., `customer.address.city` -> `customer_address_city`), keeping arrays as sorted-key JSON strings.
 >    - `detect_schema_drift(expected, records)`: compare records against expected schema to detect `new_columns`, `missing_columns`, and `type_changes`.
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
+> `pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
 > When tests show PASSED, proceed to Lesson 6 to assemble the complete incremental ingestion pipeline!
 
 ## @lesson Files, databases, and running it for real
@@ -177,7 +177,7 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 >    - Land raw records into `landing_dir/dt=<today>/orders_<run_id>.jsonl` with audit metadata (`_run_id`, `_source`, `_ingested_at`) using atomic file writes.
 >    - Update checkpoint ONLY AFTER the data file is safely landed.
 > 2. Run the complete test suite in the terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -v`
+> `pytest labs/mod-1-6/test_lab.py -v`
 > When all 37 tests show PASSED, your ingestion pipeline is enterprise ready!
 
 ## @lab Lab: ingest from a flaky API, safely

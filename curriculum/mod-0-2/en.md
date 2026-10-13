@@ -213,14 +213,15 @@ Finally, **practise the loop** until it is automatic: make a small change, run i
 
 > 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
 > Prove that your entire workbench functions as intended:
+> 0. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/Documents/Projects/dataengineeringCourse`
 > 1. Inside `~/kopiku`, copy the generator and generate data:
-> `cp ~/Documents/Projects/dataengineeringCourse/labs/shared/shopgen.py . && python3 shopgen.py --out data`
-> 2. Copy the starter script: `cp ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/starter/summarize.py .`
+> `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 2. Copy the starter script: `cp $COURSE/labs/mod-0-2/starter/summarize.py .`
 > 3. Open `summarize.py` in your editor and implement order counting grouped by lower-case status.
 > 4. Commit script and generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
 > 5. Freeze requirements: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
 > 6. Run the automated checker from the course repo:
-> `python3 ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/check.py ~/kopiku`
+> `python3 $COURSE/labs/mod-0-2/check.py ~/kopiku`
 > When all checks PASS, congratulations! You have a verified professional data engineering environment!
 
 ## @lab Lab: build your KopiKu workspace

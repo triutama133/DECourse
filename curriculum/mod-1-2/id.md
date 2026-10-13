@@ -93,7 +93,7 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 > 1. Buka file `labs/mod-1-2/etl.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
 > 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
 > 3. Uji model Anda di terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
 > Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 3 tentang streaming generator.
 
 ## @lesson Streaming: menjaga memori tetap datar
@@ -137,7 +137,7 @@ Satu hal yang tidak bisa dilakukan stream secara gratis adalah **deduplikasi**: 
 > 1. Di file `labs/mod-1-2/etl.py` pada text editor, temukan fungsi `read_orders(path)`.
 > 2. Terapkan generator malas menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
 > 3. Uji konsumsi memori dan sifat generator di terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
 > Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 4 tentang retry dan idempotensi.
 
 ## @lesson Error, retry, dan idempotensi
@@ -176,7 +176,7 @@ Ketiganya persis yang diuji Lab 1.2.
 > 1. Di file `labs/mod-1-2/etl.py` pada text editor, implementasikan fungsi `run(input_path, output_path, quarantine_path)`.
 > 2. Gunakan penulisan atomik (tulis ke file sementara `.tmp` lalu tukar dengan `os.replace`), lacak duplikat `order_id` menggunakan set, kirim data bersih ke `output_path` (format NDJSON dengan kunci terurut), dan kirim baris gagal ke `quarantine_path` mencatat alasan penolakannya.
 > 3. Uji pipeline di terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -k TestRun -v`
+> `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
 > Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 5 & 6 untuk logging dan testing.
 
 ## @lesson Logging dan ringkasan eksekusi
@@ -230,7 +230,7 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 > Lengkapi antarmuka command line produksi dan jalankan verifikasi menyeluruh:
 > 1. Di file `labs/mod-1-2/etl.py` pada text editor, lengkapi fungsi `main(argv=None)` dengan `argparse`: terima argumen `input`, `output`, `quarantine`, serta opsi `--max-reject-rate` (default `0.05`). Kembalikan exit code `0` untuk sukses, `1` jika tingkat penolakan melebihi batas, dan `2` jika file input tidak bisa dibaca.
 > 2. Uji CLI dan seluruh suite di terminal:
-> `.venv/bin/pytest labs/mod-1-2/test_lab.py -v`
+> `pytest labs/mod-1-2/test_lab.py -v`
 > 3. Coba jalankan skrip langsung lewat terminal pada data KopiKu:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
 > Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 7 untuk memilih perkakas yang tepat.

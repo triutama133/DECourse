@@ -69,7 +69,7 @@ Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), 
 > 1. Buka file `labs/mod-1-6/ingest_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
 > 2. Implementasikan fungsi `build_request(url, token, params=None)`: buang parameter bernilai None, urutkan nama parameter dengan `urllib.parse.urlencode` (agar URL selalu konsisten), dan pasang header `Authorization: Bearer <token>` serta `Accept: application/json`.
 > 3. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
+> `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Pelajaran 3 untuk menangani pagination dan retry jaringan!
 
 ## @lesson Membaca semua data: pagination, rate limit, dan retry
@@ -95,7 +95,7 @@ Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di 
 >    - `fetch_all_cursor(...)`: telusuri seluruh halaman cursor sampai `next_cursor` bernilai None.
 >    - `fetch_all_offset(...)`: loop pagination offset sampai jumlah record halaman < limit.
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
+> `pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 4 untuk mekanisme checkpoint pemuatan bertahap!
 
 ## @lesson Pemuatan inkremental dan checkpoint
@@ -126,7 +126,7 @@ Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih
 >    - `load()`: baca file JSON dan kembalikan nilai checkpoint tersimpan, atau None jika file belum ada.
 >    - `save(value)`: tulis `{"value": value}` ke file temporary di folder yang sama lalu tukar atomik dengan `os.replace()` agar crash tidak pernah merusak state.
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
+> `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah!
 
 ## @lesson Mendaratkan dan membentuk data mentah
@@ -149,7 +149,7 @@ Kebiasaan landing yang baik:
 >    - `flatten_record(record, sep="_")`: ratakan objek bersarang (misal `customer.address.city` -> `customer_address_city`), pertahankan array sebagai string JSON dengan kunci terurut.
 >    - `detect_schema_drift(expected, records)`: bandingkan record masuk terhadap skema ekspektasi dan laporkan kolom baru (`new_columns`), kolom hilang (`missing_columns`), serta anomali perubahan tipe data (`type_changes`).
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
+> `pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 6 untuk merangkai pipeline ingestion inkremental penuh!
 
 ## @lesson File, database, dan menjalankannya sungguhan
@@ -177,7 +177,7 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 >    - Tulis data mentah ke `landing_dir/dt=<today>/orders_<run_id>.jsonl` dengan metadata audit (`_run_id`, `_source`, `_ingested_at`) secara atomik.
 >    - Perbarui checkpoint HANYA SETELAH file data berhasil mendarat.
 > 2. Jalankan seluruh rangkaian pengujian di terminal:
-> `.venv/bin/pytest labs/mod-1-6/test_lab.py -v`
+> `pytest labs/mod-1-6/test_lab.py -v`
 > Ketika semua 37 tes berstatus PASSED, pipeline data ingestion Anda telah memenuhi standar industri data engineering!
 
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman

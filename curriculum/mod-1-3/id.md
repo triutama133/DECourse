@@ -277,7 +277,7 @@ Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutu
 > 1. Buka file `labs/mod-1-3/explain/indexes.sql` dan `labs/mod-1-3/explain/queries.sql` di text editor.
 > 2. Definisikan maksimal 3 indeks di `indexes.sql` untuk menghapus seluruh Sequential Scan dan meniadakan operasi Sort pada Q3. Tulis ulang Q4 di `queries.sql` agar sargable (gunakan rentang tanggal alih-alih fungsi `date()`).
 > 3. Jalankan pengujian plan di terminal:
-> `.venv/bin/pytest labs/mod-1-3/explain -v`
+> `pytest labs/mod-1-3/explain -v`
 > Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Pelajaran 8 untuk melihat ragam dialek SQL.
 
 ## @lesson Satu pertanyaan, banyak dialek: SQLite, PostgreSQL, DuckDB, dan warehouse

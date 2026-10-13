@@ -60,7 +60,7 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 > 2. Implementasikan fungsi `load_orders(source)` dengan parameter tipe ketat (`dtype={"order_id": "string", "customer_id": "string"}`, integer nullable `"Int64"` untuk quantity, `na_values=["-"]` agar unit_price_idr menjadi float64 NaN, dan `pd.to_datetime` dengan `errors="coerce"`).
 > 3. Implementasikan fungsi `data_quality_report(df)` yang menghitung jumlah total baris, jumlah null per kolom, dan jumlah id pesanan duplikat.
 > 4. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_load_orders or test_data_quality" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestLoad or TestQualityReport" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 3 untuk pembersihan data secara vektor!
 
 ## @lesson Membersihkan dengan operasi seluruh kolom
@@ -87,7 +87,7 @@ Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> cle
 >    - `paid_only(df)`: filter hanya baris dengan status `"paid"` menggunakan boolean mask dan reset index.
 >    - `add_revenue(df)`: tambahkan kolom `revenue_idr = quantity * unit_price_idr` pada salinan DataFrame.
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_clean_orders or test_paid_only or test_add_revenue" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestClean or TestPaidAndRevenue" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 4 untuk agregasi, pivot, dan ranking!
 
 ## @lesson Group, pivot, dan rank
@@ -127,7 +127,7 @@ Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang s
 >    - `top_products_per_country(df, n=2)`: ambil N produk terlaris per negara dengan pemutus seri alfabet nama produk.
 >    - `add_customer_history(df)`: hitung urutan pesanan per pelanggan (`cumcount() + 1`), total berjalan kumulatif (`cumsum()`), dan selisih hari (`diff().dt.days`).
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 5 tentang penggabungan tabel defensif!
 
 ## @lesson Menggabungkan tabel tanpa melipatgandakan baris
@@ -153,7 +153,7 @@ Alat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: 
 >    - `join_customers(orders, customers)`: left join ke tabel pelanggan dengan `validate="m:1"` untuk mencegah duplikasi baris, serta isi tier yang tidak ditemukan dengan `"unknown"`.
 >    - `orphan_customer_ids(orders, customers)`: temukan id pelanggan yang ada di tabel orders tetapi tidak terdaftar di customers (anti-join).
 > 2. Uji di terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_join_customers or test_orphan" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestJoin" -v`
 > Ketika tes PASSED, integritas join Anda terjamin aman! Lanjut ke Pelajaran 6 untuk optimasi memori dan format Parquet.
 
 ## @lesson Memori, chunk, dan Parquet
@@ -183,7 +183,7 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 >    - `chunked_revenue_by_country(path, chunksize=500)`: baca file CSV per batch kolom tertentu dan akumulasikan omset per negara tanpa memuat seluruh file.
 >    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: simpan dan baca kolom spesifik file Parquet tanpa index pandas.
 > 2. Jalankan seluruh suite pengujian di terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -v`
+> `pytest labs/mod-1-5/test_lab.py -v`
 > Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
 
 ## @lab Lab: bersihkan dan ringkas ekspor pesanan yang berantakan

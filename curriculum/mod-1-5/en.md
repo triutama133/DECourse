@@ -60,7 +60,7 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 > 2. Implement `load_orders(source)` with strict types (`dtype={"order_id": "string", "customer_id": "string"}`, nullable `"Int64"` for quantity, `na_values=["-"]` for float64 unit_price_idr NaNs, and `pd.to_datetime` with `errors="coerce"`).
 > 3. Implement `data_quality_report(df)` returning row count, null count per column, and duplicate order id count.
 > 4. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_load_orders or test_data_quality" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestLoad or TestQualityReport" -v`
 > When tests show PASSED, proceed to Lesson 3 for vectorised data cleaning!
 
 ## @lesson Cleaning with whole-column operations
@@ -87,7 +87,7 @@ A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure f
 >    - `paid_only(df)`: filter rows where status is `"paid"` using boolean masking and reset index.
 >    - `add_revenue(df)`: add `revenue_idr = quantity * unit_price_idr` on a DataFrame copy.
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_clean_orders or test_paid_only or test_add_revenue" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestClean or TestPaidAndRevenue" -v`
 > When tests show PASSED, proceed to Lesson 4 for aggregations, pivoting, and ranking!
 
 ## @lesson Group, pivot and rank
@@ -127,7 +127,7 @@ Check your aggregates against an independent calculation. The lab tests recomput
 >    - `top_products_per_country(df, n=2)`: top N products per country with alphabetical tie-breaking.
 >    - `add_customer_history(df)`: compute customer order number (`cumcount() + 1`), cumulative revenue (`cumsum()`), and day gap (`diff().dt.days`).
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
 > When tests show PASSED, proceed to Lesson 5 on defensive table merges!
 
 ## @lesson Joining tables without multiplying rows
@@ -153,7 +153,7 @@ A last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it comp
 >    - `join_customers(orders, customers)`: left join with `validate="m:1"` to prevent accidental row multiplication, and fill unmatched customer tiers with `"unknown"`.
 >    - `orphan_customer_ids(orders, customers)`: identify customer ids present in orders but missing from customers (anti-join).
 > 2. Test in the terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -k "test_join_customers or test_orphan" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestJoin" -v`
 > When tests show PASSED, your joins are fan-out protected! Proceed to Lesson 6 for memory optimization and Parquet.
 
 ## @lesson Memory, chunks and Parquet
@@ -183,7 +183,7 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 >    - `chunked_revenue_by_country(path, chunksize=500)`: process CSV in batches of select columns and combine partial sums without loading the full file.
 >    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: write Parquet without pandas index and read requested columns.
 > 2. Run the complete test suite in the terminal:
-> `.venv/bin/pytest labs/mod-1-5/test_lab.py -v`
+> `pytest labs/mod-1-5/test_lab.py -v`
 > When all 35 tests show PASSED, your production pandas lab is 100% complete!
 
 ## @lab Lab: clean and summarise a messy orders export

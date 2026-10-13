@@ -213,14 +213,15 @@ Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, l
 
 > 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
 > Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
+> 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/Documents/Projects/dataengineeringCourse`
 > 1. Masih di `~/kopiku`, salin generator dan buat datanya:
-> `cp ~/Documents/Projects/dataengineeringCourse/labs/shared/shopgen.py . && python3 shopgen.py --out data`
-> 2. Salin starter skrip: `cp ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/starter/summarize.py .`
+> `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 2. Salin starter skrip: `cp $COURSE/labs/mod-0-2/starter/summarize.py .`
 > 3. Buka `summarize.py` di editor Anda, implementasikan penghitungan pesanan per status huruf kecil.
 > 4. Commit skrip dan generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
 > 5. Catat dependensi: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
 > 6. Jalankan pemeriksa otomatis dari repositori kursus:
-> `python3 ~/Documents/Projects/dataengineeringCourse/labs/mod-0-2/check.py ~/kopiku`
+> `python3 $COURSE/labs/mod-0-2/check.py ~/kopiku`
 > Jika semua baris PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional!
 
 ## @lab Lab: bangun workspace KopiKu Anda
