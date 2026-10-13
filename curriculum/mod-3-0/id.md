@@ -41,9 +41,26 @@ Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di 
 
 **Rack awareness.** Mesin berada di rak yang berbagi satu switch dan satu catu daya. Kehilangan satu rak utuh adalah kejadian nyata. Kebijakan penempatan bawaan untuk tiga replika: **replika pertama di mesin penulis sendiri, kedua di mesin pada rak yang berbeda, ketiga di mesin lain pada rak yang sama dengan yang kedua**. Ini memberi toleransi kegagalan tingkat rak sambil menjaga sebagian besar lalu lintas tulis di dalam satu rak. `place_replicas` di lab mengimplementasikannya persis, dan `blocks_lost` menunjukkan bahwa sebuah blok hilang hanya jika mesin dari *setiap* replikanya gagal.
 
+> 💡 **Jeda Praktik 1 (Pemotongan Blok HDFS & Penempatan Replika Sadar-Rak):**
+> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda (misalnya VS Code). Jangan jalankan file Python ini langsung di terminal tanpa argumen.
+> 2. Implementasikan fungsi `split_into_blocks(file_size, block_size=BLOCK_SIZE)` untuk memotong file ke ukuran blok standar (128 MiB) beserta sisa blok terakhir.
+> 3. Implementasikan fungsi `place_replicas(nodes, writer, factor=3)` dengan aturan penempatan rak: replika 1 di node penulis, replika 2 di rak berbeda, replika 3 di rak yang sama dengan replika kedua.
+> 4. Implementasikan fungsi `blocks_lost(placements, failed_nodes)` yang mengembalikan daftar blok yang kehilangan seluruh replikanya.
+> 5. Uji di terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestBlocks or TestReplicaPlacement or TestBlockLoss" -v`
+> 6. **Indikator Sukses:** Sebanyak 14 pengujian berstatus `PASSED`, memvalidasi pembagian blok presisi dan ketahanan data terhadap kegagalan seluruh rak.
+
 **Masalah file kecil.** NameNode menyimpan satu objek di memori untuk setiap file, direktori, dan blok; aturan praktis yang sering dikutip adalah sekitar **150 byte** per objek. `metadata_objects` di lab membuat akibatnya terlihat. Satu terabyte yang disimpan sebagai file 1 GiB adalah 1.024 file dengan 8 blok masing-masing: **9.216 objek**, sekitar 1,4 MB memori NameNode. Terabyte yang sama sebagai file 1 MiB adalah **2.097.152 objek**, sekitar **300 MB**, atau 227 kali lebih banyak, untuk data yang identik. Puluhan juta file kecil bisa menghabiskan memori NameNode dan menjatuhkan seluruh klaster (lihat skenario chaos). HDFS dibuat untuk **file yang sedikit dan besar**.
 
 Batasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HDFS cocok untuk data "tulis sekali, baca berkali-kali"; satu NameNode tunggal akan menjadi titik kegagalan tunggal, sehingga klaster produksi menjalankan NameNode standby dengan journal bersama (**HA**); dan **erasure coding** (Hadoop 3) menyimpan blok paritas, bukan salinan penuh, misalnya enam blok data ditambah tiga blok paritas, yang berbiaya 1,5 kali data dan bukan 3 kali.
+
+> 💡 **Jeda Praktik 2 (Masalah File Kecil & Estimasi Memori NameNode):**
+> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE)` untuk menghitung total objek memori (1 objek per file + 1 objek per blok).
+> 3. Implementasikan fungsi `namenode_memory_bytes(objects, bytes_per_object=150)` yang mengalikan jumlah objek dengan asumsi 150 byte per objek.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k TestSmallFilesProblem -v`
+> 5. **Indikator Sukses:** Sebanyak 4 tes berstatus `PASSED`, membuktikan secara matematis mengapa jutaan file kecil membebani memori NameNode hingga 200x lipat dibanding file besar.
 
 ## @lesson MapReduce: menghitung dengan memindahkan kode
 MapReduce adalah cara menulis komputasi terdistribusi sebagai dua fungsi sederhana. Anda menyediakan **mapper** dan **reducer**; framework mengerjakan bagian sulit menjalankannya di banyak mesin.
@@ -58,11 +75,27 @@ Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah
 
 **Combiner** adalah reducer mini yang berjalan di sisi map, sebelum shuffle, untuk memperkecil apa yang harus melewati jaringan. Pada word count di lab, 13 kata menghasilkan 13 pasangan; dengan combiner hanya **7 pasangan** (satu per kata berbeda) yang di-shuffle, dan jawabannya identik. Jaringan adalah sumber daya yang mahal, jadi ini penting.
 
+> 💡 **Jeda Praktik 3 (Map, Partisi CRC32, Shuffle, dan Combiner):**
+> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `map_phase`, `partition` (gunakan `zlib.crc32(str(key).encode("utf-8")) % num_reducers`), `shuffle`, dan `reduce_phase`.
+> 3. Implementasikan `wordcount_mapper`, `wordcount_reducer`, serta orkestrasi `run_job` yang mendukung reduksi awal di sisi map via `combiner`.
+> 4. Uji di terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestMapReduceSteps or TestWordCountJob" -v`
+> 5. **Indikator Sukses:** Sebanyak 11 tes berstatus `PASSED`, membuktikan bahwa shuffle mengelompokkan pasangan kunci secara deterministik dan combiner memangkas volume transmisi jaringan dari 13 menjadi 7 pasangan.
+
 **Join** memakai mesin yang sama. Pada **reduce-side join**, kedua masukan dipetakan ke `(customer_id, record bertag)`, sehingga shuffle membawa baris seorang pelanggan dan semua pesanan pelanggan itu ke reducer yang sama, yang kemudian bisa menggabungkannya. Anda menulisnya di lab (`revenue_per_city`). Ini juga persis yang dilakukan Spark pada sort-merge join.
 
 **Toleransi kegagalan** berasal dari sifat sederhana: sebuah task bersifat **deterministik** (masukan sama, keluaran sama) dan masukannya tersimpan tahan lama. Jika mesin mati di tengah task, framework menjalankan task yang sama lagi di tempat lain. `retry_task` di lab menunjukkan gagasannya, dan pelajaran fungsi murni di Modul 0.0 adalah mengapa ini aman. Framework juga bisa menjalankan duplikat task yang sangat lambat (**speculative execution**) dan mengambil mana yang selesai lebih dulu.
 
 **Mengapa MapReduce memudar.** Di antara map dan reduce, dan di antara akhir satu job dan awal job berikutnya, data ditulis ke disk dan (untuk keluaran job) ke HDFS dengan tiga replika. Tugas seperti machine learning, yang memutari data yang sama berkali-kali, membayar biaya itu di setiap iterasi. Menulis analisis nyata sebagai rantai job MapReduce juga lambat ditulis dan lambat dijalankan. Spark menyimpan data antara di memori dan merencanakan seluruh rantai sebagai satu graf (Modul 3.1), tetapi ia tetap **melakukan shuffle per key persis seperti dijelaskan di sini**. Jika Anda paham pelajaran ini, shuffle Spark bukan lagi misteri.
+
+> 💡 **Jeda Praktik 4 (Reduce-Side Join & Retry Tugas Deterministik):**
+> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `revenue_per_city(orders, customers, num_reducers=2)` menggunakan pola reduce-side join dengan menandai record pesanan dan pelanggan pada kunci `customer_id`.
+> 3. Implementasikan fungsi `retry_task(task, max_attempts=4)` untuk mencoba ulang eksekusi task yang mengalami `RuntimeError` hingga batas maksimal percobaan.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestReduceSideJoin or TestFaultTolerance" -v`
+> 5. **Indikator Sukses:** Sebanyak 6 pengujian berstatus `PASSED`, membuktikan kebenaran penggabungan data dua relasi di reducer dan toleransi kegagalan komputasi murni.
 
 ## @lesson YARN: membagi klaster
 Pada Hadoop pertama, satu komponen menjalankan job MapReduce *dan* memutuskan mesin mana mengerjakan apa. Akibatnya klaster hanya bisa menjalankan MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) memisahkan kedua tugas itu, sehingga Spark, Tez, Flink, dan lainnya bisa berbagi mesin yang sama.
@@ -72,6 +105,13 @@ Bagian-bagiannya: sebuah **ResourceManager** (satu per klaster) tahu memori dan 
 Sebuah **scheduler** menentukan urutan ketika permintaan melebihi kapasitas. Yang paling sederhana adalah FIFO: siapa datang dulu dilayani dulu, yang membuat satu job raksasa bisa menghalangi semua orang. Scheduler **Capacity** dan **Fair** membagi klaster antar tim atau job. `allocate_containers` di lab adalah scheduler FIFO first-fit mainan: ia menaruh tiap permintaan pada mesin pertama yang muat dan membiarkan sisanya **pending**. Pekerjaan pending yang menunggu sumber daya adalah tanda paling umum dari klaster yang kelebihan beban, di YARN maupun di Kubernetes.
 
 Hari ini Spark bisa berjalan di YARN (masih umum di on-premises), di Kubernetes (kini lebih umum di cloud), atau di layanan terkelola yang tidak memperlihatkan scheduler. Konsepnya sama: aplikasi meminta container dengan ukuran memori dan CPU, dan sesuatu memutuskan di mana ia berjalan. Ketika executor Spark dimatikan karena melebihi batas memorinya (Modul 3.1), itu adalah YARN atau Kubernetes yang menegakkan ukuran container.
+
+> 💡 **Jeda Praktik 5 (Penjadwalan Container YARN):**
+> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `allocate_containers(requests, nodes)` dengan strategi First-Fit First-Come-First-Served untuk mengalokasikan irisan memori container ke node pertama yang muat.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k TestYarnScheduler -v`
+> 4. **Indikator Sukses:** Seluruh 3 tes di `TestYarnScheduler` berstatus `PASSED`, mengonfirmasi penempatan container tanpa memutasi kamus kapasitas node asli.
 
 ## @lesson Hive: SQL di atas file
 Menulis MapReduce dalam Java untuk setiap pertanyaan itu pekerjaan lambat. **Hive** (dari Facebook, sekitar 2008) membiarkan Anda menulis **SQL**; Hive menerjemahkannya menjadi job. Gagasan kuncinya: tabel Hive bukan format penyimpanan khusus. Ia adalah **deskripsi yang dibentangkan di atas file** di HDFS: nama tabel, daftar kolom dan tipenya, serta folder tempat file berada.
@@ -124,6 +164,13 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # satu kelompok p
 5. **Join-nya.** Tulis `revenue_per_city` sebagai reduce-side join. Sebelum menjalankan, tebak apa yang dilihat reducer untuk satu pelanggan.
 6. Eksperimen: ubah jumlah reducer, ukuran blok, atau combiner dan tebak setiap hasilnya lebih dulu. Lalu pakai `metadata_objects` untuk menghitung berapa memori NameNode yang dibutuhkan 50 juta file kecil.
 7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+
+> 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
+> 1. Di terminal, jalankan seluruh rangkaian pengujian:
+>    `pytest labs/mod-3-0/test_lab.py -v`
+> 2. Hasilkan token bukti verifikasi:
+>    `python3 scripts/prove.py mod-3-0`
+> 3. **Indikator Sukses:** Seluruh 38 pengujian berstatus `PASSED` (100% lulus dalam < 1 detik) dan kode bukti tercetak untuk diserahkan.
 
 ### @files
 - labs/mod-3-0/hadoop_lab.py :: File kerja Anda: implementasikan lima belas fungsi TODO :: starter

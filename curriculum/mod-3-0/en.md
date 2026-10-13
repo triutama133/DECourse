@@ -41,9 +41,26 @@ Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in m
 
 **Rack awareness.** Machines sit in racks that share a switch and a power supply. Losing a whole rack is a real event. The default placement policy for three replicas is: **1st replica on the writer's own machine, 2nd on a machine in a different rack, 3rd on a different machine in the same rack as the 2nd**. That gives rack-level fault tolerance while keeping most of the write traffic inside a rack. The lab's `place_replicas` implements this exactly, and `blocks_lost` shows that a block is lost only when *every* replica's machine failed.
 
+> 💡 **Practice Pause 1 (HDFS Block Splitting & Rack-Aware Replication):**
+> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor (such as VS Code). Do not execute this Python file directly in terminal without arguments.
+> 2. Implement `split_into_blocks(file_size, block_size=BLOCK_SIZE)` to partition files into default 128 MiB blocks plus the exact remainder.
+> 3. Implement `place_replicas(nodes, writer, factor=3)` following the rack-awareness policy: replica 1 on writer, replica 2 on a different rack, replica 3 on the same rack as replica 2.
+> 4. Implement `blocks_lost(placements, failed_nodes)` to report blocks whose replicas have all failed.
+> 5. Run the tests in terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestBlocks or TestReplicaPlacement or TestBlockLoss" -v`
+> 6. **Success Indicator:** All 14 tests report `PASSED`, confirming accurate block chunking and multi-rack fault tolerance.
+
 **The small-files problem.** The NameNode keeps one in-memory object per file, per directory and per block; a commonly quoted rule of thumb is about **150 bytes** each. The lab's `metadata_objects` makes the consequence visible. One terabyte stored as 1 GiB files is 1,024 files with 8 blocks each: **9,216 objects**, about 1.4 MB of NameNode memory. The same terabyte stored as 1 MiB files is **2,097,152 objects**, about **300 MB**, which is 227 times more, for identical data. Tens of millions of tiny files can exhaust the NameNode's memory and take down the whole cluster (see the chaos scenario). HDFS is built for **few, large files**.
 
 Other limits: files can be appended to but not edited in the middle, so HDFS suits "write once, read many" data; a single NameNode would be a single point of failure, so production clusters run a standby NameNode with shared journals (**HA**); and **erasure coding** (Hadoop 3) stores parity blocks instead of full copies, for example six data blocks plus three parity blocks, which costs 1.5 times the data instead of 3 times.
+
+> 💡 **Practice Pause 2 (The Small-Files Problem & NameNode Memory Overhead):**
+> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.
+> 2. Implement `metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE)` to compute total in-memory metadata objects (1 per file + 1 per block).
+> 3. Implement `namenode_memory_bytes(objects, bytes_per_object=150)` multiplying total objects by the 150-byte rule of thumb.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k TestSmallFilesProblem -v`
+> 5. **Success Indicator:** All 4 tests report `PASSED`, mathematically demonstrating why millions of small files consume 200x more NameNode RAM than large files.
 
 ## @lesson MapReduce: compute by moving the code
 MapReduce is a way to write a distributed computation as two simple functions. You supply a **mapper** and a **reducer**; the framework does the hard work of running them on many machines.
@@ -58,11 +75,27 @@ Which reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers
 
 A **combiner** is a mini-reducer that runs on the map side, before the shuffle, to shrink what must cross the network. In the lab's word count, 13 words produce 13 pairs; with a combiner only **7 pairs** (one per distinct word) are shuffled, and the answer is identical. Network is the expensive resource, so this matters.
 
+> 💡 **Practice Pause 3 (Map, CRC32 Partitioning, Shuffle, and Combiner):**
+> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.
+> 2. Implement `map_phase`, `partition` (using `zlib.crc32(str(key).encode("utf-8")) % num_reducers`), `shuffle`, and `reduce_phase`.
+> 3. Implement `wordcount_mapper`, `wordcount_reducer`, and full `run_job` execution supporting map-side pre-aggregation via `combiner`.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestMapReduceSteps or TestWordCountJob" -v`
+> 5. **Success Indicator:** All 11 tests report `PASSED`, verifying deterministic shuffle routing and combiner network optimization from 13 down to 7 pairs.
+
 **Joins** use the same machinery. In a **reduce-side join** both inputs are mapped to `(customer_id, tagged record)`, so the shuffle brings a customer's row and all that customer's orders to the same reducer, which can then combine them. You write this in the lab (`revenue_per_city`). It is also exactly what Spark does for a sort-merge join.
 
 **Fault tolerance** comes from a simple property: a task is **deterministic** (same input, same output) and its input is stored durably. If a machine dies mid-task, the framework starts the same task again elsewhere. The lab's `retry_task` shows the idea, and Module 0.0's lesson on pure functions is why it is safe. The framework can also start a duplicate of a very slow task (**speculative execution**) and keep whichever finishes first.
 
 **Why MapReduce faded.** Between map and reduce, and between the end of one job and the start of the next, data is written to disk and (for the output of a job) to HDFS with three replicas. A task such as machine learning, which loops over the same data many times, pays that cost on every iteration. Writing a real analysis as a chain of MapReduce jobs was also slow to write and slow to run. Spark keeps intermediate data in memory and plans the whole chain as one graph (Module 3.1), but it still **shuffles by key exactly as described here**. If you understand this lesson, Spark's shuffle is no mystery.
+
+> 💡 **Practice Pause 4 (Reduce-Side Join & Deterministic Task Retries):**
+> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.
+> 2. Implement `revenue_per_city(orders, customers, num_reducers=2)` using the reduce-side join pattern by tagging order and customer records under `customer_id`.
+> 3. Implement `retry_task(task, max_attempts=4)` to retry deterministic tasks on `RuntimeError` up to `max_attempts`.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k "TestReduceSideJoin or TestFaultTolerance" -v`
+> 5. **Success Indicator:** All 6 tests report `PASSED`, confirming accurate reduce-side joins and resilient automated task retries.
 
 ## @lesson YARN: sharing the cluster
 In the first Hadoop, one component ran MapReduce jobs *and* decided which machine ran what. That meant the cluster could run only MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) split the two jobs apart, so that Spark, Tez, Flink and others could share the same machines.
@@ -72,6 +105,13 @@ The pieces: a **ResourceManager** (one per cluster) knows the free memory and CP
 A **scheduler** decides the order when requests exceed capacity. The simplest is FIFO: first come, first served, which lets one huge job block everyone. The **Capacity** and **Fair** schedulers divide the cluster between teams or jobs. The lab's `allocate_containers` is a toy first-fit FIFO scheduler: it places each request on the first machine with room and leaves the rest **pending**. Pending work waiting for resources is the commonest sign of an overloaded cluster, in YARN just as in Kubernetes.
 
 Today Spark can run on YARN (still common on-premises), on Kubernetes (now more common in the cloud), or on managed services where you never see the scheduler. The concept is the same: an application asks for containers with a memory and CPU size, and something decides where they run. When a Spark executor is killed for exceeding its memory limit (Module 3.1), that is YARN or Kubernetes enforcing the container size.
+
+> 💡 **Practice Pause 5 (YARN Container Scheduling):**
+> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.
+> 2. Implement `allocate_containers(requests, nodes)` with First-Fit First-Come-First-Served logic to allocate memory requests to the first fitting node.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-3-0/test_lab.py -k TestYarnScheduler -v`
+> 4. **Success Indicator:** All 3 tests in `TestYarnScheduler` report `PASSED`, verifying correct container placement without mutating the input node capacity dictionary.
 
 ## @lesson Hive: SQL over files
 Writing MapReduce in Java for every question was slow work. **Hive** (from Facebook, around 2008) lets you write **SQL**; Hive translates it into jobs. The key idea is that a Hive table is not a special storage format. It is a **description laid over files** in HDFS: a table name, a list of columns and types, and the folder where the files live.
@@ -124,6 +164,13 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # one group at a 
 5. **The join.** Write `revenue_per_city` as a reduce-side join. Predict, before you run it, what the reducer sees for one customer.
 6. Experiment: change the number of reducers, the block size, or the combiner and predict each result first. Then use `metadata_objects` to work out how much NameNode memory 50 million small files would need.
 7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page.
+
+> 💡 **Practice Pause 6 (Full Verification & Proof Token):**
+> 1. In terminal, run the complete test suite:
+>    `pytest labs/mod-3-0/test_lab.py -v`
+> 2. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-3-0`
+> 3. **Success Indicator:** All 38 tests report `PASSED` (100% pass rate in < 1 second) and proof token is printed.
 
 ### @files
 - labs/mod-3-0/hadoop_lab.py :: Your working file: implement the fifteen TODO functions :: starter
