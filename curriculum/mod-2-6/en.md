@@ -49,6 +49,14 @@ Rules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN`
 
 The second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away.
 
+> 💡 **Practice Pause 1 (Micro-Partitions, Zone Maps & Partition Pruning):**
+> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-6/warehouse_lab.py` (do not run `.py` files directly in bash).
+> 2. Implement `build_micro_partitions(rows, target_rows, cluster_key=None)` to split rows and compute min/max statistics for every column.
+> 3. Implement `prune(partitions, column, low, high)` to skip non-matching partitions using zone maps, and `scan(...)` to project only requested columns.
+> 4. Test in terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestMicroPartitions or TestPrune or TestScan" -v`
+> 5. **Success Indicator:** 17 tests report `PASSED`, confirming that queries touch only relevant partitions and read only requested columnar bytes.
+
 ## @lesson Compute: parallel work, distribution and joins
 **MPP.** A warehouse spreads a table over many compute nodes (Redshift calls the per-node worker units **slices**), and every node scans its own part in parallel; the results are combined on a coordinator (Redshift's leader node). More nodes mean more parallelism, until something must be moved between them.
 
@@ -65,6 +73,14 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 
 **Sizing compute.** In Snowflake a **virtual warehouse** comes in sizes (X-Small, Small, Medium, ...); each size up doubles the machines and the credits per hour. A bigger warehouse often finishes a heavy query faster for roughly the same total cost, but gives no benefit to a query that is already small; auto-suspend (Module 3.4) keeps idle time cheap. BigQuery allocates **slots** (units of compute) per query automatically, or you reserve a fixed number. Redshift provisioned clusters are sized in nodes; Redshift Serverless scales on demand.
 
+> 💡 **Practice Pause 2 (Clustering Overlap & MPP Distribution):**
+> 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
+> 2. Implement `average_overlap(partitions, column)` to quantify clustering layout quality.
+> 3. Implement `distribute(rows, key, nodes, style)` (styles `key`, `even`, `all`) and `join_rows_moved(...)` to model network data movement during MPP joins.
+> 4. Test in terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
+> 5. **Success Indicator:** 13 tests report `PASSED`, verifying zero network movement for co-located joins and replicated dimension tables.
+
 ## @lesson Cost: scan-based and time-based pricing
 Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 introduced both).
 
@@ -77,6 +93,13 @@ An illustration with the lab's example price of $5 per TB. A dashboard tile refr
 **Caches** reduce cost. A **result cache** returns the stored answer when the same query is run again and the underlying tables have not changed (BigQuery and Snowflake both do this for a limited time, and cached results are not billed for scanning). The lab's `ResultCache` shows the logic: the key is the normalised SQL plus the version of every table, so a change to any table invalidates the result. Warehouses also cache data on compute nodes, so a repeated query is faster the second time. **Materialised views** and pre-aggregated tables (built with dbt, Module 2.3) store the results of heavy aggregations so dashboards read small tables instead of scanning facts.
 
 Storage has costs too. **Time travel** (query or restore data as of an earlier moment) keeps old data for a retention window, which you pay to store: Snowflake's default is one day (up to 90 on some editions); BigQuery's is seven days. Long retention on large, frequently rewritten tables adds up.
+
+> 💡 **Practice Pause 3 (Scan-Based Cost Modeling):**
+> 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
+> 2. Implement `query_cost(bytes_billed, price_per_tb=5.0)` using the formula `(bytes_billed / 1e12) * price_per_tb`.
+> 3. Run the test in terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k test_query_cost -v`
+> 4. **Success Indicator:** The test reports `PASSED`, confirming exact scan cost calculations in dollars per terabyte.
 
 ## @lesson Loading data: bulk, not row by row
 A warehouse is built for **bulk loads**, not for inserting one row at a time as an application does. The standard path is: land files in object storage, then tell the warehouse to load them: Snowflake `COPY INTO` from a **stage** (and Snowpipe for continuous loading), BigQuery **load jobs** from Cloud Storage, Redshift `COPY` from S3. They read files in parallel, validate, convert and write micro-partitions.
@@ -92,6 +115,13 @@ Other practices:
 - **Unloading** (`COPY INTO` a bucket, `UNLOAD`, `EXPORT DATA`) writes query results back to object storage for other systems.
 
 Record **where every load came from and when**: file names, load ids, row counts and rejected rows. Reconciling counts between source and warehouse (Module 2.5) is the cheapest data quality check there is.
+
+> 💡 **Practice Pause 4 (Planning Parallel Bulk Load Files):**
+> 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
+> 2. Implement `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` to balance ideal file size and slice multiples.
+> 3. Run the tests in terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
+> 4. **Success Indicator:** All 4 tests in `TestLoadPlanning` report `PASSED`, confirming balanced file sizing without small-file overhead.
 
 ## @lesson Concurrency, governance, and choosing
 **Concurrency.** A warehouse has finite compute. When more queries arrive than it can run at once, the extra ones **queue**. The lab's `simulate_queue` shows it: five 10-second jobs on two slots finish at 10, 10, 20, 20 and 30 seconds, so the last user waits 20 seconds before the job even starts. The cures are the same everywhere: isolate workloads on separate compute (a warehouse for ETL, one for dashboards, one for analysts), use multi-cluster or auto-scaling features for bursts, and make heavy queries shorter with the layout tools above. Isolation also makes the bill attributable to a team (Module 3.4).
@@ -113,6 +143,14 @@ In practice the choice is often made by the company's cloud provider and existin
 
 Questions you can now answer: "Why is this query expensive?" (it scans many partitions or columns; look at partitions scanned and bytes billed). "How do I make it cheaper?" (filter on the clustering or partition column, select only needed columns, pre-aggregate). "What is the difference between Snowflake and BigQuery pricing?" (compute time versus bytes scanned). "Why file sizes of 100 to 250 MB?" (parallelism without per-file overhead).
 
+> 💡 **Practice Pause 5 (Result Caching & Concurrency Queueing):**
+> 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
+> 2. Implement class `ResultCache`: normalize whitespace and SQL casing, track table versions, and invalidate cache entries when underlying tables change.
+> 3. Implement `simulate_queue(query_durations, slots)` to model finish times of queries competing for execution slots.
+> 4. Run the tests in terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
+> 5. **Success Indicator:** 8 tests report `PASSED`, validating cache invalidation and concurrency queue behavior.
+
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
 
@@ -130,6 +168,13 @@ pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # one group at a 
 5. **Distribution.** Predict `join_rows_moved` for five combinations of distribution before you implement it, then compare with the tests.
 6. **Loading, caching and queueing.** Plan the files for a 10 GiB load on 16 slices, then change the number of slices to 12 and 20 and predict the file count.
 7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-2-6` to get the proof code for the **Proof** box on this lab page.
+
+> 💡 **Practice Pause 6 (Full Verification & Proof Token):**
+> 1. In terminal, run the complete test suite:
+>    `pytest labs/mod-2-6/test_lab.py -v`
+> 2. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-2-6`
+> 3. **Success Indicator:** All 42 tests report `PASSED` (100% pass rate in < 1 second) and proof token is printed.
 
 ### @files
 - labs/mod-2-6/warehouse_lab.py :: Your working file: implement the TODO functions and the ResultCache :: starter

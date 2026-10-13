@@ -49,6 +49,14 @@ Aturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JO
 
 Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.
 
+> 💡 **Jeda Praktik 1 (Micro-Partisi, Zone Map & Partition Pruning):**
+> 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-6/warehouse_lab.py` (ingat: jangan mengeksekusi file `.py` langsung di bash terminal tanpa interpreter atau argumen).
+> 2. Implementasikan fungsi `build_micro_partitions(rows, target_rows, cluster_key=None)` untuk memotong baris data dan mencatat nilai min/max tiap kolom.
+> 3. Implementasikan fungsi `prune(partitions, column, low, high)` yang memangkas partisi berdasarkan zone map, serta fungsi `scan(...)` yang membaca kolom tertentu dari partisi terpilih.
+> 4. Uji di terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestMicroPartitions or TestPrune or TestScan" -v`
+> 5. **Indikator Sukses:** Sebanyak 17 tes lulus mengonfirmasi bahwa kueri hanya menyentuh partisi yang relevan dan hanya membaca byte kolom yang diminta.
+
 ## @lesson Komputasi: kerja paralel, distribusi, dan join
 **MPP.** Warehouse menyebar tabel ke banyak node komputasi (Redshift menyebut unit pekerja per node **slice**), dan setiap node memindai bagiannya sendiri secara paralel; hasilnya digabung di koordinator (leader node Redshift). Lebih banyak node berarti lebih banyak paralelisme, sampai ada sesuatu yang harus dipindahkan antar node.
 
@@ -65,6 +73,14 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 
 **Mengukur komputasi.** Di Snowflake sebuah **virtual warehouse** hadir dalam ukuran (X-Small, Small, Medium, ...); setiap naik satu ukuran menggandakan mesin dan credit per jam. Warehouse yang lebih besar sering menyelesaikan query berat lebih cepat dengan total biaya kurang lebih sama, tetapi tidak memberi manfaat bagi query yang sudah kecil; auto-suspend (Modul 3.4) menjaga waktu menganggur tetap murah. BigQuery mengalokasikan **slot** (satuan komputasi) per query secara otomatis, atau Anda mencadangkan jumlah tetap. Klaster Redshift provisioned diukur dalam node; Redshift Serverless menskala sesuai kebutuhan.
 
+> 💡 **Jeda Praktik 2 (Metrik Overlap Clustering & Distribusi MPP):**
+> 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `average_overlap(partitions, column)` untuk mengukur efektivitas clustering partisi.
+> 3. Implementasikan fungsi `distribute(rows, key, nodes, style)` (gaya `key`, `even`, `all`) dan `join_rows_moved(...)` untuk memodelkan perpindahan baris saat operasi join berlangsung di mesin MPP.
+> 4. Uji di terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
+> 5. **Indikator Sukses:** Sebanyak 13 tes lulus membuktikan bahwa join yang co-located dan replikasi dimensi kecil tidak memindahkan data lewat jaringan.
+
 ## @lesson Biaya: harga berbasis pemindaian dan berbasis waktu
 Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 memperkenalkan keduanya).
 
@@ -77,6 +93,13 @@ Ilustrasi dengan harga contoh lab $5 per TB. Sebuah tile dashboard refresh setia
 **Cache** mengurangi biaya. **Result cache** mengembalikan jawaban tersimpan ketika query yang sama dijalankan lagi dan tabel di bawahnya tidak berubah (BigQuery dan Snowflake sama-sama melakukannya untuk waktu terbatas, dan hasil cache tidak ditagih untuk pemindaian). `ResultCache` di lab memperlihatkan logikanya: key-nya adalah SQL yang dinormalisasi ditambah versi setiap tabel, sehingga perubahan pada tabel mana pun membatalkan hasil. Warehouse juga meng-cache data di node komputasi, sehingga query yang diulang lebih cepat pada kali kedua. **Materialized view** dan tabel pra-agregasi (dibangun dengan dbt, Modul 2.3) menyimpan hasil agregasi berat sehingga dashboard membaca tabel kecil, bukan memindai fakta.
 
 Penyimpanan juga ada biayanya. **Time travel** (mengkueri atau memulihkan data pada saat sebelumnya) menyimpan data lama selama jendela retensi, yang Anda bayar penyimpanannya: bawaan Snowflake satu hari (hingga 90 pada edisi tertentu); BigQuery tujuh hari. Retensi panjang pada tabel besar yang sering ditulis ulang bisa membengkak.
+
+> 💡 **Jeda Praktik 3 (Model Biaya Berbasis Pemindaian):**
+> 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `query_cost(bytes_billed, price_per_tb=5.0)` dengan rumus `(bytes_billed / 1e12) * price_per_tb`.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k test_query_cost -v`
+> 4. **Indikator Sukses:** Tes berstatus `PASSED` membuktikan kalkulasi biaya pemindaian dolar per terabyte presisi.
 
 ## @lesson Memuat data: bulk, bukan baris demi baris
 Warehouse dibuat untuk **bulk load**, bukan menyisipkan satu baris pada satu waktu seperti aplikasi. Jalur standarnya: taruh file di object storage, lalu minta warehouse memuatnya: Snowflake `COPY INTO` dari sebuah **stage** (dan Snowpipe untuk pemuatan kontinu), **load job** BigQuery dari Cloud Storage, `COPY` Redshift dari S3. Mereka membaca file secara paralel, memvalidasi, mengonversi, dan menulis micro-partition.
@@ -92,6 +115,13 @@ Praktik lain:
 - **Unloading** (`COPY INTO` ke bucket, `UNLOAD`, `EXPORT DATA`) menulis hasil query kembali ke object storage untuk sistem lain.
 
 Catat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, jumlah baris, dan baris yang ditolak. Merekonsiliasi jumlah antara sumber dan warehouse (Modul 2.5) adalah pemeriksaan kualitas data termurah yang ada.
+
+> 💡 **Jeda Praktik 4 (Perencanaan File Bulk Load Paralel):**
+> 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
+> 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` yang menyeimbangkan ukuran file ideal dan kelipatan slice komputasi.
+> 3. Jalankan pengujian di terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
+> 4. **Indikator Sukses:** Keempat pengujian `TestLoadPlanning` berstatus `PASSED` membuktikan pembagian irisan file pemuatan optimal tanpa menimbulkan overhead file kecil.
 
 ## @lesson Konkurensi, tata kelola, dan memilih
 **Konkurensi.** Warehouse punya komputasi terbatas. Ketika query yang datang lebih banyak daripada yang bisa dijalankan sekaligus, sisanya **mengantre**. `simulate_queue` di lab memperlihatkannya: lima job 10 detik pada dua slot selesai pada detik 10, 10, 20, 20, dan 30, jadi pengguna terakhir menunggu 20 detik sebelum job-nya bahkan mulai. Obatnya sama di mana-mana: isolasi beban kerja pada komputasi terpisah (satu warehouse untuk ETL, satu untuk dashboard, satu untuk analis), pakai fitur multi-cluster atau auto-scaling untuk lonjakan, dan perpendek query berat dengan alat tata letak di atas. Isolasi juga membuat tagihan bisa dibebankan ke sebuah tim (Modul 3.4).
@@ -113,6 +143,14 @@ Dalam praktik, pilihan sering ditentukan oleh penyedia cloud perusahaan dan kont
 
 Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai banyak partisi atau kolom; lihat partisi yang dipindai dan byte yang ditagih). "Bagaimana membuatnya lebih murah?" (filter pada kolom clustering atau partisi, pilih hanya kolom yang perlu, pra-agregasi). "Apa beda harga Snowflake dan BigQuery?" (waktu komputasi versus byte yang dipindai). "Mengapa ukuran file 100 hingga 250 MB?" (paralelisme tanpa overhead per file).
 
+> 💡 **Jeda Praktik 5 (Result Caching & Antrean Konkurensi):**
+> 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
+> 2. Implementasikan class `ResultCache`: normalisasi spasi dan huruf kapital query SQL, simpan versi tabel, serta batalkan cache jika tabel dasar mengalami pembaruan.
+> 3. Implementasikan fungsi `simulate_queue(query_durations, slots)` untuk memodelkan waktu tuntas kueri yang bersaing dalam slot konkurensi.
+> 4. Jalankan pengujian di terminal:
+>    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
+> 5. **Indikator Sukses:** Sebanyak 8 tes berstatus `PASSED` membuktikan keandalan invalidasi result cache dan akurasi simulasi antrean slot.
+
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
 
@@ -130,6 +168,13 @@ pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # satu kelompok p
 5. **Distribusi.** Tebak `join_rows_moved` untuk lima kombinasi distribusi sebelum Anda mengimplementasikannya, lalu bandingkan dengan tes.
 6. **Pemuatan, caching, dan antrean.** Rencanakan file untuk pemuatan 10 GiB pada 16 slice, lalu ubah jumlah slice menjadi 12 dan 20 dan tebak jumlah file.
 7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+
+> 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
+> 1. Di terminal, jalankan seluruh rangkaian uji otomatis:
+>    `pytest labs/mod-2-6/test_lab.py -v`
+> 2. Hasilkan kode bukti verifikasi kelulusan:
+>    `python3 scripts/prove.py mod-2-6`
+> 3. **Indikator Sukses:** Seluruh 42 pengujian berstatus `PASSED` (100% lulus dalam < 1 detik) dan token bukti tercetak di terminal.
 
 ### @files
 - labs/mod-2-6/warehouse_lab.py :: File kerja Anda: implementasikan fungsi TODO dan ResultCache :: starter
