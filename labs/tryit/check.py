@@ -12,8 +12,10 @@ out. It is not part of any proof code and nothing is recorded: it exists so that
 Standard library only (Python 3.8+); some exercises start a practice server on 127.0.0.1:8765, so stop your own copy first.
 """
 import argparse
+import hashlib
 import importlib
 import os
+import platform
 import shutil
 import sys
 import tempfile
@@ -141,9 +143,16 @@ def main(argv):
     if ctx.failed:
         print("Not yet. Fix the first FAIL, run the check again, and use --hint 1 (then 2, 3) if you are stuck.")
         return 1
-    print("Done: this exercise works. Nothing was recorded; you know it works, and that is the point.")
+    py = f"{sys.version_info.major}.{sys.version_info.minor}"
+    osname = platform.system().lower() or "unknown"
+    fields = ["TRY1", c.ident, str(ctx.passed), py, osname]
+    chk = hashlib.sha256(("|".join(fields)).encode("utf-8")).hexdigest()[:6]
+    token = ":".join(fields + [chk])
+    print("Done: this exercise works against hidden and hostile inputs.")
+    print(f"Verification code (paste into the Try-It box in the web app):  {token}")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+

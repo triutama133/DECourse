@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DataForge – Learn Data Engineering by Doing</title>
-  <link rel="stylesheet" href="css/style.css?v=8" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
 </head>
 <body>
   <a class="skip-link" href="#main-content" onclick="document.getElementById('main-content').focus()">Skip to content / Lewati ke konten</a>
@@ -18,8 +18,11 @@
 
       <div class="header-tools">
         <button class="icon-btn" id="search-btn" onclick="app.openSearch()" aria-label="Search the course (Ctrl+K)" title="Ctrl+K">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
           <span class="icon-btn-label" id="search-btn-label">Search</span>
+        </button>
+        <button class="icon-btn" id="theme-btn" onclick="app.toggleTheme()" aria-label="Toggle Dark / Light Theme" title="Toggle Dark / Light Theme">
+          <span id="theme-btn-icon">🌙</span>
         </button>
         <button class="icon-btn menu-toggle" id="menu-toggle" onclick="app.toggleMenu()" aria-expanded="false" aria-controls="nav" aria-label="Menu">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg>
@@ -58,16 +61,17 @@
   </footer>
 
   <script src="vendor/sqljs/sql-wasm.js"></script>
-  <script src="js/translations.js?v=8"></script>
-  <script src="js/curriculum-data.js?v=8"></script>
-  <script src="js/browser-labs-data.js?v=8"></script>
-  <script src="js/proof-data.js?v=8"></script>
-  <script src="js/proof.js?v=8"></script>
-  <script src="js/interview-data.js?v=8"></script>
-  <script src="js/portfolio-data.js?v=8"></script>
-  <script src="js/cv-data.js?v=8"></script>
-  <script src="js/playground.js?v=8"></script>
-  <script src="js/remote-playbook.js?v=8"></script>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/translations.js?v=11"></script>
+  <script src="js/curriculum-data.js?v=11"></script>
+  <script src="js/browser-labs-data.js?v=11"></script>
+  <script src="js/proof-data.js?v=11"></script>
+  <script src="js/proof.js?v=11"></script>
+  <script src="js/interview-data.js?v=11"></script>
+  <script src="js/portfolio-data.js?v=11"></script>
+  <script src="js/cv-data.js?v=11"></script>
+  <script src="js/playground.js?v=11"></script>
+  <script src="js/remote-playbook.js?v=11"></script>
+  <script src="js/practice-labs.js?v=11"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

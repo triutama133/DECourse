@@ -48,7 +48,18 @@
     return { ok: true, info: { passed: parseInt(passed, 10), venv, py, os } };
   }
 
-  const api = { sha256, verify };
+  function verifyTryIt(expectedIdent, raw) {
+    const f = String(raw || "").trim().replace(/\s+/g, "").split(":");
+    if (f.length !== 6 || f[0] !== "TRY1") return { ok: false, reason: "format" };
+    const [, ident, passed, py, os, chk] = f;
+    if (sha256(f.slice(0, 5).join("|")).slice(0, 6) !== chk.toLowerCase()) return { ok: false, reason: "checksum" };
+    if (expectedIdent && ident !== expectedIdent) return { ok: false, reason: "ident", ident };
+    if (!(parseInt(passed, 10) > 0)) return { ok: false, reason: "passed" };
+    return { ok: true, info: { ident, passed: parseInt(passed, 10), py, os } };
+  }
+
+  const api = { sha256, verify, verifyTryIt };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ProofCheck = api;
 })(typeof window !== "undefined" ? window : globalThis);
+

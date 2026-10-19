@@ -1261,9 +1261,31 @@ WHERE rn IN ((n + 1) / 2, (n + 2) / 2);`
     }
   },
 
+  adversarialMutations: {
+    ecommerce: `
+      INSERT INTO customers VALUES (7,'Gita Permata','Gold',NULL,'2026-03-19'),(8,'Hendra','Silver','Jakarta','2026-03-20');
+      INSERT INTO orders VALUES (110,7,500.00,'COMPLETED','2026-03-19'),(111,7,150.00,'CANCELLED','2026-03-20'),(112,4,200.00,'REFUNDED','2026-03-21');`,
+    logins: `
+      INSERT INTO logins VALUES (1,'2026-03-10'),(1,'2026-03-11'),(4,'2026-03-01'),(4,'2026-03-02');`,
+    kopiku: `
+      INSERT INTO customers VALUES (11,'Surya Dharma',NULL,'Gold','2026-01-22'),(12,'Tari','Surabaya','Bronze','2026-01-25');
+      INSERT INTO orders VALUES (119,11,'2026-01-26','delivered','card',20000),(120,11,'2026-01-27','cancelled','ewallet',15000);
+      INSERT INTO order_items VALUES (119,1,2,2,95000),(120,1,1,3,85000);`,
+    daily_sales: `
+      INSERT INTO daily_sales VALUES ('jakarta','2026-01-15',910000),('bandung','2026-01-15',620000);`,
+    categories: `
+      INSERT INTO categories VALUES (13,'Pour Over',7),(14,'Chemex',13);`,
+    scd_demo: `
+      INSERT INTO customer_changes VALUES (2,'Malang','Silver','2026-01-18 11:00:00');
+      INSERT INTO dim_customer VALUES (7,4,'Yogyakarta','Gold','2026-01-04 00:00:00','9999-12-31 00:00:00',1);
+      INSERT INTO orders_small VALUES (7,4,'2026-01-15 10:00:00',175000);`,
+    clickstream: `
+      INSERT INTO user_clickstream VALUES (3,'2026-03-01 12:15:00','/search'),(3,'2026-03-01 13:05:00','/cart');`
+  },
+
   // Compare as unordered sets of rows (numbers rounded), ignoring column names.
   // Each side runs on a fresh copy of the dataset, so statements that change data (INSERT, CREATE VIEW ...) cannot disturb the comparison
-  // or be applied twice.
+  // or be applied twice. Then a second pass runs against an adversarial mutated dataset with extra NULLs, statuses, and rows.
   check(challenge, learnerSql) {
     this.freshDb(challenge.dataset);
     const mine = this.run(learnerSql);
@@ -1283,6 +1305,28 @@ WHERE rn IN ((n + 1) / 2, (n + 2) / 2);`
     const b = norm(ref.rows);
     if (a.length !== b.length) return { ok: false, reason: "rows", expected: b.length, got: a.length };
     for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return { ok: false, reason: "values" };
-    return { ok: true };
+
+    // Pass 2: Adversarial Hostile-Data Verification
+    const mut = this.adversarialMutations[challenge.dataset];
+    if (mut) {
+      this.freshDb(challenge.dataset);
+      this.db.exec(mut);
+      const advMine = this.run(learnerSql);
+      this.freshDb(challenge.dataset);
+      this.db.exec(mut);
+      const advRef = this.run(challenge.solution);
+      this.freshDb(challenge.dataset);
+      if (advRef.ok && !advRef.empty) {
+        if (!advMine.ok || advMine.empty || advMine.columns.length !== advRef.columns.length) {
+          return { ok: false, reason: "adversarial" };
+        }
+        const ma = norm(advMine.rows);
+        const mb = norm(advRef.rows);
+        if (ma.length !== mb.length) return { ok: false, reason: "adversarial" };
+        for (let i = 0; i < ma.length; i++) if (ma[i] !== mb[i]) return { ok: false, reason: "adversarial" };
+      }
+    }
+    return { ok: true, adversarialVerified: true };
   }
 };
+

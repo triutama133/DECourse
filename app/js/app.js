@@ -4,7 +4,7 @@
 const REPO_URL = "https://github.com/triutama133/DECourse";
 const VIEWS = ["start", "roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
-const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents"];
+const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "active-recall"];
 
 function readStore(key, fallback) {
   try {
@@ -30,6 +30,7 @@ class DataForgeApp {
     this.activeSystemDesignId = "sd-1";
     this.activeSqlId = "sql-1";
     this.activeDrillId = "drill-1";
+    this.activeBugId = "bug-not-in-null";
     this.activePortfolioId = "proj-1";
 
     this.completedModules = readStore("df_completed_modules", []);
@@ -37,8 +38,37 @@ class DataForgeApp {
     this.solvedChallenges = readStore("df_solved_challenges", []);
     this.resumeEdited = readStore("df_resume_edited", false);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+    this.lessonsDone = readStore("df_lessons_done", {}) || {};
+    this.tryitDone = readStore("df_tryit_done", {}) || {};
+    this.chaosDone = readStore("df_chaos_done", {}) || {};
+    this.moduleNotes = readStore("df_module_notes", {}) || {};
+    this.sqlAttempts = readStore("df_sql_attempts", {}) || {};
+    this.interviewDrafts = readStore("df_interview_drafts", {}) || {};
+    this.bugState = readStore("df_bug_drills", {}) || {};
+    this.recallState = readStore("df_active_recall", {}) || {};
+    this.activeRecallIdx = 0;
+    this.recallRevealed = false;
+    this.recallDraft = "";
+    this.simState = {
+      fanoutDupes: 3,
+      fanoutStrategy: "naive",
+      partTb: 10,
+      partDays: 365,
+      partQueryDays: 7,
+      partWrapped: true,
+      wmToleranceMin: 15,
+      wmLatePct: 12,
+      idemRetries: 3,
+      idemStrategy: "append"
+    };
+    this.lessonFilter = "all";
     const savedLang = readStore("df_lang", "id");
     this.lang = savedLang === "en" ? "en" : "id";
+    const savedTheme = readStore("df_theme", "light");
+    this.theme = savedTheme === "dark" ? "dark" : "light";
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", this.theme);
+    }
 
     this.quizOrder = {};      // moduleId -> shuffled option order (per page load)
     this.sandbox = { datasetKey: "ecommerce", challengeId: null, status: "loading", message: null, result: null, hintOpen: false, solutionOpen: false };
@@ -83,7 +113,138 @@ class DataForgeApp {
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
       .replace(/\u0000(\d+)\u0000/g, (m, n) => `<code>${this.esc(codes[Number(n)])}</code>`);
   }
-  md(val) {
+
+  renderQuoteBody(lines) {
+    const out = [];
+    const isBullet = (l) => /^\s*[-*] /.test(l);
+    const isOrdered = (l) => /^\s*\d+\. /.test(l);
+    const isStandaloneCmd = (l) => /^`((?:pytest|python3?|curl|git|docker|dbt|terraform)\s+[^`]+)`\s*$/.test(l.trim());
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (line.trim() === "") { i++; continue; }
+      let m;
+      if ((m = line.trim().match(/^`((?:pytest|python3?|curl|git|docker|dbt|terraform)\s+[^`]+)`$/))) {
+        out.push(`<div class="code-wrap" style="margin:6px 0"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(m[1])}</code></pre></div>`);
+        i++;
+      } else if (isBullet(line) || isOrdered(line)) {
+        const ordered = isOrdered(line);
+        const start = ordered ? parseInt(line.match(/^\s*(\d+)\./)[1], 10) : 1;
+        const items = [];
+        while (i < lines.length && (ordered ? isOrdered(lines[i]) : isBullet(lines[i]))) {
+          const item = [lines[i].replace(/^\s*(?:[-*]|\d+\.) /, "")];
+          i++;
+          while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i]) && !/^(?:\*\*(?:You should see|Check it|Yang harus Anda lihat|Periksa):|\*(?:Compare when you are done|Bandingkan))/i.test(lines[i].trim())) {
+            item.push(lines[i++].trim());
+          }
+          items.push(item.join(" "));
+        }
+        const tag = ordered ? "ol" : "ul";
+        out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ""}>${items.map((it) => `<li>${this.inline(it)}</li>`).join("")}</${tag}>`);
+      } else {
+        const p = [];
+        while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i])) {
+          p.push(lines[i++]);
+        }
+        out.push(`<p>${p.map((x) => this.inline(x)).join("<br>")}</p>`);
+      }
+    }
+    return out.join("");
+  }
+
+  renderQuoteBlock(q, ctx, qIdx) {
+    const first = (q[0] || "").trim();
+    // 1. Key Mental Model / In short
+    if (/^\*\*(In short|Intinya|Ringkasan|TL;DR):?\*\*/i.test(first)) {
+      const cleaned = q.slice();
+      cleaned[0] = cleaned[0].replace(/^\*\*(In short|Intinya|Ringkasan|TL;DR):?\*\*\s*/i, "");
+      return `
+        <div class="callout-tldr">
+          <div class="callout-head">🎯 ${this.l("Intisari & Model Mental", "In Short · Key Mental Model")}</div>
+          ${this.renderQuoteBody(cleaned)}
+        </div>`;
+    }
+    // 2. Interactive Hands-on Try It
+    if (/^(🛠|\*\*(Try it|Coba sendiri))/i.test(first)) {
+      const tryitKey = ctx && ctx.modId !== undefined ? `${ctx.modId}:${ctx.lessonIdx || 0}:${qIdx}` : "";
+      const savedVal = tryitKey ? this.tryitDone[tryitKey] : null;
+      const isDone = Boolean(savedVal);
+      const mainLines = [];
+      const revealLines = [];
+      const checkLines = [];
+      let mode = "main";
+      for (const ln of q) {
+        const t = ln.trim();
+        if (/^(\*\*(You should see|Yang harus Anda lihat)|\*(Compare when you are done|Bandingkan))/i.test(t)) {
+          mode = "reveal";
+        } else if (/^\*\*(Check it|Periksa):?\*\*/i.test(t)) {
+          mode = "check";
+        }
+        if (mode === "reveal") revealLines.push(ln);
+        else if (mode === "check") checkLines.push(ln);
+        else mainLines.push(ln);
+      }
+      let checkCmdHtml = "";
+      let checkIdent = null;
+      if (checkLines.length) {
+        const joinedCheck = checkLines.join(" ");
+        const cmdMatch = joinedCheck.match(/`((?:python3?\s+labs\/tryit\/check\.py|pytest)\s+[^`]+)`/);
+        if (cmdMatch) {
+          checkCmdHtml = `<div class="code-wrap" style="margin-top:6px"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin perintah cek", "Copy check cmd")}</button><pre><code>${this.esc(cmdMatch[1])}</code></pre></div>`;
+          const idMatch = cmdMatch[1].match(/labs\/tryit\/check\.py\s+([0-9]+\.[0-9]+-[0-9]+)/);
+          if (idMatch) checkIdent = idMatch[1];
+        }
+      }
+      const verifiedToken = (savedVal && typeof savedVal === "object" && savedVal.token) ? savedVal.token : "";
+      const headerControl = checkIdent
+        ? `<span class="chip ${verifiedToken ? "chip-blue" : ""}">${verifiedToken ? `✓ ${this.l("Terbukti di Sistem", "Verified on System")} (${savedVal.passed} checks)` : `🔒 ${this.l("Wajib Cek Lokal (TRY1)", "Requires Local Check (TRY1)")}`}</span>`
+        : (tryitKey ? `<button class="btn btn-sm ${isDone ? "btn-done" : "btn-quiet"}" onclick="app.toggleTryIt('${tryitKey}')">${isDone ? "✓ " + this.l("Sudah Dicoba", "Tried & Checked") : "○ " + this.l("Tandai Sudah Dicoba", "Mark as Tried")}</button>` : "");
+
+      return `
+        <div class="callout-tryit ${isDone ? "is-done" : ""}">
+          <div class="callout-head">
+            <span class="callout-badge">🛠 ${this.l("Latihan Praktik Langsung (Try It)", "Hands-On Practice (Try It)")}</span>
+            ${headerControl}
+          </div>
+          <div class="stack-sm">
+            ${this.renderQuoteBody(mainLines)}
+            ${revealLines.length ? `
+              <details class="tryit-reveal">
+                <summary>👁️ ${this.l("Buka Hasil yang Diharapkan & Kunci Pemeriksaan Mandiri", "Reveal Expected Output & Self-Check Answer")}</summary>
+                <div class="stack-sm">${this.renderQuoteBody(revealLines)}</div>
+              </details>` : ""}
+            ${checkLines.length ? `
+              <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(5,118,66,0.15)" class="stack-sm">
+                ${this.renderQuoteBody(checkLines)}
+                ${checkCmdHtml}
+                ${checkIdent && tryitKey ? `
+                  <div class="row" style="margin-top:6px">
+                    <input type="text" id="tryit-input-${tryitKey}" autocomplete="off" spellcheck="false" placeholder="TRY1:${checkIdent}:…" value="${this.esc(verifiedToken)}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px" onkeydown="if(event.key==='Enter'){app.submitTryItProof('${tryitKey}','${checkIdent}')}" />
+                    <button class="btn btn-sm btn-primary" onclick="app.submitTryItProof('${tryitKey}','${checkIdent}')">${this.l("Verifikasi Kode TRY1", "Verify TRY1 Code")}</button>
+                  </div>
+                  <div id="tryit-msg-${tryitKey}" class="small"></div>` : ""}
+              </div>` : ""}
+          </div>
+        </div>`;
+    }
+    // 3. Practice Pause / Lab Checkpoint Bridge
+    if (/^(💡|\*\*(Practice Pause|Jeda Praktik))/i.test(first)) {
+      const modId = ctx && ctx.modId;
+      return `
+        <div class="callout-pause">
+          <div class="callout-head">
+            <span class="callout-badge">💡 ${this.l("Jeda Praktik Terarah (Jembatan ke Lab)", "Guided Lab Checkpoint (Practice Pause)")}</span>
+            ${modId ? `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${modId}','lab')">${this.l("Buka Tab Lab", "Open Lab Tab")} →</button>` : ""}
+          </div>
+          <div class="stack-sm">${this.renderQuoteBody(q)}</div>
+        </div>`;
+    }
+    // 4. Standard callout (Warning, Tip, or Note)
+    const kind = /^\*\*(Warning|Peringatan|Pitfall|Jebakan)/i.test(first) ? "danger" : /^\*\*(Tip|Saran)/i.test(first) ? "success" : "";
+    return `<div class="callout ${kind}">${this.renderQuoteBody(q)}</div>`;
+  }
+
+  md(val, ctx) {
     const src = this.t(val);
     if (!src) return "";
     const lines = String(src).replace(/\r\n/g, "\n").split("\n");
@@ -92,6 +253,7 @@ class DataForgeApp {
     const isOrdered = (l) => /^\s*\d+\. /.test(l);
     const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
     let i = 0;
+    let tryitIdx = 0;
     while (i < lines.length) {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
@@ -116,9 +278,8 @@ class DataForgeApp {
       } else if (/^> ?/.test(line)) {
         const q = [];
         while (i < lines.length && /^> ?/.test(lines[i])) q.push(lines[i++].replace(/^> ?/, ""));
-        const first = q[0] || "";
-        const kind = /^\*\*(Warning|Peringatan|Pitfall|Jebakan)/i.test(first) ? "danger" : /^\*\*(Tip|Saran)/i.test(first) ? "success" : "";
-        out.push(`<div class="callout ${kind}">${q.join("\n").split(/\n{2,}/).map((p) => `<p>${this.inline(p).replace(/\n/g, "<br>")}</p>`).join("")}</div>`);
+        const isTryIt = /^(🛠|\*\*(Try it|Coba sendiri))/i.test((q[0] || "").trim());
+        out.push(this.renderQuoteBlock(q, ctx, isTryIt ? tryitIdx++ : 0));
       } else if (isBullet(line) || isOrdered(line)) {
         const ordered = isOrdered(line);
         const start = ordered ? parseInt(line.match(/^\s*(\d+)\./)[1], 10) : 1;
@@ -184,8 +345,21 @@ class DataForgeApp {
     document.documentElement.lang = this.lang;
     document.getElementById("lang-btn-id").className = this.lang === "id" ? "active" : "";
     document.getElementById("lang-btn-en").className = this.lang === "en" ? "active" : "";
+    const themeIcon = document.getElementById("theme-btn-icon");
+    if (themeIcon) themeIcon.textContent = this.theme === "dark" ? "☀️" : "🌙";
+    const themeBtn = document.getElementById("theme-btn");
+    if (themeBtn) themeBtn.setAttribute("title", this.theme === "dark" ? this.l("Mode Terang", "Light Mode") : this.l("Mode Gelap (IDE)", "Dark IDE Mode"));
     document.getElementById("footer-tagline").textContent = this.l("DataForge: belajar data engineering dengan praktik langsung", "DataForge: learn data engineering by doing");
     this.renderHeaderStats();
+  }
+
+  toggleTheme() {
+    this.theme = this.theme === "dark" ? "light" : "dark";
+    writeStore("df_theme", this.theme);
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-theme", this.theme);
+    }
+    this.renderChrome();
   }
 
   renderHeaderStats() {
@@ -562,7 +736,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_browser_labs", "df_bl_runs", "df_proofs"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -588,11 +762,27 @@ class DataForgeApp {
         if (Array.isArray(d.df_solved_challenges)) this.solvedChallenges = d.df_solved_challenges.filter((x) => typeof x === "string");
         if (typeof d.df_resume_edited === "boolean") this.resumeEdited = d.df_resume_edited;
         if (d.df_resume_data && typeof d.df_resume_data === "object") this.resumeData = d.df_resume_data;
+        if (d.df_lessons_done && typeof d.df_lessons_done === "object") this.lessonsDone = d.df_lessons_done;
+        if (d.df_tryit_done && typeof d.df_tryit_done === "object") this.tryitDone = d.df_tryit_done;
+        if (d.df_chaos_done && typeof d.df_chaos_done === "object") this.chaosDone = d.df_chaos_done;
+        if (d.df_module_notes && typeof d.df_module_notes === "object") this.moduleNotes = d.df_module_notes;
+        if (d.df_sql_attempts && typeof d.df_sql_attempts === "object") this.sqlAttempts = d.df_sql_attempts;
+        if (d.df_interview_drafts && typeof d.df_interview_drafts === "object") this.interviewDrafts = d.df_interview_drafts;
+        if (d.df_bug_drills && typeof d.df_bug_drills === "object") this.bugState = d.df_bug_drills;
+        if (d.df_active_recall && typeof d.df_active_recall === "object") this.recallState = d.df_active_recall;
         writeStore("df_completed_modules", this.completedModules);
         writeStore("df_quiz_scores", this.quizScores);
         writeStore("df_solved_challenges", this.solvedChallenges);
         writeStore("df_resume_edited", this.resumeEdited);
         writeStore("df_resume_data", this.resumeData);
+        writeStore("df_lessons_done", this.lessonsDone);
+        writeStore("df_tryit_done", this.tryitDone);
+        writeStore("df_chaos_done", this.chaosDone);
+        writeStore("df_module_notes", this.moduleNotes);
+        writeStore("df_sql_attempts", this.sqlAttempts);
+        writeStore("df_interview_drafts", this.interviewDrafts);
+        writeStore("df_bug_drills", this.bugState);
+        writeStore("df_active_recall", this.recallState);
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_proofs && typeof d.df_proofs === "object" && !Array.isArray(d.df_proofs)) {
@@ -608,6 +798,489 @@ class DataForgeApp {
       }
     };
     reader.readAsText(file);
+  }
+
+  // ---------- Active learning helpers ----------
+  isLessonDone(modId, idx) {
+    const arr = this.lessonsDone[modId];
+    return Array.isArray(arr) && arr.includes(idx);
+  }
+  toggleLessonDone(modId, idx, jumpNext) {
+    const arr = Array.isArray(this.lessonsDone[modId]) ? [...this.lessonsDone[modId]] : [];
+    const pos = arr.indexOf(idx);
+    if (pos >= 0) arr.splice(pos, 1);
+    else arr.push(idx);
+    this.lessonsDone[modId] = arr;
+    writeStore("df_lessons_done", this.lessonsDone);
+    this.renderView();
+    if (jumpNext && pos < 0) {
+      setTimeout(() => this.scrollToLesson(idx + 1), 50);
+    } else {
+      setTimeout(() => this.scrollToLesson(idx), 30);
+    }
+  }
+  setLessonFilter(filter) {
+    this.lessonFilter = filter;
+    this.renderView();
+  }
+  jumpNextUnreadLesson(modId) {
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+    if (!mod) return;
+    const nextIdx = mod.lessons.findIndex((_, i) => !this.isLessonDone(modId, i));
+    if (nextIdx >= 0) {
+      this.scrollToLesson(nextIdx);
+    }
+  }
+  toggleTryIt(key) {
+    if (!key) return;
+    if (this.tryitDone[key]) delete this.tryitDone[key];
+    else this.tryitDone[key] = new Date().toISOString();
+    writeStore("df_tryit_done", this.tryitDone);
+    this.renderView();
+  }
+  submitTryItProof(tryitKey, expectedIdent) {
+    const input = document.getElementById(`tryit-input-${tryitKey}`);
+    const msg = document.getElementById(`tryit-msg-${tryitKey}`);
+    if (!input || !msg) return;
+    const res = ProofCheck.verifyTryIt(expectedIdent, input.value);
+    if (!res.ok) {
+      const errMap = {
+        format: this.l(`Format kode salah. Jalankan python3 labs/tryit/check.py ${expectedIdent} di terminal komputer Anda lalu salin kode TRY1:${expectedIdent}:…`, `Invalid format. Run python3 labs/tryit/check.py ${expectedIdent} in your terminal and copy the TRY1:${expectedIdent}:… code.`),
+        checksum: this.l("Kode rusak atau salah ketik. Salin ulang dari terminal Anda.", "Checksum mismatch (typo or cut off). Copy the whole code again."),
+        ident: this.l(`Kode ini untuk latihan lain (${res.ident}), bukan ${expectedIdent}.`, `This code is for exercise ${res.ident}, not ${expectedIdent}.`)
+      };
+      msg.innerHTML = `<div class="feedback bad">${this.esc(errMap[res.reason] || errMap.format)}</div>`;
+      return;
+    }
+    this.tryitDone[tryitKey] = {
+      token: input.value.trim().replace(/\s+/g, ""),
+      passed: res.info.passed,
+      py: res.info.py,
+      os: res.info.os,
+      at: new Date().toISOString()
+    };
+    writeStore("df_tryit_done", this.tryitDone);
+    this.renderView();
+  }
+  saveModuleNote(modId, val) {
+    clearTimeout(this._noteTimer);
+    this._noteTimer = setTimeout(() => {
+      if (val && val.trim()) this.moduleNotes[modId] = val;
+      else delete this.moduleNotes[modId];
+      writeStore("df_module_notes", this.moduleNotes);
+    }, 300);
+  }
+  saveChaosNote(modId, val) {
+    const cur = this.chaosDone[modId] || {};
+    this.chaosDone[modId] = { ...cur, notes: val };
+    writeStore("df_chaos_done", this.chaosDone);
+  }
+  unlockChaosAnalysis(modId) {
+    const ta = document.getElementById(`chaos-note-${modId}`);
+    if (ta) this.saveChaosNote(modId, ta.value);
+    const notes = ((this.chaosDone[modId] || {}).notes || "").trim();
+    if (notes.length < 50) {
+      alert(this.l("Tulis hipotesis diagnosis & mitigasi Anda minimal 50 karakter terlebih dahulu sebelum membuka kunci jawaban!", "Write your diagnostic and mitigation hypothesis (at least 50 characters) first before unlocking the root cause!"));
+      return;
+    }
+    this.renderView();
+  }
+  toggleChaosDone(modId) {
+    const cur = this.chaosDone[modId] || {};
+    if (!cur.done && ((cur.notes || "").trim().length < 50)) {
+      alert(this.l("Tulis hipotesis triage Anda minimal 50 karakter di Langkah 1 terlebih dahulu!", "Write your triage hypothesis (at least 50 characters) in Step 1 first!"));
+      return;
+    }
+    this.chaosDone[modId] = { ...cur, done: !cur.done, at: new Date().toISOString() };
+    writeStore("df_chaos_done", this.chaosDone);
+    this.renderView();
+  }
+  saveInterviewDraft(key, val, rerender) {
+    this.interviewDrafts[key] = val;
+    writeStore("df_interview_drafts", this.interviewDrafts);
+    if (rerender) this.renderView();
+  }
+  lessonBody(ls) {
+    let text = String(this.t(ls.body) || "");
+    if (this.lang === "id" && ls.body && typeof ls.body === "object" && ls.body.en) {
+      const enLines = String(ls.body.en).replace(/\r\n/g, "\n").split("\n");
+      const hasTldrId = /^>\s*\*\*(?:In short|Intinya|Ringkasan|TL;DR):?\*\*/im.test(text);
+      const hasTryItId = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/im.test(text);
+      const prependBlocks = [];
+      const appendBlocks = [];
+      let i = 0;
+      while (i < enLines.length) {
+        if (/^> ?/.test(enLines[i])) {
+          const blk = [];
+          while (i < enLines.length && /^> ?/.test(enLines[i])) blk.push(enLines[i++]);
+          const first = blk[0].replace(/^> ?/, "").trim();
+          if (!hasTldrId && /^\*\*(In short|Intinya|Ringkasan|TL;DR):?\*\*/i.test(first)) {
+            prependBlocks.push(blk.join("\n"));
+          } else if (!hasTryItId && /^(🛠|\*\*(Try it|Coba sendiri))/i.test(first)) {
+            appendBlocks.push(blk.join("\n"));
+          }
+        } else {
+          i++;
+        }
+      }
+      if (prependBlocks.length) text = prependBlocks.join("\n\n") + "\n\n" + text;
+      if (appendBlocks.length) text = text + "\n\n" + appendBlocks.join("\n\n");
+    }
+    return text;
+  }
+  lessonMinutes(ls) {
+    const w = (this.lessonBody(ls).match(/\S+/g) || []).length;
+    return Math.max(1, Math.round(w / 190));
+  }
+  moduleTryItStats(mod) {
+    let total = 0;
+    let done = 0;
+    (mod.lessons || []).forEach((ls, li) => {
+      const lines = this.lessonBody(ls).replace(/\r\n/g, "\n").split("\n");
+      let i = 0, tryitIdx = 0;
+      while (i < lines.length) {
+        if (/^> ?/.test(lines[i])) {
+          const first = lines[i].replace(/^> ?/, "").trim();
+          while (i < lines.length && /^> ?/.test(lines[i])) i++;
+          if (/^(🛠|\*\*(Try it|Coba sendiri))/i.test(first)) {
+            total++;
+            if (this.tryitDone[`${mod.id}:${li}:${tryitIdx}`]) done++;
+            tryitIdx++;
+          }
+        } else {
+          i++;
+        }
+      }
+    });
+    return { total, done };
+  }
+  findBestLessonForQuestion(mod, q) {
+    if (!mod.lessons || !mod.lessons.length) return 0;
+    const text = `${this.t(q.question)} ${this.t(q.explanation)} ${this.t(q.options[q.correct])}`.toLowerCase();
+    const tokens = text.split(/[^a-z0-9_]+/).filter((w) => w.length >= 4);
+    let bestIdx = 0, bestScore = -1;
+    mod.lessons.forEach((ls, idx) => {
+      const hayTitle = String(this.t(ls.title)).toLowerCase();
+      const hayBody = String(this.t(ls.body)).toLowerCase();
+      let score = 0;
+      for (const tok of tokens) {
+        if (hayTitle.includes(tok)) score += 5;
+        if (hayBody.includes(tok)) score += 1;
+      }
+      if (score > bestScore) { bestScore = score; bestIdx = idx; }
+    });
+    return bestIdx;
+  }
+
+  // ---------- Interactive Mental-Model Simulators (Idea #1) ----------
+  updateSim(key, val) {
+    this.simState[key] = val;
+    this.renderView();
+  }
+
+  renderModuleSimulator(modId) {
+    if (!window.PRACTICE_LABS || !window.PRACTICE_LABS.SIMULATORS) return "";
+    const sim = window.PRACTICE_LABS.SIMULATORS.find((s) => s.modules.includes(modId));
+    if (!sim) return "";
+    const st = this.simState;
+
+    if (sim.id === "sim-join-fanout") {
+      const dupes = Number(st.fanoutDupes || 3);
+      const strat = st.fanoutStrategy || "naive";
+      const trueRevenue = 300;
+      const reportedRevenue = strat === "naive" ? trueRevenue * dupes : trueRevenue;
+      const rowCount = strat === "naive" ? 3 * dupes : 3;
+      const isCorrupted = reportedRevenue !== trueRevenue;
+      return `
+        <div class="sim-card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+              <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+              <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <div class="sim-control">
+              <label><span>${this.l("Baris Duplikat per Customer di Tabel Dimensi", "Duplicate Rows per Customer in Dimension")}</span><strong>${dupes}x</strong></label>
+              <input type="range" min="1" max="6" value="${dupes}" oninput="app.updateSim('fanoutDupes', Number(this.value))" />
+              <span class="small muted">${this.l("Mis. pelanggan pindah alamat / SCD2 tanpa filter aktif", "E.g., customer address history / unfiltered SCD2")}</span>
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Strategi SQL JOIN", "SQL JOIN Strategy")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${strat === "naive" ? "active" : ""}" onclick="app.updateSim('fanoutStrategy','naive')">Naive JOIN</button>
+                <button class="${strat === "cte" ? "active" : ""}" onclick="app.updateSim('fanoutStrategy','cte')">Pre-Aggregate CTE</button>
+                <button class="${strat === "rownum" ? "active" : ""}" onclick="app.updateSim('fanoutStrategy','rownum')">ROW_NUMBER() = 1</button>
+              </div>
+            </div>
+          </div>
+          <div class="sim-metrics">
+            <div class="sim-metric">
+              <div class="small muted">${this.l("Pendapatan Asli (Fakta)", "True Fact Revenue")}</div>
+              <div class="val">$${trueRevenue}</div>
+              <div class="small muted">3 orders ($100 + $150 + $50)</div>
+            </div>
+            <div class="sim-metric ${isCorrupted ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Hasil SUM(amount) Query Anda", "Your Query SUM(amount)")}</div>
+              <div class="val">$${reportedRevenue} ${isCorrupted ? `(+${Math.round(((reportedRevenue - trueRevenue) / trueRevenue) * 100)}%)` : "✓"}</div>
+              <div class="small muted">${rowCount} ${this.l("baris hasil JOIN · 0 pesan error SQL", "joined rows · 0 SQL errors")}</div>
+            </div>
+            <div class="sim-metric ${isCorrupted ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Status Integritas Data", "Data Integrity Verdict")}</div>
+              <div class="val">${isCorrupted ? "🚨 Silent Corruption" : "✅ Grain Preserved"}</div>
+              <div class="small muted">${isCorrupted ? this.l("Setiap order digandakan oleh baris dimensi!", "Every order multiplied by dimension rows!") : this.l("1 baris per customer_id sebelum JOIN", "1 row per customer_id before JOIN")}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (sim.id === "sim-partition-pruning") {
+      const tb = Number(st.partTb || 10);
+      const qDays = Number(st.partQueryDays || 7);
+      const wrapped = Boolean(st.partWrapped);
+      const totalDays = 365;
+      const scannedTb = wrapped ? tb : Number(((tb * qDays) / totalDays).toFixed(2));
+      const costPerRun = Number((scannedTb * 5).toFixed(2)); // $5 per TB
+      const monthlyCost = Math.round(costPerRun * 24 * 30); // hourly dashboard query
+      return `
+        <div class="sim-card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+              <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+              <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <div class="sim-control">
+              <label><span>${this.l("Ukuran Tabel (365 Partisi Harian)", "Table Size (365 Daily Partitions)")}</span><strong>${tb} TB</strong></label>
+              <input type="range" min="2" max="50" step="2" value="${tb}" oninput="app.updateSim('partTb', Number(this.value))" />
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Rentang Hari yang Dicari", "Queried Window (Days)")}</span><strong>${qDays} ${this.l("hari", "days")}</strong></label>
+              <input type="range" min="1" max="30" value="${qDays}" oninput="app.updateSim('partQueryDays', Number(this.value))" />
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Bentuk Klausa WHERE", "WHERE Clause Predicate")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${wrapped ? "active" : ""}" onclick="app.updateSim('partWrapped', true)">WHERE DATE(ts) >= ...</button>
+                <button class="${!wrapped ? "active" : ""}" onclick="app.updateSim('partWrapped', false)">WHERE ts >= TIMESTAMP ...</button>
+              </div>
+            </div>
+          </div>
+          <div class="sim-metrics">
+            <div class="sim-metric ${wrapped ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Partisi Parquet Dipindai", "Partitions Scanned")}</div>
+              <div class="val">${wrapped ? `365 / 365 (Full Scan)` : `${qDays} / 365 (Pruned ✓)`}</div>
+              <div class="small muted">${scannedTb} TB ${this.l("dibaca dari penyimpanan objek", "read from object storage")}</div>
+            </div>
+            <div class="sim-metric ${wrapped ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Biaya per Eksekusi ($5/TB)", "Cost per Query ($5/TB)")}</div>
+              <div class="val">$${costPerRun}</div>
+              <div class="small muted">${this.l("BigQuery / Athena on-demand", "BigQuery / Athena on-demand")}</div>
+            </div>
+            <div class="sim-metric ${wrapped ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Tagihan Bulanan (Dashboard Tiap Jam)", "Monthly Bill (Hourly Dashboard)")}</div>
+              <div class="val">$${monthlyCost.toLocaleString()}/mo</div>
+              <div class="small muted">${wrapped ? this.l("Fungsi pada kolom partisi mematikan pruning!", "Function on partition column kills pruning!") : this.l("Sargable predicate: hemat >95% biaya!", "Sargable predicate: >95% cost saved!")}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (sim.id === "sim-watermark") {
+      const tol = Number(st.wmToleranceMin || 15);
+      const latePct = Number(st.wmLatePct || 12);
+      const droppedPct = Math.max(0, Number((latePct * Math.exp(-tol / 20)).toFixed(1)));
+      const stateGb = Number((1.5 + tol * 0.45).toFixed(1));
+      const isOom = stateGb > 32;
+      const isDropping = droppedPct > 2.0;
+      return `
+        <div class="sim-card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+              <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+              <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <div class="sim-control">
+              <label><span>${this.l("Toleransi Watermark", "Watermark Delay Tolerance")}</span><strong>${tol} ${this.l("menit", "min")}</strong></label>
+              <input type="range" min="0" max="120" step="5" value="${tol}" oninput="app.updateSim('wmToleranceMin', Number(this.value))" />
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Lonjakan Event Terlambat (Mobile Offline)", "Late-Arriving Events (% of stream)")}</span><strong>${latePct}%</strong></label>
+              <input type="range" min="1" max="30" value="${latePct}" oninput="app.updateSim('wmLatePct', Number(this.value))" />
+            </div>
+          </div>
+          <div class="sim-metrics">
+            <div class="sim-metric ${isDropping ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Event Terlambat Dibuang Diam-Diam", "Silently Dropped Late Events")}</div>
+              <div class="val">${droppedPct}%</div>
+              <div class="small muted">${isDropping ? this.l("Event datang setelah watermark lewat!", "Arrived after watermark passed!") : this.l("Mayoritas event terlambat tertampung", "Most late events captured")}</div>
+            </div>
+            <div class="sim-metric ${isOom ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Memori State RocksDB (RAM/Disk)", "RocksDB Window State Size")}</div>
+              <div class="val">${stateGb} GB ${isOom ? "💥 OOM!" : "✓"}</div>
+              <div class="small muted">${this.l("Batas node worker: 32 GB", "Worker node limit: 32 GB")}</div>
+            </div>
+            <div class="sim-metric">
+              <div class="small muted">${this.l("Latensi Emisi Window", "Window Emission Latency")}</div>
+              <div class="val">+${tol} ${this.l("mnt", "min")}</div>
+              <div class="small muted">${this.l("Trade-off: Kelengkapan vs. Latensi vs. RAM", "Trade-off: Completeness vs. Latency vs. RAM")}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // sim-idempotency
+    const retries = Number(st.idemRetries || 3);
+    const strat = st.idemStrategy || "append";
+    const batchRows = 1000;
+    const finalRows = strat === "append" ? batchRows * retries : batchRows;
+    const isCorrupted = finalRows !== batchRows;
+    return `
+      <div class="sim-card stack-sm">
+        <div class="row between">
+          <div>
+            <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+            <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+            <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+          </div>
+        </div>
+        <div class="sim-controls">
+          <div class="sim-control">
+            <label><span>${this.l("Jumlah Eksekusi Task (1x Jalan + Retry)", "Task Executions (Initial + Retries)")}</span><strong>${retries}x</strong></label>
+            <input type="range" min="1" max="5" value="${retries}" oninput="app.updateSim('idemRetries', Number(this.value))" />
+          </div>
+          <div class="sim-control">
+            <label><span>${this.l("Pola Penulisan ke Target", "Target Write Pattern")}</span></label>
+            <div class="segmented" style="margin-top:4px">
+              <button class="${strat === "append" ? "active" : ""}" onclick="app.updateSim('idemStrategy','append')">INSERT INTO (Append)</button>
+              <button class="${strat === "del_ins" ? "active" : ""}" onclick="app.updateSim('idemStrategy','del_ins')">DELETE Partition + INSERT</button>
+              <button class="${strat === "merge" ? "active" : ""}" onclick="app.updateSim('idemStrategy','merge')">MERGE / ON CONFLICT</button>
+            </div>
+          </div>
+        </div>
+        <div class="sim-metrics">
+          <div class="sim-metric">
+            <div class="small muted">${this.l("Baris Unik di Sumber (2026-10-19)", "Source Partition Rows")}</div>
+            <div class="val">1,000</div>
+          </div>
+          <div class="sim-metric ${isCorrupted ? "danger" : "ok"}">
+            <div class="small muted">${this.l("Baris di Tabel Target Setelah Retry", "Target Rows After Retries")}</div>
+            <div class="val">${finalRows.toLocaleString()} ${isCorrupted ? `(${retries}x Duplikat!)` : "✓ Idempoten"}</div>
+          </div>
+          <div class="sim-metric ${isCorrupted ? "danger" : "ok"}">
+            <div class="small muted">${this.l("Hasil Hukum Idempotensi", "Idempotency Verdict")}</div>
+            <div class="val">${isCorrupted ? "❌ f(f(x)) ≠ f(x)" : "✅ f(f(x)) = f(x)"}</div>
+            <div class="small muted">${isCorrupted ? this.l("Retry menyebabkan duplikasi data produksi!", "Retries duplicated production rows!") : this.l("Aman dijalankan ulang kapan saja", "Safe to re-run N times")}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ---------- Silent Bug Clinic & Active Recall Helpers (Ideas #6 & #2) ----------
+  setActiveBug(id) {
+    this.activeBugId = id;
+    this.renderView();
+  }
+  selectBugLine(bugId, lineIdx) {
+    const cur = this.bugState[bugId] || {};
+    this.bugState[bugId] = { ...cur, selectedLine: lineIdx };
+    writeStore("df_bug_drills", this.bugState);
+    this.renderView();
+  }
+  submitBugDiagnosis(bugId, optId) {
+    const drills = (window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS) || [];
+    const drill = drills.find((d) => d.id === bugId);
+    if (!drill) return;
+    const cur = this.bugState[bugId] || {};
+    if (cur.selectedLine === undefined || cur.selectedLine === null) {
+      alert(this.l("Langkah 1: Klik baris kode yang mengandung bug diam-diam terlebih dahulu!", "Step 1: Click the exact line of code containing the silent bug first!"));
+      return;
+    }
+    const lineOk = cur.selectedLine === drill.buggyLineIndex;
+    const opt = drill.options.find((o) => o.id === optId);
+    const optOk = Boolean(opt && opt.correct);
+    this.bugState[bugId] = {
+      ...cur,
+      selectedOpt: optId,
+      attempted: true,
+      solved: Boolean(lineOk && optOk),
+      at: new Date().toISOString()
+    };
+    writeStore("df_bug_drills", this.bugState);
+    this.renderView();
+  }
+
+  getRecallDeck() {
+    const deck = [];
+    CURRICULUM_DATA.forEach((lvl) => {
+      lvl.modules.forEach((mod) => {
+        const modLabel = `${mod.number} ${this.t(mod.title)}`;
+        // 1. Module Production Reality & Chaos Defensive Pattern
+        if (mod.whyTutorialsLie && mod.chaosLab && mod.chaosLab.defensivePattern) {
+          deck.push({
+            id: `recall:${mod.id}:reality`,
+            modId: mod.id,
+            modLabel,
+            prompt: this.l(`Mengapa tutorial biasa gagal pada topik "${this.t(mod.title)}" dan apa pola defensif produksinya?`, `Why do standard tutorials fail on "${this.t(mod.title)}" and what is the production defensive pattern?`),
+            answer: `**${this.l("Realita Produksi", "Production Reality")}:** ${this.t(mod.whyTutorialsLie)} — **${this.l("Pola Defensif", "Defensive Pattern")}:** ${String(this.t(mod.chaosLab.defensivePattern)).replace(/\n+/g, " ")}`
+          });
+        }
+        // 2. Lesson In-Short callouts
+        (mod.lessons || []).forEach((ls, li) => {
+          const body = this.lessonBody(ls);
+          const m = body.match(/^>\s*\*\*(?:In short|Intinya|Ringkasan|TL;DR):?\*\*\s*(.+)$/im);
+          if (m && m[1]) {
+            deck.push({
+              id: `recall:${mod.id}:ls:${li}`,
+              modId: mod.id,
+              modLabel,
+              prompt: this.t(ls.title),
+              answer: m[1].trim()
+            });
+          }
+        });
+        // 3. First 2 high-signal conceptual questions per module
+        (mod.quiz || []).slice(0, 2).forEach((q, qi) => {
+          deck.push({
+            id: `recall:${mod.id}:q:${qi}`,
+            modId: mod.id,
+            modLabel,
+            prompt: this.t(q.question),
+            answer: `**${this.t(q.options[q.correct])}** — ${this.t(q.explanation)}`
+          });
+        });
+      });
+    });
+    return deck;
+  }
+  stepRecallCard(delta) {
+    const deck = this.getRecallDeck();
+    if (!deck.length) return;
+    this.activeRecallIdx = (this.activeRecallIdx + delta + deck.length) % deck.length;
+    this.recallRevealed = false;
+    this.recallDraft = "";
+    this.renderView();
+  }
+  revealRecallAnswer() {
+    const ta = document.getElementById("recall-draft-input");
+    if (ta) this.recallDraft = ta.value;
+    if ((this.recallDraft || "").trim().length < 20) {
+      alert(this.l("Tulis ingatan Anda minimal 20 karakter terlebih dahulu sebelum membalik kartu! Active recall hanya bekerja jika otak Anda berusaha mengingat.", "Write at least 20 characters of your own recall first before flipping the card! Active recall only works when your brain retrieves the concept."));
+      return;
+    }
+    this.recallRevealed = true;
+    this.renderView();
+  }
+  rateRecallCard(cardId, rating) {
+    this.recallState[cardId] = { rating, at: new Date().toISOString() };
+    writeStore("df_active_recall", this.recallState);
+    this.stepRecallCard(1);
   }
 
   // ================= START HERE =================
@@ -699,11 +1372,39 @@ class DataForgeApp {
   // ================= ROADMAP =================
   renderRoadmapView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
+    const allMods = CURRICULUM_DATA.flatMap((l) => l.modules);
+    const totalMods = allMods.length;
+    const totalLessons = allMods.reduce((s, m) => s + (m.lessons ? m.lessons.length : 0), 0);
+    const readLessonsCount = allMods.reduce((s, m) => s + ((this.lessonsDone[m.id] || []).length), 0);
+    const tryItCount = Object.keys(this.tryitDone || {}).length;
+    const proofCount = allMods.filter((m) => this.proofFor(m.id)).length;
+    const sqlSolved = (this.solvedChallenges || []).length;
+
+    // Determine next recommended module & action
+    const nextMod = allMods.find((m) => !this.completedModules.includes(m.id)) || allMods[allMods.length - 1];
+    const nextModRead = (this.lessonsDone[nextMod.id] || []).length;
+    const nextModTotalLs = (nextMod.lessons || []).length;
+    const nextModProof = this.proofFor(nextMod.id);
+    const nextModChaos = this.chaosDone[nextMod.id] && this.chaosDone[nextMod.id].done;
+    let nextTab = "concepts";
+    let nextActionLabel = this.l(`Baca Materi (${nextModRead}/${nextModTotalLs} selesai)`, `Read Lessons (${nextModRead}/${nextModTotalLs} done)`);
+    if (nextModRead >= nextModTotalLs && !nextModProof && window.PROOF && window.PROOF[nextMod.id]) {
+      nextTab = "lab";
+      nextActionLabel = this.l("Kerjakan Lab & Verifikasi Bukti", "Build Lab & Verify Proof");
+    } else if (nextModRead >= nextModTotalLs && !nextModChaos) {
+      nextTab = "chaos";
+      nextActionLabel = this.l("Analisis Skenario Insiden Chaos", "Analyze Chaos Incident");
+    } else if (nextModRead >= nextModTotalLs) {
+      nextTab = "quiz";
+      nextActionLabel = this.l("Selesaikan Kuis Verifikasi (≥80%)", "Pass Verification Quiz (≥80%)");
+    }
+
     const pillars = [1, 2, 3, 4].map((n) => `
       <div class="card">
         <h3>${t["pillar" + n + "Title"]}</h3>
         <p class="muted" style="margin-top:6px">${t["pillar" + n + "Desc"]}</p>
       </div>`).join("");
+
     const levels = CURRICULUM_DATA.map((lvl) => {
       const doneCount = lvl.modules.filter((m) => this.completedModules.includes(m.id)).length;
       const pct = Math.round((doneCount / lvl.modules.length) * 100);
@@ -713,16 +1414,28 @@ class DataForgeApp {
           <h3>${this.esc(this.t(lvl.levelTitle))}</h3>
           <p class="muted small">${this.esc(this.t(lvl.levelSubtitle))}</p>
           <ul style="list-style:none;flex:1" class="stack-sm">
-            ${lvl.modules.map((m) => `
-              <li class="row between small" style="flex-wrap:nowrap">
-                <a href="#/curriculum/${m.id}">${m.number} ${this.esc(this.t(m.title))}</a>
-                ${this.completedModules.includes(m.id) ? `<span class="state-done">${this.l("Selesai", "Done")}</span>` : ""}
-              </li>`).join("")}
+            ${lvl.modules.map((m) => {
+              const isDone = this.completedModules.includes(m.id);
+              const lRead = (this.lessonsDone[m.id] || []).length;
+              const lTot = (m.lessons || []).length;
+              const hasPrf = Boolean(this.proofFor(m.id));
+              const statusHtml = isDone
+                ? `<span class="state-done">✓ ${this.l("Selesai", "Done")}</span>`
+                : (lRead > 0 || hasPrf)
+                  ? `<span class="micro-badge info">${lRead}/${lTot} 📖${hasPrf ? " · 🧪" : ""}</span>`
+                  : "";
+              return `
+                <li class="row between small" style="flex-wrap:nowrap">
+                  <a href="#/curriculum/${m.id}">${m.number} ${this.esc(this.t(m.title))}</a>
+                  ${statusHtml}
+                </li>`;
+            }).join("")}
           </ul>
           <div class="progress" style="margin-top:8px"><div style="width:${pct}%"></div></div>
           <button class="btn btn-sm" onclick="app.selectLevel('${lvl.levelId}')">${t.exploreModules}</button>
         </div>`;
     }).join("");
+
     return `
       <div class="stack">
         <div class="card stack-sm">
@@ -736,6 +1449,65 @@ class DataForgeApp {
             <button class="btn" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
           </div>
         </div>
+
+        <!-- Continue Learning & Active Learning Telemetry -->
+        <div class="card continue-banner stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue" style="margin-bottom:4px">🧭 ${this.l("Kompas Belajar Anda", "Your Learning Compass")}</span>
+              <h2>${this.l("Lanjutkan Langkah Terbaik Berikutnya", "Continue Where You Left Off")}</h2>
+              <p class="muted small" style="margin-top:2px">
+                <strong>${nextMod.number} ${this.esc(this.t(nextMod.title))}</strong> — ${this.esc(this.t(nextMod.summary))}
+              </p>
+            </div>
+            <div class="row">
+              <button class="btn btn-primary" onclick="app.go('curriculum','${nextMod.id}','${nextTab}')">
+                ${nextActionLabel} →
+              </button>
+            </div>
+          </div>
+          <div class="grid cols-4" style="margin-top:6px">
+            <div class="stat">
+              <div class="muted small">${this.l("Modul Tuntas", "Modules Done")}</div>
+              <div class="num">${this.completedModules.length}<span class="muted small" style="font-weight:400"> / ${totalMods}</span></div>
+            </div>
+            <div class="stat">
+              <div class="muted small">${this.l("Materi Dibaca", "Lessons Read")}</div>
+              <div class="num">${readLessonsCount}<span class="muted small" style="font-weight:400"> / ${totalLessons}</span></div>
+            </div>
+            <div class="stat">
+              <div class="muted small">${this.l("Bukti Lab & Try-It", "Lab Proofs & Try-Its")}</div>
+              <div class="num">${proofCount} 🧪 <span class="muted small" style="font-weight:400">· ${tryItCount} 🛠</span></div>
+            </div>
+            <div class="stat">
+              <div class="muted small">${this.l("Tantangan SQL Sandbox", "SQL Sandbox Solved")}</div>
+              <div class="num">${sqlSolved}<span class="muted small" style="font-weight:400"> / ${(window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.length) || 20}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Practice Hub: Silent Bug Clinic, Active Recall & Interactive Simulators -->
+        <div class="grid cols-3">
+          <div class="card stack-sm" style="border-top:3px solid var(--red)">
+            <div class="row between"><span class="chip">🐛 ${this.l("Klinik Debugging", "Production Debugging")}</span><span class="muted small">${Object.values(this.bugState || {}).filter((x) => x && x.solved).length} / ${(window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS.length) || 5} ${this.l("Selesai", "Solved")}</span></div>
+            <h3>${this.l("Temukan Bug Diam-Diam (Silent Bug Clinic)", "Spot the Silent Data Bug Clinic")}</h3>
+            <p class="muted small">${this.l("Di dunia nyata, bug paling berbahaya keluar dengan kode 0 tanpa error, tetapi diam-diam menggandakan pendapatan atau menghapus baris NULL.", "In production, the deadliest bugs exit with code 0 and zero errors while silently inflating revenue or dropping NULL rows.")}</p>
+            <button class="btn btn-sm" onclick="app.go('interview','silent-bugs')">${this.l("Buka Silent Bug Clinic →", "Open Silent Bug Clinic →")}</button>
+          </div>
+          <div class="card stack-sm" style="border-top:3px solid var(--blue)">
+            <div class="row between"><span class="chip chip-blue">🧠 ${this.l("Active Recall", "Spaced Repetition")}</span><span class="muted small">${Object.keys(this.recallState || {}).length} ${this.l("Diulas", "Reviewed")}</span></div>
+            <h3>${this.l("Dek Active Recall & Model Mental", "Active Recall & Mental-Model Deck")}</h3>
+            <p class="muted small">${this.l("Uji ingatan jangka panjang Anda atas seluruh Model Mental Inti dari setiap modul sebelum melihat kunci jawaban.", "Test your long-term retention across every module's Key Mental Models by retrieving the concept before flipping the card.")}</p>
+            <button class="btn btn-sm" onclick="app.go('interview','active-recall')">${this.l("Mulai Latihan Ingatan →", "Start Active Recall →")}</button>
+          </div>
+          <div class="card stack-sm" style="border-top:3px solid var(--green)">
+            <div class="row between"><span class="chip chip-green">⚡ ${this.l("Simulator Interaktif", "Live Simulators")}</span><span class="muted small">4 ${this.l("Model", "Models")}</span></div>
+            <h3>${this.l("Simulator Diagnostik Sistem Data", "Interactive System Diagnostic Simulators")}</h3>
+            <p class="muted small">${this.l("Eksperimen langsung dengan Join Fan-Out, Partition Pruning & Biaya Cloud, Streaming Watermark, serta Idempotensi Retry di dalam modul.", "Experiment live with Join Fan-Out, Partition Pruning & Cloud Cost, Streaming Watermarks, and Retry Idempotency inside the modules.")}</p>
+            <button class="btn btn-sm" onclick="app.go('curriculum','mod-1-2','concepts')">${this.l("Coba Simulator di Kurikulum →", "Try Simulators in Curriculum →")}</button>
+          </div>
+        </div>
+
         <div class="grid cols-4">${pillars}</div>
         <h2>${t.matrixTitle}</h2>
         <div class="grid cols-4">${levels}</div>
@@ -757,6 +1529,22 @@ class DataForgeApp {
     const tabLabels = { concepts: t.tabConcepts, lab: t.tabLab, chaos: t.tabChaos, quiz: t.tabQuiz };
 
     const activeLevels = CURRICULUM_DATA.filter((lvl) => lvl.modules.length);
+    const allMods = CURRICULUM_DATA.flatMap((l) => l.modules);
+    const modGlobalIdx = allMods.findIndex((m) => m.id === mod.id);
+    const prevMod = modGlobalIdx > 0 ? allMods[modGlobalIdx - 1] : null;
+    const nextMod = modGlobalIdx >= 0 && modGlobalIdx < allMods.length - 1 ? allMods[modGlobalIdx + 1] : null;
+
+    // 4-step pipeline stats for current module
+    const readCount = (this.lessonsDone[mod.id] || []).length;
+    const totalLessons = (mod.lessons || []).length;
+    const tryItStats = this.moduleTryItStats(mod);
+    const hasProof = Boolean(this.proofFor(mod.id));
+    const blPassed = Boolean((readStore("df_browser_labs", {}) || {})[mod.id]);
+    const isChaosDone = Boolean(this.chaosDone[mod.id] && this.chaosDone[mod.id].done);
+    const quizScore = this.quizScores[mod.id];
+    const quizNeed = Math.ceil((mod.quiz || []).length * 0.8);
+    const isQuizPassed = Boolean(quizScore && quizScore.best >= quizNeed);
+    const noteText = this.moduleNotes[mod.id] || "";
 
     return `
       <div class="split">
@@ -773,23 +1561,40 @@ class DataForgeApp {
             }).join("")}
           </div>
           <div class="muted small" style="padding:4px 2px">${this.esc(this.t(level.levelTitle))}</div>
-          ${level.modules.map((m) => `
-            <button class="item ${m.id === mod.id ? "active" : ""}" onclick="app.go('curriculum','${m.id}')">
-              <div class="module-row">
-                <div>
-                  <div class="item-title"><span class="module-num">${m.number}</span>${this.esc(this.t(m.title))}</div>
-                  <div class="item-meta">${this.esc(this.t(m.duration))}</div>
+          ${level.modules.map((m) => {
+            const mDone = this.completedModules.includes(m.id);
+            const mRead = (this.lessonsDone[m.id] || []).length;
+            const mTot = (m.lessons || []).length;
+            const mPrf = Boolean(this.proofFor(m.id));
+            const mQz = this.quizScores[m.id];
+            const mNote = Boolean(this.moduleNotes[m.id]);
+            return `
+              <button class="item ${m.id === mod.id ? "active" : ""}" onclick="app.go('curriculum','${m.id}')">
+                <div class="module-row">
+                  <div>
+                    <div class="item-title"><span class="module-num">${m.number}</span>${this.esc(this.t(m.title))}</div>
+                    <div class="item-meta">${this.esc(this.t(m.duration))} · ~${this.readingMinutes(m)}m</div>
+                    <div class="micro-badges">
+                      <span class="micro-badge ${mRead === mTot && mTot > 0 ? "ok" : ""}" title="${this.l("Materi dibaca", "Lessons read")}">📖 ${mRead}/${mTot}</span>
+                      ${mPrf ? `<span class="micro-badge ok" title="${this.l("Bukti lab terverifikasi", "Lab proof verified")}">🧪 ${this.l("Bukti", "Proof")}</span>` : ""}
+                      ${mQz ? `<span class="micro-badge ${mQz.best >= Math.ceil(m.quiz.length * 0.8) ? "ok" : "info"}" title="${this.l("Skor kuis terbaik", "Best quiz score")}">🎯 ${mQz.best}/${mQz.total}</span>` : ""}
+                      ${mNote ? `<span class="micro-badge info" title="${this.l("Ada catatan pribadi", "Has study notes")}">📝</span>` : ""}
+                    </div>
+                  </div>
+                  ${mDone ? `<span class="state-done">✓ ${this.l("Selesai", "Done")}</span>` : ""}
                 </div>
-                ${this.completedModules.includes(m.id) ? `<span class="state-done">${this.l("Selesai", "Done")}</span>` : ""}
-              </div>
-            </button>`).join("")}
+              </button>`;
+          }).join("")}
         </aside>
 
         <section class="stack">
           <div class="card stack-sm">
             <div class="row between">
               <span class="muted small">${this.esc(this.t(level.badge))} · ${this.esc(this.t(mod.duration))} · ~${this.readingMinutes(mod)} ${this.l("menit baca", "min read")}</span>
-              ${this.proofFor(mod.id) ? `<span class="state-done" title="${this.l("Bukti lab terverifikasi", "Lab proof verified")}">✓ ${this.l("Bukti lab", "Lab proof")}</span>` : ""}<button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
+              <div class="row">
+                ${hasProof ? `<span class="state-done" title="${this.l("Bukti lab terverifikasi", "Lab proof verified")}">✓ ${this.l("Bukti lab", "Lab proof")}</span>` : ""}
+                <button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
+              </div>
             </div>
             <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
             <p class="muted">${this.esc(this.t(mod.summary))}</p>
@@ -798,10 +1603,58 @@ class DataForgeApp {
               <div class="label">${t.whyTutorialsLieHeader}</div>
               <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
             </div>
+
+            <!-- 4-Step Module Mastery Pipeline -->
+            <div class="mastery-pipeline" aria-label="${this.l("Alur Penguasaan 4 Langkah", "4-Step Mastery Pipeline")}">
+              <button class="pipeline-step ${this.activeModuleTab === "concepts" ? "active" : ""} ${readCount === totalLessons && totalLessons > 0 ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','concepts')">
+                <div class="step-top">
+                  <span>1. ${this.l("Materi & Praktik", "Lessons & Try-It")}</span>
+                  <span class="step-status">${readCount === totalLessons && totalLessons > 0 ? "✓" : `${readCount}/${totalLessons}`}</span>
+                </div>
+                <div class="step-sub">${this.l(`${readCount} dari ${totalLessons} materi dibaca`, `${readCount} of ${totalLessons} lessons read`)}${tryItStats.total ? ` · ${tryItStats.done}/${tryItStats.total} 🛠` : ""}</div>
+              </button>
+              <button class="pipeline-step ${this.activeModuleTab === "lab" ? "active" : ""} ${hasProof ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','lab')">
+                <div class="step-top">
+                  <span>2. ${this.l("Lab & Bukti", "Build Lab & Prove")}</span>
+                  <span class="step-status">${hasProof ? "✓" : blPassed ? "⚡" : "○"}</span>
+                </div>
+                <div class="step-sub">${hasProof ? this.l("Bukti lokal terverifikasi", "Local proof verified") : blPassed ? this.l("Pratinjau lulus · perlu bukti", "Preview passed · need proof") : this.l("Tulis kode & jalankan pytest", "Write code & run pytest")}</div>
+              </button>
+              <button class="pipeline-step ${this.activeModuleTab === "chaos" ? "active" : ""} ${isChaosDone ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','chaos')">
+                <div class="step-top">
+                  <span>3. ${this.l("Insiden Chaos", "Chaos Incident")}</span>
+                  <span class="step-status">${isChaosDone ? "✓" : "○"}</span>
+                </div>
+                <div class="step-sub">${isChaosDone ? this.l("Akar masalah dianalisis", "Root cause analyzed") : this.l("Bedah kegagalan produksi", "Debug production failure")}</div>
+              </button>
+              <button class="pipeline-step ${this.activeModuleTab === "quiz" ? "active" : ""} ${isQuizPassed ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','quiz')">
+                <div class="step-top">
+                  <span>4. ${this.l("Kuis Verifikasi", "Verification Quiz")}</span>
+                  <span class="step-status">${isQuizPassed ? "✓" : quizScore ? `${quizScore.best}/${quizScore.total}` : "○"}</span>
+                </div>
+                <div class="step-sub">${quizScore ? this.l(`Skor terbaik: ${quizScore.best}/${quizScore.total} (butuh ${quizNeed})`, `Best: ${quizScore.best}/${quizScore.total} (need ${quizNeed})`) : this.l(`Jawab ≥${quizNeed}/${mod.quiz.length} benar`, `Pass with ≥${quizNeed}/${mod.quiz.length}`)}</div>
+              </button>
+            </div>
+
+            <!-- Personal Study Notes Drawer -->
+            <details class="notes-drawer" ${noteText ? "" : ""}>
+              <summary>
+                <span>📝 ${this.l("Catatan Belajar & Ringkasan Pribadi (Tersimpan Otomatis)", "Personal Study Notes & Key Takeaways (Auto-Saved)")}</span>
+                <span class="muted small">${noteText ? `✓ ${this.l("Ada catatan", "Saved")}` : this.l("Klik untuk menulis catatan", "Click to add notes")}</span>
+              </summary>
+              <textarea class="notes-textarea" placeholder="${this.l("Tulis model mental, perintah terminal penting, atau pertanyaan Anda untuk modul ini… (ikut terekspor saat Anda klik Ekspor Progres)", "Write down your mental models, key commands, or questions for this module… (included when you Export Progress)")}" oninput="app.saveModuleNote('${mod.id}', this.value)">${this.esc(noteText)}</textarea>
+            </details>
+
             <div class="tabs" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
               ${MODULE_TABS.map((k) => `<button role="tab" id="tab-${k}" aria-selected="${this.activeModuleTab === k}" aria-controls="tabpanel" class="${this.activeModuleTab === k ? "active" : ""}" onclick="app.go('curriculum','${mod.id}','${k}')">${tabLabels[k]}</button>`).join("")}
             </div>
             <div class="stack" id="tabpanel" role="tabpanel" aria-labelledby="tab-${this.activeModuleTab}" style="padding-top:8px">${this.renderModuleTabContent(mod, t)}</div>
+
+            <!-- Module-to-Module Footer Navigation -->
+            <div class="row between" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+              ${prevMod ? `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${prevMod.id}')">← ${prevMod.number} ${this.esc(this.t(prevMod.title))}</button>` : "<span></span>"}
+              ${nextMod ? `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${nextMod.id}')">${nextMod.number} ${this.esc(this.t(nextMod.title))} →</button>` : ""}
+            </div>
           </div>
         </section>
       </div>`;
@@ -826,6 +1679,14 @@ class DataForgeApp {
     const plainTab = (k) => this.tr(k).replace(/^\d\.\s*/, "");
 
     if (this.activeModuleTab === "concepts") {
+      const readCount = (this.lessonsDone[mod.id] || []).length;
+      const totalLessons = mod.lessons.length;
+      const pctRead = totalLessons ? Math.round((readCount / totalLessons) * 100) : 0;
+      const hasUnread = readCount < totalLessons;
+      const visibleLessons = mod.lessons
+        .map((ls, i) => ({ ls, i }))
+        .filter(({ i }) => this.lessonFilter !== "unread" || !this.isLessonDone(mod.id, i));
+
       return `
         <div class="callout">
           <div class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</div>
@@ -833,41 +1694,132 @@ class DataForgeApp {
           ${mod.prerequisites && this.t(mod.prerequisites) ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(this.t(mod.prerequisites))}</p>` : ""}
           <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
         </div>
-        <div class="well">
-          <div class="label">${this.l("Isi materi", "In this module")}</div>
-          <ol class="toc">${mod.lessons.map((ls, i) => `<li><a href="javascript:void(0)" onclick="app.scrollToLesson(${i})">${this.esc(this.t(ls.title))}</a></li>`).join("")}</ol>
+
+        ${this.renderModuleSimulator(mod.id)}
+
+        <div class="well stack-sm" id="module-toc">
+          <div class="row between">
+            <div>
+              <div class="label">${this.l("Peta Materi & Progres Baca", "Lesson Map & Reading Progress")} (${readCount}/${totalLessons})</div>
+              <p class="small muted">${this.l("Centang setiap materi setelah Anda membaca dan mencoba latihan praktiknya.", "Check off each lesson after reading and completing its hands-on exercise.")}</p>
+            </div>
+            <div class="row">
+              ${hasUnread ? `<button class="btn btn-sm btn-primary" onclick="app.jumpNextUnreadLesson('${mod.id}')">${this.l("Lompat ke Materi Berikutnya", "Next Unread Lesson")} ↓</button>` : ""}
+              <div class="segmented">
+                <button class="${this.lessonFilter === "all" ? "active" : ""}" onclick="app.setLessonFilter('all')">${this.l("Semua", "All")} (${totalLessons})</button>
+                <button class="${this.lessonFilter === "unread" ? "active" : ""}" onclick="app.setLessonFilter('unread')">${this.l("Belum Dibaca", "Unread")} (${totalLessons - readCount})</button>
+              </div>
+            </div>
+          </div>
+          <div class="progress" style="height:6px"><div style="width:${pctRead}%;background:${pctRead === 100 ? "var(--green)" : "var(--blue)"}"></div></div>
+          <div class="toc-grid">
+            ${mod.lessons.map((ls, i) => {
+              const isRead = this.isLessonDone(mod.id, i);
+              const bodyTxt = this.lessonBody(ls);
+              const hasTryIt = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/m.test(bodyTxt);
+              const hasPause = /^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))/m.test(bodyTxt);
+              return `
+                <div class="toc-item ${isRead ? "is-read" : ""}">
+                  <button class="toc-check ${isRead ? "checked" : ""}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)" title="${isRead ? this.l("Batal tandai selesai", "Mark unread") : this.l("Tandai sudah dipahami", "Mark as understood")}" aria-label="${this.l("Tandai selesai", "Toggle lesson completion")}">✓</button>
+                  <button class="toc-link" onclick="app.scrollToLesson(${i})"><strong>${i + 1}.</strong> ${this.esc(this.t(ls.title))}</button>
+                  <div class="toc-meta">
+                    ${hasTryIt ? `<span class="micro-badge ok" title="${this.l("Memiliki latihan praktik Try It", "Includes hands-on Try It exercise")}">🛠 Try It</span>` : ""}
+                    ${hasPause ? `<span class="micro-badge info" title="${this.l("Memiliki Jeda Praktik Lab", "Includes Lab Practice Pause")}">💡 Lab</span>` : ""}
+                    <span>~${this.lessonMinutes(ls)}m</span>
+                  </div>
+                </div>`;
+            }).join("")}
+          </div>
         </div>
-        ${mod.lessons.map((ls, i) => `
-          <section class="lesson" id="lesson-${i}">
-            <h2 class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="number-dot" style="margin-top:2px">${i + 1}</span><span>${this.esc(this.t(ls.title))}</span></h2>
-            ${this.md(ls.body)}
-          </section>`).join("")}
+
+        ${visibleLessons.length === 0 ? `
+          <div class="callout success">
+            <strong>🎉 ${this.l("Semua materi di modul ini sudah Anda baca!", "You have read all lessons in this module!")}</strong>
+            <p class="small" style="margin-top:4px">${this.l("Klik \"Semua\" di atas untuk meninjau ulang materi, atau lanjutkan ke Tab Lab untuk menguji kode Anda.", "Click \"All\" above to review the lessons, or proceed to the Lab Tab to test your code.")}</p>
+          </div>` : ""}
+
+        ${visibleLessons.map(({ ls, i }) => {
+          const isRead = this.isLessonDone(mod.id, i);
+          const mins = this.lessonMinutes(ls);
+          const isLast = i === mod.lessons.length - 1;
+          return `
+            <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
+              <div class="lesson-head">
+                <h2 class="row" style="flex-wrap:nowrap;align-items:flex-start;margin:0">
+                  <span class="number-dot" style="margin-top:2px">${i + 1}</span>
+                  <span>${this.esc(this.t(ls.title))}</span>
+                </h2>
+                <div class="row" style="flex-shrink:0">
+                  <span class="muted small">~${mins} ${this.l("mnt baca", "min read")}</span>
+                  <button class="btn btn-sm ${isRead ? "btn-done" : "btn-quiet"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)">
+                    ${isRead ? "✓ " + this.l("Dipahami", "Understood") : "○ " + this.l("Tandai Paham", "Mark Read")}
+                  </button>
+                </div>
+              </div>
+              ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
+              <div class="lesson-foot">
+                <button class="btn btn-sm ${isRead ? "btn-done" : "btn-primary"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, ${!isRead && !isLast})">
+                  ${isRead ? "✓ " + this.l("Materi #" + (i + 1) + " Selesai Dibaca", "Lesson #" + (i + 1) + " Completed") : "✓ " + this.l("Selesai Baca" + (!isLast ? " & Lanjut Materi #" + (i + 2) + " ↓" : ""), "Complete Lesson" + (!isLast ? " & Next #" + (i + 2) + " ↓" : ""))}
+                </button>
+                <div class="row">
+                  <button class="btn btn-sm btn-quiet" onclick="document.getElementById('module-toc')?.scrollIntoView({behavior:'smooth'})">↑ ${this.l("Daftar Isi", "Top / TOC")}</button>
+                  ${isLast ? `<button class="btn btn-sm btn-primary" onclick="app.go('curriculum','${mod.id}','lab')">${this.l("Lanjut ke Lab", "Continue to Lab")} →</button>` : ""}
+                </div>
+              </div>
+            </section>`;
+        }).join("")}
         ${mod.resources && mod.resources.length ? `<div class="well"><div class="label">${this.l("Bacaan lanjutan (dokumentasi resmi)", "Further reading (official docs)")}</div><ul style="margin-left:18px">${mod.resources.map((r) => `<li><a href="${this.esc(r.url)}" target="_blank" rel="noopener">${this.esc(this.t(r.label))}</a></li>`).join("")}</ul></div>` : ""}
         ${nav(null, ["lab", plainTab("tabLab")])}`;
     }
     if (this.activeModuleTab === "lab") {
       const lab = mod.lab;
       const hasSandbox = window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.some((c) => c.module === mod.id);
+      const hasProofSpec = Boolean(window.PROOF && window.PROOF[mod.id]);
+      const labProven = Boolean(this.proofFor(mod.id)) || !hasProofSpec;
       const kindLabel = { starter: this.l("Titik awal", "Starter"), reference: this.l("Solusi referensi", "Reference solution"), test: this.l("Tes", "Tests"), data: this.l("Data", "Data"), config: this.l("Konfigurasi", "Config") };
       return `
         <div>
           <h2>${this.esc(this.t(lab.title))}</h2>
-          ${this.md(lab.description)}
+          ${this.md(lab.description, { modId: mod.id })}
         </div>
         ${hasSandbox ? `<div class="callout success"><p>${this.l("Sebagian lab ini bisa dikerjakan langsung di browser dengan pengecekan otomatis:", "Part of this lab can be done in your browser with automatic checking:")} <a href="#/playground">${this.l("buka SQL Sandbox", "open the SQL Sandbox")} →</a></p></div>` : ""}
-        <div class="callout"><p><strong>${this.l("Kerjakan sendiri.", "Do it yourself.")}</strong> ${this.l("Tulis kodenya sendiri; jangan menyalin solusi referensi atau meminta AI menulisnya. Kebingungan yang Anda rasakan sekarang adalah belajar yang sesungguhnya. Bertanyalah untuk memahami, setelah Anda mencoba.", "Write the code yourself; do not copy the reference solution or ask an AI to write it. The confusion you feel now is the real learning. Ask questions to understand, after you have tried.")}</p></div>
+        <div class="callout"><p><strong>⚖️ ${this.l("Hukum Pertama DataForge — Kerjakan di Mesin Anda Sendiri:", "The First Law of DataForge — Build It on Your Own Machine:")}</strong> ${this.l("Tulis kodenya di sistem lokal Anda dan jalankan tesnya di terminal. Solusi referensi dikunci secara otomatis sampai Anda memverifikasi token PROOF1 dari terminal Anda sendiri.", "Write the code on your local system and run the tests in your terminal. Reference solutions are locked until you verify the PROOF1 token generated by your own terminal.")}</p></div>
         ${this.browserLabCard(mod.id)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
-        ${this.md(lab.steps)}
+        ${this.md(lab.steps, { modId: mod.id })}
         ${lab.files.length ? `<h3>${this.l("File lab", "Lab files")}</h3>
-          <p class="muted small">${this.l("Semua file ada di folder repositori yang tertera. Yang di bawah ini persis file yang diuji.", "All files live in the repository folder shown. What you see below is exactly the code that was tested.")}</p>
-          ${lab.files.map((f) => `
+          <p class="muted small">${this.l("File starter dan test dapat langsung Anda pelajari. File solusi referensi baru terbuka setelah Anda memverifikasi bukti lab lokal di bawah.", "Starter and test files are open for inspection. Reference solution files unlock only after you verify your local lab proof below.")}</p>
+          ${lab.files.map((f) => {
+            if (f.kind === "reference" && !labProven) {
+              return `
+                <div class="file locked-solution-card">
+                  <div class="row between">
+                    <div><code>${this.esc(f.path)}</code> <span class="chip">🔒 ${kindLabel[f.kind]} (${this.l("Terkunci", "Locked")})</span> <span class="muted small">${this.esc(this.t(f.label))}</span></div>
+                  </div>
+                  <p class="small muted" style="margin-top:8px">
+                    ${this.l(
+                      "Solusi referensi dikunci agar Anda tidak terjebak tutorial hell. Kerjakan file starter di komputer Anda sendiri, jalankan perintah verifikasi di bawah, dan tempel token PROOF1 untuk membuka solusi pembanding.",
+                      "The reference solution is locked so you never fall into tutorial hell. Complete the starter file on your own machine, run the verification command below, and paste your PROOF1 token to unlock the reference comparison."
+                    )}
+                  </p>
+                  <details style="margin-top:8px">
+                    <summary class="small" style="cursor:pointer;font-weight:600;color:var(--accent)">🧭 ${this.l("Buntu? Buka Panduan Debugging Lokal (Tanpa Bocoran Kode)", "Stuck? Open Local Debugging Guide (No Code Spoilers)")}</summary>
+                    <ol class="small muted" style="margin:6px 0 0 18px">
+                      <li>${this.l("Buka file", "Open the")} <code>test</code> ${this.l("di atas dan baca setiap baris", "file above and read each")} <code>assert</code> — ${this.l("tes memberi tahu kontrak input/output secara eksak.", "the test suite states the exact input/output contract.")}</li>
+                      <li>${this.l("Jalankan skrip dengan sampel data kecil di terminal Anda dan cetak tipe datanya", "Run your script on a 2-row sample in your terminal and print intermediate values")} (<code>print(type(x), repr(x))</code>).</li>
+                      <li>${this.l("Periksa kondisi batas: nilai", "Check hostile edge cases:")} <code>None</code>/<code>NULL</code>, ${this.l("string kosong, spasi berlebih, duplikat, dan pembagian dengan nol.", "empty strings, whitespace, duplicate keys, and division by zero.")}</li>
+                    </ol>
+                  </details>
+                </div>`;
+            }
+            return `
             <details class="file" ${f.kind === "starter" || f.kind === "test" ? "open" : ""}>
-              <summary><code>${this.esc(f.path)}</code> <span class="chip ${f.kind === "reference" ? "" : "chip-blue"}">${kindLabel[f.kind]}</span> <span class="muted small">${this.esc(this.t(f.label))}</span></summary>
-              ${f.kind === "reference" ? `<p class="small muted" style="margin:8px 0 0">${this.l("Coba kerjakan sendiri dulu. Buka ini untuk membandingkan.", "Try it yourself first. Open this to compare.")}</p>` : ""}
+              <summary><code>${this.esc(f.path)}</code> <span class="chip ${f.kind === "reference" ? "chip-green" : "chip-blue"}">${f.kind === "reference" ? "🔓 " : ""}${kindLabel[f.kind]}</span> <span class="muted small">${this.esc(this.t(f.label))}</span></summary>
+              ${f.kind === "reference" ? `<p class="small muted" style="margin:8px 0 0">${this.l("Bukti lab lokal terverifikasi! Bandingkan pendekatan Anda dengan solusi referensi di bawah ini.", "Local lab proof verified! Compare your implementation with the reference solution below.")}</p>` : ""}
               <pre><code>${this.esc(f.code)}</code></pre>
-            </details>`).join("")}` : ""}
-        ${lab.verify && this.t(lab.verify) ? `<h3>${this.l("Cara memeriksa hasil", "How to check your work")}</h3>${this.md(lab.verify)}` : ""}
+            </details>`;
+          }).join("")}` : ""}
+        ${lab.verify && this.t(lab.verify) ? `<h3>${this.l("Cara memeriksa hasil", "How to check your work")}</h3>${this.md(lab.verify, { modId: mod.id })}` : ""}
         ${this.proofCard(mod.id)}
         <div class="callout">
           <div class="label">${this.l("Selesai bila", "Done when")}</div>
@@ -877,17 +1829,59 @@ class DataForgeApp {
     }
     if (this.activeModuleTab === "chaos") {
       const c = mod.chaosLab;
+      const cState = this.chaosDone[mod.id] || {};
+      const noteLen = (cState.notes || "").trim().length;
+      const canRevealChaos = Boolean(cState.done || noteLen >= 50);
       return `
-        <h2>${this.esc(this.t(c.title))}</h2>
-        <p class="muted">${this.l("Ini kegagalan yang benar-benar terjadi di produksi. Baca skenarionya, coba tebak penyebabnya sebelum membuka jawaban.", "This is a failure that really happens in production. Read the scenario and guess the cause before opening the answer.")}</p>
-        <div class="callout danger"><div class="label">${this.l("Skenario kerusakan di produksi", "The production breakage")}</div>${this.md(c.scenario)}</div>
-        <details class="file"><summary><strong>${this.l("Tampilkan akar masalah dan perbaikannya", "Show root cause and fix")}</strong></summary>
-          <div class="stack-sm" style="margin-top:12px">
-            <div class="well"><div class="label">${this.l("Akar masalah", "Root cause")}</div>${this.md(c.breakageReason)}</div>
-            <div class="well"><div class="label">${this.l("Cara memperbaiki", "How to fix it")}</div>${this.md(c.fixGuide)}</div>
-            <div class="callout success"><div class="label">${this.l("Pola defensif", "Defensive pattern")}</div>${this.md(c.defensivePattern)}</div>
+        <div class="row between">
+          <div>
+            <h2>${this.esc(this.t(c.title))}</h2>
+            <p class="muted">${this.l("Ini kegagalan yang benar-benar terjadi di produksi. Baca skenarionya, tulis hipotesis triage Anda (min. 50 karakter), baru analisis akar masalah akan terbuka.", "This is a failure that really happens in production. Read the scenario, write your triage hypothesis (min. 50 chars), and unlock the root cause analysis.")}</p>
           </div>
-        </details>
+          <button class="btn btn-sm ${cState.done ? "btn-done" : "btn-quiet"}" onclick="app.toggleChaosDone('${mod.id}')">
+            ${cState.done ? "✓ " + this.l("Insiden Dianalisis", "Incident Analyzed") : "○ " + this.l("Tandai Sudah Dianalisis", "Mark Analyzed")}
+          </button>
+        </div>
+        <div class="callout danger"><div class="label">${this.l("Skenario kerusakan di produksi", "The production breakage")}</div>${this.md(c.scenario, { modId: mod.id })}</div>
+
+        <!-- Step 1: Learner Hypothesis Scratchpad -->
+        <div class="well stack-sm">
+          <div class="row between">
+            <div class="label">🔍 ${this.l("Langkah 1: Hipotesis Triage Anda (Wajib Sebelum Membuka Kunci Jawaban)", "Step 1: Your Incident Triage Hypothesis (Required Before Unlocking Answer)")}</div>
+            <span class="chip ${canRevealChaos ? "chip-green" : ""}">${noteLen}/50 ${this.l("karakter", "chars")}</span>
+          </div>
+          <p class="small muted">${this.l("Latih insting on-call engineer Anda dengan menjawab singkat 3 pertanyaan ini:", "Train your on-call engineering instinct by briefly answering these 3 questions:")}</p>
+          <ol class="small muted" style="margin-left:18px">
+            <li>${this.l("Apa penyebab teknis di balik gejala di atas (mengapa sistem tidak langsung gagal dengan jelas)?", "What is the underlying root cause behind the symptoms above?")}</li>
+            <li>${this.l("Langkah mitigasi apa yang pertama kali Anda jalankan untuk menghentikan dampak produksi?", "What immediate mitigation step would you run to stop the bleeding?")}</li>
+            <li>${this.l("Guardrail / pola defensif apa yang mencegah insiden ini terulang kembali?", "What defensive guardrail prevents this incident from ever happening again?")}</li>
+          </ol>
+          <textarea class="notes-textarea" placeholder="${this.l("Tulis hipotesis diagnosis dan langkah perbaikan Anda di sini (minimal 50 karakter untuk membuka Langkah 2)…", "Write your diagnostic hypothesis and remediation steps here (at least 50 characters to unlock Step 2)…")}" oninput="app.saveChaosNote('${mod.id}', this.value)">${this.esc(cState.notes || "")}</textarea>
+          <div class="row between">
+            <span class="small muted">${canRevealChaos ? "🔓 " + this.l("Analisis akar masalah sudah terbuka di bawah.", "Root cause analysis is unlocked below.") : "🔒 " + this.l(`Tulis ${Math.max(0, 50 - noteLen)} karakter lagi lalu klik tombol di kanan.`, `Write ${Math.max(0, 50 - noteLen)} more characters, then click the button on the right.`)}</span>
+            <button class="btn btn-sm ${canRevealChaos ? "btn-done" : "btn-primary"}" onclick="app.unlockChaosAnalysis('${mod.id}')">
+              ${canRevealChaos ? "✓ " + this.l("Analisis Terbuka", "Analysis Unlocked") : "🔓 " + this.l("Buka Analisis Akar Masalah", "Unlock Root Cause Analysis")}
+            </button>
+          </div>
+        </div>
+
+        ${canRevealChaos ? `
+          <details class="file" open><summary><strong>🔓 ${this.l("Langkah 2: Akar Masalah, Perbaikan & Pola Defensif", "Step 2: Root Cause, Fix & Defensive Pattern")}</strong></summary>
+            <div class="stack-sm" style="margin-top:12px">
+              <div class="well"><div class="label">${this.l("Akar masalah", "Root cause")}</div>${this.md(c.breakageReason, { modId: mod.id })}</div>
+              <div class="well"><div class="label">${this.l("Cara memperbaiki", "How to fix it")}</div>${this.md(c.fixGuide, { modId: mod.id })}</div>
+              <div class="callout success"><div class="label">${this.l("Pola defensif", "Defensive pattern")}</div>${this.md(c.defensivePattern, { modId: mod.id })}</div>
+              <div class="row" style="justify-content:flex-end;margin-top:6px">
+                <button class="btn btn-sm ${cState.done ? "btn-done" : "btn-primary"}" onclick="app.toggleChaosDone('${mod.id}')">
+                  ${cState.done ? "✓ " + this.l("Sudah Ditandai Paham", "Marked as Analyzed") : "✓ " + this.l("Saya Paham Pola Defensif Ini", "I Understand This Defensive Pattern")}
+                </button>
+              </div>
+            </div>
+          </details>` : `
+          <div class="file locked-solution-card">
+            <strong>🔒 ${this.l("Langkah 2 Terkunci: Tulis Hipotesis Anda Terlebih Dahulu", "Step 2 Locked: Write Your Triage Hypothesis First")}</strong>
+            <p class="small muted" style="margin-top:4px">${this.l("Di dunia kerja nyata, tidak ada kunci jawaban saat pager berbunyi jam 2 pagi. Tulis diagnosis Anda minimal 50 karakter di atas lalu klik 'Buka Analisis Akar Masalah'.", "In real life, there is no answer key when the pager fires at 2 AM. Write at least 50 characters of your own diagnosis above, then click 'Unlock Root Cause Analysis'.")}</p>
+          </div>`}
         ${nav(["lab", plainTab("tabLab")], ["quiz", plainTab("tabQuiz")])}`;
     }
     // quiz
@@ -926,8 +1920,29 @@ class DataForgeApp {
   }
 
   toggleModuleCompletion(modId) {
-    if (!this.completedModules.includes(modId) && window.PROOF && window.PROOF[modId] && !this.proofFor(modId)) {
-      if (!window.confirm(this.l("Belum ada bukti lab untuk modul ini. Tandai selesai hanya jika Anda benar-benar mengerjakan lab di komputer Anda sendiri. Tetap tandai selesai?", "There is no lab proof for this module yet. Only mark it complete if you really did the lab on your own computer. Mark it complete anyway?"))) return;
+    if (!this.completedModules.includes(modId)) {
+      const needsProof = Boolean(window.PROOF && window.PROOF[modId]) && !this.proofFor(modId);
+      if (needsProof) {
+        alert(this.l(
+          "Hukum Pertama DataForge: Modul tidak dapat ditandai selesai tanpa bukti eksekusi lokal (PROOF1). Silakan jalankan lab di komputer Anda sendiri dan masukkan token bukti di tab Lab.",
+          "First Law of DataForge: A module cannot be marked complete without verified local execution proof (PROOF1). Run the lab on your own machine and paste the proof token in the Lab tab."
+        ));
+        this.go("curriculum", modId, "lab");
+        setTimeout(() => document.getElementById("proof-card")?.scrollIntoView({ behavior: "smooth" }), 80);
+        return;
+      }
+      const level = CURRICULUM_DATA.find((l) => l.modules.some((m) => m.id === modId));
+      const mod = level ? level.modules.find((m) => m.id === modId) : null;
+      const need = mod ? Math.ceil(mod.quiz.length * 0.8) : 1;
+      const qBest = this.quizScores[modId]?.best || 0;
+      if (qBest < need) {
+        alert(this.l(
+          `Selesaikan Kuis dengan skor minimal ${need}/${mod ? mod.quiz.length : need} (80%) terlebih dahulu untuk membuktikan pemahaman konsep Anda.`,
+          `Pass the Quiz with at least ${need}/${mod ? mod.quiz.length : need} (80%) first to verify your conceptual mastery.`
+        ));
+        this.go("curriculum", modId, "quiz");
+        return;
+      }
     }
     this.completedModules = this.completedModules.includes(modId)
       ? this.completedModules.filter((id) => id !== modId)
@@ -935,6 +1950,12 @@ class DataForgeApp {
     writeStore("df_completed_modules", this.completedModules);
     this.renderHeaderStats();
     this.renderView();
+  }
+
+  reviewLessonFromQuiz(modId, lessonIdx) {
+    this.lessonFilter = "all";
+    this.go("curriculum", modId, "concepts");
+    setTimeout(() => this.scrollToLesson(lessonIdx), 80);
   }
 
   submitQuiz(modId) {
@@ -948,10 +1969,15 @@ class DataForgeApp {
       box.classList.remove("hidden");
       const ok = picked && parseInt(picked.value, 10) === q.correct;
       if (ok) correct++;
+      const lessonIdx = this.findBestLessonForQuestion(mod, q);
+      const lessonTitle = mod.lessons[lessonIdx] ? this.esc(this.t(mod.lessons[lessonIdx].title)) : "";
+      const reviewBtn = mod.lessons[lessonIdx]
+        ? `<div style="margin-top:6px"><button class="btn btn-sm btn-quiet" onclick="app.reviewLessonFromQuiz('${modId}', ${lessonIdx})">📖 ${this.l(`Pelajari di Materi #${lessonIdx + 1}: ${lessonTitle}`, `Review in Lesson #${lessonIdx + 1}: ${lessonTitle}`)}</button></div>`
+        : "";
       box.className = "feedback " + (ok ? "ok" : "bad");
       box.innerHTML = ok
-        ? `<strong>${this.l("Benar.", "Correct.")}</strong> ${this.inline(this.t(q.explanation))}`
-        : `<strong>${picked ? this.l("Belum tepat.", "Not quite.") : this.l("Belum dijawab.", "Not answered.")}</strong> ${this.l("Jawaban yang benar", "Correct answer")}: ${this.inline(this.t(q.options[q.correct]))}<br>${this.inline(this.t(q.explanation))}`;
+        ? `<strong>${this.l("Benar.", "Correct.")}</strong> ${this.inline(this.t(q.explanation))}${reviewBtn}`
+        : `<strong>${picked ? this.l("Belum tepat.", "Not quite.") : this.l("Belum dijawab.", "Not answered.")}</strong> ${this.l("Jawaban yang benar", "Correct answer")}: ${this.inline(this.t(q.options[q.correct]))}<br>${this.inline(this.t(q.explanation))}${reviewBtn}`;
     });
     const prev = this.quizScores[modId];
     this.quizScores[modId] = { best: Math.max(correct, prev ? prev.best : 0), total: mod.quiz.length };
@@ -969,10 +1995,16 @@ class DataForgeApp {
     if (summary) summary.innerHTML = `<div class="callout ${all ? "success" : ""}"><strong>${correct}/${mod.quiz.length}</strong> ${all ? (needsProof ? this.l("Kuis lulus. Modul ini baru ditandai selesai setelah Anda memasukkan bukti lab (tab Lab, bagian Bukti): kerjakan lab di komputer Anda sendiri.", "Quiz passed. This module is marked complete only after you enter the lab proof (Lab tab, Proof section): do the lab on your own computer.") : this.l("Modul ditandai selesai.", "Module marked complete.")) : this.l(`Anda butuh minimal ${need}. Baca ulang materinya, lalu coba lagi.`, `You need at least ${need}. Re-read the lessons and try again.`)}</div>`;
   }
 
-  // ================= INTERVIEW =================
+  // ================= INTERVIEW & PRACTICE ARENA =================
   renderInterviewView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
-    const tabs = { "system-design": t.tabSystemDesign, "sql-arena": t.tabSqlArena, "incidents": t.tabIncidents };
+    const tabs = {
+      "system-design": t.tabSystemDesign,
+      "sql-arena": t.tabSqlArena,
+      "incidents": t.tabIncidents,
+      "silent-bugs": "4. 🐛 " + this.l("Silent Bug Clinic", "Silent Bug Clinic"),
+      "active-recall": "5. 🧠 " + this.l("Active Recall", "Active Recall")
+    };
     return `
       <div class="stack">
         <div class="card row between">
@@ -993,6 +2025,119 @@ class DataForgeApp {
           <button class="item ${it.id === activeId ? "active" : ""}" onclick="app.${handler}('${it.id}')">${body(it)}</button>`).join("")}
       </aside>`;
 
+    if (this.activeInterviewTab === "silent-bugs") {
+      const drills = (window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS) || [];
+      const d = drills.find((x) => x.id === this.activeBugId) || drills[0];
+      const st = this.bugState[d.id] || {};
+      const selLine = st.selectedLine;
+      const lineOk = selLine === d.buggyLineIndex;
+      return `
+        <div class="split">
+          ${list(this.l("Kasus Bug Diam-Diam", "Silent Bug Cases"), drills, d.id, "setActiveBug", (x) => {
+            const solved = Boolean((this.bugState[x.id] || {}).solved);
+            return `
+              <div class="item-title">${solved ? `<span style="color:var(--green);font-weight:700;margin-right:4px">✓</span>` : "🐛 "}${this.esc(this.t(x.title))}</div>
+              <div class="item-meta">${this.esc(x.category)} · ${this.esc(x.difficulty)}</div>`;
+          })}
+          <section class="stack">
+            <div class="card stack-sm">
+              <div class="row between">
+                <span class="chip">${this.esc(d.category)}</span>
+                <a class="small" href="#/curriculum/${d.relatedModule}">📖 ${this.l("Modul Terkait", "Related Module")}: ${d.relatedModule} →</a>
+              </div>
+              <h2>${this.esc(this.t(d.title))}</h2>
+              <div class="callout danger">
+                <div class="label">🚨 ${this.l("Gejala di Produksi (Exit Code 0 — Tanpa Pesan Error!)", "Production Symptom (Exit Code 0 — Zero Error Messages!)")}</div>
+                <p>${this.esc(this.t(d.symptom))}</p>
+              </div>
+            </div>
+
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>🔍 ${this.l("Langkah 1: Klik Baris Kode yang Menyebabkan Bug Diam-Diam", "Step 1: Click the Exact Line Causing the Silent Bug")}</h3>
+                <span class="chip ${selLine !== undefined ? (st.attempted ? (lineOk ? "chip-green" : "") : "chip-blue") : ""}">
+                  ${selLine !== undefined ? this.l(`Baris #${selLine + 1} dipilih`, `Line #${selLine + 1} selected`) : this.l("Belum memilih baris", "No line selected")}
+                </span>
+              </div>
+              <p class="small muted">${this.l("Kode di bawah ini berjalan tanpa syntax error. Klik baris yang menjadi sumber korupsi data:", "The code below runs without any syntax error. Click the line responsible for silent data corruption:")}</p>
+              <div class="bug-code-box">
+                ${d.codeLines.map((lineText, idx) => {
+                  let cls = "";
+                  if (st.attempted && selLine === idx) cls = idx === d.buggyLineIndex ? "correct-line" : "wrong-line";
+                  else if (selLine === idx) cls = "selected";
+                  return `<button class="bug-line ${cls}" onclick="app.selectBugLine('${d.id}', ${idx})"><span class="bug-line-num">${idx + 1}</span><code>${this.esc(lineText)}</code></button>`;
+                }).join("")}
+              </div>
+            </div>
+
+            <div class="card stack-sm">
+              <h3>🛠 ${this.l("Langkah 2: Pilih Perbaikan Produksi yang Tepat", "Step 2: Select the Production-Safe Fix")}</h3>
+              <div class="stack-sm">
+                ${d.options.map((opt) => `
+                  <button class="choice" style="width:100%;text-align:left;${st.selectedOpt === opt.id ? "border-color:var(--blue);font-weight:600" : ""}" onclick="app.submitBugDiagnosis('${d.id}', '${opt.id}')">
+                    <span>${st.selectedOpt === opt.id ? "●" : "○"}</span>
+                    <span>${this.inline(this.t(opt.text))}</span>
+                  </button>`).join("")}
+              </div>
+              ${st.attempted ? `
+                <div class="feedback ${st.solved ? "ok" : "bad"}">
+                  <strong>${st.solved ? "✓ " + this.l("Diagnosis Tepat! Bug Diam-Diam Berhasil Diperbaiki.", "Spot On! Silent Bug Diagnosed & Fixed.") : "⚠️ " + this.l(lineOk ? "Baris yang Anda pilih sudah benar, tetapi pilihan perbaikan belum tepat." : `Baris yang Anda pilih (#${selLine + 1}) belum tepat. Perhatikan baris yang berinteraksi dengan NULL/kunci/state!`, lineOk ? "You clicked the right buggy line, but picked the wrong fix." : `Line #${selLine + 1} is not the root cause. Look closely at where NULLs, join keys, or mutable state interact!`)}</strong>
+                  ${st.solved ? `<div style="margin-top:8px">${this.inline(this.t(d.explanation))}</div>` : ""}
+                </div>` : ""}
+            </div>
+          </section>
+        </div>`;
+    }
+
+    if (this.activeInterviewTab === "active-recall") {
+      const deck = this.getRecallDeck();
+      const idx = Math.min(this.activeRecallIdx, Math.max(0, deck.length - 1));
+      const card = deck[idx];
+      const reviewedCount = Object.keys(this.recallState || {}).length;
+      const masteredCount = Object.values(this.recallState || {}).filter((x) => x && x.rating === "mastered").length;
+      if (!card) return `<div class="card"><p>${this.l("Tidak ada kartu.", "No cards found.")}</p></div>`;
+      const cardStatus = (this.recallState[card.id] || {}).rating;
+      return `
+        <div class="stack">
+          <div class="grid cols-3">
+            <div class="stat"><div class="small muted">${this.l("Total Model Mental Inti", "Total Core Mental Models")}</div><div class="num">${deck.length}</div></div>
+            <div class="stat"><div class="small muted">${this.l("Kartu Diulas", "Cards Reviewed")}</div><div class="num">${reviewedCount} / ${deck.length}</div></div>
+            <div class="stat"><div class="small muted">${this.l("Dikuasai (Mastered)", "Mastered")}</div><div class="num" style="color:var(--green)">${masteredCount} ⚡</div></div>
+          </div>
+
+          <div class="recall-card stack-sm">
+            <div class="row between">
+              <span class="chip chip-blue">🧠 ${this.l("Kartu", "Card")} ${idx + 1} / ${deck.length} · ${this.esc(card.modLabel)}</span>
+              ${cardStatus ? `<span class="chip ${cardStatus === "mastered" ? "chip-green" : ""}">${this.esc(cardStatus.toUpperCase())}</span>` : ""}
+            </div>
+            <h2>${this.l("Apa model mental & prinsip rekayasa utama untuk:", "What is the core mental model & engineering rule for:")} <br><span style="color:var(--blue)">"${this.esc(card.prompt)}"</span>?</h2>
+            <p class="small muted">${this.l("Tuliskan intisari konsep ini dengan kata-kata Anda sendiri (min. 20 karakter) sebelum membalik kartu:", "Write the core concept in your own words (min. 20 chars) before flipping the card:")}</p>
+            <textarea id="recall-draft-input" class="notes-textarea" placeholder="${this.l("Menurut ingatan saya, prinsip utamanya adalah…", "From memory, the key engineering principle is…")}" oninput="app.recallDraft = this.value">${this.esc(this.recallDraft || "")}</textarea>
+            <div class="row between">
+              <div class="row">
+                <button class="btn btn-sm btn-quiet" onclick="app.stepRecallCard(-1)">← ${this.l("Sebelumnya", "Prev")}</button>
+                <button class="btn btn-sm btn-quiet" onclick="app.stepRecallCard(1)">${this.l("Lewati / Berikutnya", "Skip / Next")} →</button>
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="app.revealRecallAnswer()">🔓 ${this.l("Balik Kartu & Bandingkan", "Flip Card & Compare")}</button>
+            </div>
+
+            ${this.recallRevealed ? `
+              <div class="callout-tldr" style="margin-top:12px">
+                <div class="callout-head">🎯 ${this.l("Model Mental Kanonik", "Canonical Key Mental Model")}</div>
+                <p>${this.inline(card.answer)}</p>
+                <div class="row between" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+                  <span class="small muted">${this.l("Seberapa kuat ingatan Anda tadi?", "How strong was your recall?")}</span>
+                  <div class="row">
+                    <button class="btn btn-sm btn-quiet" onclick="app.rateRecallCard('${card.id}','again')">🔁 ${this.l("Ulangi Nanti", "Review Again")}</button>
+                    <button class="btn btn-sm" onclick="app.rateRecallCard('${card.id}','good')">👍 ${this.l("Cukup Paham", "Good")}</button>
+                    <button class="btn btn-sm btn-done" onclick="app.rateRecallCard('${card.id}','mastered')">⚡ ${this.l("Sangat Paham", "Mastered")}</button>
+                  </div>
+                </div>
+              </div>` : ""}
+          </div>
+        </div>`;
+    }
+
     if (this.activeInterviewTab === "system-design") {
       const all = INTERVIEW_DATA.systemDesignScenarios;
       const s = all.find((x) => x.id === this.activeSystemDesignId) || all[0];
@@ -1007,15 +2152,25 @@ class DataForgeApp {
               <h2>${this.esc(this.t(s.title))}</h2>
               <p class="well">${this.esc(this.t(s.scenarioDescription))}</p>
             </div>
-            ${s.stages.map((stage, i) => `
+            ${s.stages.map((stage, i) => {
+              const draftKey = `sd:${s.id}:${i}`;
+              const draft = this.interviewDrafts[draftKey] || "";
+              const unlocked = draft.trim().length >= 50;
+              return `
               <div class="card stack-sm">
                 <div class="row between">
                   <h3 class="row" style="flex-wrap:nowrap"><span class="number-dot">${i + 1}</span>${this.esc(this.t(stage.stageName))}</h3>
-                  <button class="btn btn-sm btn-quiet" onclick="app.toggleStage(${i})">${this.l("Tampilkan / sembunyikan jawaban", "Show / hide sample answer")}</button>
+                  <span class="chip ${unlocked ? "chip-green" : ""}">${draft.trim().length}/50 ${this.l("karakter", "chars")}</span>
                 </div>
                 <p class="muted"><em>${this.esc(this.t(stage.prompt))}</em></p>
-                <div id="stage-content-${i}" class="well">${this.md(this.t(stage.sampleAnswer))}</div>
-              </div>`).join("")}
+                <textarea class="notes-textarea" placeholder="${this.l("Tulis rancangan arsitektur, kapasitas, dan trade-off Anda sendiri di sini (min. 50 karakter untuk membuka jawaban referensi)…", "Write your own architecture design, capacity math, and trade-offs here (min. 50 chars to unlock the sample answer)…")}" oninput="app.saveInterviewDraft('${draftKey}', this.value, false)">${this.esc(draft)}</textarea>
+                <div class="row between">
+                  <span class="small muted">${unlocked ? "🔓 " + this.l("Jawaban pembanding terbuka.", "Reference answer unlocked.") : "🔒 " + this.l("Tulis argumen arsitektur Anda dulu sebelum membuka jawaban contoh.", "Defend your architecture first before unlocking the sample answer.")}</span>
+                  <button class="btn btn-sm ${unlocked ? "btn-done" : "btn-primary"}" onclick="app.renderView()">${unlocked ? "✓ " + this.l("Terbuka", "Unlocked") : "🔓 " + this.l("Buka Jawaban Contoh", "Unlock Sample Answer")}</button>
+                </div>
+                ${unlocked ? `<div id="stage-content-${i}" class="well"><div class="label">${this.l("Jawaban Referensi", "Reference Answer")}</div>${this.md(this.t(stage.sampleAnswer))}</div>` : ""}
+              </div>`;
+            }).join("")}
           </section>
         </div>`;
     }
@@ -1023,6 +2178,9 @@ class DataForgeApp {
     if (this.activeInterviewTab === "sql-arena") {
       const all = INTERVIEW_DATA.sqlArenaProblems;
       const p = all.find((x) => x.id === this.activeSqlId) || all[0];
+      const draftKey = `sql:${p.id}`;
+      const draft = this.interviewDrafts[draftKey] || "";
+      const unlocked = draft.trim().length >= 30 && /\bselect\b/i.test(draft);
       return `
         <div class="split">
           ${list(this.l("Soal SQL", "SQL problems"), all, p.id, "setActiveSql", (x) => `
@@ -1037,10 +2195,16 @@ class DataForgeApp {
               <pre><code>${this.esc(p.schema)}</code></pre>
             </div>
             <div class="card stack-sm">
-              <div class="row between"><h3>${this.l("Solusi referensi", "Reference solution")}</h3><span class="muted small">${this.esc(p.complexity)}</span></div>
-              <p class="muted small">${this.l("Coba tulis sendiri dulu sebelum membaca. Solusi memakai sintaks PostgreSQL.", "Try writing it yourself before reading. The solution uses PostgreSQL syntax.")}</p>
-              <pre><code>${this.esc(this.t(p.solutionSql))}</code></pre>
-              <div class="callout"><div class="label">${this.l("Poin penilaian", "What interviewers look for")}</div>${this.md(p.explanation)}</div>
+              <div class="row between"><h3>✍️ ${this.l("Tulis Query Anda Sendiri (Tanpa Bantuan)", "Write Your Own Query First")}</h3><span class="muted small">${this.esc(p.complexity)}</span></div>
+              <p class="muted small">${this.l("Dalam wawancara nyata Anda menulis SQL di papan tulis/editor kosong. Tulis draf query SELECT Anda di bawah ini untuk membuka solusi referensi.", "In a real interview you write SQL in a blank editor. Write your own SELECT query attempt below to unlock the reference solution.")}</p>
+              <textarea class="sql" rows="6" spellcheck="false" placeholder="WITH ... SELECT ..." oninput="app.saveInterviewDraft('${draftKey}', this.value, false)">${this.esc(draft)}</textarea>
+              <div class="row between">
+                <span class="small muted">${unlocked ? "🔓 " + this.l("Solusi referensi terbuka di bawah.", "Reference solution unlocked below.") : "🔒 " + this.l("Tulis query SELECT Anda sendiri (min. 30 karakter) lalu klik tombol di kanan.", "Write your own SELECT query (min. 30 chars) then click the button on the right.")}</span>
+                <button class="btn btn-sm ${unlocked ? "btn-done" : "btn-primary"}" onclick="app.renderView()">${unlocked ? "✓ " + this.l("Solusi Terbuka", "Solution Unlocked") : "🔓 " + this.l("Bandingkan dengan Solusi Referensi", "Compare with Reference Solution")}</button>
+              </div>
+              ${unlocked ? `
+                <pre><code>${this.esc(this.t(p.solutionSql))}</code></pre>
+                <div class="callout"><div class="label">${this.l("Poin penilaian", "What interviewers look for")}</div>${this.md(p.explanation)}</div>` : ""}
             </div>
           </section>
         </div>`;
@@ -1048,6 +2212,9 @@ class DataForgeApp {
 
     const all = INTERVIEW_DATA.incidentPostMortemDrills;
     const d = all.find((x) => x.id === this.activeDrillId) || all[0];
+    const draftKey = `drill:${d.id}`;
+    const draft = this.interviewDrafts[draftKey] || "";
+    const unlocked = draft.trim().length >= 50;
     return `
       <div class="split">
         ${list(this.l("Kasus insiden", "Incident drills"), all, d.id, "setActiveDrill", (x) => `<div class="item-title">${this.esc(this.t(x.title))}</div>`)}
@@ -1056,12 +2223,25 @@ class DataForgeApp {
             <h2>${this.esc(this.t(d.title))}</h2>
             <div class="callout danger"><div class="label">${this.l("Skenario", "Scenario")}</div>${this.md(d.scenario)}</div>
           </div>
-          <h3>${this.l("Protokol triage 60 menit", "60-minute triage rubric")}</h3>
-          ${d.rubric.map((r, i) => `
-            <div class="card tight stack-sm">
-              <h3 class="row" style="flex-wrap:nowrap"><span class="number-dot">${i + 1}</span>${this.esc(this.t(r.phase))}</h3>
-              ${this.md(r.action)}
-            </div>`).join("")}
+          <div class="card stack-sm">
+            <div class="row between">
+              <h3>🚨 ${this.l("Rencana Triage Anda (Menit 0–60)", "Your On-Call Triage Plan (Minutes 0–60)")}</h3>
+              <span class="chip ${unlocked ? "chip-green" : ""}">${draft.trim().length}/50 ${this.l("karakter", "chars")}</span>
+            </div>
+            <p class="small muted">${this.l("Sebelum melihat protokol 60 menit, tuliskan apa yang Anda periksa di 5 menit pertama, cara menghentikan dampak buruk, dan cara melakukan backfill dengan aman.", "Before viewing the 60-minute rubric, write what you check in the first 5 minutes, how you stop the bleeding, and how you safely backfill.")}</p>
+            <textarea class="notes-textarea" placeholder="${this.l("Menit 0-15: ... Menit 15-30: ... Backfill & Post-mortem: ...", "Min 0-15: ... Min 15-30: ... Backfill & Post-mortem: ...")}" oninput="app.saveInterviewDraft('${draftKey}', this.value, false)">${this.esc(draft)}</textarea>
+            <div class="row between">
+              <span class="small muted">${unlocked ? "🔓 " + this.l("Protokol triage terbuka di bawah.", "Triage rubric unlocked below.") : "🔒 " + this.l("Tulis respons insiden Anda (min. 50 karakter) untuk membuka protokol referensi.", "Write your incident response (min. 50 chars) to unlock the reference rubric.")}</span>
+              <button class="btn btn-sm ${unlocked ? "btn-done" : "btn-primary"}" onclick="app.renderView()">${unlocked ? "✓ " + this.l("Protokol Terbuka", "Rubric Unlocked") : "🔓 " + this.l("Buka Protokol Triage 60 Menit", "Unlock 60-Minute Triage Rubric")}</button>
+            </div>
+          </div>
+          ${unlocked ? `
+            <h3>${this.l("Protokol triage 60 menit", "60-minute triage rubric")}</h3>
+            ${d.rubric.map((r, i) => `
+              <div class="card tight stack-sm">
+                <h3 class="row" style="flex-wrap:nowrap"><span class="number-dot">${i + 1}</span>${this.esc(this.t(r.phase))}</h3>
+                ${this.md(r.action)}
+              </div>`).join("")}` : ""}
         </section>
       </div>`;
   }
@@ -1574,23 +2754,36 @@ class DataForgeApp {
             <button class="btn btn-quiet btn-sm" onclick="app.selectChallenge(null)">${this.l("Mode bebas (tanpa tantangan)", "Free mode (no challenge)")}</button>
           </aside>
           <section class="stack">
-            ${challenge ? `
+            ${challenge ? (() => {
+              const attempts = this.sqlAttempts[challenge.id] || 0;
+              const isSolved = this.solvedChallenges.includes(challenge.id);
+              const canShowSolution = isSolved || attempts >= 5;
+              return `
               <div class="card stack-sm">
-                <div class="row between"><h3>${this.esc(this.t(challenge.title))}</h3><span class="chip">${this.esc(this.t(challenge.level))}</span></div>
+                <div class="row between">
+                  <h3>${this.esc(this.t(challenge.title))}</h3>
+                  <div class="row">
+                    <span class="chip">${this.l("Percobaan", "Attempts")}: ${attempts}</span>
+                    <span class="chip">${this.esc(this.t(challenge.level))}</span>
+                  </div>
+                </div>
                 <p>${this.esc(this.t(challenge.task))}</p>
                 <div class="row">
                   <button class="btn btn-sm btn-quiet" onclick="app.toggleHint()">${this.l("Petunjuk", "Hint")}</button>
-                  <button class="btn btn-sm btn-quiet" onclick="app.toggleSolution()">${this.l("Lihat solusi", "Show solution")}</button>
+                  <button class="btn btn-sm btn-quiet" onclick="app.toggleSolution()" ${canShowSolution ? "" : `title="${this.l("Coba periksa minimal 5 query terlebih dahulu", "Try checking at least 5 queries first")}"`}>
+                    ${canShowSolution ? "🔓 " + this.l("Lihat solusi", "Show solution") : `🔒 ${this.l("Solusi", "Solution")} (${attempts}/5 ${this.l("percobaan", "tries")})`}
+                  </button>
                 </div>
                 ${sb.hintOpen ? `<div class="callout neutral"><p>${this.esc(this.t(challenge.hint))}</p></div>` : ""}
-                ${sb.solutionOpen ? `<pre><code>${this.esc(challenge.solution)}</code></pre>` : ""}
-              </div>` : ""}
+                ${sb.solutionOpen && canShowSolution ? `<pre><code>${this.esc(challenge.solution)}</code></pre>` : ""}
+              </div>`;
+            })() : ""}
             <div class="card stack-sm">
               <textarea id="pg-sql-editor" class="sql" rows="9" spellcheck="false" placeholder="SELECT ..."></textarea>
               <div class="row between">
                 <div class="row">
                   <button class="btn btn-primary" onclick="app.runSql()">${t.btnExecuteSql}</button>
-                  ${challenge ? `<button class="btn" onclick="app.checkChallenge()">${this.l("Periksa jawaban", "Check my answer")}</button>` : ""}
+                  ${challenge ? `<button class="btn" onclick="app.checkChallenge()">${this.l("Periksa jawaban (+ Tes Data Hostil)", "Check my answer (+ Hostile Data Test)")}</button>` : ""}
                   <button class="btn btn-quiet" onclick="app.resetDataset()">${this.l("Reset data", "Reset dataset")}</button>
                 </div>
                 <span id="pg-result-stats" class="muted small">${sb.status === "loading" ? this.l("Memuat mesin SQL...", "Loading SQL engine...") : ""}</span>
@@ -1636,7 +2829,20 @@ class DataForgeApp {
     this.renderView();
   }
   toggleHint() { this.sandbox.hintOpen = !this.sandbox.hintOpen; this.rerenderKeepingEditor(); }
-  toggleSolution() { this.sandbox.solutionOpen = !this.sandbox.solutionOpen; this.rerenderKeepingEditor(); }
+  toggleSolution() {
+    const cid = this.sandbox.challengeId;
+    const attempts = cid ? (this.sqlAttempts[cid] || 0) : 0;
+    const isSolved = cid && this.solvedChallenges.includes(cid);
+    if (!isSolved && attempts < 5) {
+      alert(this.l(
+        `Hukum Pertama DataForge: Solusi baru terbuka setelah minimal 5 percobaan query (saat ini: ${attempts}/5). Gunakan tombol Petunjuk dan coba tulis query Anda sendiri terlebih dahulu!`,
+        `First Law of DataForge: The reference solution unlocks only after at least 5 query attempts (currently: ${attempts}/5). Use the Hint button and try writing the query yourself first!`
+      ));
+      return;
+    }
+    this.sandbox.solutionOpen = !this.sandbox.solutionOpen;
+    this.rerenderKeepingEditor();
+  }
   rerenderKeepingEditor() {
     const ed = document.getElementById("pg-sql-editor");
     if (ed) this.sandbox.draft = ed.value;
@@ -1658,7 +2864,7 @@ class DataForgeApp {
     if (!res.ok) {
       stats.textContent = "Error";
       container.innerHTML = `<div class="callout danger"><div class="label">SQL error</div><code>${this.esc(res.error)}</code></div>`;
-    } else if (res.empty) {
+    } else if (res.visible === false || res.empty) {
       stats.textContent = `${res.ms.toFixed(1)} ms`;
       container.innerHTML = `<p class="muted">${this.l("Perintah berhasil dijalankan (tidak ada baris yang dikembalikan).", "Statement ran successfully (no rows returned).")}</p>`;
     } else {
@@ -1674,12 +2880,20 @@ class DataForgeApp {
     if (this.sandbox.status !== "ready") return;
     const challenge = SQL_PLAYGROUND.challenges.find((c) => c.id === this.sandbox.challengeId);
     const editor = document.getElementById("pg-sql-editor");
+    const sqlText = (editor.value || "").trim();
+    if (challenge && sqlText.length >= 10) {
+      this.sqlAttempts[challenge.id] = (this.sqlAttempts[challenge.id] || 0) + 1;
+      writeStore("df_sql_attempts", this.sqlAttempts);
+    }
     this.runSql();
     const r = SQL_PLAYGROUND.check(challenge, editor.value);
     const box = document.getElementById("pg-verdict");
     let msg;
     if (r.ok) {
-      msg = this.l("Benar: hasil query Anda sama dengan hasil referensi.", "Correct: your result matches the reference result.");
+      msg = this.l(
+        "✓ Benar! Query Anda lolos pada data sampel DAN bertahan terhadap mutasi data hostil (NULL tambahan, refund/cancel, dan baris baru).",
+        "✓ Correct! Your query passed the sample dataset AND survived hostile data mutations (extra NULLs, refunds/cancellations, and new edge-case rows)."
+      );
       if (challenge && !this.solvedChallenges.includes(challenge.id)) {
         this.solvedChallenges.push(challenge.id);
         writeStore("df_solved_challenges", this.solvedChallenges);
@@ -1690,6 +2904,10 @@ class DataForgeApp {
     else if (r.reason === "empty") msg = this.l("Query tidak menghasilkan baris. Tulis SELECT.", "Your query returned no rows. Write a SELECT.");
     else if (r.reason === "columns") msg = this.l(`Jumlah kolom salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of columns: expected ${r.expected}, you returned ${r.got}.`);
     else if (r.reason === "rows") msg = this.l(`Jumlah baris salah: diharapkan ${r.expected}, Anda ${r.got}.`, `Wrong number of rows: expected ${r.expected}, you returned ${r.got}.`);
+    else if (r.reason === "adversarial") msg = this.l(
+      "⚠️ Gagal pada Tes Data Hostil! Query Anda cocok pada data sampel awal, tetapi gagal saat diuji dengan data produksi yang kotor (baris baru, nilai NULL, status refunded/cancelled, atau tie-breaker). Jangan hardcode ID/angka — pastikan filter WHERE, COALESCE/NULL, dan JOIN Anda benar-benar umum!",
+      "⚠️ Failed Hostile Data Test! Your query matched the initial sample rows, but broke when tested against mutated production data (new rows, NULLs, refunded/cancelled statuses, or boundary ties). Do not hardcode IDs or constants — make sure your WHERE filters, NULL handling, and JOINs generalize to any data condition!"
+    );
     else msg = this.l("Jumlah baris dan kolom sudah sesuai, tetapi nilainya berbeda. Periksa filter dan agregasi.", "Rows and columns match in count, but the values differ. Check your filters and aggregation.");
     box.innerHTML = `<div class="feedback ${r.ok ? "ok" : "bad"}">${msg}</div>`;
   }
