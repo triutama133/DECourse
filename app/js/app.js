@@ -9,14 +9,15 @@ const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs"
 function readStore(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
-    return raw === null ? fallback : JSON.parse(raw);
+    if (raw === null) return fallback;
+    try { return JSON.parse(raw); } catch (e) { return raw; }   // plain text written by earlier versions (language, theme, code drafts)
   } catch (e) {
     return fallback;
   }
 }
 function writeStore(key, value) {
   try {
-    localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch (e) { /* storage unavailable (private mode): keep working in memory */ }
 }
 
@@ -64,8 +65,9 @@ class DataForgeApp {
     this.lessonFilter = "all";
     const savedLang = readStore("df_lang", "id");
     this.lang = savedLang === "en" ? "en" : "id";
-    const savedTheme = readStore("df_theme", "light");
-    this.theme = savedTheme === "dark" ? "dark" : "light";
+    const savedTheme = readStore("df_theme", null);     // no saved choice yet: follow the operating system
+    const systemDark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    this.theme = savedTheme === "dark" || savedTheme === "light" ? savedTheme : (systemDark ? "dark" : "light");
     if (document.documentElement && document.documentElement.setAttribute) {
       document.documentElement.setAttribute("data-theme", this.theme);
     }
@@ -154,6 +156,12 @@ class DataForgeApp {
 
   renderQuoteBlock(q, ctx, qIdx) {
     const first = (q[0] || "").trim();
+    // GitHub-style alert ("> [!IMPORTANT]"): drop the marker line and colour the callout by its type
+    const alert = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/i.exec(first);
+    if (alert) {
+      const kind = /^(WARNING|CAUTION)$/i.test(alert[1]) ? "danger" : /^TIP$/i.test(alert[1]) ? "success" : "";
+      return `<div class="callout ${kind}">${this.renderQuoteBody(q.slice(1))}</div>`;
+    }
     // 1. Key Mental Model / In short
     if (/^\*\*(In short|Intinya|Ringkasan|TL;DR):?\*\*/i.test(first)) {
       const cleaned = q.slice();
@@ -1686,13 +1694,19 @@ class DataForgeApp {
       const visibleLessons = mod.lessons
         .map((ls, i) => ({ ls, i }))
         .filter(({ i }) => this.lessonFilter !== "unread" || !this.isLessonDone(mod.id, i));
+      // the prerequisites text may end with a quoted note ("> [!IMPORTANT] ..."): keep the sentence inline, show the note as a callout
+      const prereqRaw = mod.prerequisites ? this.t(mod.prerequisites) : "";
+      const noteAt = prereqRaw.search(/^>/m);
+      const prereqText = (noteAt < 0 ? prereqRaw : prereqRaw.slice(0, noteAt)).trim();
+      const prereqNote = noteAt < 0 ? "" : prereqRaw.slice(noteAt).trim();
 
       return `
         <div class="callout">
           <div class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</div>
           <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>
-          ${mod.prerequisites && this.t(mod.prerequisites) ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(this.t(mod.prerequisites))}</p>` : ""}
+          ${prereqText ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(prereqText)}</p>` : ""}
           <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
+          ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
         </div>
 
         ${this.renderModuleSimulator(mod.id)}
@@ -2344,15 +2358,15 @@ class DataForgeApp {
         </div>
 
         <!-- Formula Callout -->
-        <div class="card stack-sm no-print" style="background:#fcfdfd;border-left:4px solid var(--blue)">
+        <div class="card stack-sm no-print" style="background:var(--card-subtle);border-left:4px solid var(--blue)">
           <div class="row between">
             <h3>${this.l("Panduan Formula Dampak Google (Rumus XYZ)", "Google XYZ Impact Formula Guide")}</h3>
             <span class="chip chip-blue">Standar Global</span>
           </div>
           <p class="well" style="font-size:13px;line-height:1.5">
             <strong>Formula:</strong> <em>"Berhasil mencapai [X], terukur dengan [Y], dengan melakukan [Z]"</em><br>
-            <span style="color:#b32d2e">❌ Pasif:</span> <em>"Bertanggung jawab membuat pipeline ETL dengan Python dan SQL."</em><br>
-            <span style="color:#0f6b38">✓ Dampak Terukur:</span> <em>"Architected Lakehouse ingestion pipeline using Python & Apache Iceberg, processing 45M daily events with 99.98% uptime."</em>
+            <span style="color:var(--red)">❌ Pasif:</span> <em>"Bertanggung jawab membuat pipeline ETL dengan Python dan SQL."</em><br>
+            <span style="color:var(--green)">✓ Dampak Terukur:</span> <em>"Architected Lakehouse ingestion pipeline using Python & Apache Iceberg, processing 45M daily events with 99.98% uptime."</em>
           </p>
         </div>
 
@@ -2361,7 +2375,7 @@ class DataForgeApp {
         <div class="split-cv">
           <div class="stack no-print">
             <!-- Navigasi Cepat Editor -->
-            <div class="card tight row between" style="background:#f7f9fa;gap:6px">
+            <div class="card tight row between" style="background:var(--card-subtle);gap:6px">
               <span class="label" style="margin-right:4px">${this.l("Bagian Editor:", "Editor Sections:")}</span>
               <div class="row" style="gap:4px">
                 <button class="btn btn-sm btn-quiet" onclick="document.getElementById('sec-bio')?.scrollIntoView({behavior:'smooth'})">${this.l("1. Kontak", "1. Contact")}</button>
@@ -2486,7 +2500,7 @@ class DataForgeApp {
                 <div class="stack-sm" style="margin-top:10px">
                   <div class="label" style="color:var(--text);font-weight:600">${this.esc(cat.category)}</div>
                   ${cat.bullets.map((b, bi) => `
-                    <div class="well stack-sm" style="padding:10px 12px;background:#fff">
+                    <div class="well stack-sm" style="padding:10px 12px;background:var(--card)">
                       <div style="font-size:12.5px;line-height:1.45">${this.esc(b)}</div>
                       <div class="row" style="margin-top:4px">
                         <button class="btn btn-sm btn-primary" onclick="app.insertBullet(${ci}, ${bi}, 0)">${this.l("+ Sisipkan ke Pengalaman 1", "+ Insert to Exp 1")}</button>
@@ -3089,7 +3103,7 @@ class DataForgeApp {
               <div class="label">${this.l("Skor Kesiapan Kerja Keseluruhan", "Overall Job Readiness Score")}</div>
               <div class="row" style="align-items:baseline;gap:12px;margin:12px 0 6px">
                 <span style="font-size:46px;font-weight:800;color:var(--blue);line-height:1">${readinessScore}%</span>
-                <span class="chip" style="font-size:12px;padding:4px 10px;background:${tierBadgeBg};color:#fff;font-weight:600">${tierBadge}</span>
+                <span class="chip" style="font-size:12px;padding:4px 10px;background:${tierBadgeBg};color:var(--on-accent);font-weight:600">${tierBadge}</span>
               </div>
               <div class="progress" style="height:10px;margin-bottom:12px">
                 <div style="width:${readinessScore}%;background:var(--blue)"></div>
@@ -3174,7 +3188,7 @@ class DataForgeApp {
             <div class="stack-sm" style="margin-top:12px">
               ${checklist.map((item) => `
                 <div class="row" style="align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
-                  <span style="font-size:16px;line-height:1;color:${item.done ? "var(--green)" : "var(--border-strong)"};font-weight:bold">${item.done ? "✓" : "○"}</span>
+                  <span style="font-size:16px;line-height:1;color:${item.done ? "var(--green)" : "var(--text-muted)"};font-weight:bold">${item.done ? "✓" : "○"}</span>
                   <span style="font-size:13px;color:${item.done ? "var(--text)" : "var(--text-muted)"};${item.done ? "font-weight:500" : ""}">${this.esc(item.label)}</span>
                 </div>`).join("")}
             </div>

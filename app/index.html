@@ -4,7 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DataForge – Learn Data Engineering by Doing</title>
-  <link rel="stylesheet" href="css/style.css?v=11" />
+  <meta name="color-scheme" content="light dark" />
+  <script>
+    /* Set the theme before the first paint, so a dark page never flashes white. Same rule as app.js: saved choice, else the system setting. */
+    (function () {
+      try {
+        var t = localStorage.getItem("df_theme");
+        try { t = JSON.parse(t); } catch (e) { /* plain text from an older version */ }
+        if (t !== "dark" && t !== "light") t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) { /* storage blocked: app.js picks the theme */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="css/style.css?v=15" />
 </head>
 <body>
   <a class="skip-link" href="#main-content" onclick="document.getElementById('main-content').focus()">Skip to content / Lewati ke konten</a>
@@ -72,6 +84,6 @@
   <script src="js/playground.js?v=11"></script>
   <script src="js/remote-playbook.js?v=11"></script>
   <script src="js/practice-labs.js?v=11"></script>
-  <script src="js/app.js?v=11"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>
