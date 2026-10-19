@@ -52,12 +52,34 @@ MUTANTS = {
         ("reports fields that are in only one record", "flat.py", "for k in old if k in new and", "for k in old if"),
         ("compares values instead of types", "flat.py", "type(old[k]) is not type(new[k])", "old[k] != new[k]"),
     ]),
+    "1.3-9": ("1.3", [
+        ("level from IS NULL instead of GROUPING", "rollup.py", "GROUPING(c.city) + GROUPING(o.payment_method) AS level", "(c.city IS NULL)::INT + (o.payment_method IS NULL)::INT AS level"),
+        ("level with a two-argument GROUPING (bit mask)", "rollup.py", "GROUPING(c.city) + GROUPING(o.payment_method) AS level", "GROUPING(c.city, o.payment_method) AS level"),
+        ("ROLLUP columns in the wrong order", "rollup.py", "GROUP BY ROLLUP (c.city, o.payment_method)", "GROUP BY ROLLUP (o.payment_method, c.city)"),
+        ("all order statuses, not only delivered", "rollup.py", "WHERE o.status = 'delivered'\n", ""),
+        ("ROLLUP instead of CUBE", "rollup.py", "GROUP BY CUBE (status, payment_method)", "GROUP BY ROLLUP (status, payment_method)"),
+        ("grouping set of the pair instead of the two separate ones", "rollup.py", "GROUPING SETS ((c.tier), (o.payment_method))", "GROUPING SETS ((c.tier, o.payment_method))"),
+        ("plain GROUP BY, no subtotals", "rollup.py", "GROUP BY CUBE (status, payment_method)", "GROUP BY status, payment_method"),
+        ("a variable is missing", "rollup.py", "TIER_OR_METHOD =", "OTHER_NAME ="),
+    ]),
     "1.6-6": ("1.6", [
         ("no primary key", "load_orders.py", "order_id INTEGER PRIMARY KEY", "order_id INTEGER"),
         ("plain INSERT", "load_orders.py", "INSERT OR REPLACE", "INSERT"),
         ("loads only once", "load_orders.py", "load()\nload()\n", "load()\n"),
         ("counts the file lines twice", "load_orders.py", "print(len(rows), len({r[\"order_id\"] for r in rows}))", "print(len(rows), len(rows))"),
     ]),
+}
+
+# equivalent answers that a checker must ACCEPT: id -> [(name, file, old, new)]
+EQUIVALENTS = {
+    "1.3-9": [
+        ("CUBE written as the four GROUPING SETS it stands for", "rollup.py", "GROUP BY CUBE (status, payment_method)",
+         "GROUP BY GROUPING SETS ((status, payment_method), (status), (payment_method), ())"),
+        ("ROLLUP written as GROUPING SETS", "rollup.py", "GROUP BY ROLLUP (c.city, o.payment_method)",
+         "GROUP BY GROUPING SETS ((c.city, o.payment_method), (c.city), ())"),
+        ("level from a CASE over GROUPING", "rollup.py", "GROUPING(c.city) + GROUPING(o.payment_method) AS level",
+         "CASE WHEN GROUPING(c.city) = 1 THEN 2 WHEN GROUPING(o.payment_method) = 1 THEN 1 ELSE 0 END AS level"),
+    ],
 }
 
 # the one mutant that needs a reordering rather than a substitution
@@ -114,6 +136,21 @@ def main(argv):
                 print(f"{ident}  mutant: {name:48} {'caught' if caught else 'NOT CAUGHT  <-- the checker accepted a wrong answer'}")
                 if not caught:
                     bad += 1
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+        for name, fname, old, new in EQUIVALENTS.get(ident, []):
+            tmp = Path(tempfile.mkdtemp(prefix="tryit-eq-"))
+            try:
+                for f in (REF / refdir).glob("*.py"):
+                    shutil.copy(f, tmp / f.name)
+                text = (tmp / fname).read_text()
+                assert old in text, f"{ident}: '{old[:40]}' not found in {fname}"
+                (tmp / fname).write_text(text.replace(old, new, 1))
+                code, out = run_check(ident, tmp)
+                print(f"{ident}  equivalent: {name:46} {'accepted' if code == 0 else 'REJECTED  <-- a correct answer was refused'}")
+                if code != 0:
+                    bad += 1
+                    print(out)
             finally:
                 shutil.rmtree(tmp, ignore_errors=True)
     print("\nAll good." if not bad else f"\n{bad} problem(s).")

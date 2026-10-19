@@ -332,6 +332,46 @@ The sandbox practice challenges **k-16 to k-23** (text, number, date functions a
 >
 > **You should see:** `3` against `3.5`; `1` against `False`; NULL first against NULL last; an arbitrary row `(1, 2)` against a `Binder Error`. Four silent differences in four lines: which one would have fooled you?
 
+## @lesson Subtotals and grand totals: GROUPING SETS, ROLLUP and CUBE
+A report often needs detail rows, subtotals and a grand total in one table. With a plain `GROUP BY` that takes one query per level, glued together with `UNION ALL` (challenge k-29 does it for a single total row). SQL has an extension of `GROUP BY` that computes several groupings in **one pass** over the data:
+
+- `GROUPING SETS ((a), (b), ())` lists exactly the groupings you want: by `a`, by `b`, and the grand total `()`.
+- `ROLLUP (a, b)` is the hierarchy detail, subtotal, total: the groupings `(a, b)`, `(a)` and `()`. Use it when `b` lives inside `a` (a city, then a payment method).
+- `CUBE (a, b)` is every combination: `(a, b)`, `(a)`, `(b)` and `()`. Use it for cross-tabs where either dimension can be the subtotal.
+
+In every result row, the columns that were *rolled up* show NULL. On the six KopiKu products:
+
+```sql
+SELECT roast, origin, COUNT(*) AS products
+FROM products
+GROUP BY GROUPING SETS ((roast), (origin), ());
+-- dark 2, light 2, medium 2  |  six origins with 1 each  |  the total 6   (10 rows)
+```
+
+**The NULL problem.** A subtotal row has NULL in the rolled-up column, but your data can contain real NULLs too. Two KopiKu customers have no city, so `ROLLUP (tier, city)` returns, for the Bronze tier, two rows that look identical:
+
+```sql
+SELECT tier, city, COUNT(*) AS customers, GROUPING(city) AS city_rolled_up
+FROM customers
+GROUP BY ROLLUP (tier, city);
+-- Bronze  NULL  1  0   <- the one Bronze customer with no city: a real NULL
+-- Bronze  NULL  5  1   <- the subtotal of all five Bronze customers
+-- ... 14 rows in all, the last one   NULL  NULL  10  1   is the grand total
+```
+
+`GROUPING(column)` returns 1 when the NULL is a rolled-up placeholder and 0 when the column took part in the grouping. Never use `city IS NULL` to recognise a subtotal: it matches the real NULLs too, and a report would show a customer count as a "subtotal". Label the rows with `GROUPING`, and only then make the labels pretty (for example `CASE WHEN GROUPING(city) = 1 THEN 'All cities' ELSE COALESCE(city, 'Unknown') END`). Note that `GROUPING(a, b)` with several columns returns a bit mask (0, 1, 3), not a count.
+
+**Where it runs.** PostgreSQL and DuckDB run all three and returned identical rows for every query on this page. The warehouses support them as well (from their documentation, not run in this course). SQLite does not: `GROUP BY ROLLUP (...)` fails there with `no such function: rollup`. That is why the browser SQL Sandbox cannot practise it and the exercise below runs DuckDB on your computer. On an engine without them, fall back to several `GROUP BY` queries joined with `UNION ALL`.
+
+> 🛠 **Try it (25 min, Python and DuckDB).** Run `pip install duckdb`. The data is the KopiKu dataset in `labs/mod-1-3/datasets/kopiku.sql`: load it with `con = duckdb.connect(); con.execute(open("labs/mod-1-3/datasets/kopiku.sql").read())` to try your queries. In a file `rollup.py`, define three variables that hold SQL text:
+> 1. `REVENUE_ROLLUP` returns `city`, `payment_method`, `revenue_idr` and `level`. Revenue is the sum of `qty * unit_price_idr` over the items of **delivered** orders. Give the detail rows per city and payment method, a subtotal per city and a grand total, using `ROLLUP`. `level` is 0 for a detail row, 1 for a city subtotal and 2 for the grand total (build it with `GROUPING`, not with `IS NULL`).
+> 2. `STATUS_CUBE` returns `status`, `payment_method` and `orders`: the number of orders for every status and payment method, for every status alone, for every method alone, and the total, using `CUBE`.
+> 3. `TIER_OR_METHOD` returns `tier`, `payment_method` and `orders`: the number of orders per customer tier and, in the same result, per payment method, and nothing else, using `GROUPING SETS`.
+>
+> **You should see:** 15 rows for the first, among them Jakarta 760000 at level 1, the grand total 2000000 at level 2, and, for the customers with no city, a detail row (bank_transfer, 250000, level 0) followed by their subtotal (250000, level 1), which only `level` can tell apart from a detail row; 19 rows for the second, ending with the total 18; 7 rows for the third: Bronze 6, Gold 6, Silver 6, then bank_transfer 3, card 7, cod 3 and ewallet 5.
+>
+> **Check it:** `python3 labs/tryit/check.py 1.3-9 ~/practice` (your `rollup.py` in `~/practice`). It runs your three queries on the KopiKu data and on a changed copy with a new city, a customer with no city and an order with no payment method, so a query that only works on today's data fails.
+
 ## @lesson JSON inside SQL: reading and building semi-structured data
 APIs, event trackers and application databases store JSON: a text (or JSON) column where each row has its own shape. You do not have to leave SQL to use it: SQLite, PostgreSQL and DuckDB all read and build JSON. The SQL Sandbox has a dataset for this, `app_events`: seven app events, each with a `payload` such as `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
 
@@ -397,6 +437,7 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/datasets/kopiku.sql :: Dataset for most Part A questions :: data
 - labs/mod-1-3/datasets/daily_sales.sql :: Dataset for the moving average :: data
 - labs/mod-1-3/datasets/categories.sql :: Dataset for the recursive CTE :: data
+- labs/tryit/check.py :: Checks your Try it exercises, for example: python3 labs/tryit/check.py 1.3-9 ~/practice :: config
 - labs/mod-1-3/reference/answers.sql :: Part A reference answers (try first!) :: reference
 - labs/mod-1-3/explain/queries.sql :: Part B: the four queries (rewrite Q4) :: starter
 - labs/mod-1-3/explain/indexes.sql :: Part B: put your CREATE INDEX statements here :: starter

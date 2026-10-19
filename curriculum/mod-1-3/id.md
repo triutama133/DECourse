@@ -324,6 +324,46 @@ Baca baris ketiga dan keempat dua kali. Laporan yang mengurutkan menurut kolom n
 
 Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan DDL, Modul 0.3) dan **w-11 sampai w-14** (QUALIFY, FILTER, pengelompokan tanggal, median tanpa `MEDIAN()`) memakai persis gagasan-gagasan ini.
 
+## @lesson Subtotal dan total akhir: GROUPING SETS, ROLLUP, dan CUBE
+Sebuah laporan sering butuh baris detail, subtotal, dan total akhir dalam satu tabel. Dengan `GROUP BY` biasa itu memerlukan satu query per tingkat, disambung dengan `UNION ALL` (tantangan k-29 melakukannya untuk satu baris total). SQL punya perluasan `GROUP BY` yang menghitung beberapa pengelompokan dalam **satu kali lewat** data:
+
+- `GROUPING SETS ((a), (b), ())` mendaftar persis pengelompokan yang Anda mau: per `a`, per `b`, dan total akhir `()`.
+- `ROLLUP (a, b)` adalah hierarki detail, subtotal, total: pengelompokan `(a, b)`, `(a)`, dan `()`. Pakai bila `b` berada di dalam `a` (sebuah kota, lalu metode bayar).
+- `CUBE (a, b)` adalah semua kombinasi: `(a, b)`, `(a)`, `(b)`, dan `()`. Pakai untuk tabel silang di mana salah satu dimensi bisa menjadi subtotal.
+
+Pada setiap baris hasil, kolom yang *digulung* menampilkan NULL. Pada enam produk KopiKu:
+
+```sql
+SELECT roast, origin, COUNT(*) AS products
+FROM products
+GROUP BY GROUPING SETS ((roast), (origin), ());
+-- dark 2, light 2, medium 2  |  enam origin masing-masing 1  |  total 6   (10 baris)
+```
+
+**Masalah NULL.** Baris subtotal punya NULL di kolom yang digulung, tetapi data Anda juga bisa berisi NULL sungguhan. Dua pelanggan KopiKu tidak punya kota, jadi `ROLLUP (tier, city)` mengembalikan, untuk tier Bronze, dua baris yang tampak identik:
+
+```sql
+SELECT tier, city, COUNT(*) AS customers, GROUPING(city) AS city_rolled_up
+FROM customers
+GROUP BY ROLLUP (tier, city);
+-- Bronze  NULL  1  0   <- satu pelanggan Bronze tanpa kota: NULL sungguhan
+-- Bronze  NULL  5  1   <- subtotal kelima pelanggan Bronze
+-- ... 14 baris seluruhnya, yang terakhir   NULL  NULL  10  1   adalah total akhir
+```
+
+`GROUPING(kolom)` mengembalikan 1 bila NULL itu hanyalah penanda hasil gulungan dan 0 bila kolom itu ikut dalam pengelompokan. Jangan pernah memakai `city IS NULL` untuk mengenali subtotal: ia juga cocok dengan NULL sungguhan, dan laporan akan menampilkan jumlah pelanggan sebagai "subtotal". Beri label baris dengan `GROUPING`, baru kemudian percantik labelnya (misalnya `CASE WHEN GROUPING(city) = 1 THEN 'Semua kota' ELSE COALESCE(city, 'Unknown') END`). Perhatikan bahwa `GROUPING(a, b)` dengan beberapa kolom mengembalikan bit mask (0, 1, 3), bukan hitungan.
+
+**Di mana ia berjalan.** PostgreSQL dan DuckDB menjalankan ketiganya dan mengembalikan baris yang identik untuk setiap query di halaman ini. Gudang data juga mendukungnya (dari dokumentasi mereka, tidak dijalankan di kursus ini). SQLite tidak: `GROUP BY ROLLUP (...)` gagal di sana dengan `no such function: rollup`. Karena itu SQL Sandbox di browser tidak bisa melatihnya dan latihan di bawah memakai DuckDB di komputer Anda. Pada mesin tanpa fitur ini, kembalilah ke beberapa query `GROUP BY` yang digabung dengan `UNION ALL`.
+
+> 🛠 **Coba sendiri (25 menit, Python dan DuckDB).** Jalankan `pip install duckdb`. Datanya adalah dataset KopiKu di `labs/mod-1-3/datasets/kopiku.sql`: muat dengan `con = duckdb.connect(); con.execute(open("labs/mod-1-3/datasets/kopiku.sql").read())` untuk mencoba query Anda. Di file `rollup.py`, definisikan tiga variabel yang berisi teks SQL:
+> 1. `REVENUE_ROLLUP` mengembalikan `city`, `payment_method`, `revenue_idr`, dan `level`. Omzet adalah jumlah `qty * unit_price_idr` dari item pesanan **delivered**. Berikan baris detail per kota dan metode bayar, subtotal per kota, dan total akhir, memakai `ROLLUP`. `level` bernilai 0 untuk baris detail, 1 untuk subtotal kota, dan 2 untuk total akhir (bangun dengan `GROUPING`, bukan dengan `IS NULL`).
+> 2. `STATUS_CUBE` mengembalikan `status`, `payment_method`, dan `orders`: jumlah pesanan untuk setiap status dan metode bayar, untuk setiap status saja, untuk setiap metode saja, dan totalnya, memakai `CUBE`.
+> 3. `TIER_OR_METHOD` mengembalikan `tier`, `payment_method`, dan `orders`: jumlah pesanan per tier pelanggan dan, dalam hasil yang sama, per metode bayar, dan tidak ada yang lain, memakai `GROUPING SETS`.
+>
+> **Yang harus Anda lihat:** 15 baris untuk yang pertama, di antaranya Jakarta 760000 pada level 1, total akhir 2000000 pada level 2, dan, untuk pelanggan tanpa kota, satu baris detail (bank_transfer, 250000, level 0) diikuti subtotalnya (250000, level 1), yang hanya bisa dibedakan dari baris detail lewat `level`; 19 baris untuk yang kedua, berakhir dengan total 18; 7 baris untuk yang ketiga: Bronze 6, Gold 6, Silver 6, lalu bank_transfer 3, card 7, cod 3, dan ewallet 5.
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.3-9 ~/practice` (file `rollup.py` Anda di `~/practice`). Ia menjalankan ketiga query Anda pada data KopiKu dan pada salinan yang diubah dengan kota baru, pelanggan tanpa kota, dan pesanan tanpa metode bayar, sehingga query yang hanya berhasil pada data hari ini akan gagal.
+
 ## @lesson JSON di dalam SQL: membaca dan membangun data semi-terstruktur
 API, pelacak event, dan database aplikasi menyimpan JSON: kolom teks (atau JSON) yang tiap barisnya punya bentuk sendiri. Anda tidak perlu meninggalkan SQL untuk memakainya: SQLite, PostgreSQL, dan DuckDB semuanya bisa membaca dan membangun JSON. SQL Sandbox punya dataset untuk ini, `app_events`: tujuh event aplikasi, masing-masing dengan `payload` seperti `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
 
@@ -389,6 +429,7 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/datasets/kopiku.sql :: Dataset untuk sebagian besar pertanyaan Bagian A :: data
 - labs/mod-1-3/datasets/daily_sales.sql :: Dataset untuk rata-rata bergerak :: data
 - labs/mod-1-3/datasets/categories.sql :: Dataset untuk CTE rekursif :: data
+- labs/tryit/check.py :: Pemeriksa latihan Try it, misalnya: python3 labs/tryit/check.py 1.3-9 ~/practice :: config
 - labs/mod-1-3/reference/answers.sql :: Jawaban referensi Bagian A (coba sendiri dulu!) :: reference
 - labs/mod-1-3/explain/queries.sql :: Bagian B: keempat query (tulis ulang Q4) :: starter
 - labs/mod-1-3/explain/indexes.sql :: Bagian B: taruh pernyataan CREATE INDEX Anda di sini :: starter
