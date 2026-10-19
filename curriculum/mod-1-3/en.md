@@ -332,6 +332,46 @@ The sandbox practice challenges **k-16 to k-23** (text, number, date functions a
 >
 > **You should see:** `3` against `3.5`; `1` against `False`; NULL first against NULL last; an arbitrary row `(1, 2)` against a `Binder Error`. Four silent differences in four lines: which one would have fooled you?
 
+## @lesson JSON inside SQL: reading and building semi-structured data
+APIs, event trackers and application databases store JSON: a text (or JSON) column where each row has its own shape. You do not have to leave SQL to use it: SQLite, PostgreSQL and DuckDB all read and build JSON. The SQL Sandbox has a dataset for this, `app_events`: seven app events, each with a `payload` such as `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
+
+**Reading fields.** A *path* starts at `$`, uses dots for objects and `[0]` for array positions. The operator `->>` returns the value as a SQL value, so you can filter, group and sum it. A key that is missing and a key that holds JSON `null` both come back as SQL NULL (use `json_type` if you must tell them apart), so wrap optional fields in `COALESCE`. **Exploding arrays:** `json_each` returns one row per element, and `->>` then reads the fields of each element:
+
+```sql
+SELECT payload ->> '$.action' AS action, COUNT(*) AS events FROM events GROUP BY 1;     -- checkout 4, view 3
+
+SELECT e.event_id, COUNT(i.key) AS n_items                                              -- 2, 0, 1, 0, 0, 0, 1
+FROM events e LEFT JOIN json_each(e.payload, '$.items') i GROUP BY e.event_id;
+```
+
+Notice the `LEFT JOIN` in the second query. With a plain join (`FROM events e, json_each(...)`) an event with an empty array or no `items` at all produces **zero rows**, so it silently disappears from the result. That is right when you want line items, and wrong when you are counting events.
+
+**Building JSON** goes the other way, for APIs and for storing a nested record in one column:
+
+```sql
+SELECT payload ->> '$.user.id' AS user_id, json_group_array(event_id) AS event_ids FROM events GROUP BY 1;   -- 7: [1,3]   8: [2,7]   9: [4,5]   10: [6]
+SELECT json_object('event', event_id, 'user', payload ->> '$.user.id') FROM events WHERE event_id = 1;   -- {"event":1,"user":7}
+```
+
+**Dialects.** We ran the same questions on SQLite 3.39 (the sandbox), PostgreSQL 16 (`jsonb` column) and DuckDB 1.5:
+
+| Task | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| A text field | `payload ->> '$.user.plan'` | `payload -> 'user' ->> 'plan'` | `payload ->> '$.user.plan'` |
+| A number field | `->>` returns an **integer** | returns **text**: cast with `::int` | returns **text**: cast with `::INT` |
+| One row per array element | `json_each(payload, '$.items')` | `jsonb_array_elements(payload -> 'items')` | `json_each(payload, '$.items')` |
+| Build an object | `json_object('a', 1)` | `jsonb_build_object('a', 1)` | `json_object('a', 1)` |
+| Collect values into an array | `json_group_array(x)` | `jsonb_agg(x)` | `json_group_array(x)` |
+| Missing key or JSON `null` | NULL | NULL | NULL |
+
+Two differences deserve a second look. `qty * price` works in SQLite because `->>` kept the numbers, but in PostgreSQL and DuckDB it fails with `text * text` until you cast: a loud failure, easy to fix. The silent one: in PostgreSQL, `payload ->> '$.user.id'` returns **NULL for every row**, with no error, because the `$.user.id` path syntax is not PostgreSQL's (it looks for a key literally named `$.user.id`). A query ported between engines can return an empty column and pass every syntax check.
+
+**Habits.** Check `json_valid(payload)` before parsing: one malformed row makes the whole query fail (`malformed JSON` in SQLite). In PostgreSQL prefer `jsonb`, which is parsed once and can be indexed, over `json`, which is kept as text. Above all, **parse once, then use typed columns**: a staging model (Module 2.3) turns the JSON into columns with real types, and everything downstream queries those, not the text.
+
+> 🛠 **Try it (25 min, SQL Sandbox with the app_events dataset).** Choose the dataset *App events (JSON payloads)* and solve **j-1** (pull `user.id` and `user.plan` out of the payload), **j-2** (events per device, with a missing device shown as `unknown`), **j-3** (one row per item with its line total) and **j-4** (revenue per plan). For j-3, first use a plain join and then a `LEFT JOIN`, and count the rows each version returns. Then, in the editor, try `SELECT payload ->> '$.user.id' FROM events` and `SELECT payload ->> '$.user.plan' FROM events` and compare the column types.
+>
+> **You should see:** j-1 returns 7 rows with a NULL plan for event 6; j-2 returns android 2, ios 2, unknown 2, web 1; j-3 returns 4 rows (events 1, 1, 3 and 7), because events 2, 4, 5 and 6 have no items; j-4 returns free 50000 and pro 310000. The plain join gives 4 rows for j-3 and the `LEFT JOIN` gives 8: the same 4 plus one row with empty values for each of events 2, 4, 5 and 6.
+
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.
 

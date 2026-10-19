@@ -238,6 +238,47 @@ A join on a key that is not unique on *both* sides is a **many-to-many join**, w
 > `python3 labs/mod-0-3/check.py`
 > Verify that k-5, k-6, and k-8 PASS! Proceed to Lesson 7 below.
 
+## @lesson More ways to combine data: self-joins, CROSS JOIN and set operations
+A join puts tables **side by side**: it adds columns. Three more tools complete the picture: a table joined to itself, every row paired with every row, and **stacking** results on top of each other.
+
+**Self-join.** To compare rows of the *same* table, join the table to itself under two aliases. Pairs of products with the same roast:
+
+```sql
+SELECT a.product_id AS product_a, b.product_id AS product_b, a.roast
+FROM products a
+JOIN products b ON a.roast = b.roast AND a.product_id < b.product_id;
+```
+
+This returns 3 pairs: (1, 4) medium, (2, 5) dark and (3, 6) light. The `<` is what makes it correct: without it every product is paired with itself and every pair appears twice (12 rows instead of 3). Remember the NULL lesson: two NULLs are never equal, so rows with a NULL in the joined column match nothing. The same pattern answers "an employee and their manager" or "this row and the one before it".
+
+**CROSS JOIN.** A `CROSS JOIN` has no `ON`: every row of one side is paired with every row of the other. That is useful for building a **complete grid** of categories, so that combinations with no data still appear as 0 instead of silently vanishing (a chart with a missing bar is a lie of omission):
+
+```sql
+SELECT s.status, p.payment_method
+FROM (SELECT DISTINCT status FROM orders) s
+CROSS JOIN (SELECT DISTINCT payment_method FROM orders) p;   -- 5 statuses x 4 methods = 20 rows
+```
+
+Then `LEFT JOIN` the facts onto the grid and count a column of the *right* side (`COUNT(o.order_id)`, not `COUNT(*)`, which would count the empty row as 1). The danger is the accidental cross join: forget the `ON` of a normal join and `customers` with `products` returns 10 x 6 = 60 rows; with two tables of a million rows it returns a trillion.
+
+**Set operations** stack the results of two queries. Both queries must return the same number of columns of compatible types, and columns are matched by **position**, not by name (swap two columns by mistake and the data mixes without any error). Using the tiers of customers in Jakarta and in Bandung:
+
+```sql
+-- Jakarta: Gold, Bronze, Silver.  Bandung: Silver, Gold.
+SELECT tier FROM customers WHERE city = 'Jakarta' UNION     SELECT tier FROM customers WHERE city = 'Bandung';  -- 3 rows
+SELECT tier FROM customers WHERE city = 'Jakarta' UNION ALL SELECT tier FROM customers WHERE city = 'Bandung';  -- 5 rows
+SELECT tier FROM customers WHERE city = 'Jakarta' INTERSECT SELECT tier FROM customers WHERE city = 'Bandung';  -- Gold, Silver
+SELECT tier FROM customers WHERE city = 'Jakarta' EXCEPT    SELECT tier FROM customers WHERE city = 'Bandung';  -- Bronze
+```
+
+`UNION ALL` stacks everything and keeps duplicates. `UNION` also removes duplicates, which costs a sort and can hide real repeated rows, so it is the right choice only when a duplicate would be a mistake. `INTERSECT` keeps rows present in both results; `EXCEPT` keeps rows of the first that are missing from the second. Note that set operations compare whole rows and treat two NULLs as the same, unlike `=`.
+
+> **Warning:** `NOT IN` with a subquery that can return a NULL returns **no rows at all**, because `x NOT IN (1, NULL)` is never true. `SELECT name FROM customers WHERE city NOT IN (SELECT city FROM customers WHERE tier = 'Silver')` returns 0 rows, since one Silver customer has no city. Adding `AND city IS NOT NULL` inside the subquery gives 3 rows. `NOT EXISTS`, `EXCEPT` and the LEFT JOIN anti-join do not have this trap, which is why they are the safer way to say "not in".
+
+> 🛠 **Try it (25 min, SQL Sandbox with the KopiKu dataset).** Solve the KopiKu challenges **k-24** (a campaign list from two lists), **k-25** (customers who used both card and e-wallet), **k-26** (customers with no cancelled or refunded order), **k-27** (every tier and payment method, with zeros), **k-28** (pairs of customers in the same city) and **k-29** (a total row at the bottom). Before you run k-24, predict how many customers you get with `UNION` and with `UNION ALL`, then try both. For k-28, run it first with `a.customer_id <> b.customer_id` and count the rows, then fix it.
+>
+> **You should see:** k-24 returns 8 customers (`UNION ALL` would show 9, because customer 9 is in both lists); k-25 returns 4 (1, 2, 4, 7); k-26 returns 5 (1, 3, 5, 7, 9); k-27 returns 12 rows, with Gold and bank_transfer at 0; k-28 returns 4 pairs (`<>` gives 8, each pair twice); k-29 returns 6 rows, the last one `ALL` with 18.
+
 ## @lesson CASE, subqueries and CTEs
 **CASE** is SQL's if/else, used to create categories. Here `order_totals` is the per-order total, defined in the CTE example below:
 
@@ -282,7 +323,7 @@ Style matters because other people will maintain your SQL. Put each clause on it
 > 2. `-- k-10`: compute the percentage share of each payment method using a scalar subquery `(SELECT COUNT(*) FROM orders)`.
 > Now test all 10 answers in your terminal:
 > `python3 labs/mod-0-3/check.py`
-> If your score is **10/10 answers correct**, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 8 for DML & Transactions.
+> If your score is **10/10 answers correct**, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 9 for DML & Transactions.
 
 ## @lesson Changing data safely: DML, constraints and transactions
 Besides reading, SQL changes data:

@@ -199,6 +199,23 @@ window.SQL_PLAYGROUND = {
           (2,'2026-03-01 08:45:00','/home'),
           (2,'2026-03-01 08:50:00','/search'),
           (3,'2026-03-01 12:00:00','/home');`
+    },
+    app_events: {
+      name: { id: "Event aplikasi (payload JSON)", en: "App events (JSON payloads)" },
+      description: {
+        id: "Satu tabel events dengan kolom payload berisi JSON: 7 event aplikasi. Jebakan yang sengaja ada: kunci yang hilang, nilai null, array items kosong, dan event tanpa items.",
+        en: "One events table whose payload column holds JSON: 7 app events. Planted traps: missing keys, null values, an empty items array, and events without items."
+      },
+      setup: `
+        CREATE TABLE events (event_id INTEGER PRIMARY KEY, received_at TEXT, payload TEXT);
+        INSERT INTO events VALUES
+          (1,'2026-03-01 09:00:00','{"user":{"id":7,"plan":"pro"},"action":"checkout","items":[{"sku":"A1","qty":2,"price":50000},{"sku":"B2","qty":1,"price":120000}],"device":"ios"}'),
+          (2,'2026-03-01 09:05:00','{"user":{"id":8,"plan":"free"},"action":"view","device":"android"}'),
+          (3,'2026-03-01 10:00:00','{"user":{"id":7,"plan":"pro"},"action":"checkout","items":[{"sku":"C3","qty":3,"price":30000}],"device":null}'),
+          (4,'2026-03-02 08:30:00','{"user":{"id":9,"plan":"free"},"action":"view"}'),
+          (5,'2026-03-02 11:15:00','{"user":{"id":9,"plan":"free"},"action":"checkout","items":[],"device":"web"}'),
+          (6,'2026-03-03 14:00:00','{"user":{"id":10},"action":"view","device":"ios"}'),
+          (7,'2026-03-03 16:45:00','{"user":{"id":8,"plan":"free"},"action":"checkout","items":[{"sku":"A1","qty":1,"price":50000}],"device":"android"}');`
     }
   },
 
@@ -1212,6 +1229,192 @@ GROUP BY strftime('%W', order_date);`
 SELECT AVG(amount) AS median_line
 FROM lines
 WHERE rn IN ((n + 1) / 2, (n + 2) / 2);`
+    },
+    {
+      id: "k-24",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Daftar kampanye: gabungkan dua daftar (UNION)", en: "Campaign list: combine two lists (UNION)" },
+      task: {
+        id: "Tampilkan setiap customer_id satu kali untuk kampanye Januari: pelanggan yang mendaftar pada atau setelah 2026-01-01, ditambah pelanggan yang punya pesanan 'delivered' pada atau setelah 2026-01-20.",
+        en: "Return each customer_id once for the January campaign: customers who signed up on or after 2026-01-01, plus customers who had a 'delivered' order on or after 2026-01-20."
+      },
+      hint: {
+        id: "Tulis dua query SELECT customer_id lalu gabungkan dengan UNION (bukan UNION ALL, yang mempertahankan duplikat).",
+        en: "Write two SELECT customer_id queries and join them with UNION (not UNION ALL, which keeps duplicates)."
+      },
+      solution: `SELECT customer_id FROM customers WHERE signup_date >= '2026-01-01'
+UNION
+SELECT customer_id FROM orders WHERE status = 'delivered' AND order_date >= '2026-01-20';`
+    },
+    {
+      id: "k-25",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pelanggan yang memakai dua metode bayar (INTERSECT)", en: "Customers who used both card and e-wallet (INTERSECT)" },
+      task: {
+        id: "Tampilkan customer_id pelanggan yang punya sedikitnya satu pesanan dibayar 'card' dan sedikitnya satu pesanan dibayar 'ewallet' (status apa pun).",
+        en: "Return the customer_id of customers who have at least one order paid by 'card' and at least one paid by 'ewallet' (any status)."
+      },
+      hint: {
+        id: "Ambil pelanggan tiap metode bayar secara terpisah, lalu simpan hanya id yang muncul di keduanya dengan INTERSECT.",
+        en: "Select the customers of each payment method separately, then keep only the ids that appear in both with INTERSECT."
+      },
+      solution: `SELECT customer_id FROM orders WHERE payment_method = 'card'
+INTERSECT
+SELECT customer_id FROM orders WHERE payment_method = 'ewallet';`
+    },
+    {
+      id: "k-26",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pelanggan tanpa pesanan bermasalah (EXCEPT)", en: "Customers with no cancelled or refunded order (EXCEPT)" },
+      task: {
+        id: "Tampilkan customer_id pelanggan yang pernah memesan, tetapi tidak pernah punya pesanan berstatus 'cancelled' atau 'refunded'.",
+        en: "Return the customer_id of customers who have placed at least one order but never one with status 'cancelled' or 'refunded'."
+      },
+      hint: {
+        id: "Semua pelanggan yang pernah memesan EXCEPT pelanggan yang punya pesanan cancelled atau refunded.",
+        en: "All customers who have ordered, EXCEPT the customers who have a cancelled or refunded order."
+      },
+      solution: `SELECT customer_id FROM orders
+EXCEPT
+SELECT customer_id FROM orders WHERE status IN ('cancelled', 'refunded');`
+    },
+    {
+      id: "k-27",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Isi nol: semua kombinasi tier dan metode bayar (CROSS JOIN)", en: "Fill the zeros: every tier and payment method (CROSS JOIN)" },
+      task: {
+        id: "Tampilkan tier, payment_method, dan orders (jumlah pesanan) untuk setiap kombinasi tier pelanggan dan metode bayar, termasuk kombinasi tanpa pesanan (0).",
+        en: "Return tier, payment_method and orders (the number of orders) for every combination of customer tier and payment method, including combinations with no orders (0)."
+      },
+      hint: {
+        id: "Bangun grid dulu: (SELECT DISTINCT tier ...) CROSS JOIN (SELECT DISTINCT payment_method ...). Lalu LEFT JOIN customers dan orders ke grid itu dan hitung COUNT(o.order_id), bukan COUNT(*).",
+        en: "Build the grid first: (SELECT DISTINCT tier ...) CROSS JOIN (SELECT DISTINCT payment_method ...). Then LEFT JOIN customers and orders onto the grid and use COUNT(o.order_id), not COUNT(*)."
+      },
+      solution: `SELECT t.tier, p.payment_method, COUNT(o.order_id) AS orders
+FROM (SELECT DISTINCT tier FROM customers) t
+CROSS JOIN (SELECT DISTINCT payment_method FROM orders) p
+LEFT JOIN customers c ON c.tier = t.tier
+LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.payment_method = p.payment_method
+GROUP BY t.tier, p.payment_method;`
+    },
+    {
+      id: "k-28",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Pasangan pelanggan sekota (self-join)", en: "Pairs of customers in the same city (self-join)" },
+      task: {
+        id: "Tampilkan customer_a, customer_b, dan city untuk setiap pasangan pelanggan yang tinggal di kota yang sama. Tampilkan tiap pasangan sekali (customer_a lebih kecil dari customer_b); pelanggan tanpa kota tidak punya pasangan.",
+        en: "Return customer_a, customer_b and city for every pair of customers who live in the same city. Show each pair once (customer_a smaller than customer_b); customers without a city have no pair."
+      },
+      hint: {
+        id: "Gabungkan customers dengan dirinya sendiri (beri dua salinan alias berbeda) pada kota yang sama, dan syaratkan a.customer_id < b.customer_id agar pasangan tidak berulang atau dipasangkan dengan dirinya sendiri.",
+        en: "Join customers to itself (give the two copies different aliases) on the same city, and require a.customer_id < b.customer_id so a pair is not repeated or paired with itself."
+      },
+      solution: `SELECT a.customer_id AS customer_a, b.customer_id AS customer_b, a.city
+FROM customers a
+JOIN customers b ON a.city = b.city AND a.customer_id < b.customer_id;`
+    },
+    {
+      id: "k-29",
+      module: "mod-0-3",
+      dataset: "kopiku",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Baris total di bawah (UNION ALL)", en: "A total row at the bottom (UNION ALL)" },
+      task: {
+        id: "Tampilkan status dan orders (jumlah pesanan) untuk setiap status pesanan, diikuti satu baris lagi dengan status 'ALL' dan jumlah seluruh pesanan.",
+        en: "Return status and orders (the number of orders) for each order status, followed by one more row with status 'ALL' and the total number of orders."
+      },
+      hint: {
+        id: "GROUP BY status untuk query pertama, lalu UNION ALL dengan query kedua yang mengembalikan teks 'ALL' dan COUNT(*). Pakai UNION ALL: UNION juga akan menghapus duplikat, yang tidak Anda inginkan di sini.",
+        en: "GROUP BY status for the first query, then UNION ALL a second query that returns the text 'ALL' and COUNT(*). Use UNION ALL: UNION would also remove duplicates, which you do not want here."
+      },
+      solution: `SELECT status, COUNT(*) AS orders FROM orders GROUP BY status
+UNION ALL
+SELECT 'ALL', COUNT(*) FROM orders;`
+    },
+    {
+      id: "j-1",
+      module: "mod-1-3",
+      dataset: "app_events",
+      level: { id: "Dasar", en: "Basic" },
+      title: { id: "Ambil kolom dari JSON", en: "Pull fields out of JSON" },
+      task: {
+        id: "Tampilkan event_id, user_id (field user.id pada payload), dan plan (user.plan) untuk setiap event.",
+        en: "Return event_id, user_id (the payload field user.id) and plan (user.plan) for every event."
+      },
+      hint: {
+        id: "SQLite membaca JSON dengan payload ->> '$.user.id' (atau json_extract(payload, '$.user.id')). Kunci yang hilang menghasilkan NULL.",
+        en: "SQLite reads JSON with payload ->> '$.user.id' (or json_extract(payload, '$.user.id')). A missing key gives NULL."
+      },
+      solution: `SELECT event_id,
+       payload ->> '$.user.id' AS user_id,
+       payload ->> '$.user.plan' AS plan
+FROM events;`
+    },
+    {
+      id: "j-2",
+      module: "mod-1-3",
+      dataset: "app_events",
+      level: { id: "Menengah", en: "Intermediate" },
+      title: { id: "Perangkat tidak diketahui (kunci hilang vs null)", en: "Unknown device (missing key vs null)" },
+      task: {
+        id: "Tampilkan device dan events (jumlah event) per perangkat, dengan event tanpa perangkat (kuncinya hilang atau nilainya null) dihitung sebagai 'unknown'.",
+        en: "Return device and events (the number of events) per device, where an event with no device (the key is missing or the value is null) counts as 'unknown'."
+      },
+      hint: {
+        id: "Kunci yang hilang dan JSON null sama-sama menjadi NULL SQL dengan ->>. Pakai COALESCE(payload ->> '$.device', 'unknown') dan kelompokkan.",
+        en: "Both a missing key and a JSON null come back as SQL NULL with ->>. Use COALESCE(payload ->> '$.device', 'unknown') and group by it."
+      },
+      solution: `SELECT COALESCE(payload ->> '$.device', 'unknown') AS device, COUNT(*) AS events
+FROM events
+GROUP BY COALESCE(payload ->> '$.device', 'unknown');`
+    },
+    {
+      id: "j-3",
+      module: "mod-1-3",
+      dataset: "app_events",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Satu baris per item (json_each)", en: "One row per item (json_each)" },
+      task: {
+        id: "Tampilkan event_id, sku, dan line_total (qty * price) untuk setiap item dari setiap event. Event tanpa item tidak menghasilkan baris.",
+        en: "Return event_id, sku and line_total (qty * price) for every item of every event. Events without items give no rows."
+      },
+      hint: {
+        id: "FROM events e, json_each(e.payload, '$.items') i menghasilkan satu baris per elemen array; baca fieldnya dengan i.value ->> '$.sku'.",
+        en: "FROM events e, json_each(e.payload, '$.items') i gives one row per array element; read its fields with i.value ->> '$.sku'."
+      },
+      solution: `SELECT e.event_id,
+       i.value ->> '$.sku' AS sku,
+       (i.value ->> '$.qty') * (i.value ->> '$.price') AS line_total
+FROM events e, json_each(e.payload, '$.items') i;`
+    },
+    {
+      id: "j-4",
+      module: "mod-1-3",
+      dataset: "app_events",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Omzet per paket dari item JSON", en: "Revenue per plan from JSON items" },
+      task: {
+        id: "Tampilkan plan (user.plan) dan revenue (jumlah qty * price dari semua item) untuk event yang punya item.",
+        en: "Return plan (user.plan) and revenue (the sum of qty * price of all items) for events that have items."
+      },
+      hint: {
+        id: "Pecah item dengan json_each, lalu GROUP BY plan yang dibaca dari e.payload ->> '$.user.plan'.",
+        en: "Explode the items with json_each, then GROUP BY the plan read from e.payload ->> '$.user.plan'."
+      },
+      solution: `SELECT e.payload ->> '$.user.plan' AS plan,
+       SUM((i.value ->> '$.qty') * (i.value ->> '$.price')) AS revenue
+FROM events e, json_each(e.payload, '$.items') i
+GROUP BY e.payload ->> '$.user.plan';`
     }
   ],
 
@@ -1280,7 +1483,11 @@ WHERE rn IN ((n + 1) / 2, (n + 2) / 2);`
       INSERT INTO dim_customer VALUES (7,4,'Yogyakarta','Gold','2026-01-04 00:00:00','9999-12-31 00:00:00',1);
       INSERT INTO orders_small VALUES (7,4,'2026-01-15 10:00:00',175000);`,
     clickstream: `
-      INSERT INTO user_clickstream VALUES (3,'2026-03-01 12:15:00','/search'),(3,'2026-03-01 13:05:00','/cart');`
+      INSERT INTO user_clickstream VALUES (3,'2026-03-01 12:15:00','/search'),(3,'2026-03-01 13:05:00','/cart');`,
+    app_events: `
+      INSERT INTO events VALUES
+        (8,'2026-03-05 10:00:00','{"user":{"id":12,"plan":"pro"},"action":"checkout","items":[{"sku":"D4","qty":2,"price":10000},{"sku":"A1","qty":1,"price":50000}],"device":"web"}'),
+        (9,'2026-03-05 10:30:00','{"user":{"id":13},"action":"view","device":null}');`
   },
 
   // Compare as unordered sets of rows (numbers rounded), ignoring column names.

@@ -324,6 +324,46 @@ Baca baris ketiga dan keempat dua kali. Laporan yang mengurutkan menurut kolom n
 
 Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan DDL, Modul 0.3) dan **w-11 sampai w-14** (QUALIFY, FILTER, pengelompokan tanggal, median tanpa `MEDIAN()`) memakai persis gagasan-gagasan ini.
 
+## @lesson JSON di dalam SQL: membaca dan membangun data semi-terstruktur
+API, pelacak event, dan database aplikasi menyimpan JSON: kolom teks (atau JSON) yang tiap barisnya punya bentuk sendiri. Anda tidak perlu meninggalkan SQL untuk memakainya: SQLite, PostgreSQL, dan DuckDB semuanya bisa membaca dan membangun JSON. SQL Sandbox punya dataset untuk ini, `app_events`: tujuh event aplikasi, masing-masing dengan `payload` seperti `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
+
+**Membaca field.** Sebuah *path* dimulai dari `$`, memakai titik untuk objek dan `[0]` untuk posisi array. Operator `->>` mengembalikan nilainya sebagai nilai SQL, jadi bisa difilter, dikelompokkan, dan dijumlahkan. Kunci yang hilang dan kunci yang berisi JSON `null` sama-sama kembali sebagai NULL SQL (pakai `json_type` bila harus membedakannya), jadi bungkus field opsional dengan `COALESCE`. **Memecah array:** `json_each` mengembalikan satu baris per elemen, lalu `->>` membaca field tiap elemen:
+
+```sql
+SELECT payload ->> '$.action' AS action, COUNT(*) AS events FROM events GROUP BY 1;     -- checkout 4, view 3
+
+SELECT e.event_id, COUNT(i.key) AS n_items                                              -- 2, 0, 1, 0, 0, 0, 1
+FROM events e LEFT JOIN json_each(e.payload, '$.items') i GROUP BY e.event_id;
+```
+
+Perhatikan `LEFT JOIN` pada query kedua. Dengan join biasa (`FROM events e, json_each(...)`) event dengan array kosong atau tanpa `items` sama sekali menghasilkan **nol baris**, sehingga ia hilang diam-diam dari hasil. Itu benar bila Anda menginginkan item pesanan, dan salah bila Anda sedang menghitung event.
+
+**Membangun JSON** berjalan ke arah sebaliknya, untuk API dan untuk menyimpan satu record bersarang dalam satu kolom:
+
+```sql
+SELECT payload ->> '$.user.id' AS user_id, json_group_array(event_id) AS event_ids FROM events GROUP BY 1;   -- 7: [1,3]   8: [2,7]   9: [4,5]   10: [6]
+SELECT json_object('event', event_id, 'user', payload ->> '$.user.id') FROM events WHERE event_id = 1;   -- {"event":1,"user":7}
+```
+
+**Dialek.** Kami menjalankan pertanyaan yang sama di SQLite 3.39 (sandbox), PostgreSQL 16 (kolom `jsonb`), dan DuckDB 1.5:
+
+| Tugas | SQLite | PostgreSQL | DuckDB |
+|---|---|---|---|
+| Field teks | `payload ->> '$.user.plan'` | `payload -> 'user' ->> 'plan'` | `payload ->> '$.user.plan'` |
+| Field angka | `->>` mengembalikan **integer** | mengembalikan **teks**: cast dengan `::int` | mengembalikan **teks**: cast dengan `::INT` |
+| Satu baris per elemen array | `json_each(payload, '$.items')` | `jsonb_array_elements(payload -> 'items')` | `json_each(payload, '$.items')` |
+| Membangun objek | `json_object('a', 1)` | `jsonb_build_object('a', 1)` | `json_object('a', 1)` |
+| Mengumpulkan nilai ke array | `json_group_array(x)` | `jsonb_agg(x)` | `json_group_array(x)` |
+| Kunci hilang atau JSON `null` | NULL | NULL | NULL |
+
+Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `->>` mempertahankan angkanya, tetapi di PostgreSQL dan DuckDB ia gagal dengan `text * text` sampai Anda melakukan cast: kegagalan yang berisik dan mudah diperbaiki. Yang diam-diam: di PostgreSQL, `payload ->> '$.user.id'` mengembalikan **NULL untuk setiap baris**, tanpa error, karena sintaks path `$.user.id` bukan milik PostgreSQL (ia mencari kunci yang namanya persis `$.user.id`). Query yang dipindahkan antar mesin bisa mengembalikan kolom kosong dan lolos semua pemeriksaan sintaks.
+
+**Kebiasaan.** Periksa `json_valid(payload)` sebelum mengurai: satu baris yang rusak membuat seluruh query gagal (`malformed JSON` di SQLite). Di PostgreSQL pilih `jsonb`, yang diurai sekali dan bisa diindeks, daripada `json`, yang disimpan sebagai teks. Terutama, **urai sekali, lalu pakai kolom bertipe**: model staging (Modul 2.3) mengubah JSON menjadi kolom dengan tipe sebenarnya, dan semua yang di hilir menanyakan kolom itu, bukan teksnya.
+
+> 🛠 **Coba sendiri (25 menit, SQL Sandbox dengan dataset app_events).** Pilih dataset *Event aplikasi (payload JSON)* dan selesaikan **j-1** (ambil `user.id` dan `user.plan` dari payload), **j-2** (event per perangkat, dengan perangkat yang hilang ditampilkan sebagai `unknown`), **j-3** (satu baris per item beserta total barisnya), dan **j-4** (omzet per paket). Untuk j-3, pakai dulu join biasa lalu `LEFT JOIN`, dan hitung baris yang dikembalikan tiap versi. Lalu, di editor, coba `SELECT payload ->> '$.user.id' FROM events` dan `SELECT payload ->> '$.user.plan' FROM events` dan bandingkan tipe kolomnya.
+>
+> **Yang harus Anda lihat:** j-1 mengembalikan 7 baris dengan plan NULL untuk event 6; j-2 mengembalikan android 2, ios 2, unknown 2, web 1; j-3 mengembalikan 4 baris (event 1, 1, 3, dan 7), karena event 2, 4, 5, dan 6 tidak punya item; j-4 mengembalikan free 50000 dan pro 310000. Join biasa memberi 4 baris untuk j-3 dan `LEFT JOIN` memberi 8: 4 baris yang sama ditambah satu baris bernilai kosong untuk tiap event 2, 4, 5, dan 6.
+
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.
 

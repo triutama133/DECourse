@@ -227,6 +227,47 @@ Join pada kunci yang tidak unik di *kedua* sisi adalah **join many-to-many**, ya
 > `python3 labs/mod-0-3/check.py`
 > Pastikan k-5, k-6, dan k-8 mencetak PASS! Lanjut ke Pelajaran 7 di bawah.
 
+## @lesson Cara lain menggabungkan data: self-join, CROSS JOIN, dan operasi himpunan
+Join menempatkan tabel **berdampingan**: ia menambah kolom. Tiga alat lagi melengkapi gambarnya: tabel yang di-join dengan dirinya sendiri, setiap baris dipasangkan dengan setiap baris, dan **menumpuk** hasil satu di atas yang lain.
+
+**Self-join.** Untuk membandingkan baris dari tabel yang *sama*, join tabel itu dengan dirinya sendiri memakai dua alias. Pasangan produk dengan roast yang sama:
+
+```sql
+SELECT a.product_id AS product_a, b.product_id AS product_b, a.roast
+FROM products a
+JOIN products b ON a.roast = b.roast AND a.product_id < b.product_id;
+```
+
+Hasilnya 3 pasang: (1, 4) medium, (2, 5) dark, dan (3, 6) light. Tanda `<` itulah yang membuatnya benar: tanpanya setiap produk dipasangkan dengan dirinya sendiri dan setiap pasangan muncul dua kali (12 baris, bukan 3). Ingat pelajaran NULL: dua NULL tidak pernah sama, jadi baris dengan NULL pada kolom join tidak cocok dengan apa pun. Pola yang sama menjawab "seorang karyawan dan atasannya" atau "baris ini dan baris sebelumnya".
+
+**CROSS JOIN.** `CROSS JOIN` tidak punya `ON`: setiap baris di satu sisi dipasangkan dengan setiap baris di sisi lain. Ini berguna untuk membangun **grid lengkap** kategori, supaya kombinasi tanpa data tetap muncul sebagai 0, bukan hilang diam-diam (grafik dengan batang yang hilang adalah kebohongan lewat kelalaian):
+
+```sql
+SELECT s.status, p.payment_method
+FROM (SELECT DISTINCT status FROM orders) s
+CROSS JOIN (SELECT DISTINCT payment_method FROM orders) p;   -- 5 status x 4 metode = 20 baris
+```
+
+Lalu `LEFT JOIN` faktanya ke grid dan hitung kolom dari sisi *kanan* (`COUNT(o.order_id)`, bukan `COUNT(*)` yang akan menghitung baris kosong sebagai 1). Bahayanya adalah cross join yang tidak disengaja: lupa `ON` pada join biasa, dan `customers` dengan `products` menghasilkan 10 x 6 = 60 baris; dengan dua tabel berisi sejuta baris hasilnya satu triliun.
+
+**Operasi himpunan** menumpuk hasil dua query. Kedua query harus mengembalikan jumlah kolom yang sama dengan tipe yang cocok, dan kolom dicocokkan berdasarkan **posisi**, bukan nama (salah menukar dua kolom, dan data tercampur tanpa error apa pun). Dengan tier pelanggan di Jakarta dan di Bandung:
+
+```sql
+-- Jakarta: Gold, Bronze, Silver.  Bandung: Silver, Gold.
+SELECT tier FROM customers WHERE city = 'Jakarta' UNION     SELECT tier FROM customers WHERE city = 'Bandung';  -- 3 baris
+SELECT tier FROM customers WHERE city = 'Jakarta' UNION ALL SELECT tier FROM customers WHERE city = 'Bandung';  -- 5 baris
+SELECT tier FROM customers WHERE city = 'Jakarta' INTERSECT SELECT tier FROM customers WHERE city = 'Bandung';  -- Gold, Silver
+SELECT tier FROM customers WHERE city = 'Jakarta' EXCEPT    SELECT tier FROM customers WHERE city = 'Bandung';  -- Bronze
+```
+
+`UNION ALL` menumpuk semuanya dan mempertahankan duplikat. `UNION` juga menghapus duplikat, yang butuh pengurutan dan bisa menyembunyikan baris berulang yang memang nyata, jadi ia pilihan yang tepat hanya bila duplikat adalah kesalahan. `INTERSECT` menyimpan baris yang ada di kedua hasil; `EXCEPT` menyimpan baris dari hasil pertama yang tidak ada di hasil kedua. Perhatikan bahwa operasi himpunan membandingkan seluruh baris dan menganggap dua NULL sama, berbeda dari `=`.
+
+> **Peringatan:** `NOT IN` dengan subquery yang bisa mengembalikan NULL menghasilkan **nol baris sama sekali**, karena `x NOT IN (1, NULL)` tidak pernah benar. `SELECT name FROM customers WHERE city NOT IN (SELECT city FROM customers WHERE tier = 'Silver')` mengembalikan 0 baris, sebab satu pelanggan Silver tidak punya kota. Menambahkan `AND city IS NOT NULL` di dalam subquery memberi 3 baris. `NOT EXISTS`, `EXCEPT`, dan anti-join dengan LEFT JOIN tidak punya jebakan ini, itulah sebabnya cara-cara itu lebih aman untuk menyatakan "tidak ada di".
+
+> 🛠 **Coba sendiri (25 menit, SQL Sandbox dengan dataset KopiKu).** Selesaikan tantangan KopiKu **k-24** (daftar kampanye dari dua daftar), **k-25** (pelanggan yang memakai kartu dan e-wallet), **k-26** (pelanggan tanpa pesanan cancelled atau refunded), **k-27** (setiap tier dan metode bayar, dengan nol), **k-28** (pasangan pelanggan sekota), dan **k-29** (baris total di bawah). Sebelum menjalankan k-24, tebak berapa pelanggan yang Anda dapat dengan `UNION` dan dengan `UNION ALL`, lalu coba keduanya. Untuk k-28, jalankan dulu dengan `a.customer_id <> b.customer_id` dan hitung barisnya, lalu perbaiki.
+>
+> **Yang harus Anda lihat:** k-24 mengembalikan 8 pelanggan (`UNION ALL` akan menampilkan 9, karena pelanggan 9 ada di kedua daftar); k-25 mengembalikan 4 (1, 2, 4, 7); k-26 mengembalikan 5 (1, 3, 5, 7, 9); k-27 mengembalikan 12 baris, dengan Gold dan bank_transfer bernilai 0; k-28 mengembalikan 4 pasang (`<>` memberi 8, tiap pasangan dua kali); k-29 mengembalikan 6 baris, yang terakhir `ALL` dengan 18.
+
 ## @lesson CASE, subquery, dan CTE
 **CASE** adalah if/else-nya SQL, dipakai untuk membuat kategori. Di sini `order_totals` adalah total per pesanan, didefinisikan di contoh CTE di bawah:
 
@@ -271,7 +312,7 @@ Gaya penulisan penting karena orang lain akan merawat SQL Anda. Taruh tiap klaus
 > 2. `-- k-10`: hitung persentase porsi tiap metode pembayaran menggunakan subquery skalar `(SELECT COUNT(*) FROM orders)`.
 > Sekarang uji seluruh 10 jawaban Anda di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Jika skor Anda **10/10 answers correct**, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 8 untuk DML & Transaksi.
+> Jika skor Anda **10/10 answers correct**, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 9 untuk DML & Transaksi.
 
 ## @lesson Mengubah data dengan aman: DML, constraint, dan transaksi
 Selain membaca, SQL mengubah data:
