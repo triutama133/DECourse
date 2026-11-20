@@ -484,7 +484,7 @@ class DataForgeApp {
     else if (xp >= 600) { leagueName = this.l("Pipeline Crafter", "Pipeline Crafter"); leagueIcon = "⚔️"; }
 
     const badges = [
-      { id: "first-proof", icon: "🧪", name: this.l("Pembukti Hukum Pertama", "First-Law Prover"), desc: this.l("Verifikasi bukti lab lokal DF1 atau TRY1 pertama Anda", "Verify your first local DF1 or TRY1 lab proof"), unlocked: (proofCount + tryItCount) >= 1 },
+      { id: "first-proof", icon: "🧪", name: this.l("Bukti pertama", "First proof"), desc: this.l("Verifikasi bukti lab lokal DF1 atau TRY1 pertama Anda", "Verify your first local DF1 or TRY1 lab proof"), unlocked: (proofCount + tryItCount) >= 1 },
       { id: "sql-gladiator", icon: "⚡", name: this.l("Gladiator SQL Hostil", "Hostile SQL Gladiator"), desc: this.l("Selesaikan ≥ 5 tantangan SQL dengan tes mutasi hostil", "Solve ≥ 5 SQL challenges with hostile data tests"), unlocked: sqlCount >= 5 },
       { id: "chaos-defender", icon: "🛠️", name: this.l("Penjinak Insiden Jam 2 Pagi", "2 AM Chaos Responder"), desc: this.l("Selesaikan drill debugging CHAOS1 atau Silent Bug Clinic", "Complete a CHAOS1 terminal drill or Silent Bug case"), unlocked: (chaosCount + bugCount) >= 1 },
       { id: "fode-architect", icon: "📐", name: this.l("Arsitek Siklus Hidup Data", "Lifecycle Architect"), desc: this.l("Selesaikan simulasi Pertahanan Stakeholder atau Modul 0.1", "Complete a Stakeholder Defense drill or Module 0.1"), unlocked: defCount >= 1 || this.completedModules.includes("mod-0-1") },
@@ -1899,13 +1899,12 @@ class DataForgeApp {
       const modsToShow = pathModsInLevel.length ? pathModsInLevel : lvl.modules;
       const doneCount = modsToShow.filter((m) => this.completedModules.includes(m.id)).length;
       const pct = Math.round((doneCount / modsToShow.length) * 100);
-      const toneColors = ["var(--blue)", "var(--green)", "var(--purple)", "var(--amber)", "var(--red)"];
       return `
         <div class="duo-section-card">
           <div class="duo-section-banner tone-${lvlIdx % 5}">
             <div class="row between">
               <span class="chip">${this.esc(this.t(lvl.badge))}</span>
-              ${this.renderRingProgress(pct, 42, toneColors[lvlIdx % 5])}
+              ${this.renderRingProgress(pct, 42, "#ffffff")}
             </div>
             <h3 style="margin-top:8px">${this.esc(this.t(lvl.levelTitle))}</h3>
             <p class="muted small" style="margin-top:4px">${this.esc(this.t(lvl.levelSubtitle))}</p>
@@ -1945,8 +1944,8 @@ class DataForgeApp {
           <div class="row" style="padding-top:8px">
             <button class="btn btn-primary" onclick="app.go('start')">${this.l("Mulai di sini: siapkan komputer", "Start here: set up your computer")}</button>
             <button class="btn" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
-            <button class="btn" onclick="app.go('interview')">${t.ctaInterviewSim}</button>
-            <button class="btn" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
+            <button class="btn btn-quiet" onclick="app.go('interview')">${t.ctaInterviewSim}</button>
+            <button class="btn btn-quiet" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
           </div>
         </div>
 
@@ -1986,7 +1985,7 @@ class DataForgeApp {
           </div>
         </div>
 
-        <!-- Idea #1: Duolingo & Uxcel Gamification Hub (Daily Quests + Earned First-Law Badges) -->
+        <!-- Daily quests and badges -->
         <div class="grid cols-2">
           <div class="card stack-sm">
             <div class="row between">
@@ -2015,7 +2014,7 @@ class DataForgeApp {
           <div class="card stack-sm">
             <div class="row between">
               <div>
-                <span class="chip chip-green">🏅 ${this.l("Lencana Bukti Rekayasa (First-Law Badges)", "Earned First-Law Engineering Badges")}</span>
+                <span class="chip chip-green">🏅 ${this.l("Lencana", "Badges")}</span>
                 <h3 style="margin-top:4px">${g.leagueIcon} ${this.esc(g.leagueName)} · ⚡ ${g.xp.toLocaleString()} XP</h3>
               </div>
               <span class="muted small">${g.badges.filter((b) => b.unlocked).length}/${g.badges.length} ${this.l("Terbuka", "Unlocked")}</span>
@@ -2227,29 +2226,29 @@ class DataForgeApp {
             </div>
 
             <!-- 4-Step Module Mastery Pipeline -->
-            <div class="mastery-pipeline" aria-label="${this.l("Alur Penguasaan 4 Langkah", "4-Step Mastery Pipeline")}">
-              <button class="pipeline-step ${this.activeModuleTab === "concepts" ? "active" : ""} ${readCount === totalLessons && totalLessons > 0 ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','concepts')">
+            <div class="mastery-pipeline" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
+              <button role="tab" id="tab-concepts" aria-selected="${this.activeModuleTab === "concepts"}" aria-controls="tabpanel" class="pipeline-step ${this.activeModuleTab === "concepts" ? "active" : ""} ${readCount === totalLessons && totalLessons > 0 ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','concepts')">
                 <div class="step-top">
                   <span>1. ${this.l("Materi & Praktik", "Lessons & Try-It")}</span>
                   <span class="step-status">${readCount === totalLessons && totalLessons > 0 ? "✓" : `${readCount}/${totalLessons}`}</span>
                 </div>
                 <div class="step-sub">${this.l(`${readCount} dari ${totalLessons} materi dibaca`, `${readCount} of ${totalLessons} lessons read`)}${tryItStats.total ? ` · ${tryItStats.done}/${tryItStats.total} 🛠` : ""}</div>
               </button>
-              <button class="pipeline-step ${this.activeModuleTab === "lab" ? "active" : ""} ${hasProof ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','lab')">
+              <button role="tab" id="tab-lab" aria-selected="${this.activeModuleTab === "lab"}" aria-controls="tabpanel" class="pipeline-step ${this.activeModuleTab === "lab" ? "active" : ""} ${hasProof ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','lab')">
                 <div class="step-top">
                   <span>2. ${this.l("Lab & Bukti", "Build Lab & Prove")}</span>
                   <span class="step-status">${hasProof ? "✓" : blPassed ? "⚡" : "○"}</span>
                 </div>
                 <div class="step-sub">${hasProof ? this.l("Bukti lokal terverifikasi", "Local proof verified") : blPassed ? this.l("Pratinjau lulus · perlu bukti", "Preview passed · need proof") : this.l("Tulis kode & jalankan pytest", "Write code & run pytest")}</div>
               </button>
-              <button class="pipeline-step ${this.activeModuleTab === "chaos" ? "active" : ""} ${isChaosDone ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','chaos')">
+              <button role="tab" id="tab-chaos" aria-selected="${this.activeModuleTab === "chaos"}" aria-controls="tabpanel" class="pipeline-step ${this.activeModuleTab === "chaos" ? "active" : ""} ${isChaosDone ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','chaos')">
                 <div class="step-top">
                   <span>3. ${this.l("Insiden Chaos", "Chaos Incident")}</span>
                   <span class="step-status">${isChaosDone ? "✓" : "○"}</span>
                 </div>
                 <div class="step-sub">${isChaosDone ? this.l("Akar masalah dianalisis", "Root cause analyzed") : this.l("Bedah kegagalan produksi", "Debug production failure")}</div>
               </button>
-              <button class="pipeline-step ${this.activeModuleTab === "quiz" ? "active" : ""} ${isQuizPassed ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','quiz')">
+              <button role="tab" id="tab-quiz" aria-selected="${this.activeModuleTab === "quiz"}" aria-controls="tabpanel" class="pipeline-step ${this.activeModuleTab === "quiz" ? "active" : ""} ${isQuizPassed ? "done" : ""}" onclick="app.go('curriculum','${mod.id}','quiz')">
                 <div class="step-top">
                   <span>4. ${this.l("Kuis Verifikasi", "Verification Quiz")}</span>
                   <span class="step-status">${isQuizPassed ? "✓" : quizScore ? `${quizScore.best}/${quizScore.total}` : "○"}</span>
@@ -2267,9 +2266,6 @@ class DataForgeApp {
               <textarea class="notes-textarea" placeholder="${this.l("Tulis model mental, perintah terminal penting, atau pertanyaan Anda untuk modul ini… (ikut terekspor saat Anda klik Ekspor Progres)", "Write down your mental models, key commands, or questions for this module… (included when you Export Progress)")}" oninput="app.saveModuleNote('${mod.id}', this.value)">${this.esc(noteText)}</textarea>
             </details>
 
-            <div class="tabs" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
-              ${MODULE_TABS.map((k) => `<button role="tab" id="tab-${k}" aria-selected="${this.activeModuleTab === k}" aria-controls="tabpanel" class="${this.activeModuleTab === k ? "active" : ""}" onclick="app.go('curriculum','${mod.id}','${k}')">${tabLabels[k]}</button>`).join("")}
-            </div>
             <div class="stack" id="tabpanel" role="tabpanel" aria-labelledby="tab-${this.activeModuleTab}" style="padding-top:8px">${this.renderModuleTabContent(mod, t)}</div>
 
             <!-- Module-to-Module Footer Navigation -->
@@ -2969,7 +2965,7 @@ class DataForgeApp {
       `⚡ DataForge Verified Engineering Scorecard`,
       `• Rank: ${g.leagueIcon} ${g.leagueName} (${g.xp.toLocaleString()} XP · 🔥 ${g.streakDays}d Streak)`,
       `• Modules Completed: ${this.completedModules.length}/27`,
-      `• First-Law Local Proofs: ${g.proofCount} DF1 Labs · ${g.tryItCount} TRY1 Checks · ${g.chaosCount} CHAOS1 Drills · ${g.portCount} PORT1 Git Repos`,
+      `• Local proofs: ${g.proofCount} DF1 Labs · ${g.tryItCount} TRY1 Checks · ${g.chaosCount} CHAOS1 Drills · ${g.portCount} PORT1 Git Repos`,
       `• Hostile SQL Sandbox Solved: ${g.sqlCount}/59`
     ].join("\n");
     this.copyText(text, btn);
@@ -2984,7 +2980,7 @@ class DataForgeApp {
       return `
         <div class="card row between" style="border-left:4px solid var(--purple);background:var(--card-subtle)">
           <div>
-            <span class="chip chip-blue">⚔️ ${this.l("Fitur Kompetitif & Sosial (Sololearn Style)", "Competitive & Social Challenge (Sololearn Style)")}</span>
+            <span class="chip chip-blue">⚔️ ${this.l("Tantangan bersama teman", "Challenge with friends")}</span>
             <h3 style="margin-top:4px">${this.l("Duel cepat: 5 soal keputusan arsitektur", "Quick duel: 5 architecture decisions")}</h3>
             <p class="small muted">${this.l("Jawab 5 soal pilihan keputusan arsitektur secepat mungkin (target: 4 benar), atau salin kartu skor bukti lokal Anda untuk grup belajar.", "Answer 5 architecture decision questions as fast as you can (target: 4 right), or copy your local proof scorecard for your study group.")}</p>
           </div>
@@ -4376,7 +4372,7 @@ class DataForgeApp {
 
               <div class="grid cols-2">
                 ${evaluatedSkills.map((sk) => `
-                  <div class="stat stack-sm" style="border-left:3px solid ${sk.isProven ? "var(--green)" : "var(--red)"}">
+                  <div class="stat stack-sm" style="border-left:3px solid ${sk.isProven ? "var(--green)" : "var(--border-strong)"}">
                     <div class="row between">
                       <strong style="font-size:13px">${this.esc(sk.name)}</strong>
                       <span class="chip ${sk.isProven ? "chip-green" : ""}">${sk.isProven ? "✓ " + this.l("Terbukti", "Proven") : this.l("Belum", "Not yet")}</span>
