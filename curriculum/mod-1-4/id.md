@@ -181,6 +181,42 @@ Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh 
 > `python3 labs/mod-1-4/test_lab.py -v`
 > Ketika ke-13 unit test berstatus PASSED (OK), star schema KopiKu Anda telah memenuhi standar enterprise!
 
+## @lesson Cara lain memodelkan: Inmon, Data Vault, dan satu tabel besar
+> **Intinya:** Star schema bukan satu-satunya desain. **Inmon** menyimpan warehouse ternormalisasi untuk seluruh perusahaan lalu membangun star schema darinya. **Data Vault** memecah data menjadi hub, link, dan satellite agar banyak sumber yang terus berubah bisa dimuat paralel dan setiap nilai lama tetap tersimpan. **Satu tabel besar** (one big table) menggabungkan semuanya di awal demi kecepatan. Masing-masing menyelesaikan masalah yang berbeda, dan perusahaan besar sering memadukannya.
+
+Bab 8 *Fundamentals of Data Engineering* membandingkan pendekatan-pendekatan ini. Di database lowongan TalentHub, 59% dari 1.130 lowongan data engineering menyebut pemodelan data, dan 36 di antaranya (3%) menyebut Data Vault, kebanyakan di perusahaan besar dan konsultan (NTT DATA, Accenture, B. Braun, Traveloka, Indosat), sering untuk posisi Snowflake atau Databricks.
+
+| Pendekatan | Bentuk | Unggul dalam | Harganya |
+|---|---|---|---|
+| **Inmon** | Warehouse ternormalisasi (3NF) untuk seluruh perusahaan, dengan mart star schema per departemen yang dibangun darinya | Satu versi untuk setiap fakta, sedikit duplikasi | Banyak join; perubahan perlu koordinasi lintas perusahaan |
+| **Kimball** (modul ini) | Tabel fakta dengan grain yang dinyatakan, dikelilingi dimensi | Pertanyaan yang mudah dan cepat untuk analis dan tool BI | Menyatukan banyak sumber yang berubah ke dimensi bersama butuh kerja di awal |
+| **Data Vault** | Hub (business key), link (hubungan), dan satellite (atribut sepanjang waktu), dimuat insert-only | Menyerap sumber baru dan sumber yang berubah; menyimpan riwayat lengkap untuk audit | Terlalu banyak join untuk analis, sehingga biasanya dibangun star schema di atasnya |
+| **Satu tabel besar** | Satu tabel lebar per grain, semuanya sudah di-join di awal | Tanpa join saat query; scan kolom yang cepat | Menyembunyikan grain yang tercampur; satu atribut yang berubah bisa berarti menulis ulang partisi raksasa |
+
+### Di dalam Data Vault
+Kimball memakai surrogate key 1, 2, 3 yang dibagikan berurutan. Dengan lima belas sumber yang dimuat bersamaan, membagikan nomor berurutan menjadi hambatan, dan pelanggan yang sama mendapat nomor berbeda di setiap sistem. Data Vault justru menurunkan setiap key dari business key itu sendiri dengan hash, sehingga setiap loader menghitung key yang sama secara mandiri. Standar Data Vault 2.0 umumnya memakai MD5; modul ini memakai SHA-256, yang cara kerjanya sama.
+
+```python
+import hashlib
+
+def dv_hash(text):
+    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
+
+hk_customer = dv_hash("C-101")            # key hub
+hk_link     = dv_hash("C-101|O-5001")     # key link: pelanggan dan pesanan, digabung dengan |
+hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: sidik jari atribut
+```
+
+- **Hub** (`hub_customer`): hanya business key, hash key-nya, kapan pertama kali terlihat (`load_ts`) dan dari mana (`record_source`). Tanpa deskripsi.
+- **Link** (`link_customer_order`): hubungan antar-hub. Link dirancang many-to-many, sehingga aturan bisnis yang berubah dari one-to-many menjadi many-to-many tidak merusak tabel.
+- **Satellite** (`sat_customer`): atribut yang berubah sepanjang waktu, seperti kota dan tier, dengan sidik jari `hash_diff`. Satellite bersifat insert-only: baris baru hanya ditambahkan saat sidik jarinya berbeda dari baris *terakhir* pelanggan itu. Tidak ada yang ditimpa, sehingga riwayat lengkapnya tetap ada.
+
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di file `datavault.py`, tulis `build_data_vault(events, record_source="kopiku_oms")`. Setiap event adalah dict dengan `customer_id`, `order_id`, `city`, `tier`, dan `load_ts`, dan event bisa datang dengan urutan apa pun. Kembalikan dict berisi empat list dict, dengan key berikut:
+> `hub_customer`: `hk_customer, customer_id, load_ts, record_source` · `hub_order`: `hk_order, order_id, load_ts, record_source`
+> `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
+> Hash persis seperti kode di atas: business key di-trim dan dijadikan huruf besar; key link adalah `CUSTOMER|ORDER`; `hash_diff` adalah `CITY|TIER`, keduanya di-trim dan dijadikan huruf besar. Pikirkan arti "pertama kali terlihat" saat event datang tidak berurutan, dan apa yang harus ditinggalkan di satellite oleh pelanggan yang pindah ke Bandung lalu kembali ke Jakarta.
+> **Periksa:** `python3 labs/tryit/check.py 1.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
+
 ## @lab Lab: membangun star schema KopiKu
 Bangun data warehouse untuk KopiKu menggunakan SQL: dimensi tanggal, dimensi produk (SCD Tipe 1), dimensi pelanggan (SCD Tipe 2 lengkap dengan anggota unknown), dan tabel fakta pada grain item pesanan yang terhubung ke versi pelanggan yang valid pada saat pesanan dibuat. 13 unit test otomatis akan menguji integritas grain, referensial, rekonsiliasi nilai omset, serta verifikasi independen menggunakan script Python. Anda juga dibekali empat latihan sandbox interaktif di browser untuk melatih intuisi logika SCD.
 

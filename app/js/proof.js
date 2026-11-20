@@ -58,7 +58,27 @@
     return { ok: true, info: { ident, passed: parseInt(passed, 10), py, os } };
   }
 
-  const api = { sha256, verify, verifyTryIt };
+  function verifyChaos(expectedMod, raw) {
+    const f = String(raw || "").trim().replace(/\s+/g, "").split(":");
+    if (f.length !== 6 || f[0] !== "CHAOS1") return { ok: false, reason: "format" };
+    const [, mod, passed, py, os, chk] = f;
+    if (sha256(f.slice(0, 5).join("|")).slice(0, 6) !== chk.toLowerCase()) return { ok: false, reason: "checksum" };
+    if (expectedMod && mod !== expectedMod) return { ok: false, reason: "module", mod };
+    if (!(parseInt(passed, 10) > 0)) return { ok: false, reason: "passed" };
+    return { ok: true, info: { mod, passed: parseInt(passed, 10), py, os } };
+  }
+
+  function verifyPortfolio(expectedProj, raw) {
+    const f = String(raw || "").trim().replace(/\s+/g, "").split(":");
+    if (f.length !== 7 || f[0] !== "PORT1") return { ok: false, reason: "format" };
+    const [, proj, passed, commits, py, os, chk] = f;
+    if (sha256(f.slice(0, 6).join("|")).slice(0, 6) !== chk.toLowerCase()) return { ok: false, reason: "checksum" };
+    if (expectedProj && proj !== expectedProj) return { ok: false, reason: "project", proj };
+    if (!(parseInt(passed, 10) >= 5)) return { ok: false, reason: "passed" };
+    return { ok: true, info: { proj, passed: parseInt(passed, 10), commits: parseInt(commits, 10), py, os } };
+  }
+
+  const api = { sha256, verify, verifyTryIt, verifyChaos, verifyPortfolio };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ProofCheck = api;
 })(typeof window !== "undefined" ? window : globalThis);

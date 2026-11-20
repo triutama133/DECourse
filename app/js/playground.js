@@ -1415,6 +1415,27 @@ FROM events e, json_each(e.payload, '$.items') i;`
        SUM((i.value ->> '$.qty') * (i.value ->> '$.price')) AS revenue
 FROM events e, json_each(e.payload, '$.items') i
 GROUP BY e.payload ->> '$.user.plan';`
+    },
+    {
+      id: "dv-1",
+      module: "mod-1-4",
+      dataset: "scd_demo",
+      level: { id: "Lanjut", en: "Advanced" },
+      title: { id: "Audit Survivorship Dimensi: Status Terkini vs Jumlah Versi Historis", en: "Dimension Survivorship Audit: Current State vs Historical Version Count" },
+      task: {
+        id: "Dari tabel dim_customer (SCD Tipe 2), tampilkan customer_id, current_city (kota pada baris is_current = 1), current_tier (tier pada baris is_current = 1), dan version_count (total jumlah baris versi historis yang pernah dimiliki customer_id tersebut).",
+        en: "From dim_customer (SCD Type 2), return customer_id, current_city (city where is_current = 1), current_tier (tier where is_current = 1), and version_count (total number of historical version rows for that customer_id)."
+      },
+      hint: {
+        id: "Gunakan GROUP BY customer_id dengan MAX(CASE WHEN is_current = 1 THEN city END), MAX(CASE WHEN is_current = 1 THEN tier END), dan COUNT(*), atau gabungkan baris is_current = 1 dengan subquery hitungan versi per customer_id.",
+        en: "Group by customer_id with MAX(CASE WHEN is_current = 1 THEN city END), MAX(CASE WHEN is_current = 1 THEN tier END), and COUNT(*), or join the is_current = 1 row to a version-count CTE."
+      },
+      solution: `SELECT customer_id,
+       MAX(CASE WHEN is_current = 1 THEN city END) AS current_city,
+       MAX(CASE WHEN is_current = 1 THEN tier END) AS current_tier,
+       COUNT(*) AS version_count
+FROM dim_customer
+GROUP BY customer_id;`
     }
   ],
 
@@ -1459,6 +1480,33 @@ GROUP BY e.payload ->> '$.user.plan';`
       if (!results.length) return { ok: true, columns: [], rows: [], ms, empty: true };
       const last = results[results.length - 1];
       return { ok: true, columns: last.columns, rows: last.values, ms };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  },
+
+  // Run EXPLAIN QUERY PLAN on the last SELECT/WITH statement (after executing any preceding DDL/DML such as CREATE INDEX).
+  explain(sql) {
+    try {
+      const stmts = String(sql || "")
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!stmts.length) return { ok: false, error: "Empty SQL statement." };
+      for (let i = 0; i < stmts.length - 1; i++) {
+        this.db.exec(stmts[i]);
+      }
+      const target = stmts[stmts.length - 1].replace(/^EXPLAIN\s+QUERY\s+PLAN\s+/i, "");
+      const res = this.db.exec("EXPLAIN QUERY PLAN " + target);
+      if (!res.length) return { ok: true, steps: [] };
+      const steps = res[0].values.map((r) => {
+        const detail = String(r[r.length - 1] || "");
+        const isScan = /\bSCAN\b/i.test(detail) && !/\bUSING\s+(?:COVERING\s+)?INDEX\b/i.test(detail);
+        const isIndex = /\bUSING\s+(?:COVERING\s+)?INDEX\b/i.test(detail) || /\bINTEGER\s+PRIMARY\s+KEY\b/i.test(detail);
+        const isTempBtree = /\bUSE\s+TEMP\s+B-TREE\b/i.test(detail);
+        return { detail, isScan, isIndex, isTempBtree };
+      });
+      return { ok: true, steps, target };
     } catch (err) {
       return { ok: false, error: err.message };
     }

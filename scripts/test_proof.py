@@ -134,11 +134,12 @@ try:
 
     # the capstone checkers need DuckDB and PyArrow in the temporary venv (installed once here, whichever capstone data is present)
     rc, out = sh([py, "-m", "pip", "install", "-q", "duckdb", "pyarrow"])
-    check(rc == 0 or sh([py, "-c", "import duckdb, pyarrow"])[0] == 0, "duckdb and pyarrow installed in the temporary venv")
+    has_duckdb = (rc == 0 or sh([py, "-c", "import duckdb, pyarrow"])[0] == 0)
+    check(has_duckdb, "duckdb and pyarrow installed in the temporary venv (needed for the capstone checks)")
 
     # Capstone 4.1: a workspace-based lab whose checker runs the learner's pipeline (needs the 50 MB input data; skipped when it was not downloaded)
     data4 = ROOT / "labs" / "mod-4-1" / "data"
-    if (data4 / "yellow_tripdata_2024-01.parquet").is_file() and (data4 / "taxi_zone_lookup.csv").is_file():
+    if has_duckdb and (data4 / "yellow_tripdata_2024-01.parquet").is_file() and (data4 / "taxi_zone_lookup.csv").is_file():
         (work / "labs" / "mod-4-1" / "data").symlink_to(data4, target_is_directory=True)
         cap = work / "labs" / "mod-4-1"
         ws4 = tmp / "taxi"
@@ -161,7 +162,7 @@ try:
 
     # Capstone 4.2: Fault-tolerant incremental API ingestion & checkpointing
     data42 = ROOT / "labs" / "mod-4-2" / "data"
-    if (data42 / "earthquakes_seed.json").is_file():
+    if has_duckdb and (data42 / "earthquakes_seed.json").is_file():
         cap2 = work / "labs" / "mod-4-2"
         ws42 = tmp / "seismic"
         ws42.mkdir()
@@ -183,7 +184,7 @@ try:
 
     # Capstone 4.3: Real-Time Event Streaming, Watermarks & Late Data Handling
     data43 = ROOT / "labs" / "mod-4-3" / "data"
-    if (data43 / "events_seed.jsonl").is_file():
+    if has_duckdb and (data43 / "events_seed.jsonl").is_file():
         cap3 = work / "labs" / "mod-4-3"
         ws43 = tmp / "fleet"
         ws43.mkdir()

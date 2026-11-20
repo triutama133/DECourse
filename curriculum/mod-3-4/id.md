@@ -197,6 +197,41 @@ Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat mal
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Indikator Sukses:** Sebanyak 15 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, membuktikan guardrails deteksi anomali query, proyeksi anggaran, dan analisis tiering data bekerja akurat.
 
+## @lesson Di bawah cloud: kecepatan storage, biaya jaringan, dan memilih teknologi
+> **Intinya:** Cloud tetap terbuat dari disk, memori, dan kabel jaringan, dan setiap lapisan di bawahnya jauh lebih lambat dari lapisan di atasnya. Memindahkan data antar-zone, antar-region, dan ke internet ditagih per gigabyte, dan pada klaster yang sibuk biayanya bisa melebihi biaya komputasi. Saat memilih teknologi, hitung juga waktu engineering yang akan dihabiskannya selain tagihannya, dan utamakan keputusan yang bisa dibatalkan.
+
+Pelajaran ini bersumber dari bab 3, 4, dan 6 serta lampiran B *Fundamentals of Data Engineering*.
+
+### 1. Seberapa jauh datanya?
+Latensi byte pertama yang umum untuk setiap lapisan, dan di mana data engineer menemuinya:
+
+| Lapisan | Latensi umum | Di mana Anda menemuinya |
+|---|---|---|
+| Cache CPU | sekitar 1 sampai 10 nanodetik | Engine tervektorisasi (DuckDB, Arrow) bekerja pada batch yang muat di cache |
+| Memori (RAM) | sekitar 100 nanodetik | Hash table untuk join, broadcast join, Redis, indeks vektor |
+| SSD NVMe lokal | sekitar 0,1 milidetik | State streaming (RocksDB), spill shuffle Spark, cache warehouse |
+| Disk jaringan (EBS) atau hard disk | sekitar 1 sampai 10 milidetik | File data PostgreSQL, segmen log Kafka |
+| Object storage (S3, GCS) | puluhan milidetik per request | File Parquet dan Iceberg di lakehouse |
+| Arsip (S3 Glacier) | menit hingga jam untuk dipulihkan | Data mentah lama yang disimpan untuk audit |
+
+Lompatan dari memori ke object storage adalah faktor ratusan ribu kali. Itulah sebabnya setiap request ke S3 sebaiknya mengambil banyak data (file 100 MB atau lebih, bukan jutaan file kecil; Modul 3.0) dan mengapa job yang spill ke disk tiba-tiba melambat.
+
+### 2. Biaya jaringan
+Di dalam satu *availability zone* (AZ: satu pusat data di dalam region), lalu lintas antar-mesin biasanya gratis. Di luar itu, di AWS dengan harga daftar (cek halaman harga terbaru; cloud lain mirip):
+
+- **Antar-zone di region yang sama:** $0,01 per GB ditagih di setiap sisi, jadi $0,02 untuk setiap GB yang menyeberang. Klaster yang tersebar di tiga zone dan melakukan shuffle 50 TB sehari mengirim sekitar dua pertiganya ke zone lain: 33.000 GB × $0,02 ≈ **$667 sehari, sekitar $20.000 sebulan**, hanya untuk memindahkan data.
+- **Antar-region, atau keluar ke internet:** sekitar $0,02 sampai $0,09 per GB. Tempatkan komputasi di region yang sama dengan storage-nya. Ini disebut *data gravity*: data mahal untuk dipindahkan, jadi pekerjaanlah yang mendatangi data.
+- **NAT gateway:** lalu lintas dari mesin privat ke S3 melalui NAT gateway membayar biaya pemrosesan $0,045 per GB. *S3 gateway endpoint* mengirim lalu lintas yang sama secara gratis.
+
+### 3. Memilih teknologi
+- **Keputusan yang bisa dan yang sulit dibatalkan.** Menyimpan tabel dalam format terbuka (Parquet, Iceberg) mudah dibatalkan: Anda bisa beralih dari DuckDB ke Trino atau Spark tanpa memindahkan data. Menaruh seluruh logika bisnis di stored procedure milik satu vendor sulit dibatalkan. Curahkan kehati-hatian Anda pada keputusan yang sulit dibatalkan.
+- **Total biaya kepemilikan dan biaya peluang.** Buku ini memisahkan total cost of ownership (lisensi, tagihan cloud, orang) dari *biaya peluang* (opportunity cost): apa yang tidak dibangun tim Anda selama ia menjalankan sistem itu. Klaster self-hosted yang "gratis" tetapi menyibukkan tiga engineer selama lima bulan telah menghabiskan lima bulan pekerjaan lain.
+- **Benchmark.** Waspadai benchmark vendor: dataset kecil ("big data untuk tahun 1990-an", kata buku ini), sistem yang di-tuning melawan pesaing yang tidak di-tuning, perbandingan yang tidak setara. Uji dengan query Anda sendiri, skew data Anda, dan jumlah pengguna Anda.
+
+> 🛠 **Coba sendiri (10 menit, kertas).** Sebuah job Spark melakukan shuffle 20 TB sehari antar-node di tiga zone, dan dua pertiga lalu lintas itu menyeberangi batas zone. Job itu juga membaca 5 TB sehari dari S3 melalui NAT gateway. Dengan harga di atas, hitung biaya jaringan selama 30 hari. Lalu sebutkan dua perubahan yang menghapus sebagian besarnya, dan berapa yang dihemat masing-masing.
+>
+> **Seharusnya Anda melihat:** antar-zone: 13.333 GB × $0,02 ≈ $267 sehari; NAT: 5.000 GB × $0,045 = $225 sehari; totalnya sekitar $492 sehari, atau sekitar $14.750 untuk 30 hari. Menjalankan shuffle di dalam satu zone menghemat sekitar $8.000 sebulan, tetapi jika zone itu gagal, job berhenti; trade-off ini layak diucapkan dengan jelas. S3 gateway endpoint menghemat $6.750 biaya NAT tanpa risiko. Bersama-sama keduanya menghapus hampir semuanya.
+
 ## @lab Lab: bucket lakehouse aman dan perangkat kendali biaya FinOps
 Lab ini terbagi menjadi dua bagian: Bagian A melengkapi konfigurasi Terraform hingga menghasilkan execution plan offline yang memvalidasi bahwa storage bucket S3 lakehouse Anda terisolasi privat, terenkripsi KMS kustom, memiliki aturan lifecycle otomatis, bertag lengkap, dan hanya dapat diakses melalui kebijakan least-privilege. Bagian B membangun fungsi-fungsi Python untuk kendali FinOps: pemodelan penagihan warehouse, alokasi biaya per tim, deteksi query liar berbasis median, forecasting proyeksi anggaran, serta simulasi analisis tiering penyimpanan data.
 

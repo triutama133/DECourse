@@ -52,7 +52,10 @@ class PracticeAPI:
                 st["armed"] = True
                 return self.send_json(200, {"ok": True, "message": "you waited long enough"})
 
-        self.server = ThreadingHTTPServer(("127.0.0.1", self.mod.PORT), Handler)
+        class ReusableHTTPServer(ThreadingHTTPServer):
+            allow_reuse_address = True
+
+        self.server = ReusableHTTPServer(("127.0.0.1", self.mod.PORT), Handler)
 
     def reset(self):
         self.mod.reset()

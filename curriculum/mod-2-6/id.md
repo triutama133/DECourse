@@ -151,6 +151,32 @@ Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai ba
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Indikator Sukses:** Sebanyak 8 tes berstatus `PASSED` membuktikan keandalan invalidasi result cache dan akurasi simulasi antrean slot.
 
+## @lesson Menyajikan dan mengganti: semantic layer, reverse ETL, federation, data mesh, dan strangler fig
+> **Intinya:** Menyajikan data lebih dari sekadar dashboard. **Semantic layer** mendefinisikan setiap metrik bisnis sekali saja, sehingga setiap tool mendapat angka yang sama. **Reverse ETL** mengirim hasil dari warehouse kembali ke tool operasional, sehingga harus aman untuk diulang. **Federation** meng-query beberapa sistem tanpa menyalinnya lebih dulu. **Data mesh** menyerahkan kepemilikan data kepada tim domain. Dan saat Anda mewarisi pipeline lama, pola **strangler fig** menggantinya sedikit demi sedikit, membandingkan yang lama dan yang baru sampai keduanya sepakat.
+
+Gagasan-gagasan ini berasal dari bab 3, 8, dan 9 *Fundamentals of Data Engineering*. Bersikaplah realistis tentang seberapa sering Anda akan menemui masing-masing: di database lowongan TalentHub, 37% dari 1.130 lowongan data engineering menyebut tool BI atau dashboard, 18% menyebut migrasi atau sistem lama, 5% menyebut semantic layer atau metrics layer, dan kurang dari 1% menyebut reverse ETL. Pelajari gagasannya karena gagasan itu menjelaskan masalah yang tetap akan Anda temui, bukan karena setiap lowongan memintanya secara eksplisit.
+
+1. **Semantic layer (metrics layer).** Mengapa tim keuangan dan marketing membawa dua angka "net revenue" yang berbeda ke rapat yang sama? Karena setiap dashboard atau spreadsheet menulis rumusnya sendiri: satu mengurangi diskon dan pajak, yang lain lupa mengecualikan pesanan yang di-refund. Semantic layer (dbt MetricFlow, Cube, LookML) mendefinisikan metrik sekali saja, dalam kode yang di-version-control, dan setiap tool meminta angkanya dari sana.
+2. **Reverse ETL.** Pipeline biasa menyalin data *keluar dari* tool operasional ke warehouse. Reverse ETL menyalin hasil yang sudah dimodelkan, seperti lifetime value pelanggan atau penanda "VIP", *kembali ke* tool seperti CRM. Tool itu bertindak berdasarkan apa yang Anda kirim: mengirim email ke pelanggan dan mengubah penawarannya. Jadi setiap record yang Anda kirim membawa **idempotency key** yang deterministik, dibangun dari isinya, agar pengulangan hanya memperbarui dan tidak bertindak dua kali. Dan Anda memutuskan dengan hati-hati apa yang tidak dikirim: pelanggan dengan nilai nol atau negatif tidak boleh memicu kampanye otomatis.
+3. **Strangler fig.** Anda akan sering mewarisi pipeline lama (stored procedure 3.000 baris, skrip cron yang tak dipahami siapa pun) alih-alih mulai dari nol. Menulis ulang semuanya sekaligus itu berisiko. Pola strangler fig (dinamai oleh Martin Fowler) menggantinya sedikit demi sedikit. Bangun versi baru dari satu metrik. Jalankan yang lama dan yang baru berdampingan. Laporkan setiap tanggal saat keduanya berbeda, dan seberapa besar. Pindahkan konsumen hanya setelah perbedaannya terjelaskan. Setiap perbedaan adalah bug di kode baru, atau bug lama yang baru saja Anda temukan.
+4. **Federation, data mesh, dan penyajian cepat.**
+   - *Federation:* engine seperti Trino dan DuckDB bisa men-join tabel PostgreSQL, file Parquet di S3, dan tabel warehouse dalam satu query tanpa menyalinnya lebih dulu. Itu ideal untuk eksplorasi; join yang Anda jalankan setiap hari tetap lebih baik di tabel yang dimaterialisasi.
+   - *Data mesh:* untuk perusahaan besar tempat satu tim data pusat sudah menjadi hambatan. Empat prinsipnya: tim domain memiliki datanya, data diperlakukan sebagai produk, tim platform menyediakan alat self-service, dan aturan tata kelola dibagi bersama dan diotomatiskan.
+   - *Penyajian cepat:* analitik untuk pelanggan yang harus menjawab dalam milidetik memakai engine seperti ClickHouse, Druid, atau Pinot. *Feature store* machine learning menyimpan fitur yang sama di store offline untuk training dan store online untuk prediksi langsung, agar model melihat nilai yang sama di keduanya.
+
+```python
+import hashlib
+
+def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
+    raw = f"{customer_id}:{sync_date}:{net_ltv_idr}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+```
+
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di `strangler_reverse_etl.py`, tulis `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Setiap pesanan punya `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` memetakan tanggal ke net revenue versi pipeline lama. Net revenue adalah gross dikurangi diskon dikurangi pajak, hanya dihitung untuk pesanan `paid`, `shipped`, dan `delivered`. Kembalikan dict berisi:
+> `semantic_daily`: tanggal → net revenue, untuk setiap tanggal yang punya pesanan · `drift_report`: satu `{date, legacy_idr, semantic_idr, delta_idr}` per tanggal saat lama dan baru berbeda, urut tanggal, dengan `delta_idr = semantic - legacy` · `reverse_etl_payloads`: satu `{customer_id, net_ltv_idr, tier_action, idempotency_key}` per pelanggan yang layak dikirim, urut `customer_id`; `tier_action` adalah `VIP_UPGRADE` mulai 200000 ke atas, selain itu `STANDARD_SYNC`; key dibuat seperti kode di atas.
+> Data nyata itu berantakan: pikirkan bagaimana sebuah status bisa ditulis, tanggal mana yang mungkin dimiliki satu sisi tetapi tidak oleh sisi lain, dan pelanggan mana yang tidak boleh dikirim.
+> **Periksa:** `python3 labs/tryit/check.py 2.6-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
+
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
 

@@ -155,6 +155,32 @@ Questions you can now answer: "Why is this query expensive?" (it scans many part
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Success Indicator:** 8 tests report `PASSED`, validating cache invalidation and concurrency queue behavior.
 
+## @lesson Serving and replacing: semantic layers, reverse ETL, federation, data mesh and the strangler fig
+> **In short:** Serving data is more than dashboards. A **semantic layer** defines each business metric once, so every tool gets the same number. **Reverse ETL** sends results from the warehouse back into operational tools, so it must be safe to retry. **Federation** queries several systems without copying them first. **Data mesh** hands data ownership to domain teams. And when you inherit an old pipeline, the **strangler fig** pattern replaces it piece by piece, comparing old and new until they agree.
+
+These ideas come from chapters 3, 8 and 9 of *Fundamentals of Data Engineering*. Be realistic about how often you will meet each one: in the TalentHub job database, 37% of the 1,130 data engineering postings mention BI tools or dashboards, 18% mention migrations or legacy systems, 5% name a semantic or metrics layer, and under 1% name reverse ETL. Learn the ideas because they explain problems you will meet anyway, not because every job asks for them by name.
+
+1. **Semantic (metrics) layer.** Why do finance and marketing bring two different "net revenue" numbers to the same meeting? Because each dashboard or spreadsheet writes its own formula: one subtracts discounts and tax, another forgets to leave out refunded orders. A semantic layer (dbt MetricFlow, Cube, LookML) defines the metric once, in version-controlled code, and every tool asks it for the number.
+2. **Reverse ETL.** Normal pipelines copy data *out of* operational tools into the warehouse. Reverse ETL copies modeled results, such as a customer's lifetime value or a "VIP" flag, *back into* tools like a CRM. Those tools act on what you send: they email customers and change their offers. So every record you send carries a deterministic **idempotency key** built from what it says, so that a retry updates instead of acting twice. And you decide carefully what not to send: a customer whose value is zero or negative should not trigger an automated campaign.
+3. **The strangler fig.** You will often inherit an old pipeline (a 3,000-line stored procedure, a cron script nobody understands) instead of starting fresh. A big rewrite all at once is risky. The strangler fig pattern (named by Martin Fowler) replaces it piece by piece. Build the new version of one metric. Run old and new side by side. Report every date where they differ and by how much. Switch consumers over only when the differences are explained. Each difference is either a bug in the new code or an old bug you have just found.
+4. **Federation, data mesh and fast serving.**
+   - *Federation:* engines such as Trino and DuckDB can join a PostgreSQL table, Parquet files on S3 and a warehouse table in one query without copying them first. That is ideal for exploring; joins you run every day still belong in materialised tables.
+   - *Data mesh:* for large companies where one central data team has become the bottleneck. Its four principles: domain teams own their data, data is treated as a product, a platform team provides self-service tools, and governance rules are shared and automated.
+   - *Fast serving:* customer-facing analytics that must answer in milliseconds uses engines such as ClickHouse, Druid or Pinot. Machine-learning *feature stores* keep the same features in an offline store for training and an online store for live predictions, so a model sees the same values in both.
+
+```python
+import hashlib
+
+def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
+    raw = f"{customer_id}:{sync_date}:{net_ltv_idr}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+```
+
+> 🛠 **Try it (20 min, in your own terminal).** In `strangler_reverse_etl.py`, write `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Each order has `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` maps a date to the old pipeline's net revenue. Net revenue is gross minus discount minus tax, counted only for `paid`, `shipped` and `delivered` orders. Return a dict with:
+> `semantic_daily`: date → net revenue, for every date that has orders · `drift_report`: one `{date, legacy_idr, semantic_idr, delta_idr}` per date where old and new differ, sorted by date, with `delta_idr = semantic - legacy` · `reverse_etl_payloads`: one `{customer_id, net_ltv_idr, tier_action, idempotency_key}` per customer worth sending, sorted by `customer_id`; `tier_action` is `VIP_UPGRADE` from 200000 upward, otherwise `STANDARD_SYNC`; the key is made as in the code above.
+> Real data is untidy: think about how a status can be written, which dates either side might have that the other lacks, and which customers must not be sent.
+> Check it: `python3 labs/tryit/check.py 2.6-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
 

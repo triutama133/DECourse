@@ -57,6 +57,42 @@ Cara yang berguna untuk menggambarkan hasil kerja data engineer: **produk seoran
 
 Keterampilan yang penting, kira-kira sesuai urutan kursus ini: SQL, Python, command line dan Git, pemodelan data, format dan mesin penyimpanan, transformasi, orkestrasi, kualitas data, lalu sistem terdistribusi dan real-time. Anda tidak perlu semuanya di hari pertama; Anda perlu empat yang pertama untuk memulai dan kebiasaan mempelajari sisanya lewat masalah nyata.
 
+## @lesson Gambaran besar: siklus hidup, undercurrents, dan orang-orangnya
+> **Intinya:** Setiap pekerjaan data engineering, apa pun alatnya, memindahkan data melalui lima tahap: generation, storage, ingestion, transformation, dan serving. Enam "undercurrents" mengalir di bawah kelimanya: security, data management, DataOps, data architecture, orchestration, dan software engineering. Apa yang Anda bangun harus sesuai dengan sejauh mana perusahaan sudah memakai data. Sebagian besar pekerjaannya adalah bekerja sama dengan orang-orang di kedua sisi Anda.
+
+Peta ini berasal dari buku *Fundamentals of Data Engineering* karya Joe Reis dan Matt Housley. Peta ini membantu saat daftar alat terasa tak ada habisnya: setiap alat yang akan Anda temui punya tempat di dalamnya.
+
+**Lima tahapnya** (kursus ini mengajarkannya kira-kira dengan urutan ini):
+
+- **Generation.** Data lahir di sistem yang biasanya bukan milik Anda: database aplikasi, penyedia pembayaran, ponsel, log. Pemiliknya bisa mengubahnya tanpa bertanya kepada Anda. (Modul 1.6, 3.2)
+- **Storage.** Tempat data disimpan di setiap langkah: file, database, warehouse, tabel lakehouse. (Modul 1.7, 2.1, 2.2, 2.6)
+- **Ingestion.** Menyalin data dari sumber ke platform Anda. Di sinilah sebagian besar kerusakan bermula: sumber mati, memperlambat Anda, atau berubah bentuk. (Modul 1.6, 3.2)
+- **Transformation.** Mengubah record mentah menjadi tabel yang bisa dipercaya: tipe yang benar, satu baris per hal, definisi yang jelas. (Modul 0.3, 1.3, 1.4, 2.3)
+- **Serving.** Menyerahkan hasilnya kepada orang dan program yang memakainya: dashboard, analis, model machine learning, aplikasi lain. (Modul 2.6, 3.5)
+
+**Enam undercurrents** bukanlah tahap; mereka adalah kebiasaan yang Anda perlukan di setiap tahap. Security (siapa boleh melihat apa), data management (kualitas, definisi, privasi), DataOps (mengotomatiskan, menguji, dan mengawasi pipeline), data architecture (memilih bagaimana bagian-bagiannya tersusun), orchestration (menjalankan langkah dengan urutan yang benar), dan software engineering (kode yang bisa dibaca, diuji, dan diubah orang lain). Inilah sebabnya lowongan kerja meminta data engineer menguasai keahlian yang terdengar seperti DevOps atau software engineering: keahlian itu memang bagian dari pekerjaannya.
+
+### Sejauh mana perusahaannya?
+Buku ini menggambarkan tiga tahap *kematangan data* (data maturity). Desain yang baik untuk satu tahap bisa menjadi desain yang buruk untuk tahap lain.
+
+| Tahap | Seperti apa | Apa yang biasanya berhasil |
+|---|---|---|
+| **1. Memulai dengan data** | Spreadsheet dan ekspor CSV, belum ada warehouse, pimpinan ingin beberapa angka yang andal | Alat siap pakai: loader terkelola, warehouse sederhana atau DuckDB, beberapa tabel yang bersih |
+| **2. Berkembang dengan data** | Banyak sumber, laporan rusak saat sumber berubah, tiap tim punya angka "revenue" berbeda | Tes, definisi yang disepakati, data contract, orkestrator, tabel yang dimodelkan |
+| **3. Memimpin dengan data** | Data menjadi bagian dari produk: rekomendasi, deteksi fraud, self-service untuk banyak tim | Sistem custom di bagian yang memberi keunggulan, misalnya streaming, plus tata kelola yang kuat |
+
+Buku ini juga menyebut dua jenis data engineer. **Tipe A** (A untuk *abstraction*) memakai layanan siap pakai dan tidak membangun apa yang bisa dibeli. **Tipe B** (B untuk *build*) membangun sistem custom. Engineer Tipe A berguna di setiap tahap; engineer Tipe B kebanyakan baru terbayar di tahap 2 dan 3. Kesalahan klasiknya adalah perusahaan tahap 1 membangun platform tahap 3: berbulan-bulan mengerjakan klaster sebelum ada satu pun angka yang berguna.
+
+### Orang-orang di kedua sisi Anda
+Di database lowongan TalentHub, 64% dari 1.130 lowongan data engineering menyebut komunikasi atau stakeholder. Jumlah itu lebih banyak daripada yang menyebut Spark (46%) dan hampir sama dengan yang menyebut Python (69%). Buku ini mengatakannya dengan lugas: tim data jarang gagal karena teknologi.
+
+- **Hulu: orang yang menghasilkan data**, biasanya engineer aplikasi. Bagi mereka, database ada untuk menjalankan aplikasi; laporan Anda hanyalah efek samping. Saat mereka merusak pipeline Anda, mengeluh tidak ada gunanya. Jelaskan apa yang rusak di hilir dan siapa yang bergantung padanya, lalu sepakati secara tertulis kolom mana yang akan mereka jaga tetap stabil (sebuah *data contract*, Modul 2.5).
+- **Hilir: orang yang memakai data:** analis, data scientist, manajer. Mereka sering meminta solusi yang pernah mereka dengar ("kita butuh dashboard real-time") alih-alih masalah yang sebenarnya mereka hadapi. Tanyakan tentang keputusannya: *Apa yang akan Anda lakukan saat angka ini berubah, dan seberapa cepat Anda perlu bertindak?* Jika jawabannya "kami melihatnya di rapat Senin", job harian yang andal mengalahkan sistem streaming.
+
+> 🛠 **Coba sendiri (10 menit, kertas dan simulator).** Pertama buka simulator kematangan di bagian atas halaman ini dan temukan, untuk setiap tahap, pilihan yang disebutnya pas ukurannya. Biayanya adalah model pengajaran kasar, bukan harga yang diukur: pakai untuk melihat bentuk trade-off-nya. Lalu tulis catatan scoping tiga baris untuk KopiKu dari apa yang sudah diceritakan modul ini: (1) tahap kematangannya, dan fakta yang memberi tahu Anda; (2) siapa yang menghasilkan data pesanan dan siapa yang memakai angka revenue; (3) Tipe A atau Tipe B, dan satu pertanyaan yang akan Anda ajukan kepada CEO sebelum memutuskan.
+>
+> **Seharusnya Anda melihat:** tahap 1: satu database website, founder mengajukan pertanyaan pertama, belum ada apa pun untuk analisis. Website (dan siapa pun yang membangunnya) menghasilkan pesanan; founder memakai angka revenue. Tipe A, setelah bertanya sesuatu seperti "keputusan apa yang akan Anda ambil dengan angka ini, dan seberapa sering?". Jika pertanyaan Anda tentang alat, bukan tentang keputusannya, coba lagi.
+
 ## @lesson Perjalanan satu pesanan
 Ikuti satu pesanan KopiKu, #4821, dari HP pelanggan sampai dashboard CEO. Setiap langkah adalah tahap yang dirancang dan dirawat oleh data engineer.
 

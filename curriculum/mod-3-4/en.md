@@ -202,6 +202,41 @@ You cannot rely on people to be careful at 22:30 on a Friday. Controls must be a
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Success Indicator:** All 15 tests report `PASSED` in milliseconds in pure Python, proving query outlier detection, monthly budget forecasting, and storage tiering trade-offs work accurately.
 
+## @lesson Under the cloud: storage speeds, network charges and choosing technology
+> **In short:** The cloud is still made of disks, memory and network cables, and each layer down is many times slower than the one above it. Moving data between zones, regions and the internet is billed per gigabyte, and on a busy cluster that can cost more than the computing. When you choose a technology, count the engineering time it will eat as well as the bill, and prefer decisions you can undo.
+
+This lesson draws on chapters 3, 4 and 6 and appendix B of *Fundamentals of Data Engineering*.
+
+### 1. How far away is the data?
+Typical first-byte latency for each layer, and where a data engineer meets it:
+
+| Layer | Typical latency | Where you meet it |
+|---|---|---|
+| CPU caches | about 1 to 10 nanoseconds | Vectorised engines (DuckDB, Arrow) work on batches that fit in cache |
+| Memory (RAM) | about 100 nanoseconds | Hash tables for joins, broadcast joins, Redis, vector indexes |
+| Local NVMe SSD | about 0.1 milliseconds | Streaming state (RocksDB), Spark shuffle spill, warehouse caches |
+| Network disk (EBS) or hard disk | about 1 to 10 milliseconds | PostgreSQL data files, Kafka log segments |
+| Object storage (S3, GCS) | tens of milliseconds per request | Lakehouse Parquet and Iceberg files |
+| Archive (S3 Glacier) | minutes to hours to restore | Old raw data kept for audits |
+
+The jump from memory to object storage is a factor of hundreds of thousands. That is why each request to S3 should fetch a lot of data (files of 100 MB or more, not millions of tiny ones; Module 3.0) and why a job that spills to disk suddenly slows down.
+
+### 2. Network charges
+Inside one *availability zone* (AZ: one data centre within a region), traffic between machines is normally free. Beyond that, on AWS at list prices (check the current pricing page; other clouds are similar):
+
+- **Between zones in the same region:** $0.01 per GB charged on each side, so $0.02 for every GB that crosses. A cluster spread over three zones that shuffles 50 TB a day sends about two thirds of it to another zone: 33,000 GB × $0.02 ≈ **$667 a day, about $20,000 a month**, just for moving data.
+- **Between regions, or out to the internet:** about $0.02 to $0.09 per GB. Keep compute in the same region as its storage. This is called *data gravity*: data is expensive to move, so the work goes to the data.
+- **NAT gateway:** traffic from private machines to S3 through a NAT gateway pays a $0.045 per GB processing fee. An *S3 gateway endpoint* sends the same traffic for free.
+
+### 3. Choosing technology
+- **Reversible and irreversible decisions.** Storing tables in an open format (Parquet, Iceberg) is easy to undo: you can switch from DuckDB to Trino or Spark without moving the data. Putting all business logic in one vendor's stored procedures is hard to undo. Spend your care on the hard-to-undo decisions.
+- **Total cost of ownership and opportunity cost.** The book separates the total cost of ownership (licences, cloud bill, people) from the *opportunity cost*: what your team does not build while it runs the system. A "free" self-hosted cluster that keeps three engineers busy for five months has cost five months of other work.
+- **Benchmarks.** Be wary of vendor benchmarks: tiny datasets ("big data for the 1990s", as the book puts it), a tuned system against an untuned competitor, comparisons that are not like for like. Test on your own queries, data skew and number of users.
+
+> 🛠 **Try it (10 min, paper).** A Spark job shuffles 20 TB a day across nodes in three zones, and two thirds of that traffic crosses a zone boundary. It also reads 5 TB a day from S3 through a NAT gateway. Using the prices above, work out the network cost of 30 days. Then name two changes that remove most of it, and say what each one saves.
+>
+> **You should see:** cross-zone: 13,333 GB × $0.02 ≈ $267 a day; NAT: 5,000 GB × $0.045 = $225 a day; together about $492 a day, or about $14,750 for 30 days. Running the shuffle inside one zone saves about $8,000 a month, but if that zone fails the job stops, which is a trade-off worth saying out loud. An S3 gateway endpoint saves the $6,750 of NAT fees at no risk. Together they remove almost all of it.
+
 ## @lab Lab: a secure lakehouse bucket and a cost guardrail toolkit
 Part A: finish a Terraform configuration until an offline plan proves the bucket is private, encrypted, lifecycle-managed, tagged and accessible only through a least-privilege policy. Part B: write the Python functions behind your FinOps controls: warehouse billing, cost by team, runaway detection, a budget forecast and storage tiering.
 

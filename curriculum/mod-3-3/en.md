@@ -88,7 +88,7 @@ The late-event test in the lab shows the other side: after the `[10:00, 10:05)` 
 > 💡 **Practice Pause 2 (Watermark Simulation & Windowed Aggregation):**
 > 1. Open `labs/mod-3-3/windows.py` in your text editor.
 > 2. Implement class `WindowedAggregator`: methods `__init__`, `add_batch(events)`, and `advance()`.
-> 3. Enforce watermark semantics: compute watermarks from preceding batches, emit windows ending $\le$ watermark at batch completion, and drop late arrivals whose windows have already been evicted.
+> 3. Enforce watermark semantics: compute watermarks from preceding batches, emit windows ending ≤ watermark at batch completion, and drop late arrivals whose windows have already been evicted.
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
 > 5. **Success Indicator:** All 7 tests report `PASSED`, confirming delayed window emission, monotonic advancement, and strict late-data discarding.

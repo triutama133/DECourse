@@ -68,10 +68,51 @@ MUTANTS = {
         ("loads only once", "load_orders.py", "load()\nload()\n", "load()\n"),
         ("counts the file lines twice", "load_orders.py", "print(len(rows), len({r[\"order_id\"] for r in rows}))", "print(len(rows), len(rows))"),
     ]),
+    "1.4-1": ("1.4", [
+        ("does not uppercase business keys", "datavault.py", "return str(val).strip().upper()", "return str(val).strip()"),
+        ("appends duplicate satellite rows when unchanged", "datavault.py", "if last_customer_diff.get(hk_c) != hdiff:", "if True:"),
+        ("wrong link hash separator", "datavault.py", 'hk_l = _sha256(f"{cid}|{oid}")', 'hk_l = _sha256(f"{cid}-{oid}")'),
+        ("does not sort the events by load_ts", "datavault.py", 'sorted_events = sorted(events, key=lambda e: str(e["load_ts"]))', "sorted_events = list(events)"),
+        ("hub keeps the last load_ts, not the first", "datavault.py", "        if hk_c not in hub_customer:\n            hub_customer[hk_c] = {", "        if True:\n            hub_customer[hk_c] = {"),
+        ("hash_diff without normalising city and tier", "datavault.py", 'hdiff = _sha256(f"{_norm(city)}|{_norm(tier)}")', 'hdiff = _sha256(f"{city}|{tier}")'),
+        ("ignores the record_source it was given", "datavault.py", '                "record_source": record_source,\n            }\n\n        if hk_o', '                "record_source": "kopiku_oms",\n            }\n\n        if hk_o'),
+        ("skips any state seen before (A->B->A loses a row)", "datavault.py", "        if last_customer_diff.get(hk_c) != hdiff:\n            last_customer_diff[hk_c] = hdiff", "        if hdiff not in last_customer_diff.setdefault(hk_c, set()):\n            last_customer_diff[hk_c].add(hdiff)"),
+    ]),
+    "2.5-1": ("2.5", [
+        ("unsalted SHA-256 PII hash", "privacy_gate.py", 'f"{salt}:{norm_email}"', "norm_email"),
+        ("ignores GDPR erasure list", "privacy_gate.py", "if norm_email in erase_set:", "if False:"),
+        ("keeps older MDM record instead of latest", "privacy_gate.py", 'if str(rec["updated_at"]) >= str(g["updated_at"]):', "if False:"),
+        ("raw email left in the golden record", "privacy_gate.py", '"pii_token": token,', '"pii_token": token, "email": rec["email"],'),
+        ("erasure list not normalised", "privacy_gate.py", "erase_set = {str(e).strip().lower() for e in erasure_emails}", "erase_set = set(erasure_emails)"),
+        ("phone not masked", "privacy_gate.py", 'masked_phone = f"***-***-{digits[-4:]}" if len(digits) >= 4 else "***-***-****"', "masked_phone = digits"),
+        ("source_ids not deduplicated", "privacy_gate.py", 'g["source_ids"] = sorted(set(g["source_ids"]))', 'g["source_ids"] = sorted(g["source_ids"])'),
+        ("audit logs the email, not the id", "privacy_gate.py", 'erased_audit.append(str(rec["source_id"]))', "erased_audit.append(norm_email)"),
+    ]),
+    "2.6-1": ("2.6", [
+        ("counts refunded orders in semantic net revenue", "strangler_reverse_etl.py", 'VALID_STATUSES = {"paid", "shipped", "delivered"}', 'VALID_STATUSES = {"paid", "shipped", "delivered", "refunded"}'),
+        ("forgets to subtract tax in semantic layer", "strangler_reverse_etl.py", '- int(o["tax_idr"])', ""),
+        ("non-deterministic idempotency key", "strangler_reverse_etl.py", 'f"{cid}:{sync_date}:{ltv}"', 'f"{cid}"'),
+        ("status not normalised", "strangler_reverse_etl.py", 'status = str(o.get("status", "")).strip().lower()', 'status = str(o.get("status", ""))'),
+        ("ignores dates only the legacy system has", "strangler_reverse_etl.py", "for dt in sorted(set(semantic_daily) | set(legacy_daily_totals)):", "for dt in sorted(semantic_daily):"),
+        ("sends customers with zero or negative LTV", "strangler_reverse_etl.py", "        if ltv <= 0:\n            continue\n", ""),
+        ("VIP from above 200000 instead of 200000", "strangler_reverse_etl.py", "if ltv >= 200000", "if ltv > 200000"),
+        ("drops days with no valid order", "strangler_reverse_etl.py", "        semantic_daily.setdefault(dt, 0)\n", ""),
+    ]),
 }
 
 # equivalent answers that a checker must ACCEPT: id -> [(name, file, old, new)]
 EQUIVALENTS = {
+    "1.4-1": [
+        ("satellite keeps city and tier upper-cased", "datavault.py", 'city = str(ev["city"]).strip()\n        tier = str(ev["tier"]).strip()',
+         'city = str(ev["city"]).strip().upper()\n        tier = str(ev["tier"]).strip().upper()'),
+        ("sorts with a stable two-key sort", "datavault.py", 'sorted(events, key=lambda e: str(e["load_ts"]))', 'sorted(events, key=lambda e: (str(e["load_ts"]), 0))'),
+    ],
+    "2.5-1": [
+        ("sorts the records by updated_at first", "privacy_gate.py", "    for rec in records:\n", '    for rec in sorted(records, key=lambda r: str(r["updated_at"])):\n'),
+    ],
+    "2.6-1": [
+        ("normalises status with casefold", "strangler_reverse_etl.py", '.strip().lower()', '.strip().casefold()'),
+    ],
     "1.3-9": [
         ("CUBE written as the four GROUPING SETS it stands for", "rollup.py", "GROUP BY CUBE (status, payment_method)",
          "GROUP BY GROUPING SETS ((status, payment_method), (status), (payment_method), ())"),
@@ -109,9 +150,14 @@ def run_check(ident, folder):
 
 
 def main(argv):
+    import importlib.util
+    has_duckdb = importlib.util.find_spec("duckdb") is not None
     wanted = argv or sorted(MUTANTS)
     bad = 0
     for ident in wanted:
+        if ident == "1.3-9" and not has_duckdb:
+            print("1.3-9  skipped (duckdb not installed in current Python)")
+            continue
         refdir, mutants = MUTANTS[ident]
         code, out = run_check(ident, REF / refdir)
         print(f"{ident}  reference  {'PASS' if code == 0 else 'FAIL  <-- should pass'}")

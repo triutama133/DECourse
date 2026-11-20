@@ -206,6 +206,40 @@ A few habits make this easier: keep a **runbook** per critical dataset (how to c
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.
 
+## @lesson Beyond quality: metadata, personal data, erasure and master data
+> **In short:** Data quality is one part of *data management*. The others that matter most in practice: metadata (so people can find and understand data), protecting personal data (pseudonymise it at the door, with a secret key), deleting a person when the law requires it, and master data management (one record per real customer, built from many systems).
+
+Chapters 2 and 10 of *Fundamentals of Data Engineering* treat security and data management as undercurrents of every stage. In the TalentHub job database, 39% of the 1,130 data engineering postings mention data governance and 16% mention privacy or personal data (GDPR, PII or Indonesia's UU PDP).
+
+**1. Four kinds of metadata.** A data catalog holds:
+- *business* metadata: what a table means, who owns it, whether it holds personal data;
+- *technical* metadata: schemas, types, partitions, keys;
+- *operational* metadata: when jobs ran, how many rows, how many were rejected, how long it took;
+- *reference* metadata: shared code lists such as country, currency or cost-centre codes.
+
+**2. Personal data: pseudonymise with a secret.** Emails, phone numbers and ID numbers should not sit in plain text in the analytics platform, where every analyst query can see them. Replacing them with a hash keeps them joinable: the same email always gives the same token. But a plain `sha256(phone)` is not protection. A mobile number with a known prefix, such as 0812 followed by eight digits, has only 100 million possibilities, and hashing all of them took about two minutes in plain Python on one laptop core (measured for this lesson); after that, every "protected" number can be looked up. Mix in a secret key that only the pipeline knows, kept in a secret store, never in the code. In production use HMAC (`hmac.new(key, email.encode(), "sha256")`), the standard way to hash with a key. The exercise below uses the simpler `sha256(salt + ":" + email)` so that the check can recompute it. Show only what people need, such as the last four digits of a phone. And remember that encrypting a disk does not stop anyone who is allowed to query the table: who may see which rows and columns is a separate control (row- and column-level security).
+
+**3. Erasure and master data.**
+- *The right to be forgotten.* GDPR (and the UU PDP) let a person ask to be deleted. The GDPR deadline is one month. The person must disappear from the tables that hold them, and you keep a record of *which source records* you erased, without keeping the personal data you were asked to remove.
+- *Master data management (MDM).* The same customer is `stripe_1` in the payment system (Jakarta, Silver) and `crm_99` in the CRM (Bandung, Gold). MDM merges the records that belong to one real person into a *golden record*, using *survivorship rules* such as "the most recently updated record wins", and remembers which source records it came from.
+
+```python
+import hashlib, re
+
+def pseudonymize_email(email, secret_salt):
+    norm = str(email).strip().lower()
+    return hashlib.sha256(f"{secret_salt}:{norm}".encode("utf-8")).hexdigest()
+
+def mask_phone(phone):
+    digits = re.sub(r"\D+", "", str(phone or ""))
+    return f"***-***-{digits[-4:]}" if len(digits) >= 4 else "***-***-****"
+```
+
+> 🛠 **Try it (20 min, in your own terminal).** In `privacy_gate.py`, write `process_privacy_and_mdm(records, erasure_emails, salt)`. Each record has `source_id`, `email`, `phone`, `city`, `tier` and `updated_at`. Return `{"golden_records": [...], "erased_audit": [...]}`:
+> each golden record has exactly the keys `pii_token, phone_masked, city, tier, updated_at, source_ids`, with the token and the mask made as in the code above; golden records are sorted by `pii_token`, and `source_ids` is a sorted list without repeats; `erased_audit` is the sorted list of the `source_id`s you erased.
+> Decide for yourself: when two emails belong to the same person, what does "the same" mean; which record's city, tier and phone survive; and what must never appear in the output.
+> Check it: `python3 labs/tryit/check.py 2.5-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
 ## @lab Lab: build a data quality gate
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.
 

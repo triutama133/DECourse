@@ -193,6 +193,42 @@ Common mistakes to avoid: mixing grains; putting descriptive text in the fact ta
 > `python3 labs/mod-1-4/test_lab.py -v`
 > When all 13 unit tests show PASSED (OK), your KopiKu star schema meets enterprise standards!
 
+## @lesson Other ways to model: Inmon, Data Vault and one big table
+> **In short:** The star schema is not the only design. **Inmon** keeps a normalised company-wide warehouse and builds star schemas from it. **Data Vault** splits data into hubs, links and satellites so that many changing sources can be loaded in parallel and every past value is kept. **One big table** joins everything in advance for speed. Each solves a different problem, and large companies often combine them.
+
+Chapter 8 of *Fundamentals of Data Engineering* compares these approaches. In the TalentHub job database, 59% of the 1,130 data engineering postings mention data modeling, and 36 of them (3%) name Data Vault, mostly at large companies and consultancies (NTT DATA, Accenture, B. Braun, Traveloka, Indosat), often in Snowflake or Databricks roles.
+
+| Approach | Shape | Good at | Costs you |
+|---|---|---|---|
+| **Inmon** | A normalised (3NF) warehouse for the whole company, with star-schema marts built from it for each department | One version of each fact, little duplication | Many joins; changes need coordination across the company |
+| **Kimball** (this module) | Fact tables at a declared grain, surrounded by dimensions | Easy, fast questions for analysts and BI tools | Merging many changing sources into shared dimensions takes work up front |
+| **Data Vault** | Hubs (business keys), links (relationships) and satellites (attributes over time), loaded insert-only | Absorbs new sources and changing sources; keeps the full history for audits | Too many joins for analysts, so a star schema is usually built on top |
+| **One big table** | One wide table per grain, everything joined in advance | No joins at query time; fast column scans | Hides mixed grains; one changed attribute can mean rewriting huge partitions |
+
+### Inside a Data Vault
+Kimball uses surrogate keys 1, 2, 3 handed out in order. With fifteen sources loading at the same time, handing out numbers in order becomes a bottleneck, and the same customer gets a different number in each system. Data Vault instead derives each key from the business key itself with a hash, so every loader computes the same key on its own. The Data Vault 2.0 standard commonly uses MD5; this module uses SHA-256, which works the same way.
+
+```python
+import hashlib
+
+def dv_hash(text):
+    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
+
+hk_customer = dv_hash("C-101")            # hub key
+hk_link     = dv_hash("C-101|O-5001")     # link key: customer and order, joined with |
+hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: a fingerprint of the attributes
+```
+
+- **Hub** (`hub_customer`): only the business key, its hash key, when it was first seen (`load_ts`) and where from (`record_source`). No descriptions.
+- **Link** (`link_customer_order`): a relationship between hubs. Links are many-to-many by design, so a business rule that changes from one-to-many to many-to-many does not break the tables.
+- **Satellite** (`sat_customer`): the attributes that change over time, such as city and tier, with a `hash_diff` fingerprint. A satellite is insert-only: a new row is added only when the fingerprint differs from that customer's *latest* row. Nothing is overwritten, so the full history stays.
+
+> 🛠 **Try it (20 min, in your own terminal).** In a file `datavault.py`, write `build_data_vault(events, record_source="kopiku_oms")`. Each event is a dict with `customer_id`, `order_id`, `city`, `tier` and `load_ts`, and the events may arrive in any order. Return a dict with four lists of dicts, using these keys:
+> `hub_customer`: `hk_customer, customer_id, load_ts, record_source` · `hub_order`: `hk_order, order_id, load_ts, record_source`
+> `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
+> Hash exactly as in the code above: business keys trimmed and upper-cased; the link key is `CUSTOMER|ORDER`; `hash_diff` is `CITY|TIER`, both trimmed and upper-cased. Think about what "first seen" means when events arrive out of order, and what a customer who moves to Bandung and later back to Jakarta should leave in the satellite.
+> Check it: `python3 labs/tryit/check.py 1.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
 ## @lab Lab: build the KopiKu star schema
 Build a data warehouse for KopiKu in SQL: a date dimension, a product dimension (Type 1), a customer dimension (Type 2, with an unknown member), and a fact table at the order-line grain whose customer key is the version valid when the order was placed. 13 tests check grain, integrity, reconciliation and a revenue-by-tier calculation done independently in Python. You also get four sandbox challenges on SCD logic in your browser.
 

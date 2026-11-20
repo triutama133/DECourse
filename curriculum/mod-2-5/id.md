@@ -137,7 +137,7 @@ Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per sa
 4. **Distribusi (Distribution Shift)**: apakah *konten proporsional* di dalam kolom mengalami pergeseran drastis? Misalnya proporsi status pesanan, rasio nilai NULL pada kolom tertentu, atau rentang nilai numerik. Mendeteksi bug halus di mana nilai fallback darurat membanjiri sebuah kolom.
 5. **Data Lineage**: memetakan asal-usul tabel dan job hulu yang memberi makan tabel ini, serta laporan hilir apa saja yang bergantung padanya. Lineage menjadi fondasi agar 4 pilar di atas dapat ditindaklanjuti secara efektif.
 
-**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata ($mean \pm 3\sigma$). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation)**:
+**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation)**:
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 membuat skala MAD setara dengan standar deviasi normal
@@ -193,6 +193,40 @@ Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** u
 > 3. Uji perilaku orkestrasi di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.
+
+## @lesson Lebih dari kualitas: metadata, data pribadi, penghapusan, dan master data
+> **Intinya:** Kualitas data hanyalah satu bagian dari *data management*. Bagian lain yang paling penting dalam praktik: metadata (agar orang bisa menemukan dan memahami data), melindungi data pribadi (pseudonimkan sejak di pintu masuk, dengan kunci rahasia), menghapus seseorang saat hukum mewajibkannya, dan master data management (satu record per pelanggan nyata, dibangun dari banyak sistem).
+
+Bab 2 dan 10 *Fundamentals of Data Engineering* memperlakukan keamanan dan data management sebagai undercurrent di setiap tahap. Di database lowongan TalentHub, 39% dari 1.130 lowongan data engineering menyebut tata kelola data (data governance) dan 16% menyebut privasi atau data pribadi (GDPR, PII, atau UU PDP Indonesia).
+
+**1. Empat jenis metadata.** Sebuah katalog data menyimpan:
+- metadata *bisnis*: arti sebuah tabel, siapa pemiliknya, apakah berisi data pribadi;
+- metadata *teknis*: skema, tipe, partisi, key;
+- metadata *operasional*: kapan job berjalan, berapa baris, berapa yang ditolak, berapa lama;
+- metadata *referensi*: daftar kode bersama seperti kode negara, mata uang, atau cost centre.
+
+**2. Data pribadi: pseudonimkan dengan rahasia.** Email, nomor telepon, dan nomor identitas tidak boleh tersimpan sebagai teks biasa di platform analitik, tempat setiap query analis bisa melihatnya. Menggantinya dengan hash membuatnya tetap bisa di-join: email yang sama selalu menghasilkan token yang sama. Tetapi `sha256(phone)` biasa bukanlah perlindungan. Nomor ponsel dengan awalan yang diketahui, misalnya 0812 diikuti delapan digit, hanya punya 100 juta kemungkinan, dan meng-hash semuanya memakan waktu sekitar dua menit dengan Python biasa di satu core laptop (diukur untuk pelajaran ini); setelah itu, setiap nomor yang "terlindungi" bisa dicari. Campurkan kunci rahasia yang hanya diketahui pipeline, disimpan di secret store, tidak pernah di dalam kode. Di produksi pakai HMAC (`hmac.new(key, email.encode(), "sha256")`), cara standar untuk meng-hash dengan kunci. Latihan di bawah memakai `sha256(salt + ":" + email)` yang lebih sederhana agar pemeriksa bisa menghitungnya ulang. Tampilkan hanya yang dibutuhkan orang, misalnya empat digit terakhir nomor telepon. Dan ingat bahwa mengenkripsi disk tidak menghentikan siapa pun yang diizinkan meng-query tabel: siapa boleh melihat baris dan kolom mana adalah kontrol tersendiri (row- dan column-level security).
+
+**3. Penghapusan dan master data.**
+- *Hak untuk dilupakan.* GDPR (dan UU PDP) membolehkan seseorang meminta datanya dihapus. Batas waktu GDPR adalah satu bulan. Orang itu harus hilang dari tabel-tabel yang menyimpannya, dan Anda menyimpan catatan *record sumber mana* yang Anda hapus, tanpa menyimpan data pribadi yang diminta untuk dihapus.
+- *Master data management (MDM).* Pelanggan yang sama adalah `stripe_1` di sistem pembayaran (Jakarta, Silver) dan `crm_99` di CRM (Bandung, Gold). MDM menggabungkan record milik satu orang nyata menjadi *golden record*, memakai *aturan survivorship* seperti "record yang paling baru diperbarui menang", dan mengingat dari record sumber mana golden record itu berasal.
+
+```python
+import hashlib, re
+
+def pseudonymize_email(email, secret_salt):
+    norm = str(email).strip().lower()
+    return hashlib.sha256(f"{secret_salt}:{norm}".encode("utf-8")).hexdigest()
+
+def mask_phone(phone):
+    digits = re.sub(r"\D+", "", str(phone or ""))
+    return f"***-***-{digits[-4:]}" if len(digits) >= 4 else "***-***-****"
+```
+
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di `privacy_gate.py`, tulis `process_privacy_and_mdm(records, erasure_emails, salt)`. Setiap record punya `source_id`, `email`, `phone`, `city`, `tier`, dan `updated_at`. Kembalikan `{"golden_records": [...], "erased_audit": [...]}`:
+> setiap golden record punya tepat key `pii_token, phone_masked, city, tier, updated_at, source_ids`, dengan token dan masking dibuat seperti kode di atas; golden record diurutkan berdasarkan `pii_token`, dan `source_ids` adalah list terurut tanpa duplikat; `erased_audit` adalah list terurut `source_id` yang Anda hapus.
+> Putuskan sendiri: saat dua email milik orang yang sama, apa arti "sama"; kota, tier, dan nomor telepon dari record mana yang bertahan; dan apa yang tidak boleh pernah muncul di output.
+> **Periksa:** `python3 labs/tryit/check.py 2.5-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.

@@ -4,7 +4,9 @@
 const REPO_URL = "https://github.com/triutama133/DECourse";
 const VIEWS = ["start", "roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
-const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "active-recall"];
+// modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
+const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
+const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "active-recall", "stakeholder-defense"];
 
 function readStore(key, fallback) {
   try {
@@ -47,6 +49,23 @@ class DataForgeApp {
     this.interviewDrafts = readStore("df_interview_drafts", {}) || {};
     this.bugState = readStore("df_bug_drills", {}) || {};
     this.recallState = readStore("df_active_recall", {}) || {};
+    this.chaosProofs = readStore("df_chaos_proofs", {}) || {};
+    this.portfolioProofs = readStore("df_portfolio_proofs", {}) || {};
+    this.defenseState = readStore("df_stakeholder_defense", {}) || {};
+    this.savedTips = readStore("df_saved_tips", []) || [];
+    this.activeCareerPath = readStore("df_career_path", "all") || "all";
+    this.quizMode = readStore("df_quiz_mode", "uxcel") || "uxcel";
+    this.uxcelQuizState = {};
+    this.duelState = { open: false, round: 0, score: 0, answers: [], startedAt: 0, finished: false };
+    this.soundEnabled = readStore("df_sound", true) !== false;
+    this.a11yLarge = Boolean(readStore("df_a11y_large", false));
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-a11y", this.a11yLarge ? "large" : "normal");
+    }
+    this.touchStreak();
+    this.activeDefenseId = "def-stage1-kafka";
+    this.selectedJdId = "jd-analytics-warehouse";
+    this.customJdText = "";
     this.activeRecallIdx = 0;
     this.recallRevealed = false;
     this.recallDraft = "";
@@ -357,8 +376,159 @@ class DataForgeApp {
     if (themeIcon) themeIcon.textContent = this.theme === "dark" ? "☀️" : "🌙";
     const themeBtn = document.getElementById("theme-btn");
     if (themeBtn) themeBtn.setAttribute("title", this.theme === "dark" ? this.l("Mode Terang", "Light Mode") : this.l("Mode Gelap (IDE)", "Dark IDE Mode"));
+    const soundIcon = document.getElementById("sound-btn-icon");
+    if (soundIcon) soundIcon.textContent = this.soundEnabled ? "🔊" : "🔇";
+    const soundBtn = document.getElementById("sound-btn");
+    if (soundBtn) soundBtn.setAttribute("title", this.soundEnabled ? this.l("Efek Suara Kuis: Aktif", "Quiz Sound Effects: On") : this.l("Efek Suara Kuis: Nonaktif", "Quiz Sound Effects: Muted"));
+    const a11yBtn = document.getElementById("a11y-btn");
+    if (a11yBtn) {
+      a11yBtn.style.background = this.a11yLarge ? "var(--accent-soft)" : "";
+      a11yBtn.style.color = this.a11yLarge ? "var(--accent)" : "";
+    }
     document.getElementById("footer-tagline").textContent = this.l("DataForge: belajar data engineering dengan praktik langsung", "DataForge: learn data engineering by doing");
     this.renderHeaderStats();
+    this.renderMobileBottomNav();
+  }
+
+  touchStreak() {
+    const today = new Date().toISOString().slice(0, 10);
+    const st = readStore("df_streak", { days: 1, lastDate: today }) || { days: 1, lastDate: today };
+    if (st.lastDate !== today) {
+      const prev = new Date(st.lastDate + "T00:00:00Z");
+      const cur = new Date(today + "T00:00:00Z");
+      const diffDays = Math.round((cur - prev) / 86400000);
+      st.days = diffDays === 1 ? (st.days || 1) + 1 : 1;
+      st.lastDate = today;
+      writeStore("df_streak", st);
+    }
+    this.streakDays = st.days || 1;
+  }
+
+  playTone(kind) {
+    if (!this.soundEnabled) return;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = this._audioCtx || (this._audioCtx = new Ctx());
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      if (kind === "ok") {
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.08);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (kind === "win") {
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.setValueAtTime(659.25, now + 0.09);
+        osc.frequency.setValueAtTime(783.99, now + 0.18);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else {
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.setValueAtTime(185, now + 0.09);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+        osc.start(now);
+        osc.stop(now + 0.23);
+      }
+    } catch (e) { /* audio unavailable in headless or restricted context */ }
+  }
+
+  toggleSound() {
+    this.soundEnabled = !this.soundEnabled;
+    writeStore("df_sound", this.soundEnabled);
+    if (this.soundEnabled) this.playTone("ok");
+    this.renderChrome();
+  }
+
+  toggleA11yFont() {
+    this.a11yLarge = !this.a11yLarge;
+    writeStore("df_a11y_large", this.a11yLarge);
+    if (document.documentElement && document.documentElement.setAttribute) {
+      document.documentElement.setAttribute("data-a11y", this.a11yLarge ? "large" : "normal");
+    }
+    this.renderChrome();
+  }
+
+  computeGamificationStats() {
+    const allMods = CURRICULUM_DATA.flatMap((l) => l.modules);
+    const readLessons = allMods.reduce((s, m) => s + ((this.lessonsDone[m.id] || []).length), 0);
+    const tryItCount = Object.keys(this.tryitDone || {}).length;
+    const proofCount = allMods.filter((m) => this.proofFor(m.id)).length;
+    const chaosCount = Object.keys(this.chaosProofs || {}).length;
+    const portCount = Object.keys(this.portfolioProofs || {}).length;
+    const sqlCount = (this.solvedChallenges || []).length;
+    const bugCount = Object.values(this.bugState || {}).filter((x) => x && x.solved).length;
+    const defCount = Object.values(this.defenseState || {}).filter((x) => x && x.solved).length;
+    const quizPassedCount = Object.keys(this.quizScores || {}).filter((id) => {
+      const m = allMods.find((x) => x.id === id);
+      return m && this.quizScores[id].best >= Math.ceil(m.quiz.length * 0.8);
+    }).length;
+
+    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
+
+    let leagueName = this.l("Rookie DE", "Rookie DE");
+    let leagueIcon = "🛡️";
+    if (xp >= 3500) { leagueName = this.l("Staff Architect", "Staff Architect"); leagueIcon = "👑"; }
+    else if (xp >= 1800) { leagueName = this.l("Senior Builder", "Senior Builder"); leagueIcon = "💎"; }
+    else if (xp >= 600) { leagueName = this.l("Pipeline Crafter", "Pipeline Crafter"); leagueIcon = "⚔️"; }
+
+    const badges = [
+      { id: "first-proof", icon: "🧪", name: this.l("Pembukti Hukum Pertama", "First-Law Prover"), desc: this.l("Verifikasi bukti lab lokal DF1 atau TRY1 pertama Anda", "Verify your first local DF1 or TRY1 lab proof"), unlocked: (proofCount + tryItCount) >= 1 },
+      { id: "sql-gladiator", icon: "⚡", name: this.l("Gladiator SQL Hostil", "Hostile SQL Gladiator"), desc: this.l("Selesaikan ≥ 5 tantangan SQL dengan tes mutasi hostil", "Solve ≥ 5 SQL challenges with hostile data tests"), unlocked: sqlCount >= 5 },
+      { id: "chaos-defender", icon: "🛠️", name: this.l("Penjinak Insiden Jam 2 Pagi", "2 AM Chaos Responder"), desc: this.l("Selesaikan drill debugging CHAOS1 atau Silent Bug Clinic", "Complete a CHAOS1 terminal drill or Silent Bug case"), unlocked: (chaosCount + bugCount) >= 1 },
+      { id: "fode-architect", icon: "📐", name: this.l("Arsitek Siklus Hidup Data", "Lifecycle Architect"), desc: this.l("Selesaikan simulasi Pertahanan Stakeholder atau Modul 0.1", "Complete a Stakeholder Defense drill or Module 0.1"), unlocked: defCount >= 1 || this.completedModules.includes("mod-0-1") },
+      { id: "ship-it", icon: "🏆", name: this.l("Pengirim Portofolio Git", "Git Portfolio Shipper"), desc: this.l("Verifikasi repositori Git lokal dengan token PORT1", "Verify a local Git repository with a PORT1 token"), unlocked: portCount >= 1 }
+    ];
+
+    const quests = [
+      { label: this.l("Baca & Tandai 3 Materi Konsep", "Read & Check Off 3 Concept Lessons"), cur: Math.min(3, readLessons), max: 3, xp: "+45 XP", link: "#/curriculum" },
+      { label: this.l("Verifikasi 1 Latihan Lokal (TRY1 / DF1 / CHAOS1)", "Verify 1 Local Terminal Proof (TRY1 / DF1 / CHAOS1)"), cur: Math.min(1, proofCount + tryItCount + chaosCount), max: 1, xp: "+150 XP", link: "#/curriculum/mod-0-1/lab" },
+      { label: this.l("Lulus 1 Tantangan SQL atau Silent Bug", "Solve 1 Hostile SQL or Silent Bug Drill"), cur: Math.min(1, sqlCount + bugCount), max: 1, xp: "+50 XP", link: "#/playground" }
+    ];
+
+    return { xp, streakDays: this.streakDays || 1, leagueName, leagueIcon, badges, quests, readLessons, tryItCount, proofCount, chaosCount, portCount, sqlCount };
+  }
+
+  renderRingProgress(pct, size = 44, strokeColor = "var(--accent)") {
+    const r = (size - 8) / 2;
+    const c = 2 * Math.PI * r;
+    const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+    return `
+      <div class="ring-progress" style="width:${size}px;height:${size}px" aria-hidden="true">
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <circle class="ring-bg" cx="${size / 2}" cy="${size / 2}" r="${r}"></circle>
+          <circle class="ring-fg" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="${strokeColor}" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"></circle>
+        </svg>
+        <span class="ring-label">${pct}%</span>
+      </div>`;
+  }
+
+  renderMobileBottomNav() {
+    const el = document.getElementById("mobile-bottom-nav");
+    if (!el) return;
+    const items = [
+      { view: "roadmap", icon: "🏠", label: this.l("Beranda", "Roadmap") },
+      { view: "curriculum", icon: "📚", label: this.l("Materi", "Learn") },
+      { view: "playground", icon: "🧪", label: "SQL Lab" },
+      { view: "interview", icon: "🎯", label: "Arena" },
+      { view: "readiness", icon: "📊", label: this.l("Progres", "Stats") }
+    ];
+    el.innerHTML = items.map((it) => `
+      <button class="${this.currentView === it.view ? "active" : ""}" onclick="app.go('${it.view}')">
+        <span class="nav-ico">${it.icon}</span>
+        <span>${this.esc(it.label)}</span>
+      </button>`).join("");
   }
 
   toggleTheme() {
@@ -374,6 +544,14 @@ class DataForgeApp {
     const total = CURRICULUM_DATA.reduce((n, lvl) => n + lvl.modules.length, 0);
     const done = this.completedModules.length;
     const pct = Math.round((done / total) * 100);
+    const g = this.computeGamificationStats();
+    const gamiEl = document.getElementById("header-gamification");
+    if (gamiEl) {
+      gamiEl.innerHTML = `
+        <button class="gami-pill streak" onclick="app.go('roadmap')" title="${this.l("Streak belajar harian Anda", "Your daily learning streak")}">🔥 ${g.streakDays}d</button>
+        <button class="gami-pill xp" onclick="app.go('readiness')" title="${this.l("Total Engineering XP dari materi, SQL & bukti lab lokal", "Total Engineering XP from lessons, SQL & local lab proofs")}">⚡ ${g.xp.toLocaleString()} XP</button>
+        <button class="gami-pill league" onclick="app.go('readiness')" title="${this.l("Peringkat Liga Engineering", "Engineering League Tier")}">${g.leagueIcon} ${this.esc(g.leagueName)}</button>`;
+    }
     document.getElementById("header-stats").innerHTML = `
       <div style="cursor:pointer" onclick="app.go('readiness')" title="${this.l('Buka Dashboard Kesiapan Kerja & Evaluasi Skill', 'Open Job Readiness & Skill Dashboard')}">
         <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
@@ -657,6 +835,18 @@ class DataForgeApp {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); this.openSearch(); }
     else if (e.key === "/" && !typing && overlay.hidden) { e.preventDefault(); this.openSearch(); }
     else if (e.key === "Escape" && !overlay.hidden) this.closeSearch();
+    else if (!typing && overlay && overlay.hidden && this.currentView === "curriculum" && this.activeModuleTab === "quiz" && this.quizMode === "uxcel") {
+      if (["1", "2", "3", "4"].includes(e.key)) {
+        e.preventDefault();
+        this.selectUxcelOption(this.activeModuleId, Number(e.key) - 1);
+      } else if (e.key === "Enter") {
+        const st = this.uxcelQuizState[this.activeModuleId];
+        if (st && st.checked && !st.finished) {
+          e.preventDefault();
+          this.nextUxcelQuestion(this.activeModuleId);
+        }
+      }
+    }
   }
   stripMd(text) {
     return String(text || "").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
@@ -744,7 +934,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1143,6 +1333,125 @@ class DataForgeApp {
         </div>`;
     }
 
+    if (sim.id === "sim-data-maturity") {
+      const stage = Number(st.matStage || 1);
+      const arch = st.matArch || "typeA";
+      const engs = Number(st.matEngs || 2);
+      const isOverEngineered = stage === 1 && arch === "typeB";
+      const isUnderEngineered = stage === 3 && arch === "typeA" && engs >= 6;
+      const monthlyTco = arch === "typeA" ? (stage === 1 ? 250 : stage === 2 ? 1200 : 4500) : (stage === 1 ? 14500 : stage === 2 ? 18000 : 24000);
+      const timeToValueWeeks = arch === "typeA" ? (stage === 1 ? 2 : 4) : Math.max(4, Math.round(28 / Math.max(1, engs)));
+      const maintenancePct = arch === "typeA" ? 15 : Math.min(95, Math.round(130 / Math.max(1, engs)));
+      const verdictBad = isOverEngineered || isUnderEngineered || maintenancePct >= 75;
+      return `
+        <div class="sim-card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+              <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+              <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <div class="sim-control">
+              <label><span>${this.l("Tahap Kematangan Data Perusahaan (Reis & Housley)", "Company Data Maturity Stage (Reis & Housley)")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${stage === 1 ? "active" : ""}" onclick="app.updateSim('matStage', 1)">Stage 1: Starting</button>
+                <button class="${stage === 2 ? "active" : ""}" onclick="app.updateSim('matStage', 2)">Stage 2: Scaling</button>
+                <button class="${stage === 3 ? "active" : ""}" onclick="app.updateSim('matStage', 3)">Stage 3: Leading</button>
+              </div>
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Pilihan Arsitektur Platform", "Platform Architecture Choice")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${arch === "typeA" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeA')">Type A (Managed ELT + DuckDB/Warehouse)</button>
+                <button class="${arch === "typeB" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeB')">Type B (Custom K8s + Kafka + Spark)</button>
+              </div>
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Jumlah Data Engineer di Tim", "Data Engineers on Team")}</span><strong>${engs} ${this.l("orang", "engineers")}</strong></label>
+              <input type="range" min="1" max="10" value="${engs}" oninput="app.updateSim('matEngs', Number(this.value))" />
+            </div>
+          </div>
+          <p class="small muted">${this.l("Angka biaya dan waktu di sini adalah model pengajaran kasar, bukan harga atau hasil ukur. Pakai untuk melihat arah trade-off-nya.", "The cost and time figures here are a rough teaching model, not measured prices. Use them to see which way the trade-off goes.")}</p>
+          <div class="sim-metrics">
+            <div class="sim-metric ${monthlyTco > 10000 && stage === 1 ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Estimasi Tagihan Cloud Bulanan (TCO)", "Monthly Cloud Infrastructure Bill (TCO)")}</div>
+              <div class="val">$${monthlyTco.toLocaleString()}/mo</div>
+              <div class="small muted">${arch === "typeA" ? this.l("Bayar sesuai pemakaian, hampir nol server menganggur", "Pay-per-use, near-zero idle cluster waste") : this.l("Klaster K8s, broker Kafka & node Spark menyala 24/7", "24/7 multi-AZ K8s, Kafka brokers & Spark nodes")}</div>
+            </div>
+            <div class="sim-metric ${timeToValueWeeks > 8 ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Biaya Peluang / Waktu Rilis Dashboard Pertama (TOCO)", "Opportunity Cost / Time to First Business Value (TOCO)")}</div>
+              <div class="val">${timeToValueWeeks} ${this.l("minggu", "weeks")} · ${maintenancePct}% Ops</div>
+              <div class="small muted">${this.l(`${maintenancePct}% waktu tim habis untuk merawat infrastruktur`, `${maintenancePct}% of team capacity spent on infra maintenance`)}</div>
+            </div>
+            <div class="sim-metric ${verdictBad ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Keputusan Arsitektur", "Architectural Verdict")}</div>
+              <div class="val">${isOverEngineered ? this.l("Terlalu besar untuk tahap ini", "Too big for this stage") : isUnderEngineered ? this.l("Mungkin terlalu kecil: cek streaming atau lakehouse", "Maybe too small: consider streaming or a lakehouse") : maintenancePct >= 75 ? this.l("Tim habis untuk merawat sistem", "Team swamped by upkeep") : this.l("Pas ukurannya", "Right-sized")}</div>
+              <div class="small muted">${isOverEngineered ? this.l("Klaster custom di tahap 1 menghabiskan waktu tim sebelum ada angka yang berguna.", "A custom cluster at stage 1 spends the team's time before any useful number appears.") : this.l("Desain sesuai dengan tahap kematangan dan ukuran tim.", "The design fits the maturity stage and the team size.")}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    if (sim.id === "sim-pii-gdpr") {
+      const hashMode = st.piiHashMode || "salted";
+      const storageFmt = st.piiStorageFmt || "iceberg_mor";
+      const gdprRequests = Number(st.piiGdprReq || 250);
+      const rainbowSafe = hashMode === "salted";
+      const filesRewritten = storageFmt === "raw_parquet" ? gdprRequests * 40 : Math.ceil(gdprRequests / 25);
+      const eraseCost = storageFmt === "raw_parquet" ? gdprRequests * 12 : Math.max(5, Math.round(gdprRequests * 0.15));
+      return `
+        <div class="sim-card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">⚡ ${this.l("Simulator Model Mental Interaktif", "Interactive Mental-Model Simulator")}</span>
+              <h3 style="margin-top:4px">${sim.icon} ${this.esc(this.t(sim.title))}</h3>
+              <p class="small muted">${this.esc(this.t(sim.subtitle))}</p>
+            </div>
+          </div>
+          <div class="sim-controls">
+            <div class="sim-control">
+              <label><span>${this.l("Metode Pseudonimisasi PII (Email / No. HP)", "PII Pseudonymization Method (Email / Phone)")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${hashMode === "plain" ? "active" : ""}" onclick="app.updateSim('piiHashMode', 'plain')">Plaintext</button>
+                <button class="${hashMode === "unsalted" ? "active" : ""}" onclick="app.updateSim('piiHashMode', 'unsalted')">Unsalted SHA-256</button>
+                <button class="${hashMode === "salted" ? "active" : ""}" onclick="app.updateSim('piiHashMode', 'salted')">Salted HMAC-SHA256</button>
+              </div>
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Strategi Penghapusan GDPR di Lakehouse", "Lakehouse GDPR Erasure Strategy")}</span></label>
+              <div class="segmented" style="margin-top:4px">
+                <button class="${storageFmt === "raw_parquet" ? "active" : ""}" onclick="app.updateSim('piiStorageFmt', 'raw_parquet')">Rewrite Raw Parquet Files</button>
+                <button class="${storageFmt === "iceberg_mor" ? "active" : ""}" onclick="app.updateSim('piiStorageFmt', 'iceberg_mor')">Iceberg Merge-on-Read + Weekly Compaction</button>
+              </div>
+            </div>
+            <div class="sim-control">
+              <label><span>${this.l("Permintaan Hapus Akun GDPR / Bulan", "GDPR Erasure Requests / Month")}</span><strong>${gdprRequests} ${this.l("permintaan", "requests")}</strong></label>
+              <input type="range" min="10" max="1000" step="10" value="${gdprRequests}" oninput="app.updateSim('piiGdprReq', Number(this.value))" />
+            </div>
+          </div>
+          <p class="small muted">${this.l("Angka biaya dan waktu di sini adalah model pengajaran kasar, bukan harga atau hasil ukur. Pakai untuk melihat arah trade-off-nya.", "The cost and time figures here are a rough teaching model, not measured prices. Use them to see which way the trade-off goes.")}</p>
+          <div class="sim-metrics">
+            <div class="sim-metric ${rainbowSafe ? "ok" : "danger"}">
+              <div class="small muted">${this.l("Ketahanan Terhadap Serangan Rainbow Table", "Rainbow-Table Attack Resistance")}</div>
+              <div class="val">${hashMode === "plain" ? this.l("Tidak ada: terbaca langsung", "None: readable as is") : hashMode === "unsalted" ? this.l("Terbalik dalam ~2 menit", "Reversed in about 2 minutes") : this.l("Aman selama kuncinya rahasia", "Safe while the key stays secret")}</div>
+              <div class="small muted">${rainbowSafe ? this.l("Token deterministik untuk JOIN tanpa membuka PII asli", "Deterministic join token without exposing raw PII") : this.l("Semua 100 juta nomor 0812 di-hash dalam ~2 menit dengan Python di satu core (diukur).", "All 100 million 0812 numbers hash in about 2 minutes in Python on one core (measured).")}</div>
+            </div>
+            <div class="sim-metric ${storageFmt === "raw_parquet" ? "danger" : "ok"}">
+              <div class="small muted">${this.l("File Parquet Ditulis Ulang / Bulan", "Parquet Files Rewritten / Month")}</div>
+              <div class="val">${filesRewritten.toLocaleString()} ${this.l("file", "files")}</div>
+              <div class="small muted">${storageFmt === "raw_parquet" ? this.l("Setiap permintaan hapus menulis ulang file yang berisi orang itu.", "Each deletion rewrites every file that holds the person.") : this.l("File delete kecil, dipadatkan sesuai jadwal.", "Small delete files, compacted on a schedule.")}</div>
+            </div>
+            <div class="sim-metric ${eraseCost > 500 ? "danger" : "ok"}">
+              <div class="small muted">${this.l("Biaya Komputasi Penghapusan GDPR", "Monthly GDPR Erasure Compute Cost")}</div>
+              <div class="val">$${eraseCost.toLocaleString()}/mo</div>
+              <div class="small muted">${storageFmt === "raw_parquet" ? this.l("Data yang ditulis jauh lebih banyak dari yang dihapus.", "Far more data written than deleted.") : this.l("Jauh lebih sedikit tulisan dengan merge-on-read.", "Far fewer writes with merge-on-read.")}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+
     // sim-idempotency
     const retries = Number(st.idemRetries || 3);
     const strat = st.idemStrategy || "append";
@@ -1285,6 +1594,94 @@ class DataForgeApp {
     this.recallRevealed = true;
     this.renderView();
   }
+  submitChaosProof(modId) {
+    const input = document.getElementById(`chaos-proof-input-${modId}`);
+    const msg = document.getElementById(`chaos-proof-msg-${modId}`);
+    if (!input || !msg) return;
+    const res = ProofCheck.verifyChaos(modId, input.value);
+    if (!res.ok) {
+      const errMap = {
+        format: this.l(`Format salah. Jalankan python3 scripts/chaos_drill.py verify ${modId} ~/df-chaos/${modId} lalu tempel kode CHAOS1:${modId}:…`, `Invalid format. Run python3 scripts/chaos_drill.py verify ${modId} ~/df-chaos/${modId} and paste the CHAOS1:${modId}:… code.`),
+        checksum: this.l("Kode rusak atau salah ketik. Salin ulang seluruh kode CHAOS1.", "Checksum mismatch. Copy the full CHAOS1 code again."),
+        module: this.l(`Kode ini untuk modul ${res.mod}, bukan ${modId}.`, `This token is for module ${res.mod}, not ${modId}.`)
+      };
+      msg.innerHTML = `<div class="feedback bad">${this.esc(errMap[res.reason] || errMap.format)}</div>`;
+      return;
+    }
+    this.chaosProofs[modId] = {
+      token: input.value.trim().replace(/\s+/g, ""),
+      passed: res.info.passed,
+      py: res.info.py,
+      os: res.info.os,
+      at: new Date().toISOString()
+    };
+    writeStore("df_chaos_proofs", this.chaosProofs);
+    const cur = this.chaosDone[modId] || {};
+    this.chaosDone[modId] = { ...cur, done: true, at: new Date().toISOString() };
+    writeStore("df_chaos_done", this.chaosDone);
+    this.renderView();
+  }
+
+  submitPortfolioProof(projId) {
+    const input = document.getElementById(`port-proof-input-${projId}`);
+    const msg = document.getElementById(`port-proof-msg-${projId}`);
+    if (!input || !msg) return;
+    const res = ProofCheck.verifyPortfolio(projId, input.value);
+    if (!res.ok) {
+      const errMap = {
+        format: this.l(`Format salah. Jalankan python3 scripts/verify_portfolio.py ${projId} <path-git-repo> lalu tempel kode PORT1:${projId}:…`, `Invalid format. Run python3 scripts/verify_portfolio.py ${projId} <path-to-git-repo> and paste the PORT1:${projId}:… token.`),
+        checksum: this.l("Kode rusak atau salah ketik. Salin ulang seluruh kode PORT1.", "Checksum mismatch. Copy the full PORT1 token again."),
+        project: this.l(`Kode ini untuk proyek ${res.proj}, bukan ${projId}.`, `This token is for project ${res.proj}, not ${projId}.`)
+      };
+      msg.innerHTML = `<div class="feedback bad">${this.esc(errMap[res.reason] || errMap.format)}</div>`;
+      return;
+    }
+    this.portfolioProofs[projId] = {
+      token: input.value.trim().replace(/\s+/g, ""),
+      passed: res.info.passed,
+      commits: res.info.commits,
+      py: res.info.py,
+      os: res.info.os,
+      at: new Date().toISOString()
+    };
+    writeStore("df_portfolio_proofs", this.portfolioProofs);
+    this.renderView();
+  }
+
+  setActiveDefense(id) {
+    this.activeDefenseId = id;
+    this.renderView();
+  }
+  saveDefenseDraft(id, val) {
+    const cur = this.defenseState[id] || {};
+    this.defenseState[id] = { ...cur, draft: val };
+    writeStore("df_stakeholder_defense", this.defenseState);
+  }
+  submitDefenseChoice(id, optId) {
+    const drills = (window.PRACTICE_LABS && window.PRACTICE_LABS.STAKEHOLDER_DEFENSE_DRILLS) || [];
+    const d = drills.find((x) => x.id === id);
+    if (!d) return;
+    const cur = this.defenseState[id] || {};
+    if ((cur.draft || "").trim().length < 40) {
+      alert(this.l("Langkah 1: Tulis argumen negosiasi teknis Anda minimal 40 karakter terlebih dahulu sebelum memilih tindakan!", "Step 1: Write at least 40 characters of your own engineering trade-off defense before selecting an action!"));
+      return;
+    }
+    const opt = d.options.find((o) => o.id === optId);
+    const ok = Boolean(opt && opt.correct);
+    this.defenseState[id] = { ...cur, selectedOpt: optId, attempted: true, solved: ok, at: new Date().toISOString() };
+    writeStore("df_stakeholder_defense", this.defenseState);
+    this.renderView();
+  }
+  selectBenchmarkJd(id) {
+    this.selectedJdId = id;
+    this.customJdText = "";
+    this.renderView();
+  }
+  updateCustomJd(val) {
+    this.customJdText = val;
+    this.renderView();
+  }
+
   rateRecallCard(cardId, rating) {
     this.recallState[cardId] = { rating, at: new Date().toISOString() };
     writeStore("df_active_recall", this.recallState);
@@ -1377,6 +1774,56 @@ class DataForgeApp {
       </div>`;
   }
 
+  setCareerPath(pathId) {
+    this.activeCareerPath = pathId;
+    writeStore("df_career_path", pathId);
+    this.renderView();
+  }
+
+  getCareerPaths() {
+    return [
+      {
+        id: "all",
+        icon: "🌐",
+        title: this.l("Full-Stack Data Engineer (Semua 27 Modul)", "Full-Stack Data Engineer (All 27 Modules)"),
+        desc: this.l("Jalur lengkap dari Python/SQL dasar hingga Lakehouse, Spark, Kafka, FinOps, AI RAG & 4 Capstone.", "Complete mastery from zero Python/SQL to Lakehouse, Spark, Kafka, FinOps, AI RAG & 4 Capstones."),
+        modules: CURRICULUM_DATA.flatMap((l) => l.modules.map((m) => m.id))
+      },
+      {
+        id: "analytics",
+        icon: "📊",
+        title: this.l("Analytics & Warehouse Data Engineer", "Analytics & Warehouse Data Engineer"),
+        desc: this.l("Fokus pada SQL tingkat lanjut, Kimball/Data Vault, DuckDB, dbt Core, Semantic Layer & Governance.", "Focus on advanced SQL, Kimball/Data Vault, DuckDB, dbt Core, Semantic Layer & Data Governance."),
+        modules: ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-3", "mod-1-4", "mod-2-1", "mod-2-3", "mod-2-5", "mod-2-6", "mod-4-1"]
+      },
+      {
+        id: "streaming",
+        icon: "⚡",
+        title: this.l("Streaming & Distributed Platform Engineer", "Streaming & Distributed Platform Engineer"),
+        desc: this.l("Fokus pada Production Python, API Ingestion, Spark, Kafka KRaft, Debezium CDC & Flink Watermarks.", "Focus on Production Python, API Ingestion, Spark, Kafka KRaft, Debezium CDC & Flink Watermarks."),
+        modules: ["mod-0-1", "mod-0-2", "mod-1-1", "mod-1-2", "mod-1-6", "mod-3-0", "mod-3-1", "mod-3-2", "mod-3-3", "mod-4-2", "mod-4-3"]
+      },
+      {
+        id: "ai_lakehouse",
+        icon: "🧠",
+        title: this.l("Lakehouse, Cloud FinOps & AI Data Engineer", "Lakehouse, Cloud FinOps & AI Data Engineer"),
+        desc: this.l("Fokus pada Apache Iceberg, Dagster, DMBOK Privacy/GDPR, Terraform FinOps & pgvector RAG.", "Focus on Apache Iceberg, Dagster, DMBOK Privacy/GDPR, Terraform FinOps & pgvector RAG."),
+        modules: ["mod-0-1", "mod-1-7", "mod-2-2", "mod-2-4", "mod-2-5", "mod-3-4", "mod-3-5", "mod-4-4"]
+      }
+    ];
+  }
+
+  toggleSaveTip(tipId, modId, title, text) {
+    const idx = (this.savedTips || []).findIndex((t) => t.id === tipId);
+    if (idx >= 0) {
+      this.savedTips.splice(idx, 1);
+    } else {
+      this.savedTips.unshift({ id: tipId, modId, title, text, at: new Date().toISOString() });
+    }
+    writeStore("df_saved_tips", this.savedTips);
+    this.renderView();
+  }
+
   // ================= ROADMAP =================
   renderRoadmapView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
@@ -1387,9 +1834,42 @@ class DataForgeApp {
     const tryItCount = Object.keys(this.tryitDone || {}).length;
     const proofCount = allMods.filter((m) => this.proofFor(m.id)).length;
     const sqlSolved = (this.solvedChallenges || []).length;
+    const g = this.computeGamificationStats();
 
-    // Determine next recommended module & action
-    const nextMod = allMods.find((m) => !this.completedModules.includes(m.id)) || allMods[allMods.length - 1];
+    // Career paths & Busuu-style Weak / Medium / Strong skill mastery breakdown
+    const careerPaths = this.getCareerPaths();
+    const activePathObj = careerPaths.find((p) => p.id === this.activeCareerPath) || careerPaths[0];
+    const activePathSet = new Set(activePathObj.modules);
+
+    let strongMods = 0, mediumMods = 0, weakMods = 0;
+    const weakModList = [];
+    allMods.forEach((m) => {
+      const isDone = this.completedModules.includes(m.id);
+      const q = this.quizScores[m.id];
+      const need = Math.ceil((m.quiz || []).length * 0.8);
+      const lRead = (this.lessonsDone[m.id] || []).length;
+      if (isDone || (q && q.best >= need && this.proofFor(m.id))) {
+        strongMods++;
+      } else if ((q && q.best > 0 && q.best < need) || (lRead > 0 && !isDone)) {
+        if (q && q.best < need) {
+          weakMods++;
+          weakModList.push(m);
+        } else {
+          mediumMods++;
+        }
+      } else {
+        weakMods++;
+        if (weakModList.length < 4 && activePathSet.has(m.id)) weakModList.push(m);
+      }
+    });
+    const strongPct = Math.max(8, Math.round((strongMods / totalMods) * 100));
+    const medPct = Math.max(8, Math.round((mediumMods / totalMods) * 100));
+    const weakPct = Math.max(10, 100 - strongPct - medPct);
+
+    // Determine next recommended module & action (prioritizing active career path)
+    const nextMod = allMods.find((m) => activePathSet.has(m.id) && !this.completedModules.includes(m.id))
+      || allMods.find((m) => !this.completedModules.includes(m.id))
+      || allMods[allMods.length - 1];
     const nextModRead = (this.lessonsDone[nextMod.id] || []).length;
     const nextModTotalLs = (nextMod.lessons || []).length;
     const nextModProof = this.proofFor(nextMod.id);
@@ -1413,34 +1893,46 @@ class DataForgeApp {
         <p class="muted" style="margin-top:6px">${t["pillar" + n + "Desc"]}</p>
       </div>`).join("");
 
-    const levels = CURRICULUM_DATA.map((lvl) => {
-      const doneCount = lvl.modules.filter((m) => this.completedModules.includes(m.id)).length;
-      const pct = Math.round((doneCount / lvl.modules.length) * 100);
+    // Duolingo-style Color-Graded Section Cards with circular progress rings & unit nodes
+    const levels = CURRICULUM_DATA.map((lvl, lvlIdx) => {
+      const pathModsInLevel = lvl.modules.filter((m) => activePathSet.has(m.id));
+      const modsToShow = pathModsInLevel.length ? pathModsInLevel : lvl.modules;
+      const doneCount = modsToShow.filter((m) => this.completedModules.includes(m.id)).length;
+      const pct = Math.round((doneCount / modsToShow.length) * 100);
+      const toneColors = ["var(--blue)", "var(--green)", "var(--purple)", "var(--amber)", "var(--red)"];
       return `
-        <div class="card stack-sm" style="display:flex;flex-direction:column">
-          <div class="row between"><span class="chip">${this.esc(this.t(lvl.badge))}</span><span class="muted small">${doneCount}/${lvl.modules.length}</span></div>
-          <h3>${this.esc(this.t(lvl.levelTitle))}</h3>
-          <p class="muted small">${this.esc(this.t(lvl.levelSubtitle))}</p>
-          <ul style="list-style:none;flex:1" class="stack-sm">
-            ${lvl.modules.map((m) => {
-              const isDone = this.completedModules.includes(m.id);
-              const lRead = (this.lessonsDone[m.id] || []).length;
-              const lTot = (m.lessons || []).length;
-              const hasPrf = Boolean(this.proofFor(m.id));
-              const statusHtml = isDone
-                ? `<span class="state-done">✓ ${this.l("Selesai", "Done")}</span>`
-                : (lRead > 0 || hasPrf)
-                  ? `<span class="micro-badge info">${lRead}/${lTot} 📖${hasPrf ? " · 🧪" : ""}</span>`
-                  : "";
-              return `
-                <li class="row between small" style="flex-wrap:nowrap">
-                  <a href="#/curriculum/${m.id}">${m.number} ${this.esc(this.t(m.title))}</a>
-                  ${statusHtml}
-                </li>`;
-            }).join("")}
-          </ul>
-          <div class="progress" style="margin-top:8px"><div style="width:${pct}%"></div></div>
-          <button class="btn btn-sm" onclick="app.selectLevel('${lvl.levelId}')">${t.exploreModules}</button>
+        <div class="duo-section-card">
+          <div class="duo-section-banner tone-${lvlIdx % 5}">
+            <div class="row between">
+              <span class="chip">${this.esc(this.t(lvl.badge))}</span>
+              ${this.renderRingProgress(pct, 42, toneColors[lvlIdx % 5])}
+            </div>
+            <h3 style="margin-top:8px">${this.esc(this.t(lvl.levelTitle))}</h3>
+            <p class="muted small" style="margin-top:4px">${this.esc(this.t(lvl.levelSubtitle))}</p>
+          </div>
+          <div class="duo-section-body">
+            <div class="duo-unit-nodes">
+              ${modsToShow.map((m) => {
+                const isDone = this.completedModules.includes(m.id);
+                const isCurrent = m.id === nextMod.id;
+                const lRead = (this.lessonsDone[m.id] || []).length;
+                const lTot = (m.lessons || []).length;
+                const hasPrf = Boolean(this.proofFor(m.id));
+                const statusHtml = isDone
+                  ? `<span class="state-done">✓ ${this.l("Tuntas", "Done")}</span>`
+                  : (lRead > 0 || hasPrf)
+                    ? `<span class="micro-badge info">${lRead}/${lTot} 📖${hasPrf ? " · 🧪" : ""}</span>`
+                    : `<span class="muted small">~${this.readingMinutes(m)}m</span>`;
+                return `
+                  <button class="duo-node-btn ${isDone ? "is-done" : isCurrent ? "is-current" : ""}" onclick="app.go('curriculum','${m.id}')">
+                    <span class="duo-node-circle">${isDone ? "✓" : m.number}</span>
+                    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:${isCurrent ? "700" : "500"}">${this.esc(this.t(m.title))}</span>
+                    ${statusHtml}
+                  </button>`;
+              }).join("")}
+            </div>
+            <button class="btn btn-sm" style="margin-top:6px;width:100%;justify-content:center" onclick="app.selectLevel('${lvl.levelId}')">${t.exploreModules} →</button>
+          </div>
         </div>`;
     }).join("");
 
@@ -1462,7 +1954,7 @@ class DataForgeApp {
         <div class="card continue-banner stack-sm">
           <div class="row between">
             <div>
-              <span class="chip chip-blue" style="margin-bottom:4px">🧭 ${this.l("Kompas Belajar Anda", "Your Learning Compass")}</span>
+              <span class="chip chip-blue" style="margin-bottom:4px">🧭 ${this.l("Kompas Belajar Anda", "Your Learning Compass")} · ${this.esc(activePathObj.title)}</span>
               <h2>${this.l("Lanjutkan Langkah Terbaik Berikutnya", "Continue Where You Left Off")}</h2>
               <p class="muted small" style="margin-top:2px">
                 <strong>${nextMod.number} ${this.esc(this.t(nextMod.title))}</strong> — ${this.esc(this.t(nextMod.summary))}
@@ -1489,8 +1981,127 @@ class DataForgeApp {
             </div>
             <div class="stat">
               <div class="muted small">${this.l("Tantangan SQL Sandbox", "SQL Sandbox Solved")}</div>
-              <div class="num">${sqlSolved}<span class="muted small" style="font-weight:400"> / ${(window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.length) || 20}</span></div>
+              <div class="num">${sqlSolved}<span class="muted small" style="font-weight:400"> / ${(window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.length) || 59}</span></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Idea #1: Duolingo & Uxcel Gamification Hub (Daily Quests + Earned First-Law Badges) -->
+        <div class="grid cols-2">
+          <div class="card stack-sm">
+            <div class="row between">
+              <div>
+                <span class="chip chip-blue">🎯 ${this.l("Misi Harian (Daily Quests)", "Daily Engineering Quests")}</span>
+                <h3 style="margin-top:4px">${this.l("Bangun Kebiasaan Praktik Lokal Setiap Hari", "Build Your Daily Hands-On Engineering Habit")}</h3>
+              </div>
+              <span class="gami-pill streak">🔥 ${g.streakDays} ${this.l("Hari Streak", "Day Streak")}</span>
+            </div>
+            <div class="stack-sm" style="margin-top:4px">
+              ${g.quests.map((q) => {
+                const qPct = Math.round((q.cur / q.max) * 100);
+                const qDone = q.cur >= q.max;
+                return `
+                  <div class="well stack-sm" style="padding:10px 12px">
+                    <div class="row between small">
+                      <a href="${q.link}" style="font-weight:600;color:var(--text)">${qDone ? "✅ " : "○ "}${this.esc(q.label)}</a>
+                      <span class="chip ${qDone ? "chip-green" : "chip-blue"}">${q.cur}/${q.max} · ${q.xp}</span>
+                    </div>
+                    <div class="progress" style="height:6px"><div style="width:${qPct}%;background:${qDone ? "var(--green)" : "var(--blue)"}"></div></div>
+                  </div>`;
+              }).join("")}
+            </div>
+          </div>
+
+          <div class="card stack-sm">
+            <div class="row between">
+              <div>
+                <span class="chip chip-green">🏅 ${this.l("Lencana Bukti Rekayasa (First-Law Badges)", "Earned First-Law Engineering Badges")}</span>
+                <h3 style="margin-top:4px">${g.leagueIcon} ${this.esc(g.leagueName)} · ⚡ ${g.xp.toLocaleString()} XP</h3>
+              </div>
+              <span class="muted small">${g.badges.filter((b) => b.unlocked).length}/${g.badges.length} ${this.l("Terbuka", "Unlocked")}</span>
+            </div>
+            <div class="stack-sm" style="margin-top:4px">
+              ${g.badges.map((b) => `
+                <div class="row between" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);opacity:${b.unlocked ? "1" : "0.55"};background:${b.unlocked ? "var(--accent-soft)" : "var(--card-subtle)"}">
+                  <div class="row" style="gap:10px;flex-wrap:nowrap">
+                    <span style="font-size:20px">${b.icon}</span>
+                    <div>
+                      <div style="font-size:13px;font-weight:700">${this.esc(b.name)}</div>
+                      <div class="small muted">${this.esc(b.desc)}</div>
+                    </div>
+                  </div>
+                  <span class="chip ${b.unlocked ? "chip-green" : ""}">${b.unlocked ? "✓ " + this.l("Diraih", "Earned") : "🔒 " + this.l("Terkunci", "Locked")}</span>
+                </div>`).join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- Idea #3: Uxcel Personalized Learning Paths + Busuu Weak/Medium/Strong Skill Radar & Saved Tips -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">🛤️ ${this.l("Jalur Karir Terpersonalisasi (Uxcel Style) & Radar Penguasaan (Busuu Style)", "Personalized Career Paths (Uxcel Style) & Skill Mastery Radar (Busuu Style)")}</span>
+              <h2 style="margin-top:4px">${this.l("Pilih Spesialisasi Karir Data Engineer Anda", "Filter Roadmap by Your Target Data Engineering Career Track")}</h2>
+            </div>
+            ${this.activeCareerPath !== "all" ? `<button class="btn btn-sm btn-quiet" onclick="app.setCareerPath('all')">${this.l("Tampilkan Semua 27 Modul", "Show All 27 Modules")}</button>` : ""}
+          </div>
+          <div class="grid cols-4" style="margin-top:6px">
+            ${careerPaths.map((cp) => {
+              const cpDone = cp.modules.filter((id) => this.completedModules.includes(id)).length;
+              const cpPct = Math.round((cpDone / cp.modules.length) * 100);
+              const isSelected = cp.id === this.activeCareerPath;
+              return `
+                <div class="career-path-card ${isSelected ? "active" : ""}" onclick="app.setCareerPath('${cp.id}')" role="button" tabindex="0">
+                  <div class="row between">
+                    <span style="font-size:22px">${cp.icon}</span>
+                    <span class="chip ${isSelected ? "chip-blue" : ""}">${cpDone}/${cp.modules.length} (${cpPct}%)</span>
+                  </div>
+                  <h3 style="font-size:14px">${this.esc(cp.title)}</h3>
+                  <p class="small muted" style="flex:1">${this.esc(cp.desc)}</p>
+                  <div class="progress" style="height:5px;margin-top:4px"><div style="width:${cpPct}%"></div></div>
+                </div>`;
+            }).join("")}
+          </div>
+
+          <!-- Busuu-style Weak / Medium / Strong Mastery Bar -->
+          <div class="well stack-sm" style="margin-top:10px">
+            <div class="row between">
+              <div>
+                <strong>📊 ${this.l("Distribusi Kekuatan Konsep & Bukti Lokal Anda", "Your Concept & Local Proof Strength Distribution")}</strong>
+                <p class="small muted">${this.l("Berdasarkan skor kuis, materi yang dibaca, dan verifikasi lab lokal (DF1/TRY1):", "Computed from your quiz accuracy, completed lessons, and verified local lab proofs:")}</p>
+              </div>
+              <div class="row small">
+                <span class="chip" style="border-color:var(--red);color:var(--red)">🔴 ${this.l("Perlu Diperkuat", "Needs Work")}: ${weakMods}</span>
+                <span class="chip" style="border-color:var(--amber);color:var(--amber)">🟡 ${this.l("Sedang Dipelajari", "In Progress")}: ${mediumMods}</span>
+                <span class="chip chip-green">🟢 ${this.l("Kuat & Terbukti", "Strong & Proven")}: ${strongMods}</span>
+              </div>
+            </div>
+            <div class="busuu-bar">
+              <div class="busuu-segment weak" style="width:${weakPct}%">${this.l("Perlu Fokus", "Focus")} (${weakMods})</div>
+              <div class="busuu-segment medium" style="width:${medPct}%">${this.l("Berjalan", "Active")} (${mediumMods})</div>
+              <div class="busuu-segment strong" style="width:${strongPct}%">${this.l("Kuat", "Strong")} (${strongMods})</div>
+            </div>
+            <div class="row between" style="margin-top:4px">
+              <div class="row" style="gap:6px">
+                <span class="small muted">${this.l("Rekomendasi Ulasan Cepat:", "Quick Weak-Topic Review:")}</span>
+                ${weakModList.slice(0, 3).map((wm) => `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${wm.id}','quiz')">🎯 ${wm.number} ${this.esc(this.t(wm.title))}</button>`).join("")}
+              </div>
+              <span class="small muted">🔖 ${(this.savedTips || []).length} ${this.l("Tips Kuis Tersimpan", "Saved Quiz Tips")}</span>
+            </div>
+            ${(this.savedTips || []).length ? `
+              <details style="margin-top:6px">
+                <summary class="small" style="cursor:pointer;font-weight:700;color:var(--accent)">🔖 ${this.l(`Buka Pustaka Tips Kuis Tersimpan Anda (${this.savedTips.length})`, `Open Your Saved Quiz Tips & Bookmarks (${this.savedTips.length})`)}</summary>
+                <div class="stack-sm" style="margin-top:8px">
+                  ${this.savedTips.map((tip) => `
+                    <div class="row between" style="padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">
+                      <div style="flex:1">
+                        <a href="#/curriculum/${this.esc(tip.modId)}/concepts" class="small" style="font-weight:700">${this.esc(tip.title)}</a>
+                        <div class="small muted" style="margin-top:2px">${this.inline(tip.text)}</div>
+                      </div>
+                      <button class="btn btn-sm btn-quiet" onclick="app.toggleSaveTip('${this.esc(tip.id)}')">✕</button>
+                    </div>`).join("")}
+                </div>
+              </details>` : ""}
           </div>
         </div>
 
@@ -1509,16 +2120,19 @@ class DataForgeApp {
             <button class="btn btn-sm" onclick="app.go('interview','active-recall')">${this.l("Mulai Latihan Ingatan →", "Start Active Recall →")}</button>
           </div>
           <div class="card stack-sm" style="border-top:3px solid var(--green)">
-            <div class="row between"><span class="chip chip-green">⚡ ${this.l("Simulator Interaktif", "Live Simulators")}</span><span class="muted small">4 ${this.l("Model", "Models")}</span></div>
+            <div class="row between"><span class="chip chip-green">⚡ ${this.l("Simulator Interaktif", "Live Simulators")}</span><span class="muted small">6 ${this.l("Model", "Models")}</span></div>
             <h3>${this.l("Simulator Diagnostik Sistem Data", "Interactive System Diagnostic Simulators")}</h3>
-            <p class="muted small">${this.l("Eksperimen langsung dengan Join Fan-Out, Partition Pruning & Biaya Cloud, Streaming Watermark, serta Idempotensi Retry di dalam modul.", "Experiment live with Join Fan-Out, Partition Pruning & Cloud Cost, Streaming Watermarks, and Retry Idempotency inside the modules.")}</p>
-            <button class="btn btn-sm" onclick="app.go('curriculum','mod-1-2','concepts')">${this.l("Coba Simulator di Kurikulum →", "Try Simulators in Curriculum →")}</button>
+            <p class="muted small">${this.l("Eksperimen langsung dengan Tahap Kematangan Data (TCO vs TOCO), Join Fan-Out, Partition Pruning, Watermark, Idempotensi, dan Keamanan PII/GDPR di dalam modul.", "Experiment live with Data Maturity (TCO vs TOCO), Join Fan-Out, Partition Pruning, Watermarks, Retry Idempotency, and PII/GDPR Security inside the modules.")}</p>
+            <button class="btn btn-sm" onclick="app.go('curriculum','mod-0-1','concepts')">${this.l("Coba Simulator di Kurikulum →", "Try Simulators in Curriculum →")}</button>
           </div>
         </div>
 
         <div class="grid cols-4">${pillars}</div>
-        <h2>${t.matrixTitle}</h2>
-        <div class="grid cols-4">${levels}</div>
+        <div class="row between">
+          <h2>${t.matrixTitle}</h2>
+          <span class="chip chip-blue">${this.esc(activePathObj.icon)} ${this.esc(activePathObj.title)}</span>
+        </div>
+        <div class="grid cols-3">${levels}</div>
       </div>`;
   }
 
@@ -1709,6 +2323,7 @@ class DataForgeApp {
           ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
         </div>
 
+        ${this.renderLifecycleDiagram(mod.id)}
         ${this.renderModuleSimulator(mod.id)}
 
         <div class="well stack-sm" id="module-toc">
@@ -1845,18 +2460,45 @@ class DataForgeApp {
       const c = mod.chaosLab;
       const cState = this.chaosDone[mod.id] || {};
       const noteLen = (cState.notes || "").trim().length;
-      const canRevealChaos = Boolean(cState.done || noteLen >= 50);
+      const chaosProof = this.chaosProofs[mod.id];
+      const canRevealChaos = Boolean(cState.done || noteLen >= 50 || chaosProof);
+      const cmdInit = `python3 scripts/chaos_drill.py init ${mod.id} ~/df-chaos/${mod.id}`;
+      const cmdVerify = `python3 scripts/chaos_drill.py verify ${mod.id} ~/df-chaos/${mod.id}`;
       return `
         <div class="row between">
           <div>
             <h2>${this.esc(this.t(c.title))}</h2>
-            <p class="muted">${this.l("Ini kegagalan yang benar-benar terjadi di produksi. Baca skenarionya, tulis hipotesis triage Anda (min. 50 karakter), baru analisis akar masalah akan terbuka.", "This is a failure that really happens in production. Read the scenario, write your triage hypothesis (min. 50 chars), and unlock the root cause analysis.")}</p>
+            <p class="muted">${CHAOS_DRILL_MODULES.includes(mod.id)
+              ? this.l("Kegagalan ini benar-benar terjadi di produksi. Baca skenarionya, lalu tulis hipotesis Anda (min. 50 karakter) atau perbaiki versi kecilnya di terminal Anda untuk membuka akar masalahnya.", "This kind of failure really happens in production. Read the scenario, then write your hypothesis (at least 50 characters) or fix a small version of it in your terminal to unlock the root cause.")
+              : this.l("Kegagalan ini benar-benar terjadi di produksi. Baca skenarionya dan tulis hipotesis Anda (min. 50 karakter) untuk membuka akar masalahnya.", "This kind of failure really happens in production. Read the scenario and write your hypothesis (at least 50 characters) to unlock the root cause.")}</p>
           </div>
-          <button class="btn btn-sm ${cState.done ? "btn-done" : "btn-quiet"}" onclick="app.toggleChaosDone('${mod.id}')">
-            ${cState.done ? "✓ " + this.l("Insiden Dianalisis", "Incident Analyzed") : "○ " + this.l("Tandai Sudah Dianalisis", "Mark Analyzed")}
-          </button>
+          <div class="row">
+            ${chaosProof ? `<span class="state-done">✓ ${this.l("CHAOS1 Terbukti", "CHAOS1 Verified")}</span>` : ""}
+            <button class="btn btn-sm ${cState.done ? "btn-done" : "btn-quiet"}" onclick="app.toggleChaosDone('${mod.id}')">
+              ${cState.done ? "✓ " + this.l("Insiden Dianalisis", "Incident Analyzed") : "○ " + this.l("Tandai Sudah Dianalisis", "Mark Analyzed")}
+            </button>
+          </div>
         </div>
         <div class="callout danger"><div class="label">${this.l("Skenario kerusakan di produksi", "The production breakage")}</div>${this.md(c.scenario, { modId: mod.id })}</div>
+
+        ${CHAOS_DRILL_MODULES.includes(mod.id) ? `
+        <!-- Local chaos drill (CHAOS1), only for modules that have one -->
+        <div class="card stack-sm" style="border-left:4px solid var(--red)">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Latihan di terminal Anda", "Drill in your own terminal")}</span>
+              <h3 style="margin-top:4px">${this.l("Perbaiki di komputer Anda sendiri", "Fix it on your own computer")}</h3>
+            </div>
+            ${chaosProof ? `<span class="state-done">✓ CHAOS1 (${chaosProof.py} · ${chaosProof.os})</span>` : `<span class="muted small">${this.l("Belum diverifikasi", "Not verified yet")}</span>`}
+          </div>
+          <p class="small muted">${this.l("Perintah pertama menyalin versi kecil yang rusak dari insiden ini ke folder Anda. Perbaiki di editor Anda, lalu perintah kedua mengujinya, termasuk dengan data tersembunyi, dan mencetak kode CHAOS1.", "The first command copies a small broken version of this incident into a folder of yours. Fix it in your editor; the second command tests it, including on hidden data, and prints a CHAOS1 code.")}</p>
+          <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdInit + "\n" + cmdVerify)}</code></pre></div>
+          <div class="row">
+            <input type="text" id="chaos-proof-input-${mod.id}" autocomplete="off" spellcheck="false" placeholder="CHAOS1:${mod.id}:…" value="${chaosProof ? this.esc(chaosProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitChaosProof('${mod.id}')}" />
+            <button class="btn btn-sm btn-primary" onclick="app.submitChaosProof('${mod.id}')">${this.l("Verifikasi CHAOS1", "Verify CHAOS1")}</button>
+          </div>
+          <div id="chaos-proof-msg-${mod.id}">${chaosProof ? `<div class="feedback ok">✓ ${this.l(`Drill Chaos lokal terverifikasi (${chaosProof.passed} invariant lulus di Python ${chaosProof.py}, ${chaosProof.os}).`, `Local Chaos drill verified (${chaosProof.passed} invariants passed on Python ${chaosProof.py}, ${chaosProof.os}).`)}</div>` : ""}</div>
+        </div>` : ""}
 
         <!-- Step 1: Learner Hypothesis Scratchpad -->
         <div class="well stack-sm">
@@ -1898,15 +2540,21 @@ class DataForgeApp {
           </div>`}
         ${nav(["lab", plainTab("tabLab")], ["quiz", plainTab("tabQuiz")])}`;
     }
-    // quiz
+    // quiz (Idea #2: Uxcel & Busuu Step-by-Step Interactive Quiz + Classic Toggle)
     const order = this.quizOrderFor(mod);
     const last = this.quizScores[mod.id];
     const need = Math.ceil(mod.quiz.length * 0.8);
+    if (this.quizMode === "uxcel") {
+      return this.renderUxcelQuiz(mod, order, last, need, plainTab);
+    }
     return `
-      <div>
-        <h2>${this.l("Cek pemahaman", "Check your understanding")}</h2>
-        <p class="muted" style="margin-top:4px">${this.l(`Jawab minimal ${need} dari ${mod.quiz.length} dengan benar untuk menyelesaikan modul. Urutan pilihan diacak setiap kali halaman dimuat.`, `Answer at least ${need} of ${mod.quiz.length} correctly to complete the module. Answer order is shuffled on each page load.`)}
-          ${last ? ` · ${this.l("Skor terbaik", "Best score")}: ${last.best}/${last.total}` : ""}</p>
+      <div class="row between">
+        <div>
+          <h2>${this.l("Cek pemahaman", "Check your understanding")}</h2>
+          <p class="muted" style="margin-top:4px">${this.l(`Jawab minimal ${need} dari ${mod.quiz.length} dengan benar untuk menyelesaikan modul. Urutan pilihan diacak setiap kali halaman dimuat.`, `Answer at least ${need} of ${mod.quiz.length} correctly to complete the module. Answer order is shuffled on each page load.`)}
+            ${last ? ` · ${this.l("Skor terbaik", "Best score")}: ${last.best}/${last.total}` : ""}</p>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="app.setQuizMode('uxcel')">⚡ ${this.l("Mode Interaktif Step-by-Step (Uxcel)", "Interactive Step-by-Step Mode (Uxcel)")}</button>
       </div>
       ${mod.quiz.map((q, qi) => `
         <div class="well stack-sm">
@@ -1920,6 +2568,237 @@ class DataForgeApp {
         <button class="btn btn-primary" onclick="app.submitQuiz('${mod.id}')">${t.btnCheckAnswers}</button>
       </div>
       <div id="quiz-summary"></div>`;
+  }
+
+  renderLifecycleDiagram(modId) {
+    const stageMap = {
+      "gen": { num: "1", icon: "🌱", name: this.l("1. Generasi Sumber", "1. Source Generation"), sub: "OLTP, APIs, IoT, Logs", mods: ["mod-0-0", "mod-0-1", "mod-0-2", "mod-1-5", "mod-1-6"] },
+      "store": { num: "2", icon: "🗄️", name: this.l("2. Penyimpanan", "2. Storage Layer"), sub: "Parquet, Iceberg, S3, RDBMS", mods: ["mod-0-3", "mod-1-7", "mod-2-1", "mod-2-2", "mod-3-4"] },
+      "ingest": { num: "3", icon: "📥", name: this.l("3. Ingesti & Aliran", "3. Ingestion & Stream"), sub: "Batch, CDC, Kafka, Flink", mods: ["mod-1-1", "mod-1-2", "mod-3-2", "mod-3-3", "mod-4-2", "mod-4-3"] },
+      "transform": { num: "4", icon: "⚙️", name: this.l("4. Transformasi & Model", "4. Transformation"), sub: "SQL, Kimball, DV2.0, dbt, Spark", mods: ["mod-1-3", "mod-1-4", "mod-2-3", "mod-2-4", "mod-3-0", "mod-3-1", "mod-4-1"] },
+      "serve": { num: "5", icon: "🚀", name: this.l("5. Serving & AI RAG", "5. Serving & AI RAG"), sub: "BI, Reverse ETL, pgvector", mods: ["mod-2-5", "mod-2-6", "mod-3-5", "mod-4-4"] }
+    };
+    const undercurrents = [
+      { icon: "🔐", name: this.l("Keamanan & PII", "Security & PII") },
+      { icon: "🏛️", name: this.l("Manajemen Data (DMBOK)", "Data Management") },
+      { icon: "📈", name: "DataOps & Observability" },
+      { icon: "📐", name: this.l("Arsitektur Data", "Data Architecture") },
+      { icon: "🎼", name: this.l("Orkestrasi (Dagster)", "Orchestration") },
+      { icon: "💻", name: "Software Engineering" }
+    ];
+    return `
+      <div class="lifecycle-diagram">
+        <div class="row between">
+          <div>
+            <span class="chip chip-blue">📐 ${this.l("Peta Visual Siklus Hidup Data Engineering (Reis & Housley)", "Visual Data Engineering Lifecycle Map (Reis & Housley)")}</span>
+            <span class="small muted" style="margin-left:6px">${this.l("Tahap yang dinyalakan adalah posisi modul ini di arsitektur produksi:", "Highlighted stage shows where this module sits in production architecture:")}</span>
+          </div>
+        </div>
+        <div class="lifecycle-stages">
+          ${Object.values(stageMap).map((st) => {
+            const isActive = st.mods.includes(modId);
+            return `
+              <div class="lifecycle-node ${isActive ? "active" : ""}" onclick="app.go('curriculum','${st.mods[0]}','concepts')" title="${this.l("Klik untuk menjelajahi tahap ini", "Click to explore this stage")}">
+                <div style="font-size:18px">${st.icon}</div>
+                <div class="stage-name">${this.esc(st.name)}</div>
+                <div class="stage-sub">${this.esc(st.sub)}</div>
+                ${isActive ? `<span class="micro-badge ok" style="margin-top:4px;display:inline-block">● ${this.l("Modul Aktif", "Active Module")}</span>` : ""}
+              </div>`;
+          }).join("")}
+        </div>
+        <div class="lifecycle-undercurrents">
+          <span class="small muted" style="font-weight:700;margin-right:4px">🌊 ${this.l("6 Arus Bawah (Undercurrents):", "6 Undercurrents:")}</span>
+          ${undercurrents.map((u) => `<span class="undercurrent-pill">${u.icon} ${this.esc(u.name)}</span>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  setQuizMode(mode) {
+    this.quizMode = mode;
+    writeStore("df_quiz_mode", mode);
+    this.renderView();
+  }
+
+  ensureUxcelState(mod) {
+    if (!this.uxcelQuizState[mod.id]) {
+      this.uxcelQuizState[mod.id] = {
+        stepIdx: 0,
+        picked: null,
+        checked: false,
+        answers: {},
+        startedAt: Date.now(),
+        elapsedSec: 0,
+        finished: false
+      };
+    }
+    return this.uxcelQuizState[mod.id];
+  }
+
+  selectUxcelOption(modId, optPos) {
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+    if (!mod) return;
+    const st = this.ensureUxcelState(mod);
+    if (st.checked || st.finished) return;
+    const order = this.quizOrderFor(mod)[st.stepIdx] || [];
+    if (optPos < 0 || optPos >= order.length) return;
+    const actualOi = order[optPos];
+    st.picked = actualOi;
+    st.checked = true;
+    const q = mod.quiz[st.stepIdx];
+    const isOk = actualOi === q.correct;
+    st.answers[st.stepIdx] = { picked: actualOi, ok: isOk };
+    this.playTone(isOk ? "ok" : "bad");
+    this.renderView();
+  }
+
+  nextUxcelQuestion(modId) {
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+    if (!mod) return;
+    const st = this.ensureUxcelState(mod);
+    if (!st.checked) return;
+    if (st.stepIdx + 1 < mod.quiz.length) {
+      st.stepIdx++;
+      st.picked = null;
+      st.checked = false;
+    } else {
+      st.finished = true;
+      st.elapsedSec = Math.max(5, Math.round((Date.now() - st.startedAt) / 1000));
+      const correct = Object.values(st.answers).filter((a) => a && a.ok).length;
+      const prev = this.quizScores[modId];
+      this.quizScores[modId] = { best: Math.max(correct, prev ? prev.best : 0), total: mod.quiz.length };
+      writeStore("df_quiz_scores", this.quizScores);
+      const need = Math.ceil(mod.quiz.length * 0.8);
+      const passed = correct >= need;
+      const needsProof = Boolean(window.PROOF && window.PROOF[modId]) && !this.proofFor(modId);
+      if (passed && !needsProof && !this.completedModules.includes(modId)) {
+        this.completedModules.push(modId);
+        writeStore("df_completed_modules", this.completedModules);
+        this.renderHeaderStats();
+      }
+      this.playTone(passed ? "win" : "bad");
+    }
+    this.renderView();
+  }
+
+  restartUxcelQuiz(modId) {
+    delete this.uxcelQuizState[modId];
+    delete this.quizOrder[modId];
+    this.renderView();
+  }
+
+  renderUxcelQuiz(mod, order, last, need, plainTab) {
+    const st = this.ensureUxcelState(mod);
+    const total = mod.quiz.length;
+
+    if (st.finished) {
+      const correct = Object.values(st.answers).filter((a) => a && a.ok).length;
+      const pct = Math.round((correct / total) * 100);
+      const passed = correct >= need;
+      const needsProof = Boolean(window.PROOF && window.PROOF[mod.id]) && !this.proofFor(mod.id);
+      const mins = Math.floor((st.elapsedSec || 12) / 60);
+      const secs = (st.elapsedSec || 12) % 60;
+      const timeStr = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+      const xpEarned = passed ? 80 + (correct * 10) : correct * 10;
+
+      return `
+        <div class="uxcel-celebration">
+          <span class="chip ${passed ? "chip-green" : ""}">${passed ? "🎉 " + this.l("ASESMEN LULUS", "ASSESSMENT PASSED") : "🔁 " + this.l("PERLU ULASAN ULANG", "NEEDS REVIEW")}</span>
+          <h2 style="font-size:24px;margin-top:10px">${passed ? this.l("Luar Biasa! Konsep Modul Ini Terkuasai", "Awesome Work! Module Concepts Mastered") : this.l("Hampir Sampai! Tinjau Kembali Konsep yang Terlewat", "Almost There! Review the Missed Concepts")}</h2>
+          <p class="muted" style="max-width:540px;margin:6px auto 0">
+            ${passed
+              ? (needsProof
+                  ? this.l("Kuis lulus (≥80%)! Sesuai Hukum Pertama DataForge, selesaikan dan tempel kode bukti lab lokal (DF1:) di tab Lab untuk menuntaskan modul ini.", "Quiz passed (≥80%)! Per the First Law of DataForge, verify your local terminal lab proof (DF1:) in the Lab tab to mark this module complete.")
+                  : this.l("Kuis dan bukti lab lokal telah terverifikasi. Modul ini sekarang ditandai selesai!", "Both quiz and local lab proof are verified. This module is now marked complete!"))
+              : this.l(`Anda menjawab benar ${correct}/${total} (butuh minimal ${need} atau 80%). Pelajari kembali kartu penjelasan lalu coba lagi.`, `You scored ${correct}/${total} (need at least ${need} or 80%). Review the lesson explanations and try again.`)}
+          </p>
+          <div class="uxcel-stat-row">
+            <div class="uxcel-stat-box">
+              <div class="val" style="color:var(--amber)">+${xpEarned} XP</div>
+              <div class="small muted">${this.l("XP Diraih", "XP Earned")}</div>
+            </div>
+            <div class="uxcel-stat-box">
+              <div class="val" style="color:${passed ? "var(--green)" : "var(--red)"}">${pct}%</div>
+              <div class="small muted">${correct}/${total} ${this.l("Benar", "Accuracy")}</div>
+            </div>
+            <div class="uxcel-stat-box">
+              <div class="val">⏱️ ${timeStr}</div>
+              <div class="small muted">${this.l("Waktu Selesai", "Time Taken")}</div>
+            </div>
+          </div>
+          <div class="row" style="justify-content:center;margin-top:20px;gap:10px">
+            <button class="btn" onclick="app.restartUxcelQuiz('${mod.id}')">🔄 ${this.l("Ulangi Kuis Interaktif", "Retake Interactive Quiz")}</button>
+            ${needsProof ? `<button class="btn btn-primary" onclick="app.go('curriculum','${mod.id}','lab')">🧪 ${this.l("Buka Tab Lab & Tempel Bukti DF1", "Open Lab Tab & Paste DF1 Proof")} →</button>` : `<button class="btn btn-primary" onclick="app.go('roadmap')">🧭 ${this.l("Lanjut ke Modul Berikutnya", "Continue Roadmap")} →</button>`}
+          </div>
+        </div>`;
+    }
+
+    const qi = st.stepIdx;
+    const q = mod.quiz[qi];
+    const qOrder = order[qi] || q.options.map((_, i) => i);
+    const progressPct = Math.round(((qi + (st.checked ? 1 : 0)) / total) * 100);
+    const correctCountSoFar = Object.values(st.answers).filter((a) => a && a.ok).length;
+    const tipId = `tip:${mod.id}:${qi}`;
+    const isTipSaved = (this.savedTips || []).some((t) => t.id === tipId);
+    const lessonIdx = this.findBestLessonForQuestion(mod, q);
+    const lessonTitle = mod.lessons[lessonIdx] ? this.t(mod.lessons[lessonIdx].title) : "";
+
+    return `
+      <div class="uxcel-quiz-shell">
+        <div class="uxcel-top-bar">
+          <span class="chip chip-blue">${this.l("Soal", "Question")} ${qi + 1} / ${total}</span>
+          <div class="uxcel-progress-track"><div class="uxcel-progress-fill" style="width:${progressPct}%"></div></div>
+          <span class="chip chip-green">✓ ${correctCountSoFar} ${this.l("Benar", "Correct")}</span>
+          <button class="btn btn-sm btn-quiet" onclick="app.setQuizMode('classic')" title="${this.l("Tampilkan semua soal sekaligus", "Switch to classic all-at-once view")}">📋 ${this.l("Tampilan Klasik", "Classic View")}</button>
+        </div>
+
+        <div class="uxcel-question-body">
+          <div>
+            <span class="small muted">${this.l("Tips Keyboard: Tekan [1] - [4] untuk memilih jawaban, lalu [Enter] untuk lanjut.", "Keyboard Tip: Press [1] - [4] to pick an option, then [Enter] for next question.")}</span>
+            <h3 style="font-size:18px;margin-top:6px;line-height:1.45">${this.inline(this.t(q.question))}</h3>
+          </div>
+
+          <div class="stack-sm">
+            ${qOrder.map((oi, pos) => {
+              let stateCls = "";
+              if (st.checked) {
+                if (oi === q.correct) stateCls = "is-correct";
+                else if (oi === st.picked) stateCls = "is-wrong";
+              } else if (oi === st.picked) {
+                stateCls = "is-selected";
+              }
+              return `
+                <button class="uxcel-option-btn ${stateCls}" onclick="app.selectUxcelOption('${mod.id}', ${pos})" ${st.checked ? "disabled" : ""}>
+                  <span class="uxcel-key-badge">${st.checked ? (oi === q.correct ? "✓" : oi === st.picked ? "✕" : pos + 1) : pos + 1}</span>
+                  <span style="flex:1">${this.inline(this.t(q.options[oi]))}</span>
+                </button>`;
+            }).join("")}
+          </div>
+
+          ${st.checked ? `
+            <div class="callout ${st.picked === q.correct ? "success" : "danger"}" style="margin-top:6px" role="status" aria-live="polite">
+              <div class="row between">
+                <strong style="font-size:15px">${st.picked === q.correct ? "🎸 " + this.l("Tepat Sekali! (Rock on!)", "Rock on! Spot-on engineering answer.") : "💡 " + this.l("Belum Tepat — Mari Pelajari Prinsipnya:", "Not Quite — Here Is the Core Engineering Principle:")}</strong>
+                <div class="row">
+                  <button class="btn btn-sm ${isTipSaved ? "btn-done" : "btn-quiet"}" onclick="app.toggleSaveTip('${tipId}', '${mod.id}', ${JSON.stringify(mod.number + " Q" + (qi + 1) + ": " + this.stripMd(this.t(q.question)).slice(0, 70)).replace(/"/g, "&quot;")}, ${JSON.stringify(this.stripMd(this.t(q.explanation))).replace(/"/g, "&quot;")})">
+                    ${isTipSaved ? "🔖 " + this.l("Tersimpan di Bookmark", "Saved to Bookmarks") : "🔖 " + this.l("Simpan Tips (Busuu Style)", "Save Tip to Bookmarks")}
+                  </button>
+                  ${mod.lessons[lessonIdx] ? `<button class="btn btn-sm btn-quiet" onclick="app.reviewLessonFromQuiz('${mod.id}', ${lessonIdx})">📖 ${this.l("Buka Materi #" + (lessonIdx + 1), "Review Lesson #" + (lessonIdx + 1))}</button>` : ""}
+                </div>
+              </div>
+              <p style="margin-top:8px;line-height:1.55">${this.inline(this.t(q.explanation))}</p>
+            </div>
+            <div class="row between" style="margin-top:6px">
+              <span class="small muted">${lessonTitle ? `📖 ${this.l("Referensi:", "Reference:")} ${this.esc(lessonTitle)}` : ""}</span>
+              <button class="btn btn-primary" onclick="app.nextUxcelQuestion('${mod.id}')">
+                ${qi + 1 < total ? this.l("Soal Berikutnya (Enter) →", "Next Question (Enter) →") : "🏆 " + this.l("Lihat Hasil Asesmen →", "Finish & See Assessment Results →")}
+              </button>
+            </div>` : `
+            <div class="row between" style="margin-top:6px">
+              <button class="btn btn-quiet btn-sm" onclick="app.go('curriculum','${mod.id}','chaos')">← ${plainTab("tabChaos")}</button>
+              <span class="small muted">${last ? `${this.l("Skor terbaik sebelumnya", "Previous best")}: ${last.best}/${last.total}` : this.l("Pilih salah satu jawaban di atas", "Click an option above to check immediately")}</span>
+            </div>`}
+        </div>
+      </div>`;
   }
 
   quizOrderFor(mod) {
@@ -2010,6 +2889,150 @@ class DataForgeApp {
   }
 
   // ================= INTERVIEW & PRACTICE ARENA =================
+  getDuelQuestions() {
+    return [
+      {
+        q: this.l("CEO perusahaan Stage 1 (3 tabel Postgres, <50 ribu baris/hari) meminta klaster Kafka + Spark Streaming di Kubernetes. Apa tindakan terbaik?", "A Stage-1 startup CEO (3 Postgres tables, <50K rows/day) demands a custom Kafka + Spark Streaming cluster on Kubernetes. What is the right architectural response?"),
+        options: [
+          this.l("Segera bangun klaster K8s + Kafka agar siap skala 10 tahun ke depan", "Immediately deploy K8s + Kafka so it scales for the next 10 years"),
+          this.l("Usulkan arsitektur Type A (Managed ELT + DuckDB/Warehouse per 15 menit) untuk menghindari jebakan TOCO & operasional", "Propose a Type-A architecture (15-min managed batch ELT + DuckDB/Warehouse) to avoid the TOCO maintenance trap"),
+          this.l("Gunakan NoSQL MongoDB tanpa skema", "Switch everything to schema-less MongoDB")
+        ],
+        correct: 1
+      },
+      {
+        q: this.l("Tabel fakta orders (1 baris per order) di-JOIN langsung ke tabel dimensi customer SCD2 yang belum difilter is_current = true. Apa yang terjadi?", "An orders fact table (1 row per order) is joined directly to an SCD2 customer dimension without filtering is_current = true. What happens?"),
+        options: [
+          this.l("SQL gagal dengan pesan error DuplicateKeyException", "SQL fails with a DuplicateKeyException error"),
+          this.l("Silent Join Fan-Out: query sukses (exit 0) tetapi SUM(revenue) menggelembung berlipat ganda!", "Silent Join Fan-Out: query exits 0 with no error, but SUM(revenue) silently inflates!"),
+          this.l("Optimizer SQL otomatis menghapus baris histori SCD2", "The SQL optimizer automatically deduplicates SCD2 history rows")
+        ],
+        correct: 1
+      },
+      {
+        q: this.l("Bagaimana cara mem-pseudonimisasi nomor HP/email PII di Lakehouse agar aman dari serangan Rainbow Table sekaligus tetap bisa di-JOIN?", "How should you pseudonymize PII phone numbers/emails in a Lakehouse to prevent rainbow-table reversal while preserving deterministic JOINs?"),
+        options: [
+          this.l("SHA-256 biasa tanpa salt (SHA256(email))", "Unsalted SHA-256 (SHA256(email))"),
+          this.l("HMAC-SHA256 dengan secret salt yang disimpan di KMS/Vault", "HMAC-SHA256 using a secret salt stored in KMS/Vault"),
+          this.l("Encoding Base64 pada kolom email", "Base64 encoding on the email column")
+        ],
+        correct: 1
+      },
+      {
+        q: this.l("Mengapa klausa WHERE DATE(event_ts) = '2026-10-19' berbahaya pada tabel Parquet/BigQuery yang dipartisi berdasarkan event_ts?", "Why is WHERE DATE(event_ts) = '2026-10-19' dangerous on a 10 TB Parquet/BigQuery table partitioned by event_ts?"),
+        options: [
+          this.l("Membungkus kolom partisi dengan fungsi mematikan partition pruning dan memicu Full Table Scan!", "Wrapping the partition column in a function disables partition pruning and triggers a Full Table Scan!"),
+          this.l("Fungsi DATE() mengubah zona waktu menjadi UTC+7", "The DATE() function shifts timestamps to UTC+7"),
+          this.l("Tidak berbahaya karena mesin SQL selalu mengevaluasi invers fungsi", "It is harmless because SQL engines always invert functions automatically")
+        ],
+        correct: 0
+      },
+      {
+        q: this.l("Saat memigrasikan pipeline monolitik warisan (brownfield) ke dbt/Iceberg, pola arsitektur apa yang paling aman?", "When migrating a brownfield legacy monolithic stored-procedure pipeline to dbt/Iceberg, what is the safest migration pattern?"),
+        options: [
+          this.l("Big-Bang Cutover: matikan sistem lama hari Jumat malam dan nyalakan sistem baru", "Big-Bang Cutover: turn off the legacy system Friday night and switch over"),
+          this.l("Strangler Fig Pattern: jalankan shadow/dual-run per domain dan verifikasi rekonsiliasi baris & metrik sebelum cutover", "Strangler Fig Pattern: shadow/dual-run one domain at a time with automated row & metric reconciliation before cutover"),
+          this.l("Salin semua stored procedure 5.000 baris apa adanya ke dalam satu model dbt", "Copy-paste the entire 5,000-line stored procedure verbatim into a single dbt model")
+        ],
+        correct: 1
+      }
+    ];
+  }
+
+  startDuel() {
+    this.duelState = { open: true, round: 0, score: 0, answers: [], startedAt: Date.now(), finished: false };
+    this.renderView();
+  }
+
+  answerDuel(optIdx) {
+    const qs = this.getDuelQuestions();
+    const st = this.duelState;
+    if (!st.open || st.finished) return;
+    const q = qs[st.round];
+    const ok = optIdx === q.correct;
+    if (ok) st.score++;
+    st.answers.push({ round: st.round, picked: optIdx, ok });
+    this.playTone(ok ? "ok" : "bad");
+    if (st.round + 1 < qs.length) {
+      st.round++;
+    } else {
+      st.finished = true;
+      st.elapsedSec = Math.max(4, Math.round((Date.now() - st.startedAt) / 1000));
+      if (st.score >= 4) this.playTone("win");
+    }
+    this.renderView();
+  }
+
+  copyScorecard(btn) {
+    const g = this.computeGamificationStats();
+    const text = [
+      `⚡ DataForge Verified Engineering Scorecard`,
+      `• Rank: ${g.leagueIcon} ${g.leagueName} (${g.xp.toLocaleString()} XP · 🔥 ${g.streakDays}d Streak)`,
+      `• Modules Completed: ${this.completedModules.length}/27`,
+      `• First-Law Local Proofs: ${g.proofCount} DF1 Labs · ${g.tryItCount} TRY1 Checks · ${g.chaosCount} CHAOS1 Drills · ${g.portCount} PORT1 Git Repos`,
+      `• Hostile SQL Sandbox Solved: ${g.sqlCount}/59`
+    ].join("\n");
+    this.copyText(text, btn);
+  }
+
+  renderDuelBanner() {
+    const st = this.duelState || {};
+    const qs = this.getDuelQuestions();
+    const g = this.computeGamificationStats();
+
+    if (!st.open) {
+      return `
+        <div class="card row between" style="border-left:4px solid var(--purple);background:var(--card-subtle)">
+          <div>
+            <span class="chip chip-blue">⚔️ ${this.l("Fitur Kompetitif & Sosial (Sololearn Style)", "Competitive & Social Challenge (Sololearn Style)")}</span>
+            <h3 style="margin-top:4px">${this.l("Duel cepat: 5 soal keputusan arsitektur", "Quick duel: 5 architecture decisions")}</h3>
+            <p class="small muted">${this.l("Jawab 5 soal pilihan keputusan arsitektur secepat mungkin (target: 4 benar), atau salin kartu skor bukti lokal Anda untuk grup belajar.", "Answer 5 architecture decision questions as fast as you can (target: 4 right), or copy your local proof scorecard for your study group.")}</p>
+          </div>
+          <div class="row">
+            <button class="btn btn-sm btn-quiet" onclick="app.copyScorecard(this)">📋 ${this.l("Salin Kartu Skor Bukti Lokal", "Copy Verified Proof Scorecard")}</button>
+            <button class="btn btn-sm btn-primary" onclick="app.startDuel()">⚔️ ${this.l("Mulai Duel 1v1 (5 Soal)", "Start 1v1 Duel (5 Rounds)")}</button>
+          </div>
+        </div>`;
+    }
+
+    if (st.finished) {
+      const benchmarkScore = 4;
+      const won = st.score >= benchmarkScore;
+      return `
+        <div class="card stack-sm" style="border:2px solid ${won ? "var(--green)" : "var(--amber)"}">
+          <div class="row between">
+            <div>
+              <span class="chip ${won ? "chip-green" : "chip-blue"}">${won ? "🏆 VICTORY · ANDA MENANG DUEL!" : "⚔️ CLOSE MATCH · DUEL SELESAI"}</span>
+              <h3 style="margin-top:4px">${this.l(`Skor Anda: ${st.score}/5 (${st.elapsedSec}d) vs. Senior DE Benchmark: 4/5 (58d)`, `Your Score: ${st.score}/5 (${st.elapsedSec}s) vs. Senior DE Benchmark: 4/5 (58s)`)}</h3>
+            </div>
+            <div class="row">
+              <button class="btn btn-sm btn-quiet" onclick="app.copyScorecard(this)">📋 ${this.l("Bagikan Skor", "Share Scorecard")}</button>
+              <button class="btn btn-sm btn-primary" onclick="app.startDuel()">🔄 ${this.l("Main Lagi", "Rematch")}</button>
+              <button class="btn btn-sm btn-quiet" onclick="app.duelState.open=false;app.renderView()">✕</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    const curQ = qs[st.round];
+    return `
+      <div class="card stack-sm" style="border:2px solid var(--purple)">
+        <div class="row between">
+          <span class="chip chip-blue">⚔️ ${this.l("Babak", "Round")} ${st.round + 1} / ${qs.length} · ${this.l("Skor Anda", "Your Score")}: ${st.score}</span>
+          <span class="small muted">${this.l("Target: 4 dari 5", "Target: 4 of 5")}</span>
+          <button class="btn btn-sm btn-quiet" onclick="app.duelState.open=false;app.renderView()">✕</button>
+        </div>
+        <h3 style="font-size:16px">${this.esc(curQ.q)}</h3>
+        <div class="stack-sm">
+          ${curQ.options.map((opt, idx) => `
+            <button class="uxcel-option-btn" onclick="app.answerDuel(${idx})">
+              <span class="uxcel-key-badge">${idx + 1}</span>
+              <span>${this.esc(opt)}</span>
+            </button>`).join("")}
+        </div>
+      </div>`;
+  }
+
   renderInterviewView() {
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     const tabs = {
@@ -2017,7 +3040,8 @@ class DataForgeApp {
       "sql-arena": t.tabSqlArena,
       "incidents": t.tabIncidents,
       "silent-bugs": "4. 🐛 " + this.l("Silent Bug Clinic", "Silent Bug Clinic"),
-      "active-recall": "5. 🧠 " + this.l("Active Recall", "Active Recall")
+      "active-recall": "5. 🧠 " + this.l("Active Recall", "Active Recall"),
+      "stakeholder-defense": "6. 🗣️ " + this.l("Pertahanan Stakeholder", "Stakeholder Defense")
     };
     return `
       <div class="stack">
@@ -2027,6 +3051,7 @@ class DataForgeApp {
             ${INTERVIEW_TABS.map((k) => `<button class="${this.activeInterviewTab === k ? "active" : ""}" onclick="app.go('interview','${k}')">${tabs[k]}</button>`).join("")}
           </div>
         </div>
+        ${this.renderDuelBanner()}
         ${this.renderInterviewTabContent(t)}
       </div>`;
   }
@@ -2097,6 +3122,61 @@ class DataForgeApp {
                 <div class="feedback ${st.solved ? "ok" : "bad"}">
                   <strong>${st.solved ? "✓ " + this.l("Diagnosis Tepat! Bug Diam-Diam Berhasil Diperbaiki.", "Spot On! Silent Bug Diagnosed & Fixed.") : "⚠️ " + this.l(lineOk ? "Baris yang Anda pilih sudah benar, tetapi pilihan perbaikan belum tepat." : `Baris yang Anda pilih (#${selLine + 1}) belum tepat. Perhatikan baris yang berinteraksi dengan NULL/kunci/state!`, lineOk ? "You clicked the right buggy line, but picked the wrong fix." : `Line #${selLine + 1} is not the root cause. Look closely at where NULLs, join keys, or mutable state interact!`)}</strong>
                   ${st.solved ? `<div style="margin-top:8px">${this.inline(this.t(d.explanation))}</div>` : ""}
+                </div>` : ""}
+            </div>
+          </section>
+        </div>`;
+    }
+
+    if (this.activeInterviewTab === "stakeholder-defense") {
+      const drills = (window.PRACTICE_LABS && window.PRACTICE_LABS.STAKEHOLDER_DEFENSE_DRILLS) || [];
+      const d = drills.find((x) => x.id === this.activeDefenseId) || drills[0];
+      const st = this.defenseState[d.id] || {};
+      const draftLen = (st.draft || "").trim().length;
+      const canSubmit = draftLen >= 40;
+      return `
+        <div class="split">
+          ${list(this.l("Simulasi Stakeholder", "Stakeholder Scenarios"), drills, d.id, "setActiveDefense", (x) => {
+            const solved = Boolean((this.defenseState[x.id] || {}).solved);
+            return `
+              <div class="item-title">${solved ? `<span style="color:var(--green);font-weight:700;margin-right:4px">✓</span>` : "🗣️ "}${this.esc(this.t(x.title))}</div>
+              <div class="item-meta">${this.esc(x.role)} · ${this.esc(x.chapter)}</div>`;
+          })}
+          <section class="stack">
+            <div class="card stack-sm">
+              <div class="row between">
+                <span class="chip chip-blue">${this.esc(d.role)}</span>
+                <span class="muted small">📖 ${this.esc(d.chapter)}</span>
+              </div>
+              <h2>${this.esc(this.t(d.title))}</h2>
+              <div class="callout danger">
+                <div class="label">💬 ${this.l("Tuntutan Stakeholder di Rapat", "Stakeholder Demand in the Meeting")}</div>
+                <p style="font-size:14.5px;font-style:italic">${this.esc(this.t(d.stakeholderQuote))}</p>
+              </div>
+            </div>
+
+            <div class="card stack-sm">
+              <div class="row between">
+                <h3>✍️ ${this.l("Langkah 1: Tulis Argumen & Negosiasi Teknis Anda (Min. 40 Karakter)", "Step 1: Draft Your Engineering Response & Trade-Off Defense (Min. 40 Chars)")}</h3>
+                <span class="chip ${canSubmit ? "chip-green" : ""}">${draftLen}/40 ${this.l("karakter", "chars")}</span>
+              </div>
+              <p class="small muted">${this.l("Bab 1 Fundamentals of Data Engineering: keberhasilan tim data jarang ditentukan teknologi, tetapi oleh komunikasi dengan stakeholder. 64% lowongan data engineering di database TalentHub menyebut komunikasi atau stakeholder.", "Chapter 1 of Fundamentals of Data Engineering: data teams rarely succeed or fail on technology; they do on communication with stakeholders. 64% of the data engineering postings in the TalentHub database mention communication or stakeholders.")}</p>
+              <textarea class="notes-textarea" placeholder="${this.l("Tulis bagaimana Anda menjawab stakeholder ini (sebutkan SLA/keputusan bisnis, TCO vs TOCO, Data Contract, atau Strangler Fig)…", "Write how you respond to this stakeholder (cite business decision SLA, TCO vs TOCO, Data Contract, or Strangler Fig)…")}" oninput="app.saveDefenseDraft('${d.id}', this.value)">${this.esc(st.draft || "")}</textarea>
+            </div>
+
+            <div class="card stack-sm">
+              <h3>🎯 ${this.l("Langkah 2: Pilih Keputusan Arsitektur & Komunikasi Terbaik", "Step 2: Select the Best Architectural & Diplomatic Action")}</h3>
+              <div class="stack-sm">
+                ${d.options.map((opt) => `
+                  <button class="choice" style="width:100%;text-align:left;${st.selectedOpt === opt.id ? "border-color:var(--blue);font-weight:600" : ""}" onclick="app.submitDefenseChoice('${d.id}', '${opt.id}')">
+                    <span>${st.selectedOpt === opt.id ? "●" : "○"}</span>
+                    <span>${this.inline(this.t(opt.text))}</span>
+                  </button>`).join("")}
+              </div>
+              ${st.attempted ? `
+                <div class="feedback ${st.solved ? "ok" : "bad"}">
+                  <strong>${st.solved ? "✓ " + this.l("Negosiasi & Arsitektur Tepat!", "Spot-On Engineering & Stakeholder Defense!") : "⚠️ " + this.l("Pilihan tersebut berisiko tinggi bagi tim data dan bisnis. Coba evaluasi kembali dari sudut pandang TCO/TOCO dan Data Contract.", "That choice puts the data team and business at high risk. Re-evaluate through the lens of TCO/TOCO, SLAs, and Data Contracts.")}</strong>
+                  ${st.solved ? `<div style="margin-top:8px">${this.md(this.t(d.rubric))}</div>` : ""}
                 </div>` : ""}
             </div>
           </section>
@@ -2303,6 +3383,29 @@ class DataForgeApp {
           <h3>${t.interviewDefenseTitle}</h3>
           ${proj.interviewDefense.map((qa) => `<div class="well">${this.md(qa)}</div>`).join("")}
         </div>
+
+        <!-- First-Law Local Git & CI/CD Portfolio Repository Verifier (PORT1:) -->
+        ${(() => {
+          const pProof = this.portfolioProofs[proj.id];
+          const cmdVerify = `python3 scripts/verify_portfolio.py ${proj.id} ~/my-${proj.id}-repo`;
+          return `
+            <div class="card stack-sm" style="border-left:4px solid var(--green)">
+              <div class="row between">
+                <div>
+                  <span class="chip chip-green">${this.l("Hukum Pertama · Verifikasi Repositori Git Lokal", "First Law · Local Git Repository Verifier")}</span>
+                  <h3 style="margin-top:4px">🏆 ${this.l("Buktikan Anda Membangun Repositori Portofolio Ini Sendiri (PORT1)", "Prove You Built & Tested This Portfolio Repository Yourself (PORT1)")}</h3>
+                </div>
+                ${pProof ? `<span class="state-done">✓ PORT1 (${pProof.commits} commits · ${pProof.py})</span>` : `<span class="muted small">${this.l("Belum diverifikasi", "Not verified yet")}</span>`}
+              </div>
+              <p class="small muted">${this.l("Cetak biru di atas hanyalah arsitektur referensi. Perekrut mempekerjakan Anda berdasarkan repositori Git nyata yang Anda bangun di komputer Anda sendiri (riwayat commit Git >= 2, .gitignore tanpa bocoran .env, README dengan ADR, Dockerfile/CI workflow, dan minimal 3 tes pytest hijau). Jalankan pemeriksa lokal ini:", "The blueprint above is only a reference. Employers hire you for a real Git repository you built on your own computer (>= 2 Git commits, .gitignore with zero leaked .env secrets, README with ADR, Dockerfile/CI workflow, and >= 3 passing pytest tests). Run this local verifier:")}</p>
+              <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdVerify)}</code></pre></div>
+              <div class="row">
+                <input type="text" id="port-proof-input-${proj.id}" autocomplete="off" spellcheck="false" placeholder="PORT1:${proj.id}:…" value="${pProof ? this.esc(pProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitPortfolioProof('${proj.id}')}" />
+                <button class="btn btn-sm btn-primary" onclick="app.submitPortfolioProof('${proj.id}')">${this.l("Verifikasi PORT1", "Verify PORT1")}</button>
+              </div>
+              <div id="port-proof-msg-${proj.id}">${pProof ? `<div class="feedback ok">✓ ${this.l(`Repositori portofolio lokal terverifikasi (${pProof.passed} audit lulus, ${pProof.commits} commit Git, Python ${pProof.py} di ${pProof.os}).`, `Local portfolio repository verified (${pProof.passed} audits passed, ${pProof.commits} Git commits, Python ${pProof.py} on ${pProof.os}).`)}</div>` : ""}</div>
+            </div>`;
+        })()}
       </div>`;
   }
   setActivePortfolio(id) { this.activePortfolioId = id; this.renderView(); }
@@ -2797,6 +3900,7 @@ class DataForgeApp {
               <div class="row between">
                 <div class="row">
                   <button class="btn btn-primary" onclick="app.runSql()">${t.btnExecuteSql}</button>
+                  <button class="btn btn-quiet" onclick="app.explainSql()">⚡ ${this.l("Explain Query Plan & Cek Index", "Explain Query Plan & Index Check")}</button>
                   ${challenge ? `<button class="btn" onclick="app.checkChallenge()">${this.l("Periksa jawaban (+ Tes Data Hostil)", "Check my answer (+ Hostile Data Test)")}</button>` : ""}
                   <button class="btn btn-quiet" onclick="app.resetDataset()">${this.l("Reset data", "Reset dataset")}</button>
                 </div>
@@ -2888,6 +3992,39 @@ class DataForgeApp {
         <tbody>${res.rows.map((row) => `<tr>${row.map((v) => v === null ? `<td class="null">NULL</td>` : `<td>${this.esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>
       </table></div>`;
     }
+  }
+
+  explainSql() {
+    if (this.sandbox.status !== "ready") return;
+    const editor = document.getElementById("pg-sql-editor");
+    const box = document.getElementById("pg-verdict");
+    const res = SQL_PLAYGROUND.explain(editor.value);
+    if (!res.ok) {
+      box.innerHTML = `<div class="feedback bad"><strong>EXPLAIN Error:</strong> <code>${this.esc(res.error)}</code></div>`;
+      return;
+    }
+    const hasScan = res.steps.some((s) => s.isScan);
+    const hasIndex = res.steps.some((s) => s.isIndex);
+    box.innerHTML = `
+      <div class="well stack-sm" style="margin-top:8px;border-left:4px solid ${hasIndex && !hasScan ? "var(--green)" : "var(--blue)"}">
+        <div class="row between">
+          <strong>⚡ ${this.l("Rencana Eksekusi Query (SQLite EXPLAIN QUERY PLAN)", "Live Execution Plan (SQLite EXPLAIN QUERY PLAN)")}</strong>
+          <span class="chip ${hasIndex && !hasScan ? "chip-green" : ""}">${hasIndex ? "🚀 Index Search Active" : hasScan ? "🐢 Full Table Scan" : "Plan Ready"}</span>
+        </div>
+        <div class="stack-sm">
+          ${res.steps.map((st, idx) => `
+            <div class="row between" style="padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:6px">
+              <code><strong>#${idx + 1}</strong> ${this.esc(st.detail)}</code>
+              <span class="chip ${st.isIndex ? "chip-green" : st.isScan ? "" : "chip-blue"}">
+                ${st.isIndex ? "✅ Index Seek (O(log N))" : st.isScan ? "⚠️ Full Table Scan (O(N))" : st.isTempBtree ? "🔄 Temp B-Tree Sort/Group" : "Step"}
+              </span>
+            </div>`).join("")}
+        </div>
+        <p class="small muted">💡 ${this.l(
+          "Tips Lab Performa: Anda bisa menjalankan `CREATE INDEX idx_test ON orders(customer_id);` diikuti query `SELECT ...` di kotak editor di atas, lalu klik tombol Explain ini lagi untuk melihat perubahan dari `SCAN` menjadi `SEARCH USING INDEX`!",
+          "Performance Lab Tip: You can write `CREATE INDEX idx_test ON orders(customer_id);` followed by your `SELECT ...` query in the editor above, then click Explain again to watch `SCAN` turn into `SEARCH USING INDEX`!"
+        )}</p>
+      </div>`;
   }
 
   checkChallenge() {
@@ -3179,6 +4316,109 @@ class DataForgeApp {
           </div>
         </div>
 
+        <!-- Job description matcher and measured job market -->
+        ${window.PRACTICE_LABS && window.PRACTICE_LABS.TALENTHUB_BENCHMARK_JDS ? (() => {
+                    const jds = window.PRACTICE_LABS.TALENTHUB_BENCHMARK_JDS || [];
+          const activeJd = jds.find((j) => j.id === this.selectedJdId) || jds[0];
+          const textToAnalyze = (this.customJdText && this.customJdText.trim().length > 20)
+            ? this.customJdText.toLowerCase()
+            : (activeJd ? activeJd.rawText.toLowerCase() : "");
+
+          // Collect all skills across benchmark JDs and match against textToAnalyze
+          const allSkillSpecs = [];
+          const seenNames = new Set();
+          jds.forEach((j) => (j.requiredSkills || []).forEach((sk) => {
+            if (!seenNames.has(sk.name)) {
+              seenNames.add(sk.name);
+              allSkillSpecs.push(sk);
+            }
+          }));
+          const mentions = (kw) => new RegExp("(^|[^a-z0-9])" + kw.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&"), "i").test(textToAnalyze);
+          const matchedSkills = allSkillSpecs.filter((sk) => sk.keywords.some(mentions));
+          const evaluatedSkills = (matchedSkills.length ? matchedSkills : (activeJd ? activeJd.requiredSkills : [])).map((sk) => {
+            const provenMods = sk.modules.filter((mId) => this.completedModules.includes(mId) || Boolean(this.proofFor(mId)));
+            return { ...sk, provenCount: provenMods.length, totalMods: sk.modules.length, isProven: provenMods.length > 0 };
+          });
+          const provenSkillsCount = evaluatedSkills.filter((s) => s.isProven).length;
+          const jdMatchPct = evaluatedSkills.length ? Math.round((provenSkillsCount / evaluatedSkills.length) * 100) : 0;
+          const verifiedPortCount = Object.keys(this.portfolioProofs || {}).length;
+          const verifiedChaosCount = Object.keys(this.chaosProofs || {}).length;
+
+          return `
+            <div class="card stack-sm" style="border-left:4px solid var(--green)">
+              <div class="row between">
+                <div>
+                  <span class="label">${this.l("Pencocok lowongan", "Job description matcher")}</span>
+                  <h2>${this.l("Lowongan mana yang sudah bisa Anda buktikan?", "Which job description can you already back up?")}</h2>
+                  <p class="muted small">${this.l("Tempel lowongan yang ingin Anda lamar, atau pilih salah satu dari 4 contoh lowongan (ditulis untuk latihan dari keahlian yang sering diminta, bukan lowongan asli). Keahlian yang disebut lowongan dicocokkan dengan modul yang sudah Anda buktikan.", "Paste a job description you want to apply for, or pick one of 4 example descriptions (written for practice from commonly requested skills, not real postings). The skills it mentions are matched against the modules you have proven.")}</p>
+                </div>
+                <div class="row">
+                  <span class="chip chip-blue">🛠️ ${verifiedChaosCount} CHAOS1</span>
+                  <span class="chip chip-green">🏆 ${verifiedPortCount} PORT1</span>
+                </div>
+              </div>
+
+              <div class="row" style="gap:6px;flex-wrap:wrap">
+                ${jds.map((j) => `
+                  <button class="btn btn-sm ${this.selectedJdId === j.id && !this.customJdText ? "btn-primary" : "btn-quiet"}" onclick="app.selectBenchmarkJd('${j.id}')">
+                    ${this.esc(j.title.split("—")[1] ? j.title.split("—")[1].trim() : j.title)}
+                  </button>`).join("")}
+              </div>
+
+              <div class="well stack-sm">
+                <div class="row between">
+                  <strong>${this.customJdText ? this.l("Lowongan yang Anda tempel", "The job description you pasted") : this.esc(activeJd ? activeJd.title : "")}</strong>
+                  <span class="chip ${jdMatchPct >= 80 ? "chip-green" : "chip-blue"}">${this.l("Terbukti", "Backed up")}: ${jdMatchPct}% (${provenSkillsCount}/${evaluatedSkills.length})</span>
+                </div>
+                <p class="small muted">${this.esc(activeJd && !this.customJdText ? activeJd.rawText : "")}</p>
+                <textarea class="notes-textarea" rows="2" placeholder="${this.l("Tempel teks lowongan di sini (dari LinkedIn, Glints, Jobstreet…)", "Paste a job description here (from LinkedIn, Glints, Jobstreet…)")}" oninput="app.updateCustomJd(this.value)">${this.esc(this.customJdText || "")}</textarea>
+              </div>
+
+              <div class="grid cols-2">
+                ${evaluatedSkills.map((sk) => `
+                  <div class="stat stack-sm" style="border-left:3px solid ${sk.isProven ? "var(--green)" : "var(--red)"}">
+                    <div class="row between">
+                      <strong style="font-size:13px">${this.esc(sk.name)}</strong>
+                      <span class="chip ${sk.isProven ? "chip-green" : ""}">${sk.isProven ? "✓ " + this.l("Terbukti", "Proven") : this.l("Belum", "Not yet")}</span>
+                    </div>
+                    <div class="row between" style="margin-top:6px">
+                      <div class="row" style="gap:4px">
+                        ${sk.modules.map((mId) => `<a href="#/curriculum/${mId}/lab" class="micro-badge ${this.completedModules.includes(mId) || this.proofFor(mId) ? "ok" : "info"}">${mId.replace("mod-", "Mod ")}</a>`).join("")}
+                      </div>
+                      <span class="small muted">${sk.provenCount}/${sk.totalMods} ${this.l("modul", "modules")}</span>
+                    </div>
+                  </div>`).join("")}
+              </div>
+            </div>
+
+            ${window.MARKET_DATA ? (() => {
+              const md = window.MARKET_DATA;
+              const fmt = (n) => n.toLocaleString(this.lang === "id" ? "id-ID" : "en-US");
+              const pct = (v) => this.lang === "id" ? String(v).replace(".", ",") : String(v);
+              return `
+            <div class="card stack-sm market-card">
+              <div>
+                <span class="label">${this.l("Pasar kerja, diukur", "Job market, measured")}</span>
+                <h2>${this.l("Apa yang disebut lowongan Data Engineer", "What data engineering job postings mention")}</h2>
+                <p class="muted small">${this.l(
+                  `${fmt(md.postings)} lowongan berjudul data engineering di database lowongan TalentHub (dari ${fmt(md.all_postings)} lowongan), diunggah ${md.first} sampai ${md.last}. Sebuah lowongan dihitung bila teksnya <em>menyebut</em> keahlian itu; menyebut belum tentu mewajibkan, dan satu lowongan bisa menyebut banyak keahlian.`,
+                  `${fmt(md.postings)} postings with a data engineering title in the TalentHub job database (out of ${fmt(md.all_postings)} postings), posted ${md.first} to ${md.last}. A posting counts when its text <em>mentions</em> the skill; a mention is not always a requirement, and one posting can mention many skills.`)}</p>
+              </div>
+              <div class="market-bars">
+                ${md.skills.map((sk) => `
+                  <div class="market-row">
+                    <div class="market-name">${this.esc(this.lang === "id" ? sk.id_label : sk.en)}</div>
+                    <div class="market-bar" role="img" aria-label="${pct(sk.pct)}%"><div style="width:${sk.pct}%"></div></div>
+                    <div class="market-pct">${pct(sk.pct)}%</div>
+                    <div class="market-mods">${sk.modules.length ? sk.modules.map((mId) => `<a href="#/curriculum/${mId}" class="micro-badge ${this.completedModules.includes(mId) ? "ok" : "info"}" title="${this.l("Modul", "Module")} ${mId.replace("mod-", "").replace("-", ".")}">${mId.replace("mod-", "").replace("-", ".")}</a>`).join("") : `<span class="small muted">${this.l("tidak diajarkan", "not taught")}</span>`}</div>
+                  </div>`).join("")}
+              </div>
+              <p class="small muted">${this.l("Diukur", "Measured")} ${md.measured} ${this.l("dengan", "with")} <code>scripts/job_market_stats.py</code>${this.l(", yang juga mencantumkan pola kata kunci tiap keahlian.", ", which also lists the keyword pattern for each skill.")}</p>
+            </div>`;
+            })() : ""}
+            </div>`;
+        })() : ""}
+
         <!-- Hiring Checklist & Action Plan -->
         <div class="grid cols-2">
           <!-- Checklist -->
@@ -3212,6 +4452,57 @@ class DataForgeApp {
               <strong>${this.l("Saran Karir Mentor:", "Mentor Career Tip:")}</strong><br>
               <span class="small">${this.l("Jangan menunggu skor 100% untuk mulai menyiapkan portofolio. Saat skor kesiapan Anda mencapai 50%, mulailah membuat akun GitHub publik dan menyusun resume menggunakan ATS Resume Builder kami.", "Do not wait for 100% to start building your portfolio. Once your readiness hits 50%, start an active public GitHub profile and craft your resume with our ATS Resume Builder.")}</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Idea #7: Afterglow / 10am Studio Analytics — My Assignments & Local Lab Proofs Status Table -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="chip chip-blue">📋 ${this.l("Pelacak Tugas & Bukti Lab Lokal (Afterglow Analytics Style)", "My Assignments & Local Lab Proofs Tracker (Afterglow Analytics Style)")}</span>
+              <h2 style="margin-top:4px">${this.l("Status Penyelesaian Lab, Kuis & Insiden Chaos per Modul", "Module-by-Module Lab Proof, Chaos Drill & Assessment Status")}</h2>
+            </div>
+            <button class="btn btn-sm btn-quiet" onclick="app.copyScorecard(this)">📋 ${this.l("Salin Kartu Skor Bukti Lokal", "Copy Verified Scorecard")}</button>
+          </div>
+          <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>${this.l("Modul", "Module")}</th>
+                  <th>${this.l("Materi", "Lessons")}</th>
+                  <th>${this.l("Bukti Lab (DF1)", "Lab Proof (DF1)")}</th>
+                  <th>${this.l("Drill Chaos", "Chaos Drill")}</th>
+                  <th>${this.l("Kuis (≥80%)", "Quiz (≥80%)")}</th>
+                  <th>${this.l("Status", "Status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${CURRICULUM_DATA.flatMap((l) => l.modules).map((m) => {
+                  const isDone = this.completedModules.includes(m.id);
+                  const lRead = (this.lessonsDone[m.id] || []).length;
+                  const lTot = (m.lessons || []).length;
+                  const hasPrf = Boolean(this.proofFor(m.id));
+                  const hasChaos = Boolean((this.chaosDone[m.id] && this.chaosDone[m.id].done) || this.chaosProofs[m.id]);
+                  const q = this.quizScores[m.id];
+                  const qNeed = Math.ceil((m.quiz || []).length * 0.8);
+                  const qOk = Boolean(q && q.best >= qNeed);
+                  const statusLabel = isDone
+                    ? `<span class="state-done">✓ ${this.l("Selesai", "Completed")}</span>`
+                    : (lRead > 0 || hasPrf || hasChaos || q)
+                      ? `<span class="chip chip-blue">${this.l("Sedang Dikerjakan", "In Progress")}</span>`
+                      : `<span class="muted small">${this.l("Berikutnya", "Upcoming")}</span>`;
+                  return `
+                    <tr>
+                      <td><a href="#/curriculum/${m.id}"><strong>${m.number}</strong> ${this.esc(this.t(m.title))}</a></td>
+                      <td>${lRead}/${lTot}</td>
+                      <td>${hasPrf ? `<span class="state-done">✓ DF1</span>` : `<a href="#/curriculum/${m.id}/lab" class="small muted">${this.l("Kerjakan →", "Build →")}</a>`}</td>
+                      <td>${hasChaos ? `<span class="state-done">✓ ${this.chaosProofs[m.id] ? "CHAOS1" : "Done"}</span>` : `<a href="#/curriculum/${m.id}/chaos" class="small muted">Chaos →</a>`}</td>
+                      <td>${q ? `${q.best}/${q.total} ${qOk ? "✓" : ""}` : `<a href="#/curriculum/${m.id}/quiz" class="small muted">Quiz →</a>`}</td>
+                      <td>${statusLabel}</td>
+                    </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>`;

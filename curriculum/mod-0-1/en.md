@@ -67,6 +67,42 @@ Skills that matter, roughly in the order this course teaches them: SQL, Python, 
 >
 > *Compare:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Then write two sentences: which of these tasks would be yours at a five-person company, and which would you not want to do alone?
 
+## @lesson The big picture: the lifecycle, the undercurrents, and the people
+> **In short:** Every data engineering job, whatever its tools, moves data through five stages: generation, storage, ingestion, transformation and serving. Six "undercurrents" run under all five: security, data management, DataOps, data architecture, orchestration and software engineering. What you build should fit how far along the company is with data. Most of the job is working with the people on either side of you.
+
+This map comes from *Fundamentals of Data Engineering* by Joe Reis and Matt Housley. It helps when the list of tools feels endless: every tool you will meet fits somewhere on it.
+
+**The five stages** (this course teaches them in roughly this order):
+
+- **Generation.** Data is born in systems you usually do not own: the app's database, a payment provider, a phone, a log. Their owners can change them without asking you. (Module 1.6, 3.2)
+- **Storage.** Where data rests at every step: files, databases, warehouses, lakehouse tables. (Modules 1.7, 2.1, 2.2, 2.6)
+- **Ingestion.** Copying data from the sources to your platform. This is where most breakages start: sources go down, slow you down, or change shape. (Modules 1.6, 3.2)
+- **Transformation.** Turning raw records into tables people can trust: right types, one row per thing, clear definitions. (Modules 0.3, 1.3, 1.4, 2.3)
+- **Serving.** Handing the result to the people and programs that use it: dashboards, analysts, machine-learning models, other applications. (Modules 2.6, 3.5)
+
+**The six undercurrents** are not stages; they are habits you need in every stage. Security (who may see what), data management (quality, definitions, privacy), DataOps (automating, testing and watching pipelines), data architecture (choosing how the pieces fit), orchestration (running steps in the right order) and software engineering (code that others can read, test and change). This is why job postings ask a data engineer for skills that sound like DevOps or software engineering: they are part of the job.
+
+### How far along is the company?
+The book describes three stages of *data maturity*. A good design for one stage is a bad design for another.
+
+| Stage | What it looks like | What usually works |
+|---|---|---|
+| **1. Starting with data** | Spreadsheets and CSV exports, no warehouse, leaders want a few reliable numbers | Ready-made tools: a managed loader, a simple warehouse or DuckDB, a few clean tables |
+| **2. Scaling with data** | Many sources, reports that break when a source changes, teams with different "revenue" numbers | Tests, agreed definitions, data contracts, an orchestrator, modeled tables |
+| **3. Leading with data** | Data is part of the product: recommendations, fraud checks, self-service for many teams | Custom systems where they give an edge, such as streaming, plus strong governance |
+
+The book also names two kinds of data engineer. **Type A** (A for *abstraction*) uses ready-made services and avoids building what can be bought. **Type B** (B for *build*) builds custom systems. Type A engineers are useful at every stage; Type B engineers mostly pay off at stages 2 and 3. The classic mistake is a stage-1 company building a stage-3 platform: months of work on clusters before anyone sees a single useful number.
+
+### The people on either side of you
+In the TalentHub job database, 64% of the 1,130 data engineering postings mention communication or stakeholders. That is more than mention Spark (46%) and almost as many as mention Python (69%). The book puts it plainly: data teams rarely fail because of technology.
+
+- **Upstream: the people who produce the data**, usually application engineers. To them, the database exists to run the app; your reports are a side effect. When they break your pipeline, a complaint does nothing. Explain what breaks downstream and who depends on it, and agree in writing which columns they will keep stable (a *data contract*, Module 2.5).
+- **Downstream: the people who use the data:** analysts, data scientists, managers. They often ask for a solution they have heard of ("we need a real-time dashboard") instead of the problem they have. Ask about the decision instead: *What will you do when this number changes, and how quickly do you need to act?* If the answer is "we look at it in the Monday meeting", a reliable daily job beats a streaming system.
+
+> 🛠 **Try it (10 min, paper and the simulator).** First open the maturity simulator at the top of this page and find, for each stage, the choice it calls right-sized. Its costs are a rough teaching model, not measured prices: use it to see the shape of the trade-off. Then write a three-line scoping note for KopiKu from what this module has told you about it: (1) its maturity stage, and the fact that told you; (2) who produces the orders data and who uses the revenue number; (3) Type A or Type B, and the one question you would ask the CEO before deciding.
+>
+> **You should see:** stage 1: one website database, the founder asking first questions, nothing to analyse with yet. The website (and whoever builds it) produces the orders; the founder uses the revenue number. Type A, after asking something like "what will you decide with this number, and how often?". If your question was about tools rather than the decision, try again.
+
 ## @lesson The journey of one order
 Follow a single KopiKu order, #4821, from the customer's phone to the CEO's dashboard. Each step is a stage that data engineers design and maintain.
 

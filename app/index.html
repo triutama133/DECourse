@@ -16,7 +16,7 @@
       } catch (e) { /* storage blocked: app.js picks the theme */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/style.css?v=15" />
+  <link rel="stylesheet" href="css/style.css?v=21" />
 </head>
 <body>
   <a class="skip-link" href="#main-content" onclick="document.getElementById('main-content').focus()">Skip to content / Lewati ke konten</a>
@@ -29,9 +29,16 @@
       </button>
 
       <div class="header-tools">
+        <div id="header-gamification" class="gamification-bar" aria-label="Learning streak and XP"></div>
         <button class="icon-btn" id="search-btn" onclick="app.openSearch()" aria-label="Search the course (Ctrl+K)" title="Ctrl+K">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
           <span class="icon-btn-label" id="search-btn-label">Search</span>
+        </button>
+        <button class="icon-btn" id="sound-btn" onclick="app.toggleSound()" aria-label="Toggle Interactive Sound Effects" title="Toggle Interactive Sound Effects">
+          <span id="sound-btn-icon">🔊</span>
+        </button>
+        <button class="icon-btn" id="a11y-btn" onclick="app.toggleA11yFont()" aria-label="Toggle Accessible Reading Font & High Contrast" title="WCAG Accessible Reading Mode">
+          <span id="a11y-btn-icon">Aa</span>
         </button>
         <button class="icon-btn" id="theme-btn" onclick="app.toggleTheme()" aria-label="Toggle Dark / Light Theme" title="Toggle Dark / Light Theme">
           <span id="theme-btn-icon">🌙</span>
@@ -72,18 +79,22 @@
     </div>
   </footer>
 
+  <!-- Mobile Bottom Quick-Navigation Bar (Idea #6: Mobile-First Ergonomics) -->
+  <nav id="mobile-bottom-nav" class="mobile-bottom-nav no-print" aria-label="Mobile Quick Navigation"></nav>
+
   <script src="vendor/sqljs/sql-wasm.js"></script>
-  <script src="js/translations.js?v=11"></script>
-  <script src="js/curriculum-data.js?v=13"></script>
-  <script src="js/browser-labs-data.js?v=11"></script>
-  <script src="js/proof-data.js?v=11"></script>
-  <script src="js/proof.js?v=11"></script>
-  <script src="js/interview-data.js?v=11"></script>
-  <script src="js/portfolio-data.js?v=11"></script>
-  <script src="js/cv-data.js?v=11"></script>
-  <script src="js/playground.js?v=12"></script>
-  <script src="js/remote-playbook.js?v=11"></script>
-  <script src="js/practice-labs.js?v=11"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/translations.js?v=20"></script>
+  <script src="js/curriculum-data.js?v=20"></script>
+  <script src="js/browser-labs-data.js?v=20"></script>
+  <script src="js/proof-data.js?v=20"></script>
+  <script src="js/proof.js?v=20"></script>
+  <script src="js/interview-data.js?v=20"></script>
+  <script src="js/portfolio-data.js?v=20"></script>
+  <script src="js/cv-data.js?v=20"></script>
+  <script src="js/playground.js?v=20"></script>
+  <script src="js/remote-playbook.js?v=20"></script>
+  <script src="js/practice-labs.js?v=20"></script>
+  <script src="js/market-data.js?v=20"></script>
+  <script src="js/app.js?v=20"></script>
 </body>
 </html>

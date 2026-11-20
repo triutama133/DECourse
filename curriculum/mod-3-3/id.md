@@ -61,7 +61,7 @@ Mekanisme internal ini sangat halus dan kerap disalahpahami, berikut adalah kron
 | Batch | Daftar Event yang Tiba (event time → value) | Posisi Watermark Awal | Peristiwa yang Terjadi di Engine |
 |---|---|---|---|
 | 0 | a 10:01 (10), a 10:02 (20), b 10:03 (5) | none (belum ada) | Tidak ada window yang dipancarkan. Nilai max event = 10:03, watermark baru untuk batch berikutnya menjadi **10:01** |
-| 1 | a 10:06 (30), b 10:07 (7), a 10:04 (99) | 10:01 | Belum ada window yang dipancarkan (tidak ada window yang berakhir $\le$ 10:01). Max event = 10:07, watermark menjadi **10:05** |
+| 1 | a 10:06 (30), b 10:07 (7), a 10:04 (99) | 10:01 | Belum ada window yang dipancarkan (tidak ada window yang berakhir ≤ 10:01). Max event = 10:07, watermark menjadi **10:05** |
 | 2 | a 10:11 (1), **a 10:03 (1000)**, b 10:06 (50) | 10:05 | Event 10:03 berada *di belakang* watermark, namun window induknya `[10:00, 10:05)` masih terbuka di memori, sehingga event ini **tetap dihitung**. Di akhir batch, window `[10:00, 10:05)` resmi **dipancarkan (emitted)**: akun a = count 4, total 1.129; akun b = count 1, total 5. Watermark naik menjadi 10:09 |
 | 3 | a 10:16 (2) | 10:09 | Tidak ada window yang dipancarkan (window `[10:05, 10:10)` berakhir di 10:10, di atas 10:09). Watermark naik menjadi 10:14 |
 | 4 | a 10:30 (3) | 10:14 | Window `[10:05, 10:10)` resmi dipancarkan: akun a = 1 / 30, akun b = 2 / 57. Watermark naik menjadi 10:28 |
@@ -87,7 +87,7 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 > 💡 **Jeda Praktik 2 (Simulasi Watermark & Agregasi Jendela Waktu):**
 > 1. Buka file `labs/mod-3-3/windows.py` di teks editor Anda.
 > 2. Implementasikan class `WindowedAggregator`: method `__init__`, `add_batch(events)`, dan `advance()`.
-> 3. Terapkan aturan watermark: perbarui watermark dari batch sebelumnya, pancarkan window yang batas akhirnya $\le$ watermark di akhir batch, dan buang event terlambat jika seluruh window penampungnya telah dipancarkan.
+> 3. Terapkan aturan watermark: perbarui watermark dari batch sebelumnya, pancarkan window yang batas akhirnya ≤ watermark di akhir batch, dan buang event terlambat jika seluruh window penampungnya telah dipancarkan.
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
 > 5. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemancaran window tertunda, sifat monotonik naik watermark, dan pembuangan event late yang presisi.
@@ -273,7 +273,7 @@ Dalam pemrosesan berbasis event time, watermark adalah instrumen mutlak yang mem
 
 ### Dengan konfigurasi delay watermark 2 menit, event paling baru yang diterima sejauh ini bertimestamp 10:07. Apa arti dari posisi watermark tersebut?
 - [ ] Bahwa setiap window yang berakhir sebelum 10:09 telah selesai, karena engine menambahkan delay ke waktu terbaru
-- [x] Event lebih lama dari 10:05 dianggap tak akan tiba, sehingga window yang berakhir $\le$ 10:05 dapat ditutup
+- [x] Event lebih lama dari 10:05 dianggap tak akan tiba, sehingga window yang berakhir hingga 10:05 bisa ditutup
 - [ ] Bahwa aliran stream akan dihentikan sementara hingga pukul 10:09 untuk memberi waktu event terlambat tiba
 - [ ] Bahwa seluruh event yang memiliki timestamp setelah 10:05 akan dibuang dari hasil akhir perhitungan data
 

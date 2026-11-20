@@ -239,6 +239,132 @@ window.INTERVIEW_DATA = {
           }
         }
       ]
+    },
+    {
+      "id": "sd-5",
+      "title": {
+        "id": "Migrasi Brownfield Strangler Fig, Semantic Layer & Platform Reverse ETL",
+        "en": "Brownfield Strangler Fig Migration, Unified Semantic Layer & Reverse ETL Platform"
+      },
+      "difficulty": "Hard",
+      "tags": [
+        "Brownfield Strangler",
+        "Semantic Layer",
+        "Reverse ETL",
+        "Data Vault 2.0",
+        "Reconciliation"
+      ],
+      "scenarioDescription": {
+        "id": "Anda bergabung dengan perusahaan ritel omni-channel yang memiliki 45 stored procedure warisan (brownfield) berusia 8 tahun. Angka 'Net Revenue' di laporan Finance berbeda 14% dengan dashboard Marketing, dan tim CRM ingin mendorong skor LTV pelanggan kembali ke Salesforce & WhatsApp API setiap jam (Reverse ETL) tanpa memicu pengiriman voucher ganda.",
+        "en": "You join an omni-channel retailer running 45 legacy stored procedures (8-year-old brownfield monolith). 'Net Revenue' on Finance's board report differs by 14% from Marketing's dashboard, and the CRM team wants hourly customer LTV pushed back into Salesforce & WhatsApp APIs (Reverse ETL) without triggering duplicate voucher dispatches."
+      },
+      "stages": [
+        {
+          "stageName": {
+            "id": "1. Strategi Migrasi Brownfield Strangler Fig & Rekonsiliasi Bayangan",
+            "en": "1. Brownfield Strangler Fig Strategy & Shadow Reconciliation"
+          },
+          "prompt": {
+            "id": "Bagaimana cara memigrasikan 45 stored procedure warisan tanpa menghentikan laporan harian dan membuktikan di mana letak selisih 14% antara Finance dan Marketing?",
+            "en": "How do you migrate 45 legacy stored procedures without halting daily operations, and prove the exact root cause of the 14% Finance vs. Marketing discrepancy?"
+          },
+          "sampleAnswer": {
+            "id": "**Langkah Migrasi Strangler Fig (Bab 4 Fundamentals of Data Engineering):**\n1. **Tolak Big-Bang Rewrite**: Mengganti 45 stored procedure sekaligus pasti gagal dan menghentikan visibilitas bisnis selama berbulan-bulan.\n2. **Bangun Jembatan Shadow Reconciliation**: Biarkan stored procedure lama tetap jalan enquanto kita memodelkan 1 domain prioritas (`fct_orders`) di dbt + Semantic Layer.\n3. **Laporan Drift Otomatis**: Jalankan query rekonsiliasi harian `delta_idr = semantic_net_revenue - legacy_net_revenue` yang memecah selisih per komponen (pesanan `refunded`/`cancelled`, diskon voucher, pajak PPN 11%, dan biaya ongkir). Bukti rekonsiliasi otomatis ini digunakan untuk mendapatkan tanda tangan persetujuan CFO dan CMO sebelum memensiunkan stored procedure lama satu per satu.",
+            "en": "**Strangler Fig Migration Protocol (Ch. 4 Fundamentals of Data Engineering):**\n1. **Reject Big-Bang Rewrites**: Rewriting all 45 stored procedures at once guarantees months of stalled delivery and broken reports.\n2. **Shadow Reconciliation Bridge**: Keep legacy procedures running while strangling one high-value domain (`fct_orders`) into a tested dbt + Semantic Layer model.\n3. **Automated Drift Decomposition**: Run a daily reconciliation diff (`delta_idr = semantic_net_revenue - legacy_net_revenue`) decomposed by status (`refunded`/`cancelled`), discounts, tax, and shipping fees. Present the exact mathematical diff to Finance and Marketing leadership to sign off on cutting over one legacy procedure at a time."
+          }
+        },
+        {
+          "stageName": {
+            "id": "2. Arsitektur Data Vault 2.0 / Kimball & Unified Semantic Layer",
+            "en": "2. Data Vault 2.0 / Kimball & Unified Semantic Layer Architecture"
+          },
+          "prompt": {
+            "id": "Kapan Anda memadukan Data Vault 2.0 dengan Kimball Star Schema, dan bagaimana Semantic Layer mencegah drift metrik di masa depan?",
+            "en": "How do you combine Data Vault 2.0 with a Kimball Star Schema, and how does the Semantic Layer prevent future metric drift?"
+          },
+          "sampleAnswer": {
+            "id": "**Arsitektur Berlapis:**\n1. **Raw Vault (Data Vault 2.0)**: Untuk menyerap data dari ERP, POS toko fisik, dan aplikasi e-commerce yang sering berubah skema, gunakan **Hubs** (`hk_customer = sha256(UPPER(TRIM(customer_id)))`), **Links** (`link_customer_order`), dan **Satellites** append-only (`hash_diff`) agar 100% histori perubahan sumber dapat diaudit.\n2. **Dimensional Mart (Kimball Star Schema)**: Di atas Raw Vault, bangun `dim_customer` (SCD Type 2) dan `fct_orders` untuk performa query analitik cepat.\n3. **Unified Semantic Layer (Headless BI)**: Deklarasikan metrik `net_revenue_idr` satu kali di kode (`status IN ('paid','shipped','delivered')`, `gross - discount - tax`). Baik Power BI, Looker, maupun notebook Data Scientist wajib memanggil definisi Semantic Layer ini, menghapus fenomena 'Dark Matter Spreadsheets'.",
+            "en": "**Layered Modeling Architecture:**\n1. **Raw Integration Vault (Data Vault 2.0)**: Absorb volatile ERP, physical POS, and e-commerce feeds into insert-only **Hubs** (`hk_customer = sha256(UPPER(TRIM(customer_id)))`), **Links**, and **Satellites** (`hash_diff`) for 100% historical auditability.\n2. **Dimensional Presentation Marts (Kimball)**: Derive `dim_customer` (SCD Type 2) and `fct_orders` downstream from the Vault for fast analytical joins.\n3. **Unified Semantic Layer (Headless BI)**: Define `net_revenue_idr` once in version-controlled code (`status IN ('paid','shipped','delivered')`, `gross - discount - tax`). All BI dashboards, notebooks, and downstream pipelines query the Semantic Layer rather than inventing ad-hoc SQL formulas."
+          }
+        },
+        {
+          "stageName": {
+            "id": "3. Pengamanan Reverse ETL & Pencegahan Runaway Feedback Loop",
+            "en": "3. Reverse ETL Guardrails & Runaway Feedback Loop Prevention"
+          },
+          "prompt": {
+            "id": "Bagaimana merancang sinkronisasi Reverse ETL ke Salesforce & WhatsApp API agar tahan terhadap retry, rate-limit, dan feedback loop berbahaya?",
+            "en": "How do you design the Reverse ETL sync to Salesforce & WhatsApp APIs so it survives retries, rate limits, and runaway feedback loops?"
+          },
+          "sampleAnswer": {
+            "id": "**Guardrails Reverse ETL Produksi (Bab 9 Fundamentals of Data Engineering):**\n1. **Deterministic Idempotency Key**: Setiap event sync membawa `idempotency_key = sha256(customer_id + ':' + sync_window + ':' + tier_action)` sehingga retry jaringan tidak pernah mengirim voucher WhatsApp dua kali.\n2. **Compute Diff / State Snapshot**: Hanya kirim baris yang mengalami perubahan nilai (`hash_diff` berubah dibanding snapshot sync terakhir) agar tidak membakar kuota rate-limit API Salesforce.\n3. **Circuit Breaker Feedback Loop**: Pasang batas maksimum (`max_vouchers_per_hour = 500`) dan tahan akun dengan umur pesanan < 24 jam (cooling-off period) agar pesanan yang baru dibuat lalu dibatalkan tidak pernah memicu aksi otomatis.",
+            "en": "**Production Reverse ETL Guardrails (Ch. 9 Fundamentals of Data Engineering):**\n1. **Deterministic Idempotency Key**: Attach `idempotency_key = sha256(customer_id + ':' + sync_window + ':' + tier_action)` to every outbound API payload so retries never double-send vouchers.\n2. **State Diffing**: Compare current warehouse state against the last synced snapshot hash and push only changed records to respect CRM API rate limits.\n3. **Feedback Loop Circuit Breaker**: Enforce a circuit breaker (`max_upgrades_per_hour = 500`) and a settlement cooling window so unsettled or refunded orders never trigger automated marketing spend."
+          }
+        }
+      ]
+    },
+    {
+      "id": "sd-6",
+      "title": {
+        "id": "Arsitektur Right-Sizing Tahap Kematangan Data & Penyelamatan Biaya Egress Lintas-Region",
+        "en": "Data Maturity Right-Sizing & Cross-Region Network Egress FinOps Rescue"
+      },
+      "difficulty": "Medium-Hard",
+      "tags": [
+        "Data Maturity",
+        "TCO vs TOCO",
+        "Cloud Networking",
+        "Egress FinOps",
+        "Reis & Housley"
+      ],
+      "scenarioDescription": {
+        "id": "Sebuah perusahaan logistik Stage 1 (baru memulai inisiatif data, 300.000 pengiriman/hari, tim hanya 2 Data Engineer) menghabiskan $28.000/bulan dan belum merilis 1 dashboard pun setelah 5 bulan karena konsultan sebelumnya membangun klaster Kubernetes multi-AZ dengan Kafka, Spark, dan bucket S3 yang berada di region berbeda dari klaster komputasi.",
+        "en": "A Stage-1 logistics company (300,000 shipments/day, only 2 Data Engineers) is burning $28,000/month and has shipped zero dashboards after 5 months because a previous consultant built a multi-AZ Kubernetes cluster with Kafka, Spark, and an S3 bucket located in a different cloud region from the compute nodes."
+      },
+      "stages": [
+        {
+          "stageName": {
+            "id": "1. Audit Tahap Kematangan Data (Stage 1) & Analisis TCO vs. TOCO",
+            "en": "1. Data Maturity Audit (Stage 1) & TCO vs. TOCO Analysis"
+          },
+          "prompt": {
+            "id": "Evaluasi mengapa arsitektur saat ini gagal menggunakan kerangka 3 Tahap Kematangan Data, Type A vs. Type B, dan TCO vs. TOCO dari buku Fundamentals of Data Engineering.",
+            "en": "Evaluate why the current architecture failed using the 3 Data Maturity Stages, Type A vs. Type B, and TCO vs. TOCO frameworks from Fundamentals of Data Engineering."
+          },
+          "sampleAnswer": {
+            "id": "**Diagnosis Kematangan Data & TOCO:**\n- **Volume Data Sebenarnya**: 300.000 baris/hari × 500 byte ≈ **150 MB/hari** (~4,5 GB/bulan). Ini adalah ukuran data yang dapat diolah oleh **DuckDB / PostgreSQL / Warehouse Serverless dalam 2 detik** di satu mesin!\n- **Kesalahan Fatal (Over-Engineering Stage 1)**: Perusahaan berada di **Stage 1 (Starting with Data)** dengan hanya 2 engineer, tetapi dipaksa mengoperasikan arsitektur **Type B (Custom Distributed Cluster)** yang baru relevan untuk Stage 3 (>50 juta event/detik). **TOCO (Total Opportunity Cost of Ownership)** sangat menghancurkan: 100% waktu 2 engineer habis untuk memelihara Kubernetes & Kafka alih-alih memodelkan data bisnis.",
+            "en": "**Data Maturity & TOCO Diagnosis:**\n- **Actual Data Scale Math**: 300,000 rows/day × 500 bytes ≈ **150 MB/day** (~4.5 GB/month). This volume can be processed by **DuckDB, PostgreSQL, or a serverless cloud warehouse in 2 seconds**!\n- **Fatal Mistake (Stage-1 Over-Engineering)**: The company is at **Stage 1 (Starting with Data)** with 2 engineers, yet adopted a heavy **Type B (Custom Distributed Cluster)** architecture meant for Stage 3 hyperscalers. The **Total Opportunity Cost of Ownership (TOCO)** is catastrophic: 5 months spent babysitting Kubernetes and Kafka with zero business models delivered."
+          }
+        },
+        {
+          "stageName": {
+            "id": "2. Audit Fisika Jaringan Cloud: Menghentikan Kebocoran Egress & NAT Gateway",
+            "en": "2. Cloud Networking Physics: Stopping Egress & NAT Gateway Bleed"
+          },
+          "prompt": {
+            "id": "Dari mana asal tagihan $28.000/bulan pada tingkat jaringan fisik (Region, AZ, NAT Gateway), dan bagaimana memperbaikinya di Terraform?",
+            "en": "Where is the $28,000/month bill coming from at the physical networking layer (Regions, AZs, NAT Gateways), and how do you fix it in Terraform?"
+          },
+          "sampleAnswer": {
+            "id": "**Tiga Sumber Kebocoran Jaringan Cloud (Lampiran B Fundamentals of Data Engineering):**\n1. **Cross-Region Data Egress ($0,02–$0,09/GB)**: Karena bucket S3 berada di `us-east-1` sedangkan klaster compute di `ap-southeast-1`, setiap pembacaan data menagih biaya egress lintas-benua dan menambah latensi >180ms (**melanggar hukum Data Gravity**).\n2. **NAT Gateway Processing Fee ($0,045/GB)**: Subnet privat membaca S3 melewati NAT Gateway berbayar karena lupa memasang **S3 VPC Gateway Endpoint** gratis.\n3. **Cross-AZ Shuffle ($0,02/GB round-trip)**: Broker Kafka dan worker Spark yang tersebar di 3 Availability Zone menagih biaya transfer jaringan setiap kali melakukan replikasi dan shuffle lintas AZ.\n- **Perbaikan Terraform**: Pindahkan storage & compute ke region yang sama (`ap-southeast-1`), pasang `aws_vpc_endpoint` tipe `Gateway` untuk S3, dan matikan klaster K8s/Spark yang tidak perlu.",
+            "en": "**Three Cloud Networking Cost Leaks (Appendix B of Fundamentals of Data Engineering):**\n1. **Cross-Region Egress ($0.02–$0.09/GB)**: Putting S3 in `us-east-1` and compute in `ap-southeast-1` bills inter-region egress on every scan and adds 180ms network latency (**violating Data Gravity**).\n2. **NAT Gateway Processing ($0.045/GB)**: Private subnet workers routing S3 traffic through a managed NAT Gateway instead of a free **S3 VPC Gateway Endpoint**.\n3. **Cross-AZ Replication & Shuffle ($0.02/GB round-trip)**: Multi-AZ Kafka brokers and Spark executors billing inter-AZ transfer on every shuffle.\n- **Terraform Fix**: Co-locate storage and compute in the same region, provision a free `aws_vpc_endpoint` (Gateway type) for S3, and decommission the oversized K8s/Spark cluster."
+          }
+        },
+        {
+          "stageName": {
+            "id": "3. Arsitektur Pengganti yang Tepat Guna (Lean Type-A / Lakehouse)",
+            "en": "3. Right-Sized Replacement Architecture (Lean Type-A / Lakehouse)"
+          },
+          "prompt": {
+            "id": "Rancang arsitektur baru yang menurunkan biaya dari $28.000/bulan menjadi di bawah $300/bulan dan merilis dashboard pertama dalam 2 minggu.",
+            "en": "Design the replacement architecture that cuts the bill from $28,000/month to under $300/month and ships trustworthy dashboards within 2 weeks."
+          },
+          "sampleAnswer": {
+            "id": "**Arsitektur Lean Stage-1 ke Stage-2 (<$300/bulan):**\n1. **Ingestion**: Ganti klaster Kafka 9-node dengan batch/micro-batch ingesti terkelola (atau Python + Dagster terjadwal tiap 15 menit) yang menulis Parquet ke S3 di region yang sama.\n2. **Storage & Compute**: Gunakan **DuckDB / BigQuery / Snowflake X-Small (auto-suspend 60 detik)** di atas tabel Parquet/Iceberg.\n3. **Transformation & Governance**: Gunakan **dbt Core** dengan pengujian `unique`, `not_null`, data contracts YAML, dan 1 Semantic Layer untuk metrik pengiriman tepat waktu (SLA).\n- **Hasil**: Tagihan turun **99%** (dari $28.000 ke ~$220/bulan), operasional infrastruktur mendekati nol jam/minggu, dan 2 Data Engineer fokus 100% membangun model data bisnis.",
+            "en": "**Lean Stage-1 to Stage-2 Architecture (<$300/month):**\n1. **Ingestion**: Replace the 9-node Kafka cluster with a scheduled 15-minute incremental Python/Dagster ingestion job landing Parquet into same-region S3.\n2. **Storage & Compute**: Query Parquet/Iceberg tables using **DuckDB** or an **X-Small Cloud Warehouse (60s auto-suspend)**.\n3. **Transformation & Governance**: Model `fct_shipments` and `dim_hubs` in **dbt Core** with automated data contract tests and a governed Semantic Layer.\n- **Outcome**: Cloud bill drops **99%** ($28,000 $\to$ ~$220/month), infrastructure toil drops to near zero, and the 2 engineers ship production dashboards in week 2."
+          }
+        }
+      ]
     }
   ],
   "sqlArenaProblems": [
@@ -416,6 +542,92 @@ window.INTERVIEW_DATA = {
           "action": {
             "id": "Pisahkan pemrosesan akun-akun raksasa ke jalur komputasi terpisah (isolated compute tier) dan buat aturan monitoring distribusi frekuensi key harian.",
             "en": "Isolate high-volume tenant keys into dedicated processing jobs and implement daily key distribution profiling in CI."
+          }
+        }
+      ]
+    },
+    {
+      "id": "drill-3",
+      "title": {
+        "id": "Runaway Feedback Loop pada Reverse ETL & Badai Rate-Limit CRM",
+        "en": "Runaway Reverse-ETL Feedback Loop & CRM API Rate-Limit Storm"
+      },
+      "scenario": {
+        "id": "Pukul 09.10 WIB, tim Sales dan Customer Support panik karena Salesforce CRM terkunci (HTTP 429 Quota Exceeded) dan 12.000 pelanggan menerima 15 email promo berturut-turut dalam 20 menit. Pipeline Reverse ETL yang baru dirilis tadi malam tampak memicu webhook pembaruan `last_contacted_at` di CRM, yang kemudian ditarik kembali oleh CDC ke warehouse sebagai 'aktivitas pelanggan baru', lalu memicu Reverse ETL lagi tanpa henti!",
+        "en": "At 9:10 AM, Sales and Support report that Salesforce CRM is locked out (HTTP 429 API Quota Exceeded) and 12,000 customers received 15 duplicate promo emails in 20 minutes. A Reverse ETL job deployed last night updates `last_contacted_at` in the CRM, which CDC streams back into the warehouse as 'new customer activity', triggering the Reverse ETL job again in an infinite loop!"
+      },
+      "rubric": [
+        {
+          "phase": {
+            "id": "0-15 Menit: Putuskan Loop Otomatis (Kill Switch)",
+            "en": "0-15 Min: Break the Automated Feedback Loop (Kill Switch)"
+          },
+          "action": {
+            "id": "Segera pause jadwal/sensor DAG Reverse ETL di Dagster/Airflow dan cabut sementara token API service account Reverse ETL agar kuota CRM pulih bagi tim operasional manusia.",
+            "en": "Immediately pause the Reverse ETL schedule/sensor in Dagster/Airflow and revoke or throttle the Reverse ETL service account token so human sales/support agents regain CRM API quota."
+          }
+        },
+        {
+          "phase": {
+            "id": "15-45 Menit: Analisis Akar Masalah & Rekonsiliasi Idempotensi",
+            "en": "15-45 Min: Root Cause Analysis & Idempotency Audit"
+          },
+          "action": {
+            "id": "Identifikasi mengapa mutasi yang ditulis oleh service account Reverse ETL sendiri dianggap sebagai aktivitas organik pelanggan. Hitung daftar 12.000 pelanggan yang terdampak dari log audit outbox.",
+            "en": "Trace how writes performed by the Reverse ETL service account were ingested back via CDC as organic user events. Query the outbox audit table to list the exact 12,000 affected customers."
+          }
+        },
+        {
+          "phase": {
+            "id": "45-60 Menit: Guardrail Permanen (Actor Filtering, State Diff & Idempotency Key)",
+            "en": "45-60 Min: Permanent Guardrails (Actor Filtering, State Diff & Idempotency Key)"
+          },
+          "action": {
+            "id": "1) Di model staging CDC, kecualikan perubahan yang berasal dari `updated_by = 'svc_reverse_etl'`. 2) Hanya picu Reverse ETL jika `hash_diff` metrik bisnis (`net_ltv_idr`, `tier`) berubah. 3) Sertakan `idempotency_key` deterministik per kampanye dan pasang circuit breaker maksimum 1.000 baris/run.",
+            "en": "1) Filter out `updated_by = 'svc_reverse_etl'` in staging CDC models. 2) Trigger Reverse ETL only when business metric `hash_diff` changes. 3) Attach a deterministic per-campaign `idempotency_key` and a circuit-breaker cap per run."
+          }
+        }
+      ]
+    },
+    {
+      "id": "drill-4",
+      "title": {
+        "id": "Insiden Kebocoran Data Lintas-Tenant pada Embedded Analytics & Karantina Darurat",
+        "en": "Cross-Tenant Embedded Analytics Data Leak & Emergency Quarantine"
+      },
+      "scenario": {
+        "id": "Seorang manajer dari Klien Korporat A mengirim tangkapan layar ke CEO Anda: saat membuka dashboard Embedded Analytics, ia melihat nama perusahaan dan omset harian milik Klien Korporat B. Deployment dbt pagi tadi mengubah view `v_tenant_revenue` dan menambahkan klausa `OR is_featured_product = TRUE` tanpa tanda kurung di samping filter `WHERE tenant_id = current_tenant_id()`.",
+        "en": "An executive at Enterprise Client A sends a screenshot to your CEO: their Embedded Analytics portal is displaying revenue rows belonging to Enterprise Client B. This morning's dbt deployment modified `v_tenant_revenue` and added `OR is_featured_product = TRUE` without parentheses next to `WHERE tenant_id = current_tenant_id()`."
+      },
+      "rubric": [
+        {
+          "phase": {
+            "id": "0-15 Menit: Isolasi & Penghentian Kebocoran Instan",
+            "en": "0-15 Min: Immediate Containment & View Rollback"
+          },
+          "action": {
+            "id": "Matikan endpoint Embedded Analytics / cabut akses baca role portal pada `v_tenant_revenue` dalam 2 menit pertama, lalu rollback view ke definisi commit sebelumnya dan bersihkan (invalidate) seluruh result cache di warehouse dan BI layer.",
+            "en": "Disable the Embedded Analytics endpoint / revoke portal role SELECT on `v_tenant_revenue` within 2 minutes, roll back the view definition, and purge all warehouse and BI result caches."
+          }
+        },
+        {
+          "phase": {
+            "id": "15-45 Menit: Forensik Jejak Audit (Blast Radius)",
+            "en": "15-45 Min: Audit Log Forensics (Blast Radius Determination)"
+          },
+          "action": {
+            "id": "Query tabel `query_history` / log akses audit warehouse antara waktu deploy pagi tadi hingga waktu rollback untuk menentukan secara eksak tenant mana saja yang sempat menjalankan query dan baris milik tenant mana yang terekspos (wajib untuk pelaporan kepatuhan GDPR/UU PDP).",
+            "en": "Query warehouse `query_history` / audit logs between the morning deploy timestamp and rollback timestamp to identify every tenant session that queried the view and whose data was exposed (required for legal GDPR/DPO disclosure)."
+          }
+        },
+        {
+          "phase": {
+            "id": "45-60 Menit: Pencegahan Arsitektural (Native RLS Policy & CI Cross-Tenant Test)",
+            "en": "45-60 Min: Architectural Prevention (Native RLS Policy & CI Cross-Tenant Test)"
+          },
+          "action": {
+            "id": "Jangan mengandalkan klausa `WHERE` manual di tiap view! Pindahkan isolasi ke **Native Database Row Access Policy (RLS)** pada tabel dasar dan tambahkan automated test di CI dbt yang menguji bahwa query dengan `tenant_id = A` tidak pernah mengembalikan `COUNT(DISTINCT tenant_id) > 1`.",
+            "en": "Never rely on manual `WHERE` clauses in views! Enforce **Native Database Row Access Policies (RLS)** on base tables and add a mandatory CI test asserting `MAX(tenant_id) = MIN(tenant_id)` for simulated tenant sessions."
           }
         }
       ]
