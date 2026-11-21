@@ -17,11 +17,18 @@ function readStore(key, fallback) {
     return fallback;
   }
 }
+// Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
+const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_chaos_proofs", "df_portfolio_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) { /* storage unavailable (private mode): keep working in memory */ }
+  if (STUDY_KEYS.has(key) && window.app && !window.app._importing) window.app.recordStudy();
 }
+function localDay(d = new Date()) {   // the learner's own calendar day, not the UTC one
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function dayGap(from, to) { return Math.round((new Date(to + "T00:00:00Z") - new Date(from + "T00:00:00Z")) / 86400000); }
 
 class DataForgeApp {
   constructor() {
@@ -407,18 +414,22 @@ class DataForgeApp {
     this.renderMobileBottomNav();
   }
 
+  // The streak counts days on which the learner studied (see STUDY_KEYS). It shows 0 until the first study
+  // action, and drops to 0 once a whole day has passed without one.
   touchStreak() {
-    const today = new Date().toISOString().slice(0, 10);
-    const st = readStore("df_streak", { days: 1, lastDate: today }) || { days: 1, lastDate: today };
-    if (st.lastDate !== today) {
-      const prev = new Date(st.lastDate + "T00:00:00Z");
-      const cur = new Date(today + "T00:00:00Z");
-      const diffDays = Math.round((cur - prev) / 86400000);
-      st.days = diffDays === 1 ? (st.days || 1) + 1 : 1;
-      st.lastDate = today;
-      writeStore("df_streak", st);
-    }
-    this.streakDays = st.days || 1;
+    const st = readStore("df_streak", null);
+    const ok = st && typeof st.lastDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(st.lastDate);
+    this.streakDays = ok && dayGap(st.lastDate, localDay()) <= 1 ? Math.max(0, Number(st.days) || 0) : 0;
+  }
+  recordStudy() {
+    const today = localDay();
+    const st = readStore("df_streak", null);
+    const ok = st && typeof st.lastDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(st.lastDate);
+    if (ok && st.lastDate === today && (Number(st.days) || 0) > 0) return;
+    const days = ok && dayGap(st.lastDate, today) === 1 ? (Number(st.days) || 0) + 1 : 1;
+    writeStore("df_streak", { days, lastDate: today });
+    this.streakDays = days;
+    this.renderHeaderStats();
   }
 
   playTone(kind) {
@@ -514,7 +525,7 @@ class DataForgeApp {
       { label: this.l("Lulus 1 Tantangan SQL atau Silent Bug", "Solve 1 Hostile SQL or Silent Bug Drill"), cur: Math.min(1, sqlCount + bugCount), max: 1, xp: "+50 XP", link: "#/playground" }
     ];
 
-    return { xp, streakDays: this.streakDays || 1, leagueName, leagueIcon, badges, quests, readLessons, tryItCount, proofCount, chaosCount, portCount, sqlCount };
+    return { xp, streakDays: this.streakDays || 0, leagueName, leagueIcon, badges, quests, readLessons, tryItCount, proofCount, chaosCount, portCount, sqlCount };
   }
 
   renderRingProgress(pct, size = 44, strokeColor = "var(--accent)") {
@@ -1002,6 +1013,7 @@ class DataForgeApp {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
+      this._importing = true;   // restoring old progress is not studying today
       try {
         const d = JSON.parse(reader.result);
         if (!d || d.format !== "dataforge-progress") throw new Error("format");
@@ -1040,10 +1052,14 @@ class DataForgeApp {
           writeStore("df_proofs", kept);
         }
         for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
+        if (d.df_streak && typeof d.df_streak.lastDate === "string" && Number.isFinite(Number(d.df_streak.days))) writeStore("df_streak", { days: Number(d.df_streak.days), lastDate: d.df_streak.lastDate });
+        this.touchStreak();
         this.renderChrome(); this.renderView();
         alert(this.l("Progres berhasil diimpor.", "Progress imported."));
       } catch (e) {
         alert(this.l("File tidak valid: pilih file hasil Ekspor progres dari DataForge.", "Invalid file: choose a file created by DataForge's Export progress."));
+      } finally {
+        this._importing = false;
       }
     };
     reader.readAsText(file);

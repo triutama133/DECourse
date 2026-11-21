@@ -473,7 +473,6 @@ main:focus { outline: none; }
 .bl-groups li.ok .muted { color: inherit; }
 .bl-groups code { background: none; padding: 0; color: inherit; }
 .feedback.info { background: var(--blue-tint); color: var(--text); border: 1px solid var(--blue); }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- Enhanced Pedagogical Components ---------- */
 .callout-tldr {
