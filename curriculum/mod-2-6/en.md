@@ -181,6 +181,24 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
 > Real data is untidy: think about how a status can be written, which dates either side might have that the other lacks, and which customers must not be sent.
 > Check it: `python3 labs/tryit/check.py 2.6-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
+**Three kinds of analytics, three sets of requirements.** The book (chapter 9) separates who the analytics are for, because the audience decides almost every technical choice:
+
+| | Business analytics | Operational analytics | Embedded (customer-facing) analytics |
+|---|---|---|---|
+| For whom | analysts, managers | operations teams and automated alerts | your customers, inside your product |
+| Question | what happened and why | what is happening right now, act on it | how is *my* account doing |
+| KopiKu example | weekly revenue by city and roast | "a store will run out of Gayo beans today" | KopiKu sells its till software to cafés; each owner sees their own sales dashboard |
+| Freshness | daily is usually fine | seconds to minutes | minutes to hours, depending on the product |
+| Time per query | a few seconds is acceptable | seconds | well under a second |
+| Users at once | tens | a few people, many automated checks | hundreds to thousands, often in the same minute |
+| Cost of a mistake | a wrong decision later | a missed stock-out or fraud | another customer sees your data: a breach |
+
+Embedded analytics is the hardest. It is **multi-tenant**: one set of tables serves many customers (tenants), so the isolation must be enforced by the system, not by every developer remembering a `WHERE`. Take the tenant from the logged-in session, never from a value the user can change in the URL, and let the database enforce it with **row-level security** (PostgreSQL), **row access policies** (Snowflake) or **row-level security** in BigQuery (lesson 6). Speed comes from doing the heavy work before the customer arrives: a pre-aggregated table per tenant and day or month, built by the pipeline, or a serving engine such as ClickHouse, Druid or Pinot (point 4 above).
+
+> 🛠 **Try it (15 min, Python).** With DuckDB and `SET threads = 1`, create 5,000,000 orders for 2,000 tenants: `SELECT range AS order_id, range % 2000 AS customer_id, DATE '2025-01-01' + CAST((range // 2000) % 700 AS INTEGER) AS order_date, 10000 + (range * 37) % 500000 AS total_idr FROM range(5000000)`. Build a table `monthly` with revenue per customer and month. Then time a tenant's dashboard query, "revenue per month for customer ?", 100 times for random customers, once on the raw orders and once on `monthly`, and compare the median. Check that both give the same rows. Finally, drop the `WHERE customer_id = ?` and count the distinct `customer_id` values the query would then read.
+>
+> **You should see:** `monthly` has `48000` rows (24 months for each of 2,000 customers) and takes about a tenth of a second to build. On a laptop CPU (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) the median was about `13` ms on the raw orders and about `0.9` ms on `monthly`, around 14 times faster, with identical results: roughly 75 versus 1,100 queries per second per core. If 1,000 cafés open a five-chart dashboard in the same minute, that is 5,000 queries, about 83 per second: more than one core can serve from raw orders, a small fraction of one core from `monthly`. Without the `WHERE`, the dashboard silently adds up the orders of all `2000` tenants and shows them to one café. Your times will differ; the ratio should not by much.
+
 ## @lesson Optional: try it on real BigQuery (free sandbox)
 > **Status:** these steps follow Google's documentation as of November 2026 (sandbox page updated 2026-11-10, install page 2026-11-17), but the course has not yet run them on a real account, so nothing below is a measured result. If a step does not match what you see, report it (the link is on the **Start here** page).
 

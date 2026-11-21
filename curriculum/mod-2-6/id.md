@@ -181,6 +181,24 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
 > Data nyata itu berantakan: pikirkan bagaimana sebuah status bisa ditulis, tanggal mana yang mungkin dimiliki satu sisi tetapi tidak oleh sisi lain, dan pelanggan mana yang tidak boleh dikirim.
 > **Periksa:** `python3 labs/tryit/check.py 2.6-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
+**Tiga jenis analitik, tiga set kebutuhan.** Buku ini (bab 9) membedakan untuk siapa analitiknya, karena audiens menentukan hampir setiap pilihan teknis:
+
+| | Analitik bisnis | Analitik operasional | Analitik tertanam (untuk pelanggan) |
+|---|---|---|---|
+| Untuk siapa | analis, manajer | tim operasional dan peringatan otomatis | pelanggan Anda, di dalam produk Anda |
+| Pertanyaan | apa yang terjadi dan mengapa | apa yang sedang terjadi sekarang, bertindak atasnya | bagaimana kondisi akun *saya* |
+| Contoh KopiKu | pendapatan mingguan per kota dan roast | "sebuah toko akan kehabisan biji Gayo hari ini" | KopiKu menjual software kasirnya ke kafe; setiap pemilik melihat dashboard penjualannya sendiri |
+| Kesegaran data | harian biasanya cukup | detik sampai menit | menit sampai jam, tergantung produknya |
+| Waktu per query | beberapa detik masih bisa diterima | detik | jauh di bawah satu detik |
+| Pengguna sekaligus | puluhan | beberapa orang, banyak pemeriksaan otomatis | ratusan sampai ribuan, sering di menit yang sama |
+| Biaya sebuah kesalahan | keputusan yang salah di kemudian hari | kehabisan stok atau fraud yang terlewat | pelanggan lain melihat data Anda: kebocoran data |
+
+Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu set tabel melayani banyak pelanggan (tenant), jadi isolasinya harus ditegakkan oleh sistem, bukan oleh setiap developer yang harus ingat menulis `WHERE`. Ambil tenant dari sesi login, jangan pernah dari nilai yang bisa diubah pengguna di URL, dan biarkan database yang menegakkannya dengan **row-level security** (PostgreSQL), **row access policy** (Snowflake), atau **row-level security** di BigQuery (pelajaran 6). Kecepatan datang dari mengerjakan pekerjaan berat sebelum pelanggan datang: tabel pra-agregasi per tenant dan hari atau bulan yang dibangun pipeline, atau engine penyajian seperti ClickHouse, Druid, atau Pinot (poin 4 di atas).
+
+> 🛠 **Coba sendiri (15 menit, Python).** Dengan DuckDB dan `SET threads = 1`, buat 5.000.000 pesanan untuk 2.000 tenant: `SELECT range AS order_id, range % 2000 AS customer_id, DATE '2025-01-01' + CAST((range // 2000) % 700 AS INTEGER) AS order_date, 10000 + (range * 37) % 500000 AS total_idr FROM range(5000000)`. Bangun tabel `monthly` berisi pendapatan per pelanggan dan bulan. Lalu ukur waktu query dashboard sebuah tenant, "pendapatan per bulan untuk pelanggan ?", sebanyak 100 kali untuk pelanggan acak, sekali pada pesanan mentah dan sekali pada `monthly`, lalu bandingkan mediannya. Pastikan keduanya memberi baris yang sama. Terakhir, buang `WHERE customer_id = ?` dan hitung berapa nilai `customer_id` berbeda yang kemudian dibaca query itu.
+>
+> **Seharusnya Anda melihat:** `monthly` berisi `48000` baris (24 bulan untuk masing-masing 2.000 pelanggan) dan dibangun dalam sekitar sepersepuluh detik. Pada CPU laptop (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) mediannya sekitar `13` ms pada pesanan mentah dan sekitar `0.9` ms pada `monthly`, sekitar 14 kali lebih cepat, dengan hasil yang identik: kira-kira 75 berbanding 1.100 query per detik per core. Jika 1.000 kafe membuka dashboard lima grafik di menit yang sama, itu 5.000 query, sekitar 83 per detik: lebih dari yang bisa dilayani satu core dari pesanan mentah, dan hanya sebagian kecil satu core dari `monthly`. Tanpa `WHERE`, dashboard itu diam-diam menjumlahkan pesanan kesemua `2000` tenant dan menampilkannya kepada satu kafe. Waktu Anda akan berbeda; rasionya seharusnya tidak jauh berbeda.
+
 ## @lesson Opsional: coba di BigQuery sungguhan (sandbox gratis)
 > **Status:** langkah ini mengikuti dokumentasi Google per November 2026 (halaman sandbox diperbarui 2026-11-10, halaman instalasi 2026-11-17), tetapi kursus belum menjalankannya pada akun sungguhan, jadi tidak ada hasil terukur di bawah ini. Jika ada langkah yang tidak sesuai dengan yang Anda lihat, laporkan (tautannya ada di halaman **Mulai di sini**).
 
