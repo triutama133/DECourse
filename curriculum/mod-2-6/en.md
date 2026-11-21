@@ -181,6 +181,50 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
 > Real data is untidy: think about how a status can be written, which dates either side might have that the other lacks, and which customers must not be sent.
 > Check it: `python3 labs/tryit/check.py 2.6-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
+## @lesson Optional: try it on real BigQuery (free sandbox)
+> **Status:** these steps follow Google's documentation as of November 2026 (sandbox page updated 2026-11-10, install page 2026-11-17), but the course has not yet run them on a real account, so nothing below is a measured result. If a step does not match what you see, report it (the link is on the **Start here** page).
+
+Everything in this module so far ran on your laptop. BigQuery has a free **sandbox**: no credit card and no billing account. It is the cheapest way to see the ideas of this module (dry runs, bytes scanned, column pruning) on a real cloud warehouse. Its limits, from Google's sandbox page:
+
+| Limit | Value |
+|---|---|
+| Storage | 10 GiB **for the lifetime of the sandbox**; deleting data does not give it back |
+| Queries | 1 TiB of processed data per month |
+| Expiry | every table, view and partition is deleted automatically after 60 days |
+| Not available | streaming inserts, DML (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), Data Transfer Service |
+
+So in the sandbox you load files with **load jobs** (in bulk, as lesson 5 recommends) rather than `INSERT`, and you keep test data small, because the storage allowance never comes back.
+
+**1. Turn on the sandbox (browser, about 5 minutes).** Open `https://console.cloud.google.com/bigquery` and sign in with a Google account. On the welcome page choose your country, accept the terms, click **Agree and continue**, then **Create project**: give it a name, choose **No organization** unless your school or company manages your account, and click **Create**. A sandbox notice on the BigQuery page means it worked. Note the **project ID** shown under the name (Google may add numbers to it).
+
+**2. Install the command-line tools.** On Ubuntu, Debian or WSL2, Google's documented route is its apt repository; the package contains `gcloud` and `bq`:
+
+```bash
+sudo apt-get update && sudo apt-get install -y ca-certificates gnupg curl
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+sudo apt-get update && sudo apt-get install -y google-cloud-cli
+```
+
+On macOS, follow the macOS section of Google's install page (`cloud.google.com/sdk/docs/install`): download the archive and run `./google-cloud-sdk/install.sh`.
+
+**3. Log in and choose the project.** Run `gcloud init`. It opens a browser to sign in (if no browser opens, which can happen in WSL2, copy the link it prints into your browser), then asks which project to use: choose the one from step 1.
+
+**4. Check that it works.** `bq query --use_legacy_sql=false 'SELECT 1 AS ok'` should print a small table with `ok` and `1`.
+
+**Protect yourself from a large scan.** Add `--maximum_bytes_billed=1000000000` (1 GB) to a `bq query`: a query that would process more fails instead of running. In the sandbox the cost is your free quota rather than money, but it is the same habit that saves money on a paid account.
+
+The Try it below uses these two commands. A **dry run** reads only metadata, so it costs nothing and runs nothing; the table is one of Google's public datasets, which the sandbox can read by default.
+
+```bash
+bq query --use_legacy_sql=false --dry_run 'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
+bq query --use_legacy_sql=false --dry_run 'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
+```
+
+> 🛠 **Try it (15 min, terminal, needs steps 1 to 4).** Run the two dry runs above. Before you run them, predict which one is larger and by roughly how much. Then write down both byte counts and divide the larger by the smaller.
+>
+> **You should see:** each dry run prints how many bytes the query would process, and `SELECT *` is several times larger than the one-column query, because BigQuery stores each column separately and bills only the columns a query reads (lesson 2). The exact numbers will be added here once they have been measured on a real account.
+
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
 

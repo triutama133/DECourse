@@ -181,6 +181,50 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
 > Data nyata itu berantakan: pikirkan bagaimana sebuah status bisa ditulis, tanggal mana yang mungkin dimiliki satu sisi tetapi tidak oleh sisi lain, dan pelanggan mana yang tidak boleh dikirim.
 > **Periksa:** `python3 labs/tryit/check.py 2.6-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
+## @lesson Opsional: coba di BigQuery sungguhan (sandbox gratis)
+> **Status:** langkah ini mengikuti dokumentasi Google per November 2026 (halaman sandbox diperbarui 2026-11-10, halaman instalasi 2026-11-17), tetapi kursus belum menjalankannya pada akun sungguhan, jadi tidak ada hasil terukur di bawah ini. Jika ada langkah yang tidak sesuai dengan yang Anda lihat, laporkan (tautannya ada di halaman **Mulai di sini**).
+
+Semua di modul ini sejauh ini berjalan di laptop Anda. BigQuery punya **sandbox** gratis: tanpa kartu kredit dan tanpa akun penagihan. Inilah cara termurah untuk melihat gagasan modul ini (dry run, byte yang dipindai, pemangkasan kolom) di cloud warehouse sungguhan. Batasannya, menurut halaman sandbox Google:
+
+| Batas | Nilai |
+|---|---|
+| Penyimpanan | 10 GiB **untuk seumur hidup sandbox**; menghapus data tidak mengembalikannya |
+| Query | 1 TiB data yang diproses per bulan |
+| Kedaluwarsa | setiap tabel, view, dan partisi terhapus otomatis setelah 60 hari |
+| Tidak tersedia | streaming insert, DML (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), Data Transfer Service |
+
+Jadi di sandbox Anda memuat file dengan **load job** (secara massal, seperti saran pelajaran 5), bukan `INSERT`, dan Anda menjaga data uji tetap kecil, karena jatah penyimpanan tidak pernah kembali.
+
+**1. Aktifkan sandbox (browser, sekitar 5 menit).** Buka `https://console.cloud.google.com/bigquery` lalu masuk dengan akun Google. Di halaman sambutan pilih negara Anda, setujui ketentuannya, klik **Agree and continue**, lalu **Create project**: beri nama, pilih **No organization** kecuali akun Anda dikelola sekolah atau perusahaan, lalu klik **Create**. Pemberitahuan sandbox di halaman BigQuery menandakan berhasil. Catat **project ID** yang tampil di bawah namanya (Google bisa menambahkan angka).
+
+**2. Pasang alat command line.** Di Ubuntu, Debian, atau WSL2, cara yang didokumentasikan Google adalah repositori apt-nya; paketnya berisi `gcloud` dan `bq`:
+
+```bash
+sudo apt-get update && sudo apt-get install -y ca-certificates gnupg curl
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+sudo apt-get update && sudo apt-get install -y google-cloud-cli
+```
+
+Di macOS, ikuti bagian macOS di halaman instalasi Google (`cloud.google.com/sdk/docs/install`): unduh arsipnya lalu jalankan `./google-cloud-sdk/install.sh`.
+
+**3. Login dan pilih project.** Jalankan `gcloud init`. Ia membuka browser untuk login (jika browser tidak terbuka, yang bisa terjadi di WSL2, salin tautan yang dicetaknya ke browser Anda), lalu menanyakan project mana yang dipakai: pilih project dari langkah 1.
+
+**4. Periksa bahwa ia bekerja.** `bq query --use_legacy_sql=false 'SELECT 1 AS ok'` seharusnya mencetak tabel kecil berisi `ok` dan `1`.
+
+**Lindungi diri dari pemindaian besar.** Tambahkan `--maximum_bytes_billed=1000000000` (1 GB) ke `bq query`: query yang akan memproses lebih dari itu gagal alih-alih berjalan. Di sandbox biayanya adalah kuota gratis Anda, bukan uang, tetapi kebiasaan yang sama inilah yang menghemat uang di akun berbayar.
+
+Coba sendiri di bawah memakai dua perintah ini. **Dry run** hanya membaca metadata, jadi tidak berbiaya dan tidak menjalankan apa pun; tabelnya salah satu dataset publik Google, yang bisa dibaca sandbox secara bawaan.
+
+```bash
+bq query --use_legacy_sql=false --dry_run 'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
+bq query --use_legacy_sql=false --dry_run 'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
+```
+
+> 🛠 **Coba sendiri (15 menit, terminal, perlu langkah 1 sampai 4).** Jalankan kedua dry run di atas. Sebelum menjalankannya, tebak mana yang lebih besar dan kira-kira berapa kali lipat. Lalu catat kedua jumlah byte-nya dan bagi yang lebih besar dengan yang lebih kecil.
+>
+> **Seharusnya Anda melihat:** setiap dry run mencetak berapa byte yang akan diproses query, dan `SELECT *` beberapa kali lebih besar daripada query satu kolom, karena BigQuery menyimpan setiap kolom secara terpisah dan hanya menagih kolom yang dibaca query (pelajaran 2). Angka pastinya akan ditambahkan di sini setelah diukur pada akun sungguhan.
+
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
 
