@@ -213,7 +213,14 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 Eksekusi Spark dalam local mode langsung di komputer Anda. Anda akan membangun serangkaian fungsi Python untuk **menginspeksi** karakteristik internal query (menghitung jumlah node shuffle Exchange, mengukur rasio skew partisi) serta fungsi untuk **memperbaiki** anomali performa (broadcast join, teknik salting, dan aktivasi konfigurasi adaptive skew join). Seluruh perbaikan akan diuji secara otomatis untuk membuktikan bahwa hasil kalkulasi data tetap identik dengan join standar namun dengan karakteristik plan dan keseimbangan partisi yang jauh lebih unggul.
 
 ### @steps
-1. Verifikasi instalasi runtime Java dan instal dependensi Python:
+1. Verifikasi instalasi runtime Java dan instal dependensi Python. Spark berjalan di Java virtual machine, jadi `java -version` harus mencetak versi 17 atau lebih baru. Jika muncul `command not found` (hal biasa di Ubuntu atau WSL2 yang baru dipasang), pasang dulu:
+
+```bash
+sudo apt install -y openjdk-17-jre-headless   # Ubuntu, Debian, dan WSL2
+```
+
+Di macOS, unduh installer gratis **Temurin 17** (`.pkg`) dari adoptium.net, jalankan, lalu buka terminal baru; atau, jika Anda memakai Homebrew, `brew install --cask temurin@17`. Diukur pada Ubuntu 24.04 yang baru dipasang: `java` belum ada, baris `apt` memasang OpenJDK 17, lalu solusi referensi lab ini lulus 12 tesnya dalam sekitar 17 detik dengan PySpark 4.3.
+
 
 ```bash
 java -version        # wajib versi 17 atau lebih baru

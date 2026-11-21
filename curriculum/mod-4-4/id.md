@@ -1,6 +1,6 @@
 ---
 title: Capstone: Mengorkestrasi Pipeline Harian dengan Apache Airflow
-duration: 3 weeks
+duration: 3 minggu
 summary: Bangun pipeline harian Apache Airflow untuk pemrosesan data lowongan kerja secara mandiri: lima task dalam satu rantai dependensi, jadwal yang berjalan sekali per hari, retry yang memulihkan keterlambatan file, quality gate yang menolak data rusak, serta pemuatan data yang dapat diulang atau dijalankan acak tanpa menduplikasi satu baris pun. Anda menerima kontrak teknis dan tujuh file kiriman harian; sistem penguji otomatis akan menjalankan DAG Anda dan memverifikasi hasilnya secara independen.
 why: Banyak tutorial di internet hanya mengajarkan pembuatan DAG dengan tiga perintah print sederhana. Di dunia kerja nyata, Anda bertanggung jawab atas pipeline yang wajib beroperasi setiap malam, mampu bertahan saat file kiriman datang terlambat, menolak pengiriman yang mayoritas memuat data sampah, dan aman dijalankan ulang untuk tanggal masa lalu mana pun tanpa merusak konsistensi angka analitik. Airflow disyaratkan di sekitar sepertiga lowongan kerja data engineering yang kami survei, dan hampir setiap wawancara teknis menguji pemahaman Anda tentang apa yang terjadi pada data saat sebuah task mengalami kegagalan dan di-retry.
 ---

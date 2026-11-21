@@ -18,7 +18,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_chaos_proofs", "df_portfolio_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
+const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -896,6 +896,7 @@ class DataForgeApp {
           ${envNote}
           <li>${this.l("Ini pemeriksaan kejujuran, bukan keamanan: siapa pun bisa membaca skripnya. Gunanya agar Anda menyatakan \"saya mengerjakannya\" dengan bukti, demi kebaikan Anda sendiri.", "This is an honesty check, not security: anyone can read the script. It exists so you can state \"I did it\" with evidence, for your own benefit.")}</li>
         </ul>
+        ${this.explainBoxHtml(modId)}
         <label class="label" for="proof-input">${this.l("Tempel kode bukti", "Paste your proof code")}</label>
         <div class="row">
           <input type="text" id="proof-input" autocomplete="off" spellcheck="false" placeholder="DF1:${modId}:…" value="${rec ? this.esc(rec.code) : ""}" style="flex:1;min-width:240px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitProof('${modId}')}" />
@@ -904,6 +905,25 @@ class DataForgeApp {
         <div id="proof-result" aria-live="polite">${info ? this.proofOkHtml(info) : ""}</div>
       </div>`;
   }
+  // Before the proof is accepted, the learner explains one piece of their own work in their own words.
+  // Nobody grades it; being unable to write it is the signal that the work was copied or not understood yet.
+  explainWords(text) { return String(text || "").split(/\s+/).filter((w) => /[A-Za-zÀ-ÿ]/.test(w)).length; }
+  explainBoxHtml(modId) {
+    const text = ((readStore("df_explain", {}) || {})[modId]) || "";
+    const n = this.explainWords(text);
+    return `
+        <label class="label" for="explain-input">${this.l("Jelaskan dengan kata-kata Anda sendiri", "Explain it in your own words")}</label>
+        <p class="small muted" id="explain-help">${this.l(`Pilih satu fungsi atau langkah yang paling sulit di lab ini. Tulis apa yang dilakukannya, satu kasus tepi yang ditanganinya, dan mengapa Anda menulisnya seperti itu. Minimal ${this.EXPLAIN_MIN} kata. Tidak ada yang menilai tulisan ini: jika Anda tidak bisa menjelaskannya, Anda belum menguasainya, dan itulah gunanya.`, `Pick the function or step of this lab that was hardest. Write what it does, one edge case it handles, and why you wrote it that way. At least ${this.EXPLAIN_MIN} words. Nobody grades this: if you cannot explain it, you have not mastered it yet, and that is the point.`)}</p>
+        <textarea id="explain-input" class="notes-textarea" rows="4" aria-describedby="explain-help explain-count" oninput="app.saveExplain('${modId}', this.value)">${this.esc(text)}</textarea>
+        <p class="small muted" id="explain-count">${n}/${this.EXPLAIN_MIN} ${this.l("kata", "words")}</p>`;
+  }
+  saveExplain(modId, value) {
+    const c = document.getElementById("explain-count");
+    if (c) c.textContent = `${this.explainWords(value)}/${this.EXPLAIN_MIN} ${this.l("kata", "words")}`;
+    clearTimeout(this._explainSave);
+    this._explainSave = setTimeout(() => { const all = readStore("df_explain", {}) || {}; all[modId] = value; writeStore("df_explain", all); }, 400);
+  }
+  get EXPLAIN_MIN() { return 30; }
   proofOkHtml(info) {
     const venv = { v: "venv", c: "conda env", n: this.l("tanpa venv", "no venv") }[info.venv] || info.venv;
     return `<div class="feedback ok">✓ ${this.l(`Bukti diterima: ${info.passed} tes/pemeriksaan lulus di komputer Anda (Python ${info.py}, ${info.os}, ${venv}).`, `Proof accepted: ${info.passed} tests/checks passed on your computer (Python ${info.py}, ${info.os}, ${venv}).`)}</div>`;
@@ -912,6 +932,14 @@ class DataForgeApp {
     const input = document.getElementById("proof-input");
     const out = document.getElementById("proof-result");
     if (!input || !out) return;
+    const ex = document.getElementById("explain-input");
+    const words = this.explainWords(ex ? ex.value : "");
+    if (ex && words < this.EXPLAIN_MIN) {
+      out.innerHTML = `<div class="feedback bad">${this.esc(this.l(`Tulis dulu penjelasan Anda di atas: minimal ${this.EXPLAIN_MIN} kata (sekarang ${words}).`, `First write your explanation above: at least ${this.EXPLAIN_MIN} words (now ${words}).`))}</div>`;
+      ex.focus();
+      return;
+    }
+    if (ex) { const all = readStore("df_explain", {}) || {}; all[modId] = ex.value; writeStore("df_explain", all); }
     const res = this.verifyProof(modId, input.value);
     if (!res.ok) {
       out.innerHTML = `<div class="feedback bad">${this.esc(this.proofMessage(res))}</div>`;
@@ -1055,7 +1083,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1106,6 +1134,11 @@ class DataForgeApp {
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
+        if (d.df_explain && typeof d.df_explain === "object" && !Array.isArray(d.df_explain)) {
+          const kept = {};
+          for (const [id, t] of Object.entries(d.df_explain)) if (typeof t === "string" && t.length < 20000) kept[id] = t;
+          writeStore("df_explain", kept);
+        }
         if (d.df_proofs && typeof d.df_proofs === "object" && !Array.isArray(d.df_proofs)) {
           const kept = {};
           for (const [id, rec] of Object.entries(d.df_proofs)) if (rec && typeof rec.code === "string" && this.verifyProof(id, rec.code).ok) kept[id] = { code: rec.code, at: String(rec.at || "") };
@@ -1895,6 +1928,15 @@ class DataForgeApp {
             <p class="small">${this.l("Lalu lanjutkan langkah 2 di jendela Ubuntu yang sama, di folder Linux Anda sendiri (<code>cd ~</code>), bukan di drive C:. Untuk melihat folder itu di Windows Explorer, ketik <code>explorer.exe .</code> (dengan titik).", "Then continue with step 2 in the same Ubuntu window, in your own Linux folder (<code>cd ~</code>), not on drive C:. To see that folder in Windows Explorer, type <code>explorer.exe .</code> (with the dot).")}</p>
             <p class="small muted">${this.l("Linux Ubuntu atau Debian (bukan Windows)? Jalankan baris <code>sudo apt</code> di atas juga: tanpa <code>python3-venv</code>, perintah <code>python3 -m venv</code> di Modul 0.2 gagal. Error saat <code>wsl --install</code>? Biasanya virtualisasi mati di BIOS; cari pesan error-nya, atau pakai pilihan B.", "Ubuntu or Debian Linux (not Windows)? Run the <code>sudo apt</code> line above too: without <code>python3-venv</code>, the <code>python3 -m venv</code> command in Module 0.2 fails. An error during <code>wsl --install</code>? Usually virtualisation is switched off in the BIOS; search for the error message, or use option B.")}</p>
           </details>
+          <details class="callout neutral fold-callout" id="mac-setup">
+            <summary class="label">${this.l("Pakai macOS? Siapkan Python (sekitar 15 menit, sekali saja)", "On macOS? Set up Python (about 15 minutes, once)")}</summary>
+            <ol class="small" style="margin-left:18px">
+              <li>${this.l("Buka <strong>Terminal</strong>: tekan Cmd+Spasi, ketik Terminal, lalu Enter.", "Open <strong>Terminal</strong>: press Cmd+Space, type Terminal and press Enter.")}</li>
+              <li>${this.l("Ketik <code>python3 --version</code>. Di Mac yang belum pernah dipakai untuk coding, muncul jendela yang menawarkan memasang <em>command line developer tools</em>: klik <strong>Install</strong> dan tunggu sampai selesai. Itu normal, bukan error, dan alat ini sekaligus memasang <code>git</code>.", "Type <code>python3 --version</code>. On a Mac that has never been used for coding, a window offers to install the <em>command line developer tools</em>: click <strong>Install</strong> and wait until it finishes. That is normal, not an error, and it also installs <code>git</code>.")}</li>
+              <li>${this.l("Jalankan <code>python3 --version</code> lagi. Python bawaan alat itu sering versi 3.9, terlalu lama untuk kursus ini. Jika di bawah 3.10, pasang Python terbaru dengan installer macOS dari python.org, tutup Terminal, buka yang baru, lalu periksa lagi.", "Run <code>python3 --version</code> again. The Python that comes with those tools is often version 3.9, too old for this course. If it is below 3.10, install the latest Python with the macOS installer from python.org, close Terminal, open a new one and check again.")}</li>
+              <li>${this.l("Lanjutkan ke langkah 2. Di macOS, <code>python3 -m venv</code> (Modul 0.2) bekerja tanpa paket tambahan.", "Continue with step 2. On macOS, <code>python3 -m venv</code> (Module 0.2) works without extra packages.")}</li>
+            </ol>
+          </details>
         `)}
 
         ${step(2, this.l("Ambil file kursus (pilihan A)", "Get the course files (option A)"), `
@@ -1918,7 +1960,7 @@ class DataForgeApp {
           <ul style="margin-left:18px">
             <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 68 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 68 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
-            <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
+            <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab, bersama penjelasan singkat (minimal 30 kata) dengan kata-kata Anda sendiri tentang bagian tersulit. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page, together with a short explanation (at least 30 words) in your own words of the hardest part. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
           </ul>
           <div class="row"><button class="btn btn-primary" onclick="app.go('curriculum','mod-0-0')">${this.l("Mulai Modul 0.0 (Python dari nol)", "Start Module 0.0 (Python from zero)")}</button><button class="btn" onclick="app.go('playground')">${this.l("Coba SQL Sandbox dulu", "Try the SQL Sandbox first")}</button></div>`)}
@@ -2345,6 +2387,12 @@ class DataForgeApp {
                 <div class="step-sub">${quizScore ? this.l(`Skor terbaik: ${quizScore.best}/${quizScore.total} (butuh ${quizNeed})`, `Best: ${quizScore.best}/${quizScore.total} (need ${quizNeed})`) : this.l(`Jawab ≥${quizNeed}/${mod.quiz.length} benar`, `Pass with ≥${quizNeed}/${mod.quiz.length}`)}</div>
               </button>
             </div>
+
+            ${this.activeModuleTab === "concepts" && readCount === 0 && !isQuizPassed && (mod.quiz || []).length ? `
+            <div class="callout neutral skip-hint">
+              <p><strong>${this.l("Sudah menguasai topik ini?", "Already know this topic?")}</strong> ${this.l(`Kerjakan kuisnya dulu sebagai tes penempatan. Jika Anda lulus (≥${quizNeed}/${mod.quiz.length}), boleh melewati bacaan dan langsung ke Lab; lab dan kode buktinya tetap wajib, karena itulah yang membuktikan Anda bisa. Jika belum lulus, penjelasan di setiap jawaban menunjukkan pelajaran mana yang perlu dibaca.`, `Take the quiz first as a placement test. If you pass (≥${quizNeed}/${mod.quiz.length}), you may skip the reading and go straight to the Lab; the lab and its proof code are still required, because they are what shows you can do it. If you do not pass, the explanation under each answer points to the lesson to read.`)}</p>
+              <button class="btn btn-sm" onclick="app.go('curriculum','${mod.id}','quiz')">${this.l("Kerjakan kuis dulu", "Take the quiz first")} →</button>
+            </div>` : ""}
 
             <!-- Personal Study Notes Drawer -->
             <details class="notes-drawer" ${noteText ? "" : ""}>

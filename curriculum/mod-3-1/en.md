@@ -213,7 +213,14 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 Spark in local mode on your laptop. You will write the functions that **inspect** a query (count its shuffles, measure partition skew) and the functions that **fix** it (broadcast, salting, adaptive skew handling), and tests prove each fix gives the same answer as the plain join while changing the plan or the balance in the way the lesson describes.
 
 ### @steps
-1. Check Java and install:
+1. Check Java and install. Spark runs on the Java virtual machine, so `java -version` must print version 17 or newer. If it says `command not found` (the usual case on a fresh Ubuntu or WSL2), install it first:
+
+```bash
+sudo apt install -y openjdk-17-jre-headless   # Ubuntu, Debian and WSL2
+```
+
+On macOS, download the free **Temurin 17** installer (`.pkg`) from adoptium.net, run it, then open a new terminal; or, if you use Homebrew, `brew install --cask temurin@17`. Measured on a fresh Ubuntu 24.04: `java` was missing, the `apt` line installed OpenJDK 17, and the reference solution of this lab then passed its 12 tests in about 17 seconds with PySpark 4.3.
+
 
 ```bash
 java -version        # needs 17 or newer

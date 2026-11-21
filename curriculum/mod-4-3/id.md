@@ -1,6 +1,6 @@
 ---
 title: Capstone: Real-Time Event Streaming, Watermark & Penanganan Late Data
-duration: 3 weeks
+duration: 3 minggu
 summary: Bangun mesin pemrosesan streaming real-time yang tangguh terhadap kegagalan pada data telemetri armada kendaraan: baca event kontinu dengan simulasi jitter jaringan seluler, hitung agregasi event time menggunakan tumbling dan sliding window, lacak high watermark monotonik dengan toleransi keterlambatan (allowed lateness), karantina data terlambat (late data) ke Dead-Letter Queue (DLQ), commit consumer offset secara atomik bersama akumulator window in-memory, dan pancarkan metrik secara idempoten ke DuckDB.
 why: Dalam rekayasa data produksi modern, data tidak datang dalam file CSV bulanan yang rapi. Data tiba sebagai aliran kontinu dan tidak berurutan dari perangkat seluler, armada terhubung, dan sensor IoT. Desinkronisasi jam, sinyal lemah di terowongan, dan retry jaringan memastikan data tiba tidak berurutan (out of order). Jika pipeline Anda mengelompokkan data berdasarkan processing time (saat server menerima paket), metrik bisnis akan terdistorsi saat koneksi pulih, memicu lonjakan tarif semu dan keputusan operasional yang keliru. Capstone ini menantang Anda membangun mesin streaming event time murni dari nol yang menangani watermark, late data, dan pemulihan crash tanpa duplikasi.
 ---
