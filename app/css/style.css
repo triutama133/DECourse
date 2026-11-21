@@ -1349,8 +1349,10 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
   .mobile-mod-picker { display: block; }
 }
 .context-drawer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  /* stacked, not side by side: a closed fold next to an open one stretched into an empty box,
+     and the lifecycle chart needs the full width when it is opened */
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
