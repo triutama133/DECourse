@@ -380,6 +380,22 @@ Biaya infrastruktur adalah metrik produksi. Pasang pembatas otomatis di dalam ko
 
 > Mengandalkan disiplin manusia pada Jumat malam pukul 22:30 tidak realistis. Statement timeout secara otomatis mematikan query yang menggantung, dan monitor anggaran membunyikan alarm sebelum tagihan akhir bulan membengkak.
 
+### Sebuah klaster Spark yang tersebar di tiga availability zone melakukan shuffle 50 TB sehari, dan dua pertiganya menyeberang zone. Dengan $0,02 per GB yang menyeberang, berapa biaya perpindahannya per hari?
+- [ ] Sekitar $1.000, karena setiap gigabyte shuffle ditagih
+- [ ] Gratis, karena lalu lintas di dalam satu region selalu tidak dikenai biaya
+- [ ] Sekitar $0,67, karena biayanya ditagih per terabyte, bukan per gigabyte
+- [x] Sekitar $667, dari 33.000 GB × $0,02 untuk lalu lintas antar-zone
+
+> Hanya lalu lintas yang keluar dari sebuah zone yang ditagih: dua pertiga dari 50.000 GB kira-kira 33.000 GB, dikali $0,02. Itu sekitar $20.000 sebulan hanya untuk memindahkan data.
+
+### Keputusan mana yang paling mudah dibatalkan kemudian?
+- [ ] Menaruh seluruh logika bisnis di stored procedure milik satu vendor
+- [x] Menyimpan tabel dalam format terbuka seperti Parquet atau Iceberg
+- [ ] Membangun setiap laporan langsung di database aplikasi produksi
+- [ ] Menulis pipeline dalam bahasa yang hanya dikuasai satu engineer di tim
+
+> Dengan format terbuka Anda bisa beralih dari DuckDB ke Trino atau Spark tanpa memindahkan data. Curahkan kehati-hatian Anda pada keputusan yang sulit dibatalkan.
+
 ## @resources
 - [Dokumentasi Resmi Terraform](https://developer.hashicorp.com/terraform/docs)
 - [Dokumentasi AWS Provider untuk Terraform](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)

@@ -362,6 +362,22 @@ Decide for every dimension attribute whether the past may change. If the answer 
 
 > Grain uniqueness catches duplicated or multiplied rows; reconciliation catches lost or invented revenue. Together they detect most join and loading errors.
 
+### In a Data Vault satellite, when is a new row added for a customer?
+- [ ] Every time an event arrives for that customer, so the satellite ends up with one row per load
+- [ ] Only when the business key changes, because attributes are kept in the hub
+- [ ] Once a day, as a snapshot of every customer, whether something changed or not
+- [x] When the hash_diff of the new attributes differs from that customer's latest satellite row
+
+> A satellite is insert-only and stores changes: compare the new fingerprint with the latest row, not with every row ever seen, so a customer who moves back to an earlier city still gets a new row.
+
+### Why does Data Vault derive its keys by hashing the business key instead of handing out surrogate keys 1, 2, 3?
+- [x] Every loader computes the same key for the same customer on its own, so many sources can load in parallel
+- [ ] Hashes are shorter than integers, so the tables take noticeably less space on disk
+- [ ] A hash hides the customer id, which makes the vault safe to share outside the company
+- [ ] Sequential numbers are not allowed as primary keys in most of the cloud data warehouses that are in use today
+
+> Handing out numbers in order needs one central counter, which becomes a bottleneck with many sources and gives the same customer different numbers. A hash of the normalised business key is the same everywhere.
+
 ## @resources
 - [Kimball Group: dimensional modeling techniques](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)
 - [dbt docs: snapshots (Type 2 dimensions)](https://docs.getdbt.com/docs/build/snapshots)

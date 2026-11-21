@@ -381,6 +381,22 @@ Cost is a production metric. Put automatic limits in code, forecast spend daily,
 
 > People are unreliable at 22:30 on a Friday. A timeout kills the query by itself, and a budget alert or daily forecast tells someone before the month closes. Process and meetings detect problems late.
 
+### A Spark cluster spread over three availability zones shuffles 50 TB a day, and two thirds of it crosses a zone. At $0.02 per GB that crosses, what does the moving cost per day?
+- [ ] About $1,000, because every gigabyte of the shuffle is charged
+- [ ] Nothing, because traffic inside one region is always free of charge
+- [ ] About $0.67, because the fee is charged per terabyte, not per gigabyte
+- [x] About $667, from 33,000 GB × $0.02 for the traffic crossing a zone
+
+> Only traffic that leaves a zone is billed: two thirds of 50,000 GB is about 33,000 GB, times $0.02. That is about $20,000 a month for moving data alone.
+
+### Which of these decisions is the easiest to undo later?
+- [ ] Putting all business logic in one vendor's stored procedures
+- [x] Storing the tables in an open format such as Parquet or Iceberg
+- [ ] Building every report directly on the production application database
+- [ ] Writing the pipelines in a language that only one engineer on the team knows
+
+> With an open format you can switch from DuckDB to Trino or Spark without moving the data. Spend your care on the decisions that are hard to undo.
+
 ## @resources
 - [Terraform documentation](https://developer.hashicorp.com/terraform/docs)
 - [Terraform AWS provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)

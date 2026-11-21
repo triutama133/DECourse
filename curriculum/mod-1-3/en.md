@@ -554,6 +554,22 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 
 > SQLite returned one row's `y` and PostgreSQL and DuckDB raised an error. A bug that a strict engine would catch can pass silently in a prototype, so list every non-aggregated column in `GROUP BY`.
 
+### A `GROUP BY ROLLUP (city, payment_method)` result has a row with `city` NULL. How do you tell a subtotal row from customers whose city is really unknown?
+- [ ] Subtotal rows always come last in the output, so the position of the row tells you which one it is
+- [ ] Subtotals show the text `'ALL'` instead of NULL, so a NULL always means a real unknown city
+- [x] `GROUPING(city)` is 1 where city was rolled up into a subtotal, and 0 where the NULL is real data
+- [ ] You cannot tell them apart, so replace NULL cities with a placeholder before every ROLLUP query
+
+> ROLLUP marks a rolled-up column with NULL, which collides with real NULLs. `GROUPING(col)` returns 1 for a subtotal level and 0 for a real value, including a real NULL.
+
+### In PostgreSQL, `SUM(payload->>'amount')` fails although every `amount` in the JSON is a number. Why?
+- [ ] `->>` only works on top-level keys, and `amount` is stored one level further down inside the payload
+- [x] `->>` returns the value as text, so it must be cast (say `::numeric`) before it can be summed
+- [ ] SUM cannot read JSON columns at all; you have to copy the values into a table first
+- [ ] The key must be written as a path, `'$.amount'`, or PostgreSQL does not find it
+
+> `->>` extracts text; `->` extracts JSON. Arithmetic needs a cast. (A JSONPath string such as `'$.amount'` after `->>` is not a path in PostgreSQL: it silently returns NULL.)
+
 ## @resources
 - [PostgreSQL docs: window functions tutorial](https://www.postgresql.org/docs/current/tutorial-window.html)
 - [PostgreSQL docs: using EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html)

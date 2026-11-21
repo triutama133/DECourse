@@ -312,6 +312,22 @@ In a warehouse, cost is the amount of data a query touches. Layout, column choic
 
 > Two slots run two jobs at a time: 10, 10, 20, 20, 30 seconds. Isolation, auto-scaling and better layout reduce waiting.
 
+### Why does every record that reverse ETL sends to the CRM carry a deterministic idempotency key?
+- [ ] So that the CRM can sort incoming records in the order the warehouse computed them
+- [ ] To encrypt the customer data while it travels between the warehouse and the CRM
+- [x] So that a retry updates the same record instead of triggering the same action again
+- [ ] Because CRMs reject any request that does not carry a unique random id in its header
+
+> The tools act on what you send (emails, offers). A key built from the record's content makes a retry harmless: same content, same key, one effect.
+
+### What does the strangler fig pattern ask you to do with an old pipeline you inherit?
+- [x] Rebuild one metric at a time, run old and new side by side, explain the gaps, then switch
+- [ ] Freeze the old pipeline and rewrite everything in one go over a long weekend with a test plan
+- [ ] Keep the old pipeline forever and build the new features in a separate system next to it
+- [ ] Delete the old code first, so nobody depends on it any more, then rebuild from the requirements
+
+> Each difference between old and new is either a bug in the new code or an old bug you just found. Consumers move only when the numbers are explained.
+
 ## @resources
 - [Snowflake documentation: micro-partitions and data clustering](https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions)
 - [BigQuery documentation: partitioned and clustered tables](https://cloud.google.com/bigquery/docs/partitioned-tables)

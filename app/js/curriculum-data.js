@@ -972,6 +972,64 @@ window.CURRICULUM_DATA = [
        "id": "Sukses sebuah job hanya berarti kodenya berjalan. Pemeriksaan isi output yang menunjukkan apakah hasilnya masuk akal. Kegagalan senyap tertangkap oleh tes pada data, bukan pada eksekusi.",
        "en": "Success of the job only says the code ran. Checks on the content of the output say whether the result is believable. Silent failures are caught by tests on data, not on execution."
       }
+     },
+     {
+      "question": {
+       "id": "Sebuah startup berisi dua orang menyimpan angkanya di spreadsheet. CEO meminta dashboard real-time berbasis Kafka untuk rapat direksi hari Senin. Apa respons pertama yang terbaik?",
+       "en": "A two-person startup keeps its numbers in spreadsheets. The CEO asks for a Kafka-based real-time dashboard for the Monday board meeting. What is the best first response?"
+      },
+      "options": [
+       {
+        "id": "Bangun pipeline streaming sesuai permintaan, karena perusahaan tetap akan butuh streaming saat tumbuh",
+        "en": "Build the streaming pipeline as asked, because the company will need streaming anyway once it starts to grow"
+       },
+       {
+        "id": "Tanyakan keputusan apa yang diambil dari angka itu dan seberapa sering, lalu tawarkan batch harian yang andal",
+        "en": "Ask what decision the number drives and how often, then offer a reliable daily batch with ready-made tools"
+       },
+       {
+        "id": "Tolak, dan terus kirim spreadsheet lewat email sampai perusahaan sudah merekrut tim data lengkapnya sendiri nanti",
+        "en": "Refuse, and keep emailing the spreadsheet until the company has hired a full data team of its own"
+       },
+       {
+        "id": "Mulai dengan klaster Kafka kecil dan job Spark agar tim bisa belajar streaming sambil berjalan",
+        "en": "Start with a small Kafka cluster and a Spark job so the team can learn streaming along the way"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Ini perusahaan tahap 1: keputusan mingguan butuh angka harian yang bisa dipercaya, bukan kesegaran di bawah satu detik. Membangun platform tahap 3 lebih dulu menghabiskan waktu tim berbulan-bulan sebelum ada angka yang berguna.",
+       "en": "This is a stage-1 company: a weekly decision needs trustworthy daily numbers, not sub-second freshness. Building a stage-3 platform first costs months of the team's time before any useful number appears."
+      }
+     },
+     {
+      "question": {
+       "id": "Mana di antara ini yang termasuk enam undercurrent, bukan lima tahap siklus hidup?",
+       "en": "Which of these is one of the six undercurrents rather than one of the five lifecycle stages?"
+      },
+      "options": [
+       {
+        "id": "Ingestion: menyalin data dari sistem sumber ke platform Anda",
+        "en": "Ingestion: copying data from the source systems into your platform"
+       },
+       {
+        "id": "Serving: menyerahkan hasilnya ke dashboard, analis, dan model",
+        "en": "Serving: handing the results to dashboards, analysts and models"
+       },
+       {
+        "id": "Orkestrasi: menjalankan setiap langkah dengan urutan yang benar, dengan retry",
+        "en": "Orchestration: running every step in the right order, with retries"
+       },
+       {
+        "id": "Transformasi: mengubah record mentah menjadi tabel yang bisa dipercaya untuk analisis",
+        "en": "Transformation: turning raw records into trustworthy tables for analysis"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Tahapnya adalah generation, storage, ingestion, transformation, dan serving. Security, data management, DataOps, data architecture, orchestration, dan software engineering mengalir di bawah semuanya.",
+       "en": "The stages are generation, storage, ingestion, transformation and serving. Security, data management, DataOps, data architecture, orchestration and software engineering run underneath all of them."
+      }
      }
     ],
     "resources": [
@@ -2015,6 +2073,64 @@ window.CURRICULUM_DATA = [
       "explanation": {
        "id": "View adalah query tersimpan, bukan data tersimpan. Tabel hasil `CREATE TABLE ... AS` adalah snapshot yang mempertahankan hitungan lama, dan materialized view tetap basi sampai di-refresh.",
        "en": "A view is a saved query, not saved data. A table made with `CREATE TABLE ... AS` is the snapshot that would keep the old count, and a materialized view stays stale until it is refreshed."
+      }
+     },
+     {
+      "question": {
+       "id": "`SELECT customer_id FROM customers WHERE customer_id NOT IN (SELECT customer_id FROM orders)` tidak mengembalikan baris sama sekali, padahal ada pelanggan yang belum pernah memesan. Apa penyebab yang paling mungkin?",
+       "en": "`SELECT customer_id FROM customers WHERE customer_id NOT IN (SELECT customer_id FROM orders)` returns no rows at all, although some customers have never ordered. What is the most likely cause?"
+      },
+      "options": [
+       {
+        "id": "Ada `orders.customer_id` yang NULL, jadi setiap perbandingan NOT IN tidak diketahui dan tak ada yang lolos",
+        "en": "At least one `orders.customer_id` is NULL, so every NOT IN comparison is unknown and no row passes"
+       },
+       {
+        "id": "NOT IN hanya bekerja jika subquery mengembalikan satu nilai, jadi daftar id selalu menghasilkan hasil kosong",
+        "en": "NOT IN only works when the subquery returns a single value, so a list of ids always gives nothing back"
+       },
+       {
+        "id": "Subquery dijalankan sekali per pelanggan, dan diam-diam habis waktu pada tabel sebesar `orders`",
+        "en": "The subquery is run once per customer, and it times out quietly on a table as large as `orders`"
+       },
+       {
+        "id": "NOT IN membandingkan teks, jadi customer id berupa angka tidak pernah cocok dan tersaring",
+        "en": "NOT IN compares text, so integer customer ids never match and are filtered out"
+       }
+      ],
+      "correct": 0,
+      "explanation": {
+       "id": "`x NOT IN (1, 2, NULL)` berarti `x <> 1 AND x <> 2 AND x <> NULL`, dan bagian terakhir tidak pernah benar. Pakai `NOT EXISTS`, atau saring NULL dari subquery.",
+       "en": "`x NOT IN (1, 2, NULL)` means `x <> 1 AND x <> 2 AND x <> NULL`, and the last part is never true. Use `NOT EXISTS`, or filter the NULLs out of the subquery."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa beda `UNION` dan `UNION ALL`?",
+       "en": "What is the difference between `UNION` and `UNION ALL`?"
+      },
+      "options": [
+       {
+        "id": "`UNION` menumpuk baris kedua query, `UNION ALL` hanya menyimpan baris yang sama di keduanya",
+        "en": "`UNION` stacks the rows of both queries, `UNION ALL` keeps only the rows they have in common"
+       },
+       {
+        "id": "`UNION ALL` juga mengurutkan hasil gabungannya, itulah sebabnya ia yang lebih lambat dari keduanya",
+        "en": "`UNION ALL` also sorts the combined result, which is why it is the slower one of the two"
+       },
+       {
+        "id": "Dalam praktik tidak ada bedanya; `ALL` hanya berpengaruh jika kedua query membaca tabel yang sama",
+        "en": "There is none in practice; `ALL` only matters when both queries read from the same table"
+       },
+       {
+        "id": "`UNION` membuang baris duplikat dari hasil gabungan, sedangkan `UNION ALL` menyimpan setiap baris",
+        "en": "`UNION` removes duplicate rows from the combined result, while `UNION ALL` keeps every row"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Membuang duplikat butuh sort atau hash. Jika duplikat tidak mungkin terjadi, atau memang harus disimpan (menjumlahkan dua bulan), `UNION ALL` benar sekaligus lebih murah.",
+       "en": "Removing duplicates costs a sort or a hash. When duplicates cannot occur, or should be kept (adding up two months), `UNION ALL` is both correct and cheaper."
       }
      }
     ],
@@ -3693,6 +3809,64 @@ window.CURRICULUM_DATA = [
        "id": "SQLite mengembalikan `y` dari satu baris, sedangkan PostgreSQL dan DuckDB memunculkan error. Bug yang akan ditangkap engine ketat bisa lolos diam-diam di prototipe, jadi cantumkan setiap kolom tak teragregasi di `GROUP BY`.",
        "en": "SQLite returned one row's `y` and PostgreSQL and DuckDB raised an error. A bug that a strict engine would catch can pass silently in a prototype, so list every non-aggregated column in `GROUP BY`."
       }
+     },
+     {
+      "question": {
+       "id": "Hasil `GROUP BY ROLLUP (city, payment_method)` punya baris dengan `city` NULL. Bagaimana membedakan baris subtotal dari pelanggan yang kotanya memang tidak diketahui?",
+       "en": "A `GROUP BY ROLLUP (city, payment_method)` result has a row with `city` NULL. How do you tell a subtotal row from customers whose city is really unknown?"
+      },
+      "options": [
+       {
+        "id": "Baris subtotal selalu muncul paling akhir, jadi posisi baris memberi tahu Anda yang mana",
+        "en": "Subtotal rows always come last in the output, so the position of the row tells you which one it is"
+       },
+       {
+        "id": "Subtotal menampilkan teks `'ALL'` alih-alih NULL, jadi NULL selalu berarti kota yang benar-benar tidak diketahui",
+        "en": "Subtotals show the text `'ALL'` instead of NULL, so a NULL always means a real unknown city"
+       },
+       {
+        "id": "`GROUPING(city)` bernilai 1 di baris tempat city digulung menjadi subtotal, dan 0 jika NULL-nya data asli",
+        "en": "`GROUPING(city)` is 1 where city was rolled up into a subtotal, and 0 where the NULL is real data"
+       },
+       {
+        "id": "Keduanya tidak bisa dibedakan, jadi ganti kota NULL dengan penanda sebelum setiap query ROLLUP",
+        "en": "You cannot tell them apart, so replace NULL cities with a placeholder before every ROLLUP query"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "ROLLUP menandai kolom yang digulung dengan NULL, yang bertabrakan dengan NULL asli. `GROUPING(col)` mengembalikan 1 untuk level subtotal dan 0 untuk nilai asli, termasuk NULL asli.",
+       "en": "ROLLUP marks a rolled-up column with NULL, which collides with real NULLs. `GROUPING(col)` returns 1 for a subtotal level and 0 for a real value, including a real NULL."
+      }
+     },
+     {
+      "question": {
+       "id": "Di PostgreSQL, `SUM(payload->>'amount')` gagal padahal setiap `amount` di JSON berupa angka. Mengapa?",
+       "en": "In PostgreSQL, `SUM(payload->>'amount')` fails although every `amount` in the JSON is a number. Why?"
+      },
+      "options": [
+       {
+        "id": "`->>` hanya bekerja pada key tingkat atas, dan `amount` disimpan satu tingkat lebih dalam di payload",
+        "en": "`->>` only works on top-level keys, and `amount` is stored one level further down inside the payload"
+       },
+       {
+        "id": "`->>` mengembalikan teks, jadi nilainya harus di-cast (misalnya `::numeric`) sebelum dijumlahkan",
+        "en": "`->>` returns the value as text, so it must be cast (say `::numeric`) before it can be summed"
+       },
+       {
+        "id": "SUM sama sekali tidak bisa membaca kolom JSON; nilainya harus disalin ke tabel lebih dulu",
+        "en": "SUM cannot read JSON columns at all; you have to copy the values into a table first"
+       },
+       {
+        "id": "Key-nya harus ditulis sebagai path, `'$.amount'`, atau PostgreSQL tidak menemukannya",
+        "en": "The key must be written as a path, `'$.amount'`, or PostgreSQL does not find it"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "`->>` mengambil teks; `->` mengambil JSON. Aritmetika butuh cast. (String JSONPath seperti `'$.amount'` setelah `->>` bukan path di PostgreSQL: hasilnya diam-diam NULL.)",
+       "en": "`->>` extracts text; `->` extracts JSON. Arithmetic needs a cast. (A JSONPath string such as `'$.amount'` after `->>` is not a path in PostgreSQL: it silently returns NULL.)"
+      }
      }
     ],
     "resources": [
@@ -4198,6 +4372,64 @@ window.CURRICULUM_DATA = [
       "explanation": {
        "id": "Uji keunikan grain mendeteksi baris yang terduplikasi atau berlipat ganda; uji rekonsiliasi mendeteksi hilangnya atau terciptanya omset fiktif. Keduanya menangkap mayoritas kesalahan logika join dan transformasi data.",
        "en": "Grain uniqueness catches duplicated or multiplied rows; reconciliation catches lost or invented revenue. Together they detect most join and loading errors."
+      }
+     },
+     {
+      "question": {
+       "id": "Di satellite Data Vault, kapan baris baru ditambahkan untuk seorang pelanggan?",
+       "en": "In a Data Vault satellite, when is a new row added for a customer?"
+      },
+      "options": [
+       {
+        "id": "Setiap kali ada event untuk pelanggan itu, jadi satellite berisi satu baris per pemuatan",
+        "en": "Every time an event arrives for that customer, so the satellite ends up with one row per load"
+       },
+       {
+        "id": "Hanya saat business key berubah, karena atributnya disimpan di hub",
+        "en": "Only when the business key changes, because attributes are kept in the hub"
+       },
+       {
+        "id": "Sekali sehari, sebagai snapshot setiap pelanggan, ada perubahan atau tidak",
+        "en": "Once a day, as a snapshot of every customer, whether something changed or not"
+       },
+       {
+        "id": "Saat hash_diff atribut barunya berbeda dari baris satellite terakhir pelanggan itu",
+        "en": "When the hash_diff of the new attributes differs from that customer's latest satellite row"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Satellite bersifat insert-only dan menyimpan perubahan: bandingkan sidik jari baru dengan baris terakhir, bukan dengan semua baris yang pernah ada, sehingga pelanggan yang kembali ke kota sebelumnya tetap mendapat baris baru.",
+       "en": "A satellite is insert-only and stores changes: compare the new fingerprint with the latest row, not with every row ever seen, so a customer who moves back to an earlier city still gets a new row."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa Data Vault menurunkan key dengan meng-hash business key alih-alih membagikan surrogate key 1, 2, 3?",
+       "en": "Why does Data Vault derive its keys by hashing the business key instead of handing out surrogate keys 1, 2, 3?"
+      },
+      "options": [
+       {
+        "id": "Setiap loader menghitung key yang sama secara mandiri, sehingga banyak sumber bisa dimuat paralel",
+        "en": "Every loader computes the same key for the same customer on its own, so many sources can load in parallel"
+       },
+       {
+        "id": "Hash lebih pendek daripada integer, sehingga tabelnya jauh lebih hemat ruang disk",
+        "en": "Hashes are shorter than integers, so the tables take noticeably less space on disk"
+       },
+       {
+        "id": "Hash menyembunyikan customer id, sehingga vault aman dibagikan ke luar perusahaan",
+        "en": "A hash hides the customer id, which makes the vault safe to share outside the company"
+       },
+       {
+        "id": "Angka berurutan tidak diizinkan sebagai primary key di sebagian besar cloud data warehouse saat ini",
+        "en": "Sequential numbers are not allowed as primary keys in most of the cloud data warehouses that are in use today"
+       }
+      ],
+      "correct": 0,
+      "explanation": {
+       "id": "Membagikan nomor berurutan butuh satu penghitung pusat, yang menjadi hambatan saat sumbernya banyak dan memberi pelanggan yang sama nomor berbeda. Hash dari business key yang dinormalisasi sama di mana pun.",
+       "en": "Handing out numbers in order needs one central counter, which becomes a bottleneck with many sources and gives the same customer different numbers. A hash of the normalised business key is the same everywhere."
       }
      }
     ],
@@ -8209,6 +8441,64 @@ window.CURRICULUM_DATA = [
        "id": "Sebagian kecil baris cacat adalah hal rutin yang cukup masuk karantina. Namun rasio penolakan yang jauh melampaui batas kesepakatan menandakan kegagalan sistemik dari hulu, sehingga pipeline harus gagal secara eksplisit daripada mempublikasikan data yang rusak parah.",
        "en": "A few percent of messy rows is routine and goes to quarantine. A reject rate far above the agreed limit signals a systemic problem, so the load fails loudly instead of publishing a mostly missing table."
       }
+     },
+     {
+      "question": {
+       "id": "Sebuah pipeline menyimpan `sha256(phone)` alih-alih nomor teleponnya. Mengapa itu bukan perlindungan sungguhan?",
+       "en": "A pipeline stores `sha256(phone)` instead of the phone number. Why is that not real protection?"
+      },
+      "options": [
+       {
+        "id": "SHA-256 adalah algoritma lama yang sudah dibobol, jadi hash apa pun bisa dibalik dengan cepat",
+        "en": "SHA-256 is an old algorithm that has been broken, so any hash can be reversed quickly"
+       },
+       {
+        "id": "Kemungkinannya sangat sedikit, jadi penyerang bisa meng-hash semua nomor lalu mencocokkannya",
+        "en": "There are so few possible numbers that an attacker can hash them all and look each one up"
+       },
+       {
+        "id": "Hash disimpan di samping nomor aslinya, jadi siapa pun yang bisa membaca tabel melihat keduanya",
+        "en": "Hashes are stored next to the original numbers, so anyone who can read the table sees both"
+       },
+       {
+        "id": "Itu sudah cukup; satu-satunya risiko adalah dua nomor berbeda bisa mendapat hash yang sama",
+        "en": "It is enough; the only risk is that two different phones could get the same hash"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Awalan yang diketahui ditambah delapan digit hanya 100 juta kemungkinan; meng-hash semuanya butuh sekitar dua menit di satu core laptop. Campurkan kunci rahasia (HMAC) yang hanya diketahui pipeline.",
+       "en": "A known prefix plus eight digits is only 100 million possibilities; hashing all of them took about two minutes on one laptop core. Mix in a secret key (HMAC) that only the pipeline knows."
+      }
+     },
+     {
+      "question": {
+       "id": "Seorang pelanggan memakai hak untuk dilupakan. Apa yang harus disimpan log audit penghapusan?",
+       "en": "A customer exercises the right to be forgotten. What should the erasure audit log keep?"
+      },
+      "options": [
+       {
+        "id": "Email dan telepon pelanggan, agar nanti Anda bisa membuktikan data siapa persisnya yang dihapus",
+        "en": "The customer's email and phone, so that you can prove later exactly whose data was removed"
+       },
+       {
+        "id": "Tidak ada sama sekali, karena catatan apa pun tentang permintaan itu sendiri merusak penghapusannya",
+        "en": "Nothing at all, because any record of the request would itself break the deletion"
+       },
+       {
+        "id": "Record sumber mana yang dihapus dan kapan, tanpa menyimpan data pribadi yang sudah dihapus",
+        "en": "Which source records were erased and when, without the personal data that was removed"
+       },
+       {
+        "id": "Salinan lengkap baris yang dihapus di tabel terpisah yang dikunci selama satu tahun",
+        "en": "A full copy of the deleted rows in a separate, locked table for one year"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Anda harus bisa menunjukkan bahwa penghapusan terjadi, tetapi menyimpan data pribadi yang diminta untuk dihapus justru menggagalkannya. Catat id sumber dan waktunya saja.",
+       "en": "You must be able to show the deletion happened, but keeping the personal data you were asked to remove would defeat it. Record source ids and times only."
+      }
      }
     ],
     "resources": [
@@ -8702,6 +8992,64 @@ window.CURRICULUM_DATA = [
       "explanation": {
        "id": "Dua slot menjalankan dua job pada satu waktu: 10, 10, 20, 20, 30 detik. Isolasi, auto-scaling, dan tata letak yang lebih baik mengurangi waktu tunggu.",
        "en": "Two slots run two jobs at a time: 10, 10, 20, 20, 30 seconds. Isolation, auto-scaling and better layout reduce waiting."
+      }
+     },
+     {
+      "question": {
+       "id": "Mengapa setiap record yang dikirim reverse ETL ke CRM membawa idempotency key yang deterministik?",
+       "en": "Why does every record that reverse ETL sends to the CRM carry a deterministic idempotency key?"
+      },
+      "options": [
+       {
+        "id": "Agar CRM bisa mengurutkan record yang masuk sesuai urutan perhitungan di warehouse",
+        "en": "So that the CRM can sort incoming records in the order the warehouse computed them"
+       },
+       {
+        "id": "Untuk mengenkripsi data pelanggan selama berpindah antara warehouse dan CRM",
+        "en": "To encrypt the customer data while it travels between the warehouse and the CRM"
+       },
+       {
+        "id": "Agar pengulangan memperbarui record yang sama, bukan memicu tindakannya dua kali",
+        "en": "So that a retry updates the same record instead of triggering the same action again"
+       },
+       {
+        "id": "Karena CRM menolak setiap request yang tidak membawa id acak unik di header-nya",
+        "en": "Because CRMs reject any request that does not carry a unique random id in its header"
+       }
+      ],
+      "correct": 2,
+      "explanation": {
+       "id": "Tool itu bertindak berdasarkan apa yang Anda kirim (email, penawaran). Key yang dibangun dari isi record membuat pengulangan tidak berbahaya: isi sama, key sama, satu efek.",
+       "en": "The tools act on what you send (emails, offers). A key built from the record's content makes a retry harmless: same content, same key, one effect."
+      }
+     },
+     {
+      "question": {
+       "id": "Apa yang diminta pola strangler fig terhadap pipeline lama yang Anda warisi?",
+       "en": "What does the strangler fig pattern ask you to do with an old pipeline you inherit?"
+      },
+      "options": [
+       {
+        "id": "Bangun ulang satu metrik demi satu, jalankan lama dan baru berdampingan, jelaskan selisihnya, lalu pindah",
+        "en": "Rebuild one metric at a time, run old and new side by side, explain the gaps, then switch"
+       },
+       {
+        "id": "Bekukan pipeline lama dan tulis ulang semuanya sekaligus dalam satu akhir pekan panjang dengan rencana tes",
+        "en": "Freeze the old pipeline and rewrite everything in one go over a long weekend with a test plan"
+       },
+       {
+        "id": "Pertahankan pipeline lama selamanya dan bangun fitur baru di sistem terpisah di sebelahnya",
+        "en": "Keep the old pipeline forever and build the new features in a separate system next to it"
+       },
+       {
+        "id": "Hapus kode lama lebih dulu agar tidak ada yang bergantung padanya, lalu bangun ulang dari kebutuhannya",
+        "en": "Delete the old code first, so nobody depends on it any more, then rebuild from the requirements"
+       }
+      ],
+      "correct": 0,
+      "explanation": {
+       "id": "Setiap selisih antara lama dan baru adalah bug di kode baru atau bug lama yang baru Anda temukan. Konsumen baru dipindahkan setelah angkanya terjelaskan.",
+       "en": "Each difference between old and new is either a bug in the new code or an old bug you just found. Consumers move only when the numbers are explained."
       }
      }
     ],
@@ -11434,6 +11782,64 @@ window.CURRICULUM_DATA = [
       "explanation": {
        "id": "Mengandalkan disiplin manusia pada Jumat malam pukul 22:30 tidak realistis. Statement timeout secara otomatis mematikan query yang menggantung, dan monitor anggaran membunyikan alarm sebelum tagihan akhir bulan membengkak.",
        "en": "People are unreliable at 22:30 on a Friday. A timeout kills the query by itself, and a budget alert or daily forecast tells someone before the month closes. Process and meetings detect problems late."
+      }
+     },
+     {
+      "question": {
+       "id": "Sebuah klaster Spark yang tersebar di tiga availability zone melakukan shuffle 50 TB sehari, dan dua pertiganya menyeberang zone. Dengan $0,02 per GB yang menyeberang, berapa biaya perpindahannya per hari?",
+       "en": "A Spark cluster spread over three availability zones shuffles 50 TB a day, and two thirds of it crosses a zone. At $0.02 per GB that crosses, what does the moving cost per day?"
+      },
+      "options": [
+       {
+        "id": "Sekitar $1.000, karena setiap gigabyte shuffle ditagih",
+        "en": "About $1,000, because every gigabyte of the shuffle is charged"
+       },
+       {
+        "id": "Gratis, karena lalu lintas di dalam satu region selalu tidak dikenai biaya",
+        "en": "Nothing, because traffic inside one region is always free of charge"
+       },
+       {
+        "id": "Sekitar $0,67, karena biayanya ditagih per terabyte, bukan per gigabyte",
+        "en": "About $0.67, because the fee is charged per terabyte, not per gigabyte"
+       },
+       {
+        "id": "Sekitar $667, dari 33.000 GB × $0,02 untuk lalu lintas antar-zone",
+        "en": "About $667, from 33,000 GB × $0.02 for the traffic crossing a zone"
+       }
+      ],
+      "correct": 3,
+      "explanation": {
+       "id": "Hanya lalu lintas yang keluar dari sebuah zone yang ditagih: dua pertiga dari 50.000 GB kira-kira 33.000 GB, dikali $0,02. Itu sekitar $20.000 sebulan hanya untuk memindahkan data.",
+       "en": "Only traffic that leaves a zone is billed: two thirds of 50,000 GB is about 33,000 GB, times $0.02. That is about $20,000 a month for moving data alone."
+      }
+     },
+     {
+      "question": {
+       "id": "Keputusan mana yang paling mudah dibatalkan kemudian?",
+       "en": "Which of these decisions is the easiest to undo later?"
+      },
+      "options": [
+       {
+        "id": "Menaruh seluruh logika bisnis di stored procedure milik satu vendor",
+        "en": "Putting all business logic in one vendor's stored procedures"
+       },
+       {
+        "id": "Menyimpan tabel dalam format terbuka seperti Parquet atau Iceberg",
+        "en": "Storing the tables in an open format such as Parquet or Iceberg"
+       },
+       {
+        "id": "Membangun setiap laporan langsung di database aplikasi produksi",
+        "en": "Building every report directly on the production application database"
+       },
+       {
+        "id": "Menulis pipeline dalam bahasa yang hanya dikuasai satu engineer di tim",
+        "en": "Writing the pipelines in a language that only one engineer on the team knows"
+       }
+      ],
+      "correct": 1,
+      "explanation": {
+       "id": "Dengan format terbuka Anda bisa beralih dari DuckDB ke Trino atau Spark tanpa memindahkan data. Curahkan kehati-hatian Anda pada keputusan yang sulit dibatalkan.",
+       "en": "With an open format you can switch from DuckDB to Trino or Spark without moving the data. Spend your care on the decisions that are hard to undo."
       }
      }
     ],

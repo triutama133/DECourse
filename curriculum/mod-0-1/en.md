@@ -332,6 +332,22 @@ Assume every job will run twice someday. If running it twice changes the result,
 
 > Success of the job only says the code ran. Checks on the content of the output say whether the result is believable. Silent failures are caught by tests on data, not on execution.
 
+### A two-person startup keeps its numbers in spreadsheets. The CEO asks for a Kafka-based real-time dashboard for the Monday board meeting. What is the best first response?
+- [ ] Build the streaming pipeline as asked, because the company will need streaming anyway once it starts to grow
+- [x] Ask what decision the number drives and how often, then offer a reliable daily batch with ready-made tools
+- [ ] Refuse, and keep emailing the spreadsheet until the company has hired a full data team of its own
+- [ ] Start with a small Kafka cluster and a Spark job so the team can learn streaming along the way
+
+> This is a stage-1 company: a weekly decision needs trustworthy daily numbers, not sub-second freshness. Building a stage-3 platform first costs months of the team's time before any useful number appears.
+
+### Which of these is one of the six undercurrents rather than one of the five lifecycle stages?
+- [ ] Ingestion: copying data from the source systems into your platform
+- [ ] Serving: handing the results to dashboards, analysts and models
+- [x] Orchestration: running every step in the right order, with retries
+- [ ] Transformation: turning raw records into trustworthy tables for analysis
+
+> The stages are generation, storage, ingestion, transformation and serving. Security, data management, DataOps, data architecture, orchestration and software engineering run underneath all of them.
+
 ## @resources
 - [Python csv module documentation](https://docs.python.org/3/library/csv.html)
 - [Python datetime: strptime format codes](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes)

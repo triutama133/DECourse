@@ -539,6 +539,22 @@ Know the grain of every table you join, and sum a value only at the grain where 
 
 > A view is a saved query, not saved data. A table made with `CREATE TABLE ... AS` is the snapshot that would keep the old count, and a materialized view stays stale until it is refreshed.
 
+### `SELECT customer_id FROM customers WHERE customer_id NOT IN (SELECT customer_id FROM orders)` returns no rows at all, although some customers have never ordered. What is the most likely cause?
+- [x] At least one `orders.customer_id` is NULL, so every NOT IN comparison is unknown and no row passes
+- [ ] NOT IN only works when the subquery returns a single value, so a list of ids always gives nothing back
+- [ ] The subquery is run once per customer, and it times out quietly on a table as large as `orders`
+- [ ] NOT IN compares text, so integer customer ids never match and are filtered out
+
+> `x NOT IN (1, 2, NULL)` means `x <> 1 AND x <> 2 AND x <> NULL`, and the last part is never true. Use `NOT EXISTS`, or filter the NULLs out of the subquery.
+
+### What is the difference between `UNION` and `UNION ALL`?
+- [ ] `UNION` stacks the rows of both queries, `UNION ALL` keeps only the rows they have in common
+- [ ] `UNION ALL` also sorts the combined result, which is why it is the slower one of the two
+- [ ] There is none in practice; `ALL` only matters when both queries read from the same table
+- [x] `UNION` removes duplicate rows from the combined result, while `UNION ALL` keeps every row
+
+> Removing duplicates costs a sort or a hash. When duplicates cannot occur, or should be kept (adding up two months), `UNION ALL` is both correct and cheaper.
+
 ## @resources
 - [SQLite SQL language reference](https://www.sqlite.org/lang.html)
 - [PostgreSQL tutorial: SQL basics](https://www.postgresql.org/docs/current/tutorial-sql.html)

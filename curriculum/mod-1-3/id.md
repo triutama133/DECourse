@@ -554,6 +554,22 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 
 > SQLite mengembalikan `y` dari satu baris, sedangkan PostgreSQL dan DuckDB memunculkan error. Bug yang akan ditangkap engine ketat bisa lolos diam-diam di prototipe, jadi cantumkan setiap kolom tak teragregasi di `GROUP BY`.
 
+### Hasil `GROUP BY ROLLUP (city, payment_method)` punya baris dengan `city` NULL. Bagaimana membedakan baris subtotal dari pelanggan yang kotanya memang tidak diketahui?
+- [ ] Baris subtotal selalu muncul paling akhir, jadi posisi baris memberi tahu Anda yang mana
+- [ ] Subtotal menampilkan teks `'ALL'` alih-alih NULL, jadi NULL selalu berarti kota yang benar-benar tidak diketahui
+- [x] `GROUPING(city)` bernilai 1 di baris tempat city digulung menjadi subtotal, dan 0 jika NULL-nya data asli
+- [ ] Keduanya tidak bisa dibedakan, jadi ganti kota NULL dengan penanda sebelum setiap query ROLLUP
+
+> ROLLUP menandai kolom yang digulung dengan NULL, yang bertabrakan dengan NULL asli. `GROUPING(col)` mengembalikan 1 untuk level subtotal dan 0 untuk nilai asli, termasuk NULL asli.
+
+### Di PostgreSQL, `SUM(payload->>'amount')` gagal padahal setiap `amount` di JSON berupa angka. Mengapa?
+- [ ] `->>` hanya bekerja pada key tingkat atas, dan `amount` disimpan satu tingkat lebih dalam di payload
+- [x] `->>` mengembalikan teks, jadi nilainya harus di-cast (misalnya `::numeric`) sebelum dijumlahkan
+- [ ] SUM sama sekali tidak bisa membaca kolom JSON; nilainya harus disalin ke tabel lebih dulu
+- [ ] Key-nya harus ditulis sebagai path, `'$.amount'`, atau PostgreSQL tidak menemukannya
+
+> `->>` mengambil teks; `->` mengambil JSON. Aritmetika butuh cast. (String JSONPath seperti `'$.amount'` setelah `->>` bukan path di PostgreSQL: hasilnya diam-diam NULL.)
+
 ## @resources
 - [Dokumen PostgreSQL: tutorial window function](https://www.postgresql.org/docs/current/tutorial-window.html)
 - [Dokumen PostgreSQL: memakai EXPLAIN](https://www.postgresql.org/docs/current/using-explain.html)

@@ -371,6 +371,22 @@ Unit test mengevaluasi keabsahan data yang tiba; monitoring mengevaluasi apakah 
 
 > Sebagian kecil baris cacat adalah hal rutin yang cukup masuk karantina. Namun rasio penolakan yang jauh melampaui batas kesepakatan menandakan kegagalan sistemik dari hulu, sehingga pipeline harus gagal secara eksplisit daripada mempublikasikan data yang rusak parah.
 
+### Sebuah pipeline menyimpan `sha256(phone)` alih-alih nomor teleponnya. Mengapa itu bukan perlindungan sungguhan?
+- [ ] SHA-256 adalah algoritma lama yang sudah dibobol, jadi hash apa pun bisa dibalik dengan cepat
+- [x] Kemungkinannya sangat sedikit, jadi penyerang bisa meng-hash semua nomor lalu mencocokkannya
+- [ ] Hash disimpan di samping nomor aslinya, jadi siapa pun yang bisa membaca tabel melihat keduanya
+- [ ] Itu sudah cukup; satu-satunya risiko adalah dua nomor berbeda bisa mendapat hash yang sama
+
+> Awalan yang diketahui ditambah delapan digit hanya 100 juta kemungkinan; meng-hash semuanya butuh sekitar dua menit di satu core laptop. Campurkan kunci rahasia (HMAC) yang hanya diketahui pipeline.
+
+### Seorang pelanggan memakai hak untuk dilupakan. Apa yang harus disimpan log audit penghapusan?
+- [ ] Email dan telepon pelanggan, agar nanti Anda bisa membuktikan data siapa persisnya yang dihapus
+- [ ] Tidak ada sama sekali, karena catatan apa pun tentang permintaan itu sendiri merusak penghapusannya
+- [x] Record sumber mana yang dihapus dan kapan, tanpa menyimpan data pribadi yang sudah dihapus
+- [ ] Salinan lengkap baris yang dihapus di tabel terpisah yang dikunci selama satu tahun
+
+> Anda harus bisa menunjukkan bahwa penghapusan terjadi, tetapi menyimpan data pribadi yang diminta untuk dihapus justru menggagalkannya. Catat id sumber dan waktunya saja.
+
 ## @resources
 - [Dokumentasi Great Expectations](https://docs.greatexpectations.io/)
 - [Dokumentasi Soda](https://docs.soda.io/)

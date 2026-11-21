@@ -539,6 +539,22 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 
 > View adalah query tersimpan, bukan data tersimpan. Tabel hasil `CREATE TABLE ... AS` adalah snapshot yang mempertahankan hitungan lama, dan materialized view tetap basi sampai di-refresh.
 
+### `SELECT customer_id FROM customers WHERE customer_id NOT IN (SELECT customer_id FROM orders)` tidak mengembalikan baris sama sekali, padahal ada pelanggan yang belum pernah memesan. Apa penyebab yang paling mungkin?
+- [x] Ada `orders.customer_id` yang NULL, jadi setiap perbandingan NOT IN tidak diketahui dan tak ada yang lolos
+- [ ] NOT IN hanya bekerja jika subquery mengembalikan satu nilai, jadi daftar id selalu menghasilkan hasil kosong
+- [ ] Subquery dijalankan sekali per pelanggan, dan diam-diam habis waktu pada tabel sebesar `orders`
+- [ ] NOT IN membandingkan teks, jadi customer id berupa angka tidak pernah cocok dan tersaring
+
+> `x NOT IN (1, 2, NULL)` berarti `x <> 1 AND x <> 2 AND x <> NULL`, dan bagian terakhir tidak pernah benar. Pakai `NOT EXISTS`, atau saring NULL dari subquery.
+
+### Apa beda `UNION` dan `UNION ALL`?
+- [ ] `UNION` menumpuk baris kedua query, `UNION ALL` hanya menyimpan baris yang sama di keduanya
+- [ ] `UNION ALL` juga mengurutkan hasil gabungannya, itulah sebabnya ia yang lebih lambat dari keduanya
+- [ ] Dalam praktik tidak ada bedanya; `ALL` hanya berpengaruh jika kedua query membaca tabel yang sama
+- [x] `UNION` membuang baris duplikat dari hasil gabungan, sedangkan `UNION ALL` menyimpan setiap baris
+
+> Membuang duplikat butuh sort atau hash. Jika duplikat tidak mungkin terjadi, atau memang harus disimpan (menjumlahkan dua bulan), `UNION ALL` benar sekaligus lebih murah.
+
 ## @resources
 - [Referensi bahasa SQL SQLite](https://www.sqlite.org/lang.html)
 - [Tutorial PostgreSQL: dasar-dasar SQL](https://www.postgresql.org/docs/current/tutorial-sql.html)

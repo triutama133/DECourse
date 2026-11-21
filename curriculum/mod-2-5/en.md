@@ -371,6 +371,22 @@ Tests judge what arrived; monitors judge what should have arrived. A pipeline ne
 
 > A few percent of messy rows is routine and goes to quarantine. A reject rate far above the agreed limit signals a systemic problem, so the load fails loudly instead of publishing a mostly missing table.
 
+### A pipeline stores `sha256(phone)` instead of the phone number. Why is that not real protection?
+- [ ] SHA-256 is an old algorithm that has been broken, so any hash can be reversed quickly
+- [x] There are so few possible numbers that an attacker can hash them all and look each one up
+- [ ] Hashes are stored next to the original numbers, so anyone who can read the table sees both
+- [ ] It is enough; the only risk is that two different phones could get the same hash
+
+> A known prefix plus eight digits is only 100 million possibilities; hashing all of them took about two minutes on one laptop core. Mix in a secret key (HMAC) that only the pipeline knows.
+
+### A customer exercises the right to be forgotten. What should the erasure audit log keep?
+- [ ] The customer's email and phone, so that you can prove later exactly whose data was removed
+- [ ] Nothing at all, because any record of the request would itself break the deletion
+- [x] Which source records were erased and when, without the personal data that was removed
+- [ ] A full copy of the deleted rows in a separate, locked table for one year
+
+> You must be able to show the deletion happened, but keeping the personal data you were asked to remove would defeat it. Record source ids and times only.
+
 ## @resources
 - [Great Expectations documentation](https://docs.greatexpectations.io/)
 - [Soda documentation](https://docs.soda.io/)

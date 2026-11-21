@@ -312,6 +312,22 @@ Di warehouse, biaya adalah jumlah data yang disentuh sebuah query. Tata letak, p
 
 > Dua slot menjalankan dua job pada satu waktu: 10, 10, 20, 20, 30 detik. Isolasi, auto-scaling, dan tata letak yang lebih baik mengurangi waktu tunggu.
 
+### Mengapa setiap record yang dikirim reverse ETL ke CRM membawa idempotency key yang deterministik?
+- [ ] Agar CRM bisa mengurutkan record yang masuk sesuai urutan perhitungan di warehouse
+- [ ] Untuk mengenkripsi data pelanggan selama berpindah antara warehouse dan CRM
+- [x] Agar pengulangan memperbarui record yang sama, bukan memicu tindakannya dua kali
+- [ ] Karena CRM menolak setiap request yang tidak membawa id acak unik di header-nya
+
+> Tool itu bertindak berdasarkan apa yang Anda kirim (email, penawaran). Key yang dibangun dari isi record membuat pengulangan tidak berbahaya: isi sama, key sama, satu efek.
+
+### Apa yang diminta pola strangler fig terhadap pipeline lama yang Anda warisi?
+- [x] Bangun ulang satu metrik demi satu, jalankan lama dan baru berdampingan, jelaskan selisihnya, lalu pindah
+- [ ] Bekukan pipeline lama dan tulis ulang semuanya sekaligus dalam satu akhir pekan panjang dengan rencana tes
+- [ ] Pertahankan pipeline lama selamanya dan bangun fitur baru di sistem terpisah di sebelahnya
+- [ ] Hapus kode lama lebih dulu agar tidak ada yang bergantung padanya, lalu bangun ulang dari kebutuhannya
+
+> Setiap selisih antara lama dan baru adalah bug di kode baru atau bug lama yang baru Anda temukan. Konsumen baru dipindahkan setelah angkanya terjelaskan.
+
 ## @resources
 - [Dokumentasi Snowflake: micro-partition dan data clustering](https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions)
 - [Dokumentasi BigQuery: tabel berpartisi dan ter-cluster](https://cloud.google.com/bigquery/docs/partitioned-tables)

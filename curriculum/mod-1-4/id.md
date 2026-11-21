@@ -362,6 +362,22 @@ Tentukan secara sadar untuk setiap atribut dimensi apakah histori masa lalunya b
 
 > Uji keunikan grain mendeteksi baris yang terduplikasi atau berlipat ganda; uji rekonsiliasi mendeteksi hilangnya atau terciptanya omset fiktif. Keduanya menangkap mayoritas kesalahan logika join dan transformasi data.
 
+### Di satellite Data Vault, kapan baris baru ditambahkan untuk seorang pelanggan?
+- [ ] Setiap kali ada event untuk pelanggan itu, jadi satellite berisi satu baris per pemuatan
+- [ ] Hanya saat business key berubah, karena atributnya disimpan di hub
+- [ ] Sekali sehari, sebagai snapshot setiap pelanggan, ada perubahan atau tidak
+- [x] Saat hash_diff atribut barunya berbeda dari baris satellite terakhir pelanggan itu
+
+> Satellite bersifat insert-only dan menyimpan perubahan: bandingkan sidik jari baru dengan baris terakhir, bukan dengan semua baris yang pernah ada, sehingga pelanggan yang kembali ke kota sebelumnya tetap mendapat baris baru.
+
+### Mengapa Data Vault menurunkan key dengan meng-hash business key alih-alih membagikan surrogate key 1, 2, 3?
+- [x] Setiap loader menghitung key yang sama secara mandiri, sehingga banyak sumber bisa dimuat paralel
+- [ ] Hash lebih pendek daripada integer, sehingga tabelnya jauh lebih hemat ruang disk
+- [ ] Hash menyembunyikan customer id, sehingga vault aman dibagikan ke luar perusahaan
+- [ ] Angka berurutan tidak diizinkan sebagai primary key di sebagian besar cloud data warehouse saat ini
+
+> Membagikan nomor berurutan butuh satu penghitung pusat, yang menjadi hambatan saat sumbernya banyak dan memberi pelanggan yang sama nomor berbeda. Hash dari business key yang dinormalisasi sama di mana pun.
+
 ## @resources
 - [Kimball Group: dimensional modeling techniques](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)
 - [dbt docs: snapshots (Type 2 dimensions)](https://docs.getdbt.com/docs/build/snapshots)

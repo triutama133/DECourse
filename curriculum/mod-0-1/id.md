@@ -332,6 +332,22 @@ Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua ka
 
 > Sukses sebuah job hanya berarti kodenya berjalan. Pemeriksaan isi output yang menunjukkan apakah hasilnya masuk akal. Kegagalan senyap tertangkap oleh tes pada data, bukan pada eksekusi.
 
+### Sebuah startup berisi dua orang menyimpan angkanya di spreadsheet. CEO meminta dashboard real-time berbasis Kafka untuk rapat direksi hari Senin. Apa respons pertama yang terbaik?
+- [ ] Bangun pipeline streaming sesuai permintaan, karena perusahaan tetap akan butuh streaming saat tumbuh
+- [x] Tanyakan keputusan apa yang diambil dari angka itu dan seberapa sering, lalu tawarkan batch harian yang andal
+- [ ] Tolak, dan terus kirim spreadsheet lewat email sampai perusahaan sudah merekrut tim data lengkapnya sendiri nanti
+- [ ] Mulai dengan klaster Kafka kecil dan job Spark agar tim bisa belajar streaming sambil berjalan
+
+> Ini perusahaan tahap 1: keputusan mingguan butuh angka harian yang bisa dipercaya, bukan kesegaran di bawah satu detik. Membangun platform tahap 3 lebih dulu menghabiskan waktu tim berbulan-bulan sebelum ada angka yang berguna.
+
+### Mana di antara ini yang termasuk enam undercurrent, bukan lima tahap siklus hidup?
+- [ ] Ingestion: menyalin data dari sistem sumber ke platform Anda
+- [ ] Serving: menyerahkan hasilnya ke dashboard, analis, dan model
+- [x] Orkestrasi: menjalankan setiap langkah dengan urutan yang benar, dengan retry
+- [ ] Transformasi: mengubah record mentah menjadi tabel yang bisa dipercaya untuk analisis
+
+> Tahapnya adalah generation, storage, ingestion, transformation, dan serving. Security, data management, DataOps, data architecture, orchestration, dan software engineering mengalir di bawah semuanya.
+
 ## @resources
 - [Dokumentasi modul csv Python](https://docs.python.org/3/library/csv.html)
 - [Python datetime: kode format strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes)
