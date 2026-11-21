@@ -19,6 +19,8 @@ Module 0.0 (Python from zero) is strongly recommended: the lab uses functions, l
 > **Editor vs Terminal Reminder:**
 > Open and edit code files (such as `labs/mod-0-1/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-1/pipeline.py` in your shell). Use the terminal only for test commands, such as `python3 labs/mod-0-1/test_lab.py -v`.
 
+## @part The job and the people
+
 ## @lesson Why this job exists: two kinds of database
 Imagine **KopiKu**, a small online shop that sells specialty coffee beans from Gayo, Toraja and Flores. Every time a customer taps "Pay", the website writes one new row to a database: who bought, what, how much, when. That database exists to run the shop. It must answer small questions very fast ("what is in this customer's cart?") and it must never lose an order. This kind of database is called **OLTP** (Online Transaction Processing). PostgreSQL and MySQL are the usual choices.
 
@@ -110,6 +112,8 @@ Second, data engineers face **inward** or **outward**. **Internal-facing** engin
 > 🛠 **Try it (10 min, pen and paper).** For each KopiKu task, write *internal* or *external*, and either the lifecycle stage it belongs to or "wider data lifecycle" if the decision comes from outside engineering: (1) a weekly revenue dashboard for the founder; (2) a "your sales this month" page inside the app KopiKu sells to café owners; (3) "customers who bought Gayo also bought…" on the website; (4) a nightly copy of the orders database into the warehouse; (5) deleting a customer's personal data when they close their account; (6) suppose finance says order records must be kept for ten years: setting that up.
 >
 > **You should see:** (1) internal, serving; (2) external, serving (customer-facing analytics); (3) external, serving, built on transformation; (4) internal, ingestion into storage; (5) wider data lifecycle: the rule comes from privacy law and the company's policy, and engineering carries it out in every copy; (6) wider data lifecycle as well: finance sets the period, and engineering turns it into storage lifecycle rules (Module 3.4). If you put (5) or (6) under a single stage, notice that they touch every stage at once.
+
+## @part The data you will work with
 
 ## @lesson The journey of one order
 Follow a single KopiKu order, #4821, from the customer's phone to the CEO's dashboard. Each step is a stage that data engineers design and maintain.

@@ -15,6 +15,8 @@ why: Airflow tutorials show tasks that echo hello. In production an orchestrator
 ## @prereq
 Modules 1.1 (cron), 1.2 (idempotency, retries) and 2.3 (dbt). `pip install -r labs/mod-2-4/requirements.txt` installs Dagster. Airflow is shown in code and is not required for the lab.
 
+## @part Orchestration concepts
+
 ## @lesson What an orchestrator does, and what it doesn't
 In Module 1.1 cron ran a script at a time. It had no idea that job B needs job A's output, did not retry, kept no history, and could not tell you a run was missing. A real pipeline has dozens of steps owned by different people, and the questions multiply: *what runs after what? what if a step fails at 03:00? how do I rerun the last 30 days after a bug fix? how do I know the pipeline is healthy?*
 
@@ -83,6 +85,8 @@ The lab has you test these properties instead of trusting them: materialise a pa
 > 4. Test idempotency in terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
 > 5. **Success Indicator:** Tests report `PASSED`, proving that executing the same partition twice produces byte-for-byte identical output.
+
+## @part The tools
 
 ## @lesson Airflow: DAGs of tasks
 **Apache Airflow** defines pipelines as Python files. Its components: a **scheduler** that decides what runs and when, a **DAG processor** that parses your files, **workers** (via an *executor*, local, Celery or Kubernetes) that run tasks, a **metadata database** with the state of everything, and an **API server and UI** to view and trigger runs.

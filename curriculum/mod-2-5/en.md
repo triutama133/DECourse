@@ -15,6 +15,8 @@ why: In tutorials, a pipeline is finished when data lands in a table. In product
 ## @prereq
 Modules 0.1 (the five ways data goes wrong), 1.2 (validation and quarantine) and 2.3 (dbt tests). `pip install -r labs/mod-2-5/requirements.txt` installs PyYAML and pytest.
 
+## @part Preventing bad data
+
 ## @lesson What "quality" means: dimensions you can test
 "Bad data" is too vague to act on. Data quality is **fitness for a specific use**, and it breaks down into dimensions, each of which turns into a check you can run. Using KopiKu's orders:
 
@@ -136,6 +138,8 @@ Design decisions of a gate:
 >    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
 > 4. **Success Indicator:** All 13 tests in `TestValidateRows` report `PASSED`, confirming 3,394 valid rows and 240 quarantined rows on the real shop dataset.
 
+## @part Detecting and responding
+
 ## @lesson Monitoring: freshness, volume, schema, distribution
 Row-level checks see one row at a time. **Dataset-level monitoring** looks at the *shape of the whole delivery* and catches problems that make every row individually valid. The common pillars of **data observability**:
 
@@ -205,6 +209,8 @@ A few habits make this easier: keep a **runbook** per critical dataset (how to c
 > 3. Test gate orchestration in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.
+
+## @part Metadata, privacy and master data
 
 ## @lesson Beyond quality: metadata, personal data, erasure and master data
 > **In short:** Data quality is one part of *data management*. The others that matter most in practice: metadata (so people can find and understand data), protecting personal data (pseudonymise it at the door, with a secret key), deleting a person when the law requires it, and master data management (one record per real customer, built from many systems).

@@ -15,6 +15,8 @@ why: Tutorials tell you to spin up a cluster for a 15 GB file. A single modern m
 ## @prereq
 Modules 1.2 (streaming and memory) and 1.3 (SQL, plans). `pip install -r labs/mod-2-1/requirements.txt` installs DuckDB, Polars and PyArrow.
 
+## @part How columnar storage works
+
 ## @lesson Rows versus columns
 A table is a grid. To store it in a file or in memory you must flatten it into a sequence, and there are two ways.
 
@@ -101,6 +103,8 @@ The practical takeaway is not the mechanism but the habit: **express work as who
 > 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query over `range(2000000) t(x)`. Time each with `time.perf_counter()` and check that the two answers are equal.
 >
 > **You should see:** both answers are `1333332666666`; the loop takes roughly 160 ms and DuckDB roughly 20 ms. The exact ratio depends on your machine (expect somewhere between 5 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
+
+## @part Tools and layout
 
 ## @lesson DuckDB: SQL on files, in your process
 **DuckDB** is an analytical database that runs **inside your Python process**, like SQLite but built for scans and aggregations (columnar, vectorised, parallel). No server, nothing to install beyond the package, and it queries files directly:

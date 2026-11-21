@@ -15,6 +15,8 @@ why: Banyak tutorial Airflow pemula hanya mengajarkan task echo hello world. Di 
 ## @prereq
 Modul 1.1 (cron), Modul 1.2 (idempotensi, retry), dan Modul 2.3 (dbt). Jalankan `pip install -r labs/mod-2-4/requirements.txt` untuk menginstal Dagster. Kode Airflow dipaparkan sebagai materi perbandingan konseptual dan tidak diwajibkan diinstal untuk lab lokal.
 
+## @part Konsep orkestrasi
+
 ## @lesson Apa yang dilakukan orchestrator, dan apa yang bukan tugasnya
 Pada Modul 1.1, cron menjalankan skrip Python semata-mata berdasarkan penunjuk jam. Cron sama sekali tidak mengetahui apakah Job B membutuhkan output valid dari Job A, tidak memiliki mekanisme auto-retry jika terjadi kegagalan jaringan sementara, tidak menyimpan rekaman riwayat eksekusi, dan tidak bisa memperingatkan Anda jika suatu jadwal terlewatkan. Dalam pipeline data nyata yang terdiri dari puluhan tahapan dan dimiliki oleh lintas tim, pertanyaan operasional berkembang drastis: *tahapan mana yang harus jalan setelah apa? apa yang terjadi jika langkah ekstraksi gagal pada pukul 03:00 pagi? bagaimana cara menjalankan ulang data 30 hari ke belakang setelah perbaikan bug tanpa merusak dashboard bisnis? bagaimana kita memantau apakah pipeline kita sehat?*
 
@@ -83,6 +85,8 @@ Dalam lab praktikum modul ini, Anda tidak sekadar mempercayai teori ini di atas 
 > 4. Uji sifat idempotensi di terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
 > 5. **Indikator Sukses:** Tes berstatus `PASSED` membuktikan eksekusi partisi dua kali menghasilkan output file yang byte demi byte sama persis.
+
+## @part Alat-alatnya
 
 ## @lesson Airflow: DAG berbasis task
 **Apache Airflow** mendefinisikan seluruh pipeline data menggunakan kode Python murni. Arsitektur komponen utamanya meliputi: **scheduler** yang memantau jadwal dan memutuskan kapan task harus jalan, **DAG processor** yang membaca dan mem-parsing file kode Python, **workers** (dijalankan via executor: LocalExecutor, CeleryExecutor, atau KubernetesExecutor) yang mengeksekusi instruksi task, **metadata database** (biasanya PostgreSQL) yang menyimpan state seluruh run dan task, serta **API server dan web UI** tempat insinyur memantau log dan memicu eksekusi.

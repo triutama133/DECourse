@@ -21,6 +21,8 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 > - **Mulai di browser:** setiap pelajaran diakhiri **💡 Jeda Praktik**. Jeda itu mengarahkan Anda ke **Pratinjau di browser** pada tab Lab: tulis fungsinya di sana lalu klik **Jalankan tes**. Tidak ada yang perlu diinstal. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
 > - **Nanti, di komputer Anda sendiri (setelah Modul 0.2):** kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
 
+## @part Dasar: nilai, koleksi, keputusan, dan perulangan
+
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
 Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.
 
@@ -148,6 +150,8 @@ Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. P
 > 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
 > Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
+
+## @part Fungsi, error, dan file
 
 ## @lesson Fungsi: def, parameter, dan return
 Lihat loop yang menjumlahkan total. Jika Anda butuh jumlah yang sama di lima tempat, Anda tidak menyalin lima loop. Anda memberi loop itu sebuah **nama** dan memakainya ulang. Itulah fungsi, dan ia ada karena tiga alasan: **pemakaian ulang** (tulis sekali), **kejelasan** (nama yang baik menjelaskan tujuannya, jadi `total_revenue(orders)` terbaca seperti kalimat), dan **pengujian** (fungsi kecil dengan satu masukan dan satu keluaran bisa diperiksa otomatis, begitulah lab ini bekerja).

@@ -16,6 +16,8 @@ why: Tutorials call one API once and print the result. Real ingestion runs every
 ## @prereq
 Modules 0.0 and 1.2 (Python, errors, idempotence). The lab needs only the Python standard library and no internet connection: the tests start a small fake API on your own computer.
 
+## @part Getting data from APIs
+
 ## @lesson How data enters a platform
 
 > **In short:** Data arrives as files, API calls, database reads or events. You choose pull or push, and full or incremental. A trustworthy job is complete, repeat-safe, raw-first, observable and polite to the source.
@@ -173,6 +175,8 @@ The checkpoint is itself state. Store it somewhere durable that survives the mac
 > **You should see:** in step 1 more lines than the checkpoint implies (the page in flight was written but not yet checkpointed); `25 25` in step 2; in step 3 fewer than 25 rows, and the missing ids form one page of five. That page is lost forever, which is exactly why the checkpoint is saved last.
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-4 ~/practice` checks the version of `load.py` from steps 1 and 2 (checkpoint saved last). It interrupts your script itself, as Ctrl+C would, and starts it again.
+
+## @part Landing it and running it
 
 ## @lesson Landing and shaping raw data
 

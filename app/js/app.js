@@ -302,7 +302,13 @@ class DataForgeApp {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       let m;
-      if ((m = line.match(/^```\s*(\S*)\s*$/))) {
+      if ((m = line.match(/^:::advanced\s+(.+)$/))) {
+        // ":::advanced Title" ... ":::" folds material for later, so a beginner sees the core of the lesson first
+        out.push(`<details class="advanced-fold"><summary><span class="advanced-tag">${this.l("Lanjutan (opsional)", "Advanced (optional)")}</span> ${this.inline(m[1])}</summary><div class="advanced-body">`);
+        i++;
+      } else if (/^:::\s*$/.test(line)) {
+        out.push("</div></details>"); i++;
+      } else if ((m = line.match(/^```\s*(\S*)\s*$/))) {
         const body = [];
         i++;
         while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
@@ -343,7 +349,7 @@ class DataForgeApp {
         out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ""}>${items.map((it) => `<li>${this.inline(it)}</li>`).join("")}</${tag}>`);
       } else {
         const p = [];
-        while (i < lines.length && lines[i].trim() !== "" && !/^```/.test(lines[i]) && !/^#{3,4} /.test(lines[i]) && !isBullet(lines[i]) && !isOrdered(lines[i]) && !/^> ?/.test(lines[i]) && !isTableRow(lines[i])) p.push(lines[i++]);
+        while (i < lines.length && lines[i].trim() !== "" && !/^```/.test(lines[i]) && !/^:::/.test(lines[i]) && !/^#{3,4} /.test(lines[i]) && !isBullet(lines[i]) && !isOrdered(lines[i]) && !/^> ?/.test(lines[i]) && !isTableRow(lines[i])) p.push(lines[i++]);
         if (!p.length) { p.push(lines[i++]); }
         out.push(`<p>${p.map((x) => this.inline(x)).join("<br>")}</p>`);
       }
@@ -1009,7 +1015,7 @@ class DataForgeApp {
     }
   }
   stripMd(text) {
-    return String(text || "").replace(/\[\[diagram:[a-z0-9-]+\]\]/g, " ").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
+    return String(text || "").replace(/\[\[diagram:[a-z0-9-]+\]\]/g, " ").replace(/^:::(?:advanced)?/gm, " ").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
   }
   searchIndex() {
     this._searchIdx = this._searchIdx || {};
@@ -2580,6 +2586,12 @@ class DataForgeApp {
     return Math.max(1, Math.round(w / 200));
   }
 
+  // Parts group a module's lessons for display ("## @part" in the lesson files); lesson numbers stay the same.
+  moduleParts(mod) {
+    const parts = mod.parts || [];
+    return parts.map((pt, k) => ({ k, title: pt.title, start: pt.start, end: (k + 1 < parts.length ? parts[k + 1].start : mod.lessons.length) - 1 }));
+  }
+  partOf(mod, i) { return this.moduleParts(mod).find((pt) => i >= pt.start && i <= pt.end) || null; }
   // One lesson per screen: the address carries the lesson number, so Back, links and search results work.
   openLesson(modId, i) { this.go("curriculum", modId, "concepts", String(i + 1)); }
   openModuleOverview(modId) { this.go("curriculum", modId, "concepts"); }
@@ -2619,7 +2631,8 @@ class DataForgeApp {
         const isRead = this.isLessonDone(mod.id, i);
         const isLast = i === totalLessons - 1;
         const lessonAnims = this.getAnimsForLesson(mod.id, i);
-        const dots = mod.lessons.map((l2, k) => `<button class="lesson-dot ${k === i ? "current" : ""} ${this.isLessonDone(mod.id, k) ? "read" : ""}" onclick="app.openLesson('${mod.id}', ${k})" aria-label="${this.l("Materi", "Lesson")} ${k + 1}: ${this.esc(this.t(l2.title))}${this.isLessonDone(mod.id, k) ? this.l(" (selesai)", " (done)") : ""}" ${k === i ? 'aria-current="step"' : ""}>${k + 1}</button>`).join("");
+        const part = this.partOf(mod, i);
+        const dots = mod.lessons.map((l2, k) => `${k > 0 && this.moduleParts(mod).some((pt) => pt.start === k) ? '<span class="lesson-dot-gap" aria-hidden="true"></span>' : ""}<button class="lesson-dot ${k === i ? "current" : ""} ${this.isLessonDone(mod.id, k) ? "read" : ""}" onclick="app.openLesson('${mod.id}', ${k})" aria-label="${this.l("Materi", "Lesson")} ${k + 1}: ${this.esc(this.t(l2.title))}${this.isLessonDone(mod.id, k) ? this.l(" (selesai)", " (done)") : ""}" ${k === i ? 'aria-current="step"' : ""}>${k + 1}</button>`).join("");
         const nextLabel = isLast
           ? this.l("Selesai, lanjut ke Lab", "Done, continue to the Lab")
           : isRead ? `${this.l("Materi", "Lesson")} ${i + 2}` : this.l(`Selesai, lanjut ke materi ${i + 2}`, `Done, next: lesson ${i + 2}`);
@@ -2627,7 +2640,7 @@ class DataForgeApp {
         return `
         <nav class="lesson-bar" aria-label="${this.l("Navigasi materi", "Lesson navigation")}">
           <button class="btn btn-sm btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>
-          <span class="lesson-bar-pos">${this.l("Materi", "Lesson")} <strong>${i + 1}</strong> ${this.l("dari", "of")} ${totalLessons} · ~${this.lessonMinutes(ls)} ${this.l("menit", "min")}</span>
+          <span class="lesson-bar-pos">${part ? `<span class="lesson-bar-part">${this.l("Bagian", "Part")} ${part.k + 1}: ${this.esc(this.t(part.title))}</span>` : ""}${this.l("Materi", "Lesson")} <strong>${i + 1}</strong> ${this.l("dari", "of")} ${totalLessons} · ~${this.lessonMinutes(ls)} ${this.l("menit", "min")}</span>
           <div class="lesson-dots">${dots}</div>
         </nav>
         <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
@@ -2693,10 +2706,18 @@ class DataForgeApp {
             ${mod.lessons.map((ls, i) => {
               const isRead = this.isLessonDone(mod.id, i);
               const bodyTxt = this.lessonBody(ls);
+              const pt = this.moduleParts(mod).find((x) => x.start === i);
+              const ptHead = pt ? (() => {
+                const n = pt.end - pt.start + 1;
+                const doneN = mod.lessons.slice(pt.start, pt.end + 1).filter((_, j) => this.isLessonDone(mod.id, pt.start + j)).length;
+                const mins = mod.lessons.slice(pt.start, pt.end + 1).reduce((a, l3) => a + this.lessonMinutes(l3), 0);
+                const range = n > 1 ? `${this.l("materi", "lessons")} ${pt.start + 1}–${pt.end + 1}` : `${this.l("materi", "lesson")} ${pt.start + 1}`;
+                return `<div class="toc-part ${doneN === n ? "is-done" : ""}"><span class="toc-part-title">${this.l("Bagian", "Part")} ${pt.k + 1} · ${this.esc(this.t(pt.title))}</span><span class="toc-part-meta">${range} · ~${mins} ${this.l("menit", "min")} · ${doneN}/${n} ${this.l("selesai", "done")}</span></div>`;
+              })() : "";
               const hasTryIt = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/m.test(bodyTxt);
               const hasPause = /^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))/m.test(bodyTxt);
               const hasAnim = this.getAnimsForLesson(mod.id, i).length > 0;
-              return `
+              return `${ptHead}
                 <div class="toc-item ${isRead ? "is-read" : ""} ${i === nextUnread ? "is-next" : ""}">
                   <button class="toc-check ${isRead ? "checked" : ""}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)" title="${isRead ? this.l("Batal tandai selesai", "Mark unread") : this.l("Tandai sudah dipahami", "Mark as understood")}" aria-label="${this.l("Tandai selesai", "Toggle lesson completion")}">✓</button>
                   <button class="toc-link" onclick="app.openLesson('${mod.id}', ${i})"><strong>${i + 1}.</strong> ${this.esc(this.t(ls.title))}</button>

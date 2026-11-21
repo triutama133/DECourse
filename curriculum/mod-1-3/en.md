@@ -16,6 +16,8 @@ why: Tutorials test SELECT and WHERE on a few rows. In production a query that r
 ## @prereq
 Module 0.3 (joins, GROUP BY, NULL, CTEs). Part A of the lab runs in your browser or with Python's built-in SQLite; Part B uses PostgreSQL (an embedded copy is installed by `pip`, so Docker is optional).
 
+## @part Window functions and recursion
+
 ## @lesson Window functions: calculate across rows without collapsing them
 `GROUP BY` collapses many rows into one. A **window function** computes a value across a set of related rows and **keeps every row**. The syntax is `function(...) OVER (PARTITION BY ... ORDER BY ... frame)`:
 
@@ -215,6 +217,8 @@ SELECT d FROM days;
 > `python3 labs/mod-1-3/check.py`
 > When you see `10/10 answers correct`, Part A of this lab is 100% complete! Proceed to Lessons 6 & 7 to dissect database query plans and indexing.
 
+## @part Performance: plans and indexes
+
 ## @lesson How the database runs your query: reading EXPLAIN
 SQL says *what* you want; the database's **planner** decides *how*: which indexes to use, in what order to join, which algorithm to use. It estimates the cost of alternatives from **statistics** (row counts and value distributions per column, refreshed by `ANALYZE`) and picks the cheapest. Your job is to check that its choice is sensible. `EXPLAIN` shows the plan; `EXPLAIN ANALYZE` also **runs** the query and adds actual times and row counts (so wrap writes in a transaction you roll back). In PostgreSQL the useful form is `EXPLAIN (ANALYZE, BUFFERS)`.
 
@@ -283,6 +287,8 @@ Finally, a few query habits that avoid problems before indexes are needed: selec
 > 3. Run the plan verification in your terminal:
 > `pytest labs/mod-1-3/explain -v`
 > When all Part B tests are GREEN (PASSED), you have mastered database query plan optimization at a professional level! Proceed to Lesson 8 to explore SQL dialect nuances.
+
+## @part Dialects, subtotals and JSON
 
 ## @lesson One question, many dialects: SQLite, PostgreSQL, DuckDB and the warehouses
 SQL is a standard, but every engine speaks its own dialect, and in data engineering you will meet several: SQLite in the sandbox, PostgreSQL in application databases, DuckDB on a laptop, BigQuery or Snowflake in the warehouse (Module 2.6), Spark SQL in the lakehouse. The standard defines a core (SELECT, joins, GROUP BY, window functions, CTEs), and each engine adds functions, types and rules around it. Differences come in two kinds, and the second kind is the dangerous one.

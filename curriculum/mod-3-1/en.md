@@ -15,6 +15,8 @@ why: Courses say "just call groupBy().count()". In production a 100 GB job sits 
 ## @prereq
 Modules 2.1 (Parquet, engines, single-machine limits) and 1.3 (joins, execution plans). Java 17 or newer (`java -version`) and `pip install -r labs/mod-3-1/requirements.txt`. The lab runs Spark in local mode on your laptop.
 
+## @part How Spark runs your code
+
 ## @lesson When you need a cluster, and what a cluster costs you
 Module 2.1 ended with a rule: a single machine goes much further than most teams expect. **Apache Spark** is the engine you reach for when it does not: a distributed engine that splits a dataset into **partitions**, processes them in parallel on many machines, and combines the results.
 
@@ -103,6 +105,8 @@ Reading a plan is a core skill: use `df.explain("formatted")` and look at (a) th
 > 🛠 **Try it (10 min, Python).** DuckDB has an optimiser with the same pushdown ideas. Save `orders.parquet` as in Module 2.1 and run `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, printing the plan text (`.fetchall()[0][1]`). Then explain `SELECT * FROM 'orders.parquet'`. Find the scan node in both and read its `Projections` and `Filters`.
 >
 > **You should see:** in the first plan the Parquet scan lists only `payment_method` under `Projections` and `status='delivered'` under `Filters`: the optimiser pushed both into the scan, so other columns are never read and rows are filtered while reading. In the second plan the scan projects all six columns and has no filter. Spark's `explain("formatted")` shows the same ideas as `PushedFilters` and `ReadSchema`.
+
+## @part Joins, skew and tuning
 
 ## @lesson Joins and shuffles
 A join must bring matching keys together. Spark picks from several strategies:
@@ -208,6 +212,8 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 > 🛠 **Try it (15 min, Python).** See the small-files problem. Repeat the rows of `data/orders.csv` 30 times (about 109,000 rows) with `pd.concat([df] * 30)`. Write them once as `sf/one/all.parquet`, and again cut into 1,000 pieces as `sf/many/p0000.parquet` and so on. Compare the total bytes in each folder, and time `SELECT count(*) FROM read_parquet('<folder>/*.parquet')` in DuckDB for both. Delete `sf/` afterwards.
 >
 > **You should see:** both folders answer `109020`, but the 1,000 small files take about 7.4 MB against about 0.4 MB for one file (compression and per-file overhead both suffer), and the query over them is tens of times slower (around 60 ms against 1.5 ms here). Every file costs a listing, an open and a footer read, which is why a cluster that writes thousands of tiny files needs compaction.
+
+## @part Spark in production on Databricks
 
 ## @lesson Production Spark on Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
 Everything you just learned about Spark internals—Catalyst, Tungsten, AQE, shuffles, broadcast joins, and data skew—is the engine inside **Databricks**, which appears in **34.8%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), and in 53.4% of the 517 postings that mention Spark. Here is how a production Databricks platform puts those pieces together on AWS, Azure, or GCP.

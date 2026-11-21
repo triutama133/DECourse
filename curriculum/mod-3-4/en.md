@@ -15,6 +15,8 @@ why: Tutorials show clicking buttons in a web console. In a company, nobody can 
 ## @prereq
 Modules 1.1 (Linux, Docker, scripting), 2.2 (the lakehouse and object storage) and 2.4 (orchestration). Part A needs the Terraform CLI (1.5 or newer) and about 700 MB of disk for the AWS provider plugin. It needs no AWS account. Part B is plain Python.
 
+## @part Infrastructure as code and security
+
 ## @lesson Why infrastructure as code
 Picture the bucket where your pipeline writes its data. Someone created it in the cloud console eight months ago. Which encryption settings does it have? Who can read it? Why does the staging copy behave differently? Nobody can say for sure, because the truth lives in a web page and in somebody's memory.
 
@@ -174,6 +176,8 @@ Pipelines read S3 constantly. Without help, that traffic from a private subnet w
 >
 > **You should see:** `Apply complete! Resources: 7 added` (about 15 seconds); both subnets with `4091` available addresses, the number from the first Try it; and a route in the private route table to an S3 prefix list (`pl-…`) through the endpoint (`vpce-…`). After the hand-made change the plan exits with code `2`, says the security group `will be updated in-place`, shows `- "0.0.0.0/0"` and ends with `Plan: 0 to add, 1 to change, 0 to destroy.`; `apply` removes the hole. Measured with Terraform 1.17.2, AWS provider 5.100.0 and moto 5.2.5; `destroy` takes about 17 seconds.
 
+## @part Cost and architecture
+
 ## @lesson Where cloud data platforms spend your money
 Cloud pricing has three shapes. Learn which one each service uses and most surprises disappear.
 
@@ -239,6 +243,7 @@ You cannot rely on people to be careful at 22:30 on a Friday. Controls must be a
 - Add cost estimates to the plan review (tools like Infracost do this) so that "this adds a 16-credit warehouse" is visible before it is merged.
 - Start every new environment with a **teardown** in mind: `terraform destroy` for dev environments should be a normal, boring command.
 
+:::advanced A production CI/CD pipeline for Terraform (GitHub Actions)
 **Production GitHub Actions CI/CD Workflow for Terraform (Keyless OIDC + Trivy Security Scan + Plan Review).** Here is the standard GitOps pipeline used by production data engineering teams to lint, scan, estimate cost, and apply Terraform without storing a single static AWS access key in GitHub:
 
 ```yaml
@@ -302,6 +307,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
 ```
+:::
 
 > 💡 **Practice Pause 4 (FinOps Guardrails: Runaway Detection, Forecasting & Storage Tiering):**
 > 1. Open `labs/mod-3-4/finops.py` in your text editor.
@@ -370,6 +376,8 @@ These ideas from chapter 3 of the book come up in every system design interview,
 > 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: for `num_services` services called one after another, each available `service_sla` of the time (for example `0.999`), return `combined_sla` rounded to 6 decimals, `monthly_downtime_min` in a 30-day month (43,200 minutes) rounded to 1 decimal, and `needs_continuous_cdc`: `True` when the backups are further apart than the target RPO allows (section 4 of lesson 6).
 >
 > **Check it:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
+## @part Optional: apply it for real
 
 ## @lesson Optional: apply it for real, on a fake AWS on your laptop
 The lab only *plans*: the provider uses fake credentials and never talks to AWS. The other half of Terraform's job, actually creating, checking, repairing and destroying resources, needs an AWS endpoint. A real AWS account needs a payment card; **moto** needs nothing. It is an open-source Python program that answers the same API calls as AWS (S3, IAM, KMS and many more) on your own computer. Terraform, the `aws` command line and `boto3` cannot tell the difference, so you practise the real tools and the real workflow; only the cloud behind them is pretend.

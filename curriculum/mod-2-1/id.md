@@ -15,6 +15,8 @@ why: Banyak tutorial menyuruh Anda langsung menyalakan cluster terdistribusi han
 ## @prereq
 Modul 1.2 (streaming memori) dan Modul 1.3 (SQL analitik, execution plan). Jalankan `pip install -r labs/mod-2-1/requirements.txt` untuk memasang DuckDB, Polars, dan PyArrow.
 
+## @part Cara kerja penyimpanan kolumnar
+
 ## @lesson Baris versus kolom: arsitektur penyimpanan data
 Sebuah tabel pada dasarnya adalah kisi (grid) dua dimensi. Untuk menyimpannya ke dalam media disk atau RAM, kisi tersebut harus diratakan menjadi urutan byte linear, dan terdapat dua pendekatan mendasar:
 
@@ -101,6 +103,8 @@ Prinsip penting yang harus menjadi kebiasaan kerja Anda: **nyatakan logika trans
 > 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB atas `range(2000000) t(x)`. Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
 >
 > **Seharusnya Anda melihat:** kedua jawaban bernilai `1333332666666`; loop-nya butuh sekitar 160 ms dan DuckDB sekitar 20 ms. Rasio persisnya tergantung mesin Anda (harapkan antara 5 dan 15 kali), tetapi arahnya tidak pernah berubah: logika yang sama sebagai satu operasi kolom mengalahkan loop baris demi baris.
+
+## @part Alat dan tata letak
 
 ## @lesson DuckDB: mesin analitik SQL langsung di dalam proses aplikasi
 **DuckDB** adalah basis data analitik OLAP yang berjalan **langsung di dalam proses Python Anda** (in-process), mirip seperti SQLite namun dirancang khusus untuk pemindaian data masif dan agregasi analitik (kolumnar, tervektorisasi, paralel). Anda tidak memerlukan server database terpisah, cukup pasang library dan langsung query file di disk:

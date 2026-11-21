@@ -16,6 +16,8 @@ why: Setiap lowongan menyebut Snowflake, BigQuery, atau Redshift, dan setiap boo
 ## @prereq
 Modul 1.4 (pemodelan dimensional), 2.1 (penyimpanan kolumnar dan Parquet), dan 3.4 (dasar FinOps) membantu. Lab ini memakai Python murni dan tidak butuh akun cloud.
 
+## @part Cara kerja warehouse
+
 ## @lesson Apa itu cloud data warehouse
 Database operasional (Modul 0.1) dibuat untuk membaca dan menulis beberapa baris dengan sangat cepat bagi banyak pengguna. **Data warehouse** dibuat untuk pekerjaan yang berlawanan: **memindai data dalam jumlah sangat besar dan mengagregasinya** untuk beberapa analis dan dashboard. SQL yang sama, mesin yang berbeda.
 
@@ -51,6 +53,7 @@ Pengurutan itulah yang dimaksud **clustering**. Di Snowflake Anda mendefinisikan
 
 Aturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JOIN` (tanggal lebih dulu untuk data event); kolom berkardinalitas sangat tinggi (id unik) kurang baik di-cluster untuk filter rentang; dan terlalu banyak partisi mungil, seperti pada masalah file kecil di Modul 3.0, menambah overhead. Clustering membutuhkan biaya pemeliharaan, jadi ia untung pada tabel **besar** yang difilter berulang kali.
 
+:::advanced DDL produksi untuk BigQuery, Snowflake, dan Redshift
 **DDL Produksi Berdampingan: Mendeklarasikan Partisi, Clustering, dan Sort Key di Cloud Warehouse Nyata.** Dalam pekerjaan sehari-hari, Anda mendeklarasikan tata letak fisik ini melalui SQL DDL (atau di dalam blok `config(...)` model dbt Anda). Bandingkan bagaimana tabel `fct_orders` yang sama persis dideklarasikan di ketiga cloud data warehouse utama:
 
 ```sql
@@ -97,6 +100,7 @@ COMPOUND SORTKEY (order_date, status);
 ```
 
 Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.
+:::
 
 > 💡 **Jeda Praktik 1 (Micro-Partisi, Zone Map & Partition Pruning):**
 > 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-6/warehouse_lab.py` (ingat: jangan mengeksekusi file `.py` langsung di bash terminal tanpa interpreter atau argumen).
@@ -122,6 +126,7 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 
 **Mengukur komputasi.** Di Snowflake sebuah **virtual warehouse** hadir dalam ukuran (X-Small, Small, Medium, ...); setiap naik satu ukuran menggandakan mesin dan credit per jam. Warehouse yang lebih besar sering menyelesaikan query berat lebih cepat dengan total biaya kurang lebih sama, tetapi tidak memberi manfaat bagi query yang sudah kecil; auto-suspend (Modul 3.4) menjaga waktu menganggur tetap murah. BigQuery mengalokasikan **slot** (satuan komputasi) per query secara otomatis, atau Anda mencadangkan jumlah tetap. Klaster Redshift provisioned diukur dalam node; Redshift Serverless menskala sesuai kebutuhan.
 
+:::advanced Membaca query profile warehouse
 **Cara Membaca Query Profile di Cloud Warehouse (4 Bottleneck Produksi Utama).** Saat sebuah query warehouse berjalan 8 menit atau menghabiskan $50, jangan menebak-nebak—buka **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Setiap Senior Data Engineer langsung memeriksa empat indikator ini:
 
 | Gejala di Query Profile | Apa yang Terlihat di Graf Eksekusi | Akar Masalah | Solusi Produksi |
@@ -130,6 +135,7 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 | **2. Spill ke Disk / S3 (Local / Remote Spill)** | `Bytes spilled to local storage: 48 GB` / `Bytes spilled to remote storage: 190 GB` | Operasi `GROUP BY`, `COUNT(DISTINCT)`, atau `ROW_NUMBER() OVER (...)` melampaui RAM worker sehingga membuang state sementara ke SSD dan S3! | Pangkas kolom/baris sebelum window/join, pecah menjadi dua tahap, atau naikkan ukuran warehouse sementara (`Small -> Large`) khusus untuk transformasi berat tersebut |
 | **3. Ledakan Network Broadcast / Shuffle** | `Repartition / Broadcast: 78% waktu eksekusi`, miliaran baris dikirim lewat jaringan | Men-join dua tabel besar pada kunci yang tidak co-located, atau terjadi join fan-out `M:N` tanpa sengaja (Modul 1.4) | Pastikan keunikan kunci join (`1:N`), samakan `DISTKEY` / clustering key, atau lakukan pra-agregasi sebelum join |
 | **4. Worker Timpang (Straggler Skew)** | `Max worker time: 420s · Median worker time: 6s` | 90% baris memiliki `customer_id IS NULL` atau `'GUEST'` sehingga menumpuk di satu node worker MPP | Pisahkan baris `NULL` sebelum join (gabungkan kembali dengan `UNION ALL` di akhir) atau gunakan key salting (Modul 3.1) |
+:::
 
 > 💡 **Jeda Praktik 2 (Metrik Overlap Clustering & Distribusi MPP):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
@@ -138,6 +144,8 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 > 4. Uji di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
 > 5. **Indikator Sukses:** Sebanyak 13 tes lulus membuktikan bahwa join yang co-located dan replikasi dimensi kecil tidak memindahkan data lewat jaringan.
+
+## @part Biaya, pemuatan, dan tata kelola
 
 ## @lesson Biaya: harga berbasis pemindaian dan berbasis waktu
 Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 memperkenalkan keduanya).
@@ -174,6 +182,7 @@ Praktik lain:
 
 Catat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, jumlah baris, dan baris yang ditolak. Merekonsiliasi jumlah antara sumber dan warehouse (Modul 2.5) adalah pemeriksaan kualitas data termurah yang ada.
 
+:::advanced Bulk load produksi dan MERGE yang idempoten
 **SQL Produksi untuk Bulk-Load & `MERGE` Idempoten (Snowflake, BigQuery, Redshift).** Perhatikan bagaimana ketiga warehouse memuat file Parquet dari object storage secara paralel, dan bagaimana perintah `MERGE` **wajib** menyertakan filter pemangkas partisi pada tabel target (`t.order_date >= ...`) agar tidak memindai seluruh tabel fakta historis:
 
 ```sql
@@ -219,6 +228,7 @@ WHEN NOT MATCHED THEN
 ```
 
 **Mengapa batasnya harus berasal dari batch.** Jendela tetap seperti "dua hari terakhir" tampak aman dan membuat `MERGE` murah, tetapi ia rusak begitu sebuah pesanan lama berubah: refund untuk pesanan tiga minggu lalu tidak cocok dengan baris mana pun di dalam jendela, sehingga `WHEN NOT MATCHED` memasukkannya sebagai baris *kedua* dan pesanan itu terhitung dua kali. Direproduksi di DuckDB 2.0.1: dengan batas tetap, refund terlambat untuk pesanan lama menjadi duplikat (`paid 100` dan `refunded 0` untuk `order_id` yang sama); dengan batas yang diambil dari `order_date` tertua di batch, pesanan itu diperbarui di tempat, menjalankan ulang batch yang sama tidak mengubah apa pun, dan setiap pesanan tetap punya tepat satu baris.
+:::
 
 > 💡 **Jeda Praktik 4 (Perencanaan File Bulk Load Paralel):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
@@ -234,6 +244,7 @@ WHEN NOT MATCHED THEN
 
 Dua fitur yang akan Anda dengar: **zero-copy cloning** (Snowflake) membuat salinan tabel atau database sebagai metadata, yang hanya memakan penyimpanan untuk perubahan, ideal untuk lingkungan uji; dan **secure data sharing** membiarkan akun lain mengkueri data Anda tanpa menyalin.
 
+:::advanced SQL tata kelola produksi, dan konvergensi warehouse dan lakehouse
 **SQL Tata Kelola Produksi: Dynamic Data Masking, Row-Level Security & Zero-Copy Clone.** Daripada memelihara dua tabel terpisah ("tabel disamarkan" dan "tabel asli"), cloud warehouse modern menegakkan penyamaran kolom PII dan isolasi baris multi-tenant langsung di kebijakan katalog:
 
 ```sql
@@ -286,6 +297,7 @@ Dalam praktik, pilihan sering ditentukan oleh penyedia cloud perusahaan dan kont
 | **3. Tabel Open Lakehouse** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Di dalam bucket S3/GCS/ADLS milik Anda dalam format terbuka **Apache Iceberg** | Katalog terbuka Iceberg (REST / Glue / Polaris / Unity) | **Keputusan pintu dua arah (reversible):** Spark, DuckDB, Trino, dan Flink bisa membaca file Parquet yang sama di tempatnya, tanpa salinan; seberapa dekat kecepatannya dengan native bergantung pada engine dan perawatan tabel (compaction), jadi ukurlah pada query Anda sendiri |
 
 Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai banyak partisi atau kolom; lihat partisi yang dipindai dan byte yang ditagih). "Bagaimana membuatnya lebih murah?" (filter pada kolom clustering atau partisi, pilih hanya kolom yang perlu, pra-agregasi). "Apa beda harga Snowflake dan BigQuery?" (waktu komputasi versus byte yang dipindai). "Mengapa ukuran file 100 hingga 250 MB?" (paralelisme tanpa overhead per file).
+:::
 
 > 💡 **Jeda Praktik 5 (Result Caching & Antrean Konkurensi):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
@@ -294,6 +306,8 @@ Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai ba
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Indikator Sukses:** Sebanyak 8 tes berstatus `PASSED` membuktikan keandalan invalidasi result cache dan akurasi simulasi antrean slot.
+
+## @part Penyajian, dan warehouse sungguhan
 
 ## @lesson Menyajikan dan mengganti: semantic layer, reverse ETL, federation, data mesh, dan strangler fig
 > **Intinya:** Menyajikan data lebih dari sekadar dashboard. **Semantic layer** mendefinisikan setiap metrik bisnis sekali saja, sehingga setiap tool mendapat angka yang sama. **Reverse ETL** mengirim hasil dari warehouse kembali ke tool operasional, sehingga harus aman untuk diulang. **Federation** meng-query beberapa sistem tanpa menyalinnya lebih dulu. **Data mesh** menyerahkan kepemilikan data kepada tim domain. Dan saat Anda mewarisi pipeline lama, pola **strangler fig** menggantinya sedikit demi sedikit, membandingkan yang lama dan yang baru sampai keduanya sepakat.

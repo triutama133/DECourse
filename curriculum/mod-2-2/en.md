@@ -15,6 +15,8 @@ why: Courses treat a data lake as a folder of Parquet files. Without a table for
 ## @prereq
 Module 2.1 (Parquet, row groups, statistics). `pip install -r labs/mod-2-2/requirements.txt` installs PyIceberg and delta-rs; no Docker or cloud account is needed because the lab uses a local catalog and plain folders.
 
+## @part Iceberg
+
 ## @lesson What goes wrong with a folder of Parquet files
 Module 2.1 gave you an excellent file format. The natural next step is a **data lake**: store Parquet files in cheap object storage (S3, GCS, a local folder) and query them. Every one of the following problems shows up quickly in production.
 
@@ -129,6 +131,8 @@ That last fact has a serious consequence. **A delete in a table format hides row
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_time_travel_sees_the_past or test_delete_creates_a_snapshot"`
 > 5. Ensure both tests pass (`2 passed`). Prove to yourself that the snapshot prior to the delete still yields 7 rows, even though active queries only show 5 rows.
 
+## @part Evolution, Delta Lake and operations
+
 ## @lesson Schema evolution, partition evolution and hidden partitioning
 **Schema evolution.** Iceberg identifies every column by a permanent **numeric field id**, not by its name or its position. The ids are in the metadata (`{"id": 4, "name": "status"}`) and in each Parquet file. Consequences, all demonstrated in the lab's tests:
 
@@ -188,11 +192,13 @@ How do the two compare?
 
 The formats have been converging, and tools exist to expose one format's tables to readers of another. For a first project, choose by your ecosystem: **Delta** if you live on Databricks, **Iceberg** if you want maximum engine and vendor neutrality. **Hudi** is the third option, strong for incremental processing and upserts. Everything in this module (snapshots, atomic commits, field ids, pruning, maintenance) applies to all three.
 
+:::advanced Delta Lake 3 features you will meet in production
 **Modern Delta Lake 3.0+ & Databricks Features You Will Meet in Production:**
 1. **Liquid Clustering (`CLUSTER BY (order_date, customer_id)`):** Replaces rigid Hive-style `PARTITION BY` folders and manual `OPTIMIZE ... ZORDER BY`. Delta organizes data into flexible Z-cubes that can be re-clustered incrementally as query patterns change, without rewriting the existing table.
 2. **Deletion Vectors (Merge-on-Read for Delta):** Instead of rewriting an entire 512 MB Parquet file when a single row is deleted or updated, Delta writes a tiny roaring-bitmap deletion vector file marking the row's physical index as deleted, then compacts it later during `OPTIMIZE`.
 3. **Change Data Feed (`delta.enableChangeDataFeed = true`):** Exposes row-level changes (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) between any two table versions so downstream Silver/Gold tables can process only the changed rows instead of re-scanning the entire Bronze table.
 4. **Delta Universal Format (UniForm):** Automatically generates **Apache Iceberg metadata** alongside every `_delta_log` commit so external Iceberg readers (Snowflake, BigQuery, Trino, DuckDB) can query a Databricks Delta table directly with zero data duplication.
+:::
 
 > 💡 **Practice Pause: Managing Delta Lake Transaction Logs**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, navigate to Part B (Delta Lake).

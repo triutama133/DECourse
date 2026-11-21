@@ -15,6 +15,8 @@ why: Tutorials say star schemas are dead and to dump everything into one big tab
 ## @prereq
 Modules 0.3 and 1.3 (joins, the fan-out trap, window functions such as LEAD, recursive CTEs). The lab uses plain SQL on SQLite plus a short Python helper; nothing to install.
 
+## @part Designing a star schema
+
 ## @lesson Why analytics needs a different design
 The application database that runs KopiKu is **normalised**: every fact is stored once, in many small tables, so writes are safe and fast (Module 0.3). A question like "revenue per customer tier per week by roast level" would need five or six joins across tables designed for something else, written by an analyst who must remember how they connect. It is slow, error-prone, and every analyst writes it slightly differently, so two dashboards disagree.
 
@@ -137,6 +139,8 @@ In the lab's data, 32 order lines belong to customers who do not exist in the cu
 > 🛠 **Try it (10 min, Python).** With the generated KopiKu files, find the orders whose `customer_id` does not exist in `data/customers.csv`, and how many order lines belong to them. Then decide: if the fact table required a real customer key, what would happen to those lines, and how would an "Unknown" member save them?
 >
 > **You should see:** `16` orders and `32` order lines (the number this lesson quotes). Write the one sentence you would put in the model's documentation about them.
+
+## @part History, trust and other approaches
 
 ## @lesson Slowly changing dimensions: remembering what used to be true
 Customers move, products are renamed, tiers are re-evaluated. A dimension's attributes change **slowly** over time, and you must decide what a report about the *past* should say. That decision is the **slowly changing dimension (SCD) type**, chosen per attribute:

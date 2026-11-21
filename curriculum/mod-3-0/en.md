@@ -16,6 +16,8 @@ why: Interviews and job posts still say Hadoop, HDFS and Hive, but most tutorial
 ## @prereq
 Module 0.0 (Python) and Module 2.1 (columnar files) help. The lab is plain Python and needs no cluster. Module 3.1 (Spark) builds directly on this one.
 
+## @part Storage and compute: HDFS and MapReduce
+
 ## @lesson Why Hadoop was invented
 Around 2003 a search company could not store the web on one computer. A single machine, however large, has limits: a disk holds a few terabytes, reading it takes hours, and the biggest machines cost far more than ten times what ten ordinary ones cost. There are two ways to grow. **Scale up** means buying a bigger machine; it hits a ceiling and a price wall. **Scale out** means connecting many ordinary machines and letting them share the work; it has no ceiling, but it creates new problems.
 
@@ -100,6 +102,8 @@ A **combiner** is a mini-reducer that runs on the map side, before the shuffle, 
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-3-0/test_lab.py -k "TestReduceSideJoin or TestFaultTolerance" -v`
 > 5. **Success Indicator:** All 6 tests report `PASSED`, confirming accurate reduce-side joins and resilient automated task retries.
+
+## @part YARN, Hive, and what replaced them
 
 ## @lesson YARN: sharing the cluster
 In the first Hadoop, one component ran MapReduce jobs *and* decided which machine ran what. That meant the cluster could run only MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) split the two jobs apart, so that Spark, Tez, Flink and others could share the same machines.

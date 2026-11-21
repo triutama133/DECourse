@@ -15,6 +15,8 @@ why: Tutorials show a few models with no tests. In production, raw data changes 
 ## @prereq
 Modules 1.3 and 1.4 (window functions, dimensional modeling) and 2.1 (DuckDB). `pip install -r labs/mod-2-3/requirements.txt` installs dbt Core and the DuckDB adapter; no warehouse account is needed.
 
+## @part dbt basics
+
 ## @lesson ELT and where dbt fits
 Module 0.1 introduced **ELT**: load raw data into the warehouse first, then transform it *inside* the warehouse with SQL. That is a good idea for the reasons given there (the warehouse is powerful and cheap, and raw data is preserved), but it leaves a practical problem. A transformation layer written as a pile of SQL scripts is fragile: nobody knows which script depends on which, what order to run them in, whether the output is correct, or what any table means.
 
@@ -143,6 +145,8 @@ where rn = 1 and order_ts is not null and total_idr > 0
 > 3. Compile and materialize only the staging layer:
 >    `dbt run --select staging --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Success Indicator:** Terminal confirms `OK created sql view model main.stg_orders` and `main.stg_customers` (four staging views in all, with `stg_order_items` and `stg_products`) without SQL errors.
+
+## @part Trust and change
 
 ## @lesson Tests and documentation: trust, written down
 dbt's tests turn "the data should satisfy X" into code that runs on every build. Two kinds:

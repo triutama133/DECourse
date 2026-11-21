@@ -15,6 +15,8 @@ why: Tutorials call an embedding API once on a pile of text files and show a cha
 ## @prereq
 Modules 1.3 (PostgreSQL, indexes, EXPLAIN), 2.5 (data quality and contracts) and 3.2 (streaming and change capture are useful context for the sync lesson). The lab needs `pip install -r labs/mod-3-5/requirements.txt` and uses an embedded PostgreSQL that already contains pgvector. It makes no network calls, and needs no GPU, API key or account.
 
+## @part From documents to vectors
+
 ## @lesson What RAG is, and what the data engineer owns
 A large language model (LLM) knows what was in its training data. It does not know your refund policy, last week's price list or a customer's open ticket, and when it lacks facts it tends to produce fluent, confident, wrong answers. **Retrieval-augmented generation (RAG)** fixes this at question time: the application first *retrieves* the few passages of your own data that are relevant to the question, then puts them into the prompt and asks the model to answer from them (ideally citing them).
 
@@ -83,6 +85,8 @@ Filtering has a trap. If a system runs the approximate vector search first and f
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
 > 4. **Success Indicator:** All 7 tests report `PASSED`, validating structure-aware chunking, heading context attachment, and overlap windows without tiny trailing fragments.
+
+## @part Storing, updating and evaluating
 
 ## @lesson Vector storage and approximate search
 Finding the exact nearest vectors means comparing the query with every stored vector: it is simple, always correct, and its cost grows linearly. At 20,000 vectors of 64 dimensions the lab's exact scan took about 5 ms per query; at 20 million vectors it takes seconds. **Approximate nearest neighbour (ANN)** indexes answer much faster by accepting that they may miss a true neighbour.

@@ -15,6 +15,8 @@ why: Tutorials run everything on a laptop with 16 GB of RAM and a friendly termi
 ## @prereq
 Modules 0.2 and 0.3: terminal basics, Git, and the idea of a Python virtual environment. Docker is needed only for the optional runtime part of the lab; the checks do not require it.
 
+## @part Shell tools and scripts
+
 ## @lesson How a Unix program thinks: processes, streams and exit codes
 Everything you run is a **process**: a program with its own memory, a numeric id (PID), and three standard streams: **stdin** (input), **stdout** (output) and **stderr** (errors and diagnostics). Because commands only read and write streams of bytes, you can connect any command to any other with `|`. This is the design that makes the shell powerful: small programs, one job each, joined together.
 
@@ -143,6 +145,8 @@ Habits that keep scripts reliable:
 > 3. Test your script in the terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
 > When all Part A tests are GREEN (PASSED), your professional Unix stream script is done! Proceed to Lesson 5 on Cron.
+
+## @part Running jobs: cron, containers and limits
 
 ## @lesson Scheduling jobs with cron
 **cron** runs commands on a schedule. Edit your table with `crontab -e`. Each line has five time fields then the command:

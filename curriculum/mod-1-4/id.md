@@ -15,6 +15,8 @@ why: Tutorial daring sering mengklaim star schema sudah kuno dan menyuruh Anda m
 ## @prereq
 Modul 0.3 dan 1.3 (join, jebakan fan-out, window function seperti LEAD, dan CTE rekursif). Lab ini menggunakan SQL murni pada SQLite ditambah script pembantu Python ringan; tidak perlu instalasi rumit.
 
+## @part Merancang star schema
+
 ## @lesson Mengapa analitik membutuhkan rancangan yang berbeda
 Basis data operasional yang menjalankan aplikasi KopiKu dirancang secara **ternormalisasi**: setiap fakta dicatat satu kali saja di dalam banyak tabel kecil agar operasi tulis (insert, update) berlangsung cepat dan konsisten (Modul 0.3). Namun, pertanyaan bisnis seperti "berapa pendapatan per tier pelanggan per minggu berdasarkan tingkat sangrai kopi" membutuhkan join melintasi lima hingga enam tabel operasional. Query semacam ini lambat, rentan salah tulis, dan karena setiap analis menulis join dengan cara berbeda, dua dashboard yang berbeda bisa menampilkan angka yang saling bertentangan.
 
@@ -137,6 +139,8 @@ Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terda
 > 🛠 **Coba sendiri (10 menit, Python).** Dengan file KopiKu yang sudah dibuat, temukan pesanan yang `customer_id`-nya tidak ada di `data/customers.csv`, dan berapa baris pesanan milik mereka. Lalu putuskan: jika tabel fakta mewajibkan key pelanggan yang nyata, apa yang terjadi pada baris-baris itu, dan bagaimana anggota "Unknown" menyelamatkannya?
 >
 > **Seharusnya Anda melihat:** `16` pesanan dan `32` baris pesanan (angka yang disebut pelajaran ini). Tulis satu kalimat yang akan Anda cantumkan di dokumentasi model tentang mereka.
+
+## @part Riwayat, kepercayaan, dan pendekatan lain
 
 ## @lesson Slowly changing dimensions: merekam kebenaran masa lalu
 Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diperbarui. Nilai atribut dalam dimensi berubah secara **perlahan (slowly)** seiring waktu, dan Anda harus memutuskan apa yang harus ditampilkan oleh laporan tentang masa lalu. Keputusan arsitektur inilah yang dinamakan tipe **Slowly Changing Dimension (SCD)**:

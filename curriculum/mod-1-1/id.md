@@ -15,6 +15,8 @@ why: Tutorial menjalankan semuanya di laptop dengan RAM 16 GB dan terminal yang 
 ## @prereq
 Modul 0.2 dan 0.3: dasar terminal, Git, dan gagasan virtual environment Python. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
 
+## @part Alat shell dan skrip
+
 ## @lesson Cara program Unix berpikir: proses, stream, dan exit code
 Segala yang Anda jalankan adalah sebuah **proses**: program dengan memorinya sendiri, id numerik (PID), dan tiga aliran standar: **stdin** (masukan), **stdout** (keluaran), dan **stderr** (error dan diagnostik). Karena perintah hanya membaca dan menulis aliran byte, Anda bisa menyambung perintah apa pun ke perintah lain dengan `|`. Inilah desain yang membuat shell kuat: program kecil, satu tugas masing-masing, disambung bersama.
 
@@ -143,6 +145,8 @@ Kebiasaan yang menjaga skrip tetap andal:
 > 3. Uji pekerjaan Anda di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
 > Jika semua pengujian Bagian A berwarna HIJAU (PASSED), Anda telah menyelesaikan skrip stream Unix profesional! Lanjut ke Pelajaran 5 tentang Cron.
+
+## @part Menjalankan job: cron, container, dan batas
 
 ## @lesson Menjadwalkan job dengan cron
 **cron** menjalankan perintah menurut jadwal. Ubah tabel Anda dengan `crontab -e`. Setiap baris punya lima field waktu lalu perintahnya:

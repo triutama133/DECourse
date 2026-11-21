@@ -15,6 +15,8 @@ why: Dalam tutorial pemula, sebuah pipeline dianggap selesai saat data mendarat 
 ## @prereq
 Modul 0.1 (lima penyebab rusaknya data), Modul 1.2 (validasi dan karantina), serta Modul 2.3 (dbt tests). Jalankan `pip install -r labs/mod-2-5/requirements.txt` untuk menginstal PyYAML dan pytest.
 
+## @part Mencegah data buruk
+
 ## @lesson Apa arti "kualitas": dimensi yang dapat diuji
 Istilah "data kotor" atau "data rusak" terlalu ambigu untuk ditindaklanjuti secara teknis. Kualitas data pada hakikatnya adalah **kesesuaian data untuk tujuan penggunaan spesifik (fitness for purpose)**. Agar dapat diuji secara otomatis dalam pipeline rekayasa data, konsep kualitas dipecah menjadi beberapa dimensi terukur. Menggunakan contoh data pesanan KopiKu:
 
@@ -136,6 +138,8 @@ Prinsip perancangan ingestion gate produksi:
 >    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
 > 4. **Indikator Sukses:** Sebanyak 13 tes berstatus `PASSED`, memverifikasi bahwa 3.394 baris valid diterima dan 240 baris cacat dikarantina dengan pesan error yang presisi.
 
+## @part Mendeteksi dan menanggapi
+
 ## @lesson Monitoring: freshness, volume, schema, dan distribution
 Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per satu baris individual. **Pemantauan di tingkat dataset (dataset-level monitoring)** mengamati *karakteristik bentuk dari keseluruhan pengiriman data* dan mampu mendeteksi anomali berbahaya di mana setiap baris tampak valid secara individu namun secara kolektif salah total. Inilah pilar utama dari **observabilitas data (data observability)**:
 
@@ -205,6 +209,8 @@ Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** u
 > 3. Uji perilaku orkestrasi di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.
+
+## @part Metadata, privasi, dan master data
 
 ## @lesson Lebih dari kualitas: metadata, data pribadi, penghapusan, dan master data
 > **Intinya:** Kualitas data hanyalah satu bagian dari *data management*. Bagian lain yang paling penting dalam praktik: metadata (agar orang bisa menemukan dan memahami data), melindungi data pribadi (pseudonimkan sejak di pintu masuk, dengan kunci rahasia), menghapus seseorang saat hukum mewajibkannya, dan master data management (satu record per pelanggan nyata, dibangun dari banyak sistem).

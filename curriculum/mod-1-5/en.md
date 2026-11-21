@@ -16,6 +16,8 @@ why: Tutorials show pandas on a tidy CSV and loop over rows with apply. Real fil
 ## @prereq
 Modules 0.0 and 0.1 (Python functions, loops, virtual environments) and 0.3 (SQL grouping and joins). The lab needs `pandas` and `pyarrow` in your virtual environment (`pip install -r labs/mod-1-5/requirements.txt`).
 
+## @part Loading and cleaning
+
 ## @lesson What pandas is, and when to use it
 **pandas** is the Python library for working with tables in memory. Its two core objects are:
 
@@ -93,6 +95,8 @@ A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure f
 > 2. Test in the terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestClean or TestPaidAndRevenue" -v`
 > When tests show PASSED, proceed to Lesson 4 for aggregations, pivoting, and ranking!
+
+## @part Combining and scaling up
 
 ## @lesson Group, pivot and rank
 **`groupby`** is the heart of analytics in pandas: split the table into groups, compute something per group, put the results back. The clearest form is **named aggregation**:

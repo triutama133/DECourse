@@ -17,6 +17,8 @@ why: Tutorials push random messages into Kafka and print them. Real systems must
 ## @prereq
 Modules 1.2 (idempotency), 2.2 (table formats) and 2.4 (orchestration). Part A of the lab needs no installation. Part B needs a Kafka-compatible broker (`docker compose up -d redpanda`, or any Kafka). Part C needs PostgreSQL with logical decoding (an embedded one is installed by `pip`).
 
+## @part Kafka fundamentals
+
 ## @lesson The log: why streaming exists
 Until now data moved in **batches**: a job copies yesterday's rows. Many needs are different: fraud checks within seconds, a dashboard that updates as orders arrive, a search index that follows the product database, ten teams that all want the same stream of events without hammering the source. For these, systems exchange **events** continuously.
 
@@ -90,6 +92,8 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 >
 > **You should see:** a clean election picks `B` and loses `[]`; the unclean election picks `C` and loses `[8, 9, 10]` — acknowledged records, silently. With the ISR `[A, B]`, writes are accepted for `min_isr=2` and refused for `min_isr=3`, the `NOT_ENOUGH_REPLICAS` situation of Experiment 2.
 
+## @part Producers, consumers and schemas
+
 ## @lesson Producers and consumers: delivery guarantees
 **Producers.** Important settings:
 
@@ -160,6 +164,8 @@ Practical rules:
 > 🛠 **Try it (20 min, Python).** Write a compatibility checker. Represent a schema as `{field: (type, has_default)}`, with the lesson's starting point `{id: (int, False), customer: (string, False), total: (int, False)}`. `backward(old, new)` (a reader on the new schema reads data written with the old one) fails if the new schema has a field that the old one lacks and that has no default, or if a field changed type. `forward(old, new)` is the same check with the roles swapped. Run four changes: add an optional field `channel` with a default, add `channel` without a default, remove `total`, and change `total` from `int` to `string`. Print backward, forward and full (both) for each.
 >
 > **You should see:** add optional: backward `True`, forward `True`; add required: backward `False`, forward `True`; remove `total`: backward `True`, forward `False`; `int` to `string`: both `False`. That reproduces the table in this lesson. Which of the four would a registry with the default rule BACKWARD reject with HTTP 409?
+
+## @part Change data capture
 
 ## @lesson Change data capture: turning a database into a stream
 How do you get an operational database's changes into the platform? The naive way is **query-based**: every few minutes, `SELECT * FROM orders WHERE updated_at > :last_run`. Problems: it **misses deletes** (a deleted row is simply gone), it misses intermediate states (two updates between polls look like one), it needs a reliable `updated_at`, and it puts repeated load on the production database.

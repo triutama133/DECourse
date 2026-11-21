@@ -15,6 +15,8 @@ why: Bootcamp mengajarkan pandas pada file kecil yang bersih. Di produksi, kode 
 ## @prereq
 Modul 0.2 dan 0.3, serta dasar Python (fungsi, loop, dictionary, file). Virtual environment dengan `pip install -r labs/mod-1-2/requirements.txt`.
 
+## @part Membangun job-nya
+
 ## @lesson Dari skrip ke job: struktur dan batas
 Skrip pemula adalah satu file panjang yang membaca file, mengulang, lalu mencetak. Ia berfungsi sekali. Sebuah **job** harus berjalan tiap malam, dipahami orang lain, diuji tanpa sumber data sungguhan, dan gagal dengan cara yang disadari orang. Perbedaannya sebagian besar ada pada struktur.
 
@@ -150,6 +152,8 @@ Satu hal yang tidak bisa dilakukan stream secara gratis adalah **deduplikasi**: 
 > 3. Uji konsumsi memori dan sifat generator di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
 > Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 4 tentang retry dan idempotensi.
+
+## @part Membuatnya andal
 
 ## @lesson Error, retry, dan idempotensi
 **Tangkap exception yang spesifik, tangani yang bisa Anda tangani, biarkan sisanya gagal dengan jelas.** `except Exception: pass` adalah baris termahal yang bisa Anda tulis, karena mengubah setiap bug di masa depan menjadi kehilangan data yang senyap. Tangkap tipe tersempit (`ValidationError`, `FileNotFoundError`), lakukan sesuatu yang disengaja (karantina, retry, keluar dengan kode), dan tambahkan konteks saat melempar ulang: `raise RuntimeError("loading orders failed") from exc` mempertahankan traceback aslinya.

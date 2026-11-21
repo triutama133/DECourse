@@ -15,6 +15,8 @@ why: Tutorials assume your computer is already set up. Then you meet "command no
 ## @prereq
 Module 0.1 helps but is not required. You need a computer where you can install software: Linux, macOS, or Windows 10/11 with WSL2 (recommended on Windows because almost every data tool assumes a Linux-style shell).
 
+## @part The terminal
+
 ## @lesson Why engineers live in the terminal
 A graphical interface is great for exploring. It is poor at **repeating** things, **recording** what you did, and **running on machines with no screen**. Servers in the cloud have no desktop, and the job that runs your pipeline at 2 a.m. has no mouse. Everything on those machines is done with text commands, and everything you automate is a text command someone can read, review and re-run.
 
@@ -100,6 +102,8 @@ Every program has three standard streams: input (`stdin`), output (`stdout`) and
 > `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
 > Notice how you aggregated thousands of KopiKu transaction rows into status counts in milliseconds! Proceed to Lesson 4 to isolate your Python environment.
 
+## @part Python environments and Git
+
 ## @lesson Python: install it once, then isolate every project
 Check what you have: `python3 --version`. For this course use Python 3.10 or newer. On Linux and macOS, use the system's package manager or the official installer; on Windows, work inside WSL2 (the **Start here** page walks through installing it).
 
@@ -178,6 +182,8 @@ git diff                         # see unstaged changes line by line
 > 3. Make your first commit:
 > `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
 > 4. Check your history: `git log --oneline` (you have your first commit!). Proceed to Lesson 6.
+
+## @part Safe working habits
 
 ## @lesson Secrets and configuration
 A **secret** is anything that grants access: passwords, API keys, tokens, private keys, database connection strings with passwords. A **configuration** is a setting that differs between environments (the database host in development vs production). Both belong *outside* your code.

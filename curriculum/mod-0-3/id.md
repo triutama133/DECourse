@@ -17,6 +17,8 @@ why: Tutorial memperlakukan SQL sebagai sintaks untuk dihafal pada tabel yang se
 ## @prereq
 Modul 0.1 dan 0.2 membantu. Anda bisa mengerjakan seluruh lab di browser (SQL Sandbox) atau dengan modul `sqlite3` bawaan Python; tidak perlu instalasi.
 
+## @part Membaca tabel
+
 ## @lesson Tabel, baris, kolom, dan kunci
 **Database relasional** menyimpan data dalam **tabel**. Tabel seperti lembar spreadsheet dengan aturan ketat: setiap kolom punya **nama dan tipe** (integer, teks, tanggal, desimal), dan setiap baris punya kolom yang sama. Data mini KopiKu punya empat tabel:
 
@@ -113,6 +115,8 @@ Tempat lain di mana NULL menggigit:
 > `python3 labs/mod-0-3/check.py`
 > Pastikan k-4 mencetak PASS (menghasilkan 7 pelanggan, bukan 5!). Lanjut ke Pelajaran 4 di bawah.
 
+## @part Menghitung
+
 ## @lesson Fungsi teks, angka, dan tanggal
 Kolom di dunia nyata berantakan: nama dengan huruf campur aduk, rasio yang harus dihitung, tanggal yang disimpan sebagai teks. Sebuah **fungsi** mengubah nilai di dalam query, satu hasil per baris (agregat seperti `SUM` meleburkan baris; fungsi tidak). Contohnya berjalan pada dataset KopiKu di SQL Sandbox.
 
@@ -188,6 +192,8 @@ Waspadai pembagian bilangan bulat: di banyak database `7 / 2` adalah `3`. Tulis 
 > Uji ketiga query ini di terminal:
 > `python3 labs/mod-0-3/check.py`
 > Jika k-2, k-3, dan k-7 PASS, Anda telah menguasai agregasi data! Lanjut ke Pelajaran 6 tentang Join.
+
+## @part Menggabungkan data
 
 ## @lesson Join: menggabungkan tabel, dan bagaimana ia bisa salah
 **Join** menyatukan baris dari dua tabel yang cocok pada sebuah kunci.
@@ -326,6 +332,8 @@ Gaya penulisan penting karena orang lain akan merawat SQL Anda. Taruh tiap klaus
 > Sekarang uji seluruh 10 jawaban Anda di terminal:
 > `python3 labs/mod-0-3/check.py`
 > Jika skor Anda **10/10 answers correct**, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 9 untuk DML & Transaksi.
+
+## @part Mengubah dan mendefinisikan tabel
 
 ## @lesson Mengubah data dengan aman: DML, constraint, dan transaksi
 Selain membaca, SQL mengubah data:

@@ -15,6 +15,8 @@ why: Tutorial mengira komputer Anda sudah siap. Lalu Anda bertemu "command not f
 ## @prereq
 Modul 0.1 membantu tetapi tidak wajib. Anda butuh komputer yang boleh Anda pasangi perangkat lunak: Linux, macOS, atau Windows 10/11 dengan WSL2 (disarankan di Windows karena hampir semua alat data mengasumsikan shell bergaya Linux).
 
+## @part Terminal
+
 ## @lesson Mengapa engineer tinggal di terminal
 Antarmuka grafis bagus untuk menjelajah. Ia buruk untuk **mengulang** pekerjaan, **mencatat** apa yang Anda lakukan, dan **berjalan di mesin tanpa layar**. Server cloud tidak punya desktop, dan job yang menjalankan pipeline Anda pukul 2 pagi tidak punya mouse. Semua di mesin-mesin itu dikerjakan dengan perintah teks, dan semua yang Anda otomatisasi adalah perintah teks yang bisa dibaca, ditinjau, dan dijalankan ulang orang lain.
 
@@ -100,6 +102,8 @@ Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`)
 > `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
 > Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
 
+## @part Lingkungan Python dan Git
+
 ## @lesson Python: pasang sekali, lalu isolasi setiap proyek
 Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2 (halaman **Mulai di sini** menuntun cara memasangnya).
 
@@ -178,6 +182,8 @@ git diff                         # lihat perubahan yang belum di-stage baris dem
 > 3. Buat commit pertama Anda:
 > `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
 > 4. Periksa riwayat Anda: `git log --oneline` (Anda resmi memiliki snapshot Git pertama!). Lanjut ke Pelajaran 6.
+
+## @part Kebiasaan kerja yang aman
 
 ## @lesson Rahasia dan konfigurasi
 **Rahasia (secret)** adalah apa pun yang memberi akses: password, API key, token, private key, connection string database yang berisi password. **Konfigurasi** adalah pengaturan yang berbeda antar lingkungan (host database di development vs produksi). Keduanya harus berada *di luar* kode Anda.

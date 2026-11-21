@@ -15,6 +15,8 @@ why: Banyak kursus memperlakukan data lake sebatas folder berisi file Parquet. T
 ## @prereq
 Modul 2.1 (Parquet, row group, statistik min/max). Jalankan `pip install -r labs/mod-2-2/requirements.txt` untuk memasang PyIceberg dan delta-rs; tidak memerlukan Docker maupun akun cloud karena lab menggunakan katalog SQLite lokal dan folder disk biasa.
 
+## @part Iceberg
+
 ## @lesson Masalah besar di balik folder berisi file Parquet
 Modul 2.1 telah memberi Anda format file kolumnar yang sangat efisien. Langkah logis berikutnya adalah membangun sebuah **data lake**: menyimpan ribuan file Parquet di dalam object storage murah (Amazon S3, GCS, MinIO, atau folder lokal) lalu mengeksekusi query di atasnya. Namun di lingkungan produksi nyata, deretan masalah berikut akan langsung muncul:
 
@@ -129,6 +131,8 @@ Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DEL
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_time_travel_sees_the_past or test_delete_creates_a_snapshot"`
 > 5. Pastikan kedua pengujian lulus (`2 passed`). Buktikan sendiri bahwa snapshot sebelum delete tetap mengembalikan 7 baris, meskipun data aktif kini hanya menampilkan 5 baris.
 
+## @part Evolusi, Delta Lake, dan operasional
+
 ## @lesson Evolusi skema, evolusi partisi, dan hidden partitioning
 **Evolusi Skema (Schema Evolution).** Iceberg mengidentifikasi setiap kolom menggunakan **numeric field id** permanen yang tidak pernah berubah, bukan berdasarkan nama teks atau posisi urutan kolom. Field ID ini tercatat di metadata (`{"id": 4, "name": "status"}`) dan di dalam setiap file Parquet data. Konsekuensinya sangat revolusioner dan terbukti pada pengujian lab:
 
@@ -188,11 +192,13 @@ Perbandingan komparatif Apache Iceberg dan Delta Lake:
 
 Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir untuk menghubungkan kedua format tersebut. Panduan praktis memilih: gunakan **Delta Lake** jika ekosistem utama Anda berpusat pada Databricks dan Spark; gunakan **Apache Iceberg** jika Anda memprioritaskan independensi arsitektur bebas vendor di berbagai mesin komputasi (Trino, Flink, DuckDB, Spark). Opsi ketiga adalah **Apache Hudi**, yang sangat kuat untuk pemrosesan inkremental dan upsert berkecepatan tinggi. Prinsip-prinsip inti dalam modul ini (snapshot, atomic commit, field id, pruning, pemeliharaan) berlaku setara untuk ketiganya.
 
+:::advanced Fitur Delta Lake 3 yang akan Anda temui di produksi
 **Fitur Modern Delta Lake 3.0+ & Databricks di Lingkungan Produksi:**
 1. **Liquid Clustering (`CLUSTER BY (order_date, customer_id)`):** Menggantikan folder partisi fisik `PARTITION BY` yang kaku dan perintah manual `OPTIMIZE ... ZORDER BY`. Delta menata file secara inkremental menggunakan kurva ruang multi-dimensi dan mengizinkan Anda mengubah kunci clustering kapan saja tanpa menulis ulang data lama.
 2. **Deletion Vectors (Merge-on-Read di Delta Lake):** Daripada menulis ulang seluruh file Parquet 512 MB saat satu baris dihapus atau di-update, Delta menulis bitmap kecil (*deletion vector*) yang menandai posisi baris yang dihapus, lalu memadatkannya belakangan saat `OPTIMIZE` berjalan.
 3. **Change Data Feed (`delta.enableChangeDataFeed = true`):**Mengekspos perubahan tingkat baris (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) di antara dua versi tabel sehingga pipeline hilir (Silver/Gold) cukup memproses baris yang berubah tanpa memindai ulang seluruh tabel Bronze.
 4. **Delta Universal Format (UniForm):** Secara otomatis menghasilkan pohon **metadata Apache Iceberg** setiap kali terjadi commit di `_delta_log`, sehingga mesin pembaca Iceberg (Snowflake, BigQuery, Trino, DuckDB) dapat meng-query tabel Delta di Databricks secara langsung tanpa duplikasi data.
+:::
 
 > 💡 **Jeda Praktik: Mengelola Transaction Log Delta Lake**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, navigasikan ke Bagian B (Delta Lake).

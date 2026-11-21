@@ -16,6 +16,8 @@ why: Tutorial menguji SELECT dan WHERE pada beberapa baris. Di produksi, query y
 ## @prereq
 Modul 0.3 (join, GROUP BY, NULL, CTE). Bagian A lab berjalan di browser Anda atau dengan SQLite bawaan Python; Bagian B memakai PostgreSQL (salinan tertanam dipasang oleh `pip`, jadi Docker opsional).
 
+## @part Window function dan rekursi
+
 ## @lesson Window function: menghitung lintas baris tanpa meleburnya
 `GROUP BY` meleburkan banyak baris menjadi satu. **Window function** menghitung nilai atas sekumpulan baris yang berkaitan dan **mempertahankan setiap baris**. Sintaksnya `function(...) OVER (PARTITION BY ... ORDER BY ... frame)`:
 
@@ -215,6 +217,8 @@ SELECT d FROM days;
 > `python3 labs/mod-1-3/check.py`
 > Ketika Anda melihat pesan `10/10 answers correct`, Bagian A lab ini 100% tuntas! Lanjut ke Pelajaran 6 & 7 untuk membedah query plan dan index database.
 
+## @part Performa: plan dan indeks
+
 ## @lesson Bagaimana database menjalankan query Anda: membaca EXPLAIN
 SQL menyatakan *apa* yang Anda mau; **planner** database memutuskan *bagaimana*: index mana yang dipakai, urutan join, algoritma apa. Ia memperkirakan biaya berbagai alternatif dari **statistik** (jumlah baris dan sebaran nilai per kolom, diperbarui oleh `ANALYZE`) lalu memilih yang termurah. Tugas Anda adalah memeriksa bahwa pilihannya masuk akal. `EXPLAIN` menampilkan plan; `EXPLAIN ANALYZE` juga **menjalankan** query dan menambahkan waktu serta jumlah baris aktual (jadi bungkus penulisan dalam transaksi yang Anda rollback). Di PostgreSQL bentuk yang berguna adalah `EXPLAIN (ANALYZE, BUFFERS)`.
 
@@ -283,6 +287,8 @@ Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutu
 > 3. Jalankan pengujian plan di terminal:
 > `pytest labs/mod-1-3/explain -v`
 > Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Pelajaran 8 untuk melihat ragam dialek SQL.
+
+## @part Dialek, subtotal, dan JSON
 
 ## @lesson Satu pertanyaan, banyak dialek: SQLite, PostgreSQL, DuckDB, dan warehouse
 SQL adalah standar, tetapi setiap engine berbicara dalam dialeknya sendiri, dan dalam data engineering Anda akan bertemu beberapa: SQLite di sandbox, PostgreSQL di database aplikasi, DuckDB di laptop, BigQuery atau Snowflake di warehouse (Modul 2.6), Spark SQL di lakehouse. Standar mendefinisikan inti (SELECT, join, GROUP BY, window function, CTE), dan setiap engine menambah fungsi, tipe, dan aturan di sekelilingnya. Perbedaan datang dalam dua jenis, dan jenis kedua adalah yang berbahaya.

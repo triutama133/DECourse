@@ -16,6 +16,8 @@ why: Every job post says Snowflake, BigQuery or Redshift, and every bootcamp sho
 ## @prereq
 Modules 1.4 (dimensional modeling), 2.1 (columnar storage and Parquet) and 3.4 (FinOps basics) help. The lab is plain Python and needs no cloud account.
 
+## @part How a warehouse works
+
 ## @lesson What a cloud data warehouse is
 An operational database (Module 0.1) is built to read and write a few rows very quickly for many users. A **data warehouse** is built for the opposite job: **scan huge amounts of data and aggregate it** for a few analysts and dashboards. The same SQL, a different engine.
 
@@ -51,6 +53,7 @@ That sorting is what **clustering** means. In Snowflake you define a **clusterin
 
 Rules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN` (dates first for event data); a column with extremely high cardinality (a unique id) clusters poorly for range filters; and too many tiny partitions, as in the small-files problem of Module 3.0, add overhead. Clustering costs maintenance, so it pays off on **large** tables that are filtered repeatedly.
 
+:::advanced Production DDL for BigQuery, Snowflake and Redshift
 **Production DDL side-by-side: declaring partitions, clustering, and sort keys in real warehouses.** In your job, you declare these physical layouts in DDL (or inside your `dbt_project.yml` / model `config(...)` block). Compare how the exact same `fct_orders` table is laid out across the three major cloud warehouses:
 
 ```sql
@@ -97,6 +100,7 @@ COMPOUND SORTKEY (order_date, status);
 ```
 
 The second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away.
+:::
 
 > 💡 **Practice Pause 1 (Micro-Partitions, Zone Maps & Partition Pruning):**
 > 1. In your text editor (VS Code / Cursor), open `labs/mod-2-6/warehouse_lab.py` (do not run `.py` files directly in bash).
@@ -122,6 +126,7 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 
 **Sizing compute.** In Snowflake a **virtual warehouse** comes in sizes (X-Small, Small, Medium, ...); each size up doubles the machines and the credits per hour. A bigger warehouse often finishes a heavy query faster for roughly the same total cost, but gives no benefit to a query that is already small; auto-suspend (Module 3.4) keeps idle time cheap. BigQuery allocates **slots** (units of compute) per query automatically, or you reserve a fixed number. Redshift provisioned clusters are sized in nodes; Redshift Serverless scales on demand.
 
+:::advanced Reading a warehouse query profile
 **How to read a Cloud Warehouse Query Profile (The 4 Production Bottlenecks).** When a warehouse query takes 8 minutes or costs $50, do not guess—open the **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Every senior data engineer checks four numbers immediately:
 
 | Query Profile Symptom | What You See in the Execution Graph | Root Cause | Production Fix |
@@ -130,6 +135,7 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 | **2. Disk Spilling (Local / Remote S3 Spill)** | `Bytes spilled to local storage: 48 GB` / `Bytes spilled to remote storage: 190 GB` | A huge `GROUP BY`, `COUNT(DISTINCT)`, or `ROW_NUMBER() OVER (...)` exceeded worker RAM and spilled intermediate state to SSD and S3! | Pre-filter columns/rows before the window/join, split into two stages, or temporarily scale up warehouse size (e.g. `Small -> Large`) for that heavy transform |
 | **3. Network Broadcast / Shuffle Explosion** | `Repartition / Broadcast: 78% of execution time`, billions of rows sent over network | Joining two huge tables on non-colocated keys, or an accidental many-to-many join fan-out (Module 1.4) | Verify join key uniqueness (`1:N`), co-locate `DISTKEY` / cluster keys, or pre-aggregate before joining |
 | **4. Skewed Worker Straggler** | `Max worker time: 420s · Median worker time: 6s` | 90% of rows have `customer_id IS NULL` or `'GUEST'`, hashing to a single MPP worker node | Filter out `NULL` keys before joining (union them back later) or salt skewed keys (Module 3.1) |
+:::
 
 > 💡 **Practice Pause 2 (Clustering Overlap & MPP Distribution):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
@@ -138,6 +144,8 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 > 4. Test in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
 > 5. **Success Indicator:** 13 tests report `PASSED`, verifying zero network movement for co-located joins and replicated dimension tables.
+
+## @part Cost, loading and governance
 
 ## @lesson Cost: scan-based and time-based pricing
 Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 introduced both).
@@ -174,6 +182,7 @@ Other practices:
 
 Record **where every load came from and when**: file names, load ids, row counts and rejected rows. Reconciling counts between source and warehouse (Module 2.5) is the cheapest data quality check there is.
 
+:::advanced Production bulk loads and an idempotent MERGE
 **Production Bulk-Load & Idempotent `MERGE` SQL (Snowflake, BigQuery, Redshift).** Notice how all three warehouses load Parquet files from object storage in parallel, and how the `MERGE` statement **must** include a partition-pruning filter on the target table (`t.order_date >= ...`) so it does not scan the entire historical fact table:
 
 ```sql
@@ -219,6 +228,7 @@ WHEN NOT MATCHED THEN
 ```
 
 **Why the cutoff must come from the batch.** A fixed window such as "the last two days" looks safe and makes the `MERGE` cheap, but it breaks the moment an old order changes: a refund for an order from three weeks ago matches no row inside the window, so `WHEN NOT MATCHED` inserts it as a *second* row and the order is counted twice. Reproduced in DuckDB 2.0.1: with a fixed cutoff, the late refund of an old order became a duplicate (`paid 100` and `refunded 0` for the same `order_id`); with the cutoff taken from the oldest `order_date` in the batch, the order was updated in place, a retry of the same batch changed nothing, and every order kept exactly one row.
+:::
 
 > 💡 **Practice Pause 4 (Planning Parallel Bulk Load Files):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
@@ -234,6 +244,7 @@ WHEN NOT MATCHED THEN
 
 Two features you will hear about: **zero-copy cloning** (Snowflake) creates a copy of a table or database as metadata, which costs storage only for changes, ideal for test environments; and **secure data sharing** lets another account query your data without copying it.
 
+:::advanced Production governance SQL, and how warehouses and lakehouses converged
 **Production Governance SQL: Dynamic Data Masking, Row-Level Security & Zero-Copy Clones.** Instead of maintaining separate "masked" and "unmasked" copies of a table, modern cloud warehouses enforce column masking and multi-tenant row filtering directly in the catalog policy:
 
 ```sql
@@ -286,6 +297,7 @@ In practice the choice is often made by the company's cloud provider and existin
 | **3. Open Lakehouse Table** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Your own S3/GCS/ADLS bucket in open **Apache Iceberg** format | Open Iceberg catalog (REST / Glue / Polaris / Unity) | **Reversible two-way door:** Spark, DuckDB, Trino and Flink can read the same Parquet files in place, with no copies; how close it comes to native speed depends on the engine and on table maintenance (compaction), so measure it on your own queries |
 
 Questions you can now answer: "Why is this query expensive?" (it scans many partitions or columns; look at partitions scanned and bytes billed). "How do I make it cheaper?" (filter on the clustering or partition column, select only needed columns, pre-aggregate). "What is the difference between Snowflake and BigQuery pricing?" (compute time versus bytes scanned). "Why file sizes of 100 to 250 MB?" (parallelism without per-file overhead).
+:::
 
 > 💡 **Practice Pause 5 (Result Caching & Concurrency Queueing):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
@@ -294,6 +306,8 @@ Questions you can now answer: "Why is this query expensive?" (it scans many part
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Success Indicator:** 8 tests report `PASSED`, validating cache invalidation and concurrency queue behavior.
+
+## @part Serving, and a real warehouse
 
 ## @lesson Serving and replacing: semantic layers, reverse ETL, federation, data mesh and the strangler fig
 > **In short:** Serving data is more than dashboards. A **semantic layer** defines each business metric once, so every tool gets the same number. **Reverse ETL** sends results from the warehouse back into operational tools, so it must be safe to retry. **Federation** queries several systems without copying them first. **Data mesh** hands data ownership to domain teams. And when you inherit an old pipeline, the **strangler fig** pattern replaces it piece by piece, comparing old and new until they agree.

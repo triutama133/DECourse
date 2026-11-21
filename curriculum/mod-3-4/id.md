@@ -15,6 +15,8 @@ why: Tutorial pemula umumnya mengajarkan cara mengklik tombol-tombol di web cons
 ## @prereq
 Modul 1.1 (Linux, Docker, skrip automasi), Modul 2.2 (arsitektur lakehouse dan object storage), dan Modul 2.4 (orkestrasi). Bagian A membutuhkan Terraform CLI (versi 1.5 atau lebih baru) dan ruang disk sekitar 700 MB untuk mengunduh plugin AWS provider (tidak memerlukan akun AWS aktif). Bagian B menggunakan kode Python murni.
 
+## @part Infrastructure as code dan keamanan
+
 ## @lesson Mengapa Infrastructure as Code
 Bayangkan sebuah bucket object storage tempat seluruh pipeline analitik perusahaan menulis data transaksi setiap hari. Seseorang membuatnya delapan bulan lalu melalui antarmuka web AWS console. Konfigurasi enkripsi apa yang sebenarnya aktif di sana? Siapa saja pengguna atau service account yang memiliki izin membaca? Mengapa salinan bucket di lingkungan staging berperilaku berbeda dengan lingkungan produksi? Tidak ada seorang pun di tim yang dapat menjawabnya dengan pasti, karena kebenaran arsitektur hanya tersimpan di halaman web dan ingatan manusia yang fana.
 
@@ -174,6 +176,8 @@ Pipeline terus-menerus membaca S3. Tanpa bantuan, lalu lintas itu dari subnet pr
 >
 > **Seharusnya Anda melihat:** `Apply complete! Resources: 7 added` (sekitar 15 detik); kedua subnet dengan `4091` alamat tersedia, angka dari Coba sendiri pertama; dan rute di route table privat ke prefix list S3 (`pl-…`) melalui endpoint (`vpce-…`). Setelah perubahan buatan tangan itu, plan keluar dengan kode `2`, menyatakan security group `will be updated in-place`, menunjukkan `- "0.0.0.0/0"`, dan diakhiri `Plan: 0 to add, 1 to change, 0 to destroy.`; `apply` menutup lubangnya. Diukur dengan Terraform 1.17.2, AWS provider 5.100.0, dan moto 5.2.5; `destroy` memakan sekitar 17 detik.
 
+## @part Biaya dan arsitektur
+
 ## @lesson Di mana platform data cloud menghabiskan anggaran Anda
 Model penetapan harga layanan cloud pada dasarnya terbagi ke dalam tiga pola utama:
 
@@ -238,6 +242,7 @@ Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat mal
 - Sertakan estimasi perubahan biaya pada setiap review PR (menggunakan tools seperti Infracost) agar penambahan warehouse baru terlihat implikasi biayanya sebelum kode di-merge.
 - Rancang setiap lingkungan development dengan konsep pembersihan mudah: eksekusi `terraform destroy` untuk resource dev harus menjadi rutinitas kerja yang biasa dan aman.
 
+:::advanced Pipeline CI/CD produksi untuk Terraform (GitHub Actions)
 **Pipeline CI/CD GitHub Actions Produksi untuk Terraform (Keyless OIDC + Pemindai Keamanan Trivy + Plan Review).** Berikut adalah workflow GitOps standar yang digunakan tim Data Engineering produksi untuk memeriksa format, memindai celah keamanan IAM/S3, membuat `plan` pada Pull Request, dan mengeksekusi `apply` tanpa menyimpan satu pun kunci statis AWS di GitHub:
 
 ```yaml
@@ -301,6 +306,7 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve tfplan
 ```
+:::
 
 > 💡 **Jeda Praktik 4 (Guardrails FinOps: Deteksi Query Liar, Forecasting & Tiering Storage):**
 > 1. Buka file `labs/mod-3-4/finops.py` di teks editor Anda.
@@ -369,6 +375,8 @@ Gagasan dari bab 3 buku ini muncul di setiap wawancara system design, dan masing
 > 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: untuk `num_services` layanan yang dipanggil berurutan, masing-masing tersedia `service_sla` dari waktu (misalnya `0.999`), kembalikan `combined_sla` dibulatkan ke 6 desimal, `monthly_downtime_min` dalam bulan 30 hari (43.200 menit) dibulatkan ke 1 desimal, dan `needs_continuous_cdc`: `True` jika jarak antar-backup lebih lebar daripada yang diizinkan target RPO (bagian 4 pelajaran 6).
 >
 > **Periksa:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
+
+## @part Opsional: terapkan sungguhan
 
 ## @lesson Opsional: terapkan sungguhan, di AWS tiruan di laptop Anda
 Lab ini hanya membuat *plan*: provider memakai kredensial palsu dan tidak pernah menghubungi AWS. Separuh lain pekerjaan Terraform, yaitu benar-benar membuat, memeriksa, memperbaiki, dan menghapus resource, butuh endpoint AWS. Akun AWS sungguhan butuh kartu pembayaran; **moto** tidak butuh apa pun. moto adalah program Python open-source yang menjawab panggilan API yang sama dengan AWS (S3, IAM, KMS, dan banyak lagi) di komputer Anda sendiri. Terraform, command line `aws`, dan `boto3` tidak bisa membedakannya, jadi Anda melatih alat dan alur kerja yang sungguhan; hanya cloud di belakangnya yang tiruan.

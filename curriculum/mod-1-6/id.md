@@ -16,6 +16,8 @@ why: Tutorial memanggil satu API sekali dan mencetak hasilnya. Ingestion sungguh
 ## @prereq
 Modul 0.0 dan 1.2 (Python, error, idempotensi). Lab hanya butuh pustaka standar Python dan tidak butuh koneksi internet: tes menjalankan API palsu kecil di komputer Anda sendiri.
 
+## @part Mengambil data dari API
+
 ## @lesson Bagaimana data masuk ke platform
 > **Intinya:** Data datang sebagai file, panggilan API, pembacaan database, atau event. Anda memilih pull atau push, dan penuh atau inkremental. Job yang bisa dipercaya itu lengkap, aman diulang, mentah dulu, bisa diamati, dan sopan kepada sumbernya.
 Semua yang dibangun data engineer dimulai dari **ingestion**: memindahkan data dari tempat ia dibuat ke tempat ia bisa dipakai. Sumbernya terbagi dalam empat keluarga:
@@ -169,6 +171,8 @@ Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih
 > **Seharusnya Anda melihat:** di langkah 1 lebih banyak baris daripada yang tersirat dari checkpoint (halaman yang sedang diproses sudah ditulis tetapi belum di-checkpoint); `25 25` di langkah 2; di langkah 3 kurang dari 25 baris, dan id yang hilang membentuk satu halaman berisi lima. Halaman itu hilang selamanya, dan itulah sebabnya checkpoint disimpan paling akhir.
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-4 ~/practice` memeriksa versi `load.py` dari langkah 1 dan 2 (checkpoint disimpan paling akhir). Pemeriksa menghentikan skrip Anda sendiri, seperti Ctrl+C, lalu menjalankannya lagi.
+
+## @part Mendaratkan dan menjalankannya
 
 ## @lesson Mendaratkan dan membentuk data mentah
 > **Intinya:** Daratkan data mentah tanpa diubah, beserta metadata dan partisi tanggal. Ratakan objek bersarang menjadi kolom, simpan list sebagai teks JSON, dan deteksi saat sebuah field berubah tipe.

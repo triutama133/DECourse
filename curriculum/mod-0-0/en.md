@@ -21,6 +21,8 @@ None. You do not need to have written code before, and it does not matter if ear
 > - **Start in the browser:** each lesson ends with a **💡 Practice Pause**. It sends you to the **Browser preview** on the Lab tab: write the function there and click **Run tests**. Nothing needs to be installed. Do not read the whole chapter first; go back and forth between a lesson and its pause.
 > - **Later, on your own computer (after Module 0.2):** the same code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
 
+## @part The basics: values, collections, decisions and loops
+
 ## @lesson How a program runs: values, variables and types
 A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens "in the background" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.
 
@@ -148,6 +150,8 @@ A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`
 > 3. Implement `top_customers(orders, n)` using `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
 > Click **Run tests**; all three groups should show ✓ (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
+
+## @part Functions, errors and files
 
 ## @lesson Functions: def, parameters and return
 Look at the loop that sums totals. If you need the same sum in five places, you do not copy five loops. You give the loop a **name** and reuse it. That is a function, and it exists for three reasons: **reuse** (write once), **clarity** (a good name explains the purpose, so `total_revenue(orders)` is read like a sentence), and **testing** (a small function with one input and one output can be checked automatically, which is how the lab works).

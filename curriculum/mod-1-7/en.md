@@ -16,6 +16,8 @@ why: Bootcamps say "use MongoDB for flexible data and Cassandra for scale" and s
 ## @prereq
 Modules 0.3 (SQL basics) and 1.3 (indexes) help. The lab is plain Python (Module 0.0 is enough); no database needs to be installed.
 
+## @part The main database families
+
 ## @lesson Why other databases exist
 A relational database is superb at one thing: keeping **structured, related data correct** while many people read and change it, and answering **questions you did not plan for** with SQL. Tables, keys, joins and transactions (Module 0.3) solve a huge range of problems, and for most applications it is still the right first choice.
 
@@ -113,6 +115,8 @@ The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders o
 > 4. Run the quorum and wide-column test suites in your terminal:
 > `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
 > 5. Ensure all 14 tests pass (`14 passed`).
+
+## @part More families, and choosing
 
 ## @lesson Graph, search, time-series and the rest
 Some access patterns are none of the above.

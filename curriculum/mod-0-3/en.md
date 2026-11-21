@@ -17,6 +17,8 @@ why: Tutorials treat SQL as syntax to memorise on perfect tables. In real work t
 ## @prereq
 Modules 0.1 and 0.2 are helpful. You can do the whole lab in your browser (SQL Sandbox) or with the `sqlite3` module that ships with Python; no installation is needed.
 
+## @part Reading tables
+
 ## @lesson Tables, rows, columns and keys
 A **relational database** stores data in **tables**. A table is like a spreadsheet with strict rules: every column has a **name and a type** (integer, text, date, decimal), and every row has the same columns. KopiKu's miniature data has four tables:
 
@@ -113,6 +115,8 @@ More places NULL bites:
 > `python3 labs/mod-0-3/check.py`
 > Verify that k-4 reports PASS (returning 7 customers, not 5!). Proceed to Lesson 4 below.
 
+## @part Calculating
+
 ## @lesson Text, number and date functions
 Real columns are messy: names in mixed case, ratios that must be computed, dates stored as text. A **function** transforms a value inside the query, one result per row (an aggregate such as `SUM` collapses rows; a function does not). The examples run on the KopiKu dataset in the SQL Sandbox.
 
@@ -188,6 +192,8 @@ Beware integer division: in many databases `7 / 2` is `3`. Write `7.0 / 2` or ca
 > Test these three queries in your terminal:
 > `python3 labs/mod-0-3/check.py`
 > When k-2, k-3, and k-7 PASS, you have mastered aggregation! Proceed to Lesson 6 on Joins.
+
+## @part Combining data
 
 ## @lesson Joins: combining tables, and how they go wrong
 A **join** puts together rows from two tables that match on a key.
@@ -326,6 +332,8 @@ Style matters because other people will maintain your SQL. Put each clause on it
 > Now test all 10 answers in your terminal:
 > `python3 labs/mod-0-3/check.py`
 > If your score is **10/10 answers correct**, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 9 for DML & Transactions.
+
+## @part Changing and defining tables
 
 ## @lesson Changing data safely: DML, constraints and transactions
 Besides reading, SQL changes data:

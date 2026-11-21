@@ -15,6 +15,8 @@ why: Bootcamps teach pandas on a small, clean file. In production the same code 
 ## @prereq
 Modules 0.2 and 0.3, and basic Python (functions, loops, dictionaries, files). A virtual environment with `pip install -r labs/mod-1-2/requirements.txt`.
 
+## @part Building the job
+
 ## @lesson From script to job: structure and boundaries
 A beginner's script is one long file that reads a file, loops, prints. It works once. A **job** has to run every night, be understood by someone else, be tested without a real data source, and fail in a way that people notice. The difference is mostly structure.
 
@@ -150,6 +152,8 @@ One thing a stream cannot do for free is **de-duplication**: remembering which i
 > 3. Test memory consumption and generator laziness in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
 > When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 4 on retries and idempotency.
+
+## @part Making it reliable
 
 ## @lesson Errors, retries and idempotency
 **Catch specific exceptions, handle what you can, let the rest fail loudly.** `except Exception: pass` is the most expensive line you can write, because it turns every future bug into silent data loss. Catch the narrowest type (`ValidationError`, `FileNotFoundError`), do something deliberate (quarantine, retry, exit with a code), and add context when re-raising: `raise RuntimeError("loading orders failed") from exc` keeps the original traceback attached.

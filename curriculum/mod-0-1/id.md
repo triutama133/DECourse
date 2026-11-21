@@ -19,6 +19,8 @@ Modul 0.0 (Python dari nol) sangat disarankan: lab ini memakai fungsi, perulanga
 > **Pengingat Editor vs Terminal:**
 > Buka dan edit file kode (seperti `labs/mod-0-1/pipeline.py`) menggunakan Text Editor Anda (VS Code / Cursor / tab Lab di aplikasi). Jangan menjalankan file kode langsung di terminal bash tanpa interpreter python (misal: jangan ketik `labs/mod-0-1/pipeline.py` di terminal). Perintah terminal hanya untuk pengujian, seperti `python3 labs/mod-0-1/test_lab.py -v`.
 
+## @part Pekerjaannya dan orang-orangnya
+
 ## @lesson Mengapa profesi ini ada: dua jenis database
 Bayangkan **KopiKu**, toko online kecil yang menjual biji kopi spesialti dari Gayo, Toraja, dan Flores. Setiap kali pelanggan menekan "Bayar", website menulis satu baris baru ke database: siapa yang membeli, apa, berapa, kapan. Database itu ada untuk menjalankan toko. Ia harus menjawab pertanyaan kecil dengan sangat cepat ("apa isi keranjang pelanggan ini?") dan tidak boleh kehilangan satu pesanan pun. Jenis database seperti ini disebut **OLTP** (Online Transaction Processing). PostgreSQL dan MySQL adalah pilihan yang umum.
 
@@ -110,6 +112,8 @@ Kedua, data engineer menghadap **ke dalam** atau **ke luar**. Engineer yang **me
 > 🛠 **Coba sendiri (10 menit, pena dan kertas).** Untuk setiap tugas KopiKu, tulis *internal* atau *eksternal*, dan tahap siklus hidup tempatnya atau "siklus hidup data yang lebih luas" jika keputusannya datang dari luar engineering: (1) dashboard pendapatan mingguan untuk pendiri; (2) halaman "penjualan Anda bulan ini" di dalam aplikasi yang dijual KopiKu kepada pemilik kafe; (3) "pelanggan yang membeli Gayo juga membeli…" di situs web; (4) salinan malam hari database pesanan ke warehouse; (5) menghapus data pribadi pelanggan ketika ia menutup akunnya; (6) misalkan bagian keuangan menyatakan catatan pesanan harus disimpan sepuluh tahun: menyiapkan hal itu.
 >
 > **Seharusnya Anda melihat:** (1) internal, penyajian; (2) eksternal, penyajian (analitik untuk pelanggan); (3) eksternal, penyajian, dibangun di atas transformasi; (4) internal, ingesti ke penyimpanan; (5) siklus hidup data yang lebih luas: aturannya datang dari undang-undang privasi dan kebijakan perusahaan, dan engineering menjalankannya di setiap salinan; (6) juga siklus hidup data yang lebih luas: keuangan menentukan jangka waktunya, dan engineering mengubahnya menjadi aturan lifecycle penyimpanan (Modul 3.4). Jika Anda menaruh (5) atau (6) di bawah satu tahap saja, perhatikan bahwa keduanya menyentuh setiap tahap sekaligus.
+
+## @part Data yang akan Anda kerjakan
 
 ## @lesson Perjalanan satu pesanan
 Ikuti satu pesanan KopiKu, #4821, dari HP pelanggan sampai dashboard CEO. Setiap langkah adalah tahap yang dirancang dan dirawat oleh data engineer.

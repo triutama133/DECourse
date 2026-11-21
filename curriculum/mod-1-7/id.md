@@ -16,6 +16,8 @@ why: Bootcamp bilang "pakai MongoDB untuk data fleksibel dan Cassandra untuk ska
 ## @prereq
 Modul 0.3 (dasar SQL) dan 1.3 (index) membantu. Lab ini memakai Python murni (Modul 0.0 sudah cukup); tidak ada database yang perlu dipasang.
 
+## @part Keluarga database utama
+
 ## @lesson Mengapa ada database lain
 Database relasional unggul dalam satu hal: menjaga **data terstruktur dan saling terkait tetap benar** sementara banyak orang membaca dan mengubahnya, dan menjawab **pertanyaan yang tidak Anda rencanakan** dengan SQL. Tabel, key, join, dan transaksi (Modul 0.3) menyelesaikan rentang masalah yang sangat luas, dan untuk kebanyakan aplikasi ia tetap pilihan pertama yang tepat.
 
@@ -113,6 +115,8 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 > 4. Jalankan pengujian untuk replikasi dan wide-column di terminal:
 > `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
 > 5. Pastikan ke-14 pengujian lulus (`14 passed`).
+
+## @part Keluarga lain, dan cara memilih
 
 ## @lesson Graf, pencarian, time-series, dan lainnya
 Beberapa pola akses bukan satu pun dari yang di atas.

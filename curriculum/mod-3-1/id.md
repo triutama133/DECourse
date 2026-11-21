@@ -15,6 +15,8 @@ why: Banyak kursus hanya mengajarkan cara memanggil groupBy().count() di tutoria
 ## @prereq
 Modul 2.1 (Parquet, engine pemrosesan, batas kapasitas mesin tunggal) dan Modul 1.3 (join relational, execution plans). Wajib terinstal Java versi 17 atau lebih baru (`java -version`) dan dependensi Python via `pip install -r labs/mod-3-1/requirements.txt`. Lab modul ini mengeksekusi Spark dalam local mode langsung di komputer Anda.
 
+## @part Cara Spark menjalankan kode Anda
+
 ## @lesson Kapan Anda butuh cluster, dan berapa biaya yang harus dibayar
 Modul 2.1 ditutup dengan aturan emas arsitektur: satu mesin fisik modern dengan arsitektur memori teroptimasi (DuckDB atau Polars) mampu melangkah jauh lebih jauh daripada perkiraan mayoritas tim data. Namun saat skala data melampaui batas fisik mesin tunggal tersebut, **Apache Spark** adalah engine terdistribusi yang menjadi standar emas industri: ia memecah dataset raksasa menjadi potongan-potongan **partisi**, memprosesnya secara paralel melintasi ratusan mesin dalam sebuah klaster, lalu menggabungkan hasil akhirnya.
 
@@ -103,6 +105,8 @@ Keahlian membaca physical plan adalah kompetensi wajib data engineer senior: gun
 > 🛠 **Coba sendiri (10 menit, Python).** DuckDB punya optimizer dengan gagasan pushdown yang sama. Simpan `orders.parquet` seperti di Modul 2.1 dan jalankan `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, lalu cetak teks rencananya (`.fetchall()[0][1]`). Lalu jelaskan `SELECT * FROM 'orders.parquet'`. Temukan node scan di keduanya dan baca `Projections` dan `Filters`-nya.
 >
 > **Seharusnya Anda melihat:** di rencana pertama scan Parquet hanya mencantumkan `payment_method` di bawah `Projections` dan `status='delivered'` di bawah `Filters`: optimizer mendorong keduanya ke dalam scan, sehingga kolom lain tidak pernah dibaca dan baris difilter saat dibaca. Di rencana kedua scan memproyeksikan keenam kolom dan tidak punya filter. `explain("formatted")` milik Spark menampilkan gagasan yang sama sebagai `PushedFilters` dan `ReadSchema`.
+
+## @part Join, skew, dan tuning
 
 ## @lesson Strategi join dan biaya shuffle
 Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang memiliki nilai kunci (key) yang sama ke satu node mesin yang sama. Spark memilih salah satu strategi join berikut:
@@ -208,6 +212,8 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 > 🛠 **Coba sendiri (15 menit, Python).** Lihat masalah file kecil. Ulangi baris `data/orders.csv` 30 kali (sekitar 109.000 baris) dengan `pd.concat([df] * 30)`. Tulis sekali sebagai `sf/one/all.parquet`, dan sekali lagi dipotong menjadi 1.000 bagian sebagai `sf/many/p0000.parquet` dan seterusnya. Bandingkan total byte di setiap folder, dan ukur waktu `SELECT count(*) FROM read_parquet('<folder>/*.parquet')` di DuckDB untuk keduanya. Hapus `sf/` setelahnya.
 >
 > **Seharusnya Anda melihat:** kedua folder menjawab `109020`, tetapi 1.000 file kecil memakan sekitar 7,4 MB dibanding sekitar 0,4 MB untuk satu file (kompresi dan overhead per file sama-sama dirugikan), dan query atasnya puluhan kali lebih lambat (sekitar 60 ms dibanding 1,5 ms di sini). Setiap file memakan biaya listing, membuka, dan membaca footer, itulah sebabnya klaster yang menulis ribuan file kecil butuh compaction.
+
+## @part Spark di produksi dengan Databricks
 
 ## @lesson Spark Produksi di Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
 Seluruh mekanisme internal Spark yang baru saja Anda pelajari—Catalyst, Tungsten, AQE, shuffle, broadcast join, dan data skew—adalah mesin utama di balik **Databricks**, yang muncul di **34,8%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), dan di 53,4% dari 517 lowongan yang menyebut Spark. Berikut adalah bagaimana platform Databricks produksi menyatukan seluruh komponen tersebut di atas AWS, Azure, atau GCP.

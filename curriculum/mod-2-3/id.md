@@ -15,6 +15,8 @@ why: Banyak tutorial dbt hanya memperlihatkan pembuatan beberapa model sederhana
 ## @prereq
 Modul 1.3 dan 1.4 (window function, pemodelan dimensional) serta Modul 2.1 (DuckDB). Jalankan `pip install -r labs/mod-2-3/requirements.txt` untuk memasang dbt Core beserta adapter DuckDB; tidak memerlukan akun cloud data warehouse.
 
+## @part Dasar dbt
+
 ## @lesson Paradigma ELT dan posisi strategis dbt
 Modul 0.1 telah memperkenalkan pendekatan **ELT**: muat data mentah ke dalam storage/warehouse terlebih dahulu, baru kemudian lakukan transformasi data *di dalam* warehouse menggunakan SQL. Pendekatan ini sangat efektif (daya komputasi warehouse murah dan scalable, serta data mentah asli selalu terjaga utuh), namun menyisakan tantangan praktis di lapangan. Lapisan transformasi yang ditulis sebagai tumpukan skrip SQL mentah sangat rapuh: tidak ada yang tahu urutan dependensi antar-skrip, urutan eksekusi mana yang benar, apakah hasil tabel valid, atau apa arti bisnis dari kolom-kolom tertentu.
 
@@ -143,6 +145,8 @@ Fungsi `try_strptime` dan `try_cast` mengembalikan nilai NULL alih-alih melempar
 > 3. Jalankan kompilasi dan materialisasi khusus untuk lapisan staging:
 >    `dbt run --select staging --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Indikator Sukses:** Log dbt menampilkan status `OK created sql view model main.stg_orders` dan `main.stg_customers` (empat view staging seluruhnya, bersama `stg_order_items` dan `stg_products`) tanpa syntax error.
+
+## @part Kepercayaan dan perubahan
 
 ## @lesson Pengujian otomatis dan dokumentasi: membangun kepercayaan data
 Fitur testing dbt mengubah harapan verbal "data ini seharusnya tidak boleh duplikat" menjadi kode program teruji yang otomatis dievaluasi pada setiap proses build. Terdapat dua kategori pengujian:

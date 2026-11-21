@@ -16,6 +16,8 @@ why: Wawancara dan lowongan kerja masih menyebut Hadoop, HDFS, dan Hive, tetapi 
 ## @prereq
 Modul 0.0 (Python) dan Modul 2.1 (file kolumnar) membantu. Lab ini memakai Python murni dan tidak butuh klaster. Modul 3.1 (Spark) dibangun langsung di atas modul ini.
 
+## @part Penyimpanan dan komputasi: HDFS dan MapReduce
+
 ## @lesson Mengapa Hadoop diciptakan
 Sekitar tahun 2003, sebuah perusahaan pencarian tidak bisa menyimpan web di satu komputer. Satu mesin, sebesar apa pun, punya batas: satu disk menampung beberapa terabyte, membacanya makan waktu berjam-jam, dan mesin terbesar harganya jauh lebih dari sepuluh kali harga sepuluh mesin biasa. Ada dua cara tumbuh. **Scale up** berarti membeli mesin yang lebih besar; ia menabrak langit-langit dan tembok harga. **Scale out** berarti menyambung banyak mesin biasa dan membiarkan mereka berbagi pekerjaan; ia tidak punya langit-langit, tetapi melahirkan masalah baru.
 
@@ -100,6 +102,8 @@ Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-0/test_lab.py -k "TestReduceSideJoin or TestFaultTolerance" -v`
 > 5. **Indikator Sukses:** Sebanyak 6 pengujian berstatus `PASSED`, membuktikan kebenaran penggabungan data dua relasi di reducer dan toleransi kegagalan komputasi murni.
+
+## @part YARN, Hive, dan penggantinya
 
 ## @lesson YARN: membagi klaster
 Pada Hadoop pertama, satu komponen menjalankan job MapReduce *dan* memutuskan mesin mana mengerjakan apa. Akibatnya klaster hanya bisa menjalankan MapReduce. **YARN** (Yet Another Resource Negotiator, Hadoop 2) memisahkan kedua tugas itu, sehingga Spark, Tez, Flink, dan lainnya bisa berbagi mesin yang sama.

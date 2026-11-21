@@ -15,6 +15,8 @@ why: Banyak tutorial pemula hanya memanggil API embedding satu kali terhadap kum
 ## @prereq
 Modul 1.3 (PostgreSQL, indeks B-Tree, query EXPLAIN), Modul 2.5 (kualitas data dan contracts), serta Modul 3.2 (streaming dan change data capture sebagai konteks sinkronisasi data). Lab modul ini membutuhkan instalasi pustaka via `pip install -r labs/mod-3-5/requirements.txt` dan menggunakan embedded PostgreSQL yang telah terintegrasi dengan ekstensi pgvector. Pengujian berjalan 100% lokal tanpa panggilan jaringan eksternal, tanpa GPU, serta tanpa memerlukan API key berbayar.
 
+## @part Dari dokumen ke vektor
+
 ## @lesson Apa itu RAG, dan apa yang dikelola oleh Data Engineer
 Model bahasa berskala besar (Large Language Model / LLM) hanya mengetahui informasi yang termuat di dalam data pelatihannya (training data). Model tersebut tidak mengetahui isi kebijakan refund perusahaan Anda, pembaruan daftar harga kopi minggu lalu, atau tiket komplain aktif pelanggan, dan saat kekurangan konteks faktual, LLM memiliki kecenderungan menghasilkan jawaban yang terdengar sangat meyakinkan namun sepenuhnya salah (halusinasi). **Retrieval-Augmented Generation (RAG)** menyelesaikan dilema ini saat runtime pertanyaan: aplikasi terlebih dahulu *mengambil (retrieve)* segelintir kutipan data internal perusahaan yang relevan dengan pertanyaan pengguna, lalu menyematkannya ke dalam teks prompt sistem agar LLM menjawab secara faktual berdasarkan dokumen tersebut (lengkap dengan sitasi sumber).
 
@@ -83,6 +85,8 @@ Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor 
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
 > 4. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemotongan berbasis struktur, pelestarian konteks judul, dan jendela overlap tanpa potongan buntut mini.
+
+## @part Menyimpan, memperbarui, dan mengevaluasi
 
 ## @lesson Vector storage dan pencarian perkiraan (ANN)
 Mencari tetangga terdekat secara eksak (Exact K-Nearest Neighbor / KNN) mengharuskan sistem menghitung jarak kosinus antara vektor pertanyaan terhadap *seluruh* vektor yang ada di tabel: metode ini sangat sederhana, selalu menghasilkan jawaban akurat 100%, namun kompleksitas biayanya tumbuh linier seiring volume data ($O(N)$). Pada skala 20.000 vektor 64 dimensi di lab, pencarian eksak membutuhkan waktu 5 milidetik per query; namun pada skala 20 juta vektor, pencarian eksak akan memakan waktu beberapa detik. Indeks **Approximate Nearest Neighbor (ANN)** menyelesaikan tantangan skalabilitas ini dengan memangkas waktu pencarian secara drastis melalui kompromi kecil: menerima kemungkinan kecil terlewatnya segelintir tetangga terdekat yang sebenarnya.

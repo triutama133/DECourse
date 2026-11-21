@@ -17,6 +17,8 @@ why: Banyak tutorial pemula hanya mengirim pesan teks acak ke Kafka lalu menampi
 ## @prereq
 Modul 1.2 (idempotensi), Modul 2.2 (open table formats), dan Modul 2.4 (orkestrasi). Bagian A dari lab praktikum tidak membutuhkan instalasi eksternal apa pun. Bagian B membutuhkan Kafka-compatible broker (`docker compose up -d redpanda`, atau Kafka standar). Bagian C membutuhkan PostgreSQL dengan logical decoding (embedded PostgreSQL otomatis diinstal via `pip`).
 
+## @part Dasar Kafka
+
 ## @lesson The log: mengapa sistem streaming ada
 Sampai tahap ini, data dalam kurikulum dipindahkan secara **batch**: sebuah batch job terjadwal menyalin rekaman transaksi kemarin malam. Namun kebutuhan bisnis modern sering kali menuntut latensi yang jauh berbeda: deteksi penipuan finansial dalam hitungan milidetik, dashboard operasional toko yang memperbarui angka saat pesanan tiba, indeks pencarian Elasticsearch yang mengikuti perubahan database produk seketika, serta puluhan tim analitik berbeda yang ingin membaca aliran data transaksi tanpa membebani database operasional. Untuk kebutuhan inilah sistem bertukar data dalam bentuk aliran **events** secara kontinu.
 
@@ -90,6 +92,8 @@ Setiap partisi punya satu **leader** (semua baca dan tulis lewat dia) dan dua **
 >
 > **Seharusnya Anda melihat:** pemilihan bersih memilih `B` dan kehilangan `[]`; pemilihan tidak bersih memilih `C` dan kehilangan `[8, 9, 10]`, record yang sudah di-acknowledge, tanpa suara. Dengan ISR `[A, B]`, penulisan diterima untuk `min_isr=2` dan ditolak untuk `min_isr=3`, situasi `NOT_ENOUGH_REPLICAS` dari Eksperimen 2.
 
+## @part Producer, consumer, dan skema
+
 ## @lesson Producer dan consumer: jaminan pengiriman pesan
 **Konfigurasi Esensial Producer:**
 
@@ -160,6 +164,8 @@ Aturan praktis:
 > 🛠 **Coba sendiri (20 menit, Python).** Tulis pemeriksa kompatibilitas. Representasikan skema sebagai `{field: (type, has_default)}`, dengan titik awal dari pelajaran `{id: (int, False), customer: (string, False), total: (int, False)}`. `backward(old, new)` (pembaca dengan skema baru membaca data yang ditulis dengan skema lama) gagal jika skema baru punya field yang tidak ada di skema lama dan tidak punya default, atau jika sebuah field berubah tipe. `forward(old, new)` adalah pemeriksaan yang sama dengan peran ditukar. Jalankan empat perubahan: menambah field opsional `channel` dengan default, menambah `channel` tanpa default, menghapus `total`, dan mengubah `total` dari `int` menjadi `string`. Cetak backward, forward, dan full (keduanya) untuk masing-masing.
 >
 > **Seharusnya Anda melihat:** tambah opsional: backward `True`, forward `True`; tambah wajib: backward `False`, forward `True`; hapus `total`: backward `True`, forward `False`; `int` ke `string`: keduanya `False`. Itu mereproduksi tabel di pelajaran ini. Dari keempatnya, mana yang akan ditolak registry dengan aturan default BACKWARD dengan HTTP 409?
+
+## @part Change data capture
 
 ## @lesson Change Data Capture: mengubah database transaksional menjadi event stream
 Bagaimana cara terbaik mengekstrak mutasi data dari database transaksional operasional ke platform analitik? Pendekatan amatir yang kerap digunakan adalah **query-based polling**: mengeksekusi query berkala setiap beberapa menit seperti `SELECT * FROM orders WHERE updated_at > :last_run`. Kelemahan fatal metode ini: ia **kehilangan operasi DELETE** (baris yang dihapus di database lenyap begitu saja tanpa jejak), melewatkan status mutasi perantara (dua kali update yang terjadi di antara siklus polling hanya terlihat sebagai satu status akhir), sangat bergantung pada kolom timestamp yang rawan tidak akurat, serta membebani CPU database produksi dengan query scanning berulang.

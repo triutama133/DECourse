@@ -16,6 +16,8 @@ why: Tutorial menampilkan pandas pada CSV yang rapi dan melakukan loop per baris
 ## @prereq
 Modul 0.0 dan 0.1 (fungsi Python, loop, virtual environment) dan 0.3 (GROUP BY dan join SQL). Lab butuh `pandas` dan `pyarrow` di virtual environment Anda (`pip install -r labs/mod-1-5/requirements.txt`).
 
+## @part Memuat dan membersihkan
+
 ## @lesson Apa itu pandas, dan kapan memakainya
 **pandas** adalah pustaka Python untuk bekerja dengan tabel di memori. Dua objek intinya:
 
@@ -93,6 +95,8 @@ Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> cle
 > 2. Uji di terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestClean or TestPaidAndRevenue" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 4 untuk agregasi, pivot, dan ranking!
+
+## @part Menggabungkan dan membesarkan skala
 
 ## @lesson Group, pivot, dan rank
 **`groupby`** adalah jantung analitik di pandas: pecah tabel menjadi kelompok, hitung sesuatu per kelompok, gabungkan hasilnya kembali. Bentuk paling jelas adalah **named aggregation**:

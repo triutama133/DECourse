@@ -15,6 +15,8 @@ why: Banyak tutorial pemula menghitung metrik event berdasarkan waktu saat serve
 ## @prereq
 Modul 3.1 (dasar Apache Spark) dan Modul 3.2 (Kafka, offsets, jaminan at-least-once). Bagian A dari lab praktikum ini menggunakan Python murni tanpa dependensi eksternal; Bagian B membutuhkan runtime Java 17+ serta instalasi dependensi via `pip install -r labs/mod-3-3/requirements.txt`.
 
+## @part Waktu dan window
+
 ## @lesson Event time versus processing time
 Setiap event di dalam aliran data streaming memiliki dua stempel waktu (timestamps) yang sangat berbeda artinya:
 
@@ -97,6 +99,8 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
 > 5. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemancaran window tertunda, sifat monotonik naik watermark, dan pembuangan event late yang presisi.
+
+## @part State dan operasional
 
 ## @lesson State, checkpoints, dan jaminan exactly-once
 Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedatangan event: seperti subtotal berjalan dan jumlah transaksi untuk setiap window yang masih terbuka. Memori internal ini disebut **State**. Dua implikasi arsitektural krusial:

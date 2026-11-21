@@ -15,6 +15,8 @@ why: Tutorials count events by when the server received them. A mobile app that 
 ## @prereq
 Modules 3.1 (Spark basics) and 3.2 (Kafka, offsets, at-least-once). Part A of the lab is pure Python; Part B needs Java 17+ and `pip install -r labs/mod-3-3/requirements.txt`.
 
+## @part Time and windows
+
 ## @lesson Event time versus processing time
 Every event in a stream has two timestamps:
 
@@ -94,6 +96,8 @@ The late-event test in the lab shows the other side: after the `[10:00, 10:05)` 
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWatermark -v`
 > 5. **Success Indicator:** All 7 tests report `PASSED`, confirming delayed window emission, monotonic advancement, and strict late-data discarding.
+
+## @part State and operations
 
 ## @lesson State, checkpoints and exactly-once
 An aggregation over time must **remember** things between events: the running count for each open window. That is **state**. Two consequences:

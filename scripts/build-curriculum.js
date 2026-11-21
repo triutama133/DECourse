@@ -97,12 +97,14 @@ function parseModule(dir, lang) {
   const { fm, rest } = parseFrontMatter(lines, m, lang);
   for (const k of ['title', 'duration', 'summary', 'why']) if (!fm[k]) err(m, `${lang}.md front matter missing "${k}"`);
   const secs = splitSections(rest, 2);
-  const out = { fm, lessons: [], outcomes: [], prereq: '', lab: null, chaos: null, quiz: [], resources: [] };
+  const out = { fm, lessons: [], parts: [], outcomes: [], prereq: '', lab: null, chaos: null, quiz: [], resources: [] };
   for (const s of secs) {
     if (s.name === '_head') continue;
     if (s.name === 'outcomes') out.outcomes = bullets(s.lines);
     else if (s.name === 'prereq') out.prereq = text(s.lines);
     else if (s.name === 'lesson') out.lessons.push({ title: s.arg, body: text(s.lines) });
+    // '## @part Title' groups the lessons that follow it (display only; lesson numbers do not change)
+    else if (s.name === 'part') out.parts.push({ title: s.arg, start: out.lessons.length });
     else if (s.name === 'lab') {
       const subs = splitSections(s.lines, 3);
       const lab = { title: s.arg, description: '', steps: '', files: [], deliverables: [], verify: '' };
@@ -163,6 +165,12 @@ function buildModule(dir) {
   // ---- parity checks ----
   pair(m, 'outcomes', P.id.outcomes, P.en.outcomes);
   pair(m, 'lessons', P.id.lessons, P.en.lessons);
+  pair(m, 'parts', P.id.parts, P.en.parts, (a, b) => a.start === b.start);
+  for (const l of LANGS) P[l].parts.forEach((pt, i) => {
+    if (i === 0 && pt.start !== 0) err(m, `${l} parts: the first @part must come before the first lesson`);
+    if (pt.start >= P[l].lessons.length) err(m, `${l} part "${pt.title}" has no lessons after it`);
+    if (i > 0 && pt.start === P[l].parts[i - 1].start) err(m, `${l} parts ${i} and ${i + 1} start at the same lesson`);
+  });
   P.en.lessons.forEach((l, i) => { const o = P.id.lessons[i]; if (o && fences(l.body) !== fences(o.body)) err(m, `lesson ${i + 1} "${l.title}": code fence count differs between languages`); });
   pair(m, 'lab files', P.id.lab.files, P.en.lab.files, (a, b) => a.path === b.path && a.kind === b.kind);
   pair(m, 'lab deliverables', P.id.lab.deliverables, P.en.lab.deliverables);
@@ -171,6 +179,10 @@ function buildModule(dir) {
   if (fences(P.id.lab.steps) !== fences(P.en.lab.steps)) err(m, 'lab steps: code fence count differs between languages');
   if (fences(P.id.lab.verify) !== fences(P.en.lab.verify)) err(m, 'lab verify: code fence count differs between languages');
   for (const l of LANGS) for (const [i, ls] of P[l].lessons.entries()) if (fences(ls.body) % 2) err(m, `${l} lesson ${i + 1}: unbalanced code fence`);
+  // ':::advanced Title' ... ':::' folds: balanced in every lesson, and in the same lessons in both languages
+  const folds = (t) => [(t.match(/^:::advanced\s+\S/gm) || []).length, (t.match(/^:::\s*$/gm) || []).length];
+  for (const l of LANGS) for (const [i, ls] of P[l].lessons.entries()) { const [o, c] = folds(ls.body); if (o !== c) err(m, `${l} lesson ${i + 1}: ${o} ':::advanced' openers but ${c} ':::' closers`); }
+  P.en.lessons.forEach((ls, i) => { const o = P.id.lessons[i]; if (o && folds(ls.body)[0] !== folds(o.body)[0]) err(m, `lesson ${i + 1}: advanced folds differ between languages`); });
 
   // ---- quality checks (warnings) ----
   const wEn = P.en.lessons.reduce((n, l) => n + words(l.body), 0);
@@ -199,6 +211,7 @@ function buildModule(dir) {
     outcomes: P.en.outcomes.map((_, i) => ({ id: P.id.outcomes[i], en: P.en.outcomes[i] })),
     prerequisites: P.en.prereq || P.id.prereq ? { id: P.id.prereq, en: P.en.prereq } : null,
     lessons: P.en.lessons.map((l, i) => ({ title: { id: P.id.lessons[i].title, en: l.title }, body: { id: P.id.lessons[i].body, en: l.body } })),
+    parts: P.en.parts.map((pt, i) => ({ title: { id: P.id.parts[i].title, en: pt.title }, start: pt.start })),
     lab: {
       title: bi((p) => p.lab.title), description: bi((p) => p.lab.description), steps: bi((p) => p.lab.steps), verify: bi((p) => p.lab.verify),
       files, deliverables: P.en.lab.deliverables.map((_, i) => ({ id: P.id.lab.deliverables[i], en: P.en.lab.deliverables[i] }))
