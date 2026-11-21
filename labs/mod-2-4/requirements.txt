@@ -1,2 +1,2 @@
 dagster>=1.8
-pytest>=8
+pytest>=8,<10

@@ -204,7 +204,7 @@ window.CURRICULUM_DATA = [
         "id": "pytest",
         "en": "pytest"
        },
-       "code": "pytest>=8"
+       "code": "pytest>=8,<10"
       },
       {
        "path": "labs/mod-0-0/reference/basics.py",
@@ -2743,7 +2743,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi untuk lab",
         "en": "Dependencies for the lab"
        },
-       "code": "pydantic>=2.5,<3\npytest>=8"
+       "code": "pydantic>=2.5,<3\npytest>=8,<10"
       },
       {
        "path": "labs/shared/labtools.py",
@@ -4393,7 +4393,7 @@ window.CURRICULUM_DATA = [
         "id": "pandas, pyarrow, pytest",
         "en": "pandas, pyarrow, pytest"
        },
-       "code": "pandas>=2.2\npyarrow>=15\npytest>=8"
+       "code": "pandas>=2.2,<4\npyarrow>=15\npytest>=8,<10"
       },
       {
        "path": "labs/mod-1-5/reference/orders_lab.py",
@@ -4908,7 +4908,7 @@ window.CURRICULUM_DATA = [
         "id": "pytest",
         "en": "pytest"
        },
-       "code": "pytest>=8"
+       "code": "pytest>=8,<10"
       },
       {
        "path": "labs/mod-1-6/reference/ingest_lab.py",
@@ -5399,7 +5399,7 @@ window.CURRICULUM_DATA = [
         "id": "pytest",
         "en": "pytest"
        },
-       "code": "pytest>=8"
+       "code": "pytest>=8,<10"
       },
       {
        "path": "labs/mod-1-7/reference/nosql_lab.py",
@@ -5904,7 +5904,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi library: duckdb, polars, pyarrow, pytest",
         "en": "duckdb, polars, pyarrow, pytest"
        },
-       "code": "duckdb>=1.0\npolars>=1.0\npyarrow>=15\npytest>=8"
+       "code": "duckdb>=1.0,<3\npolars>=1.0,<3\npyarrow>=15\npytest>=8,<10"
       },
       {
        "path": "labs/mod-2-1/reference/analytics.py",
@@ -6383,7 +6383,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi pyiceberg (dengan sqlite, pyarrow, pyiceberg-core), deltalake, pytest",
         "en": "pyiceberg (with sqlite, pyarrow and pyiceberg-core extras), deltalake, pytest"
        },
-       "code": "pyiceberg[sql-sqlite,pyarrow,pyiceberg-core]>=0.9\ndeltalake>=0.20\npyarrow>=15\npytest>=8"
+       "code": "pyiceberg[sql-sqlite,pyarrow,pyiceberg-core]>=0.9\ndeltalake>=0.20\npyarrow>=15\npytest>=8,<10"
       },
       {
        "path": "labs/mod-2-2/reference/lakehouse.py",
@@ -7425,7 +7425,7 @@ window.CURRICULUM_DATA = [
         "id": "Konfigurasi dependensi dagster dan pytest",
         "en": "dagster and pytest"
        },
-       "code": "dagster>=1.8\npytest>=8"
+       "code": "dagster>=1.8\npytest>=8,<10"
       },
       {
        "path": "labs/mod-2-4/reference/orchestration.py",
@@ -7917,7 +7917,7 @@ window.CURRICULUM_DATA = [
         "id": "Konfigurasi dependensi pyyaml dan pytest",
         "en": "pyyaml and pytest"
        },
-       "code": "pyyaml>=6\npytest>=8"
+       "code": "pyyaml>=6\npytest>=8,<10"
       },
       {
        "path": "labs/mod-2-5/reference/contracts/orders.yaml",
@@ -8417,7 +8417,7 @@ window.CURRICULUM_DATA = [
         "id": "pytest",
         "en": "pytest"
        },
-       "code": "pytest>=8"
+       "code": "pytest>=8,<10"
       },
       {
        "path": "labs/mod-2-6/reference/warehouse_lab.py",
@@ -8926,7 +8926,7 @@ window.CURRICULUM_DATA = [
         "id": "pytest",
         "en": "pytest"
        },
-       "code": "pytest>=8"
+       "code": "pytest>=8,<10"
       },
       {
        "path": "labs/mod-3-0/reference/hadoop_lab.py",
@@ -9416,7 +9416,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi pyspark dan pytest",
         "en": "pyspark and pytest"
        },
-       "code": "pyspark>=3.5\npytest>=8"
+       "code": "pyspark>=3.5\npytest>=8,<10"
       },
       {
        "path": "labs/mod-3-1/reference/spark_lab.py",
@@ -9983,7 +9983,7 @@ window.CURRICULUM_DATA = [
         "id": "Konfigurasi pustaka dependensi lab",
         "en": "Dependencies"
        },
-       "code": "pytest>=8\nconfluent-kafka>=2.3      # Part B (real Kafka)\npsycopg[binary]>=3.1      # Part C (PostgreSQL CDC)\npgserver>=0.1.4           # Part C: embedded PostgreSQL; not needed if you set DATABASE_URL to a server with wal_level=logical"
+       "code": "pytest>=8,<10\nconfluent-kafka>=2.3      # Part B (real Kafka)\npsycopg[binary]>=3.1      # Part C (PostgreSQL CDC)\npgserver>=0.1.4           # Part C: embedded PostgreSQL; not needed if you set DATABASE_URL to a server with wal_level=logical"
       },
       {
        "path": "labs/mod-3-2/reference/minilog.py",
@@ -10561,7 +10561,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi pytest dan pyspark",
         "en": "pytest, pyspark"
        },
-       "code": "pytest>=8\npyspark>=3.5      # Part B (needs Java 17+)"
+       "code": "pytest>=8,<10\npyspark>=3.5      # Part B (needs Java 17+)"
       },
       {
        "path": "labs/mod-3-3/reference/windows.py",
@@ -11123,7 +11123,7 @@ window.CURRICULUM_DATA = [
         "id": "Dependensi pustaka pytest dan catatan instalasi CLI",
         "en": "pytest and installation notes"
        },
-       "code": "pytest>=8\n# Part A also needs the Terraform CLI (https://developer.hashicorp.com/terraform/install), version 1.5 or newer.\n# Tip: export TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache  (the AWS provider is about 650 MB: download it once)"
+       "code": "pytest>=8,<10\n# Part A also needs the Terraform CLI (https://developer.hashicorp.com/terraform/install), version 1.5 or newer.\n# Tip: export TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache  (the AWS provider is about 650 MB: download it once)"
       },
       {
        "path": "labs/mod-3-4/reference/terraform/main.tf",
@@ -11660,7 +11660,7 @@ window.CURRICULUM_DATA = [
         "id": "Konfigurasi dependensi pustaka pytest, numpy, psycopg, dan pgserver",
         "en": "pytest, numpy, psycopg, pgserver"
        },
-       "code": "pytest>=8\nnumpy\npsycopg[binary]>=3.1\npgserver>=0.1.4\n# pgserver bundles PostgreSQL with the pgvector extension. To use your own Postgres instead (pgvector installed,\n# for example the pgvector/pgvector Docker image), set DATABASE_URL to an EMPTY scratch database."
+       "code": "pytest>=8,<10\nnumpy\npsycopg[binary]>=3.1\npgserver>=0.1.4\n# pgserver bundles PostgreSQL with the pgvector extension. To use your own Postgres instead (pgvector installed,\n# for example the pgvector/pgvector Docker image), set DATABASE_URL to an EMPTY scratch database."
       },
       {
        "path": "labs/mod-3-5/reference/rag.py",
@@ -12161,7 +12161,7 @@ window.CURRICULUM_DATA = [
         "id": "Pustaka dependensi: duckdb, pyarrow",
         "en": "duckdb, pyarrow"
        },
-       "code": "duckdb>=1.0\npyarrow>=15"
+       "code": "duckdb>=1.0,<3\npyarrow>=15"
       }
      ],
      "deliverables": [
@@ -12635,7 +12635,7 @@ window.CURRICULUM_DATA = [
         "id": "duckdb, pyarrow",
         "en": "duckdb, pyarrow"
        },
-       "code": "duckdb>=0.10.0\npyarrow>=14.0.0"
+       "code": "duckdb>=0.10.0,<3\npyarrow>=14.0.0"
       }
      ],
      "deliverables": [
@@ -13102,7 +13102,7 @@ window.CURRICULUM_DATA = [
         "id": "duckdb, pyarrow",
         "en": "duckdb, pyarrow"
        },
-       "code": "duckdb>=0.10.0\npyarrow>=14.0.0"
+       "code": "duckdb>=0.10.0,<3\npyarrow>=14.0.0"
       }
      ],
      "deliverables": [
@@ -13569,7 +13569,7 @@ window.CURRICULUM_DATA = [
         "id": "Spesifikasi versi Airflow 3.1.8 dan DuckDB beserta panduan instalasi",
         "en": "Airflow 3.1.8 and DuckDB, with the install command"
        },
-       "code": "apache-airflow==3.1.8\nduckdb>=1.0\n# install with the official constraints so that Airflow gets versions it was tested with:\n#   pip install -r labs/mod-4-4/requirements.txt --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt\n# (replace 3.12 by your Python version, for example 3.11 or 3.13)"
+       "code": "apache-airflow==3.1.8\nduckdb>=1.0,<3\n# install with the official constraints so that Airflow gets versions it was tested with:\n#   pip install -r labs/mod-4-4/requirements.txt --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt\n# (replace 3.12 by your Python version, for example 3.11 or 3.13)"
       }
      ],
      "deliverables": [

@@ -1,2 +1,2 @@
-pytest>=8
+pytest>=8,<10
 pyspark>=3.5      # Part B (needs Java 17+)

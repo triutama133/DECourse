@@ -1,0 +1,28 @@
+# Exact versions for CI, taken from the last green run (2026-11-21, Python 3.12).
+# The main CI job installs with these (PIP_CONSTRAINT), so a new release cannot break it overnight.
+# A weekly workflow (.github/workflows/latest-deps.yml) runs the same checks with the newest versions:
+# when it passes on newer versions, update the numbers here; when it fails, fix the course first.
+annotated-types==0.8.0
+duckdb==2.0.1
+fasteners==0.20
+iniconfig==2.3.1
+numpy==2.5.5
+packaging==26.3
+pandas==3.1.1
+pgserver==0.1.4
+platformdirs==4.14.8
+pluggy==1.7.0
+polars==2.1.0
+polars-runtime-32==2.1.0
+psutil==7.2.2
+psycopg==3.3.9
+psycopg-binary==3.3.9
+pyarrow==26.0.1
+pydantic==2.14.4
+pydantic-core==2.50.5
+pygments==2.21.0
+pytest==9.2.0
+python-dateutil==4.0.0
+typing-extensions==4.16.0
+typing-inspection==0.4.5
+tzdata==2026.6

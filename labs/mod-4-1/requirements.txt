@@ -1,2 +1,2 @@
-duckdb>=1.0
+duckdb>=1.0,<3
 pyarrow>=15
