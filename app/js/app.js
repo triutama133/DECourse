@@ -485,10 +485,10 @@ class DataForgeApp {
 
     const badges = [
       { id: "first-proof", icon: "🧪", name: this.l("Bukti pertama", "First proof"), desc: this.l("Verifikasi bukti lab lokal DF1 atau TRY1 pertama Anda", "Verify your first local DF1 or TRY1 lab proof"), unlocked: (proofCount + tryItCount) >= 1 },
-      { id: "sql-gladiator", icon: "⚡", name: this.l("Gladiator SQL Hostil", "Hostile SQL Gladiator"), desc: this.l("Selesaikan ≥ 5 tantangan SQL dengan tes mutasi hostil", "Solve ≥ 5 SQL challenges with hostile data tests"), unlocked: sqlCount >= 5 },
-      { id: "chaos-defender", icon: "🛠️", name: this.l("Penjinak Insiden Jam 2 Pagi", "2 AM Chaos Responder"), desc: this.l("Selesaikan drill debugging CHAOS1 atau Silent Bug Clinic", "Complete a CHAOS1 terminal drill or Silent Bug case"), unlocked: (chaosCount + bugCount) >= 1 },
+      { id: "sql-gladiator", icon: "⚡", name: this.l("Lima tantangan SQL", "Five SQL challenges"), desc: this.l("Selesaikan ≥ 5 tantangan SQL dengan tes mutasi hostil", "Solve ≥ 5 SQL challenges with hostile data tests"), unlocked: sqlCount >= 5 },
+      { id: "chaos-defender", icon: "🛠️", name: this.l("Insiden diperbaiki", "Incident fixed"), desc: this.l("Selesaikan drill debugging CHAOS1 atau Silent Bug Clinic", "Complete a CHAOS1 terminal drill or Silent Bug case"), unlocked: (chaosCount + bugCount) >= 1 },
       { id: "fode-architect", icon: "📐", name: this.l("Arsitek Siklus Hidup Data", "Lifecycle Architect"), desc: this.l("Selesaikan simulasi Pertahanan Stakeholder atau Modul 0.1", "Complete a Stakeholder Defense drill or Module 0.1"), unlocked: defCount >= 1 || this.completedModules.includes("mod-0-1") },
-      { id: "ship-it", icon: "🏆", name: this.l("Pengirim Portofolio Git", "Git Portfolio Shipper"), desc: this.l("Verifikasi repositori Git lokal dengan token PORT1", "Verify a local Git repository with a PORT1 token"), unlocked: portCount >= 1 }
+      { id: "ship-it", icon: "🏆", name: this.l("Portofolio terkirim", "Portfolio shipped"), desc: this.l("Verifikasi repositori Git lokal dengan token PORT1", "Verify a local Git repository with a PORT1 token"), unlocked: portCount >= 1 }
     ];
 
     const quests = [
@@ -1862,9 +1862,6 @@ class DataForgeApp {
         if (weakModList.length < 4 && activePathSet.has(m.id)) weakModList.push(m);
       }
     });
-    const strongPct = Math.max(8, Math.round((strongMods / totalMods) * 100));
-    const medPct = Math.max(8, Math.round((mediumMods / totalMods) * 100));
-    const weakPct = Math.max(10, 100 - strongPct - medPct);
 
     // Determine next recommended module & action (prioritizing active career path)
     const nextMod = allMods.find((m) => activePathSet.has(m.id) && !this.completedModules.includes(m.id))
@@ -1888,7 +1885,7 @@ class DataForgeApp {
     }
 
     const pillars = [1, 2, 3, 4].map((n) => `
-      <div class="card">
+      <div class="well">
         <h3>${t["pillar" + n + "Title"]}</h3>
         <p class="muted" style="margin-top:6px">${t["pillar" + n + "Desc"]}</p>
       </div>`).join("");
@@ -1935,203 +1932,133 @@ class DataForgeApp {
         </div>`;
     }).join("");
 
+    const started = readLessonsCount > 0 || this.completedModules.length > 0 || tryItCount > 0 || proofCount > 0 || sqlSolved > 0;
+    const nextPct = nextModTotalLs ? Math.round((nextModRead / nextModTotalLs) * 100) : 0;
+    const badgesEarned = g.badges.filter((b) => b.unlocked).length;
+    const sqlTotal = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.length) || 59;
+    const bugsSolved = Object.values(this.bugState || {}).filter((x) => x && x.solved).length;
+    const bugsTotal = (window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS.length) || 5;
+    const reviewList = weakModList.filter((m) => this.quizScores[m.id]).slice(0, 3);
+
     return `
       <div class="stack">
+        ${started ? "" : `
         <div class="card stack-sm">
-          <span class="chip chip-blue">${t.roadmapBadge}</span>
+          <span class="label">${t.roadmapBadge}</span>
           <h1>${t.roadmapHeroTitle}</h1>
           <p class="muted" style="max-width:720px;font-size:15px">${t.roadmapHeroDesc}</p>
           <div class="row" style="padding-top:8px">
             <button class="btn btn-primary" onclick="app.go('start')">${this.l("Mulai di sini: siapkan komputer", "Start here: set up your computer")}</button>
-            <button class="btn" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
-            <button class="btn btn-quiet" onclick="app.go('interview')">${t.ctaInterviewSim}</button>
-            <button class="btn btn-quiet" onclick="app.go('cv-builder')">${t.ctaBuildCv}</button>
+            <button class="btn btn-quiet" onclick="app.go('curriculum')">${t.ctaStartCurriculum}</button>
           </div>
-        </div>
+        </div>`}
 
-        <!-- Continue Learning & Active Learning Telemetry -->
-        <div class="card continue-banner stack-sm">
-          <div class="row between">
-            <div>
-              <span class="chip chip-blue" style="margin-bottom:4px">🧭 ${this.l("Kompas Belajar Anda", "Your Learning Compass")} · ${this.esc(activePathObj.title)}</span>
-              <h2>${this.l("Lanjutkan Langkah Terbaik Berikutnya", "Continue Where You Left Off")}</h2>
-              <p class="muted small" style="margin-top:2px">
-                <strong>${nextMod.number} ${this.esc(this.t(nextMod.title))}</strong> — ${this.esc(this.t(nextMod.summary))}
-              </p>
+        <section class="card today-card" aria-labelledby="today-title">
+          <div class="today-main stack-sm">
+            <span class="label">${started ? this.l("Lanjutkan", "Continue") : this.l("Modul pertama Anda", "Your first module")} · ${this.esc(activePathObj.title)}</span>
+            <h2 id="today-title">${nextMod.number} ${this.esc(this.t(nextMod.title))}</h2>
+            <p class="muted small">${this.esc(this.t(nextMod.summary))}</p>
+            <div class="today-progress">
+              <div class="progress"><div style="width:${nextPct}%"></div></div>
+              <span class="small muted">${this.l(`${nextModRead} dari ${nextModTotalLs} materi`, `${nextModRead} of ${nextModTotalLs} lessons`)}</span>
             </div>
             <div class="row">
-              <button class="btn btn-primary" onclick="app.go('curriculum','${nextMod.id}','${nextTab}')">
-                ${nextActionLabel} →
-              </button>
+              <button class="btn ${started ? "btn-primary" : ""}" onclick="app.go('curriculum','${nextMod.id}','${nextTab}')">${nextActionLabel} →</button>
             </div>
           </div>
-          <div class="grid cols-4" style="margin-top:6px">
-            <div class="stat">
-              <div class="muted small">${this.l("Modul Tuntas", "Modules Done")}</div>
-              <div class="num">${this.completedModules.length}<span class="muted small" style="font-weight:400"> / ${totalMods}</span></div>
-            </div>
-            <div class="stat">
-              <div class="muted small">${this.l("Materi Dibaca", "Lessons Read")}</div>
-              <div class="num">${readLessonsCount}<span class="muted small" style="font-weight:400"> / ${totalLessons}</span></div>
-            </div>
-            <div class="stat">
-              <div class="muted small">${this.l("Bukti Lab & Try-It", "Lab Proofs & Try-Its")}</div>
-              <div class="num">${proofCount} 🧪 <span class="muted small" style="font-weight:400">· ${tryItCount} 🛠</span></div>
-            </div>
-            <div class="stat">
-              <div class="muted small">${this.l("Tantangan SQL Sandbox", "SQL Sandbox Solved")}</div>
-              <div class="num">${sqlSolved}<span class="muted small" style="font-weight:400"> / ${(window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges.length) || 59}</span></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Daily quests and badges -->
-        <div class="grid cols-2">
-          <div class="card stack-sm">
+          <div class="today-side stack-sm">
             <div class="row between">
-              <div>
-                <span class="chip chip-blue">🎯 ${this.l("Misi Harian (Daily Quests)", "Daily Engineering Quests")}</span>
-                <h3 style="margin-top:4px">${this.l("Bangun Kebiasaan Praktik Lokal Setiap Hari", "Build Your Daily Hands-On Engineering Habit")}</h3>
-              </div>
-              <span class="gami-pill streak">🔥 ${g.streakDays} ${this.l("Hari Streak", "Day Streak")}</span>
+              <span class="label">${this.l("Hari ini", "Today")}</span>
+              <span class="gami-pill streak" title="${this.l("Hari berturut-turut Anda belajar", "Days in a row you have studied")}">🔥 ${g.streakDays} ${this.l("hari", g.streakDays === 1 ? "day" : "days")}</span>
             </div>
-            <div class="stack-sm" style="margin-top:4px">
+            <ul class="quest-list">
               ${g.quests.map((q) => {
-                const qPct = Math.round((q.cur / q.max) * 100);
                 const qDone = q.cur >= q.max;
-                return `
-                  <div class="well stack-sm" style="padding:10px 12px">
-                    <div class="row between small">
-                      <a href="${q.link}" style="font-weight:600;color:var(--text)">${qDone ? "✅ " : "○ "}${this.esc(q.label)}</a>
-                      <span class="chip ${qDone ? "chip-green" : "chip-blue"}">${q.cur}/${q.max} · ${q.xp}</span>
-                    </div>
-                    <div class="progress" style="height:6px"><div style="width:${qPct}%;background:${qDone ? "var(--green)" : "var(--blue)"}"></div></div>
-                  </div>`;
+                return `<li><a href="${q.link}" class="${qDone ? "done" : ""}"><span class="quest-check" aria-hidden="true">${qDone ? "✓" : ""}</span><span class="quest-text">${this.esc(q.label)}</span><span class="small muted">${q.cur}/${q.max}</span></a></li>`;
               }).join("")}
-            </div>
+            </ul>
+            <div class="small muted">⚡ ${g.xp.toLocaleString()} XP · ${this.esc(g.leagueName)} · ${this.l(`${badgesEarned} dari ${g.badges.length} lencana`, `${badgesEarned} of ${g.badges.length} badges`)}</div>
           </div>
+        </section>
 
-          <div class="card stack-sm">
-            <div class="row between">
-              <div>
-                <span class="chip chip-green">🏅 ${this.l("Lencana", "Badges")}</span>
-                <h3 style="margin-top:4px">${g.leagueIcon} ${this.esc(g.leagueName)} · ⚡ ${g.xp.toLocaleString()} XP</h3>
-              </div>
-              <span class="muted small">${g.badges.filter((b) => b.unlocked).length}/${g.badges.length} ${this.l("Terbuka", "Unlocked")}</span>
-            </div>
-            <div class="stack-sm" style="margin-top:4px">
-              ${g.badges.map((b) => `
-                <div class="row between" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);opacity:${b.unlocked ? "1" : "0.55"};background:${b.unlocked ? "var(--accent-soft)" : "var(--card-subtle)"}">
-                  <div class="row" style="gap:10px;flex-wrap:nowrap">
-                    <span style="font-size:20px">${b.icon}</span>
-                    <div>
-                      <div style="font-size:13px;font-weight:700">${this.esc(b.name)}</div>
-                      <div class="small muted">${this.esc(b.desc)}</div>
-                    </div>
-                  </div>
-                  <span class="chip ${b.unlocked ? "chip-green" : ""}">${b.unlocked ? "✓ " + this.l("Diraih", "Earned") : "🔒 " + this.l("Terkunci", "Locked")}</span>
-                </div>`).join("")}
-            </div>
-          </div>
+        <div class="stat-strip" role="list">
+          <div role="listitem"><span class="num">${this.completedModules.length}</span><span class="muted small"> / ${totalMods} ${this.l("modul", "modules")}</span></div>
+          <div role="listitem"><span class="num">${readLessonsCount}</span><span class="muted small"> / ${totalLessons} ${this.l("materi", "lessons")}</span></div>
+          <div role="listitem"><span class="num">${proofCount + tryItCount}</span><span class="muted small"> ${this.l("bukti lab & Try-it", "lab proofs & Try-its")}</span></div>
+          <div role="listitem"><span class="num">${sqlSolved}</span><span class="muted small"> / ${sqlTotal} ${this.l("tantangan SQL", "SQL challenges")}</span></div>
         </div>
 
-        <!-- Idea #3: Uxcel Personalized Learning Paths + Busuu Weak/Medium/Strong Skill Radar & Saved Tips -->
-        <div class="card stack-sm">
+        <section class="stack-sm" aria-labelledby="levels-title">
           <div class="row between">
-            <div>
-              <span class="chip chip-blue">🛤️ ${this.l("Jalur Karir Terpersonalisasi (Uxcel Style) & Radar Penguasaan (Busuu Style)", "Personalized Career Paths (Uxcel Style) & Skill Mastery Radar (Busuu Style)")}</span>
-              <h2 style="margin-top:4px">${this.l("Pilih Spesialisasi Karir Data Engineer Anda", "Filter Roadmap by Your Target Data Engineering Career Track")}</h2>
-            </div>
-            ${this.activeCareerPath !== "all" ? `<button class="btn btn-sm btn-quiet" onclick="app.setCareerPath('all')">${this.l("Tampilkan Semua 27 Modul", "Show All 27 Modules")}</button>` : ""}
+            <h2 id="levels-title">${t.matrixTitle}</h2>
+            ${this.activeCareerPath !== "all" ? `<button class="btn btn-sm btn-quiet" onclick="app.setCareerPath('all')">${this.l("Tampilkan semua modul", "Show all modules")}</button>` : ""}
           </div>
-          <div class="grid cols-4" style="margin-top:6px">
+          <div class="path-picker" role="group" aria-label="${this.l("Jalur karier", "Career path")}">
             ${careerPaths.map((cp) => {
               const cpDone = cp.modules.filter((id) => this.completedModules.includes(id)).length;
-              const cpPct = Math.round((cpDone / cp.modules.length) * 100);
               const isSelected = cp.id === this.activeCareerPath;
-              return `
-                <div class="career-path-card ${isSelected ? "active" : ""}" onclick="app.setCareerPath('${cp.id}')" role="button" tabindex="0">
-                  <div class="row between">
-                    <span style="font-size:22px">${cp.icon}</span>
-                    <span class="chip ${isSelected ? "chip-blue" : ""}">${cpDone}/${cp.modules.length} (${cpPct}%)</span>
-                  </div>
-                  <h3 style="font-size:14px">${this.esc(cp.title)}</h3>
-                  <p class="small muted" style="flex:1">${this.esc(cp.desc)}</p>
-                  <div class="progress" style="height:5px;margin-top:4px"><div style="width:${cpPct}%"></div></div>
-                </div>`;
+              return `<button class="${isSelected ? "active" : ""}" aria-pressed="${isSelected}" onclick="app.setCareerPath('${cp.id}')" title="${this.esc(cp.desc)}"><span aria-hidden="true">${cp.icon}</span> ${this.esc(cp.title)} <span class="muted small">${cpDone}/${cp.modules.length}</span></button>`;
             }).join("")}
           </div>
+          <div class="grid cols-3">${levels}</div>
+        </section>
 
-          <!-- Busuu-style Weak / Medium / Strong Mastery Bar -->
-          <div class="well stack-sm" style="margin-top:10px">
-            <div class="row between">
-              <div>
-                <strong>📊 ${this.l("Distribusi Kekuatan Konsep & Bukti Lokal Anda", "Your Concept & Local Proof Strength Distribution")}</strong>
-                <p class="small muted">${this.l("Berdasarkan skor kuis, materi yang dibaca, dan verifikasi lab lokal (DF1/TRY1):", "Computed from your quiz accuracy, completed lessons, and verified local lab proofs:")}</p>
-              </div>
-              <div class="row small">
-                <span class="chip" style="border-color:var(--red);color:var(--red)">🔴 ${this.l("Perlu Diperkuat", "Needs Work")}: ${weakMods}</span>
-                <span class="chip" style="border-color:var(--amber);color:var(--amber)">🟡 ${this.l("Sedang Dipelajari", "In Progress")}: ${mediumMods}</span>
-                <span class="chip chip-green">🟢 ${this.l("Kuat & Terbukti", "Strong & Proven")}: ${strongMods}</span>
-              </div>
-            </div>
-            <div class="busuu-bar">
-              <div class="busuu-segment weak" style="width:${weakPct}%">${this.l("Perlu Fokus", "Focus")} (${weakMods})</div>
-              <div class="busuu-segment medium" style="width:${medPct}%">${this.l("Berjalan", "Active")} (${mediumMods})</div>
-              <div class="busuu-segment strong" style="width:${strongPct}%">${this.l("Kuat", "Strong")} (${strongMods})</div>
-            </div>
-            <div class="row between" style="margin-top:4px">
-              <div class="row" style="gap:6px">
-                <span class="small muted">${this.l("Rekomendasi Ulasan Cepat:", "Quick Weak-Topic Review:")}</span>
-                ${weakModList.slice(0, 3).map((wm) => `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${wm.id}','quiz')">🎯 ${wm.number} ${this.esc(this.t(wm.title))}</button>`).join("")}
-              </div>
-              <span class="small muted">🔖 ${(this.savedTips || []).length} ${this.l("Tips Kuis Tersimpan", "Saved Quiz Tips")}</span>
-            </div>
-            ${(this.savedTips || []).length ? `
-              <details style="margin-top:6px">
-                <summary class="small" style="cursor:pointer;font-weight:700;color:var(--accent)">🔖 ${this.l(`Buka Pustaka Tips Kuis Tersimpan Anda (${this.savedTips.length})`, `Open Your Saved Quiz Tips & Bookmarks (${this.savedTips.length})`)}</summary>
-                <div class="stack-sm" style="margin-top:8px">
-                  ${this.savedTips.map((tip) => `
-                    <div class="row between" style="padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">
-                      <div style="flex:1">
-                        <a href="#/curriculum/${this.esc(tip.modId)}/concepts" class="small" style="font-weight:700">${this.esc(tip.title)}</a>
-                        <div class="small muted" style="margin-top:2px">${this.inline(tip.text)}</div>
-                      </div>
-                      <button class="btn btn-sm btn-quiet" onclick="app.toggleSaveTip('${this.esc(tip.id)}')">✕</button>
-                    </div>`).join("")}
-                </div>
-              </details>` : ""}
+        <section class="stack-sm" aria-labelledby="practice-title">
+          <h2 id="practice-title">${this.l("Latihan di luar modul", "Practice beyond the modules")}</h2>
+          <div class="grid cols-3">
+            <button class="card practice-card" onclick="app.go('interview','silent-bugs')">
+              <span class="label">${this.l("Klinik bug diam-diam", "Silent bug clinic")} · ${bugsSolved}/${bugsTotal}</span>
+              <strong>${this.l("Temukan bug yang tidak memunculkan error", "Find bugs that raise no error")}</strong>
+              <span class="muted small">${this.l("Bug paling berbahaya selesai dengan kode 0 lalu diam-diam menggandakan revenue atau membuang baris.", "The worst bugs exit with code 0, then quietly double revenue or drop rows.")}</span>
+            </button>
+            <button class="card practice-card" onclick="app.go('interview','active-recall')">
+              <span class="label">${this.l("Mengingat aktif", "Active recall")} · ${Object.keys(this.recallState || {}).length} ${this.l("diulas", "reviewed")}</span>
+              <strong>${this.l("Ingat dulu, baru lihat jawabannya", "Recall first, then look")}</strong>
+              <span class="muted small">${this.l("Kartu model mental inti setiap modul, untuk ingatan jangka panjang.", "The key mental model of every module, for long-term memory.")}</span>
+            </button>
+            <button class="card practice-card" onclick="app.go('curriculum','mod-0-1','concepts')">
+              <span class="label">${this.l("Simulator", "Simulators")}</span>
+              <strong>${this.l("Geser angkanya, lihat sistemnya berubah", "Move a number, watch the system change")}</strong>
+              <span class="muted small">${this.l("Kematangan data, join fan-out, partition pruning, watermark, retry, PII. Ada di dalam modul terkait.", "Data maturity, join fan-out, partition pruning, watermarks, retries, PII. Inside the related modules.")}</span>
+            </button>
           </div>
-        </div>
+          ${reviewList.length ? `
+          <div class="well row">
+            <span class="small muted">${this.l("Ulangi kuis yang belum lulus:", "Retake the quizzes you have not passed yet:")}</span>
+            ${reviewList.map((wm) => `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${wm.id}','quiz')">${wm.number} ${this.esc(this.t(wm.title))}</button>`).join("")}
+          </div>` : ""}
+          ${(this.savedTips || []).length ? `
+          <details class="well">
+            <summary class="small" style="cursor:pointer;font-weight:600">${this.l(`Tips kuis yang Anda simpan (${this.savedTips.length})`, `Quiz tips you saved (${this.savedTips.length})`)}</summary>
+            <div class="stack-sm" style="margin-top:8px">
+              ${this.savedTips.map((tip) => `
+                <div class="row between" style="padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius)">
+                  <div style="flex:1">
+                    <a href="#/curriculum/${this.esc(tip.modId)}/concepts" class="small" style="font-weight:700">${this.esc(tip.title)}</a>
+                    <div class="small muted" style="margin-top:2px">${this.inline(tip.text)}</div>
+                  </div>
+                  <button class="btn btn-sm btn-quiet" aria-label="${this.l("Hapus tips", "Remove tip")}" onclick="app.toggleSaveTip('${this.esc(tip.id)}')">✕</button>
+                </div>`).join("")}
+            </div>
+          </details>` : ""}
+        </section>
 
-        <!-- Active Practice Hub: Silent Bug Clinic, Active Recall & Interactive Simulators -->
-        <div class="grid cols-3">
-          <div class="card stack-sm" style="border-top:3px solid var(--red)">
-            <div class="row between"><span class="chip">🐛 ${this.l("Klinik Debugging", "Production Debugging")}</span><span class="muted small">${Object.values(this.bugState || {}).filter((x) => x && x.solved).length} / ${(window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS.length) || 5} ${this.l("Selesai", "Solved")}</span></div>
-            <h3>${this.l("Temukan Bug Diam-Diam (Silent Bug Clinic)", "Spot the Silent Data Bug Clinic")}</h3>
-            <p class="muted small">${this.l("Di dunia nyata, bug paling berbahaya keluar dengan kode 0 tanpa error, tetapi diam-diam menggandakan pendapatan atau menghapus baris NULL.", "In production, the deadliest bugs exit with code 0 and zero errors while silently inflating revenue or dropping NULL rows.")}</p>
-            <button class="btn btn-sm" onclick="app.go('interview','silent-bugs')">${this.l("Buka Silent Bug Clinic →", "Open Silent Bug Clinic →")}</button>
+        <details class="card fold">
+          <summary><span>${this.l("Lencana", "Badges")}</span><span class="muted small">${this.l(`${badgesEarned} dari ${g.badges.length} diraih`, `${badgesEarned} of ${g.badges.length} earned`)}</span></summary>
+          <div class="grid cols-2" style="margin-top:12px">
+            ${g.badges.map((b) => `
+              <div class="badge-row ${b.unlocked ? "earned" : ""}">
+                <span class="badge-icon" aria-hidden="true">${b.icon}</span>
+                <div><div style="font-weight:600">${this.esc(b.name)}</div><div class="small muted">${this.esc(b.desc)}</div></div>
+                <span class="small ${b.unlocked ? "" : "muted"}">${b.unlocked ? "✓ " + this.l("Diraih", "Earned") : this.l("Belum", "Not yet")}</span>
+              </div>`).join("")}
           </div>
-          <div class="card stack-sm" style="border-top:3px solid var(--blue)">
-            <div class="row between"><span class="chip chip-blue">🧠 ${this.l("Active Recall", "Spaced Repetition")}</span><span class="muted small">${Object.keys(this.recallState || {}).length} ${this.l("Diulas", "Reviewed")}</span></div>
-            <h3>${this.l("Dek Active Recall & Model Mental", "Active Recall & Mental-Model Deck")}</h3>
-            <p class="muted small">${this.l("Uji ingatan jangka panjang Anda atas seluruh Model Mental Inti dari setiap modul sebelum melihat kunci jawaban.", "Test your long-term retention across every module's Key Mental Models by retrieving the concept before flipping the card.")}</p>
-            <button class="btn btn-sm" onclick="app.go('interview','active-recall')">${this.l("Mulai Latihan Ingatan →", "Start Active Recall →")}</button>
-          </div>
-          <div class="card stack-sm" style="border-top:3px solid var(--green)">
-            <div class="row between"><span class="chip chip-green">⚡ ${this.l("Simulator Interaktif", "Live Simulators")}</span><span class="muted small">6 ${this.l("Model", "Models")}</span></div>
-            <h3>${this.l("Simulator Diagnostik Sistem Data", "Interactive System Diagnostic Simulators")}</h3>
-            <p class="muted small">${this.l("Eksperimen langsung dengan Tahap Kematangan Data (TCO vs TOCO), Join Fan-Out, Partition Pruning, Watermark, Idempotensi, dan Keamanan PII/GDPR di dalam modul.", "Experiment live with Data Maturity (TCO vs TOCO), Join Fan-Out, Partition Pruning, Watermarks, Retry Idempotency, and PII/GDPR Security inside the modules.")}</p>
-            <button class="btn btn-sm" onclick="app.go('curriculum','mod-0-1','concepts')">${this.l("Coba Simulator di Kurikulum →", "Try Simulators in Curriculum →")}</button>
-          </div>
-        </div>
+        </details>
 
-        <div class="grid cols-4">${pillars}</div>
-        <div class="row between">
-          <h2>${t.matrixTitle}</h2>
-          <span class="chip chip-blue">${this.esc(activePathObj.icon)} ${this.esc(activePathObj.title)}</span>
-        </div>
-        <div class="grid cols-3">${levels}</div>
+        <details class="card fold">
+          <summary><span>${this.l("Cara kursus ini bekerja", "How this course works")}</span></summary>
+          <div class="grid cols-4" style="margin-top:12px">${pillars}</div>
+        </details>
       </div>`;
   }
 
@@ -2220,10 +2147,10 @@ class DataForgeApp {
             <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
             <p class="muted">${this.esc(this.t(mod.summary))}</p>
             ${mod.idPending && this.lang === "id" ? `<div class="callout"><p>Modul ini belum diterjemahkan ke bahasa Indonesia, jadi ditampilkan dalam bahasa Inggris.</p></div>` : ""}
-            <div class="callout neutral">
-              <div class="label">${t.whyTutorialsLieHeader}</div>
+            <details class="callout neutral fold-callout" ${readCount === 0 ? "open" : ""}>
+              <summary class="label">${t.whyTutorialsLieHeader}</summary>
               <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
-            </div>
+            </details>
 
             <!-- 4-Step Module Mastery Pipeline -->
             <div class="mastery-pipeline" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
@@ -2260,7 +2187,7 @@ class DataForgeApp {
             <!-- Personal Study Notes Drawer -->
             <details class="notes-drawer" ${noteText ? "" : ""}>
               <summary>
-                <span>📝 ${this.l("Catatan Belajar & Ringkasan Pribadi (Tersimpan Otomatis)", "Personal Study Notes & Key Takeaways (Auto-Saved)")}</span>
+                <span>📝 ${this.l("Catatan saya", "My notes")} <span class="muted small" style="font-weight:400">${this.l("· tersimpan otomatis di browser ini", "· saved automatically in this browser")}</span></span>
                 <span class="muted small">${noteText ? `✓ ${this.l("Ada catatan", "Saved")}` : this.l("Klik untuk menulis catatan", "Click to add notes")}</span>
               </summary>
               <textarea class="notes-textarea" placeholder="${this.l("Tulis model mental, perintah terminal penting, atau pertanyaan Anda untuk modul ini… (ikut terekspor saat Anda klik Ekspor Progres)", "Write down your mental models, key commands, or questions for this module… (included when you Export Progress)")}" oninput="app.saveModuleNote('${mod.id}', this.value)">${this.esc(noteText)}</textarea>
@@ -2311,15 +2238,19 @@ class DataForgeApp {
       const prereqNote = noteAt < 0 ? "" : prereqRaw.slice(noteAt).trim();
 
       return `
-        <div class="callout">
-          <div class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</div>
+        <details class="callout fold-callout" ${readCount === 0 ? "open" : ""}>
+          <summary class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}${readCount === 0 ? "" : ` · ${this.l("prasyarat dan waktu baca", "prerequisites and reading time")}`}</summary>
           <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>
           ${prereqText ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(prereqText)}</p>` : ""}
           <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
           ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
-        </div>
+        </details>
 
-        ${this.renderLifecycleDiagram(mod.id)}
+        ${readCount === 0 ? this.renderLifecycleDiagram(mod.id) : `
+        <details class="callout neutral fold-callout">
+          <summary class="label">${this.l("Posisi modul ini di siklus hidup data engineering", "Where this module sits in the data engineering lifecycle")}</summary>
+          ${this.renderLifecycleDiagram(mod.id)}
+        </details>`}
         ${this.renderModuleSimulator(mod.id)}
 
         <div class="well stack-sm" id="module-toc">
@@ -2586,7 +2517,7 @@ class DataForgeApp {
       <div class="lifecycle-diagram">
         <div class="row between">
           <div>
-            <span class="chip chip-blue">📐 ${this.l("Peta Visual Siklus Hidup Data Engineering (Reis & Housley)", "Visual Data Engineering Lifecycle Map (Reis & Housley)")}</span>
+            <span class="label">${this.l("Siklus hidup data engineering (Reis & Housley)", "The data engineering lifecycle (Reis & Housley)")}</span>
             <span class="small muted" style="margin-left:6px">${this.l("Tahap yang dinyalakan adalah posisi modul ini di arsitektur produksi:", "Highlighted stage shows where this module sits in production architecture:")}</span>
           </div>
         </div>
