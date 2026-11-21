@@ -188,6 +188,34 @@ Gunakan evaluasi sebagai **regression test**, di CI dan setiap kali chunking, mo
 >    `pytest labs/mod-3-5/test_rag.py -k "TestSearch or TestEvaluation" -v`
 > 4. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi pemeringkatan kemiripan, penegakan isolasi model, dan metrik akurasi evaluasi retrieval.
 
+## @part Data untuk machine learning
+
+## @lesson Data latih untuk machine learning: fitur point-in-time dan kebocoran
+Machine learning atau AI muncul di **47,8%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20). Data scientist memilih dan melatih model; data engineer membangun apa yang dipelajari model itu dan apa yang dibacanya di produksi. Sebuah model hanya sejujur tabel latihnya, dan cara paling umum membuatnya tidak jujur adalah kesalahan data engineering, bukan kesalahan pemodelan.
+
+**Yang dipegang data engineer.** **Tabel latih** berisi satu baris per *momen prediksi* ("pelanggan 248 pada 15 Januari"), **fitur** yang diketahui pada momen itu (pesanan dalam 14 hari terakhir, tier, kota), dan **label** yang datang sesudahnya (apakah pelanggan memesan lagi dalam 7 hari?). Di sekitarnya: menjaga fitur tetap segar, menghitungnya dengan cara yang sama untuk pelatihan dan prediksi langsung, membangun ulang tabel persis yang dipakai melatih model (time travel dan snapshot, Modul 2.2), dan mengawasi drift setelah model berjalan.
+
+**Point-in-time correctness** adalah aturan bahwa setiap fitur hanya boleh memakai apa yang diketahui pada momen prediksi. Baris untuk 15 Januari boleh menghitung pesanan *sebelum* 15 Januari dan tidak boleh menghitung satu pun pesanan sesudahnya, dan harus memakai tier pelanggan *seperti pada* 15 Januari, bukan tier hari ini. Ini gagasan yang sama dengan dimensi Type 2 di Modul 1.4, diterapkan pada setiap fitur. Di SQL alatnya adalah **as-of join**: untuk setiap baris di kiri, ambil baris terakhir di kanan yang waktunya tidak melewatinya. DuckDB memilikinya bawaan:
+
+```sql
+SELECT s.customer_id, s.snapshot_ts, f.tier
+FROM snapshots s
+ASOF LEFT JOIN tier_feed f
+  ON s.customer_id = f.customer_id AND s.snapshot_ts >= f.effective_ts;
+```
+
+**Empat jenis kebocoran** (informasi dari masa depan yang sampai ke baris latih):
+1. **Baris masa depan:** hitungan, jumlah, atau rata-rata atas jendela waktu yang melewati momen prediksi, misalnya "pesanan bulan ini" untuk baris di tengah bulan.
+2. **Keadaan saat ini:** menjoin baris dimensi *saat ini*, bukan versi yang berlaku pada waktunya (tier, kota, status akun).
+3. **Kebocoran target:** fitur yang hanya diketahui karena labelnya terjadi, misalnya "jumlah refund" pada model yang memprediksi refund.
+4. **Pembagian acak:** mengacak baris ke data latih dan uji, sehingga model berlatih pada hari-hari yang datang setelah hari yang diujikan. Bagilah menurut waktu: latih pada masa lalu, uji pada yang datang kemudian.
+
+**Training-serving skew** adalah kembarannya yang lebih diam: fitur dihitung dengan satu cara untuk pelatihan (job SQL batch) dan cara lain di produksi (API yang menghitung berbeda, membulatkan, atau memakai zona waktu lain). Model lalu melihat masukan yang tidak pernah dilatihkan kepadanya. Obatnya satu definisi untuk setiap fitur, dipakai untuk keduanya. Itulah janji utama **feature store**: store *offline* untuk tabel latih, dibangun dengan point-in-time join, dan store *online* berisi nilai terbaru setiap fitur untuk prediksi langsung, keduanya diisi dari kode yang sama.
+
+> 🛠 **Coba sendiri (25 menit, Python dengan DuckDB, perlu `warehouse.db` Lab 1.4 Anda).** Lampirkan di DuckDB (`ATTACH 'warehouse.db' AS w (TYPE sqlite)`) dan pakai `stg_orders` untuk pelanggan yang ada di `stg_customers`, semua status, dengan `order_ts` di-cast ke `TIMESTAMP`. Untuk momen prediksi S, populasinya adalah setiap pelanggan dengan minimal satu pesanan sebelum S, labelnya "minimal satu pesanan dalam 7 hari sejak S", dan Anda membangun dua versi satu fitur: **point-in-time** (pesanan dalam 14 hari sebelum S) dan **bocor** (semua pesanan dalam data, sebelum dan sesudah S). Pilih aturan "prediksi ya jika fitur ≥ k" (k dari 1 sampai 7) dengan akurasi terbaik pada S = 2026-01-15, lalu terapkan k yang sama pada S = 2026-01-22, ketika hanya masa lalu yang ada, sehingga kedua versi menjadi hitungan point-in-time. Bandingkan dengan selalu menebak jawaban yang lebih umum. Terakhir, dengan as-of join pada feed tier (baris signup dari `stg_customers` ditambah `stg_customer_changes`), hitung pelanggan yang tier-nya pada 2026-01-15 berbeda dari tier terakhirnya.
+>
+> **Seharusnya Anda melihat:** `808` pelanggan pada 2026-01-15 (`466` memesan lagi) dan `915` pada 2026-01-22; selalu menebak "ya" mendapat `57.7%` dan `56.8%`. Fitur yang bocor tampak berguna saat pelatihan, `70.4%` dengan k = 3, lalu jatuh ke `44.7%` pada tanggal berikutnya, lebih buruk daripada menebak. Fitur point-in-time mendapat `57.7%` dan `54.9%`: pada data ini sinyal yang jujur memang lemah, dan justru itulah yang perlu Anda ketahui sebelum ada yang merilis modelnya. `14` dari 808 pelanggan punya tier yang berbeda pada 15 Januari dibanding hari ini, jadi menjoin tier saat ini pun akan bocor. Diukur dengan DuckDB 2.0.1.
+
 ## @lab Lab: pipeline data RAG di PostgreSQL dan pgvector
 Bangun separuh arsitektur offline dari sistem RAG untuk pusat bantuan pelanggan KopiKu: mengelola 116 dokumen panduan bisnis (jam operasional gerai, metode pembayaran, aturan parkir, daftar menu, informasi alergen, dan kebijakan refund) serta mengevaluasi 116 pertanyaan pengguna dengan jawaban berlabel. Anda akan mengimplementasikan fungsi pemotongan teks (chunking), komputasi embeddings, content hashing, sinkronisasi inkremental yang atomik, pencarian terfilter, evaluasi metrik akurasi, serta pembuatan indeks HNSW di pgvector. Rangkaian 43 pengujian otomatis akan memverifikasi setiap fungsionalitas dan membuktikan sifat idempotensi serta isolasi versi model.
 
@@ -317,6 +345,14 @@ Sebuah vektor hanya bermakna jika dipadukan dengan model yang memproduksinya. Se
 - [x] Menjalankan dataset pertanyaan berlabel sebagai regression test di CI/CD, dengan alert saat hit rate atau skor anjlok
 
 > Kualitas retrieval adalah metrik terukur. Jalankan evaluasi matematis secara otomatis di setiap ada pembaruan kode, model, atau data, sehingga degradasi kualitas yang hening langsung terdeteksi sebagai test failure yang membunyikan alarm.
+
+### Model churn mendapat 92% pada data uji yang dibuat dengan mengacak baris, dan jauh lebih buruk setelah diluncurkan. Apa penyebab data yang paling mungkin?
+- [ ] Data ujinya terlalu kecil, sehingga akurasi di atas 90% hanyalah kebetulan yang nanti hilang
+- [x] Baris dibagi secara acak, sehingga data latih memuat hari setelah hari uji; bagilah menurut waktu
+- [ ] Churn tidak bisa diprediksi dari data pesanan, jadi pembagian baris apa pun tak akan memberi model bagus
+- [ ] Database produksi lebih lambat daripada data latih, sehingga prediksi langsung sering timeout
+
+> Pembagian acak membuat model belajar dari masa depan baris yang diujikan kepadanya. Latih pada masa lalu, uji pada tanggal sesudahnya, dan bangun setiap fitur sesuai momen prediksi (pelajaran 7).
 
 ## @resources
 - [Ekstensi pgvector untuk PostgreSQL](https://github.com/pgvector/pgvector)

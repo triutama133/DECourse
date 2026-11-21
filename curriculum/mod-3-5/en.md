@@ -188,6 +188,34 @@ Use the evaluation as a **regression test**, in CI and after every change to chu
 >    `pytest labs/mod-3-5/test_rag.py -k "TestSearch or TestEvaluation" -v`
 > 4. **Success Indicator:** All 8 tests report `PASSED`, validating similarity ranking, model isolation enforcement, and retrieval evaluation metrics.
 
+## @part Data for machine learning
+
+## @lesson Training data for machine learning: point-in-time features and leakage
+Machine learning or AI appears in **47.8%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20). Data scientists choose and train the models; the data engineer builds what the model learns from and what it reads in production. A model is only as honest as its training table, and the most common way to make it dishonest is a data engineering mistake, not a modelling one.
+
+**What the data engineer owns.** A **training table** has one row per *prediction moment* ("customer 248 on 15 January"), the **features** known at that moment (orders in the last 14 days, tier, city), and the **label** that came after it (did the customer order again within 7 days?). Around it: keeping features fresh, computing them the same way for training and for live predictions, rebuilding the exact table a model was trained on (time travel and snapshots, Module 2.2), and watching for drift once the model is live.
+
+**Point-in-time correctness** is the rule that every feature may only use what was known at the prediction moment. A row for 15 January may count the orders *before* 15 January and must not count a single order after it, and it must use the customer's tier *as it was* on 15 January, not today's tier. This is the same idea as the Type 2 dimension of Module 1.4, applied to every feature. In SQL the tool is an **as-of join**: for each row on the left, take the latest row on the right whose time is not after it. DuckDB has it built in:
+
+```sql
+SELECT s.customer_id, s.snapshot_ts, f.tier
+FROM snapshots s
+ASOF LEFT JOIN tier_feed f
+  ON s.customer_id = f.customer_id AND s.snapshot_ts >= f.effective_ts;
+```
+
+**Four kinds of leakage** (information from the future reaching the training row):
+1. **Future rows:** a count, sum or average over a window that runs past the prediction moment, for example "orders this month" for a row in the middle of the month.
+2. **Current state:** joining a dimension's *current* row instead of the version valid at the time (tier, city, account status).
+3. **Target leakage:** a feature that is only known because the label happened, for example "refund amount" in a model that predicts refunds.
+4. **Random splits:** shuffling rows into train and test, so the model trains on days that come after the days it is tested on. Split by time instead: train on the past, test on what came later.
+
+**Training-serving skew** is the quieter twin: the feature is computed one way for training (a batch SQL job) and another way in production (an API that counts differently, or rounds, or uses another time zone). The model then sees inputs it was never trained on. The cure is one definition of each feature, used for both. That is the main promise of a **feature store**: an *offline* store for training tables, built with point-in-time joins, and an *online* store with the latest value of each feature for live predictions, both filled from the same code.
+
+> 🛠 **Try it (25 min, Python with DuckDB, needs your Lab 1.4 `warehouse.db`).** Attach it in DuckDB (`ATTACH 'warehouse.db' AS w (TYPE sqlite)`) and use `stg_orders` for customers that exist in `stg_customers`, all statuses, with `order_ts` cast to `TIMESTAMP`. For a prediction moment S, the population is every customer with at least one order before S, the label is "at least one order in the 7 days from S", and you build two versions of one feature: **point-in-time** (orders in the 14 days before S) and **leaky** (all orders in the data, before and after S). Pick the rule "predict yes when feature ≥ k" (k from 1 to 7) with the best accuracy at S = 2026-01-15, then apply that same k at S = 2026-01-22, where only the past exists, so both versions become the point-in-time count. Compare with always guessing the more common answer. Finally, with an as-of join on the tier feed (`stg_customers` signup rows plus `stg_customer_changes`), count the customers whose tier on 2026-01-15 differs from their latest tier.
+>
+> **You should see:** `808` customers at 2026-01-15 (`466` ordered again) and `915` at 2026-01-22; always guessing "yes" scores `57.7%` and `56.8%`. The leaky feature looks useful in training, `70.4%` with k = 3, and collapses to `44.7%` at the later date, worse than guessing. The point-in-time feature scores `57.7%` and `54.9%`: on this data the honest signal is weak, which is exactly what you need to know before anyone ships the model. `14` of the 808 customers had a different tier on 15 January than today, so joining the current tier would have leaked too. Measured with DuckDB 2.0.1.
+
 ## @lab Lab: a RAG data pipeline on PostgreSQL and pgvector
 Build the offline half of a RAG system for the KopiKu help center: 116 short documents (store hours, payments, parking, menu items, allergens and policies) and 116 questions with known answers. You write chunking, embedding, content hashing, an incremental atomic sync, filtered search, evaluation, and the HNSW index functions, and the tests prove each behaviour, including the rare ones: nothing is re-embedded when nothing changed, a failed sync changes nothing, and vectors from another model are never compared.
 
@@ -317,6 +345,14 @@ A vector is only meaningful together with the model that produced it. Version th
 - [x] A labelled question set run as a regression test, with alerts when the hit rate or scores drop
 
 > Retrieval quality can be measured. Run the evaluation on every change to model, chunking or index and on a schedule in production, so a quiet failure becomes a failing check.
+
+### A churn model scores 92% on a test set made by shuffling rows at random, and much worse after launch. What is the most likely data cause?
+- [ ] The test set was too small, so any accuracy above 90% is noise that disappears later on
+- [x] Rows were split at random, so training saw days that come after the test days; split by time
+- [ ] Churn cannot be predicted from order data, so no split of the rows would ever give a good model
+- [ ] The production database is slower than training data, so live predictions often time out
+
+> A random split lets the model learn from the future of the rows it is tested on. Train on the past, test on later dates, and build every feature as of the prediction moment (lesson 7).
 
 ## @resources
 - [pgvector: vector similarity search for PostgreSQL](https://github.com/pgvector/pgvector)
