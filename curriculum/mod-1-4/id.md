@@ -251,6 +251,46 @@ hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: sidik jari atribut
 > Hash persis seperti kode di atas: business key di-trim dan dijadikan huruf besar; key link adalah `CUSTOMER|ORDER`; `hash_diff` adalah `CITY|TIER`, keduanya di-trim dan dijadikan huruf besar. Pikirkan arti "pertama kali terlihat" saat event datang tidak berurutan, dan apa yang harus ditinggalkan di satellite oleh pelanggan yang pindah ke Bandung lalu kembali ke Jakarta.
 > **Periksa:** `python3 labs/tryit/check.py 1.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
+## @part Memakai model: dashboard
+
+## @lesson Dari star schema ke dashboard: menyajikan model ke alat BI
+Star schema dibangun untuk dibaca, dan sebagian besar pembacanya memakai alat BI (business intelligence). Dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), **36,8%** menyebut alat BI atau dashboard. Per nama: Power BI **17,6%**, Tableau **9,4%**, Looker **4,2%**, Excel **3,0%**, Metabase **1,0%**, dan Superset **0,9%**. Di banyak tim, analis yang membuat grafiknya, tetapi data engineer junior sering diminta membuat dashboard pertama juga, dan selalu menjadi orang yang dipanggil ketika angkanya tampak salah.
+
+**Apa yang dikerjakan setiap alat BI,** apa pun namanya:
+
+| Langkah | Apa yang terjadi | Biasanya dipegang siapa |
+|---|---|---|
+| Hubungkan | Alat membaca database, warehouse, atau file | Data engineer |
+| Model | Tabel, relasi (kunci mana menyambung ke mana), dan **measure** (perhitungan bernama seperti pendapatan) | Data engineer atau analytics engineer |
+| Bertanya | Sebuah pertanyaan menjadi grafik atau tabel | Analis |
+| Dashboard | Beberapa grafik di satu halaman, dengan filter | Analis |
+| Bagikan dan segarkan | Siapa boleh melihatnya, dan seberapa segar datanya | Keduanya |
+
+Alat-alat itu berbeda di layarnya, bukan di langkah-langkah ini. Pelajari langkahnya sekali di alat mana pun, dan alat berikutnya butuh hitungan hari, bukan bulan.
+
+**Tiga aturan yang menjaga angka dashboard tetap benar.** Ketiganya langsung dari modul ini, dan itulah yang akan ditanyakan kepada Anda ketika sebuah angka tampak salah:
+1. **Agregasikan pada grain yang tepat.** Tabel fakta berisi satu baris per *baris* pesanan. "Rata-rata nilai pesanan" adalah total pendapatan dibagi jumlah *pesanan*; merata-ratakan total per baris memberi rata-rata per *baris*, angka yang berbeda dan lebih kecil.
+2. **Pakai riwayat yang disimpan model.** Pendapatan per tier pelanggan harus memakai tier *pada saat pembelian* (kunci SCD Type 2 di tabel fakta, pelajaran 5), bukan tier pelanggan saat ini.
+3. **Rekonsiliasi.** Setiap angka di dashboard harus sama dengan query SQL yang bisa Anda jalankan sendiri. Jika berbeda, salah satunya keliru, dan Anda perlu tahu yang mana sebelum orang lain tahu.
+
+Dua kebiasaan lagi: tampilkan kapan data terakhir diperbarui, dan jangan pernah membandingkan hari, minggu, atau bulan yang belum selesai dengan yang sudah selesai.
+
+**Berlatih pada model Anda sendiri dengan Metabase.** Power BI dan Tableau paling sering disebut lowongan, tetapi Power BI Desktop butuh Windows (Microsoft mencantumkan Windows 10 atau Windows Server 2016 sebagai syarat minimum). Metabase gratis, open source, dan berjalan di mana pun Docker berjalan, dan ia membaca file SQLite yang sudah dibangun lab Anda. Jalankan dari folder yang berisi `warehouse.db` Anda (port 3001, karena situs kursus memakai 3000):
+
+```bash
+docker run -d --name metabase -p 3001:3000 -v "$PWD":/data metabase/metabase:v0.65.6.3
+```
+
+Buka `http://localhost:3001`, buat akun admin, lalu pakai **Add your data** (atau Admin settings, Databases), pilih **SQLite**, dan isi path `/data/warehouse.db`. Di menu **+ New**, **SQL query** menulis pertanyaan dalam SQL, **Question** membuatnya dengan klik, dan **Dashboard** mengumpulkan pertanyaan tersimpan di satu halaman. Diukur pada Metabase v0.65.6.3: image-nya 831 MB, siap sekitar 37 detik setelah dijalankan, membaca `warehouse.db` dengan izin file biasa, dan setiap query di bawah mengembalikan angka yang persis sama dengan SQLite. Semua yang Anda bangun tersimpan di dalam container, jadi `docker rm -f metabase` menghapusnya; `docker rmi metabase/metabase:v0.65.6.3` membebaskan ruang disk sesudahnya.
+
+> 🛠 **Coba sendiri (30 menit, Docker dan warehouse Lab 1.4 Anda).** Bangun dashboard bernama *KopiKu sales* dengan empat pertanyaan tersimpan: pendapatan per hari (`dim_date.full_date`), pendapatan per tier pelanggan pada saat pembelian, 5 produk teratas menurut pendapatan, dan rata-rata nilai pesanan. Lalu buat dua kesalahan klasik dengan sengaja: rata-rata nilai pesanan dihitung sebagai `AVG(line_total_idr)`, dan pendapatan per tier memakai tier pelanggan *saat ini* (join `dim_customer` untuk kedua kalinya pada `customer_id` dengan `is_current = 1`).
+>
+> **Seharusnya Anda melihat** (dengan data hasil generator bawaan kursus dan warehouse yang lulus tes lab): total pendapatan `1208770000` selama `30` hari, hari terbaik `2026-01-25` dengan `45265000`; per tier pada saat pembelian `Bronze 840400000`, `Silver 264755000`, `Gold 97650000`, `Unknown 5965000`; produk teratas `Java Preanger medium 250g` dengan `215220000`; dan rata-rata nilai pesanan sekitar `337457`. Kedua kesalahan memberi `169700` (rata-rata per *baris*, separuh nilai sebenarnya) dan Gold `104485000`, bukan `97650000`, karena sebagian pelanggan baru menjadi Gold setelah membeli. Kedua angka yang salah itu tampak sangat wajar di grafik, dan justru karena itulah aturan 3 ada.
+
+:::advanced Model yang sama di Power BI (tidak dijalankan kursus: butuh Windows)
+Di Power BI Desktop langkah-langkahnya punya nama lain. **Get data** memuat tabel (misalnya keempat tabel yang diekspor ke CSV, masing-masing satu `SELECT *`). **Model view** adalah tempat Anda menggambar relasi, dari kunci setiap dimensi ke kunci yang cocok di tabel fakta (satu ke banyak). **Measure** ditulis dalam DAX, misalnya `Revenue = SUM(fact_order_items[line_total_idr])` dan `Avg order value = DIVIDE([Revenue], DISTINCTCOUNT(fact_order_items[order_id]))`; `DIVIDE` mengembalikan kosong, bukan error, ketika pembaginya nol. Panduan pemodelan Microsoft sendiri adalah star schema dari modul ini: ia menyarankan setiap tabel model menjadi tabel dimensi atau tabel fakta dan menulis "avoid mixing the two types together for a single table". Aturan grain, riwayat, dan rekonsiliasi di atas berlaku tanpa perubahan.
+:::
+
 ## @lab Lab: membangun star schema KopiKu
 Bangun data warehouse untuk KopiKu menggunakan SQL: dimensi tanggal, dimensi produk (SCD Tipe 1), dimensi pelanggan (SCD Tipe 2 lengkap dengan anggota unknown), dan tabel fakta pada grain item pesanan yang terhubung ke versi pelanggan yang valid pada saat pesanan dibuat. 13 unit test otomatis akan menguji integritas grain, referensial, rekonsiliasi nilai omset, serta verifikasi independen menggunakan script Python. Anda juga dibekali empat latihan sandbox interaktif di browser untuk melatih intuisi logika SCD.
 
@@ -397,6 +437,14 @@ Tentukan secara sadar untuk setiap atribut dimensi apakah histori masa lalunya b
 - [ ] Angka berurutan tidak diizinkan sebagai primary key di sebagian besar cloud data warehouse saat ini
 
 > Membagikan nomor berurutan butuh satu penghitung pusat, yang menjadi hambatan saat sumbernya banyak dan memberi pelanggan yang sama nomor berbeda. Hash dari business key yang dinormalisasi sama di mana pun.
+
+### Sebuah dashboard menampilkan "rata-rata nilai pesanan" sebagai `AVG(line_total_idr)` pada tabel fakta per baris pesanan. Apa yang salah?
+- [ ] Tidak ada, karena setiap baris milik tepat satu pesanan sehingga rata-ratanya sama saja
+- [x] Ia merata-ratakan baris, bukan pesanan: pesanan dua baris dihitung dua kali, hasilnya terlalu kecil
+- [ ] Ia hanya salah jika ada pesanan yang batal, karena AVG diam-diam melewati setiap baris yang dibatalkan
+- [ ] AVG tidak bisa dipakai untuk uang dalam rupiah, sehingga database membulatkan jawabannya
+
+> Rata-rata nilai pesanan adalah total pendapatan dibagi jumlah pesanan yang berbeda. Pada warehouse KopiKu, AVG atas baris memberi 169.700 dibanding 337.457 per pesanan (pelajaran 8).
 
 ## @resources
 - [Kimball Group: dimensional modeling techniques](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)

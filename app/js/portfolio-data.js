@@ -41,6 +41,10 @@ window.PORTFOLIO_DATA = {
         {
           "id": "**Kualitas & Tata Kelola Data**: Data Contracts dengan Pydantic dan Great Expectations yang memverifikasi integritas data sebelum masuk ke lakehouse.",
           "en": "**Quality & Governance**: Data Contracts with Pydantic and Great Expectations checkpoint assertions on ingestion."
+        },
+        {
+          "id": "**Penyajian**: dashboard (Metabase atau alat BI lain) di atas tabel gold, dengan setiap angkanya direkonsiliasi terhadap query SQL (Modul 1.4, pelajaran 8).",
+          "en": "**Serving**: a dashboard (Metabase or another BI tool) on the gold tables, with every number reconciled against a SQL query (Module 1.4, lesson 8)."
         }
       ],
       "adr": {

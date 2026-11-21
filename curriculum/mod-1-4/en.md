@@ -251,6 +251,46 @@ hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: a fingerprint of the attr
 > Hash exactly as in the code above: business keys trimmed and upper-cased; the link key is `CUSTOMER|ORDER`; `hash_diff` is `CITY|TIER`, both trimmed and upper-cased. Think about what "first seen" means when events arrive out of order, and what a customer who moves to Bandung and later back to Jakarta should leave in the satellite.
 > Check it: `python3 labs/tryit/check.py 1.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
+## @part Using the model: dashboards
+
+## @lesson From star schema to dashboard: serving the model to BI tools
+A star schema is built to be read, and most of its readers use a BI (business intelligence) tool. Of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), **36.8%** mention BI tools or dashboards. By name: Power BI **17.6%**, Tableau **9.4%**, Looker **4.2%**, Excel **3.0%**, Metabase **1.0%** and Superset **0.9%**. In many teams the analysts build the charts, but a junior data engineer is often asked to build the first dashboard too, and is always the person called when its numbers look wrong.
+
+**What every BI tool does,** whatever its name:
+
+| Step | What happens | Who usually owns it |
+|---|---|---|
+| Connect | The tool reads a database, a warehouse or files | Data engineer |
+| Model | Tables, relationships (which key joins which) and **measures** (named calculations such as revenue) | Data engineer or analytics engineer |
+| Ask | A question becomes a chart or a table | Analyst |
+| Dashboard | Several charts on one page, with filters | Analyst |
+| Share and refresh | Who may see it, and how fresh the data is | Both |
+
+The tools differ in their screens, not in these steps. Learn the steps once on any tool and the next one takes days, not months.
+
+**Three rules that keep dashboard numbers right.** They come straight from this module, and they are what you will be asked about when a number looks wrong:
+1. **Aggregate at the right grain.** The fact table holds one row per order *line*. "Average order value" is total revenue divided by the number of *orders*; averaging the line totals gives the average *line*, a different and smaller number.
+2. **Use the history the model keeps.** Revenue by customer tier must use the tier *at the time of purchase* (the SCD Type 2 key in the fact table, lesson 5), not each customer's current tier.
+3. **Reconcile.** Every number on a dashboard should equal a SQL query you can run yourself. If they differ, one of them is wrong, and you need to know which before anyone else does.
+
+Two more habits: show when the data was last refreshed, and never compare an unfinished day, week or month with a finished one.
+
+**Practise on your own model with Metabase.** Power BI and Tableau are what job posts name most, but Power BI Desktop needs Windows (Microsoft lists Windows 10 or Windows Server 2016 as the minimum). Metabase is free, open source and runs anywhere Docker runs, and it reads the SQLite file your lab already built. Start it from the folder that holds your `warehouse.db` (port 3001, because the course site uses 3000):
+
+```bash
+docker run -d --name metabase -p 3001:3000 -v "$PWD":/data metabase/metabase:v0.65.6.3
+```
+
+Open `http://localhost:3001`, create the admin account, then use **Add your data** (or Admin settings, Databases), choose **SQLite** and enter the path `/data/warehouse.db`. In the **+ New** menu, **SQL query** writes a question in SQL, **Question** builds one by clicking, and **Dashboard** collects saved questions on one page. Measured on Metabase v0.65.6.3: the image is 831 MB, it was ready about 37 seconds after starting, it read `warehouse.db` with normal file permissions, and every query below returned exactly the numbers SQLite returns. Everything you build lives inside the container, so `docker rm -f metabase` deletes it; `docker rmi metabase/metabase:v0.65.6.3` frees the disk space afterwards.
+
+> 🛠 **Try it (30 min, Docker and your Lab 1.4 warehouse).** Build a dashboard called *KopiKu sales* with four saved questions: revenue per day (`dim_date.full_date`), revenue by customer tier at the time of purchase, the top 5 products by revenue, and average order value. Then reproduce the two classic mistakes on purpose: average order value computed as `AVG(line_total_idr)`, and revenue by tier using each customer's *current* tier (join `dim_customer` a second time on `customer_id` with `is_current = 1`).
+>
+> **You should see** (with the course's default generated data and a warehouse that passes the lab tests): total revenue `1208770000` over `30` days, the best day `2026-01-25` with `45265000`; by tier at purchase `Bronze 840400000`, `Silver 264755000`, `Gold 97650000`, `Unknown 5965000`; the top product `Java Preanger medium 250g` with `215220000`; and an average order value of about `337457`. The two mistakes give `169700` (the average *line*, half the real value) and Gold `104485000` instead of `97650000`, because some customers became Gold after they bought. Both wrong numbers look perfectly reasonable on a chart, which is exactly why rule 3 exists.
+
+:::advanced The same model in Power BI (not run by the course: it needs Windows)
+In Power BI Desktop the steps have different names. **Get data** loads the tables (for example the four tables exported to CSV, one `SELECT *` each). **Model view** is where you draw the relationships, from each dimension's key to the matching key in the fact table (one to many). **Measures** are written in DAX, for example `Revenue = SUM(fact_order_items[line_total_idr])` and `Avg order value = DIVIDE([Revenue], DISTINCTCOUNT(fact_order_items[order_id]))`; `DIVIDE` returns blank instead of an error when the divisor is zero. Microsoft's own modelling guidance is the star schema from this module: it recommends that each model table is either a dimension table or a fact table and says to "avoid mixing the two types together for a single table". The grain, history and reconciliation rules above apply unchanged.
+:::
+
 ## @lab Lab: build the KopiKu star schema
 Build a data warehouse for KopiKu in SQL: a date dimension, a product dimension (Type 1), a customer dimension (Type 2, with an unknown member), and a fact table at the order-line grain whose customer key is the version valid when the order was placed. 13 tests check grain, integrity, reconciliation and a revenue-by-tier calculation done independently in Python. You also get four sandbox challenges on SCD logic in your browser.
 
@@ -397,6 +437,14 @@ Decide for every dimension attribute whether the past may change. If the answer 
 - [ ] Sequential numbers are not allowed as primary keys in most of the cloud data warehouses that are in use today
 
 > Handing out numbers in order needs one central counter, which becomes a bottleneck with many sources and gives the same customer different numbers. A hash of the normalised business key is the same everywhere.
+
+### A dashboard shows "average order value" as `AVG(line_total_idr)` over the order-line fact table. What is wrong with it?
+- [ ] Nothing, because each line belongs to exactly one order, so the average comes out the same
+- [x] It averages lines, not orders: an order with two lines counts twice, so the result is too small
+- [ ] It is only wrong when some orders were cancelled, because AVG silently skips every cancelled row
+- [ ] AVG cannot be used on money stored in rupiah, so the database rounds the answer away
+
+> Average order value is total revenue divided by the number of distinct orders. On the KopiKu warehouse, AVG over the lines gives 169,700 against 337,457 per order (lesson 8).
 
 ## @resources
 - [Kimball Group: dimensional modeling techniques](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)

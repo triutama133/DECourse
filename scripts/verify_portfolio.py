@@ -10,7 +10,8 @@ What it checks (it cannot judge quality; a reviewer still should):
 3. a README with a decision record: at least one heading such as "Decision", "Trade-off" or "ADR" with real text under it;
 4. a CI workflow (GitHub Actions or GitLab CI) that runs the tests; a Dockerfile alone is not CI;
 5. at least 3 passing tests that import your own code and assert something about its result (assert 1 == 1 does not count);
-6. code or configuration that belongs to the project you name (proj-1, proj-2 or proj-3), not only its README.
+6. code or configuration that belongs to the project you name (proj-1, proj-2 or proj-3), not only its README;
+7. for proj-1, a dashboard on the gold layer (a BI tool in the code or configuration, or a dashboard file or folder).
 Standard library only (Python 3.8+); runs `git` and `python -m pytest` (or unittest) inside the repository.
 """
 import argparse
@@ -171,6 +172,14 @@ def verify_repo(proj_id, repo_dir):
     check(len(found) >= 2, f"code or configuration for {what} (found: {', '.join(found) or 'nothing'}; at least 2 of {', '.join(parts)})",
           "the README is not enough: the code and configuration must use the project's tools")
 
+    if proj_id == "proj-1":
+        # A lakehouse nobody can look at is half a project: ask for the serving layer (Module 1.4, lesson 8).
+        bi = r"metabase|superset|evidence\.dev|streamlit|lightdash|power ?bi|tableau|looker"
+        by_name = [f for f in tracked if "dashboard" in f.lower()]
+        by_tool = re.search(bi, code_text)
+        check(bool(by_name or by_tool), "a dashboard on the gold layer (a BI tool in the code or configuration, or a file or folder named 'dashboard')",
+              "serve the gold tables in Metabase or another BI tool, and commit its setup or the dashboard's SQL in a dashboards/ folder")
+
     if failed:
         print(f"\nNot yet: {failed} check(s) failed. Fix them in {root} and run this again.")
         return 1
@@ -208,6 +217,7 @@ def self_test():
         "dbt_project.yml": "name: lakehouse\n",
         "test_pipeline.py": "from pipeline import net\n\ndef test_net():\n    assert net([{'gross': 10, 'tax': 1, 'status': 'paid'}]) == 9\n\ndef test_refund():\n    assert net([{'gross': 10, 'tax': 1, 'status': 'refunded'}]) == 0\n\ndef test_empty():\n    assert net([]) == 0\n",
         ".github/workflows/ci.yml": "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pip install pytest duckdb && pytest\n",
+        "dashboards/revenue_by_tier.sql": "-- Metabase question: revenue by tier at purchase\nSELECT tier, SUM(line_total_idr) FROM gold.fct_sales GROUP BY tier;\n",
     }
     shortcuts = {
         "trivial tests": {"test_pipeline.py": "def test_a():\n    assert 1 == 1\n\ndef test_b():\n    assert True\n\ndef test_c():\n    assert [1] == [1]\n"},
@@ -217,6 +227,7 @@ def self_test():
         "a hard-coded key": {"settings.py": "API_KEY = 'sk_live_abcdef123456'\n"},
         "the wrong project": {"pipeline.py": "def net(rows):\n    return sum(r['gross'] - r['tax'] for r in rows if r['status'] != 'refunded')\n", "dbt_project.yml": None},
         "two commits": "commits",
+        "no dashboard": {"dashboards/revenue_by_tier.sql": None},
     }
     if run_cmd([sys.executable, "-c", "import pytest"], ".")[0] != 0:
         print("self-test needs pytest: pip install pytest")
