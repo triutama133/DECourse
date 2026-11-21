@@ -171,7 +171,7 @@ class DataForgeApp {
         while (i < lines.length && (ordered ? isOrdered(lines[i]) : isBullet(lines[i]))) {
           const item = [lines[i].replace(/^\s*(?:[-*]|\d+\.) /, "")];
           i++;
-          while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i]) && !/^(?:\*\*(?:You should see|Check it|Yang harus Anda lihat|Periksa):|\*(?:Compare when you are done|Bandingkan))/i.test(lines[i].trim())) {
+          while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i]) && !/^(?:\*\*(?:You should see|Check it|Yang harus Anda lihat|Seharusnya Anda melihat|Periksa):|\*(?:Compare when you are done|Bandingkan))/i.test(lines[i].trim())) {
             item.push(lines[i++].trim());
           }
           items.push(item.join(" "));
@@ -218,7 +218,7 @@ class DataForgeApp {
       let mode = "main";
       for (const ln of q) {
         const t = ln.trim();
-        if (/^(\*\*(You should see|Yang harus Anda lihat)|\*(Compare when you are done|Bandingkan))/i.test(t)) {
+        if (/^(\*\*(You should see|Yang harus Anda lihat|Seharusnya Anda melihat)|\*(Compare when you are done|Bandingkan))/i.test(t)) {
           mode = "reveal";
         } else if (/^\*\*(Check it|Periksa):?\*\*/i.test(t)) {
           mode = "check";
@@ -325,7 +325,7 @@ class DataForgeApp {
       } else if (/^---+\s*$/.test(line)) {
         out.push("<hr>"); i++;
       } else if (isTableRow(line) && i + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[i + 1]) && lines[i + 1].includes("-")) {
-        const cells = (l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const cells = (l) => l.trim().replace(/^\|/, "").replace(/(?<!\\)\|$/, "").split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
         const head = cells(line);
         i += 2;
         const rows = [];

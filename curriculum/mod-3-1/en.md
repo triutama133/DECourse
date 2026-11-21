@@ -11,6 +11,7 @@ why: Courses say "just call groupBy().count()". In production a 100 GB job sits 
 - Choose between broadcast, sort-merge and other join strategies, and explain what Catalyst, Tungsten and Adaptive Query Execution each do
 - Diagnose data skew from partition sizes and the Spark UI, and fix it with broadcast joins, adaptive skew handling or salting
 - Apply the main performance and memory rules for PySpark jobs
+- Read a Scala or Java Spark job and its JVM stack trace, and translate the job to PySpark
 
 ## @prereq
 Modules 2.1 (Parquet, engines, single-machine limits) and 1.3 (joins, execution plans). Java 17 or newer (`java -version`) and `pip install -r labs/mod-3-1/requirements.txt`. The lab runs Spark in local mode on your laptop.
@@ -332,6 +333,71 @@ You already run real Apache Spark (`pyspark`) and real Delta Lake (`deltalake` /
 1. Open `https://signup.databricks.com` and select **Databricks Free Edition** (Databricks describes it as a no-cost edition for students and hobbyists; it runs on serverless compute with usage limits, and you need no AWS, GCP or Azure account of your own).
 2. In the SQL Editor or a Python Notebook, run the 3-level namespace SQL (`CREATE TABLE main.default.kopiku_orders USING DELTA CLUSTER BY (order_date) AS ...`), run `DESCRIBE HISTORY main.default.kopiku_orders`, and test `SELECT * FROM main.default.kopiku_orders VERSION AS OF 0` to see the exact `_delta_log` mechanics from Module 2.2 running inside Unity Catalog!
 
+## @part Reading Spark code in Scala and Java
+
+## @lesson Reading Scala and Java Spark jobs
+Spark itself is written in Scala, and many older or performance-critical pipelines are too. Java or Scala appears in **16.9%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20). Few of those jobs ask you to write Scala on day one. Many will ask you to read an existing job, find the bug in it, or move it to PySpark. The DataFrame API has the same method names in all three languages, so reading is mostly about knowing a short list of differences.
+
+**The same job in Scala and in PySpark.** The course ships it as `labs/mod-3-1/scala/revenue_job.scala`:
+
+```scala
+import org.apache.spark.sql.functions._
+import spark.implicits._
+
+case class Order(orderId: Long, customerId: Long, status: String, totalIdr: Long)
+
+val orders = Seq(
+  Order(1, 10, "paid", 150000), Order(2, 10, "cancelled", 90000),
+  Order(3, 11, "paid", 200000), Order(4, 12, "shipped", 120000),
+  Order(5, 11, "paid", 50000)
+).toDS()
+
+val revenue = orders
+  .filter($"status" =!= "cancelled")
+  .groupBy($"customerId")
+  .agg(sum($"totalIdr").as("revenueIdr"), count(lit(1)).as("orders"))
+  .orderBy($"revenueIdr".desc)
+```
+
+```python
+from pyspark.sql import functions as F
+
+revenue = (orders
+  .filter(F.col("status") != "cancelled")
+  .groupBy("customerId")
+  .agg(F.sum("totalIdr").alias("revenueIdr"), F.count(F.lit(1)).alias("orders"))
+  .orderBy(F.col("revenueIdr").desc()))
+```
+
+**The differences that matter when you read:**
+
+| Scala or Java | PySpark | Note |
+|---|---|---|
+| `val x = ...` / `var x = ...` | `x = ...` | `val` cannot be reassigned, `var` can. Most Spark code uses `val`. |
+| `case class Order(orderId: Long, ...)` | a schema, or a `Row` | A typed record. `Seq(...).toDS()` turns a list of them into a **Dataset[Order]**. |
+| `$"status"` or `col("status")` | `F.col("status")` | `$"..."` needs `import spark.implicits._`. |
+| `===` and `=!=` | `==` and `!=` | In Scala, `==` compares the two column *objects* and returns a plain `Boolean`, so `filter($"status" == "cancelled")` does not compile: the error says `filter` `cannot be applied to (Boolean)`. |
+| `&&`, `\|\|`, `!` | `&`, `\|`, `~` | Python needs brackets around each condition; Scala does not. |
+| `.as("name")` | `.alias("name")` | On a Dataset, `.as[Long]` (square brackets) is different: it converts the type. |
+| `.desc` | `.desc()` | Scala allows calling a method with no arguments without brackets. |
+| `o => o.totalIdr` | `lambda o: o.totalIdr` | A Scala lambda on a typed Dataset is opaque to the optimiser, just like a Python UDF (Lesson 7). |
+| `Dataset[Row]` = `DataFrame` | `DataFrame` | Python has only the untyped version. |
+
+**Java** uses the same API with more words: `Dataset<Row> df = spark.read().parquet(path);`, `col("status").notEqual("cancelled")`, and `functions.sum("totalIdr")`. The method names match; the punctuation changes.
+
+**How a JVM job is built and run.** A Scala project has a `build.sbt` (sbt) or a `pom.xml` (Maven, usual for Java) that lists the Spark version and the Scala version. The two must match: a library built for Scala `2.12` does not load on Spark built for `2.13`, which is why connector names end in `_2.13` (Module 3.3). The build produces a JAR, run with `spark-submit --class com.kopiku.RevenueJob revenue-job.jar 2026-01-15`. The `--class` is the object with the `main` method; the arguments after the JAR go to it. For experiments, `spark-shell` is the Scala REPL with a `spark` session ready, the counterpart of `pyspark`. It comes inside the `pyspark` package you installed for the lab.
+
+**Reading a JVM stack trace.** A Spark error from Scala, Java or PySpark arrives as a Java stack trace, often over 100 lines. Three rules let you read one:
+1. Read the **first line** for the exception class and its message. Spark 4 errors carry a class in square brackets, such as `[UNRESOLVED_COLUMN.WITH_SUGGESTION]`, which you can search for in the Spark documentation.
+2. Skip the `at org.apache.spark...` lines. They are Spark's own code, and they are almost never where your bug is. Look for the first `at` line that names *your* package or file.
+3. If there is a **`Caused by:`** line, the last one is the root cause. The lines above it are only how the error travelled up.
+
+In PySpark the same Java trace is wrapped in a Python one, and the line to read is the one that starts with `pyspark.errors.exceptions...`.
+
+> 🛠 **Try it (20 min, terminal, needs Java 17 and the lab's venv; step 1 of the lab below shows how to install Java).** With the venv active, run the Scala job: `spark-shell --master "local[2]" -i labs/mod-3-1/scala/revenue_job.scala`. It ends by printing the orders worth at least Rp 100,000. Then, without looking at the PySpark code above, write `revenue_job.py` that builds the same five orders and prints the same table and the same line. Finally run `spark-shell --master "local[2]" -i labs/mod-3-1/scala/typo_job.scala`. Find the root cause in the trace, then make the same mistake in your PySpark file and compare the two messages.
+>
+> **You should see:** both jobs print customer `11` with `250000` from `2` orders, then `10` with `150000` and `12` with `120000`, and the line `big orders: 1,3,4`. `spark-shell` reports `Using Scala version 2.13.18` and finishes in about 15 seconds. The typo job fails with `[UNRESOLVED_COLUMN.WITH_SUGGESTION]` for `total_idr` and suggests `totalIdr` first; PySpark raises the same error class, as `pyspark.errors.exceptions.captured.AnalysisException`. Measured with Spark 4.3.0 and OpenJDK 17.
+
 ## @lab Lab: read the plan, find the skew, fix it
 Spark in local mode on your laptop. You will write the functions that **inspect** a query (count its shuffles, measure partition skew) and the functions that **fix** it (broadcast, salting, adaptive skew handling), and tests prove each fix gives the same answer as the plain join while changing the plan or the balance in the way the lesson describes.
 
@@ -469,6 +535,14 @@ Skew is a property of the data, not the cluster. Measure partition balance, fix 
 - [ ] Set the number of shuffle partitions to one, so that the whole dataset stays on one machine
 
 > One key cannot be split by hash partitioning, so more machines do not help. Confirm skew with partition sizes, and fix it with broadcast, AQE skew handling or salting.
+
+### A Scala job contains `orders.filter($"status" == "paid")`. What happens?
+- [x] It does not compile: `==` gives a plain Boolean and `filter` needs a Column
+- [ ] It runs and keeps every paid order, exactly as the `===` version would do
+- [ ] It runs but returns no rows, because the comparison is always false at runtime
+- [ ] It compiles, then fails at runtime with an UNRESOLVED_COLUMN analysis error
+
+> In Scala, `==` compares the two objects themselves and gives a Boolean. Column comparisons use `===` and `=!=`, and the compiler rejects `filter(Boolean)` with "cannot be applied to (Boolean)".
 
 ## @resources
 - [Apache Spark documentation](https://spark.apache.org/docs/latest/)

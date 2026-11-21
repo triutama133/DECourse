@@ -11,6 +11,7 @@ why: Banyak kursus hanya mengajarkan cara memanggil groupBy().count() di tutoria
 - Memilih strategi join yang optimal (broadcast hash join vs sort-merge join), serta menjelaskan mekanisme kerja Catalyst optimizer, Tungsten engine, dan Adaptive Query Execution (AQE)
 - Mendiagnosis anomali data skew melalui metrik ukuran partisi dan Spark UI, serta menyelesaikannya menggunakan broadcast join, AQE skew join handling, atau teknik salting
 - Menerapkan prinsip-prinsip utama manajemen memori dan performa eksekusi pada aplikasi PySpark
+- Membaca job Spark dalam Scala atau Java beserta stack trace JVM-nya, lalu menerjemahkan job itu ke PySpark
 
 ## @prereq
 Modul 2.1 (Parquet, engine pemrosesan, batas kapasitas mesin tunggal) dan Modul 1.3 (join relational, execution plans). Wajib terinstal Java versi 17 atau lebih baru (`java -version`) dan dependensi Python via `pip install -r labs/mod-3-1/requirements.txt`. Lab modul ini mengeksekusi Spark dalam local mode langsung di komputer Anda.
@@ -332,6 +333,71 @@ Anda sudah menjalankan Apache Spark asli (`pyspark`) dan Delta Lake asli (`delta
 1. Buka `https://signup.databricks.com` dan pilih **Databricks Free Edition** (Databricks menyebutnya edisi tanpa biaya untuk pelajar dan penghobi; berjalan di komputasi serverless dengan batas pemakaian, dan Anda tidak butuh akun AWS, GCP, atau Azure sendiri).
 2. Di SQL Editor atau Notebook Python, jalankan SQL namespace 3 tingkat (`CREATE TABLE main.default.kopiku_orders USING DELTA CLUSTER BY (order_date) AS ...`), jalankan `DESCRIBE HISTORY main.default.kopiku_orders`, dan uji `SELECT * FROM main.default.kopiku_orders VERSION AS OF 0` untuk melihat mekanisme `_delta_log` dari Modul 2.2 bekerja nyata di dalam Unity Catalog!
 
+## @part Membaca kode Spark dalam Scala dan Java
+
+## @lesson Membaca job Spark dalam Scala dan Java
+Spark sendiri ditulis dalam Scala, begitu pula banyak pipeline lama atau yang menuntut performa tinggi. Java atau Scala muncul di **16,9%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20). Sedikit dari pekerjaan itu yang meminta Anda menulis Scala di hari pertama. Banyak yang akan meminta Anda membaca job yang sudah ada, menemukan bug di dalamnya, atau memindahkannya ke PySpark. API DataFrame memakai nama method yang sama di ketiga bahasa, jadi membaca sebagian besar soal mengetahui daftar pendek perbedaannya.
+
+**Job yang sama dalam Scala dan PySpark.** Kursus menyertakannya sebagai `labs/mod-3-1/scala/revenue_job.scala`:
+
+```scala
+import org.apache.spark.sql.functions._
+import spark.implicits._
+
+case class Order(orderId: Long, customerId: Long, status: String, totalIdr: Long)
+
+val orders = Seq(
+  Order(1, 10, "paid", 150000), Order(2, 10, "cancelled", 90000),
+  Order(3, 11, "paid", 200000), Order(4, 12, "shipped", 120000),
+  Order(5, 11, "paid", 50000)
+).toDS()
+
+val revenue = orders
+  .filter($"status" =!= "cancelled")
+  .groupBy($"customerId")
+  .agg(sum($"totalIdr").as("revenueIdr"), count(lit(1)).as("orders"))
+  .orderBy($"revenueIdr".desc)
+```
+
+```python
+from pyspark.sql import functions as F
+
+revenue = (orders
+  .filter(F.col("status") != "cancelled")
+  .groupBy("customerId")
+  .agg(F.sum("totalIdr").alias("revenueIdr"), F.count(F.lit(1)).alias("orders"))
+  .orderBy(F.col("revenueIdr").desc()))
+```
+
+**Perbedaan yang penting saat membaca:**
+
+| Scala atau Java | PySpark | Catatan |
+|---|---|---|
+| `val x = ...` / `var x = ...` | `x = ...` | `val` tidak bisa diisi ulang, `var` bisa. Sebagian besar kode Spark memakai `val`. |
+| `case class Order(orderId: Long, ...)` | skema, atau `Row` | Record bertipe. `Seq(...).toDS()` mengubah daftarnya menjadi **Dataset[Order]**. |
+| `$"status"` atau `col("status")` | `F.col("status")` | `$"..."` butuh `import spark.implicits._`. |
+| `===` dan `=!=` | `==` dan `!=` | Di Scala, `==` membandingkan kedua *objek* kolom dan mengembalikan `Boolean` biasa, sehingga `filter($"status" == "cancelled")` tidak bisa dikompilasi: pesannya berbunyi `filter` `cannot be applied to (Boolean)`. |
+| `&&`, `\|\|`, `!` | `&`, `\|`, `~` | Python butuh kurung di setiap kondisi; Scala tidak. |
+| `.as("name")` | `.alias("name")` | Pada Dataset, `.as[Long]` (kurung siku) berbeda: ia mengubah tipe. |
+| `.desc` | `.desc()` | Scala membolehkan pemanggilan method tanpa argumen tanpa kurung. |
+| `o => o.totalIdr` | `lambda o: o.totalIdr` | Lambda Scala pada Dataset bertipe tidak terbaca oleh optimiser, sama seperti UDF Python (Pelajaran 7). |
+| `Dataset[Row]` = `DataFrame` | `DataFrame` | Python hanya punya versi tanpa tipe. |
+
+**Java** memakai API yang sama dengan lebih banyak kata: `Dataset<Row> df = spark.read().parquet(path);`, `col("status").notEqual("cancelled")`, dan `functions.sum("totalIdr")`. Nama method-nya sama; tanda bacanya yang berubah.
+
+**Cara job JVM dibangun dan dijalankan.** Proyek Scala punya `build.sbt` (sbt) atau `pom.xml` (Maven, lazim untuk Java) yang mencantumkan versi Spark dan versi Scala. Keduanya harus cocok: library yang dibangun untuk Scala `2.12` tidak bisa dimuat di Spark yang dibangun untuk `2.13`, itulah sebabnya nama konektor berakhiran `_2.13` (Modul 3.3). Hasil build-nya berupa JAR, dijalankan dengan `spark-submit --class com.kopiku.RevenueJob revenue-job.jar 2026-01-15`. `--class` adalah object yang punya method `main`; argumen sesudah JAR diteruskan kepadanya. Untuk bereksperimen, `spark-shell` adalah REPL Scala dengan session `spark` yang sudah siap, padanan `pyspark`. Ia sudah ada di dalam paket `pyspark` yang Anda pasang untuk lab.
+
+**Membaca stack trace JVM.** Error Spark dari Scala, Java, maupun PySpark datang sebagai stack trace Java, sering lebih dari 100 baris. Tiga aturan untuk membacanya:
+1. Baca **baris pertama** untuk kelas exception dan pesannya. Error Spark 4 membawa kelas dalam kurung siku, misalnya `[UNRESOLVED_COLUMN.WITH_SUGGESTION]`, yang bisa Anda cari di dokumentasi Spark.
+2. Lewati baris `at org.apache.spark...`. Itu kode Spark sendiri, dan hampir tidak pernah menjadi tempat bug Anda. Cari baris `at` pertama yang menyebut package atau file *Anda*.
+3. Jika ada baris **`Caused by:`**, yang terakhir adalah akar masalahnya. Baris di atasnya hanya menunjukkan bagaimana error itu merambat naik.
+
+Di PySpark, trace Java yang sama dibungkus trace Python, dan baris yang perlu dibaca adalah yang diawali `pyspark.errors.exceptions...`.
+
+> 🛠 **Coba sendiri (20 menit, terminal, perlu Java 17 dan venv lab; langkah 1 lab di bawah menunjukkan cara memasang Java).** Dengan venv aktif, jalankan job Scala-nya: `spark-shell --master "local[2]" -i labs/mod-3-1/scala/revenue_job.scala`. Job itu diakhiri dengan mencetak pesanan bernilai minimal Rp 100.000. Lalu, tanpa melihat kode PySpark di atas, tulis `revenue_job.py` yang membangun lima pesanan yang sama dan mencetak tabel dan baris yang sama. Terakhir jalankan `spark-shell --master "local[2]" -i labs/mod-3-1/scala/typo_job.scala`. Temukan akar masalah di trace-nya, lalu buat kesalahan yang sama di file PySpark Anda dan bandingkan kedua pesannya.
+>
+> **Seharusnya Anda melihat:** kedua job mencetak pelanggan `11` dengan `250000` dari `2` pesanan, lalu `10` dengan `150000` dan `12` dengan `120000`, serta baris `big orders: 1,3,4`. `spark-shell` melaporkan `Using Scala version 2.13.18` dan selesai dalam sekitar 15 detik. Job typo gagal dengan `[UNRESOLVED_COLUMN.WITH_SUGGESTION]` untuk `total_idr` dan menyarankan `totalIdr` lebih dulu; PySpark memunculkan kelas error yang sama, sebagai `pyspark.errors.exceptions.captured.AnalysisException`. Diukur dengan Spark 4.3.0 dan OpenJDK 17.
+
 ## @lab Lab: membaca physical plan, mendeteksi skew, dan memperbaikinya
 Eksekusi Spark dalam local mode langsung di komputer Anda. Anda akan membangun serangkaian fungsi Python untuk **menginspeksi** karakteristik internal query (menghitung jumlah node shuffle Exchange, mengukur rasio skew partisi) serta fungsi untuk **memperbaiki** anomali performa (broadcast join, teknik salting, dan aktivasi konfigurasi adaptive skew join). Seluruh perbaikan akan diuji secara otomatis untuk membuktikan bahwa hasil kalkulasi data tetap identik dengan join standar namun dengan karakteristik plan dan keseimbangan partisi yang jauh lebih unggul.
 
@@ -469,6 +535,14 @@ Data skew adalah karakteristik intrinsik dari distribusi data, bukan kelemahan m
 - [ ] Menyetel jumlah partisi shuffle menjadi satu agar keseluruhan dataset dapat diproses terkonsentrasi di satu mesin
 
 > Satu nilai kunci tidak dapat dipecah oleh algoritma hash partitioning biasa, sehingga menambah mesin tidak akan menyelesaikan masalah. Konfirmasi ketimpangan partisi, lalu atasi dengan broadcast, AQE skew handling, atau teknik salting.
+
+### Sebuah job Scala berisi `orders.filter($"status" == "paid")`. Apa yang terjadi?
+- [x] Tidak bisa dikompilasi: `==` memberi Boolean, padahal `filter` butuh Column
+- [ ] Berjalan dan menyimpan setiap pesanan paid, persis seperti versi dengan `===`
+- [ ] Berjalan tetapi tidak menghasilkan baris, karena perbandingannya selalu false
+- [ ] Bisa dikompilasi, lalu gagal saat dijalankan dengan error UNRESOLVED_COLUMN
+
+> Di Scala, `==` membandingkan kedua objek itu sendiri dan menghasilkan Boolean. Perbandingan kolom memakai `===` dan `=!=`, dan compiler menolak `filter(Boolean)` dengan pesan "cannot be applied to (Boolean)".
 
 ## @resources
 - [Dokumentasi Resmi Apache Spark](https://spark.apache.org/docs/latest/)

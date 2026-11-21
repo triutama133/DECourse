@@ -317,8 +317,9 @@ code {
   color: var(--inline-code-text);
   padding: 1.5px 6px;
   border-radius: 5px;
+  overflow-wrap: anywhere; /* long names like pyspark.errors.exceptions... must not push a phone screen sideways */
 }
-pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+pre code { background: none; color: inherit; padding: 0; font-size: inherit; overflow-wrap: normal; }
 
 /* ---------- Form controls ---------- */
 label.field { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
