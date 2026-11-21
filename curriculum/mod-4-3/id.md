@@ -310,6 +310,7 @@ Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara 
 - Anda mampu menguraikan bagaimana bounded watermark memfasilitasi data out of order sekaligus membatasi penggunaan memori RAM
 - Anda mampu menjelaskan mengapa checkpointing stream wajib menyimpan akumulator in-flight bersamaan dengan nilai consumer offset
 - File `NOTES.md` Anda mencatat analisis arsitektur mengenai kompromi antara latensi rendah dan kelengkapan data terlambat
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

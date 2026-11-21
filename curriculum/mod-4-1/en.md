@@ -225,6 +225,7 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 - You can explain why the pipeline builds in a temporary folder and why the gate runs before anything is written
 - You can say which two traps are in the data (cash tips, zone names) and how your pipeline avoids them
 - Your `NOTES.md` states what surprised you and what you would monitor nightly
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash

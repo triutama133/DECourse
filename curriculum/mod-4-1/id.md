@@ -225,6 +225,7 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 - Anda dapat menjelaskan mengapa pipeline dibangun di dalam folder sementara dan mengapa gerbang kualitas dievaluasi sebelum penulisan dilakukan
 - Anda dapat menjelaskan dua jebakan yang ada pada data (tip transaksi tunai dan kesamaan nama zona lokasi) serta cara pipeline Anda menanganinya
 - Berkas `NOTES.md` Anda mencatat temuan anomali data serta metrik observabilitas harian
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

@@ -2904,6 +2904,11 @@ class DataForgeApp {
               <div class="well"><div class="label">${this.l("Akar masalah", "Root cause")}</div>${this.md(c.breakageReason, { modId: mod.id })}</div>
               <div class="well"><div class="label">${this.l("Cara memperbaiki", "How to fix it")}</div>${this.md(c.fixGuide, { modId: mod.id })}</div>
               <div class="callout success"><div class="label">${this.l("Pola defensif", "Defensive pattern")}</div>${this.md(c.defensivePattern, { modId: mod.id })}</div>
+              <div class="well stack-sm">
+                <div class="label">✍️ ${this.l("Latihan menulis: post-mortem insiden ini", "Writing practice: the post-mortem for this incident")}</div>
+                <p class="small">${this.l(`Tulis post-mortem tanpa menyalahkan untuk insiden ini dengan template <code>labs/shared/writing/postmortem_template_id.md</code>, satu halaman, dengan angka dari skenario di atas. Lalu periksa strukturnya. Modul 2.5, pelajaran 9, menjelaskan apa yang membuatnya baik; pemeriksa ini tidak bisa menilai penalarannya, jadi minta orang lain membacanya.`, `Write a blameless post-mortem for this incident with the template <code>labs/shared/writing/postmortem_template.md</code>: one page, using the numbers from the scenario above. Then check its structure. Module 2.5, lesson 9, explains what makes a good one; the checker cannot judge the reasoning, so ask someone to read it.`)}</p>
+                <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>python3 scripts/check_writing.py postmortem POSTMORTEM.md</code></pre></div>
+              </div>
               <div class="row" style="justify-content:flex-end;margin-top:6px">
                 <button class="btn btn-sm ${cState.done ? "btn-done" : "btn-primary"}" onclick="app.toggleChaosDone('${mod.id}')">
                   ${cState.done ? "✓ " + this.l("Sudah Ditandai Paham", "Marked as Analyzed") : "✓ " + this.l("Saya Paham Pola Defensif Ini", "I Understand This Defensive Pattern")}

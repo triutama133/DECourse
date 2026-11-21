@@ -310,6 +310,7 @@ Build `stream_processor.py` and `profile.json` in your own workspace, one step a
 - You can explain how bounded watermarks allow out-of-order events while bounding memory consumption
 - You can explain why stream checkpoints must serialize in-flight window accumulators alongside consumer offsets
 - Your `NOTES.md` records your architectural reflections on the trade-offs between low latency and late data completeness
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash

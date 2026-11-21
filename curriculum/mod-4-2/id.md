@@ -245,6 +245,7 @@ Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi 
 - Anda dapat menjelaskan mengapa berkas state checkpoint wajib diperbarui secara atomik setelah penulisan data selesai
 - Anda dapat menjelaskan bagaimana Dead-Letter Queue memungkinkan ketersediaan tinggi tanpa menyembunyikan kerusakan data
 - Berkas `NOTES.md` di workspace Anda memuat analisis arsitektural tentang isolasi state antara backfill dan proses inkremental
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

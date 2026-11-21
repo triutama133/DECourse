@@ -246,6 +246,31 @@ def mask_phone(phone):
 > Putuskan sendiri: saat dua email milik orang yang sama, apa arti "sama"; kota, tier, dan nomor telepon dari record mana yang bertahan; dan apa yang tidak boleh pernah muncul di output.
 > **Periksa:** `python3 labs/tryit/check.py 2.5-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
+## @part Berkomunikasi tentang data
+
+## @lesson Tulisan yang ditindaklanjuti orang: design doc, kabar insiden, dan post-mortem
+Komunikasi bukan tambahan pelengkap dalam pekerjaan ini. "Komunikasi" atau "stakeholder" muncul di **64,1%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), lebih sering daripada pemodelan data (59,0%) atau Spark (45,8%). Sebagian besarnya berupa tulisan, karena orang yang bergantung pada data Anda jarang duduk di sebelah Anda. Tiga dokumen mencakup sebagian besar yang ditulis seorang data engineer:
+
+| Dokumen | Kapan | Pembaca | Panjang |
+|---|---|---|---|
+| **Design doc** | Sebelum Anda membangun sesuatu yang sulit dibatalkan | Tim Anda dan orang yang akan memakainya | Sekitar satu halaman |
+| **Kabar insiden** | Selama ada yang rusak | Semua yang memakai data yang terdampak | Empat atau lima baris, diulang sampai diperbaiki |
+| **Post-mortem** | Setelah diperbaiki | Tim Anda dan pimpinan | Sekitar satu halaman |
+
+**Aturan yang berlaku untuk ketiganya.** Taruh jawabannya di depan: keputusan, dampak, tindakan. Pakai angka, bukan kata sifat: "job-nya memakan 47 menit dan harus selesai sebelum 06:00" membuat pembaca bisa memutuskan, "job-nya lambat" tidak. Tulis untuk pembaca, bukan untuk diri sendiri: manajer keuangan perlu tahu laporan mana yang bisa dipercaya, bukan join mana yang Anda ubah. Dan buat cukup pendek untuk dibaca: satu halaman dibaca, lima halaman hanya dilirik.
+
+**Design doc** menyatakan apa yang akan Anda bangun dan, sama pentingnya, apa yang Anda tolak dan mengapa. Alternatif yang ditolak adalah hal pertama yang diperiksa reviewer, karena itu menunjukkan Anda memahami masalahnya, bukan sekadar meraih alat pertama yang Anda kenal. Tulis sebelum mengoding: mengubah satu paragraf butuh beberapa menit, mengubah pipeline butuh berminggu-minggu.
+
+**Kabar insiden** dikirim lebih awal dan diulang pada waktu yang tetap, bahkan ketika belum ada yang baru: apa yang salah, laporan dan tabel mana yang terdampak, apa yang sebaiknya dilakukan orang sementara itu, dan kapan kabar berikutnya. Pelajaran 7 menjelaskan alasannya: kepercayaan bertahan dari bug yang diumumkan, bukan dari bug yang ketahuan sendiri.
+
+**Post-mortem** bersifat **blameless** (tanpa menyalahkan). "Kesalahan manusia" tidak pernah menjadi akar masalah: itu justru awal pertanyaan "apa yang membuat kesalahan satu orang bisa sampai ke laporan yang diterbitkan?" Engineer yang disalahkan akan menyembunyikan kesalahan berikutnya; tim yang bertanya apa yang diizinkan sistem akan memperbaiki sistemnya. Setiap tindak lanjut punya pemilik dan tanggal, atau ia tidak akan terjadi.
+
+Kursus menyediakan template (bahasa Inggris dan Indonesia) di `labs/shared/writing/`, contoh masing-masing (insiden dari Modul 1.4 dan rancangan yang memperbaikinya), dan pemeriksa struktur: `python3 scripts/check_writing.py design FILE` atau `python3 scripts/check_writing.py postmortem FILE`. Ia memeriksa bagian-bagiannya, panjangnya, angka alih-alih kata sifat, alternatif yang ditolak dalam design doc, serta kronologi dengan jam, dampak yang terukur, tindak lanjut yang punya pemilik dan tanggal, dan tidak adanya kata menyalahkan dalam post-mortem. Ia tidak bisa menilai penalaran Anda: itu butuh manusia.
+
+> 🛠 **Coba sendiri (25 menit, terminal dan editor).** Jalankan pemeriksa pada draf yang lemah: `python3 scripts/check_writing.py postmortem labs/shared/writing/postmortem_draft_id.md` (bahasa Inggris: `postmortem_draft.md`). Baca pemeriksaan mana yang gagal dan mengapa. Lalu tulis ulang drafnya dengan kata-kata Anda sendiri, memakai fakta insiden di Modul 1.4 (Rp 97,7 juta diterbitkan 5 Januari, Rp 104,5 juta pada 9 Februari, 210 perubahan tier, overwrite Type 1), sampai setiap pemeriksaan lulus. Baru setelah itu bandingkan dengan `postmortem_example.md`.
+>
+> **Seharusnya Anda melihat:** draf itu lulus 6 pemeriksaan bagian dan gagal di 6 lainnya: terlalu pendek, `0` angka, tidak ada jam di kronologi, dampak yang tidak terukur, `0 of 2` tindak lanjut yang punya pemilik dan tanggal, dan kata-kata menyalahkan (`ceroboh`, `kesalahan manusia`, `salahnya`). Tulisan ulang Anda seharusnya diakhiri `Structure looks right`. Perbedaan kedua versi itulah yang pertama kali diperhatikan manajer perekrutan dalam tugas take-home.
+
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 

@@ -183,6 +183,7 @@ Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a
 - You can explain why `load` deletes and inserts in one transaction, and what would happen to a table that was appended to on every retry
 - You can explain why a missing file must raise instead of returning an empty result, and why a refused delivery must fail before anything is written
 - Your `NOTES.md` states what surprised you and what you would monitor every night
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash

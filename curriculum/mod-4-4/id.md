@@ -183,6 +183,7 @@ Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda 
 - Anda mampu menguraikan mengapa operasi `load` wajib menjalankan delete dan insert dalam satu transaksi database, dan apa konsekuensi fatal jika task melakukan append pada setiap percobaan retry
 - Anda mampu menjelaskan mengapa file yang hilang wajib melempar exception alih-alih mengembalikan hasil kosong, serta mengapa kiriman rusak harus menggagalkan task sebelum data sempat ditulis
 - File `NOTES.md` Anda mencatat evaluasi teknis mengenai hal yang Anda pelajari serta strategi pemantauan harian pipeline di produksi
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

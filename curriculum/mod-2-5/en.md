@@ -246,6 +246,31 @@ def mask_phone(phone):
 > Decide for yourself: when two emails belong to the same person, what does "the same" mean; which record's city, tier and phone survive; and what must never appear in the output.
 > Check it: `python3 labs/tryit/check.py 2.5-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
+## @part Communicating about data
+
+## @lesson Writing that people act on: design docs, incident updates and post-mortems
+Communication is not a soft extra in this job. "Communication" or "stakeholders" appears in **64.1%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), more often than data modelling (59.0%) or Spark (45.8%). Most of it is writing, because the people who depend on your data rarely sit next to you. Three documents cover most of what a data engineer writes:
+
+| Document | When | Reader | Length |
+|---|---|---|---|
+| **Design doc** | Before you build something that is hard to undo | Your team and the people who will use it | About one page |
+| **Incident update** | While something is broken | Everyone who uses the affected data | Four or five lines, repeated until it is fixed |
+| **Post-mortem** | After it is fixed | Your team and leadership | About one page |
+
+**Rules that apply to all three.** Put the answer first: the decision, the impact, the action. Use numbers, not adjectives: "the job takes 47 minutes and must finish by 06:00" lets a reader decide, "the job is slow" does not. Write for the reader, not for yourself: a finance manager needs to know which report to trust, not which join you changed. And keep it short enough to be read: one page is read, five pages are skimmed.
+
+**A design doc** says what you will build and, just as important, what you rejected and why. The rejected alternatives are what reviewers check first, because they show you understood the problem rather than reaching for the first tool you knew. Write it before you code: changing a paragraph costs minutes, changing a pipeline costs weeks.
+
+**An incident update** goes out early and again at regular times, even when there is nothing new: what is wrong, which reports and tables are affected, what people should do meanwhile, and when the next update will come. Lesson 7 explained why: trust survives a bug that was announced, not one that was discovered.
+
+**A post-mortem** is **blameless**. "Human error" is never a root cause: it is the start of the question "what allowed one person's mistake to reach a published report?" A blamed engineer hides the next mistake; a team that asks what the system allowed fixes the system. Every action item has an owner and a date, or it will not happen.
+
+The course gives you templates (English and Indonesian) in `labs/shared/writing/`, an example of each (the incident from Module 1.4 and the design that fixed it), and a checker for the structure: `python3 scripts/check_writing.py design FILE` or `python3 scripts/check_writing.py postmortem FILE`. It checks the sections, the length, numbers instead of adjectives, rejected alternatives in a design, and a timeline with times, measured impact, owned and dated action items and no blame words in a post-mortem. It cannot judge your reasoning: that needs a person.
+
+> 🛠 **Try it (25 min, terminal and editor).** Run the checker on the weak draft: `python3 scripts/check_writing.py postmortem labs/shared/writing/postmortem_draft.md` (Indonesian: `postmortem_draft_id.md`). Read which checks fail and why. Then rewrite the draft in your own words, using the facts from the incident in Module 1.4 (Rp 97.7 million published on 5 January, Rp 104.5 million on 9 February, 210 tier changes, a Type 1 overwrite), until every check passes. Only then compare with `postmortem_example.md`.
+>
+> **You should see:** the draft passes the 6 section checks and fails 6 others: it is too short (`97` words), has `0` numbers, no times in the timeline, an unmeasured impact, `0 of 2` action items with an owner and a date, and blame words (`careless`, `fault`, `human error`). Your rewrite should end with `Structure looks right`. The difference between the two versions is what a hiring manager notices first in a take-home assignment.
+
 ## @lab Lab: build a data quality gate
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.
 

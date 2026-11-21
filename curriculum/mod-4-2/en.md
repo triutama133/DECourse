@@ -245,6 +245,7 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 - You can explain why the state checkpoint file must be updated atomically only after database writes succeed
 - You can explain how a Dead-Letter Queue enables high-availability ingestion without hiding corrupted data
 - Your `NOTES.md` records your architectural reflections on state isolation between backfills and streaming jobs
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash
