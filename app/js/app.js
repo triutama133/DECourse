@@ -378,9 +378,21 @@ class DataForgeApp {
     document.getElementById("lang-btn-id").className = this.lang === "id" ? "active" : "";
     document.getElementById("lang-btn-en").className = this.lang === "en" ? "active" : "";
     const themeIcon = document.getElementById("theme-btn-icon");
-    if (themeIcon) themeIcon.textContent = this.theme === "dark" ? "☀️" : "🌙";
+    if (themeIcon) themeIcon.textContent = "🌙";
     const themeBtn = document.getElementById("theme-btn");
     if (themeBtn) themeBtn.setAttribute("title", this.theme === "dark" ? this.l("Mode Terang", "Light Mode") : this.l("Mode Gelap (IDE)", "Dark IDE Mode"));
+    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    const isLarge = document.documentElement.getAttribute("data-a11y") === "large";
+    setText("settings-btn-label", this.l("Tampilan", "Display"));
+    const sBtn = document.getElementById("settings-btn");
+    if (sBtn) sBtn.setAttribute("title", this.l("Tampilan: mode gelap, teks besar, suara kuis", "Display: dark mode, larger text, quiz sounds"));
+    setText("theme-btn-label", this.l("Mode gelap", "Dark mode"));
+    setText("a11y-btn-label", this.l("Teks lebih besar", "Larger text"));
+    setText("sound-btn-label", this.l("Suara kuis", "Quiz sounds"));
+    setText("theme-btn-state", this.theme === "dark" ? this.l("Aktif", "On") : this.l("Mati", "Off"));
+    setText("a11y-btn-state", isLarge ? this.l("Aktif", "On") : this.l("Mati", "Off"));
+    setText("sound-btn-state", this.soundEnabled ? this.l("Aktif", "On") : this.l("Mati", "Off"));
+    [["theme-btn", this.theme === "dark"], ["a11y-btn", isLarge], ["sound-btn", this.soundEnabled]].forEach(([id, on]) => { const el = document.getElementById(id); if (el) el.setAttribute("aria-checked", String(Boolean(on))); });
     const soundIcon = document.getElementById("sound-btn-icon");
     if (soundIcon) soundIcon.textContent = this.soundEnabled ? "🔊" : "🔇";
     const soundBtn = document.getElementById("sound-btn");
@@ -553,17 +565,27 @@ class DataForgeApp {
     const gamiEl = document.getElementById("header-gamification");
     if (gamiEl) {
       gamiEl.innerHTML = `
-        <button class="gami-pill streak" onclick="app.go('roadmap')" title="${this.l("Streak belajar harian Anda", "Your daily learning streak")}">🔥 ${g.streakDays}d</button>
-        <button class="gami-pill xp" onclick="app.go('readiness')" title="${this.l("Total Engineering XP dari materi, SQL & bukti lab lokal", "Total Engineering XP from lessons, SQL & local lab proofs")}">⚡ ${g.xp.toLocaleString()} XP</button>
-        <button class="gami-pill league" onclick="app.go('readiness')" title="${this.l("Peringkat Liga Engineering", "Engineering League Tier")}">${g.leagueIcon} ${this.esc(g.leagueName)}</button>`;
+        <button class="progress-pill" onclick="app.go('readiness')" title="${this.l("Progres Anda: streak, XP, dan modul selesai. Klik untuk kesiapan kerja.", "Your progress: streak, XP and modules done. Click for job readiness.")}">
+          <span>🔥 ${g.streakDays}</span><span>⚡ ${g.xp.toLocaleString()} XP</span><span>${done}/${total}</span>
+          <span class="progress-pill-bar" aria-hidden="true"><span style="width:${pct}%"></span></span>
+          <span class="sr-only">${this.l(`${done} dari ${total} modul selesai`, `${done} of ${total} modules completed`)}</span>
+        </button>`;
     }
-    document.getElementById("header-stats").innerHTML = `
-      <div style="cursor:pointer" onclick="app.go('readiness')" title="${this.l('Buka Dashboard Kesiapan Kerja & Evaluasi Skill', 'Open Job Readiness & Skill Dashboard')}">
-        <span>${done} ${this.tr("modulesOf")} ${total} ${this.tr("modulesCompleted")}</span>
-        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${this.l("Progres modul", "Module progress")}"><div style="width:${pct}%"></div></div>
-      </div>`;
   }
 
+  toggleSettings(force) {
+    const menu = document.getElementById("settings-menu");
+    const btn = document.getElementById("settings-btn");
+    if (!menu || !btn) return;
+    const open = typeof force === "boolean" ? force : menu.hidden;
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if (open && !this._settingsBound) {
+      this._settingsBound = true;
+      document.addEventListener("click", (e) => { if (!e.target.closest(".settings")) this.toggleSettings(false); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") this.toggleSettings(false); });
+    }
+  }
   toggleMenu() {
     const nav = document.getElementById("nav");
     const open = nav.classList.toggle("open");
@@ -2533,7 +2555,7 @@ class DataForgeApp {
           <p class="muted" style="margin-top:4px">${this.l(`Jawab minimal ${need} dari ${mod.quiz.length} dengan benar untuk menyelesaikan modul. Urutan pilihan diacak setiap kali halaman dimuat.`, `Answer at least ${need} of ${mod.quiz.length} correctly to complete the module. Answer order is shuffled on each page load.`)}
             ${last ? ` · ${this.l("Skor terbaik", "Best score")}: ${last.best}/${last.total}` : ""}</p>
         </div>
-        <button class="btn btn-sm btn-primary" onclick="app.setQuizMode('uxcel')">⚡ ${this.l("Mode Interaktif Step-by-Step (Uxcel)", "Interactive Step-by-Step Mode (Uxcel)")}</button>
+        <button class="btn btn-sm btn-primary" onclick="app.setQuizMode('uxcel')">⚡ ${this.l("Satu soal per layar", "One question at a time")}</button>
       </div>
       ${mod.quiz.map((q, qi) => `
         <div class="well stack-sm">
@@ -2759,7 +2781,7 @@ class DataForgeApp {
                 <strong style="font-size:15px">${st.picked === q.correct ? "🎸 " + this.l("Tepat Sekali! (Rock on!)", "Rock on! Spot-on engineering answer.") : "💡 " + this.l("Belum Tepat — Mari Pelajari Prinsipnya:", "Not Quite — Here Is the Core Engineering Principle:")}</strong>
                 <div class="row">
                   <button class="btn btn-sm ${isTipSaved ? "btn-done" : "btn-quiet"}" onclick="app.toggleSaveTip('${tipId}', '${mod.id}', ${JSON.stringify(mod.number + " Q" + (qi + 1) + ": " + this.stripMd(this.t(q.question)).slice(0, 70)).replace(/"/g, "&quot;")}, ${JSON.stringify(this.stripMd(this.t(q.explanation))).replace(/"/g, "&quot;")})">
-                    ${isTipSaved ? "🔖 " + this.l("Tersimpan di Bookmark", "Saved to Bookmarks") : "🔖 " + this.l("Simpan Tips (Busuu Style)", "Save Tip to Bookmarks")}
+                    ${isTipSaved ? "🔖 " + this.l("Tersimpan di Bookmark", "Saved to Bookmarks") : "🔖 " + this.l("Simpan tips", "Save tip")}
                   </button>
                   ${mod.lessons[lessonIdx] ? `<button class="btn btn-sm btn-quiet" onclick="app.reviewLessonFromQuiz('${mod.id}', ${lessonIdx})">📖 ${this.l("Buka Materi #" + (lessonIdx + 1), "Review Lesson #" + (lessonIdx + 1))}</button>` : ""}
                 </div>
@@ -2963,7 +2985,7 @@ class DataForgeApp {
       return `
         <div class="card row between" style="border-left:4px solid var(--purple);background:var(--card-subtle)">
           <div>
-            <span class="chip chip-blue">⚔️ ${this.l("Tantangan bersama teman", "Challenge with friends")}</span>
+            <span class="label">${this.l("Tantangan bersama teman", "Challenge with friends")}</span>
             <h3 style="margin-top:4px">${this.l("Duel cepat: 5 soal keputusan arsitektur", "Quick duel: 5 architecture decisions")}</h3>
             <p class="small muted">${this.l("Jawab 5 soal pilihan keputusan arsitektur secepat mungkin (target: 4 benar), atau salin kartu skor bukti lokal Anda untuk grup belajar.", "Answer 5 architecture decision questions as fast as you can (target: 4 right), or copy your local proof scorecard for your study group.")}</p>
           </div>
@@ -3018,20 +3040,23 @@ class DataForgeApp {
       "system-design": t.tabSystemDesign,
       "sql-arena": t.tabSqlArena,
       "incidents": t.tabIncidents,
-      "silent-bugs": "4. 🐛 " + this.l("Silent Bug Clinic", "Silent Bug Clinic"),
-      "active-recall": "5. 🧠 " + this.l("Active Recall", "Active Recall"),
-      "stakeholder-defense": "6. 🗣️ " + this.l("Pertahanan Stakeholder", "Stakeholder Defense")
+      "silent-bugs": this.l("Bug diam-diam", "Silent bugs"),
+      "active-recall": this.l("Mengingat aktif", "Active recall"),
+      "stakeholder-defense": this.l("Stakeholder", "Stakeholders")
     };
+    Object.keys(tabs).forEach((k) => { tabs[k] = String(tabs[k]).replace(/^\d\.\s*/, ""); });
+    const duelOpen = Boolean((this.duelState || {}).open);
     return `
       <div class="stack">
         <div class="card row between">
           <div><h1>${t.interviewTitle}</h1><p class="sub">${t.interviewSubtitle}</p></div>
-          <div class="segmented">
-            ${INTERVIEW_TABS.map((k) => `<button class="${this.activeInterviewTab === k ? "active" : ""}" onclick="app.go('interview','${k}')">${tabs[k]}</button>`).join("")}
+          <div class="segmented" role="tablist" aria-label="${this.l("Jenis latihan", "Practice type")}">
+            ${INTERVIEW_TABS.map((k) => `<button role="tab" aria-selected="${this.activeInterviewTab === k}" class="${this.activeInterviewTab === k ? "active" : ""}" onclick="app.go('interview','${k}')">${tabs[k]}</button>`).join("")}
           </div>
         </div>
-        ${this.renderDuelBanner()}
+        ${duelOpen ? this.renderDuelBanner() : ""}
         ${this.renderInterviewTabContent(t)}
+        ${duelOpen ? "" : this.renderDuelBanner()}
       </div>`;
   }
 
@@ -3346,7 +3371,7 @@ class DataForgeApp {
         </div>
         <div class="card stack-sm">
           <h3>${t.architectureStackTitle}</h3>
-          ${proj.architecture.map((a) => `<div class="well">${this.esc(this.t(a))}</div>`).join("")}
+          ${proj.architecture.map((a) => `<div class="well">${this.inline(this.t(a))}</div>`).join("")}
         </div>
         <div class="card stack-sm">
           <div class="row between"><h3>${t.adrTitle}</h3><span class="chip">Status: ${this.esc(proj.adr.status)}</span></div>
@@ -3371,12 +3396,12 @@ class DataForgeApp {
             <div class="card stack-sm" style="border-left:4px solid var(--green)">
               <div class="row between">
                 <div>
-                  <span class="chip chip-green">${this.l("Hukum Pertama · Verifikasi Repositori Git Lokal", "First Law · Local Git Repository Verifier")}</span>
-                  <h3 style="margin-top:4px">🏆 ${this.l("Buktikan Anda Membangun Repositori Portofolio Ini Sendiri (PORT1)", "Prove You Built & Tested This Portfolio Repository Yourself (PORT1)")}</h3>
+                  <span class="label">${this.l("Periksa repositori Anda", "Check your own repository")}</span>
+                  <h3 style="margin-top:4px">${this.l("Bangun proyek ini sendiri, lalu periksa repositorinya", "Build this project yourself, then check the repository")}</h3>
                 </div>
                 ${pProof ? `<span class="state-done">✓ PORT1 (${pProof.commits} commits · ${pProof.py})</span>` : `<span class="muted small">${this.l("Belum diverifikasi", "Not verified yet")}</span>`}
               </div>
-              <p class="small muted">${this.l("Cetak biru di atas hanyalah arsitektur referensi. Perekrut mempekerjakan Anda berdasarkan repositori Git nyata yang Anda bangun di komputer Anda sendiri (riwayat commit Git >= 2, .gitignore tanpa bocoran .env, README dengan ADR, Dockerfile/CI workflow, dan minimal 3 tes pytest hijau). Jalankan pemeriksa lokal ini:", "The blueprint above is only a reference. Employers hire you for a real Git repository you built on your own computer (>= 2 Git commits, .gitignore with zero leaked .env secrets, README with ADR, Dockerfile/CI workflow, and >= 3 passing pytest tests). Run this local verifier:")}</p>
+              <p class="small muted">${this.l("Cetak biru di atas hanyalah referensi; yang dinilai perekrut adalah repositori yang Anda bangun sendiri. Pemeriksa lokal ini mengecek: minimal 3 commit, tidak ada rahasia yang ter-commit, README dengan catatan keputusan (ADR), workflow CI yang menjalankan tes, minimal 3 tes lulus yang menguji kode Anda sendiri, dan kode yang memakai tool proyek ini. Ia tidak bisa menilai kualitas; minta orang lain mereview juga.", "The blueprint above is only a reference; recruiters look at the repository you build yourself. This local check looks for: at least 3 commits, no committed secrets, a README with a decision record (ADR), a CI workflow that runs the tests, at least 3 passing tests that test your own code, and code that uses this project's tools. It cannot judge quality, so ask someone to review it too.")}</p>
               <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdVerify)}</code></pre></div>
               <div class="row">
                 <input type="text" id="port-proof-input-${proj.id}" autocomplete="off" spellcheck="false" placeholder="PORT1:${proj.id}:…" value="${pProof ? this.esc(pProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitPortfolioProof('${proj.id}')}" />
@@ -3443,12 +3468,12 @@ class DataForgeApp {
         <div class="card stack-sm no-print" style="background:var(--card-subtle);border-left:4px solid var(--blue)">
           <div class="row between">
             <h3>${this.l("Panduan Formula Dampak Google (Rumus XYZ)", "Google XYZ Impact Formula Guide")}</h3>
-            <span class="chip chip-blue">Standar Global</span>
           </div>
-          <p class="well" style="font-size:13px;line-height:1.5">
-            <strong>Formula:</strong> <em>"Berhasil mencapai [X], terukur dengan [Y], dengan melakukan [Z]"</em><br>
-            <span style="color:var(--red)">❌ Pasif:</span> <em>"Bertanggung jawab membuat pipeline ETL dengan Python dan SQL."</em><br>
-            <span style="color:var(--green)">✓ Dampak Terukur:</span> <em>"Architected Lakehouse ingestion pipeline using Python & Apache Iceberg, processing 45M daily events with 99.98% uptime."</em>
+          <p class="well" style="font-size:13px;line-height:1.6">
+            <strong>${this.l("Rumus", "Formula")}:</strong> <em>${this.l('"Mencapai [X], diukur dengan [Y], dengan melakukan [Z]"', '"Accomplished [X], as measured by [Y], by doing [Z]"')}</em><br>
+            <span style="color:var(--red)">✗ ${this.l("Pasif", "Passive")}:</span> <em>${this.l('"Bertanggung jawab membuat pipeline ETL dengan Python dan SQL."', '"Responsible for building ETL pipelines with Python and SQL."')}</em><br>
+            <span style="color:var(--green)">✓ ${this.l("Dampak terukur", "Measured impact")}:</span> <em>"Built a Python and Apache Iceberg ingestion pipeline processing 45M events a day with 99.98% uptime."</em>
+            <br><span class="small muted">${this.l("Tulis CV dalam bahasa Inggris untuk lowongan internasional; angkanya harus benar dan bisa Anda jelaskan di wawancara.", "Write the CV in English for international roles; every number must be true and something you can explain in an interview.")}</span>
           </p>
         </div>
 
@@ -3498,10 +3523,10 @@ class DataForgeApp {
                 <h3>${this.l("2. Keahlian Teknis (Skills)", "2. Technical Skills")}</h3>
                 <span class="muted small">${this.l("Kata kunci ATS", "ATS keywords")}</span>
               </div>
-              ${field("Languages (Bahasa)", "skills.languages", r.skills.languages)}
-              ${field("Storage & Formats (Format & Penyimpanan)", "skills.storageTableFormats", r.skills.storageTableFormats)}
-              ${field("Processing & Streaming (Komputasi & Aliran Data)", "skills.processingStreaming", r.skills.processingStreaming)}
-              ${field("Orchestration & DevOps (Orkestrasi & CI/CD)", "skills.orchestrationOps", r.skills.orchestrationOps)}
+              ${field(this.l("Bahasa pemrograman", "Languages"), "skills.languages", r.skills.languages)}
+              ${field(this.l("Penyimpanan & format", "Storage & formats"), "skills.storageTableFormats", r.skills.storageTableFormats)}
+              ${field(this.l("Pemrosesan & streaming", "Processing & streaming"), "skills.processingStreaming", r.skills.processingStreaming)}
+              ${field(this.l("Orkestrasi & DevOps", "Orchestration & DevOps"), "skills.orchestrationOps", r.skills.orchestrationOps)}
             </div>
 
             <!-- 3. Pengalaman Kerja 1 -->
@@ -4200,7 +4225,7 @@ class DataForgeApp {
         <div class="card stack-sm">
           <div class="row between">
             <div>
-              <span class="chip chip-blue" style="margin-bottom:8px;display:inline-block">${this.l("Evaluasi Kesiapan Karir", "Career Readiness Evaluation")}</span>
+              <span class="label" style="margin-bottom:6px;display:inline-block">${this.l("Kesiapan kerja", "Job readiness")}</span>
               <h1>${this.l("Dashboard Kesiapan Kerja & Evaluasi Skill", "Job Readiness & Skill Assessment Dashboard")}</h1>
               <p class="muted" style="margin-top:4px">${this.l("Laporan komprehensif tingkat kesiapan kerja Data Engineer, penguasaan 6 pilar kompetensi, dan rencana aksi menuju standar industri global.", "Comprehensive Data Engineering job readiness report, 6-pillar competency mastery, and action plan toward global engineering standards.")}</p>
             </div>
@@ -4211,7 +4236,7 @@ class DataForgeApp {
           </div>
         </div>
 
-        <!-- Score Overview Grid -->
+        <!-- Score and the next steps, side by side -->
         <div class="grid cols-2">
           <!-- Readiness Score Card -->
           <div class="card stack-sm" style="display:flex;flex-direction:column;justify-content:space-between">
@@ -4233,34 +4258,75 @@ class DataForgeApp {
             </div>
           </div>
 
-          <!-- 4 Progress Stats Card -->
+          <!-- Recommended Next Steps -->
           <div class="card stack-sm">
-            <div class="label">${this.l("Indikator Progres Belajar", "Learning Progress Indicators")}</div>
-            <div class="grid cols-2" style="margin-top:8px">
-              <div class="stat">
-                <div class="muted small">${this.l("Kurikulum Diselesaikan", "Curriculum Done")}</div>
-                <div class="num" style="margin-top:4px">${completedCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalModules}</span></div>
-                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((completedCount/totalModules)*100)}%"></div></div>
-              </div>
-              <div class="stat">
-                <div class="muted small">${this.l("Tantangan SQL Tuntas", "SQL Challenges")}</div>
-                <div class="num" style="margin-top:4px">${solvedSqlCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalSqlCount}</span></div>
-                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((solvedSqlCount/totalSqlCount)*100)}%"></div></div>
-              </div>
-              <div class="stat">
-                <div class="muted small">${this.l("Akurasi Rata-rata Kuis", "Average Quiz Accuracy")}</div>
-                <div class="num" style="margin-top:4px">${avgQuizPct}% <span style="font-size:13px;color:var(--text-muted);font-weight:normal">(${quizModIds.length} kuis)</span></div>
-                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${avgQuizPct}%"></div></div>
-              </div>
-              <div class="stat">
-                <div class="muted small">${this.l("Skor ATS Resume", "ATS Resume Score")}</div>
-                <div class="num" style="margin-top:4px">${this.resumeEdited ? resumeScoreTotal : "—"} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">${this.resumeEdited ? "/ 100" : this.l("(belum diisi)", "(not filled in)")}</span></div>
-                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${this.resumeEdited ? resumeScoreTotal : 0}%"></div></div>
-              </div>
+            <h3>${this.l("Rencana Aksi & Prioritas Belajar Berikutnya", "Next Recommended Action Plan")}</h3>
+            <p class="muted small">${this.l("Langkah-langkah paling bernilai tinggi untuk memaksimalkan kesiapan karir Anda saat ini:", "High-impact next steps to maximize your job readiness right now:")}</p>
+            <div class="stack-sm" style="margin-top:12px">
+              ${nextSteps.slice(0, 3).map((ns, idx) => `
+                <div class="well stack-sm" style="padding:10px 14px">
+                  <div class="row between">
+                    <span class="label" style="margin:0">${this.l("Prioritas", "Priority")} #${idx + 1}</span>
+                    <a href="${ns.link}" class="small" style="font-weight:600">${this.l("Buka Modul", "Open Step")} →</a>
+                  </div>
+                  <p style="font-size:13px;margin-top:4px">${this.esc(ns.text)}</p>
+                </div>`).join("")}
             </div>
-            <div class="well stack-sm" style="margin-top:12px;font-size:12px">
-              <p class="muted">💡 ${this.l("Skor kesiapan dihitung transparan: 60% penguasaan modul kurikulum (kuis ≥ 80%), 25% tantangan SQL Sandbox, dan 15% kesiapan resume ATS & portofolio.", "Readiness score formula: 60% curriculum module mastery (quiz ≥ 80%), 25% SQL Sandbox challenges, and 15% ATS resume & portfolio readiness.")}</p>
+            <div class="callout neutral" style="margin-top:14px">
+              <strong>${this.l("Saran Karir Mentor:", "Mentor Career Tip:")}</strong><br>
+              <span class="small">${this.l("Jangan menunggu skor 100% untuk mulai menyiapkan portofolio. Saat skor kesiapan Anda mencapai 50%, mulailah membuat akun GitHub publik dan menyusun resume menggunakan ATS Resume Builder kami.", "Do not wait for 100% to start building your portfolio. Once your readiness hits 50%, start an active public GitHub profile and craft your resume with our ATS Resume Builder.")}</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Idea #7: Afterglow / 10am Studio Analytics — My Assignments & Local Lab Proofs Status Table -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Status per modul", "Status per module")}</span>
+              <h2 style="margin-top:4px">${this.l("Status Penyelesaian Lab, Kuis & Insiden Chaos per Modul", "Module-by-Module Lab Proof, Chaos Drill & Assessment Status")}</h2>
+            </div>
+            <button class="btn btn-sm btn-quiet" onclick="app.copyScorecard(this)">📋 ${this.l("Salin Kartu Skor Bukti Lokal", "Copy Verified Scorecard")}</button>
+          </div>
+          <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>${this.l("Modul", "Module")}</th>
+                  <th>${this.l("Materi", "Lessons")}</th>
+                  <th>${this.l("Bukti Lab (DF1)", "Lab Proof (DF1)")}</th>
+                  <th>${this.l("Drill Chaos", "Chaos Drill")}</th>
+                  <th>${this.l("Kuis (≥80%)", "Quiz (≥80%)")}</th>
+                  <th>${this.l("Status", "Status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${CURRICULUM_DATA.flatMap((l) => l.modules).map((m) => {
+                  const isDone = this.completedModules.includes(m.id);
+                  const lRead = (this.lessonsDone[m.id] || []).length;
+                  const lTot = (m.lessons || []).length;
+                  const hasPrf = Boolean(this.proofFor(m.id));
+                  const hasChaos = Boolean((this.chaosDone[m.id] && this.chaosDone[m.id].done) || this.chaosProofs[m.id]);
+                  const q = this.quizScores[m.id];
+                  const qNeed = Math.ceil((m.quiz || []).length * 0.8);
+                  const qOk = Boolean(q && q.best >= qNeed);
+                  const statusLabel = isDone
+                    ? `<span class="state-done">✓ ${this.l("Selesai", "Completed")}</span>`
+                    : (lRead > 0 || hasPrf || hasChaos || q)
+                      ? `<span class="chip chip-blue">${this.l("Sedang Dikerjakan", "In Progress")}</span>`
+                      : `<span class="muted small">${this.l("Berikutnya", "Upcoming")}</span>`;
+                  return `
+                    <tr>
+                      <td><a href="#/curriculum/${m.id}"><strong>${m.number}</strong> ${this.esc(this.t(m.title))}</a></td>
+                      <td>${lRead}/${lTot}</td>
+                      <td>${hasPrf ? `<span class="state-done">✓ DF1</span>` : `<a href="#/curriculum/${m.id}/lab" class="small muted">${this.l("Kerjakan →", "Build →")}</a>`}</td>
+                      <td>${hasChaos ? `<span class="state-done">✓ ${this.chaosProofs[m.id] ? "CHAOS1" : "Done"}</span>` : `<a href="#/curriculum/${m.id}/chaos" class="small muted">Chaos →</a>`}</td>
+                      <td>${q ? `${q.best}/${q.total} ${qOk ? "✓" : ""}` : `<a href="#/curriculum/${m.id}/quiz" class="small muted">Quiz →</a>`}</td>
+                      <td>${statusLabel}</td>
+                    </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -4292,6 +4358,51 @@ class DataForgeApp {
                   <span>${d.pct >= 100 ? "✓ " + this.l("Kuasai", "Mastered") : d.pct > 0 ? this.l("Diproses", "Progressing") : this.l("Belum Mulai", "Not started")}</span>
                 </div>
               </div>`).join("")}
+          </div>
+        </div>
+
+        <div class="grid cols-2">
+          <!-- 4 Progress Stats Card -->
+          <div class="card stack-sm">
+            <div class="label">${this.l("Indikator Progres Belajar", "Learning Progress Indicators")}</div>
+            <div class="grid cols-2" style="margin-top:8px">
+              <div class="stat">
+                <div class="muted small">${this.l("Kurikulum Diselesaikan", "Curriculum Done")}</div>
+                <div class="num" style="margin-top:4px">${completedCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalModules}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((completedCount/totalModules)*100)}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Tantangan SQL Tuntas", "SQL Challenges")}</div>
+                <div class="num" style="margin-top:4px">${solvedSqlCount} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">/ ${totalSqlCount}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${Math.round((solvedSqlCount/totalSqlCount)*100)}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Akurasi Rata-rata Kuis", "Average Quiz Accuracy")}</div>
+                <div class="num" style="margin-top:4px">${avgQuizPct}% <span style="font-size:13px;color:var(--text-muted);font-weight:normal">(${quizModIds.length} kuis)</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${avgQuizPct}%"></div></div>
+              </div>
+              <div class="stat">
+                <div class="muted small">${this.l("Skor ATS Resume", "ATS Resume Score")}</div>
+                <div class="num" style="margin-top:4px">${this.resumeEdited ? resumeScoreTotal : "—"} <span style="font-size:13px;color:var(--text-muted);font-weight:normal">${this.resumeEdited ? "/ 100" : this.l("(belum diisi)", "(not filled in)")}</span></div>
+                <div class="progress" style="height:4px;margin-top:6px"><div style="width:${this.resumeEdited ? resumeScoreTotal : 0}%"></div></div>
+              </div>
+            </div>
+            <div class="well stack-sm" style="margin-top:12px;font-size:12px">
+              <p class="muted">💡 ${this.l("Skor kesiapan dihitung transparan: 60% penguasaan modul kurikulum (kuis ≥ 80%), 25% tantangan SQL Sandbox, dan 15% kesiapan resume ATS & portofolio.", "Readiness score formula: 60% curriculum module mastery (quiz ≥ 80%), 25% SQL Sandbox challenges, and 15% ATS resume & portfolio readiness.")}</p>
+            </div>
+          </div>
+
+          <!-- Checklist -->
+          <div class="card stack-sm">
+            <h3>${this.l("Daftar Periksa Kualifikasi Kerja (Hiring Checklist)", "Hiring Qualification Checklist")}</h3>
+            <p class="muted small">${this.l("Item kualifikasi yang otomatis tercentang saat Anda menyelesaikan modul & lab terkait:", "Qualification items automatically checked as you complete relevant modules & labs:")}</p>
+            <div class="stack-sm" style="margin-top:12px">
+              ${checklist.map((item) => `
+                <div class="row" style="align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+                  <span style="font-size:16px;line-height:1;color:${item.done ? "var(--green)" : "var(--text-muted)"};font-weight:bold">${item.done ? "✓" : "○"}</span>
+                  <span style="font-size:13px;color:${item.done ? "var(--text)" : "var(--text-muted)"};${item.done ? "font-weight:500" : ""}">${this.esc(item.label)}</span>
+                </div>`).join("")}
+            </div>
           </div>
         </div>
 
@@ -4397,93 +4508,6 @@ class DataForgeApp {
             })() : ""}
             </div>`;
         })() : ""}
-
-        <!-- Hiring Checklist & Action Plan -->
-        <div class="grid cols-2">
-          <!-- Checklist -->
-          <div class="card stack-sm">
-            <h3>${this.l("Daftar Periksa Kualifikasi Kerja (Hiring Checklist)", "Hiring Qualification Checklist")}</h3>
-            <p class="muted small">${this.l("Item kualifikasi yang otomatis tercentang saat Anda menyelesaikan modul & lab terkait:", "Qualification items automatically checked as you complete relevant modules & labs:")}</p>
-            <div class="stack-sm" style="margin-top:12px">
-              ${checklist.map((item) => `
-                <div class="row" style="align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
-                  <span style="font-size:16px;line-height:1;color:${item.done ? "var(--green)" : "var(--text-muted)"};font-weight:bold">${item.done ? "✓" : "○"}</span>
-                  <span style="font-size:13px;color:${item.done ? "var(--text)" : "var(--text-muted)"};${item.done ? "font-weight:500" : ""}">${this.esc(item.label)}</span>
-                </div>`).join("")}
-            </div>
-          </div>
-
-          <!-- Recommended Next Steps -->
-          <div class="card stack-sm">
-            <h3>${this.l("Rencana Aksi & Prioritas Belajar Berikutnya", "Next Recommended Action Plan")}</h3>
-            <p class="muted small">${this.l("Langkah-langkah paling bernilai tinggi untuk memaksimalkan kesiapan karir Anda saat ini:", "High-impact next steps to maximize your job readiness right now:")}</p>
-            <div class="stack-sm" style="margin-top:12px">
-              ${nextSteps.slice(0, 3).map((ns, idx) => `
-                <div class="well stack-sm" style="padding:10px 14px">
-                  <div class="row between">
-                    <span class="label" style="margin:0">${this.l("Prioritas", "Priority")} #${idx + 1}</span>
-                    <a href="${ns.link}" class="small" style="font-weight:600">${this.l("Buka Modul", "Open Step")} →</a>
-                  </div>
-                  <p style="font-size:13px;margin-top:4px">${this.esc(ns.text)}</p>
-                </div>`).join("")}
-            </div>
-            <div class="callout neutral" style="margin-top:14px">
-              <strong>${this.l("Saran Karir Mentor:", "Mentor Career Tip:")}</strong><br>
-              <span class="small">${this.l("Jangan menunggu skor 100% untuk mulai menyiapkan portofolio. Saat skor kesiapan Anda mencapai 50%, mulailah membuat akun GitHub publik dan menyusun resume menggunakan ATS Resume Builder kami.", "Do not wait for 100% to start building your portfolio. Once your readiness hits 50%, start an active public GitHub profile and craft your resume with our ATS Resume Builder.")}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Idea #7: Afterglow / 10am Studio Analytics — My Assignments & Local Lab Proofs Status Table -->
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <span class="chip chip-blue">📋 ${this.l("Pelacak Tugas & Bukti Lab Lokal (Afterglow Analytics Style)", "My Assignments & Local Lab Proofs Tracker (Afterglow Analytics Style)")}</span>
-              <h2 style="margin-top:4px">${this.l("Status Penyelesaian Lab, Kuis & Insiden Chaos per Modul", "Module-by-Module Lab Proof, Chaos Drill & Assessment Status")}</h2>
-            </div>
-            <button class="btn btn-sm btn-quiet" onclick="app.copyScorecard(this)">📋 ${this.l("Salin Kartu Skor Bukti Lokal", "Copy Verified Scorecard")}</button>
-          </div>
-          <div class="table-wrap" style="max-height:420px;overflow-y:auto">
-            <table>
-              <thead>
-                <tr>
-                  <th>${this.l("Modul", "Module")}</th>
-                  <th>${this.l("Materi", "Lessons")}</th>
-                  <th>${this.l("Bukti Lab (DF1)", "Lab Proof (DF1)")}</th>
-                  <th>${this.l("Drill Chaos", "Chaos Drill")}</th>
-                  <th>${this.l("Kuis (≥80%)", "Quiz (≥80%)")}</th>
-                  <th>${this.l("Status", "Status")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${CURRICULUM_DATA.flatMap((l) => l.modules).map((m) => {
-                  const isDone = this.completedModules.includes(m.id);
-                  const lRead = (this.lessonsDone[m.id] || []).length;
-                  const lTot = (m.lessons || []).length;
-                  const hasPrf = Boolean(this.proofFor(m.id));
-                  const hasChaos = Boolean((this.chaosDone[m.id] && this.chaosDone[m.id].done) || this.chaosProofs[m.id]);
-                  const q = this.quizScores[m.id];
-                  const qNeed = Math.ceil((m.quiz || []).length * 0.8);
-                  const qOk = Boolean(q && q.best >= qNeed);
-                  const statusLabel = isDone
-                    ? `<span class="state-done">✓ ${this.l("Selesai", "Completed")}</span>`
-                    : (lRead > 0 || hasPrf || hasChaos || q)
-                      ? `<span class="chip chip-blue">${this.l("Sedang Dikerjakan", "In Progress")}</span>`
-                      : `<span class="muted small">${this.l("Berikutnya", "Upcoming")}</span>`;
-                  return `
-                    <tr>
-                      <td><a href="#/curriculum/${m.id}"><strong>${m.number}</strong> ${this.esc(this.t(m.title))}</a></td>
-                      <td>${lRead}/${lTot}</td>
-                      <td>${hasPrf ? `<span class="state-done">✓ DF1</span>` : `<a href="#/curriculum/${m.id}/lab" class="small muted">${this.l("Kerjakan →", "Build →")}</a>`}</td>
-                      <td>${hasChaos ? `<span class="state-done">✓ ${this.chaosProofs[m.id] ? "CHAOS1" : "Done"}</span>` : `<a href="#/curriculum/${m.id}/chaos" class="small muted">Chaos →</a>`}</td>
-                      <td>${q ? `${q.best}/${q.total} ${qOk ? "✓" : ""}` : `<a href="#/curriculum/${m.id}/quiz" class="small muted">Quiz →</a>`}</td>
-                      <td>${statusLabel}</td>
-                    </tr>`;
-                }).join("")}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>`;
   }
 
