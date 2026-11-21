@@ -59,7 +59,7 @@
     },
     {
       id: "sim-data-maturity",
-      modules: ["mod-0-0", "mod-0-1", "mod-0-3"],
+      modules: ["mod-0-1", "mod-0-3"],
       icon: "🧭",
       title: {
         id: "Simulator: Tahap Kematangan Data (Reis & Housley), Tipe A vs. B & Jebakan TOCO",

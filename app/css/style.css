@@ -27,7 +27,7 @@
   --radius: 10px;
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
   --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
-  --header-bg: rgba(255, 255, 255, 0.88);
+  --header-bg: #ffffff;
   --on-accent: #ffffff;                     /* text on a blue or green fill */
   --purple: #6d28d9;
   --purple-tint: #ede9fe;
@@ -59,7 +59,7 @@ html[data-theme="dark"] {
   --inline-code-text: #7dd3fc;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 6px 18px -2px rgba(0, 0, 0, 0.5);
-  --header-bg: rgba(17, 24, 39, 0.88);
+  --header-bg: #111827;
   --on-accent: #06202e;                     /* the accents are light in dark mode, so the text on them is dark */
   --purple: #a78bfa;
   --purple-tint: rgba(167, 139, 250, 0.14);
@@ -95,9 +95,7 @@ p { color: var(--text); }
 /* ---------- Header ---------- */
 .site-header {
   position: sticky; top: 0; z-index: 30;
-  background: var(--header-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--header-bg);   /* solid: a translucent sticky header let page text show through in Firefox */
   border-bottom: 1px solid var(--border);
 }
 .header-inner {
@@ -397,7 +395,8 @@ td.null { color: var(--text-muted); font-style: italic; }
 .md .callout p + p { margin-top: 8px; }
 .md pre[data-lang]::before {
   content: attr(data-lang);
-  display: inline-block;
+  display: block;
+  width: fit-content;
   font-size: 10.5px;
   font-weight: 700;
   color: #38bdf8;
@@ -466,11 +465,16 @@ main:focus { outline: none; }
 .bl-code { width: 100%; font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; line-height: 1.5; tab-size: 4; padding: 12px; border: 1px solid var(--code-border); border-radius: 8px; background: var(--code-bg); color: var(--code-text); resize: vertical; min-height: 220px; white-space: pre; overflow: auto; }
 .bl-out { white-space: pre-wrap; max-height: 380px; overflow: auto; font-size: 12px; }
 .bl-out[hidden] { display: none; }
+#browser-lab { scroll-margin-top: 112px; }
 .bl-groups { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; }
 .bl-groups li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); font-size: 12.5px; }
 .bl-groups li.ok { border-color: var(--green); background: var(--green-tint); color: var(--green); }
 .bl-groups li.bad { color: var(--text-muted); }
 .bl-groups li.ok .muted { color: inherit; }
+.bl-groups li:has(.bl-group-btn) { padding: 0; }
+.bl-group-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 0; border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.bl-group-btn:hover { background: var(--blue-tint); color: var(--text); }
+.bl-group-btn.selected { background: var(--red-tint); color: var(--red); box-shadow: 0 0 0 1px var(--red); }
 .bl-groups code { background: none; padding: 0; color: inherit; }
 .feedback.info { background: var(--blue-tint); color: var(--text); border: 1px solid var(--blue); }
 

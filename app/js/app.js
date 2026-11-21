@@ -268,7 +268,9 @@ class DataForgeApp {
         <div class="callout-pause">
           <div class="callout-head">
             <span class="callout-badge">💡 ${this.l("Jeda Praktik Terarah (Jembatan ke Lab)", "Guided Lab Checkpoint (Practice Pause)")}</span>
-            ${modId ? `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${modId}','lab')">${this.l("Buka Tab Lab", "Open Lab Tab")} →</button>` : ""}
+            ${modId ? (window.BROWSER_LABS && window.BROWSER_LABS[modId]
+              ? `<button class="btn btn-sm btn-quiet" onclick="app.openLabPreview('${modId}')">${this.l("Buka pratinjau di tab Lab", "Open the preview on the Lab tab")} →</button>`
+              : `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${modId}','lab')">${this.l("Buka Tab Lab", "Open Lab Tab")} →</button>`) : ""}
           </div>
           <div class="stack-sm">${this.renderQuoteBody(q)}</div>
         </div>`;
@@ -364,6 +366,17 @@ class DataForgeApp {
     if (location.hash === hash) this.readHash(); else location.hash = hash;
   }
   switchView(view) { this.go(view); }
+  // A Practice Pause sends a beginner to the browser preview, so land on it, not on the top of the Lab tab.
+  openLabPreview(modId) {
+    this.go("curriculum", modId, "lab");
+    let tries = 0;
+    const land = () => {
+      const el = document.getElementById("browser-lab");
+      if (el) el.scrollIntoView({ block: "start" });
+      else if (tries++ < 20) setTimeout(land, 50);
+    };
+    setTimeout(land, 50);
+  }
 
   // ---------- chrome (header/nav/footer) ----------
   renderChrome() {
@@ -759,10 +772,12 @@ class DataForgeApp {
         } else {
           summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one function, then run again.`)}</div>`;
         }
-        summary += this.blGroupsHtml(bl, String(m.output));
-        const out = String(m.output).replace(/\/lab\//g, "");
-        const cut = out.length > 8000 ? out.slice(-8000) : out;
-        this.blStatus(modId, "", summary, cut === out ? out : "…\n" + cut.slice(cut.indexOf("\n") + 1));
+        const raw = String(m.output).replace(/\/lab\//g, "");
+        const groups = this.blGroups(bl, raw);
+        const first = groups.find((g) => g.pass < g.total);
+        this._blRun = this._blRun || {};
+        this._blRun[modId] = { raw, groups, head: summary };
+        this.blShowGroup(modId, first ? first.name : null);
       } else if (m.type === "error" && m.id === id) {
         if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; }
         finish();
@@ -774,8 +789,8 @@ class DataForgeApp {
     // -rA lists every test as PASSED/FAILED at the end, so the result can show one line per test group.
     w.postMessage({ type: "run", id, files, args: [...bl.tests, "-rA"] });
   }
-  // One chip per test class (TestFormatRupiah ✓ 4/4), in the order the test file defines them.
-  blGroupsHtml(bl, output) {
+  // Per test class (TestFormatRupiah 4/4), in the order the test file defines them, read from pytest -rA.
+  blGroups(bl, output) {
     const order = [];
     for (const t of bl.tests) {
       for (const m of String(bl.files[t] || "").matchAll(/^class (Test\w+)/gm)) order.push(m[1]);
@@ -786,12 +801,46 @@ class DataForgeApp {
       s.total += 1;
       if (m[1] === "PASSED") s.pass += 1;
     }
-    const names = order.filter((n) => stat[n]);
-    if (!names.length) return "";
-    return `<ul class="bl-groups" aria-label="${this.l("Hasil per grup tes", "Results per test group")}">${names.map((n) => {
-      const s = stat[n], ok = s.pass === s.total;
-      return `<li class="${ok ? "ok" : "bad"}"><span aria-hidden="true">${ok ? "✓" : "✗"}</span> <code>${n}</code> <span class="muted">${s.pass}/${s.total}</span><span class="sr-only">${ok ? this.l(" lulus", " passing") : this.l(" belum lulus", " not passing yet")}</span></li>`;
-    }).join("")}</ul>`;
+    return order.filter((n) => stat[n]).map((name) => ({ name, ...stat[name] }));
+  }
+  // pytest prints one "____ TestX.test_y ____" block per failing test; keep only the blocks of one group,
+  // so the messages for the function the learner is working on are never cut off by the other ten.
+  blGroupOutput(raw, group) {
+    const lines = raw.split("\n");
+    const blocks = [];
+    let cur = null;
+    for (const line of lines) {
+      const h = line.match(/^_{3,} (.+?) _{3,}$/);
+      if (h) { cur = { name: h[1], lines: [line] }; blocks.push(cur); continue; }
+      if (/^={3,}/.test(line)) { cur = null; continue; }
+      if (cur) cur.lines.push(line);
+    }
+    const mine = blocks.filter((b) => new RegExp(`(^|\\s)${group}\\.`).test(b.name));
+    return mine.map((b) => b.lines.join("\n").trimEnd()).join("\n\n");
+  }
+  blShowGroup(modId, group) {
+    const run = this._blRun && this._blRun[modId];
+    if (!run) return;
+    const chips = run.groups.length ? `<ul class="bl-groups" aria-label="${this.l("Hasil per grup tes", "Results per test group")}">${run.groups.map((g) => {
+      const ok = g.pass === g.total;
+      const inner = `<span aria-hidden="true">${ok ? "✓" : "✗"}</span> <code>${g.name}</code> <span class="muted">${g.pass}/${g.total}</span><span class="sr-only">${ok ? this.l(" lulus", " passing") : this.l(" belum lulus", " not passing yet")}</span>`;
+      return ok ? `<li class="ok">${inner}</li>`
+        : `<li class="bad"><button type="button" class="bl-group-btn${g.name === group ? " selected" : ""}" aria-pressed="${g.name === group}" onclick="app.blShowGroup('${modId}', '${g.name}')">${inner}</button></li>`;
+    }).join("")}</ul>` : "";
+    let out = group ? this.blGroupOutput(run.raw, group) : "";
+    let note = "";
+    if (out) {
+      note = `<p class="small muted">${this.l(`Pesan di bawah hanya untuk <code>${group}</code>. Klik grup ✗ lain untuk melihat pesannya. Baca setiap pesan dari baris paling bawah: baris yang diawali <code>E</code> menyebut apa yang salah.`, `The messages below are for <code>${group}</code> only. Click another ✗ group to see its messages. Read each message from the bottom line: the lines starting with <code>E</code> say what went wrong.`)}</p>`;
+    } else if (/ERROR collecting/.test(run.raw) && /^E {2,}/m.test(run.raw)) {
+      // The file could not even be loaded (usually a syntax error), so no test ran. pytest's own frames
+      // (site-packages, <frozen importlib>) mean nothing to a beginner: keep only its "E" lines.
+      out = run.raw.split("\n").filter((l) => /^E {2,}/.test(l)).join("\n");
+      note = `<p class="small muted">${this.l("Python tidak bisa membaca file Anda, jadi belum ada tes yang berjalan. Pesan di bawah menyebut nomor baris dan menandai tempatnya dengan <code>^</code>. Kotak kode tidak punya nomor baris: cari baris yang dikutip, dan periksa juga baris tepat di atasnya, karena tanda kurung atau kutip yang belum ditutup sering baru ketahuan di baris berikutnya.", "Python could not read your file, so no test ran yet. The message below names a line number and marks the spot with <code>^</code>. The code box has no line numbers: find the quoted line, and check the line just above it too, because an unclosed bracket or quote is often only noticed on the next line.")}</p>`;
+    } else {
+      // no per-test blocks and no "E" lines: show the end of the full output
+      out = run.raw.length > 8000 ? "…\n" + run.raw.slice(-8000).slice(run.raw.slice(-8000).indexOf("\n") + 1) : run.raw;
+    }
+    this.blStatus(modId, "", run.head + chips + note, out);
   }
 
   // ================= LAB PROOF (scripts/prove.py prints a code; the app checks it) =================
@@ -1814,13 +1863,28 @@ class DataForgeApp {
                 <li>${this.l("Sekitar 10 GB ruang disk bebas", "About 10 GB of free disk space")}</li>
               </ul>
             </div>
+
             <div class="well stack-sm">
               <strong>${this.l("B. Di cloud, hanya jika A tidak memungkinkan", "B. In the cloud, only if A is not possible")}</strong>
               <p class="small muted">${this.l("Misalnya komputer pinjaman atau tablet. GitHub Codespaces membuka editor lengkap di browser dengan semuanya sudah terpasang; Anda tetap bekerja di terminal sungguhan. Perlu akun GitHub gratis; ada kuota jam gratis per bulan. Anda tidak melatih penyiapan sendiri di sini, jadi usahakan A bila bisa.", "For example a borrowed computer or a tablet. GitHub Codespaces opens a full editor in your browser with everything installed; you still work in a real terminal. It needs a free GitHub account and has a free monthly hours quota. You do not practise the setup yourself here, so prefer A when you can.")}</p>
               <a class="btn" href="https://codespaces.new/${repo.replace("https://github.com/", "")}" target="_blank" rel="noopener">${this.l("Buka di Codespaces", "Open in Codespaces")}</a>
               <p class="small muted">${this.l("Setelah terbuka, lompat ke langkah 3.", "Once it opens, skip to step 3.")}</p>
             </div>
-          </div>`)}
+          </div>
+          <details class="callout neutral fold-callout" id="windows-setup">
+            <summary class="label">${this.l("Pakai Windows? Siapkan WSL2 sekarang (sekitar 20 menit, sekali saja)", "On Windows? Set up WSL2 now (about 20 minutes, once)")}</summary>
+            <p class="small">${this.l("WSL2 menjalankan Linux (Ubuntu) di dalam Windows. Semua perintah di kursus ini ditulis untuk terminal Linux, jadi kerjakan semuanya di jendela Ubuntu ini.", "WSL2 runs Linux (Ubuntu) inside Windows. Every command in this course is written for a Linux terminal, so do all of it in this Ubuntu window.")}</p>
+            <ol class="small" style="margin-left:18px">
+              <li>${this.l("Klik Start, ketik <strong>PowerShell</strong>, klik kanan hasilnya, lalu pilih <strong>Run as administrator</strong>.", "Click Start, type <strong>PowerShell</strong>, right-click the result and choose <strong>Run as administrator</strong>.")}</li>
+              <li>${this.l("Ketik <code>wsl --install</code> lalu Enter. Tunggu sampai selesai, lalu restart komputer.", "Type <code>wsl --install</code> and press Enter. Wait until it finishes, then restart the computer.")}</li>
+              <li>${this.l("Setelah restart, buka <strong>Ubuntu</strong> dari menu Start. Pertama kali, ia meminta nama pengguna dan password Linux yang baru. Saat Anda mengetik password, layar tidak menampilkan apa pun: itu normal. Ketik saja, lalu Enter.", "After the restart, open <strong>Ubuntu</strong> from the Start menu. The first time, it asks for a new Linux user name and password. While you type the password nothing appears on screen: that is normal. Just type it and press Enter.")}</li>
+              <li>${this.l("Di jendela Ubuntu, pasang alat yang dipakai kursus ini (ia meminta password tadi):", "In the Ubuntu window, install the tools this course uses (it asks for that password):")}</li>
+            </ol>
+            ${cmd("sudo apt update && sudo apt install -y python3-venv python3-pip git")}
+            <p class="small">${this.l("Lalu lanjutkan langkah 2 di jendela Ubuntu yang sama, di folder Linux Anda sendiri (<code>cd ~</code>), bukan di drive C:. Untuk melihat folder itu di Windows Explorer, ketik <code>explorer.exe .</code> (dengan titik).", "Then continue with step 2 in the same Ubuntu window, in your own Linux folder (<code>cd ~</code>), not on drive C:. To see that folder in Windows Explorer, type <code>explorer.exe .</code> (with the dot).")}</p>
+            <p class="small muted">${this.l("Linux Ubuntu atau Debian (bukan Windows)? Jalankan baris <code>sudo apt</code> di atas juga: tanpa <code>python3-venv</code>, perintah <code>python3 -m venv</code> di Modul 0.2 gagal. Error saat <code>wsl --install</code>? Biasanya virtualisasi mati di BIOS; cari pesan error-nya, atau pakai pilihan B.", "Ubuntu or Debian Linux (not Windows)? Run the <code>sudo apt</code> line above too: without <code>python3-venv</code>, the <code>python3 -m venv</code> command in Module 0.2 fails. An error during <code>wsl --install</code>? Usually virtualisation is switched off in the BIOS; search for the error message, or use option B.")}</p>
+          </details>
+        `)}
 
         ${step(2, this.l("Ambil file kursus (pilihan A)", "Get the course files (option A)"), `
           <p>${this.l("File lab ada di folder <code>labs/</code> pada repositori kursus. Cara tercepat:", "The lab files live in the <code>labs/</code> folder of the course repository. Fastest way:")}</p>
@@ -1831,7 +1895,7 @@ class DataForgeApp {
 
         ${step(3, this.l("Cek bahwa semuanya berjalan", "Check that everything works"), `
           ${cmd(`python3 --version\npython3 labs/shared/shopgen.py --out data\nls data`)}
-          <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap untuk Modul 0.1.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready for Module 0.1.")}</p>
+          <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap: lab Python bisa berjalan di sini.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready: the Python labs can run here.")}</p>
           <p class="small muted">${this.l("Pesan <code>command not found</code>? Di Linux/macOS coba <code>python</code> sebagai ganti <code>python3</code>. Di Windows pastikan Anda berada di terminal Ubuntu (WSL2), bukan PowerShell.", "<code>command not found</code>? On Linux/macOS try <code>python</code> instead of <code>python3</code>. On Windows make sure you are in the Ubuntu (WSL2) terminal, not PowerShell.")}</p>`)}
 
         ${step(4, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
@@ -2360,7 +2424,7 @@ class DataForgeApp {
           ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
         </details>
 
-        ${readCount === 0 ? this.renderLifecycleDiagram(mod.id) : `
+        ${readCount === 0 && mod.id !== "mod-0-0" ? this.renderLifecycleDiagram(mod.id) : `
         <details class="callout neutral fold-callout">
           <summary class="label">${this.l("Posisi modul ini di siklus hidup data engineering", "Where this module sits in the data engineering lifecycle")}</summary>
           ${this.renderLifecycleDiagram(mod.id)}
@@ -2493,7 +2557,7 @@ class DataForgeApp {
         ${this.proofCard(mod.id)}
         <div class="callout">
           <div class="label">${this.l("Selesai bila", "Done when")}</div>
-          <ul style="margin-left:18px">${lab.deliverables.map((d) => `<li>${this.esc(this.t(d))}</li>`).join("")}</ul>
+          <ul style="margin-left:18px">${lab.deliverables.map((d) => `<li>${this.inline(this.t(d))}</li>`).join("")}</ul>
         </div>
         ${nav(["concepts", plainTab("tabConcepts")], ["chaos", plainTab("tabChaos")])}`;
     }

@@ -18,11 +18,8 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
-> File kode `labs/mod-0-0/basics.py` adalah **file dokumen teks kode sumber**, bukan perintah shell terminal!
-> - **Jangan** mengetik `labs/mod-0-0/basics.py` langsung di terminal bash (akan memicu error `Permission denied` atau `command not found`!).
-> - **Buka di editor:** Klik nama file di sidebar editor (VS Code / Cursor), atau ketik `code labs/mod-0-0/basics.py`, atau edit langsung di kotak browser pada tab Lab.
-> - **Menjalankan tes sebelum Modul 0.2:** gunakan **Pratinjau di browser** pada tab Lab. Tulis setiap fungsi di sana lalu klik **Jalankan tes**; tidak ada yang perlu diinstal. Perintah `pytest ...` di bawah setiap jeda untuk nanti: Modul 0.2 menyiapkan Python, venv, dan pytest di komputer Anda, lalu Anda mengulangi lab ini di sana, dan run itulah yang dihitung.
-> - **Ritme Belajar Ping-Pong:** Jangan membaca seluruh bab sampai habis baru mengoding! Ikuti tanda **👉 Jeda Praktik** di akhir setiap pelajaran untuk mencoba fungsi secara bertahap.
+> - **Mulai di browser:** setiap pelajaran diakhiri **💡 Jeda Praktik**. Jeda itu mengarahkan Anda ke **Pratinjau di browser** pada tab Lab: tulis fungsinya di sana lalu klik **Jalankan tes**. Tidak ada yang perlu diinstal. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
+> - **Nanti, di komputer Anda sendiri (setelah Modul 0.2):** kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
 
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
 Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.
@@ -53,11 +50,13 @@ Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dal
 
 Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
 
+**Tiga alat kecil untuk fungsi lab pertama Anda.** Kode format di dalam f-string mengubah cara sebuah angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`. `.replace(lama, baru)` pada sebuah teks menukar karakter: `"a-b-c".replace("-", "+")` menghasilkan `"a+b+c"`. Dan fungsi lab mengembalikan jawabannya dengan `return`: `return text` mengakhiri fungsi dan memberikan `text` kepada pemanggilnya, dan dengan cara itulah tes melihat hasil Anda. `print(text)` hanya menampilkannya di layar, dan tes tidak menerima apa pun. Pelajaran 5 menjelaskan fungsi selengkapnya; sampai saat itu, akhiri setiap fungsi lab dengan `return`.
+
 > 💡 **Jeda Praktik 1 (Coba Sekarang):**
 > Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (setelah Modul 0.2: file `labs/mod-0-0/basics.py` di editor Anda sendiri).
-> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar: langkah ini selesai jika `TestFormatRupiah` bertanda ✓ di daftar grup tes di bawah tombol. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
+> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda dengan alat-alat di atas. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar. Lihat `TestFormatRupiah` di daftar grup tes di bawah tombol dan targetkan 3 dari 4: tes keempat, jumlah negatif, butuh `if` yang diajarkan Pelajaran 3, dan Anda menyelesaikannya di sana. Klik grup ✗ untuk membaca mengapa tesnya gagal. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> Jika `TestFormatRupiah` bertanda ✓, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
+> Jika `TestFormatRupiah` menunjukkan 3/4, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
@@ -114,8 +113,8 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
 
 > 💡 **Jeda Praktik 3 (Coba Sekarang):**
-> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu klik **Jalankan tes**: `TestAverageTotal` harus bertanda ✓ (terminal, setelah Modul 0.2):
-> `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
+> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu kembali ke `format_rupiah` dan tangani jumlah negatif, karena sekarang Anda sudah mengenal `if`. Klik **Jalankan tes**: `TestAverageTotal` dan `TestFormatRupiah` harus sama-sama bertanda ✓ (terminal, setelah Modul 0.2):
+> `pytest labs/mod-0-0/test_lab.py -k "TestAverageTotal or TestFormatRupiah" -v`
 
 ## @lesson Pengulangan: for, while, dan comprehension
 Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah perulangan (loop), dan ia adalah mesin dari setiap pipeline data.

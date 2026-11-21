@@ -18,11 +18,8 @@ None. You do not need to have written code before, and it does not matter if ear
 
 > [!IMPORTANT]
 > **How to Work on Labs (Beginner Guide):**
-> The code file `labs/mod-0-0/basics.py` is a **source code text document**, NOT a shell terminal command!
-> - **Do NOT** type `labs/mod-0-0/basics.py` directly into your bash terminal (this will trigger `Permission denied` or `command not found` errors!).
-> - **Open in editor:** Click the file name in your editor's sidebar (VS Code / Cursor), or type `code labs/mod-0-0/basics.py`, or edit directly in the browser editor on the Lab tab.
-> - **Running the tests before Module 0.2:** use the **Browser preview** on the Lab tab. Write each function there and click **Run tests**; nothing needs to be installed. The `pytest ...` command under each pause is for later: Module 0.2 sets up Python, a venv and pytest on your computer, and then you repeat this lab there, which is the run that counts.
-> - **Ping-Pong Study Rhythm:** Do not read the entire chapter before coding! Follow the **👉 Practice Pause** callouts at the end of each lesson to implement functions step by step.
+> - **Start in the browser:** each lesson ends with a **💡 Practice Pause**. It sends you to the **Browser preview** on the Lab tab: write the function there and click **Run tests**. Nothing needs to be installed. Do not read the whole chapter first; go back and forth between a lesson and its pause.
+> - **Later, on your own computer (after Module 0.2):** the same code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
 
 ## @lesson How a program runs: values, variables and types
 A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens "in the background" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.
@@ -53,11 +50,13 @@ Two traps to learn now. First, money must be an `int` in the smallest unit, beca
 
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
 
+**Three small tools for your first lab function.** A format code inside an f-string changes how a number is written: `f"{1250000:,}"` gives the text `"1,250,000"`. A text's `.replace(old, new)` swaps characters: `"a-b-c".replace("-", "+")` gives `"a+b+c"`. And a lab function hands its answer back with `return`: `return text` ends the function and gives `text` to whoever called it, which is how the tests see your result. `print(text)` only shows it on the screen, and the tests receive nothing. Lesson 5 explains functions fully; until then, end each lab function with `return`.
+
 > 💡 **Practice Pause 1 (Try It Now):**
 > Do not read the next section yet! Open the **Browser preview** on the Lab tab (after Module 0.2: the file `labs/mod-0-0/basics.py` in your own editor).
-> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected: this step is done when `TestFormatRupiah` shows ✓ in the list of test groups under the button. In your own terminal after Module 0.2, the same check is:
+> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic with the tools above. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected. Look at `TestFormatRupiah` in the list of test groups under the button and aim for 3 of 4: the fourth test, a negative amount, needs `if`, which Lesson 3 teaches, and you finish it there. Click a ✗ group to read why its tests fail. In your own terminal after Module 0.2, the same check is:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> When `TestFormatRupiah` shows ✓, you have written your first working function. Go on to Lesson 2.
+> When `TestFormatRupiah` shows 3/4, you have written your first working function. Go on to Lesson 2.
 
 ## @lesson Collections: one value is never enough
 One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
@@ -114,8 +113,8 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
 
 > 💡 **Practice Pause 3 (Try It Now):**
-> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then click **Run tests**: `TestAverageTotal` should show ✓ (terminal, after Module 0.2):
-> `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
+> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then go back to `format_rupiah` and handle a negative amount, now that you know `if`. Click **Run tests**: `TestAverageTotal` and `TestFormatRupiah` should both show ✓ (terminal, after Module 0.2):
+> `pytest labs/mod-0-0/test_lab.py -k "TestAverageTotal or TestFormatRupiah" -v`
 
 ## @lesson Repetition: for, while and comprehensions
 A file has 100,000 rows. You cannot write 100,000 lines, so you write the instruction **once** and let the computer repeat it. That is a loop, and it is the engine of every data pipeline.

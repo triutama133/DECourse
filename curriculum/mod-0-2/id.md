@@ -101,7 +101,9 @@ Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`)
 > Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
 
 ## @lesson Python: pasang sekali, lalu isolasi setiap proyek
-Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2.
+Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2 (halaman **Mulai di sini** menuntun cara memasangnya).
+
+**Pengguna Ubuntu, Debian, dan WSL2:** sistem ini membawa Python tanpa alat venv. Pasang sekali dengan `sudo apt install -y python3-venv python3-pip`; tanpanya, baris `python3 -m venv` di bawah berhenti dengan pesan `ensurepip is not available` (diukur pada Ubuntu 24.04 yang baru dipasang).
 
 Masalah intinya: paket Python dipasang di satu tempat, sedangkan proyek berbeda butuh versi berbeda. Proyek A butuh `pandas 1.5`, proyek B butuh `pandas 2.2`. Kalau semuanya dipasang global, cepat atau lambat satu proyek merusak yang lain, atau merusak alat Python bawaan sistem operasi Anda. Solusinya adalah **virtual environment**: folder privat dengan Python dan paketnya sendiri, per proyek.
 

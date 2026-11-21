@@ -101,7 +101,9 @@ Every program has three standard streams: input (`stdin`), output (`stdout`) and
 > Notice how you aggregated thousands of KopiKu transaction rows into status counts in milliseconds! Proceed to Lesson 4 to isolate your Python environment.
 
 ## @lesson Python: install it once, then isolate every project
-Check what you have: `python3 --version`. For this course use Python 3.10 or newer. On Linux and macOS, use the system's package manager or the official installer; on Windows, work inside WSL2.
+Check what you have: `python3 --version`. For this course use Python 3.10 or newer. On Linux and macOS, use the system's package manager or the official installer; on Windows, work inside WSL2 (the **Start here** page walks through installing it).
+
+**Ubuntu, Debian and WSL2 users:** these systems ship Python without the venv tool. Install it once with `sudo apt install -y python3-venv python3-pip`; without it, the `python3 -m venv` line below stops with the message `ensurepip is not available` (measured on a fresh Ubuntu 24.04).
 
 The central problem: Python packages are installed into one place, and different projects need different versions. Project A needs `pandas 1.5`, project B needs `pandas 2.2`. Install everything globally and one project eventually breaks the other, or breaks your operating system's own Python tools. The fix is a **virtual environment**: a private folder with its own Python and its own packages, per project.
 
