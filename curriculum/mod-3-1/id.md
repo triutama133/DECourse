@@ -209,6 +209,123 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 >
 > **Seharusnya Anda melihat:** kedua folder menjawab `109020`, tetapi 1.000 file kecil memakan sekitar 7,4 MB dibanding sekitar 0,4 MB untuk satu file (kompresi dan overhead per file sama-sama dirugikan), dan query atasnya puluhan kali lebih lambat (sekitar 60 ms dibanding 1,5 ms di sini). Setiap file memakan biaya listing, membuka, dan membaca footer, itulah sebabnya klaster yang menulis ribuan file kecil butuh compaction.
 
+## @lesson Spark Produksi di Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
+Seluruh mekanisme internal Spark yang baru saja Anda pelajari—Catalyst, Tungsten, AQE, shuffle, broadcast join, dan data skew—adalah mesin utama di balik **Databricks**, yang muncul di **34,8%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), dan di 53,4% dari 517 lowongan yang menyebut Spark. Berikut adalah bagaimana platform Databricks produksi menyatukan seluruh komponen tersebut di atas AWS, Azure, atau GCP.
+
+### 1. Control Plane vs. Cloud Data Plane & Unity Catalog (`catalog.schema.table`)
+Databricks memisahkan arsitekturnya ke dalam dua batas keamanan:
+- **Databricks Control Plane** (dikelola oleh Databricks): menjalankan antarmuka web UI, repositori kode/notebook, penjadwal **Workflows**, serta layanan tata kelola metadata **Unity Catalog**.
+- **Cloud Account Data Plane Anda** (VPC AWS, VPC GCP, atau VNet Azure milik perusahaan Anda): data mentah dan kurasi tidak pernah keluar dari bucket S3 / ADLS Gen2 / GCS milik Anda sendiri, dan node komputasi Spark/Photon menyala di dalam private subnet Anda.
+
+**Unity Catalog** menegakkan satu **namespace SQL 3 tingkat (`catalog.schema.table`)** yang seragam di seluruh workspace:
+
+```sql
+-- 1. Namespace tiga tingkat: <catalog>.<schema>.<table>
+--    Isolasi lingkungan kerja berdasarkan catalog (kopiku_dev, kopiku_staging, kopiku_prod)
+USE CATALOG kopiku_prod;
+USE SCHEMA analytics;
+
+-- 2. Buat Tabel Managed Delta dengan Liquid Clustering & Predictive Optimization
+CREATE TABLE kopiku_prod.analytics.fct_orders (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  status        STRING,
+  net_total_idr BIGINT
+)
+USING DELTA
+CLUSTER BY (order_date, status)
+TBLPROPERTIES (
+  'delta.enableChangeDataFeed' = 'true',
+  'delta.enableDeletionVectors' = 'true'
+);
+
+-- 3. Berikan hak akses terperinci (RBAC) di Unity Catalog
+GRANT USE CATALOG ON CATALOG kopiku_prod TO `analytics_engineers`;
+GRANT SELECT ON TABLE kopiku_prod.analytics.fct_orders TO `bi_analysts`;
+```
+
+- **Nol kunci rahasia S3 di dalam kode:** Unity Catalog menggunakan **Storage Credentials** (yang terhubung ke AWS IAM Role, GCP Service Account, atau Azure Managed Identity) dan **External Locations**, sehingga skrip PySpark Anda tidak pernah menyimpan kunci akses S3 statis.
+- **Lineage Tingkat Kolom Otomatis:** Karena setiap query dan job PySpark melewati Unity Catalog, sistem otomatis memetakan silsilah data (lineage) dari tabel Bronze hingga ke kolom dashboard BI dan model ML.
+
+### 2. Arsitektur Medallion (`Bronze → Silver → Gold`) & Auto Loader (`cloudFiles`)
+Di Databricks, pipeline disusun mengikuti **Arsitektur Medallion** (pola lapisan raw → staging → mart yang sama dengan yang Anda bangun di Modul 1.6 dan 2.3):
+- **Bronze (Ingesti Mentah):** Tabel append-only yang menyimpan payload mentah dari S3/ADLS/Kafka apa adanya ditambah kolom metadata audit (`_metadata.file_path`, `_ingested_at`).
+- **Silver (Tervalidasi, Terdeduplikasi & Bersih):** Menegakkan kontrak skema, menghapus duplikat berdasarkan primary key, menyamarkan PII, dan memproses merge SCD2/CDF.
+- **Gold (Agregasi Bisnis & Mart Semantik):** Tabel Star Schema (`dim_*`, `fct_*`) dan metrik siap pakai yang disajikan melalui **Databricks Serverless SQL Warehouses** ke alat BI.
+
+**Mengapa Auto Loader (`cloudFiles`) jauh lebih unggul daripada `spark.read.parquet("s3://...")` biasa:**
+Saat sebuah bucket S3 menampung 2 juta file JSON atau CSV setelah berjalan setahun, memanggil `spark.read.json("s3://bucket/events/*")` memaksa Spark melakukan operasi `LIST` direktori S3 atas 2 juta file tersebut di setiap eksekusi. **Databricks Auto Loader (`cloudFiles`)** menyelesaikannya dengan:
+1. Menggunakan notifikasi event cloud (SNS/SQS di AWS, Event Grid di Azure, Pub/Sub di GCP) atau incremental listing yang dicatat di dalam **checkpoint RocksDB**, sehingga hanya menemukan *file yang baru mendarat* dalam waktu $O(1)$.
+2. Mendukung evolusi skema otomatis dan menampung field JSON yang rusak atau berubah tipe ke dalam kolom khusus **`_rescued_data`** alih-alih membuat pipeline malam Anda mati total pada jam 3 pagi!
+
+```python
+# Ingesti Bronze Produksi dengan Databricks Auto Loader di PySpark:
+bronze_stream = (
+    spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "s3://kopiku-meta/schemas/orders_bronze")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+    .option("rescuedDataColumn", "_rescued_data")
+    .load("s3://kopiku-landing/orders/")
+    .selectExpr("*", "_metadata.file_path AS _source_file", "current_timestamp() AS _ingested_at")
+)
+
+(
+    bronze_stream.writeStream
+    .format("delta")
+    .option("checkpointLocation", "s3://kopiku-meta/checkpoints/orders_bronze")
+    .option("mergeSchema", "true")
+    # trigger(availableNow=True) memproses semua file baru secara micro-batch, lalu langsung mematikan klaster (biaya idle $0!)
+    .trigger(availableNow=True)
+    .toTable("kopiku_prod.bronze.orders_raw")
+)
+```
+
+> **Aturan FinOps Streaming vs. Batch:** Perhatikan `.trigger(availableNow=True)`! Daripada membiarkan klaster streaming menyala 24 jam penuh menunggu file, `availableNow=True` menyalakan klaster job sementara setiap 15 atau 60 menit, memproses seluruh file baru sejak checkpoint RocksDB terakhir dengan jaminan tepat-satu-kali (exactly-once), lalu langsung mematikan klaster begitu selesai.
+
+### 3. Lakeflow Declarative Pipelines (Delta Live Tables) & Quality Expectations
+Persis seperti Modul 2.5 yang mengajarkan karantina data kotor di gerbang ingesti, Databricks menyediakan **Lakeflow Declarative Pipelines (Delta Live Tables / DLT)** di mana Anda mendeklarasikan aturan kualitas data (**Expectations**) langsung pada definisi tabel:
+
+```python
+import dlt
+from pyspark.sql import functions as F
+
+@dlt.table(
+    name="silver_orders",
+    comment="Pesanan bersih dan terdeduplikasi dengan pendapatan positif terverifikasi",
+    cluster_by=["order_date", "status"]
+)
+@dlt.expect("valid_customer_id", "customer_id IS NOT NULL")          # Catat metrik pelanggaran di log, baris tetap masuk
+@dlt.expect_or_drop("positive_amount", "net_total_idr >= 0")         # Buang baris bernilai negatif secara otomatis
+@dlt.expect_or_fail("primary_key_present", "order_id IS NOT NULL")   # Hentikan pipeline seketika jika PK kosong
+def build_silver_orders():
+    return (
+        dlt.read_stream("orders_raw")
+        .filter(F.col("_rescued_data").isNull())
+        .withWatermark("order_ts", "2 hours")
+        .dropDuplicates(["order_id"])
+    )
+```
+
+### 4. Komputasi & FinOps Databricks: Photon, All-Purpose vs. Job Clusters & DABs
+Di Databricks, tagihan bulanan Anda terdiri dari dua komponen: **Biaya VM Cloud + EBS/S3** (dibayar ke AWS/GCP/Azure) ditambah **DBU (Databricks Units)** (dibayar ke Databricks per detik klaster menyala). Tiga aturan ini mencegah sebagian besar biaya Databricks yang bisa dihindari. Tarif DBU berbeda per cloud, region, tier, dan jenis compute, jadi baca tarif untuk akun Anda di halaman harga Databricks; yang tetap adalah urutannya:
+
+| Jenis Komputasi | Tarif DBU Relatif | Kapan Digunakan | Kesalahan FinOps Klasik yang Wajib Dihindari |
+|---|---|---|---|
+| **All-Purpose (Interactive) Cluster** | **Paling Mahal** | Eksplorasi ad-hoc dan debugging notebook di jam kerja | **Jangan pernah menjalankan pipeline produksi terjadwal di All-Purpose Cluster.** Tarif DBU-nya lebih tinggi daripada jobs compute dan klaster tetap menyala selama ekor idle sebelum auto-termination. |
+| **Jobs Compute (Ephemeral Job Cluster)** | **Paling Hemat** | Job PySpark, dbt, dan Auto Loader terjadwal di Databricks Workflows | Selalu gunakan Job Cluster sementara (atau Serverless Jobs) yang menyala saat job mulai, memakai worker Spot/Preemptible (dengan node Driver On-Demand), dan langsung mati saat job selesai. |
+| **SQL Warehouse (Serverless + Photon)** | **Di tengah** (warehouse serverless bisa turun ke nol) | Dashboard BI (Power BI, Tableau, Looker), model SQL dbt, dan query analis | Gunakan **Serverless SQL Warehouse** dengan **Photon** (mesin eksekusi C++ tervektorisasi milik Databricks) dan auto-stop yang pendek, agar lonjakan query BI cepat mendapat kapasitas dan waktu idle tidak ditagih. |
+
+**Deployment Berbasis GitOps (Databricks Asset Bundles / DABs):** Sama seperti Modul 3.4 yang melarang ClickOps di konsol AWS, tim produksi tidak menjadwalkan job dengan mengklik manual di UI Databricks. Gunakan **Databricks Asset Bundles (`databricks.yml`)** atau **Terraform Databricks Provider** (`databricks_job`, `databricks_catalog`, `databricks_grants`) di dalam Git sehingga perintah `databricks bundle validate` dan `databricks bundle deploy -t prod` men-deploy Workflows, kebijakan ukuran klaster, dan hak akses Unity Catalog secara terotomasi dari CI/CD.
+
+### 5. Praktik Langsung: Mencoba di Databricks Free Edition (Tanpa Kartu Kredit)
+Anda sudah menjalankan Apache Spark asli (`pyspark`) dan Delta Lake asli (`deltalake` / `delta-rs`) secara lokal di laptop Anda pada Modul 2.2 dan 3.1. Untuk mempraktikkan Unity Catalog, SQL Warehouses, Notebooks, dan Workflows langsung di antarmuka Databricks sungguhan dengan biaya **$0**:
+1. Buka `https://signup.databricks.com` dan pilih **Databricks Free Edition** (Databricks menyebutnya edisi tanpa biaya untuk pelajar dan penghobi; berjalan di komputasi serverless dengan batas pemakaian, dan Anda tidak butuh akun AWS, GCP, atau Azure sendiri).
+2. Di SQL Editor atau Notebook Python, jalankan SQL namespace 3 tingkat (`CREATE TABLE main.default.kopiku_orders USING DELTA CLUSTER BY (order_date) AS ...`), jalankan `DESCRIBE HISTORY main.default.kopiku_orders`, dan uji `SELECT * FROM main.default.kopiku_orders VERSION AS OF 0` untuk melihat mekanisme `_delta_log` dari Modul 2.2 bekerja nyata di dalam Unity Catalog!
+
 ## @lab Lab: membaca physical plan, mendeteksi skew, dan memperbaikinya
 Eksekusi Spark dalam local mode langsung di komputer Anda. Anda akan membangun serangkaian fungsi Python untuk **menginspeksi** karakteristik internal query (menghitung jumlah node shuffle Exchange, mengukur rasio skew partisi) serta fungsi untuk **memperbaiki** anomali performa (broadcast join, teknik salting, dan aktivasi konfigurasi adaptive skew join). Seluruh perbaikan akan diuji secara otomatis untuk membuktikan bahwa hasil kalkulasi data tetap identik dengan join standar namun dengan karakteristik plan dan keseimbangan partisi yang jauh lebih unggul.
 

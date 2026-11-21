@@ -209,6 +209,123 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 >
 > **You should see:** both folders answer `109020`, but the 1,000 small files take about 7.4 MB against about 0.4 MB for one file (compression and per-file overhead both suffer), and the query over them is tens of times slower (around 60 ms against 1.5 ms here). Every file costs a listing, an open and a footer read, which is why a cluster that writes thousands of tiny files needs compaction.
 
+## @lesson Production Spark on Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
+Everything you just learned about Spark internals—Catalyst, Tungsten, AQE, shuffles, broadcast joins, and data skew—is the engine inside **Databricks**, which appears in **34.8%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), and in 53.4% of the 517 postings that mention Spark. Here is how a production Databricks platform puts those pieces together on AWS, Azure, or GCP.
+
+### 1. Control Plane vs. Cloud Data Plane & Unity Catalog (`catalog.schema.table`)
+Databricks splits its architecture across two boundaries:
+- **The Databricks Control Plane** (managed by Databricks): runs the web UI, notebook/git workspaces, the job scheduler (**Workflows**), and the **Unity Catalog** governance metadata service.
+- **Your Cloud Account Data Plane** (your AWS VPC, GCP VPC, or Azure VNet): your raw and curated data never leaves your own S3 / ADLS Gen2 / GCS buckets, and Spark/Photon compute nodes spin up inside your private subnets.
+
+**Unity Catalog** enforces a single **3-level SQL namespace (`catalog.schema.table`)** across every workspace:
+
+```sql
+-- 1. Three-level namespace: <catalog>.<schema>.<table>
+--    Isolate environments by catalog (kopiku_dev, kopiku_staging, kopiku_prod)
+USE CATALOG kopiku_prod;
+USE SCHEMA analytics;
+
+-- 2. Create a Managed Delta Table with Liquid Clustering & Predictive Optimization
+CREATE TABLE kopiku_prod.analytics.fct_orders (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  status        STRING,
+  net_total_idr BIGINT
+)
+USING DELTA
+CLUSTER BY (order_date, status)
+TBLPROPERTIES (
+  'delta.enableChangeDataFeed' = 'true',
+  'delta.enableDeletionVectors' = 'true'
+);
+
+-- 3. Grant fine-grained privileges & column/row masking in Unity Catalog
+GRANT USE CATALOG ON CATALOG kopiku_prod TO `analytics_engineers`;
+GRANT SELECT ON TABLE kopiku_prod.analytics.fct_orders TO `bi_analysts`;
+```
+
+- **No hardcoded bucket credentials in notebooks:** Unity Catalog uses **Storage Credentials** (backed by an AWS IAM Role, GCP Service Account, or Azure Managed Identity) and **External Locations** so PySpark code never touches raw S3 access keys.
+- **Automatic Column-Level Lineage:** Because every query and PySpark job goes through Unity Catalog, it automatically records upstream-to-downstream column lineage across notebooks, dbt models, and dashboards.
+
+### 2. Medallion Architecture (`Bronze → Silver → Gold`) & Auto Loader (`cloudFiles`)
+On Databricks, pipelines follow the **Medallion Architecture** (the same raw → staging → mart layers you built in Modules 1.6 and 2.3):
+- **Bronze (Raw Ingestion):** Append-only raw payloads from S3/ADLS/Kafka, preserving exact source fidelity plus metadata (`_metadata.file_path`, `_ ingest_ts`).
+- **Silver (Validated, Deduplicated & Conformed):** Enforces schema contracts, deduplicates retries by primary key, masks/tokenizes PII, and handles SCD2/CDF merges.
+- **Gold (Business Aggregates & Semantic Marts):** Star schemas (`dim_*`, `fct_*`) and pre-aggregated metrics served via **Databricks Serverless SQL Warehouses** to BI tools.
+
+**Why Auto Loader (`cloudFiles`) beats raw `spark.read.parquet("s3://...")`:**
+When an S3 bucket accumulates 2 million JSON or CSV files over a year, running `spark.read.json("s3://bucket/events/*")` forces Spark to run an expensive S3 `LIST` operation over all 2 million files on every run. Databricks **Auto Loader (`cloudFiles`)** solves this:
+1. It uses cloud event notifications (SNS/SQS on AWS, Event Grid on Azure, Pub/Sub on GCP) or incremental directory listing backed by a **RocksDB checkpoint** so it discovers only *newly arrived* files in $O(1)$ time.
+2. It evolves schemas automatically and routes unexpected or malformed JSON fields into a **`_rescued_data`** column instead of crashing the nightly job at 3 AM!
+
+```python
+# Production Databricks Auto Loader (Bronze Ingestion in PySpark):
+bronze_stream = (
+    spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "s3://kopiku-meta/schemas/orders_bronze")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+    .option("rescuedDataColumn", "_rescued_data")
+    .load("s3://kopiku-landing/orders/")
+    .selectExpr("*", "_metadata.file_path AS _source_file", "current_timestamp() AS _ingested_at")
+)
+
+(
+    bronze_stream.writeStream
+    .format("delta")
+    .option("checkpointLocation", "s3://kopiku-meta/checkpoints/orders_bronze")
+    .option("mergeSchema", "true")
+    # trigger(availableNow=True) processes all new files in micro-batches, then shuts down the cluster ($0 idle cost!)
+    .trigger(availableNow=True)
+    .toTable("kopiku_prod.bronze.orders_raw")
+)
+```
+
+> **FinOps Rule for Streaming vs. Batch:** Notice `.trigger(availableNow=True)`! Instead of keeping a 24/7 streaming cluster awake all night waiting for files, `availableNow=True` spins up an ephemeral job cluster every 15 or 60 minutes, processes every new file since the last RocksDB checkpoint with full streaming guarantees, and terminates the cluster immediately.
+
+### 3. Lakeflow Declarative Pipelines (Delta Live Tables) & Quality Expectations
+Just as Module 2.5 taught you to quarantine bad records at the ingestion gate, Databricks provides **Lakeflow Declarative Pipelines (Delta Live Tables / DLT)** where you declare data quality rules (**Expectations**) directly on streaming tables and materialized views:
+
+```python
+import dlt
+from pyspark.sql import functions as F
+
+@dlt.table(
+    name="silver_orders",
+    comment="Cleaned, deduplicated orders with verified positive revenue",
+    cluster_by=["order_date", "status"]
+)
+@dlt.expect("valid_customer_id", "customer_id IS NOT NULL")          # Warn & log metric in event log, keep row
+@dlt.expect_or_drop("positive_amount", "net_total_idr >= 0")         # Drop corrupted negative rows automatically
+@dlt.expect_or_fail("primary_key_present", "order_id IS NOT NULL")   # Halt pipeline immediately if PK is missing
+def build_silver_orders():
+    return (
+        dlt.read_stream("orders_raw")
+        .filter(F.col("_rescued_data").isNull())
+        .withWatermark("order_ts", "2 hours")
+        .dropDuplicates(["order_id"])
+    )
+```
+
+### 4. Databricks Compute & FinOps: Photon, All-Purpose vs. Job Clusters & DABs
+On Databricks, your cloud invoice has two parts: **Cloud VM + EBS/S3 cost** (paid to AWS/GCP/Azure) plus **DBUs (Databricks Units)** (paid to Databricks per second of cluster uptime). Three rules prevent most avoidable Databricks costs. DBU rates differ by cloud, region, tier and compute type, so read the rates for your account on the Databricks pricing page; what is stable is their order:
+
+| Compute Type | Relative DBU Rate | When to Use | Classic FinOps Mistake to Avoid |
+|---|---|---|---|
+| **All-Purpose (Interactive) Cluster** | **Highest** | Ad-hoc exploration and notebook debugging during work hours | **Never run scheduled production pipelines on an All-Purpose cluster.** It is billed at a higher DBU rate than jobs compute and stays awake during idle auto-termination tails. |
+| **Jobs Compute (Ephemeral Job Cluster)** | **Lowest** | Scheduled PySpark, dbt, and Auto Loader jobs in Databricks Workflows | Always use ephemeral Job Clusters (or Serverless Jobs) that boot for the run, use Spot/Preemptible workers (with an On-Demand driver), and terminate on completion. |
+| **SQL Warehouse (Serverless + Photon)** | **In between** (serverless warehouses can scale down to zero) | BI dashboards (Power BI, Tableau, Looker), dbt SQL models, and analyst queries | Use **Serverless SQL Warehouses** with **Photon** (Databricks' native vectorized C++ execution engine) and a short auto-stop, so BI bursts get capacity quickly and idle time is not billed. |
+
+**Deploying via GitOps (Databricks Asset Bundles / DABs):** Just as Module 3.4 forbade ClickOps in the AWS console, production teams never schedule jobs by clicking in the Databricks UI. Use **Databricks Asset Bundles (`databricks.yml`)** or the **Terraform Databricks Provider** (`databricks_job`, `databricks_catalog`, `databricks_grants`) in Git so `databricks bundle validate` and `databricks bundle deploy -t prod` deploy your Workflows, cluster policies, and Unity Catalog grants from CI/CD.
+
+### 5. Hands-On: Practising on Databricks Free Edition (No Credit Card Required)
+You already run real Apache Spark (`pyspark`) and real Delta Lake (`deltalake` / `delta-rs`) locally on your laptop in Modules 2.2 and 3.1. To practise Unity Catalog, SQL Warehouses, Notebooks, and Workflows in the real Databricks UI for **$0**:
+1. Open `https://signup.databricks.com` and select **Databricks Free Edition** (Databricks describes it as a no-cost edition for students and hobbyists; it runs on serverless compute with usage limits, and you need no AWS, GCP or Azure account of your own).
+2. In the SQL Editor or a Python Notebook, run the 3-level namespace SQL (`CREATE TABLE main.default.kopiku_orders USING DELTA CLUSTER BY (order_date) AS ...`), run `DESCRIBE HISTORY main.default.kopiku_orders`, and test `SELECT * FROM main.default.kopiku_orders VERSION AS OF 0` to see the exact `_delta_log` mechanics from Module 2.2 running inside Unity Catalog!
+
 ## @lab Lab: read the plan, find the skew, fix it
 Spark in local mode on your laptop. You will write the functions that **inspect** a query (count its shuffles, measure partition skew) and the functions that **fix** it (broadcast, salting, adaptive skew handling), and tests prove each fix gives the same answer as the plain join while changing the plan or the balance in the way the lesson describes.
 

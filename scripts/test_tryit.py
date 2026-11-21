@@ -98,6 +98,11 @@ MUTANTS = {
         ("VIP from above 200000 instead of 200000", "strangler_reverse_etl.py", "if ltv >= 200000", "if ltv > 200000"),
         ("drops days with no valid order", "strangler_reverse_etl.py", "        semantic_daily.setdefault(dt, 0)\n", ""),
     ]),
+    "3.4-1": ("3.4", [
+        ("forgets AWS 5 reserved IPs per subnet", "cloud_architect.py", "(2 ** (32 - int(new_prefix))) - 5", "(2 ** (32 - int(new_prefix)))"),
+        ("charges NAT fee even when S3 Gateway Endpoint is enabled", "cloud_architect.py", "0.0 if has_s3_endpoint else savings", "savings"),
+        ("adds service SLAs instead of multiplying synchronous chain", "cloud_architect.py", "float(service_sla) ** int(num_services)", "float(service_sla)"),
+    ]),
 }
 
 # equivalent answers that a checker must ACCEPT: id -> [(name, file, old, new)]

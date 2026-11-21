@@ -188,6 +188,12 @@ Perbandingan komparatif Apache Iceberg dan Delta Lake:
 
 Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir untuk menghubungkan kedua format tersebut. Panduan praktis memilih: gunakan **Delta Lake** jika ekosistem utama Anda berpusat pada Databricks dan Spark; gunakan **Apache Iceberg** jika Anda memprioritaskan independensi arsitektur bebas vendor di berbagai mesin komputasi (Trino, Flink, DuckDB, Spark). Opsi ketiga adalah **Apache Hudi**, yang sangat kuat untuk pemrosesan inkremental dan upsert berkecepatan tinggi. Prinsip-prinsip inti dalam modul ini (snapshot, atomic commit, field id, pruning, pemeliharaan) berlaku setara untuk ketiganya.
 
+**Fitur Modern Delta Lake 3.0+ & Databricks di Lingkungan Produksi:**
+1. **Liquid Clustering (`CLUSTER BY (order_date, customer_id)`):** Menggantikan folder partisi fisik `PARTITION BY` yang kaku dan perintah manual `OPTIMIZE ... ZORDER BY`. Delta menata file secara inkremental menggunakan kurva ruang multi-dimensi dan mengizinkan Anda mengubah kunci clustering kapan saja tanpa menulis ulang data lama.
+2. **Deletion Vectors (Merge-on-Read di Delta Lake):** Daripada menulis ulang seluruh file Parquet 512 MB saat satu baris dihapus atau di-update, Delta menulis bitmap kecil (*deletion vector*) yang menandai posisi baris yang dihapus, lalu memadatkannya belakangan saat `OPTIMIZE` berjalan.
+3. **Change Data Feed (`delta.enableChangeDataFeed = true`):**Mengekspos perubahan tingkat baris (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) di antara dua versi tabel sehingga pipeline hilir (Silver/Gold) cukup memproses baris yang berubah tanpa memindai ulang seluruh tabel Bronze.
+4. **Delta Universal Format (UniForm):** Secara otomatis menghasilkan pohon **metadata Apache Iceberg** setiap kali terjadi commit di `_delta_log`, sehingga mesin pembaca Iceberg (Snowflake, BigQuery, Trino, DuckDB) dapat meng-query tabel Delta di Databricks secara langsung tanpa duplikasi data.
+
 > 💡 **Jeda Praktik: Mengelola Transaction Log Delta Lake**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, navigasikan ke Bagian B (Delta Lake).
 > 2. Implementasikan `delta_write_versions(path, batches)` menggunakan `write_deltalake`, `delta_rows_at(path, version)` untuk time travel Delta, `delta_delete(path, predicate)` untuk menghapus baris, dan `delta_log_actions(path, version)` untuk membaca aksi JSON di folder `_delta_log/`.

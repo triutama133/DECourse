@@ -150,6 +150,22 @@ Pipelines read S3 constantly. Without help, that traffic from a private subnet w
 
 **Security as a habit.** *Fundamentals of Data Engineering* separates security theatre (rules on paper) from security habits (what you do every day). The habits that matter most in data work: least privilege by default; nothing public without a written reason; secrets never in code (Module 0.2); assume credentials will leak one day and limit what they can reach; read every plan for security-relevant changes; and run `plan` on a schedule so that a hand-made change is found by you, not by an attacker.
 
+**Keyless cloud authentication (Workload Identity / OIDC vs. static access keys).** A long-lived static key (`AWS_ACCESS_KEY_ID` or a downloaded GCP service-account `.json` file) is dangerous because it works for anyone who finds it, from anywhere, until someone notices and revokes it; keys committed to Git or left on a laptop are exactly how that happens. In production, modern data platforms use **short-lived, keyless identity**:
+- A job running on EC2, ECS, EKS, Cloud Run, or GKE assumes an **attached IAM Role / Service Account** (via AWS IAM Roles for Service Accounts / IRSA, GCP Workload Identity, or Azure Managed Identity). The platform hands the container temporary credentials that expire and are rotated automatically.
+- A GitHub Actions CI/CD pipeline running `terraform plan` or `dbt build` authenticates via **OpenID Connect (OIDC) federation**: GitHub presents a signed token for that exact repository and branch, and the cloud's token service returns temporary credentials (for `aws-actions/configure-aws-credentials` the default lifetime is one hour, adjustable with `role-duration-seconds`). No long-lived secret is stored in GitHub.
+
+**Multi-Cloud Rosetta Stone (AWS vs. GCP vs. Azure for Data Engineers).** Of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), **65.3%** name at least one major cloud (AWS, GCP or Azure). Because the underlying physics and primitives are the same, learn the concept once and translate the service names across all three clouds:
+
+| Cloud Capability | Amazon Web Services (AWS) | Google Cloud Platform (GCP) | Microsoft Azure |
+|---|---|---|---|
+| **Object Storage (Lakehouse Base)** | Amazon S3 (`s3://`) | Google Cloud Storage (`gs://`) | Azure Data Lake Storage Gen2 (`abfss://`) |
+| **Keyless Workload Identity & IAM** | IAM Roles, STS & IRSA (OIDC) | IAM Service Accounts & Workload Identity | Entra ID (Azure AD) Managed Identities |
+| **Customer-Managed Encryption & Secrets** | AWS KMS + Secrets Manager | Cloud KMS + Secret Manager | Azure Key Vault |
+| **Private Network Access to Storage** | S3 Gateway Endpoint & AWS PrivateLink | Private Google Access & Private Service Connect | Virtual Network Service Endpoints & Private Link |
+| **Cloud Data Warehouse** | Amazon Redshift (RA3 / Serverless) | Google BigQuery (On-Demand / Editions) | Azure Synapse Analytics / Microsoft Fabric |
+| **Managed Spark & Lakehouse Compute** | AWS EMR / AWS Glue / Databricks | Cloud Dataproc / BigQuery Spark | Azure Databricks / HDInsight / Fabric |
+| **Event Streaming & Messaging** | Amazon MSK (Kafka) / Kinesis | Cloud Pub/Sub / Managed Kafka | Azure Event Hubs |
+
 > 🛠 **Try it (10 min, Python).** Your VPC is `10.0.0.0/16`. With the `ipaddress` module, split it into `/20` subnets. How many are there, how many addresses does each hold, and how many can you use on AWS? Which subnet contains `10.0.37.5`? How many `/24` subnets fit into one `/20`?
 >
 > **You should see:** `16` subnets of `4096` addresses, `4091` usable on AWS (5 reserved); `10.0.37.5` sits in `10.0.32.0/20`, the third subnet; and one `/20` holds `16` `/24`s. Sizing is hard to undo: change a subnet's range and Terraform's plan says the subnet `must be replaced` (`# forces replacement`), so everything running in it has to move. Leave room to grow.
@@ -223,6 +239,70 @@ You cannot rely on people to be careful at 22:30 on a Friday. Controls must be a
 - Add cost estimates to the plan review (tools like Infracost do this) so that "this adds a 16-credit warehouse" is visible before it is merged.
 - Start every new environment with a **teardown** in mind: `terraform destroy` for dev environments should be a normal, boring command.
 
+**Production GitHub Actions CI/CD Workflow for Terraform (Keyless OIDC + Trivy Security Scan + Plan Review).** Here is the standard GitOps pipeline used by production data engineering teams to lint, scan, estimate cost, and apply Terraform without storing a single static AWS access key in GitHub:
+
+```yaml
+# .github/workflows/terraform-lakehouse.yml
+name: Terraform Lakehouse CI/CD
+on:
+  pull_request:
+    paths: ["terraform/**"]
+  push:
+    branches: ["main"]
+    paths: ["terraform/**"]
+
+permissions:
+  id-token: write        # Required for keyless AWS OIDC federation
+  contents: read
+  pull-requests: write   # Required to post terraform plan output on the PR
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.2"
+
+      # 1. Fast static checks (zero cloud credentials needed)
+      - name: Format & Syntax Check
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      # 2. Policy-as-Code Security Scan (Fails PR on public S3, missing KMS, or wildcard IAM '*')
+      - name: Trivy IaC Security Scan
+        uses: aquasecurity/trivy-action@v0.36.0   # pin a release (or a commit SHA), never @master
+        with:
+          scan-type: "config"
+          scan-ref: "terraform/"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+
+      # 3. Keyless OIDC Authentication to AWS (temporary credentials, one hour by default)
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsTerraformRole
+          aws-region: ap-southeast-3
+
+      # 4. Plan against remote state with DynamoDB/S3 state locking
+      - name: Terraform Init & Plan
+        run: |
+          terraform init
+          terraform plan -var-file=prod.tfvars -out=tfplan
+
+      # 5. Apply ONLY after PR is reviewed and merged to main
+      - name: Terraform Apply (Main Branch Only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
+```
+
 > 💡 **Practice Pause 4 (FinOps Guardrails: Runaway Detection, Forecasting & Storage Tiering):**
 > 1. Open `labs/mod-3-4/finops.py` in your text editor.
 > 2. Implement `find_runaway(log, factor)` using team median duration to flag extreme outliers, `forecast_month(daily_costs, days_in_month, budget)` projecting the day a monthly budget breaches, and `storage_cost(objects, archive_after_days)` modeling cold archive storage vs retrieval economics.
@@ -283,6 +363,13 @@ These ideas from chapter 3 of the book come up in every system design interview,
 > 🛠 **Try it (5 min, Python or paper).** A company wants to move 100 TB of history into the cloud. How many days does it take over a 1 Gbit/s line at full speed, over the same line when only 70% of it is usable in practice, and over a 100 Mbit/s office line? (1 TB = 10¹² bytes, 1 byte = 8 bits.)
 >
 > **You should see:** `9.3` days at full speed, `13.2` days at 70%, and `92.6` days over 100 Mbit/s; a 10 Gbit/s line at 70% would take `1.3` days. When the network needs weeks, shipping disks wins: this is why the big clouds rent out physical transfer appliances (on AWS: Snowball) that you fill on site and send back by courier.
+
+> 🛠 **Try it (20 min, in your own terminal).** Combine three calculations from this module into one script, `cloud_architect.py`, with three functions:
+> 1. `plan_iac_diff(desired, actual)`: both arguments map `resource_name -> properties_dict`. Return a list of `(action, resource_name)` tuples sorted by name, with `"create"` for a resource only in `desired`, `"destroy"` for one only in `actual`, and `"update"` when both have it with different properties. Leave out unchanged resources (the planner from lesson 1).
+> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: split `vpc_cidr` (for example `"10.0.0.0/16"`) into subnets of size `/new_prefix` and return a dict with `num_subnets`; `usable_ips_per_subnet` on AWS (lesson 3); `monthly_cross_az_usd`, the 30-day cost of the daily shuffle at $0.02 per GB, assuming the data is spread evenly over `zones` zones so only the share that leaves a node's own zone is charged (nothing with one zone); `monthly_nat_s3_usd`, 30 days of S3 traffic through a NAT gateway at $0.045 per GB, or `0.0` when `has_s3_endpoint` is true; and `monthly_endpoint_savings_usd`, what an S3 gateway endpoint saves in 30 days. Round dollar amounts to 2 decimals.
+> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: for `num_services` services called one after another, each available `service_sla` of the time (for example `0.999`), return `combined_sla` rounded to 6 decimals, `monthly_downtime_min` in a 30-day month (43,200 minutes) rounded to 1 decimal, and `needs_continuous_cdc`: `True` when the backups are further apart than the target RPO allows (section 4 of lesson 6).
+>
+> **Check it:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
 ## @lesson Optional: apply it for real, on a fake AWS on your laptop
 The lab only *plans*: the provider uses fake credentials and never talks to AWS. The other half of Terraform's job, actually creating, checking, repairing and destroying resources, needs an AWS endpoint. A real AWS account needs a payment card; **moto** needs nothing. It is an open-source Python program that answers the same API calls as AWS (S3, IAM, KMS and many more) on your own computer. Terraform, the `aws` command line and `boto3` cannot tell the difference, so you practise the real tools and the real workflow; only the cloud behind them is pretend.

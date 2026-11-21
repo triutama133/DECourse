@@ -51,6 +51,51 @@ Pengurutan itulah yang dimaksud **clustering**. Di Snowflake Anda mendefinisikan
 
 Aturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JOIN` (tanggal lebih dulu untuk data event); kolom berkardinalitas sangat tinggi (id unik) kurang baik di-cluster untuk filter rentang; dan terlalu banyak partisi mungil, seperti pada masalah file kecil di Modul 3.0, menambah overhead. Clustering membutuhkan biaya pemeliharaan, jadi ia untung pada tabel **besar** yang difilter berulang kali.
 
+**DDL Produksi Berdampingan: Mendeklarasikan Partisi, Clustering, dan Sort Key di Cloud Warehouse Nyata.** Dalam pekerjaan sehari-hari, Anda mendeklarasikan tata letak fisik ini melalui SQL DDL (atau di dalam blok `config(...)` model dbt Anda). Bandingkan bagaimana tabel `fct_orders` yang sama persis dideklarasikan di ketiga cloud data warehouse utama:
+
+```sql
+-- 1. Google BigQuery: Partisi per tanggal (1 kolom) + Cluster hingga 4 kolom
+--    require_partition_filter = TRUE menolak query apa pun yang lupa menulis WHERE order_date ...
+CREATE TABLE analytics.fct_orders (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  status        STRING,
+  net_total_idr INT64
+)
+PARTITION BY order_date
+CLUSTER BY status, customer_id
+OPTIONS (
+  require_partition_filter = TRUE,
+  partition_expiration_days = 1095
+);
+
+-- 2. Snowflake: Semua tabel otomatis dipotong menjadi micro-partition (masing-masing 50 sampai 500 MB data tak terkompresi, disimpan terkompresi);
+--    tambahkan CLUSTER BY pada tabel multi-TB agar background service menjaga zone map tetap rapat
+CREATE TABLE analytics.fct_orders (
+  order_id      VARCHAR,
+  customer_id   VARCHAR,
+  order_date    DATE,
+  status        VARCHAR,
+  net_total_idr NUMBER(18, 0)
+)
+CLUSTER BY (order_date, status);
+
+-- Periksa kedalaman tumpang-tindih (overlap) clustering Snowflake (persis seperti average_overlap di lab kita!):
+SELECT SYSTEM$CLUSTERING_INFORMATION('analytics.fct_orders', '(order_date, status)');
+
+-- 3. Amazon Redshift: DISTKEY menempatkan baris join di node yang sama; SORTKEY mengurutkan zone map di disk
+CREATE TABLE analytics.fct_orders (
+  order_id      VARCHAR(64)   ENCODE zstd,
+  customer_id   VARCHAR(64)   ENCODE zstd,
+  order_date    DATE          ENCODE az64,
+  status        VARCHAR(32)   ENCODE bytedict,
+  net_total_idr BIGINT        ENCODE az64
+)
+DISTSTYLE KEY DISTKEY (customer_id)
+COMPOUND SORTKEY (order_date, status);
+```
+
 Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.
 
 > 💡 **Jeda Praktik 1 (Micro-Partisi, Zone Map & Partition Pruning):**
@@ -76,6 +121,15 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 **Skew** juga muncul di sini: jika satu nilai key (pelanggan dengan separuh dari semua pesanan) jatuh di satu node, node itu mengerjakan separuh pekerjaan sementara yang lain menunggu. Cari langkah yang tidak seimbang pada query profile.
 
 **Mengukur komputasi.** Di Snowflake sebuah **virtual warehouse** hadir dalam ukuran (X-Small, Small, Medium, ...); setiap naik satu ukuran menggandakan mesin dan credit per jam. Warehouse yang lebih besar sering menyelesaikan query berat lebih cepat dengan total biaya kurang lebih sama, tetapi tidak memberi manfaat bagi query yang sudah kecil; auto-suspend (Modul 3.4) menjaga waktu menganggur tetap murah. BigQuery mengalokasikan **slot** (satuan komputasi) per query secara otomatis, atau Anda mencadangkan jumlah tetap. Klaster Redshift provisioned diukur dalam node; Redshift Serverless menskala sesuai kebutuhan.
+
+**Cara Membaca Query Profile di Cloud Warehouse (4 Bottleneck Produksi Utama).** Saat sebuah query warehouse berjalan 8 menit atau menghabiskan $50, jangan menebak-nebak—buka **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Setiap Senior Data Engineer langsung memeriksa empat indikator ini:
+
+| Gejala di Query Profile | Apa yang Terlihat di Graf Eksekusi | Akar Masalah | Solusi Produksi |
+|---|---|---|---|
+| **1. Partition Pruning Gagal** | `Partitions scanned: 4,820 / 4,850` (99,4%) | Memfilter kolom yang tidak di-cluster, atau membungkus kolom partisi dengan fungsi (`WHERE DATE(event_ts) = ...` atau `MERGE` tanpa filter partisi) | Tulis ulang predikat menjadi kolom partisi murni (`event_ts >= ... AND event_ts < ...`) atau cluster tabel pada kunci filter |
+| **2. Spill ke Disk / S3 (Local / Remote Spill)** | `Bytes spilled to local storage: 48 GB` / `Bytes spilled to remote storage: 190 GB` | Operasi `GROUP BY`, `COUNT(DISTINCT)`, atau `ROW_NUMBER() OVER (...)` melampaui RAM worker sehingga membuang state sementara ke SSD dan S3! | Pangkas kolom/baris sebelum window/join, pecah menjadi dua tahap, atau naikkan ukuran warehouse sementara (`Small -> Large`) khusus untuk transformasi berat tersebut |
+| **3. Ledakan Network Broadcast / Shuffle** | `Repartition / Broadcast: 78% waktu eksekusi`, miliaran baris dikirim lewat jaringan | Men-join dua tabel besar pada kunci yang tidak co-located, atau terjadi join fan-out `M:N` tanpa sengaja (Modul 1.4) | Pastikan keunikan kunci join (`1:N`), samakan `DISTKEY` / clustering key, atau lakukan pra-agregasi sebelum join |
+| **4. Worker Timpang (Straggler Skew)** | `Max worker time: 420s · Median worker time: 6s` | 90% baris memiliki `customer_id IS NULL` atau `'GUEST'` sehingga menumpuk di satu node worker MPP | Pisahkan baris `NULL` sebelum join (gabungkan kembali dengan `UNION ALL` di akhir) atau gunakan key salting (Modul 3.1) |
 
 > 💡 **Jeda Praktik 2 (Metrik Overlap Clustering & Distribusi MPP):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
@@ -120,6 +174,52 @@ Praktik lain:
 
 Catat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, jumlah baris, dan baris yang ditolak. Merekonsiliasi jumlah antara sumber dan warehouse (Modul 2.5) adalah pemeriksaan kualitas data termurah yang ada.
 
+**SQL Produksi untuk Bulk-Load & `MERGE` Idempoten (Snowflake, BigQuery, Redshift).** Perhatikan bagaimana ketiga warehouse memuat file Parquet dari object storage secara paralel, dan bagaimana perintah `MERGE` **wajib** menyertakan filter pemangkas partisi pada tabel target (`t.order_date >= ...`) agar tidak memindai seluruh tabel fakta historis:
+
+```sql
+-- LANGKAH 1: Bulk-load Parquet dari object storage cloud ke tabel staging
+-- Snowflake (melalui External Stage yang menunjuk ke s3://kopiku-raw/orders/)
+COPY INTO analytics.stg_orders
+FROM @analytics.s3_orders_stage/dt=2026-10-19/
+FILE_FORMAT = (TYPE = PARQUET)
+MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+ON_ERROR = 'ABORT_STATEMENT';
+
+-- BigQuery (LOAD DATA native dari Parquet di GCS)
+LOAD DATA OVERWRITE analytics.stg_orders
+FROM FILES (
+  format = 'PARQUET',
+  uris = ['gs://kopiku-raw/orders/dt=2026-10-19/*.parquet']
+);
+
+-- Redshift (COPY paralel dari S3 memakai IAM Role terlampir — nol kunci rahasia di kode!)
+TRUNCATE TABLE analytics.stg_orders;
+COPY analytics.stg_orders
+FROM 's3://kopiku-raw/orders/dt=2026-10-19/'
+IAM_ROLE 'arn:aws:iam::123456789012:role/RedshiftS3ReadRole'
+FORMAT AS PARQUET;
+
+-- LANGKAH 2: MERGE idempoten dari staging ke tabel fakta target yang terpartisi
+-- Syarat tanggal tambahan membuat warehouse bisa melewati partisi lama fct_orders, tetapi batasnya harus
+-- berasal dari batch INI: order_date tertua di dalamnya (termasuk update terlambat untuk pesanan lama).
+-- BigQuery:  DECLARE cutoff DATE DEFAULT (SELECT MIN(order_date) FROM analytics.stg_orders);
+-- Snowflake: SET cutoff = (SELECT MIN(order_date) FROM analytics.stg_orders);   -- lalu tulis $cutoff
+MERGE INTO analytics.fct_orders AS t
+USING (
+  SELECT * FROM analytics.stg_orders
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) = 1
+) AS s
+ON t.order_id = s.order_id
+   AND t.order_date >= cutoff               -- jangan pernah "2 hari terakhir" yang tetap: lihat di bawah
+WHEN MATCHED AND s.updated_at > t.updated_at THEN
+  UPDATE SET status = s.status, net_total_idr = s.net_total_idr, updated_at = s.updated_at
+WHEN NOT MATCHED THEN
+  INSERT (order_id, customer_id, order_date, status, net_total_idr, updated_at)
+  VALUES (s.order_id, s.customer_id, s.order_date, s.status, s.net_total_idr, s.updated_at);
+```
+
+**Mengapa batasnya harus berasal dari batch.** Jendela tetap seperti "dua hari terakhir" tampak aman dan membuat `MERGE` murah, tetapi ia rusak begitu sebuah pesanan lama berubah: refund untuk pesanan tiga minggu lalu tidak cocok dengan baris mana pun di dalam jendela, sehingga `WHEN NOT MATCHED` memasukkannya sebagai baris *kedua* dan pesanan itu terhitung dua kali. Direproduksi di DuckDB 2.0.1: dengan batas tetap, refund terlambat untuk pesanan lama menjadi duplikat (`paid 100` dan `refunded 0` untuk `order_id` yang sama); dengan batas yang diambil dari `order_date` tertua di batch, pesanan itu diperbarui di tempat, menjalankan ulang batch yang sama tidak mengubah apa pun, dan setiap pesanan tetap punya tepat satu baris.
+
 > 💡 **Jeda Praktik 4 (Perencanaan File Bulk Load Paralel):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
 > 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` yang menyeimbangkan ukuran file ideal dan kelipatan slice komputasi.
@@ -134,6 +234,38 @@ Catat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, j
 
 Dua fitur yang akan Anda dengar: **zero-copy cloning** (Snowflake) membuat salinan tabel atau database sebagai metadata, yang hanya memakan penyimpanan untuk perubahan, ideal untuk lingkungan uji; dan **secure data sharing** membiarkan akun lain mengkueri data Anda tanpa menyalin.
 
+**SQL Tata Kelola Produksi: Dynamic Data Masking, Row-Level Security & Zero-Copy Clone.** Daripada memelihara dua tabel terpisah ("tabel disamarkan" dan "tabel asli"), cloud warehouse modern menegakkan penyamaran kolom PII dan isolasi baris multi-tenant langsung di kebijakan katalog:
+
+```sql
+-- 1. Dynamic Column Masking (sintaks Snowflake; BigQuery melakukan hal yang sama dengan policy tag pada kolom):
+--    Analis biasa melihat '***@domain.com'; hanya PII_COMPLIANCE_ROLE yang melihat email asli
+CREATE OR REPLACE MASKING POLICY governance.email_mask AS (val STRING) RETURNS STRING ->
+  CASE
+    WHEN CURRENT_ROLE() IN ('PII_COMPLIANCE_ROLE', 'ACCOUNTADMIN') THEN val
+    ELSE REGEXP_REPLACE(val, '^[^@]+', '***')
+  END;
+
+ALTER TABLE analytics.dim_customer
+  MODIFY COLUMN email SET MASKING POLICY governance.email_mask;
+
+-- 2. Multi-Tenant Row Access Policy (Menegakkan Isolasi Embedded Analytics):
+CREATE OR REPLACE ROW ACCESS POLICY governance.tenant_isolation
+  AS (row_tenant_id VARCHAR) RETURNS BOOLEAN ->
+  CURRENT_ROLE() = 'PLATFORM_ADMIN'
+  OR EXISTS (
+    SELECT 1 FROM governance.role_tenant_map m
+    WHERE m.role_name = CURRENT_ROLE() AND m.tenant_id = row_tenant_id
+  );
+
+ALTER TABLE analytics.fct_orders
+  ADD ROW ACCESS POLICY governance.tenant_isolation ON (tenant_id);
+
+-- 3. Zero-Copy Cloning untuk Pengujian CI/CD Aman (salinan berupa metadata saja: Anda hanya membayar penyimpanan untuk data yang berubah sesudahnya):
+CREATE DATABASE analytics_pr_482 CLONE analytics_prod;
+-- Jalankan dbt build --target pr_482 terhadap skala produksi nyata, lalu hapus setelah PR selesai:
+DROP DATABASE analytics_pr_482;
+```
+
 **Memilih.** Tidak ada pemenang universal. Ringkasan yang adil:
 
 | | Kekuatan | Waspadai |
@@ -144,6 +276,14 @@ Dua fitur yang akan Anda dengar: **zero-copy cloning** (Snowflake) membuat salin
 | **Lakehouse** (Spark, Trino, DuckDB pada Iceberg/Delta) | Format terbuka, tanpa lock-in, satu salinan data untuk banyak mesin | Lebih banyak yang dioperasikan sendiri, fitur tata kelola bawaan lebih sedikit |
 
 Dalam praktik, pilihan sering ditentukan oleh penyedia cloud perusahaan dan kontrak yang ada. Yang berpindah di antara semuanya adalah yang Anda pelajari di sini: **tata letak** (pruning), **byte dan waktu** (biaya), **perpindahan** (distribusi dan shuffle), **bulk loading**, dan **isolasi**.
+
+**Konvergensi Warehouse dan Lakehouse (Tabel Native vs. External Parquet vs. Managed Apache Iceberg).** Di Bab 3 dan 6 *Fundamentals of Data Engineering*, Reis & Housley memprediksi menyatunya data warehouse dan data lake. Saat ini Anda tidak lagi dipaksa memilih antara terkunci penuh di satu vendor (vendor lock-in) atau merakit semuanya dari nol. Setiap cloud warehouse besar kini mendukung tiga mode penyimpanan tabel:
+
+| Mode Tabel Cloud | Lokasi Fisik File | Pemilik Metadata & Compaction | Trade-off Performa & Interoperabilitas |
+|---|---|---|---|
+| **1. Tabel Native Warehouse** (Snowflake Internal, BigQuery Native, Redshift Managed) | Di dalam bucket internal milik vendor warehouse | Mesin warehouse secara otomatis penuh | Pruning & clustering tercepat langsung dari bawaan, tetapi mesin lain (Spark/DuckDB) tidak bisa membaca file-nya langsung tanpa biaya ekspor/konektor |
+| **2. Tabel Eksternal Mentah** (File Parquet/CSV biasa di S3/GCS/ADLS) | Di dalam bucket object storage milik Anda sendiri | Tidak ada (mengandalkan listing folder S3) | Tanpa transaksi ACID, lambat saat jumlah file mencapai jutaan, tanpa compaction otomatis |
+| **3. Tabel Open Lakehouse** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Di dalam bucket S3/GCS/ADLS milik Anda dalam format terbuka **Apache Iceberg** | Katalog terbuka Iceberg (REST / Glue / Polaris / Unity) | **Keputusan pintu dua arah (reversible):** Spark, DuckDB, Trino, dan Flink bisa membaca file Parquet yang sama di tempatnya, tanpa salinan; seberapa dekat kecepatannya dengan native bergantung pada engine dan perawatan tabel (compaction), jadi ukurlah pada query Anda sendiri |
 
 Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai banyak partisi atau kolom; lihat partisi yang dipindai dan byte yang ditagih). "Bagaimana membuatnya lebih murah?" (filter pada kolom clustering atau partisi, pilih hanya kolom yang perlu, pra-agregasi). "Apa beda harga Snowflake dan BigQuery?" (waktu komputasi versus byte yang dipindai). "Mengapa ukuran file 100 hingga 250 MB?" (paralelisme tanpa overhead per file).
 
@@ -199,10 +339,91 @@ Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu s
 >
 > **Seharusnya Anda melihat:** `monthly` berisi `48000` baris (24 bulan untuk masing-masing 2.000 pelanggan) dan dibangun dalam sekitar sepersepuluh detik. Pada CPU laptop (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) mediannya sekitar `13` ms pada pesanan mentah dan sekitar `0.9` ms pada `monthly`, sekitar 14 kali lebih cepat, dengan hasil yang identik: kira-kira 75 berbanding 1.100 query per detik per core. Jika 1.000 kafe membuka dashboard lima grafik di menit yang sama, itu 5.000 query, sekitar 83 per detik: lebih dari yang bisa dilayani satu core dari pesanan mentah, dan hanya sebagian kecil satu core dari `monthly`. Tanpa `WHERE`, dashboard itu diam-diam menjumlahkan pesanan kesemua `2000` tenant dan menampilkannya kepada satu kafe. Waktu Anda akan berbeda; rasionya seharusnya tidak jauh berbeda.
 
-## @lesson Opsional: coba di BigQuery sungguhan (sandbox gratis)
-> **Status:** langkah ini mengikuti dokumentasi Google per November 2026 (halaman sandbox diperbarui 2026-11-10, halaman instalasi 2026-11-17), tetapi kursus belum menjalankannya pada akun sungguhan, jadi tidak ada hasil terukur di bawah ini. Jika ada langkah yang tidak sesuai dengan yang Anda lihat, laporkan (tautannya ada di halaman **Mulai di sini**).
+## @lesson Bedah mendalam: Arsitektur Google BigQuery, pemodelan ARRAY<STRUCT>, FinOps & Sandbox Gratis
+**Google BigQuery** muncul di **12,7%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), di belakang Databricks (34,8%) dan Snowflake (25,8%), dan sedikit di atas Redshift (11,7%). Ia tetap warehouse *sungguhan* yang paling mudah untuk berlatih, karena sandbox-nya tidak butuh kartu pembayaran, dan desainnya menjelaskan banyak hal tentang yang lain. Anda perlu memahami bagaimana arsitektur internalnya menentukan cara Anda memodelkan tabel, memasukkan stream, dan mengendalikan biaya di GCP.
 
-Semua di modul ini sejauh ini berjalan di laptop Anda. BigQuery punya **sandbox** gratis: tanpa kartu kredit dan tanpa akun penagihan. Inilah cara termurah untuk melihat gagasan modul ini (dry run, byte yang dipindai, pemangkasan kolom) di cloud warehouse sungguhan. Batasannya, menurut halaman sandbox Google:
+### 1. Cara kerja BigQuery di balik layar (Colossus, Capacitor, Dremel & Dynamic Shuffle)
+Berbeda dari Snowflake atau Redshift—di mana Anda memilih ukuran klaster (`X-Small`, `4 node`) dan data di-cache di SSD lokal worker—BigQuery memisahkan **empat** lapisan secara independen di seluruh pusat data Google:
+
+| Lapisan BigQuery | Teknologi Internal Google | Fungsi & Mengapa Penting bagi Data Engineer |
+|---|---|---|
+| **1. Penyimpanan Terdistribusi** | **Colossus** + **Capacitor** | Menyimpan data dalam format kolumnar **Capacitor** di atas sistem file terdistribusi **Colossus** yang direplikasi lintas-zone. Setiap kolom dan sub-kolom memiliki header statistik min/max, null, dan kamus untuk pemangkasan instan. |
+| **2. Pohon Komputasi Multi-Tenant** | **Dremel** (di atas **Borg**) | Saat Anda menjalankan query, BigQuery mengalokasikan ribuan **slot** stateless (CPU virtual) yang disusun membentuk **pohon eksekusi Dremel**: *Leaf slots* membaca blok Capacitor dari Colossus secara paralel; *Mixer slots* mengagregasi hasil parsial menuju *Root*. |
+| **3. Shuffle Terdistribusi di RAM** | **BigQuery RAM Shuffle** | Daripada menulis file spill shuffle ke disk lokal worker, Leaf slots mengirim bucket hash perantara ke **lapisan RAM shuffle bersama** yang terpisah. Itulah sebabnya BigQuery bisa menambah atau melepas slot di tengah jalannya query! |
+| **4. Jaringan Petabit** | **Jupiter** | Menghubungkan Colossus, slot Dremel, dan lapisan RAM Shuffle dengan bandwidth petabit/detik sehingga pembacaan storage jarak jauh hampir secepat SSD lokal. |
+
+**Konsekuensi arsitektur:** Karena BigQuery tidak memiliki cache SSD lokal yang menempel permanen pada VM worker khusus, Anda tidak bisa mengandalkan "cache disk klaster yang sudah hangat" untuk menutupi tata letak tabel yang buruk. Setiap query yang tidak mengenai result cache akan membaca langsung dari Colossus, sehingga **partisi, clustering, pemilihan kolom spesifik, dan pemodelan bersarang `ARRAY<STRUCT>`** menjadi wajib.
+
+### 2. Senjata Utama Pemodelan Data BigQuery: Kolom Bersarang & Berulang (`ARRAY<STRUCT>` dan `UNNEST`)
+Pada database relasional tradisional (atau Star Schema Kimball, Modul 1.4), sebuah pesanan dengan 4 item barang dibagi ke dalam dua tabel (`fct_orders` dan `fct_order_items`), yang membutuhkan `JOIN` terdistribusi pada `order_id` saat di-query. Jika Anda meratakannya menjadi One Big Table (OBT), kolom header pesanan (`customer_id`, `order_date`, `city`) akan terduplikasi 4 kali.
+
+Di Bab 8 *Fundamentals of Data Engineering* dan panduan resmi arsitektur BigQuery, pola kanoniknya adalah **mendenormalisasi relasi induk-anak (1:N) ke dalam satu baris yang sama menggunakan `ARRAY<STRUCT<...>>` (`REPEATED RECORD`)**:
+
+```sql
+-- 1. Buat tabel terpartisi & ter-cluster dengan ARRAY<STRUCT> bersarang untuk rincian item pesanan:
+CREATE TABLE analytics.fct_orders_nested (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  city          STRING,
+  items         ARRAY<STRUCT<
+    sku         STRING,
+    roast       STRING,
+    qty         INT64,
+    unit_idr    INT64
+  >>
+)
+PARTITION BY order_date
+CLUSTER BY city, customer_id;
+
+-- 2. Query metrik level header menyentuh NOL byte kolom items (tanpa fan-out, tanpa join!):
+SELECT city, COUNT(order_id) AS order_count
+FROM analytics.fct_orders_nested
+WHERE order_date = DATE '2026-10-19'
+GROUP BY city;
+
+-- 3. Query metrik level item memakai CROSS JOIN UNNEST(items) — berada di baris fisik yang sama!
+SELECT
+  o.city,
+  item.roast,
+  SUM(item.qty * item.unit_idr) AS roast_revenue_idr
+FROM analytics.fct_orders_nested AS o
+CROSS JOIN UNNEST(o.items) AS item
+WHERE o.order_date = DATE '2026-10-19'
+GROUP BY o.city, item.roast;
+```
+
+**Mengapa `ARRAY<STRUCT>` sangat unggul di BigQuery (dan DuckDB / Parquet):**
+1. **Nol shuffle jaringan:** Baris induk pesanan dan rincian item anaknya tersimpan di dalam row group Capacitor/Parquet yang sama pada Leaf slot yang sama. Operasi `UNNEST` hanyalah perulangan pointer lokal di cache CPU, bukan hash join melintasi jaringan.
+2. **Bebas jebakan fan-out pada query header:** Menghitung `COUNT(order_id)` langsung menghitung jumlah pesanan (1 baris per pesanan) tanpa terlipatgandakan oleh jumlah item barang.
+3. **Pemangkasan sub-kolom (Sub-column pruning):** Capacitor menyimpan `items.roast`, `items.qty`, dan `items.unit_idr` sebagai sub-kolom fisik terpisah di disk. Query di atas bahkan tidak membaca byte `items.sku`!
+
+> 🛠 **Coba sendiri (10 menit, Python dengan DuckDB — berjalan lokal tanpa akun cloud!).** DuckDB dan Parquet menggunakan representasi kolumnar bersarang yang sama persis dengan BigQuery Capacitor. Di Python, jalankan `import duckdb; con = duckdb.connect()` lalu eksekusi:
+> `con.execute("CREATE TABLE orders_nested AS SELECT 'O-1' AS order_id, 'Jakarta' AS city, [{'sku':'GAYO','qty':2,'price':45000}, {'sku':'TORAJA','qty':1,'price':55000}] AS items UNION ALL SELECT 'O-2', 'Jakarta', [{'sku':'GAYO','qty':3,'price':45000}]")`.
+> Pertama jalankan `SELECT city, COUNT(order_id) AS orders FROM orders_nested GROUP BY city` (grain pesanan). Kedua, buka array-nya persis seperti BigQuery: `SELECT o.city, it.sku, SUM(it.qty * it.price) AS rev FROM orders_nested o, UNNEST(o.items) AS t(it) GROUP BY o.city, it.sku ORDER BY rev DESC`.
+>
+> **Seharusnya Anda melihat:** query header mengembalikan `('Jakarta', 2)` tanpa duplikasi item, dan query `UNNEST` mengembalikan `[('Jakarta', 'GAYO', 225000), ('Jakarta', 'TORAJA', 55000)]` tanpa join terdistribusi!
+
+### 3. Batas Partisi BigQuery & Streaming CDC Upsert (Storage Write API)
+- **Batas partisi:** Satu tabel BigQuery maksimal memiliki **10.000 partisi** (sekitar 27 tahun partisi harian), dan satu job maksimal mengubah 4.000 di antaranya, yang penting untuk backfill besar (halaman kuota Google, diperbarui 2026-11-20). Jika Anda menabrak batas itu, partisilah per `DATE_TRUNC(order_date, MONTH)` dan `CLUSTER BY order_date, customer_id`: clustering di dalam setiap partisi bulanan tetap memangkas per hari.
+- **CDC real-time tanpa job `MERGE` berulang (tidak tersedia di sandbox: butuh streaming):** Menjalankan `MERGE` setiap beberapa menit pada tabel multi-TB itu mahal. BigQuery bisa menerima change data capture melalui **Storage Write API**: deklarasikan `PRIMARY KEY (order_id) NOT ENFORCED` pada tabel dan stream baris dengan pseudocolumn `_CHANGE_TYPE` bernilai `UPSERT` atau `DELETE`. Dengan `OPTIONS (max_staleness = INTERVAL 15 MINUTE)`, BigQuery menerapkan perubahannya di latar belakang paling tidak sekali per interval, menukar sedikit kesegaran dengan biaya dan latensi query yang lebih rendah.
+
+### 4. FinOps BigQuery: On-Demand ($/TiB) vs. BigQuery Editions (Autoscaling Slots)
+BigQuery memiliki dua model penagihan utama yang wajib Anda sesuaikan dengan pola beban kerja:
+
+| Model Penagihan | Cara Penagihan | Paling Tepat Untuk | Guardrail FinOps Wajib |
+|---|---|---|---|
+| **On-Demand** | **~$6,25 per TiB yang dipindai** (1 TiB pertama/bulan gratis) | Beban kerja sporadis, startup, dan tabel yang sudah terpartisi rapat | Pasang `maximum_bytes_billed` di setiap query/profil dbt dan `require_partition_filter = TRUE` pada semua tabel besar |
+| **BigQuery Editions** (*Standard, Enterprise, Enterprise Plus*) | **Slot-hour** (~$0,04–$0,06/slot-jam, autoscale dalam kelipatan 50 slot) | Dashboard frekuensi tinggi dan ETL korporat padat yang memindai ratusan TiB/hari | Pasang plafon **`max_slots` reservation yang ketat** (mis. `baseline = 0, max_slots = 100`); tanpa plafon, satu query buruk bisa langsung men-scale ke 1.600 slot! |
+
+Harga di atas adalah harga daftar Google untuk AS di halaman harganya pada November 2026 (edisi Standard $0,04, Enterprise $0,06 per slot-jam, bayar sesuai pemakaian); region dan komitmen lain berbeda, jadi periksa halamannya sebelum Anda memperkirakan biaya.
+
+### 5. Panduan Praktik Langsung: Google BigQuery Free Sandbox & Guardrail Snowflake
+Ketika Anda siap mencoba pola-pola ini di cloud warehouse sungguhan tanpa biaya, gunakan **sandbox Google BigQuery**: tanpa kartu pembayaran.
+
+> **Status:** langkah sandbox mengikuti dokumentasi Google per November 2026 (halaman sandbox diperbarui 2026-11-10, halaman instalasi 2026-11-17, halaman kuota 2026-11-20), tetapi kursus belum menjalankannya pada akun sungguhan, jadi panduan di bawah tidak menyebut angka BigQuery hasil ukur. Jika ada langkah yang tidak sesuai dengan yang Anda lihat, laporkan (tautannya ada di halaman **Mulai di sini**).
+
+Batasan sandbox, menurut halaman sandbox Google:
 
 | Batas | Nilai |
 |---|---|
@@ -211,37 +432,66 @@ Semua di modul ini sejauh ini berjalan di laptop Anda. BigQuery punya **sandbox*
 | Kedaluwarsa | setiap tabel, view, dan partisi terhapus otomatis setelah 60 hari |
 | Tidak tersedia | streaming insert, DML (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), Data Transfer Service |
 
-Jadi di sandbox Anda memuat file dengan **load job** (secara massal, seperti saran pelajaran 5), bukan `INSERT`, dan Anda menjaga data uji tetap kecil, karena jatah penyimpanan tidak pernah kembali.
+Jadi di sandbox Anda memuat file dengan **load job**, bukan `INSERT` atau `MERGE`, dan menjaga data uji tetap kecil, karena jatah penyimpanan tidak pernah kembali. Pola `MERGE` dan CDC di atas butuh project yang penagihannya aktif.
 
-**1. Aktifkan sandbox (browser, sekitar 5 menit).** Buka `https://console.cloud.google.com/bigquery` lalu masuk dengan akun Google. Di halaman sambutan pilih negara Anda, setujui ketentuannya, klik **Agree and continue**, lalu **Create project**: beri nama, pilih **No organization** kecuali akun Anda dikelola sekolah atau perusahaan, lalu klik **Create**. Pemberitahuan sandbox di halaman BigQuery menandakan berhasil. Catat **project ID** yang tampil di bawah namanya (Google bisa menambahkan angka).
-
-**2. Pasang alat command line.** Di Ubuntu, Debian, atau WSL2, cara yang didokumentasikan Google adalah repositori apt-nya; paketnya berisi `gcloud` dan `bq`:
+**1. Aktifkan BigQuery Sandbox & pasang CLI `gcloud` / `bq`.**
+Buka `https://console.cloud.google.com/bigquery`, masuk dengan akun Google, buat sebuah project (mis. `kopiku-de-sandbox`), lalu pasang Google Cloud CLI di Linux / WSL2:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y ca-certificates gnupg curl
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 sudo apt-get update && sudo apt-get install -y google-cloud-cli
+gcloud init
 ```
 
-Di macOS, ikuti bagian macOS di halaman instalasi Google (`cloud.google.com/sdk/docs/install`): unduh arsipnya lalu jalankan `./google-cloud-sdk/install.sh`.
-
-**3. Login dan pilih project.** Jalankan `gcloud init`. Ia membuka browser untuk login (jika browser tidak terbuka, yang bisa terjadi di WSL2, salin tautan yang dicetaknya ke browser Anda), lalu menanyakan project mana yang dipakai: pilih project dari langkah 1.
-
-**4. Periksa bahwa ia bekerja.** `bq query --use_legacy_sql=false 'SELECT 1 AS ok'` seharusnya mencetak tabel kecil berisi `ok` dan `1`.
-
-**Lindungi diri dari pemindaian besar.** Tambahkan `--maximum_bytes_billed=1000000000` (1 GB) ke `bq query`: query yang akan memproses lebih dari itu gagal alih-alih berjalan. Di sandbox biayanya adalah kuota gratis Anda, bukan uang, tetapi kebiasaan yang sama inilah yang menghemat uang di akun berbayar.
-
-Coba sendiri di bawah memakai dua perintah ini. **Dry run** hanya membaca metadata, jadi tidak berbiaya dan tidak menjalankan apa pun; tabelnya salah satu dataset publik Google, yang bisa dibaca sandbox secara bawaan.
+**2. Buktikan Pemangkasan Kolom dengan `--dry_run` (Biaya $0, 0 Byte Ditagih).**
 
 ```bash
-bq query --use_legacy_sql=false --dry_run 'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
-bq query --use_legacy_sql=false --dry_run 'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
+# Dry-run memilih HANYA 1 kolom (name) vs. SEMUA 5 kolom (SELECT *):
+bq query --use_legacy_sql=false --dry_run \
+  'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
+
+bq query --use_legacy_sql=false --dry_run \
+  'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
 ```
 
-> 🛠 **Coba sendiri (15 menit, terminal, perlu langkah 1 sampai 4).** Jalankan kedua dry run di atas. Sebelum menjalankannya, tebak mana yang lebih besar dan kira-kira berapa kali lipat. Lalu catat kedua jumlah byte-nya dan bagi yang lebih besar dengan yang lebih kecil.
+- **Mengapa angkanya berbeda:** `usa_1910_current` memiliki 5 kolom (`state`, `gender`, `year`, `name`, `number`). BigQuery menyimpan setiap kolom secara terpisah dan hanya menagih kolom yang dibaca query (pelajaran 2), jadi query satu kolom melaporkan byte yang jauh lebih sedikit daripada `SELECT *`. Tebak rasionya, lalu catat kedua angkanya: kursus akan menambahkan nilai terukur di sini setelah dijalankan pada akun sungguhan.
+
+**3. Pasang Guardrail Batas Byte & Audit `INFORMATION_SCHEMA.JOBS_BY_USER`.**
+
+```bash
+# Tolak eksekusi jika query akan memindai lebih dari 200 MB (200.000.000 byte):
+bq query --use_legacy_sql=false --maximum_bytes_billed=200000000 \
+  'SELECT name, SUM(number) AS total_births
+   FROM `bigquery-public-data.usa_names.usa_1910_current`
+   WHERE state = "CA"
+   GROUP BY name ORDER BY total_births DESC LIMIT 5'
+
+# Audit byte tertagih, konsumsi slot_ms, dan cache hit Anda:
+bq query --use_legacy_sql=false \
+  'SELECT creation_time, total_bytes_processed, total_bytes_billed, total_slot_ms, cache_hit
+   FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_USER
+   ORDER BY creation_time DESC LIMIT 5'
+```
+
+**4. Padanan di Snowflake: Pemutus Arus Kredit (`RESOURCE MONITOR`).**
+Pada Snowflake yang berbasis waktu aktif, kunci `AUTO_SUSPEND = 60`, `STATEMENT_TIMEOUT_IN_SECONDS = 1800`, dan pemutus kredit otomatis:
+
+```sql
+CREATE OR REPLACE RESOURCE MONITOR kopiku_monthly_guardrail
+  WITH CREDIT_QUOTA = 50 FREQUENCY = MONTHLY START_TIMESTAMP = IMMEDIATELY
+  TRIGGERS ON 80 PERCENT DO NOTIFY ON 100 PERCENT DO SUSPEND_IMMEDIATE;
+
+CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
+  WAREHOUSE_SIZE = 'XSMALL' AUTO_SUSPEND = 60 AUTO_RESUME = TRUE
+  INITIALLY_SUSPENDED = TRUE STATEMENT_TIMEOUT_IN_SECONDS = 1800
+  RESOURCE_MONITOR = kopiku_monthly_guardrail;
+```
+
+> 🛠 **Coba sendiri (15 menit, terminal, opsional jika Anda memasang `bq`).** Jalankan kedua perintah `--dry_run` di atas pada `usa_1910_current`, lalu jalankan query `WHERE state = "CA"` dua kali berturut-turut dan periksa `INFORMATION_SCHEMA.JOBS_BY_USER`.
 >
-> **Seharusnya Anda melihat:** setiap dry run mencetak berapa byte yang akan diproses query, dan `SELECT *` beberapa kali lebih besar daripada query satu kolom, karena BigQuery menyimpan setiap kolom secara terpisah dan hanya menagih kolom yang dibaca query (pelajaran 2). Angka pastinya akan ditambahkan di sini setelah diukur pada akun sungguhan.
+> **Seharusnya Anda melihat:** setiap dry run mencetak byte yang akan diproses, dan `SELECT *` beberapa kali lipat query satu kolom. Eksekusi sungguhan pertama query `CA` menunjukkan `cache_hit = false`; eksekusi kedua yang identik dijawab dari result cache, dengan `cache_hit = true` dan `total_bytes_billed = 0` (`ResultCache` dari pelajaran 4, di warehouse sungguhan). Catat jumlah byte dan waktu Anda; belum ada nilai terukur yang dicantumkan di sini.
 
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.

@@ -188,6 +188,12 @@ How do the two compare?
 
 The formats have been converging, and tools exist to expose one format's tables to readers of another. For a first project, choose by your ecosystem: **Delta** if you live on Databricks, **Iceberg** if you want maximum engine and vendor neutrality. **Hudi** is the third option, strong for incremental processing and upserts. Everything in this module (snapshots, atomic commits, field ids, pruning, maintenance) applies to all three.
 
+**Modern Delta Lake 3.0+ & Databricks Features You Will Meet in Production:**
+1. **Liquid Clustering (`CLUSTER BY (order_date, customer_id)`):** Replaces rigid Hive-style `PARTITION BY` folders and manual `OPTIMIZE ... ZORDER BY`. Delta organizes data into flexible Z-cubes that can be re-clustered incrementally as query patterns change, without rewriting the existing table.
+2. **Deletion Vectors (Merge-on-Read for Delta):** Instead of rewriting an entire 512 MB Parquet file when a single row is deleted or updated, Delta writes a tiny roaring-bitmap deletion vector file marking the row's physical index as deleted, then compacts it later during `OPTIMIZE`.
+3. **Change Data Feed (`delta.enableChangeDataFeed = true`):** Exposes row-level changes (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) between any two table versions so downstream Silver/Gold tables can process only the changed rows instead of re-scanning the entire Bronze table.
+4. **Delta Universal Format (UniForm):** Automatically generates **Apache Iceberg metadata** alongside every `_delta_log` commit so external Iceberg readers (Snowflake, BigQuery, Trino, DuckDB) can query a Databricks Delta table directly with zero data duplication.
+
 > 💡 **Practice Pause: Managing Delta Lake Transaction Logs**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, navigate to Part B (Delta Lake).
 > 2. Implement `delta_write_versions(path, batches)` with `write_deltalake`, `delta_rows_at(path, version)` for Delta time travel, `delta_delete(path, predicate)` for row deletions, and `delta_log_actions(path, version)` to read the JSON action keys in `_delta_log/`.

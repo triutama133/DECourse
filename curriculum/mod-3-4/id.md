@@ -150,6 +150,22 @@ Pipeline terus-menerus membaca S3. Tanpa bantuan, lalu lintas itu dari subnet pr
 
 **Keamanan sebagai kebiasaan.** *Fundamentals of Data Engineering* membedakan teater keamanan (aturan di atas kertas) dari kebiasaan keamanan (apa yang Anda lakukan setiap hari). Kebiasaan yang paling penting dalam pekerjaan data: least privilege sebagai bawaan; tidak ada yang publik tanpa alasan tertulis; rahasia tidak pernah di dalam kode (Modul 0.2); anggap kredensial suatu hari akan bocor dan batasi apa yang bisa dijangkaunya; baca setiap plan untuk perubahan yang menyangkut keamanan; dan jalankan `plan` secara terjadwal supaya perubahan buatan tangan ditemukan oleh Anda, bukan oleh penyerang.
 
+**Autentikasi Cloud Tanpa Kunci Statis (Workload Identity / OIDC vs. Static Access Keys).** Kunci statis berumur panjang (`AWS_ACCESS_KEY_ID` atau file `.json` service account GCP) berbahaya karena ia berfungsi bagi siapa pun yang menemukannya, dari mana pun, sampai ada yang menyadari dan mencabutnya; kunci yang ter-commit ke Git atau tertinggal di laptop adalah persis cara hal itu terjadi. Di lingkungan produksi modern, platform data menggunakan **identitas sementara tanpa kunci statis (keyless identity)**:
+- Container atau worker yang berjalan di EC2, ECS, EKS, Cloud Run, atau GKE menggunakan **IAM Role / Service Account terlampir** (melalui AWS IRSA, GCP Workload Identity, atau Azure Managed Identity). Platform memberikan kredensial sementara kepada container, yang kedaluwarsa dan diganti otomatis.
+- Pipeline CI/CD GitHub Actions yang menjalankan `terraform plan` atau `dbt build` masuk menggunakan **federasi OpenID Connect (OIDC)**: GitHub mengirimkan token bertanda tangan untuk repositori dan branch tersebut, lalu layanan token cloud mengembalikan kredensial sementara (untuk `aws-actions/configure-aws-credentials` masa berlaku bawaannya satu jam, bisa diubah dengan `role-duration-seconds`). Tidak ada rahasia permanen yang disimpan di GitHub.
+
+**Peta Rosetta Multi-Cloud (AWS vs. GCP vs. Azure untuk Data Engineer).** Dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), **65,3%** menyebut minimal satu cloud utama (AWS, GCP, atau Azure). Karena hukum fisika jaringan, object storage, dan IAM di ketiganya sama, pahami mekanisme dasarnya sekali lalu petakan nama layanannya di ketiga cloud:
+
+| Kapabilitas Arsitektur Cloud | Amazon Web Services (AWS) | Google Cloud Platform (GCP) | Microsoft Azure |
+|---|---|---|---|
+| **Object Storage (Fondasi Lakehouse)** | Amazon S3 (`s3://`) | Google Cloud Storage (`gs://`) | Azure Data Lake Storage Gen2 (`abfss://`) |
+| **Identitas Tanpa Kunci (Workload IAM)** | IAM Roles, STS & IRSA (OIDC) | IAM Service Accounts & Workload Identity | Entra ID (Azure AD) Managed Identities |
+| **Enkripsi KMS & Brankas Rahasia** | AWS KMS + Secrets Manager | Cloud KMS + Secret Manager | Azure Key Vault |
+| **Jaringan Privat ke Object Storage** | S3 Gateway Endpoint & AWS PrivateLink | Private Google Access & Private Service Connect | Virtual Network Service Endpoints & Private Link |
+| **Cloud Data Warehouse** | Amazon Redshift (RA3 / Serverless) | Google BigQuery (On-Demand / Editions) | Azure Synapse Analytics / Microsoft Fabric |
+| **Managed Spark & Komputasi Lakehouse** | AWS EMR / AWS Glue / Databricks | Cloud Dataproc / BigQuery Spark | Azure Databricks / HDInsight / Fabric |
+| **Event Streaming & Antrean Pesan** | Amazon MSK (Kafka) / Kinesis | Cloud Pub/Sub / Managed Kafka | Azure Event Hubs |
+
 > 🛠 **Coba sendiri (10 menit, Python).** VPC Anda adalah `10.0.0.0/16`. Dengan modul `ipaddress`, pecah menjadi subnet `/20`. Ada berapa, berapa alamat di masing-masing, dan berapa yang bisa Anda pakai di AWS? Subnet mana yang berisi `10.0.37.5`? Berapa subnet `/24` yang muat dalam satu `/20`?
 >
 > **Seharusnya Anda melihat:** `16` subnet berisi `4096` alamat, `4091` bisa dipakai di AWS (5 dicadangkan); `10.0.37.5` ada di `10.0.32.0/20`, subnet ketiga; dan satu `/20` memuat `16` `/24`. Ukuran sulit diubah belakangan: ubah rentang sebuah subnet dan plan Terraform menyatakan subnet itu `must be replaced` (`# forces replacement`), sehingga semua yang berjalan di dalamnya harus pindah. Sisakan ruang untuk tumbuh.
@@ -222,6 +238,70 @@ Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat mal
 - Sertakan estimasi perubahan biaya pada setiap review PR (menggunakan tools seperti Infracost) agar penambahan warehouse baru terlihat implikasi biayanya sebelum kode di-merge.
 - Rancang setiap lingkungan development dengan konsep pembersihan mudah: eksekusi `terraform destroy` untuk resource dev harus menjadi rutinitas kerja yang biasa dan aman.
 
+**Pipeline CI/CD GitHub Actions Produksi untuk Terraform (Keyless OIDC + Pemindai Keamanan Trivy + Plan Review).** Berikut adalah workflow GitOps standar yang digunakan tim Data Engineering produksi untuk memeriksa format, memindai celah keamanan IAM/S3, membuat `plan` pada Pull Request, dan mengeksekusi `apply` tanpa menyimpan satu pun kunci statis AWS di GitHub:
+
+```yaml
+# .github/workflows/terraform-lakehouse.yml
+name: Terraform Lakehouse CI/CD
+on:
+  pull_request:
+    paths: ["terraform/**"]
+  push:
+    branches: ["main"]
+    paths: ["terraform/**"]
+
+permissions:
+  id-token: write        # Wajib untuk federasi OIDC AWS tanpa kunci statis
+  contents: read
+  pull-requests: write   # Wajib untuk menulis hasil terraform plan ke komentar PR
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.17.2"
+
+      # 1. Pemeriksaan statis cepat (tanpa kredensial cloud)
+      - name: Format & Syntax Check
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+
+      # 2. Policy-as-Code Security Scan (Menolak PR jika ada bucket publik, tanpa KMS, atau IAM '*')
+      - name: Trivy IaC Security Scan
+        uses: aquasecurity/trivy-action@v0.36.0   # sematkan rilis (atau SHA commit), jangan pernah @master
+        with:
+          scan-type: "config"
+          scan-ref: "terraform/"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+
+      # 3. Autentikasi OIDC Tanpa Kunci Statis ke AWS (kredensial sementara, bawaannya satu jam)
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsTerraformRole
+          aws-region: ap-southeast-3
+
+      # 4. Buat plan terhadap remote state dengan penguncian (state locking)
+      - name: Terraform Init & Plan
+        run: |
+          terraform init
+          terraform plan -var-file=prod.tfvars -out=tfplan
+
+      # 5. Jalankan Apply HANYA setelah PR disetujui dan di-merge ke branch main
+      - name: Terraform Apply (Main Branch Only)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
+```
+
 > 💡 **Jeda Praktik 4 (Guardrails FinOps: Deteksi Query Liar, Forecasting & Tiering Storage):**
 > 1. Buka file `labs/mod-3-4/finops.py` di teks editor Anda.
 > 2. Implementasikan fungsi `find_runaway(log, factor)` menggunakan median durasi tim untuk menangkap outlier ekstrem, `forecast_month(daily_costs, days_in_month, budget)` untuk memproyeksikan tanggal jebolnya anggaran bulanan, serta `storage_cost(objects, archive_after_days)` untuk memodelkan trade-off biaya arsip dingin vs retribusi retrieval.
@@ -282,6 +362,13 @@ Gagasan dari bab 3 buku ini muncul di setiap wawancara system design, dan masing
 > 🛠 **Coba sendiri (5 menit, Python atau kertas).** Sebuah perusahaan ingin memindahkan 100 TB data historis ke cloud. Berapa hari yang dibutuhkan lewat jalur 1 Gbit/s pada kecepatan penuh, lewat jalur yang sama ketika hanya 70% yang bisa dipakai dalam praktik, dan lewat jalur kantor 100 Mbit/s? (1 TB = 10¹² byte, 1 byte = 8 bit.)
 >
 > **Seharusnya Anda melihat:** `9.3` hari pada kecepatan penuh, `13.2` hari pada 70%, dan `92.6` hari lewat 100 Mbit/s; jalur 10 Gbit/s pada 70% butuh `1.3` hari. Ketika jaringan butuh berminggu-minggu, mengirim disk yang menang: inilah sebabnya cloud besar menyewakan perangkat transfer fisik (di AWS: Snowball) yang Anda isi di lokasi lalu kirim balik lewat kurir.
+
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Gabungkan tiga perhitungan dari modul ini ke dalam satu skrip, `cloud_architect.py`, dengan tiga fungsi:
+> 1. `plan_iac_diff(desired, actual)`: kedua argumen memetakan `resource_name -> properties_dict`. Kembalikan list tuple `(action, resource_name)` yang diurutkan menurut nama, dengan `"create"` untuk resource yang hanya ada di `desired`, `"destroy"` untuk yang hanya ada di `actual`, dan `"update"` jika keduanya punya dengan properti berbeda. Jangan masukkan resource yang tidak berubah (planner dari pelajaran 1).
+> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: pecah `vpc_cidr` (misalnya `"10.0.0.0/16"`) menjadi subnet berukuran `/new_prefix` dan kembalikan dict berisi `num_subnets`; `usable_ips_per_subnet` di AWS (pelajaran 3); `monthly_cross_az_usd`, biaya 30 hari dari shuffle harian dengan tarif $0,02 per GB, dengan asumsi data tersebar merata di `zones` zona sehingga hanya bagian yang keluar dari zona node itu sendiri yang ditagih (nol jika hanya satu zona); `monthly_nat_s3_usd`, 30 hari trafik S3 melalui NAT gateway dengan tarif $0,045 per GB, atau `0.0` jika `has_s3_endpoint` bernilai true; dan `monthly_endpoint_savings_usd`, penghematan S3 gateway endpoint dalam 30 hari. Bulatkan nilai dolar ke 2 desimal.
+> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: untuk `num_services` layanan yang dipanggil berurutan, masing-masing tersedia `service_sla` dari waktu (misalnya `0.999`), kembalikan `combined_sla` dibulatkan ke 6 desimal, `monthly_downtime_min` dalam bulan 30 hari (43.200 menit) dibulatkan ke 1 desimal, dan `needs_continuous_cdc`: `True` jika jarak antar-backup lebih lebar daripada yang diizinkan target RPO (bagian 4 pelajaran 6).
+>
+> **Periksa:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
 ## @lesson Opsional: terapkan sungguhan, di AWS tiruan di laptop Anda
 Lab ini hanya membuat *plan*: provider memakai kredensial palsu dan tidak pernah menghubungi AWS. Separuh lain pekerjaan Terraform, yaitu benar-benar membuat, memeriksa, memperbaiki, dan menghapus resource, butuh endpoint AWS. Akun AWS sungguhan butuh kartu pembayaran; **moto** tidak butuh apa pun. moto adalah program Python open-source yang menjawab panggilan API yang sama dengan AWS (S3, IAM, KMS, dan banyak lagi) di komputer Anda sendiri. Terraform, command line `aws`, dan `boto3` tidak bisa membedakannya, jadi Anda melatih alat dan alur kerja yang sungguhan; hanya cloud di belakangnya yang tiruan.

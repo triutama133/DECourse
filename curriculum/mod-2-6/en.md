@@ -51,6 +51,51 @@ That sorting is what **clustering** means. In Snowflake you define a **clusterin
 
 Rules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN` (dates first for event data); a column with extremely high cardinality (a unique id) clusters poorly for range filters; and too many tiny partitions, as in the small-files problem of Module 3.0, add overhead. Clustering costs maintenance, so it pays off on **large** tables that are filtered repeatedly.
 
+**Production DDL side-by-side: declaring partitions, clustering, and sort keys in real warehouses.** In your job, you declare these physical layouts in DDL (or inside your `dbt_project.yml` / model `config(...)` block). Compare how the exact same `fct_orders` table is laid out across the three major cloud warehouses:
+
+```sql
+-- 1. Google BigQuery: Partition by date (1 column) + Cluster by up to 4 columns
+--    require_partition_filter = TRUE rejects any query that forgets WHERE order_date ...
+CREATE TABLE analytics.fct_orders (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  status        STRING,
+  net_total_idr INT64
+)
+PARTITION BY order_date
+CLUSTER BY status, customer_id
+OPTIONS (
+  require_partition_filter = TRUE,
+  partition_expiration_days = 1095
+);
+
+-- 2. Snowflake: All tables are automatically micro-partitioned (50 to 500 MB of uncompressed data each, stored compressed);
+--    add a CLUSTER BY key on multi-TB tables so background re-clustering keeps zone maps tight
+CREATE TABLE analytics.fct_orders (
+  order_id      VARCHAR,
+  customer_id   VARCHAR,
+  order_date    DATE,
+  status        VARCHAR,
+  net_total_idr NUMBER(18, 0)
+)
+CLUSTER BY (order_date, status);
+
+-- Inspect Snowflake clustering overlap depth (just like average_overlap in our lab!):
+SELECT SYSTEM$CLUSTERING_INFORMATION('analytics.fct_orders', '(order_date, status)');
+
+-- 3. Amazon Redshift: DISTKEY co-locates joins across nodes; SORTKEY orders zone maps on disk
+CREATE TABLE analytics.fct_orders (
+  order_id      VARCHAR(64)   ENCODE zstd,
+  customer_id   VARCHAR(64)   ENCODE zstd,
+  order_date    DATE          ENCODE az64,
+  status        VARCHAR(32)   ENCODE bytedict,
+  net_total_idr BIGINT        ENCODE az64
+)
+DISTSTYLE KEY DISTKEY (customer_id)
+COMPOUND SORTKEY (order_date, status);
+```
+
 The second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away.
 
 > 💡 **Practice Pause 1 (Micro-Partitions, Zone Maps & Partition Pruning):**
@@ -76,6 +121,15 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 **Skew** also appears here: if one key value (a customer with half of all orders) lands on one node, that node does half the work while others wait. Look for unbalanced steps in the query profile.
 
 **Sizing compute.** In Snowflake a **virtual warehouse** comes in sizes (X-Small, Small, Medium, ...); each size up doubles the machines and the credits per hour. A bigger warehouse often finishes a heavy query faster for roughly the same total cost, but gives no benefit to a query that is already small; auto-suspend (Module 3.4) keeps idle time cheap. BigQuery allocates **slots** (units of compute) per query automatically, or you reserve a fixed number. Redshift provisioned clusters are sized in nodes; Redshift Serverless scales on demand.
+
+**How to read a Cloud Warehouse Query Profile (The 4 Production Bottlenecks).** When a warehouse query takes 8 minutes or costs $50, do not guess—open the **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Every senior data engineer checks four numbers immediately:
+
+| Query Profile Symptom | What You See in the Execution Graph | Root Cause | Production Fix |
+|---|---|---|---|
+| **1. Broken Partition Pruning** | `Partitions scanned: 4,820 / 4,850` (99.4%) | Filtering on a non-clustered column, or wrapping the partition key in a function (`WHERE DATE(event_ts) = ...` or unpruned `MERGE`) | Rewrite predicate to bare partition column (`event_ts >= ... AND event_ts < ...`) or cluster table on the filter key |
+| **2. Disk Spilling (Local / Remote S3 Spill)** | `Bytes spilled to local storage: 48 GB` / `Bytes spilled to remote storage: 190 GB` | A huge `GROUP BY`, `COUNT(DISTINCT)`, or `ROW_NUMBER() OVER (...)` exceeded worker RAM and spilled intermediate state to SSD and S3! | Pre-filter columns/rows before the window/join, split into two stages, or temporarily scale up warehouse size (e.g. `Small -> Large`) for that heavy transform |
+| **3. Network Broadcast / Shuffle Explosion** | `Repartition / Broadcast: 78% of execution time`, billions of rows sent over network | Joining two huge tables on non-colocated keys, or an accidental many-to-many join fan-out (Module 1.4) | Verify join key uniqueness (`1:N`), co-locate `DISTKEY` / cluster keys, or pre-aggregate before joining |
+| **4. Skewed Worker Straggler** | `Max worker time: 420s · Median worker time: 6s` | 90% of rows have `customer_id IS NULL` or `'GUEST'`, hashing to a single MPP worker node | Filter out `NULL` keys before joining (union them back later) or salt skewed keys (Module 3.1) |
 
 > 💡 **Practice Pause 2 (Clustering Overlap & MPP Distribution):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
@@ -120,6 +174,52 @@ Other practices:
 
 Record **where every load came from and when**: file names, load ids, row counts and rejected rows. Reconciling counts between source and warehouse (Module 2.5) is the cheapest data quality check there is.
 
+**Production Bulk-Load & Idempotent `MERGE` SQL (Snowflake, BigQuery, Redshift).** Notice how all three warehouses load Parquet files from object storage in parallel, and how the `MERGE` statement **must** include a partition-pruning filter on the target table (`t.order_date >= ...`) so it does not scan the entire historical fact table:
+
+```sql
+-- STEP 1: Bulk-load Parquet from cloud object storage into a staging table
+-- Snowflake (via External Stage pointing to s3://kopiku-raw/orders/)
+COPY INTO analytics.stg_orders
+FROM @analytics.s3_orders_stage/dt=2026-10-19/
+FILE_FORMAT = (TYPE = PARQUET)
+MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+ON_ERROR = 'ABORT_STATEMENT';
+
+-- BigQuery (native LOAD DATA from GCS Parquet)
+LOAD DATA OVERWRITE analytics.stg_orders
+FROM FILES (
+  format = 'PARQUET',
+  uris = ['gs://kopiku-raw/orders/dt=2026-10-19/*.parquet']
+);
+
+-- Redshift (parallel COPY from S3 using an attached IAM Role — zero hardcoded keys!)
+TRUNCATE TABLE analytics.stg_orders;
+COPY analytics.stg_orders
+FROM 's3://kopiku-raw/orders/dt=2026-10-19/'
+IAM_ROLE 'arn:aws:iam::123456789012:role/RedshiftS3ReadRole'
+FORMAT AS PARQUET;
+
+-- STEP 2: Idempotent MERGE from staging into the partitioned target fact table.
+-- The extra date condition lets the warehouse skip old partitions of fct_orders, but the cutoff must
+-- come from THIS batch: the oldest order_date it contains (late updates of old orders included).
+-- BigQuery:  DECLARE cutoff DATE DEFAULT (SELECT MIN(order_date) FROM analytics.stg_orders);
+-- Snowflake: SET cutoff = (SELECT MIN(order_date) FROM analytics.stg_orders);   -- then write $cutoff
+MERGE INTO analytics.fct_orders AS t
+USING (
+  SELECT * FROM analytics.stg_orders
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY updated_at DESC) = 1
+) AS s
+ON t.order_id = s.order_id
+   AND t.order_date >= cutoff               -- never a fixed "last 2 days": see below
+WHEN MATCHED AND s.updated_at > t.updated_at THEN
+  UPDATE SET status = s.status, net_total_idr = s.net_total_idr, updated_at = s.updated_at
+WHEN NOT MATCHED THEN
+  INSERT (order_id, customer_id, order_date, status, net_total_idr, updated_at)
+  VALUES (s.order_id, s.customer_id, s.order_date, s.status, s.net_total_idr, s.updated_at);
+```
+
+**Why the cutoff must come from the batch.** A fixed window such as "the last two days" looks safe and makes the `MERGE` cheap, but it breaks the moment an old order changes: a refund for an order from three weeks ago matches no row inside the window, so `WHEN NOT MATCHED` inserts it as a *second* row and the order is counted twice. Reproduced in DuckDB 2.0.1: with a fixed cutoff, the late refund of an old order became a duplicate (`paid 100` and `refunded 0` for the same `order_id`); with the cutoff taken from the oldest `order_date` in the batch, the order was updated in place, a retry of the same batch changed nothing, and every order kept exactly one row.
+
 > 💡 **Practice Pause 4 (Planning Parallel Bulk Load Files):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
 > 2. Implement `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` to balance ideal file size and slice multiples.
@@ -134,6 +234,38 @@ Record **where every load came from and when**: file names, load ids, row counts
 
 Two features you will hear about: **zero-copy cloning** (Snowflake) creates a copy of a table or database as metadata, which costs storage only for changes, ideal for test environments; and **secure data sharing** lets another account query your data without copying it.
 
+**Production Governance SQL: Dynamic Data Masking, Row-Level Security & Zero-Copy Clones.** Instead of maintaining separate "masked" and "unmasked" copies of a table, modern cloud warehouses enforce column masking and multi-tenant row filtering directly in the catalog policy:
+
+```sql
+-- 1. Dynamic Column Masking (Snowflake syntax; BigQuery does the same with policy tags on columns):
+--    Analysts see '***MASKED***'; only the PII_COMPLIANCE_ROLE sees raw emails
+CREATE OR REPLACE MASKING POLICY governance.email_mask AS (val STRING) RETURNS STRING ->
+  CASE
+    WHEN CURRENT_ROLE() IN ('PII_COMPLIANCE_ROLE', 'ACCOUNTADMIN') THEN val
+    ELSE REGEXP_REPLACE(val, '^[^@]+', '***')
+  END;
+
+ALTER TABLE analytics.dim_customer
+  MODIFY COLUMN email SET MASKING POLICY governance.email_mask;
+
+-- 2. Multi-Tenant Row Access Policy (Enforces Embedded Analytics Isolation):
+CREATE OR REPLACE ROW ACCESS POLICY governance.tenant_isolation
+  AS (row_tenant_id VARCHAR) RETURNS BOOLEAN ->
+  CURRENT_ROLE() = 'PLATFORM_ADMIN'
+  OR EXISTS (
+    SELECT 1 FROM governance.role_tenant_map m
+    WHERE m.role_name = CURRENT_ROLE() AND m.tenant_id = row_tenant_id
+  );
+
+ALTER TABLE analytics.fct_orders
+  ADD ROW ACCESS POLICY governance.tenant_isolation ON (tenant_id);
+
+-- 3. Zero-Copy Cloning for Safe CI/CD Testing (a metadata-only copy: you pay storage only for data that changes afterwards):
+CREATE DATABASE analytics_pr_482 CLONE analytics_prod;
+-- Run dbt build --target pr_482 against real production scale, then:
+DROP DATABASE analytics_pr_482;
+```
+
 **Choosing.** There is no universal winner. A fair summary:
 
 | | Strong points | Watch out for |
@@ -144,6 +276,14 @@ Two features you will hear about: **zero-copy cloning** (Snowflake) creates a co
 | **Lakehouse** (Spark, Trino, DuckDB on Iceberg/Delta) | Open formats, no lock-in, one copy of data for many engines | More to operate yourself, fewer built-in governance tools |
 
 In practice the choice is often made by the company's cloud provider and existing contracts. What transfers between all of them is what you learned here: **layout** (pruning), **bytes and time** (cost), **movement** (distribution and shuffles), **bulk loading**, and **isolation**.
+
+**How warehouses and lakehouses converged (Native vs. External Parquet vs. Managed Iceberg Tables).** In Chapters 3 and 6 of *Fundamentals of Data Engineering*, Reis & Housley predicted the convergence of data warehouses and data lakes. Today, you do not have to choose an all-or-nothing vendor lock-in. Every major cloud warehouse supports three table storage modes:
+
+| Table Mode | Where Files Live | Who Owns Metadata & Compaction | Performance & Interoperability Trade-off |
+|---|---|---|---|
+| **1. Native Warehouse Table** (Snowflake Internal, BigQuery Native, Redshift Managed) | Inside the warehouse vendor's proprietary bucket | The warehouse engine automatically | Fastest out-of-the-box pruning & clustering, but other engines (Spark/DuckDB) cannot read the files directly without export/connector cost |
+| **2. Unmanaged External Table** (Raw Parquet/CSV on S3/GCS/ADLS) | Your own cloud object storage bucket | Nobody (directory listing on S3) | No ACID transactions, slow metadata listing on millions of files, no automatic compaction |
+| **3. Open Lakehouse Table** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Your own S3/GCS/ADLS bucket in open **Apache Iceberg** format | Open Iceberg catalog (REST / Glue / Polaris / Unity) | **Reversible two-way door:** Spark, DuckDB, Trino and Flink can read the same Parquet files in place, with no copies; how close it comes to native speed depends on the engine and on table maintenance (compaction), so measure it on your own queries |
 
 Questions you can now answer: "Why is this query expensive?" (it scans many partitions or columns; look at partitions scanned and bytes billed). "How do I make it cheaper?" (filter on the clustering or partition column, select only needed columns, pre-aggregate). "What is the difference between Snowflake and BigQuery pricing?" (compute time versus bytes scanned). "Why file sizes of 100 to 250 MB?" (parallelism without per-file overhead).
 
@@ -199,10 +339,91 @@ Embedded analytics is the hardest. It is **multi-tenant**: one set of tables ser
 >
 > **You should see:** `monthly` has `48000` rows (24 months for each of 2,000 customers) and takes about a tenth of a second to build. On a laptop CPU (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) the median was about `13` ms on the raw orders and about `0.9` ms on `monthly`, around 14 times faster, with identical results: roughly 75 versus 1,100 queries per second per core. If 1,000 cafés open a five-chart dashboard in the same minute, that is 5,000 queries, about 83 per second: more than one core can serve from raw orders, a small fraction of one core from `monthly`. Without the `WHERE`, the dashboard silently adds up the orders of all `2000` tenants and shows them to one café. Your times will differ; the ratio should not by much.
 
-## @lesson Optional: try it on real BigQuery (free sandbox)
-> **Status:** these steps follow Google's documentation as of November 2026 (sandbox page updated 2026-11-10, install page 2026-11-17), but the course has not yet run them on a real account, so nothing below is a measured result. If a step does not match what you see, report it (the link is on the **Start here** page).
+## @lesson Deep dive: Google BigQuery architecture, ARRAY<STRUCT> modeling, FinOps & Free Sandbox
+**Google BigQuery** appears in **12.7%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), behind Databricks (34.8%) and Snowflake (25.8%) and just ahead of Redshift (11.7%). It is still the easiest *real* warehouse to practise on, because its sandbox needs no payment card, and its design explains a lot about the others. You need to understand how its internal architecture shapes how you model tables, ingest streams, and control costs on GCP.
 
-Everything in this module so far ran on your laptop. BigQuery has a free **sandbox**: no credit card and no billing account. It is the cheapest way to see the ideas of this module (dry runs, bytes scanned, column pruning) on a real cloud warehouse. Its limits, from Google's sandbox page:
+### 1. How BigQuery works under the hood (Colossus, Capacitor, Dremel & Dynamic Shuffle)
+Unlike Snowflake or Redshift—where you pick a cluster size (`X-Small`, `4 nodes`) and data is cached on local worker SSDs—BigQuery disaggregates **four** layers across a Google data center:
+
+| BigQuery Layer | Internal Google Tech | What It Does & Why It Matters to You |
+|---|---|---|
+| **1. Distributed Storage** | **Colossus** + **Capacitor** | Stores data in **Capacitor** columnar files on Google's **Colossus** distributed file system, replicated across zones. Each column and sub-column has rich min/max, null, and dictionary headers for instant pruning. |
+| **2. Multi-Tenant Compute Tree** | **Dremel** (on **Borg**) | When you run a query, BigQuery allocates thousands of stateless **slots** (virtual CPUs) arranged in a **Dremel execution tree**: *Leaf slots* read Capacitor blocks from Colossus in parallel; *Mixer slots* aggregate partial results up to the *Root*. |
+| **3. In-Memory Distributed Shuffle** | **BigQuery RAM Shuffle** | Instead of writing shuffle spill files to local worker disks, Leaf slots push intermediate hash buckets into a separate **shared in-memory shuffle tier**. That is why BigQuery can dynamically add or remove slots mid-query! |
+| **4. Petabit Network Fabric** | **Jupiter** | Connects Colossus, Dremel slots, and the RAM Shuffle tier at petabit/sec bisection bandwidth so remote storage reads nearly as fast as local SSDs. |
+
+**Architectural consequence:** Because BigQuery has no persistent local disk cache on dedicated worker VMs, you cannot rely on "warm cluster SSD cache" to forgive a bad table layout. Every non-cached query reads directly from Colossus, so **partitioning, clustering, column selection, and nested `ARRAY<STRUCT>` modeling** are mandatory.
+
+### 2. The #1 BigQuery Data Modeling Superpower: Nested & Repeated Fields (`ARRAY<STRUCT>` and `UNNEST`)
+In a traditional relational database (or Kimball Star Schema, Module 1.4), an order with 4 line items is split across two tables (`fct_orders` and `fct_order_items`), requiring a distributed `JOIN` on `order_id` at query time. If you flatten them into One Big Table (OBT), the order header columns (`customer_id`, `order_date`, `shipping_city`) are duplicated 4 times.
+
+In Chapter 8 of *Fundamentals of Data Engineering* and Google's BigQuery architecture guide, the canonical pattern is **denormalizing parent-child hierarchies into a single row using `ARRAY<STRUCT<...>>` (`REPEATED RECORD`)**:
+
+```sql
+-- 1. Create a partitioned, clustered table with a nested ARRAY<STRUCT> for line items:
+CREATE TABLE analytics.fct_orders_nested (
+  order_id      STRING,
+  customer_id   STRING,
+  order_date    DATE,
+  city          STRING,
+  items         ARRAY<STRUCT<
+    sku         STRING,
+    roast       STRING,
+    qty         INT64,
+    unit_idr    INT64
+  >>
+)
+PARTITION BY order_date
+CLUSTER BY city, customer_id;
+
+-- 2. Querying header-level metrics touches ZERO item bytes (no fan-out, no join!):
+SELECT city, COUNT(order_id) AS order_count
+FROM analytics.fct_orders_nested
+WHERE order_date = DATE '2026-10-19'
+GROUP BY city;
+
+-- 3. Querying line-item metrics uses CROSS JOIN UNNEST(items) — co-located inside the same row!
+SELECT
+  o.city,
+  item.roast,
+  SUM(item.qty * item.unit_idr) AS roast_revenue_idr
+FROM analytics.fct_orders_nested AS o
+CROSS JOIN UNNEST(o.items) AS item
+WHERE o.order_date = DATE '2026-10-19'
+GROUP BY o.city, item.roast;
+```
+
+**Why `ARRAY<STRUCT>` wins in BigQuery (and DuckDB / Parquet):**
+1. **Zero network shuffle:** The parent order and its child items live in the exact same Capacitor/Parquet row group on the same Leaf slot. `UNNEST` is a local pointer loop in CPU cache, not a distributed network hash join.
+2. **Zero grain fan-out on header queries:** Counting `COUNT(order_id)` on the table counts orders (1 row per order) without multiplying by line items.
+3. **Sub-column pruning:** Capacitor stores `items.roast`, `items.qty`, and `items.unit_idr` as separate physical sub-columns on disk. The query above never even reads `items.sku`!
+
+> 🛠 **Try it (10 min, Python with DuckDB — runs locally without a cloud account!).** DuckDB and Parquet use the exact same nested columnar representation as BigQuery Capacitor. In Python, run `import duckdb; con = duckdb.connect()` and execute:
+> `con.execute("CREATE TABLE orders_nested AS SELECT 'O-1' AS order_id, 'Jakarta' AS city, [{'sku':'GAYO','qty':2,'price':45000}, {'sku':'TORAJA','qty':1,'price':55000}] AS items UNION ALL SELECT 'O-2', 'Jakarta', [{'sku':'GAYO','qty':3,'price':45000}]")`.
+> First run `SELECT city, COUNT(order_id) AS orders FROM orders_nested GROUP BY city` (header grain). Next, unnest the array just like BigQuery: `SELECT o.city, it.sku, SUM(it.qty * it.price) AS rev FROM orders_nested o, UNNEST(o.items) AS t(it) GROUP BY o.city, it.sku ORDER BY rev DESC`.
+>
+> **You should see:** the header query returns `('Jakarta', 2)` with zero line-item duplication, and the `UNNEST` query returns `[('Jakarta', 'GAYO', 225000), ('Jakarta', 'TORAJA', 55000)]` with zero distributed join!
+
+### 3. BigQuery Ingestion, CDC Upserts & Partition Limits
+- **Partition limits:** A BigQuery table can have at most **10,000 partitions** (about 27 years of daily partitions), and a single job can modify at most 4,000 of them, which matters for large backfills (Google's quotas page, updated 2026-11-20). If you run into the limits, partition by `DATE_TRUNC(order_date, MONTH)` and `CLUSTER BY order_date, customer_id`: clustering inside each monthly partition still prunes days.
+- **Real-time CDC without repeated `MERGE` jobs (not in the sandbox: it needs streaming):** Running a `MERGE` every few minutes on a multi-TB table is expensive. BigQuery can ingest change data capture through the **Storage Write API**: declare `PRIMARY KEY (order_id) NOT ENFORCED` on the table and stream rows with the pseudocolumn `_CHANGE_TYPE` set to `UPSERT` or `DELETE`. With `OPTIONS (max_staleness = INTERVAL 15 MINUTE)`, BigQuery applies the changes in the background at least once per interval, trading a little freshness for lower query cost and latency.
+
+### 4. BigQuery FinOps: On-Demand ($/TiB) vs. BigQuery Editions (Autoscaling Slots)
+BigQuery offers two billing models, and mixing them up is a classic production mistake:
+
+| Billing Model | How You Pay | Best For | Crucial FinOps Guardrail |
+|---|---|---|---|
+| **On-Demand** | **~$6.25 per TiB scanned** (first 1 TiB/month free) | Spiky, unpredictable workloads, startups, and well-partitioned tables | Set `maximum_bytes_billed` on every query/dbt profile and `require_partition_filter = TRUE` on every large table |
+| **BigQuery Editions** (*Standard, Enterprise, Enterprise Plus*) | **Slot-hours** (~$0.04–$0.06/slot-hour, autoscaled in multiples of 50 slots) | High-frequency dashboards and steady enterprise ETL scanning hundreds of TiB/day | Set a low **`max_slots` reservation cap** (e.g. `baseline = 0, max_slots = 100`); otherwise one unoptimized query will autoscale to 1,600 slots instantly! |
+
+Prices are Google's US list prices on its pricing page in November 2026 (Standard edition $0.04, Enterprise $0.06 per slot-hour, pay as you go); other regions and commitments differ, so check the page before you estimate.
+
+### 5. Hands-On Walkthrough: Google BigQuery Free Sandbox & Snowflake Guardrails
+When you are ready to try these patterns on a live cloud warehouse without spending money, use the **Google BigQuery sandbox**: no payment card needed.
+
+> **Status:** the sandbox steps follow Google's documentation as of November 2026 (sandbox page updated 2026-11-10, install page 2026-11-17, quotas page 2026-11-20), but the course has not yet run them on a real account, so the walkthrough below states no measured BigQuery numbers. If a step does not match what you see, report it (the link is on the **Start here** page).
+
+The sandbox limits, from Google's sandbox page:
 
 | Limit | Value |
 |---|---|
@@ -211,37 +432,67 @@ Everything in this module so far ran on your laptop. BigQuery has a free **sandb
 | Expiry | every table, view and partition is deleted automatically after 60 days |
 | Not available | streaming inserts, DML (`INSERT`, `UPDATE`, `DELETE`, `MERGE`), Data Transfer Service |
 
-So in the sandbox you load files with **load jobs** (in bulk, as lesson 5 recommends) rather than `INSERT`, and you keep test data small, because the storage allowance never comes back.
+So in the sandbox you load files with **load jobs** rather than `INSERT` or `MERGE`, and you keep test data small, because the storage allowance never comes back. The `MERGE` and CDC patterns above need a billing-enabled project.
 
-**1. Turn on the sandbox (browser, about 5 minutes).** Open `https://console.cloud.google.com/bigquery` and sign in with a Google account. On the welcome page choose your country, accept the terms, click **Agree and continue**, then **Create project**: give it a name, choose **No organization** unless your school or company manages your account, and click **Create**. A sandbox notice on the BigQuery page means it worked. Note the **project ID** shown under the name (Google may add numbers to it).
-
-**2. Install the command-line tools.** On Ubuntu, Debian or WSL2, Google's documented route is its apt repository; the package contains `gcloud` and `bq`:
+**1. Activate the BigQuery Sandbox & install `gcloud` / `bq` CLI.**
+Open `https://console.cloud.google.com/bigquery`, sign in with any Google account, create a project (e.g. `kopiku-de-sandbox`), and install the CLI on Linux / WSL2:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y ca-certificates gnupg curl
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
 sudo apt-get update && sudo apt-get install -y google-cloud-cli
+gcloud init
 ```
 
-On macOS, follow the macOS section of Google's install page (`cloud.google.com/sdk/docs/install`): download the archive and run `./google-cloud-sdk/install.sh`.
-
-**3. Log in and choose the project.** Run `gcloud init`. It opens a browser to sign in (if no browser opens, which can happen in WSL2, copy the link it prints into your browser), then asks which project to use: choose the one from step 1.
-
-**4. Check that it works.** `bq query --use_legacy_sql=false 'SELECT 1 AS ok'` should print a small table with `ok` and `1`.
-
-**Protect yourself from a large scan.** Add `--maximum_bytes_billed=1000000000` (1 GB) to a `bq query`: a query that would process more fails instead of running. In the sandbox the cost is your free quota rather than money, but it is the same habit that saves money on a paid account.
-
-The Try it below uses these two commands. A **dry run** reads only metadata, so it costs nothing and runs nothing; the table is one of Google's public datasets, which the sandbox can read by default.
+**2. Prove Columnar Pruning with `--dry_run` ($0 cost, 0 bytes billed).**
+A `--dry_run` asks BigQuery's planner to read the Capacitor column headers and report the exact bytes that *would* be billed, without running the query:
 
 ```bash
-bq query --use_legacy_sql=false --dry_run 'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
-bq query --use_legacy_sql=false --dry_run 'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
+# Dry-run selecting ONLY 1 column (name) vs. ALL 5 columns (SELECT *):
+bq query --use_legacy_sql=false --dry_run \
+  'SELECT name FROM `bigquery-public-data.usa_names.usa_1910_current`'
+
+bq query --use_legacy_sql=false --dry_run \
+  'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
 ```
 
-> 🛠 **Try it (15 min, terminal, needs steps 1 to 4).** Run the two dry runs above. Before you run them, predict which one is larger and by roughly how much. Then write down both byte counts and divide the larger by the smaller.
+- **Why they differ:** `usa_1910_current` has 5 columns (`state`, `gender`, `year`, `name`, `number`). BigQuery stores each column separately and bills only the columns a query reads (lesson 2), so the one-column query reports far fewer bytes than `SELECT *`. Predict the ratio, then write both numbers down: the course will add measured values here once they have been run on a real account.
+
+**3. Enforce Hard Scan Guardrails & Audit `INFORMATION_SCHEMA.JOBS_BY_USER`.**
+
+```bash
+# Refuse to run if the query would scan more than 200 MB (200,000,000 bytes):
+bq query --use_legacy_sql=false --maximum_bytes_billed=200000000 \
+  'SELECT name, SUM(number) AS total_births
+   FROM `bigquery-public-data.usa_names.usa_1910_current`
+   WHERE state = "CA"
+   GROUP BY name ORDER BY total_births DESC LIMIT 5'
+
+# Audit your actual billed bytes, slot milliseconds, and cache hits:
+bq query --use_legacy_sql=false \
+  'SELECT creation_time, total_bytes_processed, total_bytes_billed, total_slot_ms, cache_hit
+   FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_USER
+   ORDER BY creation_time DESC LIMIT 5'
+```
+
+**4. Snowflake Equivalent: Hard Credit Circuit-Breaker (`RESOURCE MONITOR`).**
+On time-billed Snowflake, lock down `AUTO_SUSPEND = 60`, `STATEMENT_TIMEOUT_IN_SECONDS = 1800`, and a hard monthly credit cut-off:
+
+```sql
+CREATE OR REPLACE RESOURCE MONITOR kopiku_monthly_guardrail
+  WITH CREDIT_QUOTA = 50 FREQUENCY = MONTHLY START_TIMESTAMP = IMMEDIATELY
+  TRIGGERS ON 80 PERCENT DO NOTIFY ON 100 PERCENT DO SUSPEND_IMMEDIATE;
+
+CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
+  WAREHOUSE_SIZE = 'XSMALL' AUTO_SUSPEND = 60 AUTO_RESUME = TRUE
+  INITIALLY_SUSPENDED = TRUE STATEMENT_TIMEOUT_IN_SECONDS = 1800
+  RESOURCE_MONITOR = kopiku_monthly_guardrail;
+```
+
+> 🛠 **Try it (15 min, terminal, optional if you installed `bq`).** Run the two `--dry_run` commands above on `usa_1910_current`, then run the `WHERE state = "CA"` query twice in a row and inspect `INFORMATION_SCHEMA.JOBS_BY_USER`.
 >
-> **You should see:** each dry run prints how many bytes the query would process, and `SELECT *` is several times larger than the one-column query, because BigQuery stores each column separately and bills only the columns a query reads (lesson 2). The exact numbers will be added here once they have been measured on a real account.
+> **You should see:** each dry run prints the bytes it would process, and `SELECT *` is several times the one-column query. The first real run of the `CA` query shows `cache_hit = false`; the identical second run is answered from the result cache, with `cache_hit = true` and `total_bytes_billed = 0` (lesson 4's `ResultCache`, on a real warehouse). Write down your byte counts and timings; no measured values are given here yet.
 
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.

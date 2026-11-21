@@ -1223,3 +1223,133 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
 .settings-state { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .settings-row[aria-checked="true"] .settings-state { color: var(--blue); }
 @media (max-width: 600px) { .settings-menu { position: fixed; top: 60px; right: 12px; left: auto; } }
+
+/* ===== Interactive Step-by-Step Lesson Animations & Decluttered Focus Mode ===== */
+.lesson-anim-card {
+  margin: 14px 0 18px;
+  border: 1.5px solid var(--border-strong);
+  border-left: 4px solid var(--blue);
+  border-radius: 12px;
+  background: var(--card-subtle);
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+.anim-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.anim-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.anim-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.anim-step-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.anim-step-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--card);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  transition: all 0.15s ease;
+}
+.anim-step-dot:hover {
+  border-color: var(--blue);
+  color: var(--text);
+}
+.anim-step-dot.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--on-accent);
+  transform: scale(1.06);
+}
+.anim-narrative {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.anim-narrative strong {
+  color: var(--blue);
+  display: block;
+  margin-bottom: 2px;
+}
+.lesson-anim-card .diagram {
+  margin: 0;
+  background: var(--card);
+}
+@keyframes anim-pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(2, 132, 199, 0)); }
+  50% { filter: drop-shadow(0 0 6px rgba(2, 132, 199, 0.42)); }
+}
+.diagram .anim-pulse {
+  stroke-width: 2px;
+  animation: anim-pulse-glow 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram .anim-pulse { animation: none; }
+}
+
+/* Focus / Zen Reading Mode & Mobile Compact Module Switcher */
+.split.is-focus-mode {
+  grid-template-columns: 1fr;
+  max-width: 880px;
+  margin: 0 auto;
+}
+.split.is-focus-mode > aside {
+  display: none;
+}
+.mobile-mod-picker {
+  display: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--card-subtle);
+  padding: 8px 12px;
+}
+.mobile-mod-picker > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mobile-mod-picker > summary::-webkit-details-marker { display: none; }
+.mobile-mod-picker > summary::after { content: "▾"; color: var(--text-muted); }
+.mobile-mod-picker[open] > summary::after { content: "▴"; }
+@media (max-width: 920px) {
+  .mobile-mod-picker { display: block; }
+}
+.context-drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}

@@ -62,6 +62,9 @@ class DataForgeApp {
     this.savedTips = readStore("df_saved_tips", []) || [];
     this.activeCareerPath = readStore("df_career_path", "all") || "all";
     this.quizMode = readStore("df_quiz_mode", "uxcel") || "uxcel";
+    this.focusMode = Boolean(readStore("df_focus_mode", false));
+    this.animState = {};
+    this._animTimers = {};
     this.uxcelQuizState = {};
     this.duelState = { open: false, round: 0, score: 0, answers: [], startedAt: 0, finished: false };
     this.soundEnabled = readStore("df_sound", true) !== false;
@@ -345,6 +348,7 @@ class DataForgeApp {
 
   // ---------- routing ----------
   readHash(focusMain) {
+    this.stopAllAnims();
     const parts = (location.hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
     const view = VIEWS.includes(parts[0]) ? parts[0] : (readStore("df_visited", false) ? "roadmap" : "start");
     writeStore("df_visited", true);
@@ -1350,7 +1354,138 @@ class DataForgeApp {
     return bestIdx;
   }
 
-  // ---------- Interactive Mental-Model Simulators (Idea #1) ----------
+  // ---------- Interactive Mental-Model Simulators & Step-by-Step Lesson Animations ----------
+  toggleFocusMode() {
+    this.focusMode = !this.focusMode;
+    writeStore("df_focus_mode", this.focusMode);
+    this.renderView();
+  }
+
+  stopAllAnims() {
+    if (!this._animTimers) return;
+    for (const k of Object.keys(this._animTimers)) {
+      clearInterval(this._animTimers[k]);
+      delete this._animTimers[k];
+      if (this.animState && this.animState[k]) this.animState[k].playing = false;
+    }
+  }
+
+  getAnimsForLesson(modId, lessonIdx) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    return list.filter((a) => (a.placements || []).some((p) => p.modId === modId && p.lessonIdx === lessonIdx));
+  }
+
+  ensureAnimState(anim) {
+    if (!this.animState[anim.id]) {
+      this.animState[anim.id] = {
+        step: 0,
+        mode: (anim.modes && anim.modes[0] && anim.modes[0].id) || "default",
+        playing: false
+      };
+    }
+    return this.animState[anim.id];
+  }
+
+  renderLessonAnimationInner(anim) {
+    const st = this.ensureAnimState(anim);
+    const total = anim.frames.length;
+    const frame = anim.frames[st.step] || anim.frames[0];
+    const svgHtml = anim.renderSvg(st.step, st.mode, (idTxt, enTxt) => this.l(idTxt, enTxt));
+    return `
+      <div class="anim-head">
+        <div class="anim-title">🎬 ${this.esc(this.t(anim.title))}</div>
+        <div class="segmented">
+          ${(anim.modes || []).map((m) => `
+            <button class="${st.mode === m.id ? "active" : ""}" onclick="app.setAnimMode('${anim.id}','${m.id}')">${this.esc(this.t(m.label))}</button>`).join("")}
+        </div>
+      </div>
+      ${svgHtml}
+      <div class="anim-narrative" aria-live="polite">
+        <strong>${this.esc(this.t(frame.title))} (${st.step + 1}/${total})</strong>
+        <span>${this.esc(this.t(frame.desc))}</span>
+      </div>
+      <div class="anim-controls">
+        <div class="row" style="gap:6px">
+          <button class="btn btn-sm ${st.playing ? "btn-done" : "btn-primary"}" onclick="app.togglePlayAnim('${anim.id}')">
+            ${st.playing ? "⏸ " + this.l("Jeda", "Pause") : "▶ " + this.l("Putar Otomatis", "Play Steps")}
+          </button>
+          <button class="btn btn-sm btn-quiet" onclick="app.stepAnim('${anim.id}', -1)" title="${this.l("Langkah sebelumnya", "Previous step")}">⏮ ${this.l("Mundur", "Prev")}</button>
+          <button class="btn btn-sm btn-quiet" onclick="app.stepAnim('${anim.id}', 1)" title="${this.l("Langkah berikutnya", "Next step")}">${this.l("Maju", "Next")} ⏭</button>
+        </div>
+        <div class="anim-step-dots" role="tablist" aria-label="${this.l("Pilih langkah animasi", "Select animation step")}">
+          ${anim.frames.map((f, idx) => `
+            <button role="tab" aria-selected="${st.step === idx}" class="anim-step-dot ${st.step === idx ? "active" : ""}" onclick="app.jumpAnimStep('${anim.id}', ${idx})" title="${this.esc(this.t(f.title))}">${idx + 1}</button>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  renderLessonAnimation(anim) {
+    return `<div class="lesson-anim-card" id="anim-box-${anim.id}">${this.renderLessonAnimationInner(anim)}</div>`;
+  }
+
+  updateAnimDom(animId) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    const anim = list.find((a) => a.id === animId);
+    if (!anim) return;
+    const box = document.getElementById(`anim-box-${animId}`);
+    if (box) box.innerHTML = this.renderLessonAnimationInner(anim);
+    else this.renderView();
+  }
+
+  stepAnim(animId, delta) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    const anim = list.find((a) => a.id === animId);
+    if (!anim) return;
+    const st = this.ensureAnimState(anim);
+    st.step = (st.step + delta + anim.frames.length) % anim.frames.length;
+    this.updateAnimDom(animId);
+  }
+
+  jumpAnimStep(animId, idx) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    const anim = list.find((a) => a.id === animId);
+    if (!anim) return;
+    const st = this.ensureAnimState(anim);
+    st.step = Math.max(0, Math.min(anim.frames.length - 1, idx));
+    this.updateAnimDom(animId);
+  }
+
+  setAnimMode(animId, modeId) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    const anim = list.find((a) => a.id === animId);
+    if (!anim) return;
+    const st = this.ensureAnimState(anim);
+    st.mode = modeId;
+    this.updateAnimDom(animId);
+  }
+
+  togglePlayAnim(animId) {
+    const list = (window.LESSON_ANIMATIONS && Array.isArray(window.LESSON_ANIMATIONS)) ? window.LESSON_ANIMATIONS : [];
+    const anim = list.find((a) => a.id === animId);
+    if (!anim) return;
+    const st = this.ensureAnimState(anim);
+    if (st.playing) {
+      st.playing = false;
+      clearInterval(this._animTimers[animId]);
+      delete this._animTimers[animId];
+      this.updateAnimDom(animId);
+      return;
+    }
+    st.playing = true;
+    this.updateAnimDom(animId);
+    this._animTimers[animId] = setInterval(() => {
+      const box = document.getElementById(`anim-box-${animId}`);
+      if (!box) {
+        clearInterval(this._animTimers[animId]);
+        delete this._animTimers[animId];
+        st.playing = false;
+        return;
+      }
+      st.step = (st.step + 1) % anim.frames.length;
+      this.updateAnimDom(animId);
+    }, 2400);
+  }
+
   updateSim(key, val) {
     this.simState[key] = val;
     this.renderView();
@@ -2299,7 +2434,7 @@ class DataForgeApp {
     const noteText = this.moduleNotes[mod.id] || "";
 
     return `
-      <div class="split">
+      <div class="split ${this.focusMode ? "is-focus-mode" : ""}">
         <aside class="stack-sm">
           <div class="level-nav-grid" role="tablist" aria-label="${this.l("Pilih Level", "Select Level")}">
             ${activeLevels.map((lvl, idx) => {
@@ -2341,9 +2476,33 @@ class DataForgeApp {
 
         <section class="stack">
           <div class="card stack-sm">
+            <!-- Mobile/Tablet Compact Module Switcher (hidden on desktop) -->
+            <details class="mobile-mod-picker no-print">
+              <summary>
+                <span>📚 ${this.esc(this.t(level.badge))} · <strong>${mod.number} ${this.esc(this.t(mod.title))}</strong></span>
+                <span class="small muted">${this.l("Ganti modul", "Switch module")}</span>
+              </summary>
+              <div class="stack-sm" style="margin-top:10px">
+                <div class="row" style="gap:4px;flex-wrap:wrap">
+                  ${activeLevels.map((lvl, idx) => `
+                    <button class="btn btn-sm ${lvl.levelId === level.levelId ? "btn-primary" : "btn-quiet"}" onclick="app.go('curriculum','${lvl.modules[0].id}')">L${idx}: ${this.esc(this.t(lvl.badge))}</button>`).join("")}
+                </div>
+                <div class="stack-sm" style="max-height:240px;overflow-y:auto;padding-top:4px">
+                  ${level.modules.map((m) => `
+                    <button class="btn btn-sm ${m.id === mod.id ? "btn-primary" : "btn-quiet"}" style="justify-content:space-between;width:100%" onclick="app.go('curriculum','${m.id}')">
+                      <span>${m.number} ${this.esc(this.t(m.title))}</span>
+                      <span>${this.completedModules.includes(m.id) ? "✓" : `${(this.lessonsDone[m.id] || []).length}/${(m.lessons || []).length}`}</span>
+                    </button>`).join("")}
+                </div>
+              </div>
+            </details>
+
             <div class="row between">
               <span class="muted small">${this.esc(this.t(level.badge))} · ${this.esc(this.t(mod.duration))} · ~${this.readingMinutes(mod)} ${this.l("menit baca", "min read")}</span>
               <div class="row">
+                <button class="btn btn-sm ${this.focusMode ? "btn-done" : "btn-quiet"}" onclick="app.toggleFocusMode()" title="${this.l("Sembunyikan daftar modul di kiri agar fokus membaca", "Hide the left module sidebar for distraction-free reading")}">
+                  🎯 ${this.focusMode ? this.l("Keluar Mode Fokus", "Exit Focus Mode") : this.l("Mode Fokus", "Focus Mode")}
+                </button>
                 ${hasProof ? `<span class="state-done" title="${this.l("Bukti lab terverifikasi", "Lab proof verified")}">✓ ${this.l("Bukti lab", "Lab proof")}</span>` : ""}
                 <button class="btn btn-sm ${done ? "btn-done" : "btn-quiet"}" onclick="app.toggleModuleCompletion('${mod.id}')">${done ? t.btnMarkedComplete : t.btnMarkComplete}</button>
               </div>
@@ -2351,7 +2510,7 @@ class DataForgeApp {
             <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
             <p class="muted">${this.esc(this.t(mod.summary))}</p>
             ${mod.idPending && this.lang === "id" ? `<div class="callout"><p>Modul ini belum diterjemahkan ke bahasa Indonesia, jadi ditampilkan dalam bahasa Inggris.</p></div>` : ""}
-            <details class="callout neutral fold-callout" ${readCount === 0 ? "open" : ""}>
+            <details class="callout neutral fold-callout" ${readCount === 0 && !this.focusMode ? "open" : ""}>
               <summary class="label">${t.whyTutorialsLieHeader}</summary>
               <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
             </details>
@@ -2475,19 +2634,20 @@ class DataForgeApp {
         </div>`;
         })() : ""}
 
-        <details class="callout fold-callout" ${readCount === 0 ? "open" : ""}>
-          <summary class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}${readCount === 0 ? "" : ` · ${this.l("prasyarat dan waktu baca", "prerequisites and reading time")}`}</summary>
-          <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>
-          ${prereqText ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(prereqText)}</p>` : ""}
-          <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
-          ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
-        </details>
+        <div class="context-drawer-grid">
+          <details class="callout fold-callout" ${readCount === 0 && !this.focusMode ? "open" : ""}>
+            <summary class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</summary>
+            <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>
+            ${prereqText ? `<p class="small muted" style="margin-top:8px"><strong>${this.l("Prasyarat", "Prerequisites")}:</strong> ${this.inline(prereqText)}</p>` : ""}
+            <p class="small muted" style="margin-top:6px">${this.l("Waktu baca", "Reading time")}: ~${this.readingMinutes(mod)} ${this.l("menit", "min")}</p>
+            ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
+          </details>
 
-        ${readCount === 0 && mod.id !== "mod-0-0" ? this.renderLifecycleDiagram(mod.id) : `
-        <details class="callout neutral fold-callout">
-          <summary class="label">${this.l("Posisi modul ini di siklus hidup data engineering", "Where this module sits in the data engineering lifecycle")}</summary>
-          ${this.renderLifecycleDiagram(mod.id)}
-        </details>`}
+          <details class="callout neutral fold-callout" ${readCount === 0 && mod.id === "mod-0-1" && !this.focusMode ? "open" : ""}>
+            <summary class="label">📐 ${this.l("Posisi di siklus hidup data engineering", "Position in the data engineering lifecycle")}</summary>
+            ${this.renderLifecycleDiagram(mod.id)}
+          </details>
+        </div>
         ${this.renderModuleSimulator(mod.id)}
 
         <div class="well stack-sm" id="module-toc">
@@ -2511,11 +2671,13 @@ class DataForgeApp {
               const bodyTxt = this.lessonBody(ls);
               const hasTryIt = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/m.test(bodyTxt);
               const hasPause = /^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))/m.test(bodyTxt);
+              const hasAnim = this.getAnimsForLesson(mod.id, i).length > 0;
               return `
                 <div class="toc-item ${isRead ? "is-read" : ""}">
                   <button class="toc-check ${isRead ? "checked" : ""}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)" title="${isRead ? this.l("Batal tandai selesai", "Mark unread") : this.l("Tandai sudah dipahami", "Mark as understood")}" aria-label="${this.l("Tandai selesai", "Toggle lesson completion")}">✓</button>
                   <button class="toc-link" onclick="app.scrollToLesson(${i})"><strong>${i + 1}.</strong> ${this.esc(this.t(ls.title))}</button>
                   <div class="toc-meta">
+                    ${hasAnim ? `<span class="micro-badge info" title="${this.l("Dilengkapi animasi konsep interaktif", "Includes interactive step-by-step concept animation")}">🎬 ${this.l("Animasi", "Anim")}</span>` : ""}
                     ${hasTryIt ? `<span class="micro-badge ok" title="${this.l("Memiliki latihan praktik Try It", "Includes hands-on Try It exercise")}">🛠 Try It</span>` : ""}
                     ${hasPause ? `<span class="micro-badge info" title="${this.l("Memiliki Jeda Praktik Lab", "Includes Lab Practice Pause")}">💡 Lab</span>` : ""}
                     <span>~${this.lessonMinutes(ls)}m</span>
@@ -2535,6 +2697,7 @@ class DataForgeApp {
           const isRead = this.isLessonDone(mod.id, i);
           const mins = this.lessonMinutes(ls);
           const isLast = i === mod.lessons.length - 1;
+          const lessonAnims = this.getAnimsForLesson(mod.id, i);
           return `
             <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
               <div class="lesson-head">
@@ -2549,6 +2712,7 @@ class DataForgeApp {
                   </button>
                 </div>
               </div>
+              ${lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("")}
               ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
               <div class="lesson-foot">
                 <button class="btn btn-sm ${isRead ? "btn-done" : "btn-primary"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, ${!isRead && !isLast})">

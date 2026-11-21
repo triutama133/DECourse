@@ -385,3 +385,96 @@ def ex_2_6_1(ctx):
                _strangler_oracle(hidden_orders, hidden_legacy, "2026-03-04"), _strangler_canon,
                "hidden data (untidy status text, a day with only cancelled orders, a day only the legacy system has, negative, zero and exactly 200000 LTV) gives the right three outputs",
                "normalise status, keep every order date (even at 0), compare every date either side has, send only customers with LTV above 0, and VIP starts at 200000")
+
+
+# ------------------------------------------------------------------------------------------------------------ 3.4-1
+@exercise(
+    "3.4-1",
+    "declarative IaC drift planner, VPC CIDR & egress cost auditor, and synchronous chain SLA/RPO calculator",
+    ["cloud_architect.py"],
+    [
+        "Collect every resource name from both sides, in sorted order. For each name, ask three questions: is it missing from what exists, missing from what you want, or present in both but different?",
+        "Python's ipaddress module can split a network into smaller ones and tell you how many addresses each holds; lesson 3 says how many of those AWS keeps for itself. With data spread evenly over several zones, think about which share of the traffic stays in a node's own zone.",
+        "Availabilities of services that must all answer multiply. Downtime is the share of the month that is missing. To compare a backup interval with an RPO, put both in the same unit first.",
+    ],
+)
+def ex_3_4_1(ctx):
+    if not ctx.need_files(["cloud_architect.py"]):
+        return
+    try:
+        mod = load_module(ctx, "cloud_architect.py", "user_cloud_arch")
+    except Exception as e:
+        ctx.fail("cloud_architect.py imports cleanly", str(e))
+        return
+
+    fn_plan = getattr(mod, "plan_iac_diff", None)
+    fn_vpc = getattr(mod, "audit_vpc_and_egress", None)
+    fn_sla = getattr(mod, "chain_sla_and_rpo", None)
+    if not (callable(fn_plan) and callable(fn_vpc) and callable(fn_sla)):
+        ctx.fail("plan_iac_diff, audit_vpc_and_egress, and chain_sla_and_rpo exist in cloud_architect.py")
+        return
+
+    desired = {
+        "raw-bucket": {"encryption": True, "versioning": True},
+        "curated-bucket": {"encryption": True, "versioning": False},
+        "etl-role": {"policy": "read-raw"},
+    }
+    actual = {
+        "raw-bucket": {"encryption": False, "versioning": True},
+        "old-bucket": {"encryption": True},
+        "etl-role": {"policy": "read-raw"},
+    }
+    try:
+        diff1 = fn_plan(desired, actual)
+        diff2 = fn_plan(desired, desired)
+    except Exception as e:
+        ctx.fail("plan_iac_diff executes without error", str(e))
+        return
+
+    ctx.check(
+        list(diff1) == [("create", "curated-bucket"), ("destroy", "old-bucket"), ("update", "raw-bucket")] and list(diff2) == [],
+        "plan_iac_diff returns sorted [('create', 'curated-bucket'), ('destroy', 'old-bucket'), ('update', 'raw-bucket')] and [] when idempotent",
+        f"got diff1={diff1}, diff2={diff2}",
+    )
+
+    try:
+        v1 = fn_vpc("10.0.0.0/16", 20, 20000, 3, 5000, False)
+        v2 = fn_vpc("10.0.0.0/16", 24, 20000, 1, 5000, True)
+    except Exception as e:
+        ctx.fail("audit_vpc_and_egress executes without error", str(e))
+        return
+
+    ctx.check(
+        isinstance(v1, dict) and v1.get("num_subnets") == 16 and v1.get("usable_ips_per_subnet") == 4091,
+        "audit_vpc_and_egress splits 10.0.0.0/16 into 16 /20 subnets with 4091 usable AWS IPs each (5 reserved)",
+        f"got v1={v1}",
+    )
+    ctx.check(
+        isinstance(v1, dict) and v1.get("monthly_cross_az_usd") == 8000.0 and v1.get("monthly_nat_s3_usd") == 6750.0 and v1.get("monthly_endpoint_savings_usd") == 6750.0,
+        "audit_vpc_and_egress computes 30-day cross-AZ shuffle cost ($8000.0) and NAT gateway S3 fee ($6750.0)",
+        f"got v1={v1}",
+    )
+    ctx.check(
+        isinstance(v2, dict) and v2.get("num_subnets") == 256 and v2.get("usable_ips_per_subnet") == 251 and v2.get("monthly_cross_az_usd") == 0.0 and v2.get("monthly_nat_s3_usd") == 0.0 and v2.get("monthly_endpoint_savings_usd") == 6750.0,
+        "audit_vpc_and_egress handles single-AZ shuffle ($0.0) and active S3 Gateway Endpoint ($0.0 NAT fee, $6750.0 saved)",
+        f"got v2={v2}",
+    )
+
+    try:
+        s1 = fn_sla(3, 0.999, 6, 15)
+        s2 = fn_sla(5, 0.999, 0.25, 15)
+    except Exception as e:
+        ctx.fail("chain_sla_and_rpo executes without error", str(e))
+        return
+
+    ctx.check(
+        isinstance(s1, dict) and s1.get("combined_sla") == 0.997003 and s1.get("monthly_downtime_min") == 129.5 and s1.get("needs_continuous_cdc") is True,
+        "chain_sla_and_rpo computes 3-service chain SLA (0.997003 -> 129.5 min downtime/mo) and flags 6h backup > 15m RPO as requiring CDC",
+        f"got s1={s1}",
+    )
+    ctx.check(
+        isinstance(s2, dict) and s2.get("combined_sla") == 0.99501 and s2.get("monthly_downtime_min") == 215.6 and s2.get("needs_continuous_cdc") is False,
+        "chain_sla_and_rpo computes 5-service chain SLA (0.99501 -> 215.6 min downtime/mo) and 15m backup meeting 15m RPO",
+        f"got s2={s2}",
+    )
+
