@@ -169,7 +169,7 @@ Aturan praktis: CSV dan JSON untuk *pertukaran* (manusia dan sistem lain mengiri
 > 1. Kerjakan `parse_total(raw)`: bersihkan "Rp" dan titik, ubah ke integer Rupiah, dan return `None` jika teks rusak/kosong.
 > 2. Kerjakan `parse_ts(raw)`: terima kedua format timestamp dan ubah menjadi teks ISO "YYYY-MM-DDTHH:MM:SS" atau `None`.
 > Uji kedua parser di terminal:
-> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> `python3 labs/mod-0-1/test_lab.py -v -k TestParsers`
 > Jika 2 tes parser PASSED, Anda siap melangkah ke aturan pembersihan defensif di Pelajaran 6.
 
 ## @lesson Cara kerja kursus ini, dan data KopiKu
@@ -192,7 +192,7 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 > 1. Kerjakan `clean_orders(rows)`: pisahkan data menjadi `clean` dan `rejected` (dengan mencatat `reason` untuk setiap baris yang dibuang). Tangani duplikat order_id dengan mempertahankan baris pertama.
 > 2. Kerjakan `daily_revenue(clean)`: hitung total omset per tanggal `YYYY-MM-DD` dengan mengabaikan status cancelled dan refunded.
 > Jalankan seluruh pengujian di terminal:
-> `pytest labs/mod-0-1/test_lab.py -v`
+> `python3 labs/mod-0-1/test_lab.py -v`
 > Setelah semua 8 tes HIJAU, jalankan pipeline pada data riil:
 > `python3 labs/mod-0-1/pipeline.py data/orders.csv`
 > Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!

@@ -21,7 +21,7 @@ None. You do not need to have written code before, and it does not matter if ear
 > The code file `labs/mod-0-0/basics.py` is a **source code text document**, NOT a shell terminal command!
 > - **Do NOT** type `labs/mod-0-0/basics.py` directly into your bash terminal (this will trigger `Permission denied` or `command not found` errors!).
 > - **Open in editor:** Click the file name in your editor's sidebar (VS Code / Cursor), or type `code labs/mod-0-0/basics.py`, or edit directly in the browser editor on the Lab tab.
-> - **Terminal is only for tests:** Use the terminal to run automated test commands (`pytest labs/mod-0-0/test_lab.py -v`).
+> - **Running the tests before Module 0.2:** use the **Browser preview** on the Lab tab. Write each function there and click **Run tests**; nothing needs to be installed. The `pytest ...` command under each pause is for later: Module 0.2 sets up Python, a venv and pytest on your computer, and then you repeat this lab there, which is the run that counts.
 > - **Ping-Pong Study Rhythm:** Do not read the entire chapter before coding! Follow the **👉 Practice Pause** callouts at the end of each lesson to implement functions step by step.
 
 ## @lesson How a program runs: values, variables and types
@@ -54,10 +54,10 @@ Two traps to learn now. First, money must be an `int` in the smallest unit, beca
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
 
 > 💡 **Practice Pause 1 (Try It Now):**
-> Do not read the next section yet! Open your working file `labs/mod-0-0/basics.py` in your text editor (click the file in your editor's sidebar or type `code labs/mod-0-0/basics.py`).
-> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then test it in your terminal:
+> Do not read the next section yet! Open the **Browser preview** on the Lab tab (after Module 0.2: the file `labs/mod-0-0/basics.py` in your own editor).
+> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected: this step is done when no `FAILED` line names `TestFormatRupiah`. In your own terminal after Module 0.2, the same check is:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> If all 4 tests turn green, congratulations! You have implemented your first function. Proceed to Lesson 2 below.
+> When `TestFormatRupiah` has gone from the failures, you have written your first working function. Go on to Lesson 2.
 
 ## @lesson Collections: one value is never enough
 One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
@@ -84,10 +84,10 @@ A real data file is therefore usually **a list of dictionaries**: the list is th
 One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
 > 💡 **Practice Pause 2 (Try It Now):**
-> Switch back to `labs/mod-0-0/basics.py` in your editor. Apply the dictionary and set concepts you just learned:
+> Go back to `basics.py` (the preview box, or your editor after Module 0.2). Apply the dictionary and set concepts you just learned:
 > 1. Implement `count_by_status(orders)` using the dict counting pattern `counts[status] = counts.get(status, 0) + 1`.
 > 2. Implement `unique_customer_ids(orders)` using `set` and `sorted()`.
-> Test both functions in your terminal:
+> Click **Run tests** and check that no `FAILED` line names `TestCountByStatus` or `TestUniqueCustomerIds` (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Decisions: if, elif, else
@@ -114,7 +114,7 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
 
 > 💡 **Practice Pause 3 (Try It Now):**
-> Open `labs/mod-0-0/basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then test it in your terminal:
+> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then click **Run tests** and look for `TestAverageTotal` in the failures (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Repetition: for, while and comprehensions
@@ -147,7 +147,7 @@ A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`
 > 1. Implement `total_revenue(orders)` to sum uncancelled orders.
 > 2. Implement `batches(items, size)` using a `range(0, len(items), size)` loop.
 > 3. Implement `top_customers(orders, n)` using `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Test in your terminal:
+> Click **Run tests**; none of the three groups should appear in the failures (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Functions: def, parameters and return
@@ -210,7 +210,7 @@ A bad row from a customer is *expected* data, so you handle it (put it aside wit
 > 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
 > 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
 > 3. Implement `split_valid(orders)` using your `safe_int` function.
-> Test in your terminal:
+> Click **Run tests**; none of the three groups should appear in the failures (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson Files, imports and running a script
@@ -239,10 +239,10 @@ Python sets the special name `__name__` to `"__main__"` only when the file is *r
 Paths: use `pathlib.Path("data") / "orders.csv"` instead of gluing strings, and remember that a relative path is relative to the folder you started Python in, which is the usual reason for `FileNotFoundError`.
 
 > 💡 **Practice Pause 6 (Complete the Entire Lab):**
-> Open `labs/mod-0-0/basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
-> Now, run the full suite of 31 unit tests in your terminal:
+> In `basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
+> Click **Run tests** once more: the preview should now report all 31 passing. After Module 0.2 you write the lab again on your own computer and run all 31 there:
 > `pytest labs/mod-0-0/test_lab.py -v`
-> If all 31 tests are GREEN, your entire Python foundation is proven to work!
+> The preview shows your logic works; the run on your own computer is the one that counts.
 
 ## @lesson Putting it together, and how to debug
 You now have every piece of a tiny pipeline: read the file (lesson 7), loop over the rows (4), decide what is valid (3), set the bad ones aside (6), count with a dict (2), wrap each step in a function (5). Here it is as a plan you can read like a story:

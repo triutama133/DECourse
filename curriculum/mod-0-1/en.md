@@ -169,7 +169,7 @@ A rule of thumb: CSV and JSON are for *exchange* (humans and other systems send 
 > 1. Implement `parse_total(raw)`: strip "Rp" and dots, convert to an integer, and return `None` if unreadable or empty.
 > 2. Implement `parse_ts(raw)`: accept both timestamp formats and return ISO text "YYYY-MM-DDTHH:MM:SS" or `None`.
 > Test both parsers in your terminal:
-> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> `python3 labs/mod-0-1/test_lab.py -v -k TestParsers`
 > When both parser tests show PASSED, you are ready for defensive cleaning rules in Lesson 6.
 
 ## @lesson How this course works, and the KopiKu data
@@ -192,7 +192,7 @@ Two habits will help more than any tool:
 > 1. Implement `clean_orders(rows)`: partition rows into `clean` and `rejected` (recording `reason` for each dropped row). Deduplicate order_ids by keeping the first occurrence.
 > 2. Implement `daily_revenue(clean)`: sum revenue per date `YYYY-MM-DD`, excluding cancelled and refunded orders.
 > Run the complete test suite in your terminal:
-> `pytest labs/mod-0-1/test_lab.py -v`
+> `python3 labs/mod-0-1/test_lab.py -v`
 > Once all 8 tests are GREEN, run the pipeline against the real dataset:
 > `python3 labs/mod-0-1/pipeline.py data/orders.csv`
 > Congratulations! You have built your first defensive data cleaning pipeline!

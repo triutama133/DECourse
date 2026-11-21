@@ -21,7 +21,7 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 > File kode `labs/mod-0-0/basics.py` adalah **file dokumen teks kode sumber**, bukan perintah shell terminal!
 > - **Jangan** mengetik `labs/mod-0-0/basics.py` langsung di terminal bash (akan memicu error `Permission denied` atau `command not found`!).
 > - **Buka di editor:** Klik nama file di sidebar editor (VS Code / Cursor), atau ketik `code labs/mod-0-0/basics.py`, atau edit langsung di kotak browser pada tab Lab.
-> - **Terminal hanya untuk tes:** Gunakan terminal untuk menjalankan perintah tes otomatis (`pytest labs/mod-0-0/test_lab.py -v`).
+> - **Menjalankan tes sebelum Modul 0.2:** gunakan **Pratinjau di browser** pada tab Lab. Tulis setiap fungsi di sana lalu klik **Jalankan tes**; tidak ada yang perlu diinstal. Perintah `pytest ...` di bawah setiap jeda untuk nanti: Modul 0.2 menyiapkan Python, venv, dan pytest di komputer Anda, lalu Anda mengulangi lab ini di sana, dan run itulah yang dihitung.
 > - **Ritme Belajar Ping-Pong:** Jangan membaca seluruh bab sampai habis baru mengoding! Ikuti tanda **👉 Jeda Praktik** di akhir setiap pelajaran untuk mencoba fungsi secara bertahap.
 
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
@@ -54,10 +54,10 @@ Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dal
 Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
 
 > 💡 **Jeda Praktik 1 (Coba Sekarang):**
-> Jangan membaca materi berikutnya dulu! Buka file kerja `labs/mod-0-0/basics.py` di Text Editor Anda (klik file di sidebar editor Anda atau ketik `code labs/mod-0-0/basics.py`). 
-> Temukan fungsi `format_rupiah(amount)` (baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu uji di terminal:
+> Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (setelah Modul 0.2: file `labs/mod-0-0/basics.py` di editor Anda sendiri).
+> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar: langkah ini selesai jika tidak ada baris `FAILED` yang menyebut `TestFormatRupiah`. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> Jika 4 tes berhasil hijau, selamat! Anda telah memecahkan fungsi pertama. Lanjut ke Pelajaran 2 di bawah.
+> Jika `TestFormatRupiah` sudah hilang dari daftar kegagalan, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
@@ -84,10 +84,10 @@ Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adala
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
 
 > 💡 **Jeda Praktik 2 (Coba Sekarang):**
-> Buka kembali `labs/mod-0-0/basics.py` di editor Anda. Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
+> Kembali ke `basics.py` (kotak pratinjau, atau editor Anda setelah Modul 0.2). Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
 > 1. Kerjakan `count_by_status(orders)` menggunakan pola penghitungan dict `counts[status] = counts.get(status, 0) + 1`.
 > 2. Kerjakan `unique_customer_ids(orders)` menggunakan `set` dan `sorted()`.
-> Uji kedua fungsi ini di terminal:
+> Klik **Jalankan tes** dan pastikan tidak ada baris `FAILED` yang menyebut `TestCountByStatus` atau `TestUniqueCustomerIds` (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Keputusan: if, elif, else
@@ -114,7 +114,7 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
 
 > 💡 **Jeda Praktik 3 (Coba Sekarang):**
-> Buka `labs/mod-0-0/basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu uji di terminal:
+> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu klik **Jalankan tes** dan cari `TestAverageTotal` di daftar kegagalan (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Pengulangan: for, while, dan comprehension
@@ -147,7 +147,7 @@ Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. P
 > 1. Kerjakan `total_revenue(orders)` untuk menjumlahkan pesanan yang tidak dibatalkan.
 > 2. Kerjakan `batches(items, size)` menggunakan loop `range(0, len(items), size)`.
 > 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Uji di terminal:
+> Klik **Jalankan tes**; tidak satu pun dari tiga kelompok itu boleh muncul di daftar kegagalan (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Fungsi: def, parameter, dan return
@@ -210,7 +210,7 @@ Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (me
 > 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
 > 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
 > 3. Kerjakan `split_valid(orders)` menggunakan fungsi `safe_int` yang Anda buat.
-> Uji di terminal:
+> Klik **Jalankan tes**; tidak satu pun dari tiga kelompok itu boleh muncul di daftar kegagalan (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson File, import, dan menjalankan skrip
@@ -239,10 +239,10 @@ Python mengisi nama khusus `__name__` dengan `"__main__"` hanya saat file *dijal
 Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, dan ingat bahwa path relatif dihitung dari folder tempat Anda memulai Python, yang biasanya jadi sebab `FileNotFoundError`.
 
 > 💡 **Jeda Praktik 6 (Lengkapi Seluruh Lab):**
-> Buka `labs/mod-0-0/basics.py`, kerjakan fungsi terakhir `read_orders(path)` menggunakan `with open(...)` dan `csv.DictReader`.
-> Sekarang, jalankan seluruh rangkaian 31 unit test di terminal:
+> Di `basics.py`, kerjakan fungsi terakhir `read_orders(path)` menggunakan `with open(...)` dan `csv.DictReader`.
+> Klik **Jalankan tes** sekali lagi: pratinjau sekarang seharusnya melaporkan ke-31 tes lulus. Setelah Modul 0.2 Anda menulis ulang lab ini di komputer Anda sendiri dan menjalankan ke-31 tes di sana:
 > `pytest labs/mod-0-0/test_lab.py -v`
-> Jika semua 31 tes berwarna HIJAU, seluruh fondasi Python Anda telah terbukti bekerja!
+> Pratinjau menunjukkan logika Anda benar; run di komputer Anda sendiri itulah yang dihitung.
 
 ## @lesson Menyatukan semuanya, dan cara men-debug
 Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (pelajaran 7), ulangi baris-barisnya (4), putuskan mana yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus tiap langkah dalam fungsi (5). Berikut sebagai rencana yang bisa dibaca seperti cerita:
