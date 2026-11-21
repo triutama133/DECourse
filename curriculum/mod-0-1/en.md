@@ -209,6 +209,31 @@ Two habits will help more than any tool:
 > `python3 labs/mod-0-1/pipeline.py data/orders.csv`
 > Congratulations! You have built your first defensive data cleaning pipeline!
 
+## @part Working with the people who ask
+
+## @lesson Translating stakeholder requests into data contracts and KPI trees
+
+Most broken pipelines do not fail because of a syntax error; they fail because the engineer started writing SQL or Python before agreeing with the business stakeholder on what the data actually means. When a VP of Operations sends a Slack message asking, *"Can you build me a customer service and retention table by Friday?"*, jumping straight into your code editor guarantees rework.
+
+Good data teams start every pipeline with **three short alignment artifacts**, agreed with the person who asked, before a single table is created. *Fundamentals of Data Engineering* puts the same idea at the start of the lifecycle: first find out who the stakeholders are and what they will do with the data (Lesson 3 of this module).
+
+| Artifact | Question It Answers | Concrete KopiKu Example |
+|---|---|---|
+| **1. Stakeholder Requirements Spec** | Who is the decision-maker, what concrete action will they take when the number changes, and what freshness SLA do they actually need? | **Owner:** Head of Café Operations.<br/>**Action:** Reallocate morning baristas and trigger win-back vouchers when a store's repeat-order rate drops.<br/>**Freshness SLA:** Daily by `06:00 WIB` (batch ELT; a 10× more expensive Kafka stream is unnecessary). |
+| **2. Leading vs. Lagging KPI Tree** | Which metrics measure past outcomes (*lagging*) versus early warning signals we can still influence (*leading*)? | **Lagging KPI:** Monthly Customer Churn Rate (`% of customers with 0 orders in 30 days`).<br/>**Leading KPIs:** `% of orders delayed > 15 min` and `Repeat complaints within 24 hours` (they move before churn does, so the team can still act). |
+| **3. Target Table Grain & RACI Contract** | What does **one row** represent, what is the primary key, and who is **R**esponsible, **A**ccountable, **C**onsulted, and **I**nformed when upstream schemas change? | **Target Table:** `mart_daily_store_retention`<br/>**Grain:** One row per `(store_id, order_date)`.<br/>**Net Revenue Formula:** `SUM(gross_idr - discount_idr - tax_idr)` where `status IN ('paid', 'shipped', 'delivered')`. |
+
+**The Five-Question Intake Checklist.** Before you accept any data ticket in your first 90 days on the job, ask:
+1. **Decision:** *"If this metric goes up or down by 20% tomorrow morning, what specific action will your team take?"* (If the answer is *"nothing, it's just nice to see"*, deprioritize it.)
+2. **Grain:** *"In the final table or chart, what is one row—one order line, one order, one customer per day, or one store per month?"*
+3. **Inclusions & Edge Cases:** *"Do we include refunded, cancelled, or Rp 0 voucher orders? Which timezone defines the day boundary (`UTC` or `Asia/Jakarta UTC+7`)?"*
+4. **Freshness vs. Cost:** *"Is yesterday's data at 06:00 AM sufficient, or is there an automated system acting on this within 60 seconds?"*
+5. **Leading vs. Lagging:** *"Are we only measuring the autopsy at the end of the quarter (lagging), or are we tracking the operational cause today (leading)?"*
+
+> 🛠 **Try it (10 min, paper).** A Marketing Director writes: *"Can I get a table of our best customers and their revenue?"* Before reading on, write down every question you would need answered before you could write the SQL, then ask the five intake questions above of this request. Group your questions by the three artifacts: requirements, KPI and grain.
+>
+> **You should see:** at least three ambiguities. The usual ones: what "best" means (gross spend, net revenue after discounts and refunds, or how often they order), over what time window (lifetime, the last 90 days, this month), and at what grain (one row per customer, or one row per customer per month). Good answers also ask which statuses count as revenue and what Marketing will *do* with the list: a win-back campaign needs different customers from a VIP gift.
+
 ## @lab Lab: clean the KopiKu orders file
 You have a file of order rows with the problems described above. Write four small functions that turn it into trustworthy data and compute daily revenue. This is a miniature version of what every pipeline does: read, validate, normalise, quarantine what you cannot trust, then compute.
 

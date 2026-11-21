@@ -284,6 +284,68 @@ Alur kerja profesional yang sehat: kembangkan fitur di skema pribadi lokal, buka
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Indikator Sukses:** `OK snapshotted snapshots.customers_snapshot`, siap mendeteksi perubahan domisili kota dan tier pelanggan ketika data batch kedua dimuat.
 
+## @lesson dbt produksi di cloud warehouse: strategi inkremental, unit test, kontrak model, dan Slim CI
+
+Pada hari pertama Anda bergabung dengan tim Analytics Engineering atau Data Engineering modern, Anda jarang menjalankan `dbt build` pada file lokal kecil; Anda akan membuka repositori dbt berisi 300 model yang terhubung ke **BigQuery, Snowflake, atau Databricks**. Empat praktik dbt produksi ini mencegah pembengkakan tagihan cloud dan rusaknya tabel mart hilir:
+
+**1. Strategi Inkremental Spesifik Cloud (`merge` vs. `insert_overwrite` vs. `delete+insert` vs. `microbatch`).**
+Model inkremental naif dengan `incremental_strategy='merge'` dan `unique_key='order_id'` memaksa BigQuery atau Databricks memindai **seluruh tabel target berukuran multi-terabyte** untuk mencari `order_id` yang cocok—sehingga run yang hanya mengubah tiga hari data ditagih untuk scan seluruh tabel.
+
+| Strategi Inkremental | Cara dbt Mengompilasinya | Warehouse & Kasus Penggunaan Terbaik | Aturan Penghemat Biaya |
+|---|---|---|---|
+| **`merge`** | `MERGE INTO target USING temp ON target.id = temp.id WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT ...` | Snowflake, Databricks, BigQuery saat pembaruan tersebar di ID acak. | **Wajib dipasangkan dengan `incremental_predicates: ["DBT_INTERNAL_DEST.order_date >= date_sub(current_date(), interval 7 day)"]`** agar `MERGE` memangkas partisi target! |
+| **`insert_overwrite`** | Mengganti seluruh partisi tanggal target secara atomik (`INSERT OVERWRITE` / penggantian partisi BigQuery) tanpa pencocokan ID baris demi baris. | **BigQuery & Databricks / Spark** untuk tabel event/pesanan terpartisi dengan jendela lihat-balik (lookback) 3 hari. | **Biasanya jauh lebih murah daripada `merge`** pada tabel besar, karena hanya menukar partisi harian yang berubah dan tidak pernah memindai partisi historis. |
+| **`delete+insert`** | `BEGIN; DELETE FROM target WHERE id IN (...); INSERT INTO target SELECT ...; COMMIT;` | **Redshift & Snowflake** di mana dua langkah hapus-lalu-masukkan lebih cepat daripada join `MERGE` berat. | Pastikan filter `DELETE` menyertakan kolom kunci partisi/sort. |
+| **`microbatch`** *(dbt 1.9+)* | Memecah backfill deret waktu besar secara otomatis menjadi query batch jam/harian independen berdasarkan `event_time`. | Tabel clickstream / telemetri IoT bervolume raksasa di semua cloud warehouse. | Membatasi memori per batch secara otomatis dan memungkinkan retry hanya pada tanggal yang gagal saat backfill 365 hari. |
+
+**2. Kontrak Model Terpaksa (`contract: {enforced: true}`) & Unit Test dbt (`unit_tests:` di dbt 1.8+).**
+Tes skema (`not_null`, `unique`) baru berjalan *setelah* tabel selesai dibangun di atas data riil. **Model Contracts** menolak membangun tabel sejak waktu kompilasi/DDL jika nama atau tipe data kolom melenceng, sementara **dbt Unit Tests** memungkinkan Anda menguji logika bisnis SQL yang rumit (regex, `CASE WHEN`, window function) dalam hitungan detik menggunakan beberapa baris data tiruan (mock) di YAML tanpa memindai data warehouse berukuran terabyte:
+
+```yaml
+version: 2
+
+models:
+  - name: fct_orders
+    config:
+      contract:
+        enforced: true        # Langsung menggagalkan build jika nama atau tipe data kolom berubah!
+    columns:
+      - name: order_id
+        data_type: string
+        constraints:
+          - type: not_null
+      - name: net_revenue_idr
+        data_type: int64
+
+unit_tests:
+  - name: test_net_revenue_excludes_refunded_and_subtracts_tax
+    model: fct_orders
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: 'O-1', status: 'paid',     gross_idr: 100000, discount_idr: 10000, tax_idr: 9000}
+          - {order_id: 'O-2', status: 'refunded', gross_idr: 250000, discount_idr: 0,     tax_idr: 25000}
+    expect:
+      rows:
+        - {order_id: 'O-1', net_revenue_idr: 81000}
+        - {order_id: 'O-2', net_revenue_idr: 0}
+```
+
+**3. "Slim CI" di GitHub Actions (`state:modified+ --defer`).** Saat Anda membuka Pull Request yang mengubah 2 model di dalam proyek berisi 400 model, membangun ulang ke-400 model di CI membuat setiap PR menunggu, dan membayar, build penuh. **Slim CI** mengunduh `manifest.json` produksi terbaru dan hanya menjalankan model yang berubah beserta turunannya (`state:modified+`), sambil secara otomatis mengarahkan seluruh panggilan `ref()` hulu yang tidak berubah ke tabel produksi asli (`--defer`):
+
+```bash
+# Dijalankan di dalam pemeriksaan PR GitHub Actions: hanya membangun & menguji model yang diubah + turunannya!
+dbt build \
+  --select state:modified+ \
+  --defer \
+  --state ./prod-manifest-artifacts \
+  --target ci_pr_${GITHUB_PR_NUMBER}
+```
+
+> 🛠 **Coba sendiri (20 menit, project dbt Lab 2.3 Anda).** Setelah `dbt build` lulus, tambahkan `models/marts/unit_tests.yml` berisi unit test untuk `fct_daily_revenue`: beri `ref('stg_orders')` satu baris (sebuah `order_date` dan `_loaded_at`) dan `ref('fct_order_items')` empat baris pada tanggal itu: dua baris `delivered` dari satu pesanan (50.000 dan 20.000), satu pesanan `cancelled` (90.000), dan satu pesanan `refunded` (40.000). Harapkan satu baris dengan `orders: 1` dan `revenue_idr: 70000`. Jalankan `dbt test --select test_type:unit`. Lalu hapus `'refunded'` dari filter model dan jalankan lagi. Kembalikan filternya sesudahnya.
+>
+> **Seharusnya Anda melihat:** pertama sebuah parsing error, karena modelnya incremental: dbt ingin tahu cabang mana yang diuji, jadi tambahkan `overrides: {macros: {is_incremental: false}}` ke test-nya. Lalu `PASS`. Dengan filter yang rusak, test gagal dan dbt mencetak selisihnya, `orders 1→2` dan `revenue_idr 70000→110000`, tanpa membaca satu baris pun dari data asli Anda. Diukur dengan dbt-core 1.12.7 dan dbt-duckdb 1.11.1.
+
 ## @lab Lab: membangun proyek dbt teruji dengan dua siklus eksekusi
 Anda dibekali database DuckDB berisi tabel-tabel mentah KopiKu (append-only, tidak rapi, dengan duplikasi data) dan proyek dbt dengan konfigurasi sumber yang sudah disiapkan serta kerangka model awal. Tugas Anda adalah melengkapi lapisan staging, data marts, model inkremental, rangkaian tes data, dan dbt snapshot. Unit test lab akan menjalankan perintah `dbt build`, lalu mensimulasikan **muatan data kedua (second load)** yang membawa pesanan baru, pembatalan pesanan masa lalu, dan mutasi pelanggan, kemudian menjalankan build kembali untuk memverifikasi bahwa tabel inkremental Anda menghasilkan angka yang identik dengan kalkulasi ulang penuh.
 

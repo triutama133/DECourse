@@ -478,3 +478,202 @@ def ex_3_4_1(ctx):
         f"got s2={s2}",
     )
 
+
+# ------------------------------------------------------------------------------------------------------------ 1.6-7
+@exercise(
+    "1.6-7",
+    "webhook HMAC-SHA256 signature verification, replay protection, and differential snapshot extraction",
+    ["webhook_diff.py"],
+    [
+        "Sign the exact text the sender signed: the timestamp and the raw body joined by a dot. Lesson 7 says which function compares two signatures safely.",
+        "The order of the checks matters: which rejection reason should an old event get, even if its signature is also wrong? A retry that was already accepted is neither accepted nor rejected again.",
+        "A dict keyed by the primary key turns both snapshots into lookups. Every key is in yesterday's dict, today's dict, or both; for the keys in both, compare the whole row.",
+    ],
+)
+def ex_1_6_7(ctx):
+    if not ctx.need_files(["webhook_diff.py"]):
+        return
+    try:
+        mod = load_module(ctx, "webhook_diff.py", "user_webhook_diff")
+    except Exception as e:
+        ctx.fail("webhook_diff.py imports cleanly", str(e))
+        return
+
+    src = (ctx.work / "webhook_diff.py").read_text(encoding="utf-8")
+    ctx.check(
+        "compare_digest" in src,
+        "signatures are compared in constant time (hmac.compare_digest), not with ==",
+        "== stops at the first differing byte, so its timing leaks how much of a forged signature was right",
+    )
+
+    fn_wh = getattr(mod, "verify_webhook_batch", None)
+    fn_diff = getattr(mod, "compute_snapshot_diff", None)
+    if not (callable(fn_wh) and callable(fn_diff)):
+        ctx.fail("verify_webhook_batch and compute_snapshot_diff exist in webhook_diff.py")
+        return
+
+    import hmac as _hmac
+    secret = "whsec_kopiku_2026"
+    now_ts = 1700000500
+
+    def _sign(ts, body, sec=secret):
+        return "sha256=" + _hmac.new(sec.encode("utf-8"), f"{ts}.{body}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+    b1 = '{"order_id": "O-101", "amount_idr": 55000}'
+    b2 = '{"order_id": "O-102", "amount_idr": 99000}'
+    events = [
+        {"event_id": "evt_1", "timestamp": 1700000450, "body": b1, "signature": _sign(1700000450, b1)},
+        {"event_id": "evt_1", "timestamp": 1700000450, "body": b1, "signature": _sign(1700000450, b1)},  # duplicate retry
+        {"event_id": "evt_2", "timestamp": 1700000100, "body": b2, "signature": _sign(1700000100, b2)},  # stale (>300s)
+        {"event_id": "evt_3", "timestamp": 1700000480, "body": b2, "signature": "sha256=deadbeef"},      # forged signature
+        {"event_id": "evt_4", "timestamp": 1700000490, "body": b2, "signature": _sign(1700000490, b2)},
+    ]
+
+    try:
+        res_wh = fn_wh(events, secret=secret, now_ts=now_ts, tolerance_sec=300)
+    except Exception as e:
+        ctx.fail("verify_webhook_batch runs without error", str(e))
+        return
+
+    ctx.check(
+        isinstance(res_wh, dict) and res_wh.get("accepted") == [{"order_id": "O-101", "amount_idr": 55000}, {"order_id": "O-102", "amount_idr": 99000}],
+        "verify_webhook_batch accepts valid signed webhooks and deduplicates retry event_id 'evt_1'",
+        f"got accepted={res_wh.get('accepted') if isinstance(res_wh, dict) else res_wh}",
+    )
+    ctx.check(
+        isinstance(res_wh, dict) and res_wh.get("rejected") == [
+            {"event_id": "evt_2", "reason": "stale_timestamp"},
+            {"event_id": "evt_3", "reason": "invalid_signature"},
+        ],
+        "verify_webhook_batch rejects replay outside 300s window ('stale_timestamp') and forged HMAC ('invalid_signature')",
+        f"got rejected={res_wh.get('rejected') if isinstance(res_wh, dict) else res_wh}",
+    )
+
+    prev_rows = [
+        {"id": "C1", "city": "Jakarta", "tier": "Silver"},
+        {"id": "C2", "city": "Bandung", "tier": "Bronze"},
+        {"id": "C3", "city": "Medan", "tier": "Gold"},
+    ]
+    curr_rows = [
+        {"id": "C4", "city": "Surabaya", "tier": "Silver"},
+        {"id": "C1", "city": "Jakarta", "tier": "Silver"},
+        {"id": "C2", "city": "Bandung", "tier": "Gold"},
+    ]
+    try:
+        res_diff = fn_diff(prev_rows, curr_rows, pk="id")
+    except Exception as e:
+        ctx.fail("compute_snapshot_diff runs without error", str(e))
+        return
+
+    ctx.check(
+        isinstance(res_diff, dict)
+        and res_diff.get("inserts") == [{"id": "C4", "city": "Surabaya", "tier": "Silver"}]
+        and res_diff.get("updates") == [{"id": "C2", "city": "Bandung", "tier": "Gold"}]
+        and res_diff.get("deletes") == ["C3"]
+        and res_diff.get("unchanged_count") == 1,
+        "compute_snapshot_diff classifies inserts (C4), updates (C2), deletes (['C3']), and unchanged_count (1)",
+        f"got {res_diff}",
+    )
+
+
+# ------------------------------------------------------------------------------------------------------------ 3.5-1
+@exercise(
+    "3.5-1",
+    "point-in-time ASOF feature store join, online latest-state store, and future label leakage detector",
+    ["feature_store.py"],
+    [
+        "For one request, which updates of that entity could the model have known about at prediction time? Of those, which one is the as-of value?",
+        "Re-read the exercise for what a request gets when no update existed yet. The online store asks a different question: the latest value, whenever it arrived.",
+        "A request leaks only if the naive join would have handed it a value from the future AND that value is different from what was known at the time.",
+    ],
+)
+def ex_3_5_1(ctx):
+    if not ctx.need_files(["feature_store.py"]):
+        return
+    try:
+        mod = load_module(ctx, "feature_store.py", "user_feature_store")
+    except Exception as e:
+        ctx.fail("feature_store.py imports cleanly", str(e))
+        return
+
+    fn = getattr(mod, "build_feature_store_views", None)
+    if not callable(fn):
+        ctx.fail("build_feature_store_views(prediction_requests, feature_updates) exists in feature_store.py")
+        return
+
+    requests = [
+        {"request_id": "req_2", "entity_id": "U1", "prediction_ts": 1000},
+        {"request_id": "req_1", "entity_id": "U1", "prediction_ts": 2000},
+        {"request_id": "req_3", "entity_id": "U2", "prediction_ts": 500},
+    ]
+    updates = [
+        {"entity_id": "U1", "updated_at": 900,  "risk_score": 20, "tx_count_24h": 2},
+        {"entity_id": "U1", "updated_at": 1500, "risk_score": 95, "tx_count_24h": 14},  # Future relative to req_2!
+        {"entity_id": "U2", "updated_at": 800,  "risk_score": 40, "tx_count_24h": 5},   # Future relative to req_3!
+    ]
+
+    try:
+        res = fn(requests, updates)
+    except Exception as e:
+        ctx.fail("build_feature_store_views runs without error", str(e))
+        return
+
+    ctx.check(
+        isinstance(res, dict) and {"offline_training_rows", "online_store", "leaked_request_ids"}.issubset(res.keys()),
+        "returns a dict with keys 'offline_training_rows', 'online_store', and 'leaked_request_ids'",
+    )
+    if not isinstance(res, dict):
+        return
+
+    expected_offline = [
+        {"request_id": "req_1", "entity_id": "U1", "prediction_ts": 2000, "risk_score": 95, "tx_count_24h": 14, "feature_ts": 1500},
+        {"request_id": "req_2", "entity_id": "U1", "prediction_ts": 1000, "risk_score": 20, "tx_count_24h": 2,  "feature_ts": 900},
+        {"request_id": "req_3", "entity_id": "U2", "prediction_ts": 500,  "risk_score": 0,  "tx_count_24h": 0,  "feature_ts": None},
+    ]
+    ctx.check(
+        res.get("offline_training_rows") == expected_offline,
+        "offline_training_rows performs point-in-time ASOF join (updated_at <= prediction_ts) sorted by request_id",
+        f"got {res.get('offline_training_rows')}",
+    )
+
+    expected_online = {
+        "U1": {"risk_score": 95, "tx_count_24h": 14, "updated_at": 1500},
+        "U2": {"risk_score": 40, "tx_count_24h": 5,  "updated_at": 800},
+    }
+    ctx.check(
+        res.get("online_store") == expected_online,
+        "online_store holds the single latest feature state per entity_id for low-latency live inference",
+        f"got {res.get('online_store')}",
+    )
+
+    ctx.check(
+        res.get("leaked_request_ids") == ["req_2", "req_3"],
+        "leaked_request_ids flags req_2 and req_3 where joining current online state would leak future risk scores",
+        f"got {res.get('leaked_request_ids')}",
+    )
+
+    # an update at exactly the prediction moment was known; a later update with the same values leaks nothing
+    try:
+        res2 = fn(
+            [{"request_id": "req_9", "entity_id": "U3", "prediction_ts": 700}],
+            [
+                {"entity_id": "U3", "updated_at": 700, "risk_score": 50, "tx_count_24h": 3},
+                {"entity_id": "U3", "updated_at": 900, "risk_score": 50, "tx_count_24h": 3},
+            ],
+        )
+    except Exception as e:
+        ctx.fail("build_feature_store_views runs on a second dataset", str(e))
+        return
+    rows2 = res2.get("offline_training_rows") if isinstance(res2, dict) else None
+    ctx.check(
+        bool(rows2) and rows2[0].get("feature_ts") == 700 and rows2[0].get("risk_score") == 50,
+        "an update made at exactly prediction_ts counts as known (feature_ts 700, risk_score 50)",
+        f"got {rows2}",
+    )
+    ctx.check(
+        isinstance(res2, dict) and res2.get("leaked_request_ids") == [],
+        "a later update with the same values is not a leak",
+        f"got {res2.get('leaked_request_ids') if isinstance(res2, dict) else res2}",
+    )
+
+

@@ -267,6 +267,61 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 >
 > **You should see:** one `F401` ("imported but unused") for `os` and one for `json`; the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
 
+## @lesson Concurrent I/O, bulk database loading, integration testing, and live-coding patterns
+
+As you move from small scripts to production data pipelines and technical interviews, four engineering patterns separate a job-ready Data Engineer from a beginner:
+
+**1. Bounded Concurrent I/O (`ThreadPoolExecutor` + Rate Limiting).** Fetching 400 clinic or store API endpoints sequentially at `250 ms` network latency per call takes `100 seconds` of mostly waiting on sockets. Launching 400 threads at once, however, triggers instant `HTTP 429 Too Many Requests` bans or exhausts database connections. Production Python ingestion uses a **bounded worker pool** paired with a thread-safe **Semaphore / token spacing**:
+
+```python
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading, time
+
+_rate_lock = threading.Lock()
+_next_allowed_ts = 0.0
+
+def throttled_fetch(endpoint: str, fetch_fn, min_interval_sec: float = 0.05) -> dict:
+    """Guarantees at most 20 requests/sec across all worker threads."""
+    global _next_allowed_ts
+    with _rate_lock:
+        now = time.monotonic()
+        wait = max(0.0, _next_allowed_ts - now)
+        _next_allowed_ts = max(now, _next_allowed_ts) + min_interval_sec
+    if wait > 0:
+        time.sleep(wait)
+    return fetch_fn(endpoint)
+
+def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> list[dict]:
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(throttled_fetch, ep, fetch_fn): ep for ep in endpoints}
+        for fut in as_completed(futures):
+            results.append(fut.result())
+    return results
+```
+
+**2. Bulk Database Loading vs. Row-by-Row `INSERT`s.** Never load 500,000 rows into PostgreSQL or a cloud warehouse using a Python `for` loop with `cursor.execute("INSERT ...")`. Measured on PostgreSQL 16 with psycopg 3.3, loading 100,000 rows over a local connection took **34 to 39 seconds** as a loop of `INSERT`s, **2.6 seconds** with `executemany()` (psycopg 3 pipelines the statements) and **0.1 seconds** with `COPY`.
+- **PostgreSQL:** Stream rows straight into PostgreSQL's `COPY ... FROM STDIN` protocol. In psycopg 3: `with cur.copy("COPY stg_orders (order_id, customer_id, status, total_idr) FROM STDIN") as cp:` and then `cp.write_row(row)` for each row. (Older code uses psycopg2's `cursor.copy_expert(sql, file)` for the same thing.)
+- **Cloud Warehouses:** Write Snappy-compressed Parquet chunks and trigger a single bulk load job (`snowflake.connector.pandas_tools.write_pandas`, BigQuery `load_table_from_uri`, or Redshift/Snowflake `COPY INTO`).
+
+**3. Unit Tests vs. End-to-End ELT Integration Tests.**
+- **Unit Test (`test_parse_row`):** Calls your pure function `clean_order(raw_dict)` in memory with zero files, network sockets, or databases (`< 1 ms` per test).
+- **Integration Test (`test_pipeline_end_to_end`):** Wires a mocked HTTP source + your Pydantic validation gate + an ephemeral SQLite/DuckDB database in `tmp_path`, runs the job twice, and asserts that: (a) valid rows land in the target table with exact integer sums, (b) bad rows land in `quarantine.jsonl`, and (c) the second run produces **zero duplicate rows** (idempotency).
+
+**4. The 5 Canonical Python Data Engineering Live-Coding Interview Patterns.** Most 45-minute Python screens for data engineers test some version of these five:
+
+| # | Interview Pattern | What the Interviewer Is Checking | Key Python Construct |
+|---|---|---|---|
+| **1** | **Constant-Memory `yield` Streaming & Chunking** | You don't call `.readlines()` or load a 50 GB file into a list. | `def stream_valid(path):` with `yield row` + `itertools.islice` batching |
+| **2** | **Exponential Backoff + Jitter & Atomic Checkpointing** | You retry only `429 / 5xx`, honor `Retry-After`, and save state via `os.replace`. | `delay = min(cap, base * (2 ** attempt)) * random.uniform(0.5, 1.0)` |
+| **3** | **Nested JSON Flattening & Schema Drift Diffing** | You explode `order -> items[]` into parent/child rows without losing empty-item orders, and flag added/removed keys. | `expected_keys - actual_keys` set algebra + explicit parent/child tuples |
+| **4** | **Salted `HMAC-SHA256` PII Tokenization** | You know plain `sha256(phone)` is reversible via rainbow tables and use a secret salt + constant-time comparison. | `hmac.new(salt.encode(), norm_email.encode(), hashlib.sha256).hexdigest()` |
+| **5** | **In-Memory Sliding Window / Watermark Eviction** | You maintain rolling 5-minute counts over an event stream by evicting expired timestamps rather than keeping all history in RAM. | `collections.deque` or `heapq` keyed by `event_ts` |
+
+> 🛠 **Try it (15 min, Python).** Fake an API call with `def fetch(ep): time.sleep(0.25); return {"ep": ep}` and fetch 40 endpoints three ways: a plain loop, `fetch_all_bounded` above with 8 workers and no throttle, and the same with the 20-per-second throttle. (Give `fetch_all_bounded` a `min_interval_sec` parameter that it passes on to `throttled_fetch`, so `0` switches the throttle off.) Time each with `time.perf_counter()` and check that all three return 40 results. Before running, predict the three times from the numbers alone.
+>
+> **You should see:** about `10.0` s for the loop (40 × 0.25 s), about `1.25` s with 8 workers (5 waves of 8), and about `2.2` s with the throttle: the 40th request may not start before 39 × 0.05 = 1.95 s, whatever the pool size, and then takes its 0.25 s. The throttle, not the pool, sets the speed once the API has a rate limit. Measured with Python 3.14.
+
 ## @lab Lab: a validated, streaming, idempotent ETL
 Build the production version of the cleaning job from Module 0.1. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.
 

@@ -255,6 +255,52 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (your script reads `data/orders.csv` relative to the folder it runs in).
 
+## @lesson Webhook HMAC-SHA256 verification, differential extraction, S3 streaming, and declarative dlt
+
+In Chapter 7 (*Ingestion*) of *Fundamentals of Data Engineering* and modern cloud pipelines (such as the *DataTalksClub Data Engineering Zoomcamp* `dlt` workshops), four production ingestion patterns bridge raw HTTP mechanics and enterprise data platforms:
+
+**1. Push Ingestion: Webhook `HMAC-SHA256` Verification & Replay Protection.** When your service *pulls* from an API, you authenticate with your API key. When an external service (Stripe, Shopify, Midtrans, GitHub) *pushes* an event to your webhook URL (`POST /webhooks/orders`), anyone on the internet can send a fake POST request pretending to be a paid order. Production webhook receivers verify three things before accepting a payload:
+1. **Cryptographic Signature (`HMAC-SHA256`):** Compute `expected = "sha256=" + hmac.new(secret.encode(), f"{timestamp}.{raw_body}".encode(), hashlib.sha256).hexdigest()`.
+2. **Constant-Time Comparison (`hmac.compare_digest`):** Never use `signature == expected` (which leaks timing information byte-by-byte); always use `hmac.compare_digest(signature, expected)`.
+3. **Replay Window Check:** Reject any webhook whose `timestamp` differs from current server time by more than `300 seconds` (5 minutes), so an attacker who intercepts a valid packet cannot replay it tomorrow.
+
+**2. Snapshot vs. Differential Extraction.** Many partner systems cannot emit a change stream; instead, they drop a full daily snapshot (`customers_2026_02_02.json`). Loading full snapshots every day wastes warehouse storage and hides what actually changed. A **differential extractor** compares today's snapshot against yesterday's state by primary key (`id`) and emits only the true delta:
+- **`inserts`:** Keys present today that did not exist yesterday.
+- **`updates`:** Keys present in both where the payload content changed.
+- **`deletes`:** Keys present yesterday that disappeared today (critical for soft-deletes!).
+- **`unchanged_count`:** Keys with identical attributes (skipped so downstream tables aren't needlessly rewritten).
+
+**3. Direct-to-Cloud Multipart Streaming (`boto3` / `gcsfs`).** In production on AWS or GCP, ingestion workers rarely write large files to local container disks (which are ephemeral and often capped at 512 MB). Instead, they stream buffers directly to S3 or GCS using multipart upload streams (`s3_client.upload_fileobj(file_like_stream, Bucket="kopiku-raw", Key="orders/dt=2026-02-02/part-000.parquet")`).
+
+**4. Declarative Python Ingestion with `dlt` (`data load tool`).** Once you understand how to build cursor pagination, retry backoff, and schema normalization by hand using `urllib`, modern teams often use **`dlt` (`import dlt`)** in production to eliminate boilerplate while automatically handling nested JSON normalization, schema evolution alerts, and incremental watermark state across DuckDB, BigQuery, Snowflake, and S3:
+
+```python
+import dlt
+
+@dlt.resource(name="orders", write_disposition="merge", primary_key="order_id")
+def kopiku_orders_source(
+    updated_after=dlt.sources.incremental("updated_at", initial_value="2026-01-01T00:00:00Z")
+):
+    # Yields pages of JSON records starting from the last committed high-water mark
+    for page in paginate_orders_api(since=updated_after.last_value):
+        yield page
+
+# One-line load into local DuckDB for tests, or swap destination="bigquery" / "snowflake" in prod!
+pipeline = dlt.pipeline(pipeline_name="kopiku_ingest", destination="duckdb", dataset_name="raw_kopiku")
+load_info = pipeline.run(kopiku_orders_source())
+```
+
+> 🛠 **Try it (20 min, Python — First-Law Webhook Security & Differential Extraction Lab).** Create `~/practice/webhook_diff.py` and implement two functions:
+> 1. `verify_webhook_batch(events, secret, now_ts, tolerance_sec=300)`: each event in `events` is a dict `{"event_id": str, "timestamp": int, "body": str, "signature": str}` where a valid signature is `"sha256=" + hmac_sha256(secret, f"{timestamp}.{body}")`. Using `hmac.compare_digest`, validate each event:
+>    - If `abs(now_ts - event["timestamp"]) > tolerance_sec`, append `{"event_id": ..., "reason": "stale_timestamp"}` to `rejected`.
+>    - Else if the signature does not match, append `{"event_id": ..., "reason": "invalid_signature"}` to `rejected`.
+>    - Else if `event_id` was already accepted earlier in the batch, skip it (idempotent deduplication).
+>    - Otherwise parse `json.loads(event["body"])` and append it to `accepted`.
+>    - Return `{"accepted": accepted, "rejected": rejected}`.
+> 2. `compute_snapshot_diff(prev_rows, curr_rows, pk="id")`: given yesterday's list of dicts and today's list of dicts, return `{"inserts": [...], "updates": [...], "deletes": [...], "unchanged_count": int}` where `inserts` and `updates` are lists of current row dicts sorted by `row[pk]`, and `deletes` is a sorted list of deleted primary key values (`row[pk]`).
+>
+> **Check it:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
+
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
 

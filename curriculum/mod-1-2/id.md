@@ -267,6 +267,61 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 >
 > **Seharusnya Anda melihat:** satu `F401` ("imported but unused") untuk `os` dan satu untuk `json`; perbaikannya menghapus kedua import itu; formatter mengubah sisanya menjadi `x = 1` dan `print(x)`; `requirements.txt` mencantumkan versi persis seperti `ruff==0.x.y`. Pemeriksaan mana yang Anda inginkan di setiap pull request?
 
+## @lesson I/O konkuren, pemuatan database massal, integration testing, dan pola live-coding
+
+Saat Anda beralih dari skrip kecil ke pipeline produksi dan wawancara teknis, empat pola rekayasa ini membedakan Data Engineer siap kerja dari pemula:
+
+**1. I/O Konkuren Terbatas (`ThreadPoolExecutor` + Rate Limiting).** Mengambil data dari 400 endpoint API cabang secara berurutan dengan latensi jaringan `250 ms` per panggilan memakan waktu `100 detik` hanya untuk menunggu soket. Namun, meluncurkan 400 thread sekaligus akan memicu pemblokiran `HTTP 429 Too Many Requests` seketika atau menghabiskan koneksi database. Pipeline Python produksi menggunakan **worker pool terbatas** yang dipadukan dengan **pengatur laju (rate limiter) thread-safe**:
+
+```python
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading, time
+
+_rate_lock = threading.Lock()
+_next_allowed_ts = 0.0
+
+def throttled_fetch(endpoint: str, fetch_fn, min_interval_sec: float = 0.05) -> dict:
+    """Menjamin maksimal 20 request/detik di seluruh worker thread."""
+    global _next_allowed_ts
+    with _rate_lock:
+        now = time.monotonic()
+        wait = max(0.0, _next_allowed_ts - now)
+        _next_allowed_ts = max(now, _next_allowed_ts) + min_interval_sec
+    if wait > 0:
+        time.sleep(wait)
+    return fetch_fn(endpoint)
+
+def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> list[dict]:
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(throttled_fetch, ep, fetch_fn): ep for ep in endpoints}
+        for fut in as_completed(futures):
+            results.append(fut.result())
+    return results
+```
+
+**2. Pemuatan Database Massal (Bulk Load) vs. `INSERT` Baris demi Baris.** Jangan pernah memuat 500.000 baris ke PostgreSQL atau cloud warehouse menggunakan loop `for` Python dengan `cursor.execute("INSERT ...")`. Diukur di PostgreSQL 16 dengan psycopg 3.3, memuat 100.000 baris lewat koneksi lokal butuh **34 sampai 39 detik** dengan loop `INSERT`, **2,6 detik** dengan `executemany()` (psycopg 3 mem-pipeline perintahnya), dan **0,1 detik** dengan `COPY`.
+- **PostgreSQL:** Alirkan baris langsung ke protokol `COPY ... FROM STDIN` milik PostgreSQL. Di psycopg 3: `with cur.copy("COPY stg_orders (order_id, customer_id, status, total_idr) FROM STDIN") as cp:` lalu `cp.write_row(row)` untuk setiap baris. (Kode lama memakai `cursor.copy_expert(sql, file)` dari psycopg2 untuk hal yang sama.)
+- **Cloud Warehouse:** Tulis potongan Parquet terkompresi Snappy lalu picu satu perintah bulk load (`snowflake.connector.pandas_tools.write_pandas`, BigQuery `load_table_from_uri`, atau `COPY INTO`).
+
+**3. Unit Test vs. End-to-End ELT Integration Test.**
+- **Unit Test (`test_parse_row`):** Memanggil fungsi murni `clean_order(raw_dict)` di memori tanpa menyentuh file, jaringan, atau database (`< 1 ms` per tes).
+- **Integration Test (`test_pipeline_end_to_end`):** Menghubungkan tiruan (mock) sumber HTTP + gerbang validasi Pydantic + database sementara SQLite/DuckDB di `tmp_path`, menjalankan job dua kali berturut-turut, lalu memverifikasi bahwa: (a) baris valid masuk ke tabel target dengan total integer persis, (b) baris rusak masuk ke `quarantine.jsonl`, dan (c) eksekusi kedua menghasilkan **nol baris duplikat** (idempoten).
+
+**4. 5 Pola Utama Live-Coding Python dalam Wawancara Data Engineer.** Sebagian besar wawancara Python 45 menit untuk data engineer menguji salah satu versi dari lima pola ini:
+
+| # | Pola Wawancara | Apa yang Diuji Pewawancara | Konstruksi Kunci Python |
+|---|---|---|---|
+| **1** | **Streaming `yield` Memori Konstan & Chunking** | Anda tidak memanggil `.readlines()` atau memuat file 50 GB ke dalam list di RAM. | `def stream_valid(path):` dengan `yield row` + batching `itertools.islice` |
+| **2** | **Exponential Backoff + Jitter & Atomic Checkpointing** | Hanya me-retry `429 / 5xx`, mematuhi `Retry-After`, dan menyimpan state via `os.replace`. | `delay = min(cap, base * (2 ** attempt)) * random.uniform(0.5, 1.0)` |
+| **3** | **Perataan JSON Bersarang & Deteksi Schema Drift** | Memecah `order -> items[]` menjadi baris induk/anak tanpa menghilangkan pesanan kosong, serta mendeteksi kunci baru/hilang. | Aljabar himpunan `expected_keys - actual_keys` + tuple induk/anak |
+| **4** | **Tokenisasi PII `HMAC-SHA256` Ber-Salt** | Memahami bahwa `sha256(telepon)` biasa mudah dibongkar rainbow table sehingga wajib memakai secret salt. | `hmac.new(salt.encode(), norm_email.encode(), hashlib.sha256).hexdigest()` |
+| **5** | **Sliding Window di Memori / Penggusuran Watermark** | Menghitung agregat bergulir 5 menit pada aliran event dengan membuang timestamp kedaluwarsa agar RAM tidak bocor. | `collections.deque` atau `heapq` berdasarkan `event_ts` |
+
+> 🛠 **Coba sendiri (15 menit, Python).** Palsukan panggilan API dengan `def fetch(ep): time.sleep(0.25); return {"ep": ep}` dan ambil 40 endpoint dengan tiga cara: loop biasa, `fetch_all_bounded` di atas dengan 8 worker tanpa throttle, dan cara yang sama dengan throttle 20 per detik. (Beri `fetch_all_bounded` parameter `min_interval_sec` yang diteruskan ke `throttled_fetch`, sehingga `0` mematikan throttle.) Ukur masing-masing dengan `time.perf_counter()` dan pastikan ketiganya mengembalikan 40 hasil. Sebelum menjalankan, tebak ketiga waktunya hanya dari angka-angkanya.
+>
+> **Seharusnya Anda melihat:** sekitar `10.0` detik untuk loop (40 × 0,25 detik), sekitar `1.25` detik dengan 8 worker (5 gelombang berisi 8), dan sekitar `2.2` detik dengan throttle: request ke-40 baru boleh mulai setelah 39 × 0,05 = 1,95 detik, berapa pun ukuran pool-nya, lalu butuh 0,25 detik. Begitu API punya batas laju, throttle-lah yang menentukan kecepatan, bukan pool. Diukur dengan Python 3.14.
+
 ## @lab Lab: ETL tervalidasi, streaming, dan idempoten
 Bangun versi produksi dari job pembersihan di Modul 0.1. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.
 

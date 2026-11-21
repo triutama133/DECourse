@@ -216,6 +216,53 @@ ASOF LEFT JOIN tier_feed f
 >
 > **You should see:** `808` customers at 2026-01-15 (`466` ordered again) and `915` at 2026-01-22; always guessing "yes" scores `57.7%` and `56.8%`. The leaky feature looks useful in training, `70.4%` with k = 3, and collapses to `44.7%` at the later date, worse than guessing. The point-in-time feature scores `57.7%` and `54.9%`: on this data the honest signal is weak, which is exactly what you need to know before anyone ships the model. `14` of the 808 customers had a different tier on 15 January than today, so joining the current tier would have leaked too. Measured with DuckDB 2.0.1.
 
+## @lesson Dual-storage feature stores (Feast pattern), in-warehouse ML (BigQuery ML), and point-in-time ASOF verification
+
+In Chapter 9 (*Serving Data for Analytics, Machine Learning, and Reverse ETL*) of *Fundamentals of Data Engineering* and Module 3 of *DataTalksClub Data Engineering Zoomcamp*, two production ML data patterns bridge data warehouses and real-time inference:
+
+**1. Dual-Storage Feature Store Architecture (Offline Warehouse + Online Low-Latency Key-Value Store).**
+Lesson 7 introduced the feature store and the training-serving skew it prevents. The reason there are *two* stores is latency: a training job reads millions of historical rows and can wait for a warehouse query to start, while a fraud check at checkout needs the latest values for **one** customer in a few milliseconds, which is a key-value lookup (`Redis / DynamoDB / Bigtable`), not a warehouse scan. A feature store (`Feast`, Databricks Feature Engineering) runs one feature definition and writes it twice: the full history to the **offline store** for point-in-time training joins, and only the latest value per entity to the **online store**. The Try it below builds both views and finds the rows a naive join would leak.
+
+**2. In-Warehouse Machine Learning (`BigQuery ML` / `Snowpark ML`).**
+When latency requirements are batch or near-real-time and your features already live in the warehouse, exporting terabytes of data out to external Python servers creates security and egress risk. **BigQuery ML** lets you train, evaluate, and run batch predictions on XGBoost, Logistic Regression, Time-Series (`ARIMA_PLUS`), and remote Vertex AI models directly inside standard SQL. (The SQL below follows the BigQuery ML documentation but was not run for this course, because it needs a BigQuery project; Module 2.6 lesson 8 shows how to get a free sandbox.)
+
+```sql
+-- 1. Train a Boosted Tree Churn Model directly inside BigQuery using Point-in-Time features:
+CREATE OR REPLACE MODEL `kopiku_prod.ml_marts.customer_churn_xgb`
+OPTIONS (
+  model_type = 'BOOSTED_TREE_CLASSIFIER',
+  input_label_cols = ['churned_next_30d'],
+  auto_class_weights = TRUE,
+  data_split_method = 'SEQ',
+  data_split_col = 'snapshot_date'   -- Temporal split (NEVER random split on time-series!)
+) AS
+SELECT
+  snapshot_date,
+  orders_trailing_14d,
+  spend_trailing_14d_idr,
+  tier_at_snapshot,
+  churned_next_30d
+FROM `kopiku_prod.ml_marts.fct_customer_pit_features`
+WHERE snapshot_date < DATE '2026-02-01';
+
+-- 2. Score today's active customers in SQL for Reverse ETL win-back campaigns:
+SELECT customer_id, predicted_churned_next_30d, predicted_churned_next_30d_probs
+FROM ML.PREDICT(
+  MODEL `kopiku_prod.ml_marts.customer_churn_xgb`,
+  (SELECT * FROM `kopiku_prod.ml_marts.fct_customer_pit_features` WHERE snapshot_date = CURRENT_DATE())
+);
+```
+
+> 🛠 **Try it (20 min, Python — First-Law Point-in-Time `ASOF` Feature Store & Leakage Detector Lab).** Create `~/practice/feature_store.py` and implement `build_feature_store_views(prediction_requests, feature_updates)`:
+> - `prediction_requests`: list of dicts `{"request_id": str, "entity_id": str, "prediction_ts": int}`
+> - `feature_updates`: list of dicts `{"entity_id": str, "updated_at": int, "risk_score": int, "tx_count_24h": int}`
+> - Return a dict with three keys:
+>   1. `"offline_training_rows"`: for each request (sorted by `request_id`), find the **point-in-time `ASOF` feature record** for that `entity_id` with the largest `updated_at` such that `updated_at <= prediction_ts`. If found, emit `{"request_id": ..., "entity_id": ..., "prediction_ts": ..., "risk_score": ..., "tx_count_24h": ..., "feature_ts": updated_at}`; if no update existed at or before `prediction_ts`, emit `risk_score=0, tx_count_24h=0, feature_ts=None`.
+>   2. `"online_store"`: dict mapping each `entity_id` to its single latest state overall (`max(updated_at)`): `{"risk_score": ..., "tx_count_24h": ..., "updated_at": ...}`.
+>   3. `"leaked_request_ids"`: sorted list of `request_id`s where a naive join against the `online_store` latest state would have used a future `updated_at > prediction_ts` whose `risk_score` or `tx_count_24h` differs from the true point-in-time `ASOF` values!
+>
+> **Check it:** `python3 labs/tryit/check.py 3.5-1 ~/practice`
+
 ## @lab Lab: a RAG data pipeline on PostgreSQL and pgvector
 Build the offline half of a RAG system for the KopiKu help center: 116 short documents (store hours, payments, parking, menu items, allergens and policies) and 116 questions with known answers. You write chunking, embedding, content hashing, an incremental atomic sync, filtered search, evaluation, and the HNSW index functions, and the tests prove each behaviour, including the rare ones: nothing is re-embedded when nothing changed, a failed sync changes nothing, and vectors from another model are never compared.
 

@@ -418,6 +418,61 @@ Two differences deserve a second look. `qty * price` works in SQLite because `->
 >
 > **You should see:** j-1 returns 7 rows with a NULL plan for event 6; j-2 returns android 2, ios 2, unknown 2, web 1; j-3 returns 4 rows (events 1, 1, 3 and 7), because events 2, 4, 5 and 6 have no items; j-4 returns free 50000 and pro 310000. The plain join gives 4 rows for j-3 and the `LEFT JOIN` gives 8: the same 4 plus one row with empty values for each of events 2, 4, 5 and 6.
 
+## @part Performance and interviews
+
+## @lesson Cost-based optimizer join operators, MVCC VACUUM, Sargable tuning, and the 7 SQL interview patterns
+
+When you inspect an `EXPLAIN ANALYZE` plan in PostgreSQL, Spark, Snowflake, or BigQuery, the **Cost-Based Optimizer (CBO)** does not just decide whether to use an index—it also chooses the physical algorithm used to join two tables:
+
+| Physical Join Operator | How It Works Under the Hood | Complexity & Memory Profile | When the Optimizer Picks It (and When It Goes Wrong) |
+|---|---|---|---|
+| **Nested Loop Join** | For each row in the outer table, probes the inner table (either a full scan or an index lookup). | O(N × M) without index; O(N log M) with inner B-Tree index. Near-zero memory. | Best when the outer table is tiny (< 1,000 rows) and the inner join key is indexed. **Disaster** when stale `ANALYZE` statistics trick the CBO into thinking a 5M-row table has 10 rows! |
+| **Hash Join** | Reads the smaller table (*build side*) into an in-memory hash table on the join key, then streams the larger table (*probe side*) through it in one pass. | O(N + M) CPU time; requires O(size of the build table) RAM (`work_mem`). | The default workhorse for large equijoins (`ON a.id = b.id`). **Danger:** If the build table exceeds `work_mem` / executor RAM, it **spills to disk** in multi-batch passes (`Batches: 16` in Postgres `EXPLAIN`). |
+| **Sort-Merge Join** | Sorts both tables on the join key (or reads them pre-sorted from a B-Tree index / clustered table) and zips them together in lockstep. | O(N log N + M log M) if unsorted; O(N + M) if already sorted/clustered. | Best for very large inputs that are already sorted on the key, or when neither side fits in memory. PostgreSQL uses it only for equality conditions; an inequality join (`<=`, `>=`) falls back to a nested loop. |
+
+**PostgreSQL MVCC Dead Tuples, `VACUUM`, and `ANALYZE`.** In PostgreSQL, an `UPDATE` or `DELETE` does not overwrite the old row in place; under **Multi-Version Concurrency Control (MVCC)**, PostgreSQL writes a brand-new row version (*tuple*) and marks the old one as a **dead tuple** so concurrent readers see a consistent snapshot. If a staging table receives 500,000 updates a day and `autovacuum` lags behind, the table bloats to several times its true size (slowing sequential scans) and column statistics go stale. Running `VACUUM` reclaims dead-tuple space for reuse; running `ANALYZE` refreshes the histogram and cardinality estimates that the CBO relies on to avoid disastrous Nested Loop Joins.
+
+**"Before vs. After" Sargable Slow-Query Refactoring Clinic.** A predicate is **Sargable (*Search Argument Able*)** when the database engine can push it directly into a B-Tree index seek or columnar micro-partition zone map without evaluating a function on every row:
+
+```sql
+-- ❌ SLOW (about 32 s on 300,000 orders in SQLite: correlated subquery + functions on the columns)
+SELECT c.customer_id, c.city,
+       (SELECT SUM(o.total_idr) FROM orders o
+        WHERE o.customer_id = c.customer_id
+          AND strftime('%Y-%m', o.order_ts) = '2026-01'
+          AND LOWER(o.status) = 'paid') AS jan_paid_idr
+FROM customers c;
+
+-- ✅ FAST (about 19 ms on the same data: range seek on index (status, order_ts, customer_id) + one pre-aggregated CTE)
+WITH jan_paid AS (
+    SELECT customer_id, SUM(total_idr) AS jan_paid_idr
+    FROM orders
+    WHERE status = 'paid'
+      AND order_ts >= '2026-01-01T00:00:00'
+      AND order_ts <  '2026-02-01T00:00:00'
+    GROUP BY customer_id
+)
+SELECT c.customer_id, c.city, COALESCE(j.jan_paid_idr, 0) AS jan_paid_idr
+FROM customers c
+LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
+```
+
+**The 7 Canonical 45-Minute SQL Live-Coding Interview Blueprints.** Nearly every Data Engineering SQL technical screen tests a variation of these seven templates. Before writing a single `SELECT`, always state to the interviewer: **(1) the output grain**, **(2) how ties are broken**, and **(3) what happens on `NULL`s or missing dates**:
+
+| # | Canonical SQL Interview Blueprint | Core SQL Skeleton & Edge-Case Guard |
+|---|---|---|
+| **1** | **Deterministic Deduplication / Latest State** | `QUALIFY ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY updated_at DESC, event_id DESC) = 1` (Always include a unique tie-breaker column after `updated_at`!). |
+| **2** | **Sessionization (30-Min Inactivity Gap)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → flag `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → outer `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts)` creates `session_id`. |
+| **3** | **Consecutive Streak / Gaps & Islands** | Deduplicate to distinct `(user_id, active_date)` first! Then subtract `DATE(active_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY active_date) || ' days') AS island_anchor`; rows in the same consecutive streak share the exact same `island_anchor`. |
+| **4** | **Point-in-Time (`ASOF`) / SCD2 Attribution** | Join fact to dimension with `f.event_ts >= d.effective_from AND f.event_ts < COALESCE(d.effective_to, '9999-12-31')` (or picking `ROW_NUMBER() ... ORDER BY d.updated_at DESC = 1` where `d.updated_at <= f.event_ts`). Prevents future label leakage! |
+| **5** | **Rolling 7-Day Window on Sparse Dates** | Generate a continuous calendar `date_spine` first, `LEFT JOIN` daily aggregates (`COALESCE(rev, 0)`), then use `AVG(rev) OVER (PARTITION BY store_id ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` so a missing Tuesday isn't skipped by row count. |
+| **6** | **Cohort Retention Matrix (`Month 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = months_between(order_month, first_month)`. Final: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` grouped by `(first_month, month_num)`. |
+| **7** | **Multi-Fact Fan-Out Prevention** | Never join `accounts` to `transfers` (1:N) and `chargebacks` (1:M) in the same `FROM` clause (5 × 3 = 15 rows!). Pre-aggregate `transfers_by_account` and `chargebacks_by_account` into separate CTEs at the `account_id` grain first, then `LEFT JOIN` both to `accounts`. |
+
+> 🛠 **Try it (20 min, Python with `sqlite3`).** Build a test table: 2,000 customers and 300,000 orders with random `order_ts` between 2025-07-01 and 2026-06-30 (ISO text), random statuses (`paid` three times as likely as `cancelled` or `refunded`) and amounts, and create the index `(status, order_ts, customer_id)` before running `ANALYZE`. Run `EXPLAIN QUERY PLAN` on the slow and fast queries above and find the line for `orders` in each. Then time both and check that they return the same total.
+>
+> **You should see:** the slow plan reads `CORRELATED SCALAR SUBQUERY` and `SCAN o`: a full scan of the orders for each of the 2,000 customers, because the functions on `order_ts` and `status` hide the columns from the index. The fast plan reads `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Both return the same total (`3192691000` on the data measured here, `random.seed(7)`), in about `31` to `33` seconds versus `18` to `19` ms. Your numbers will differ a little with your own random data; the gap will not. Measured with SQLite 3.46.
+
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.
 

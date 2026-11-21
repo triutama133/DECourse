@@ -232,6 +232,47 @@ Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, l
 > `python3 $COURSE/labs/mod-0-2/check.py ~/kopiku`
 > Jika semua baris PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional!
 
+## @lesson Pre-commit hook, virtual environment, dan pull request tim data Agile
+
+Di tim data engineering sesungguhnya, Anda hampir tidak pernah bekerja sendirian langsung di branch `main`. Setiap perubahan dibuat di branch fitur (`git switch -c feat/add-store-scd2`), melewati **pre-commit hook** otomatis di laptop, diuji oleh **GitHub Actions CI**, lalu ditinjau rekan setim lewat **Pull Request (PR)**.
+
+**1. Pre-Commit Hook Otomatis (`.pre-commit-config.yaml`).** Menunggu sampai kode di-push ke GitHub baru menyadari bahwa Anda tidak sengaja men-commit file CSV 200 MB, meninggalkan private key API, atau merusak format Python sangat membuang waktu tim. Framework `pre-commit` menjalankan pemeriksaan lokal cepat *sebelum* `git commit` diizinkan berhasil:
+
+```yaml
+# .pre-commit-config.yaml — berjalan otomatis setiap kali `git commit` dijalankan
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']          # Memblokir commit file data mentah CSV/Parquet berukuran besar
+      - id: detect-private-key         # Memblokir private key PEM/SSH/API sebelum masuk ke riwayat Git
+      - id: check-yaml                 # Memvalidasi schema.yml dbt dan workflow GitHub Actions
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff                       # Linter Python super cepat berbasis Rust (pengganti flake8 + isort)
+        args: [--fix]
+      - id: ruff-format                # Formatter Python deterministik (pengganti black)
+```
+
+Begitu Anda menjalankan `pip install pre-commit && pre-commit install`, Git menjalankan ketujuh pemeriksaan itu secara otomatis pada setiap commit, dan commit berhenti jika salah satunya gagal.
+
+**2. Isolasi Environment Modern (`venv` dan `uv`).** Baik tim Anda memakai `python3 -m venv .venv` standar dengan `requirements.txt` maupun `pyproject.toml` modern dengan `uv` (`uv venv && uv pip sync`), aturannya tetap satu: **satu proyek, satu virtual environment terisolasi, versi paket terkunci di-commit ke Git, dan folder `.venv/` wajib masuk `.gitignore`**.
+
+**3. Cara Data Engineer Menulis Pull Request (PR) dalam Sprint Agile.** Jika PR software engineer menampilkan tangkapan layar tombol UI, **deskripsi PR seorang data engineer wajib menampilkan bukti rekonsiliasi data**. Saat membuka PR di tim produksi, selalu cantumkan empat poin ini:
+- **Grain & Kontrak:** Apa primary key dari tabel baru/yang diubah, dan apakah grain-nya berubah?
+- **Bukti Rekonsiliasi Baris & Uang:** Jumlah baris dan total metrik utama sebelum vs. sesudah perubahan (contoh: `fact_orders: 3.599 baris sebelum -> 3.599 baris sesudah; net_revenue_idr: Rp 1.208.770.000 -> Rp 1.208.770.000 (selisih 0,00%)`).
+- **Dampak Biaya / Waktu Eksekusi Query:** Byte yang dipindai atau durasi jalan sebelum vs. sesudah (contoh: `BigQuery dry-run turun dari 42,1 GB ke 1,4 GB berkat partition pruning tanggal`).
+- **Rencana Backfill & Rollback:** Apakah merge PR ini membutuhkan backfill historis (`dbt run --full-refresh` atau backfill rentang tanggal), dan bagaimana cara memulihkannya jika dashboard BI hilir terdampak?
+
+> 🛠 **Coba sendiri (5 menit, terminal).** Di dalam repositori Git mana pun, lihat isi folder `.git/hooks/`. Tanpa pustaka tambahan sekalipun, Anda dapat membuat skrip shell `.git/hooks/pre-commit` (baris pertama `#!/bin/sh`, lalu `chmod +x .git/hooks/pre-commit`) berisi `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Jangan commit file data!" && exit 1 || exit 0`. Coba `git add` sebuah file `.csv` bayangan lalu commit, kemudian lakukan hal yang sama dengan file `.txt`.
+>
+> **Seharusnya Anda melihat:** commit `.csv` berhenti: hook mencetak nama file dan `ERROR: Jangan commit file data!`, dan `echo $?` tepat setelah `git commit` menampilkan `1`. Commit `.txt` berhasil. Jika tidak terjadi apa-apa, periksa `chmod +x`: tanpanya Git melewati hook dan hanya mencetak `hint:` bahwa hook diabaikan karena tidak bisa dieksekusi. Diukur dengan Git 2.53.
+
 ## @lab Lab: bangun workspace KopiKu Anda
 Buat folder proyek yang akan Anda pakai di sisa kursus ini, dan buktikan ia disiapkan dengan benar lewat pemeriksa otomatis. Workspace Anda butuh lingkungan terisolasi, riwayat Git dengan commit yang masuk akal, `.gitignore` yang melindungi Anda, dan skrip kecil yang menghitung pesanan per status.
 

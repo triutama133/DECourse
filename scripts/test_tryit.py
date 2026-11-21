@@ -103,6 +103,24 @@ MUTANTS = {
         ("charges NAT fee even when S3 Gateway Endpoint is enabled", "cloud_architect.py", "0.0 if has_s3_endpoint else savings", "savings"),
         ("adds service SLAs instead of multiplying synchronous chain", "cloud_architect.py", "float(service_sla) ** int(num_services)", "float(service_sla)"),
     ]),
+    "1.6-7": ("1.6", [
+        ("does not reject stale webhook timestamps", "webhook_diff.py", "if abs(int(now_ts) - ts) > int(tolerance_sec):", "if False:"),
+        ("accepts forged HMAC signatures", "webhook_diff.py", "if not hmac.compare_digest(sig, expected_sig):", "if False:"),
+        ("does not deduplicate retry event_ids", "webhook_diff.py", "if eid in seen_ids:\n            continue", "if False:\n            continue"),
+        ("misses deleted primary keys in snapshot diff", "webhook_diff.py", "deletes = sorted(k for k in prev_map if k not in curr_map)", "deletes = []"),
+        ("compares signatures with == (not constant time)", "webhook_diff.py", "if not hmac.compare_digest(sig, expected_sig):", "if sig != expected_sig:"),
+        ("signs the body without the timestamp", "webhook_diff.py", 'f"{ts}.{body}".encode("utf-8")', 'body.encode("utf-8")'),
+        ("counts unchanged rows as updates", "webhook_diff.py", "elif curr_map[k] != prev_map[k]:", "elif True:"),
+        ("dedups before checking the signature (forged retry blocks the real one)", "webhook_diff.py", "        if abs(int(now_ts) - ts) > int(tolerance_sec):", "        if eid in seen_ids:\n            continue\n        seen_ids.add(eid)\n        if abs(int(now_ts) - ts) > int(tolerance_sec):"),
+    ]),
+    "3.5-1": ("3.5", [
+        ("allows future feature updates into point-in-time ASOF join", "feature_store.py", "if u[\"updated_at\"] <= pred_ts", "if True"),
+        ("picks oldest feature update instead of latest ASOF", "feature_store.py", "best = max(candidates, key=lambda u: u[\"updated_at\"])", "best = min(candidates, key=lambda u: u[\"updated_at\"])"),
+        ("fails to detect leaked request IDs", "feature_store.py", "leaked_request_ids.append(rid)", "pass"),
+        ("strict < excludes an update at the prediction moment", "feature_store.py", 'if u["updated_at"] <= pred_ts]', 'if u["updated_at"] < pred_ts]'),
+        ("flags future updates even when the value did not change", "feature_store.py", 'if (latest["risk_score"], latest["tx_count_24h"]) != (pit_risk, pit_tx):', "if True:"),
+        ("online store keeps the first update, not the latest", "feature_store.py", 'if eid not in online_store or ts >= online_store[eid]["updated_at"]:', "if eid not in online_store:"),
+    ]),
 }
 
 # equivalent answers that a checker must ACCEPT: id -> [(name, file, old, new)]

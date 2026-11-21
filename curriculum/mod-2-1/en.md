@@ -246,6 +246,34 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 > 2. Ensure all 10 tests pass cleanly without errors (`10 passed`).
 > 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
 
+## @lesson Serialization & compression matrix (Appendix A) and NoSQL storage internals (LSM-Tree vs. B-Tree)
+
+Two storage questions appear repeatedly in both production architecture reviews (Reis & Housley Chapter 6 & Appendix A) and senior data engineering interviews: **(1) Which file format and compression codec should we pick for each stage of the pipeline?** and **(2) How do NoSQL storage engines (`LSM-Tree`) differ from relational databases (`B+Tree`) when we ingest from or serve to them?**
+
+**1. The Serialization & Compression Trade-Off Matrix (Reis & Housley Appendix A).**
+
+| Format | Layout | Schema Evolution | Compression & Splittability | Best Production Use Case |
+|---|---|---|---|---|
+| **Apache Parquet** | **Columnar** (Row Groups → Column Chunks → Pages + Footer stats) | Good (add/drop columns; ID-based in Iceberg/Delta) | High (`4×–10×` via Dictionary + RLE + Bit-packing + **Zstd / Snappy**). Splittable per row group. | **Default analytical lakehouse & warehouse storage** (`S3/GCS`, Spark, DuckDB, Polars, BigQuery, Snowflake). |
+| **Apache ORC** | **Columnar** (Stripes + Index/Data/Footer) | Good | Very high compression with **Zstd / Zlib**. Splittable per stripe. | Hive / Trino / Presto heavy analytical clusters. |
+| **Apache Avro** | **Row-based** binary (JSON schema in file header) | **Best-in-class** (full reader/writer schema resolution in Schema Registry) | Splittable block markers; pairs with **Snappy / Deflate**. | **Kafka streaming event payloads**, CDC logs, and write-heavy landing zones where full rows are read together. |
+| **Protocol Buffers (Protobuf)** | **Row-based** binary (numbered field tags `1, 2, 3`) | **Best-in-class** (backward/forward safe by field tag ID) | Very compact wire payload; requires framing for file splits. | **gRPC microservices, mobile telemetry, and high-throughput Kafka topics**. |
+| **Apache Arrow (IPC / Feather)** | **Columnar in-memory** (zero-copy byte buffers) | Exact in-memory type specification | Optional **LZ4 / Zstd** framing for fast wire transfer. | **Zero-copy in-memory exchange** between Python, Polars, DuckDB, Spark Pandas UDFs, and Flight RPC. |
+| **CSV / JSONL** | **Row-based text** | None (untyped text, silent drift) | Only splittable if uncompressed or block-compressed (`bzip2`); **Gzip CSV is NOT splittable**! | Human-readable exchange or raw third-party API landing prior to Bronze Parquet conversion. |
+
+*Compression Codec Rule of Thumb:* Prefer **Zstandard (`Zstd`)** for cold/warm Parquet data lakes (better compression ratio *and* faster decompression than Gzip) and **Snappy** or **LZ4** for hot streaming/shuffle intermediate buffers where ultra-low CPU latency matters most. Never store multi-gigabyte CSV files as a single `.csv.gz` file on S3/GCS: because **Gzip is not splittable**, a 100-core Spark or DuckDB engine is forced to assign the entire file to **1 single CPU core**!
+
+**2. Relational `B+Tree` vs. NoSQL `LSM-Tree` (Log-Structured Merge-Tree) Storage Internals.** When you ingest operational data into a warehouse, you regularly pull from NoSQL systems (**MongoDB** document stores, **DynamoDB / Redis** key-value stores, **Cassandra / Bigtable** wide-column stores):
+
+| Storage Engine | Used By | Write Path | Read Path | Data Engineering Impact (Ingestion & Serving) |
+|---|---|---|---|---|
+| **B+Tree** (Page-oriented, in-place page updates + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Appends to WAL, then modifies fixed-size `8 KB / 16 KB` B-Tree pages in place (causes random disk I/O on heavy writes). | **Fast O(log N) point & range reads** down balanced tree pointers. | Ingest via **WAL Change Data Capture (Debezium)** rather than polling `SELECT *`, so you don't contend with OLTP page locks. |
+| **LSM-Tree** (Append-only MemTable → immutable SSTables + Compaction) | Cassandra, RocksDB, Bigtable, HBase, ScyllaDB | Appends to WAL + in-memory sorted **MemTable**; flushes sequentially to immutable on-disk **SSTables (Sorted String Tables)**; background **Compaction** merges SSTables. | Checks MemTable + checks SSTables using **Bloom Filters** (which tell you in O(1) if a key is *not* in an SSTable). | **Ultra-fast write throughput** for IoT telemetry and online feature stores. Ingest downstream via **DynamoDB Streams / MongoDB Change Streams** into Bronze Parquet. |
+
+> 🛠 **Try it (15 min, Python with `pandas` and `pyarrow`).** Read `data/orders.csv` as text, keep the rows whose `total_idr` is all digits and make `order_id`, `customer_id` and `total_idr` integers, then repeat the rows 30 times. Write the same table six ways: CSV, gzipped CSV, and Parquet with `compression=` `"none"`, `"snappy"`, `"gzip"` and `"zstd"` (`pyarrow.parquet.write_table`). Compare the file sizes, and before you look, guess the order.
+>
+> **You should see:** `107400` rows. CSV `5,650,952` bytes, gzipped CSV `1,419,659`, Parquet without compression `770,696`, Snappy `402,243`, gzip `168,852` and Zstd `163,042`. Parquet's own encodings (dictionary and run-length) make it seven times smaller than the CSV before any codec runs, and Zstd edges out gzip here while decompressing faster. Measured with pyarrow 26.0.1 on the course's default data.
+
 ## @lab Lab: from CSV to Parquet, two engines, and pushdown by hand
 Convert the KopiKu tables to Parquet, answer the same business question with DuckDB and with Polars (and prove both give the independently calculated answer), and implement predicate pushdown yourself from nothing but a Parquet footer. Then measure on a bigger dataset and compare engines.
 

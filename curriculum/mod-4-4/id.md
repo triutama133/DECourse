@@ -150,6 +150,29 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa rerun berulang kali dan urutan backfill acak tidak pernah melipatgandakan baris data.
 
+## @lesson Cetak biru tugas teknis take-home 48 jam dan rubrik 10 poin manajer perekrutan
+
+Banyak proses rekrutmen data engineer menyertakan **tugas take-home**, sering dengan batas 48 jam, atau peninjauan repositori proyek (*DataTalksClub Data Engineering Zoomcamp* menilai proyek capstone-nya dengan rubrik peer-review). Peninjau hanya punya sedikit waktu untuk setiap kiriman, jadi mereka memeriksa kebersihan produksi lebih dulu: apakah bisa dijalankan dari clone baru, apakah ada tesnya, apakah aman dijalankan dua kali.
+
+Sebelum Anda mengumpulkan tugas take-home atau proyek portofolio apa pun, periksa repositori Anda menggunakan **Rubrik 10 Poin Manajer Perekrutan & Capstone Zoomcamp** ini (serta jalankan `python3 scripts/verify_portfolio.py /path/ke/repo/anda` di terminal):
+
+| # | Kriteria Penilaian | Apa yang Membuat Kiriman Ditolak dalam 60 Detik (❌) | Apa yang Meloloskan Anda ke Wawancara Final (✅) |
+|---|---|---|---|
+| **1** | **Reproduksibilitas Satu Perintah** | Notebook Jupyter dengan path lokal `/Users/budi/Desktop/data.csv` yang langsung crash di baris ke-3. | `Makefile` atau `docker compose up --build` di mana `make setup && make test && make run` langsung berjalan mulus di mesin baru. |
+| **2** | **Eksekusi Ulang & Backfill Idempoten** | Memakai `INSERT INTO` polos sehingga menjalankan skrip dua kali melipatgandakan angka omzet. | Penggantian partisi atomik (`DELETE WHERE ds = ?` + `INSERT`, atau `insert_overwrite` / `MERGE`), dibuktikan oleh tes yang menjalankan pipeline dua kali. |
+| **3** | **Validasi Batas & Dead-Letter Quarantine (DLQ)** | Memanggil `pd.to_numeric(..., errors="coerce")` atau membiarkan seluruh batch gagal hanya karena 1 baris rusak. | Kontrak skema Pydantic ketat di pintu masuk yang mengarahkan baris rusak beserta alasannya ke `quarantine_dlq.jsonl` dan memberi peringatan jika melebihi ambang SLA. |
+| **4** | **Kontrak Grain & Pemodelan Data Eksplisit** | Membuang satu tabel rata tanpa primary key, tipe data, maupun pemodelan. | Pemisahan lapisan `Staging → Core/Dimensional (Star Schema / SCD2 atau Data Vault) → BI Rollup Mart` dengan dokumentasi grain per tabel. |
+| **5** | **Partisi, Clustering & Penjaga Biaya Cloud** | Tabel warehouse tanpa partisi yang di-query dengan `SELECT *`. | Tabel dipartisi berdasarkan tanggal (`PARTITION BY order_date`) dan diklaster pada kunci filter utama (`CLUSTER BY store_id, status`). |
+| **6** | **Rangkaian Tes Kasus Tepi Otomatis (`pytest` + `dbt test`)** | Nol tes, atau hanya satu tes jalur normal pada 3 baris data bersih. | Unit test + integration test `pytest` yang menguji `NULL`, duplikat retry, angka negatif, event terlambat, dan konversi uang integer. |
+| **7** | **Infrastructure as Code (IaC) & Kebersihan Rahasia** | Klik manual di konsol cloud atau password tertulis langsung di file Python. | Terraform deklaratif (`main.tf`, `variables.tf`), `.env.example`, dan pemindai rahasia `.pre-commit-config.yaml`. |
+| **8** | **Continuous Integration (`.github/workflows/ci.yml`)** | Tanpa CI; kode rusak langsung di-push ke `main`. | Workflow GitHub Actions yang menjalankan `ruff`, `pytest`, dan `dbt build` pada setiap Push / Pull Request. |
+| **9** | **Observabilitas & Ringkasan Eksekusi** | Eksekusi bisu (`print("done")`). | Log JSON terstruktur yang mencatat `rows_read`, `rows_loaded`, `rows_quarantined`, `net_revenue_sum`, dan `duration_ms`. |
+| **10** | **Design doc satu halaman (`DESIGN.md`)** | `README.md` yang hanya berisi daftar pustaka yang diinstal. | `README.md` ringkas ditambah `DESIGN.md` satu halaman dari Modul 2.5 (ADR punya fungsi yang sama), yang menjelaskan: **(a) Masalah Bisnis & KPI Stakeholder**, **(b) Diagram Arsitektur & Grain**, **(c) Trade-off yang Dipilih**, dan **(d) Apa yang Diubah jika Skala Tumbuh 100×**. |
+
+> 🛠 **Coba sendiri (15 menit, terminal).** Buat repositori yang sengaja lemah: `git init`, `README.md` yang hanya berisi judul, dan `pipeline.py` yang membaca `/Users/budi/Desktop/data.csv` lalu mencetak `done`, dalam satu commit. Jalankan `python3 scripts/verify_portfolio.py proj-1 <folder itu>`. Lalu telusuri sepuluh baris rubrik di atas dan tandai masing-masing: apakah verifier memeriksanya, atau perlu orang yang membaca kodenya?
+>
+> **Seharusnya Anda melihat:** `Not yet: 7 check(s) failed`: kurang dari 3 commit, tidak ada `.gitignore`, tidak ada catatan keputusan di README, tidak ada workflow CI, tidak ada tes untuk kode Anda sendiri, tidak ada alat lakehouse, dan tidak ada dashboard. Baris 6, 7, 8, dan 10 punya pemeriksaan mesin, baris 4 dan 5 sebagian. Baris 1 (apakah berjalan dari clone baru?), 2 (apakah aman dijalankan dua kali?), 3 (ke mana baris rusak pergi?), dan 9 (apa yang dilaporkan sebuah run?) butuh peninjau yang membaca dan menjalankan kode Anda, itulah sebabnya tugas take-home butuh README dan design doc yang menjelaskannya.
+
 ## @lab Lab: lima langkah membangun pipeline produksi harian di Airflow
 Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan mengeksekusi DAG Anda pada file pengiriman riil serta file yang sengaja dirusak, lalu membandingkan isi database warehouse Anda dengan hasil perhitungan independen.
 

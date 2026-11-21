@@ -2,7 +2,7 @@
 // Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
 
 const REPO_URL = "https://github.com/triutama133/DECourse";
-const VIEWS = ["start", "roadmap", "curriculum", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
+const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 // modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
 const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
@@ -18,7 +18,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
+const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -48,6 +48,10 @@ class DataForgeApp {
     this.activeDrillId = "drill-1";
     this.activeBugId = "bug-not-in-null";
     this.activePortfolioId = "proj-1";
+    this.activeJobStoryId = "kopiku";
+    this.activeJobLevel = "easy";
+    this.jobSimProofs = readStore("df_job_sim_proofs", {}) || {};
+    this.jobSimGates = readStore("df_job_sim_gates", {}) || {};
 
     this.completedModules = readStore("df_completed_modules", []);
     this.quizScores = readStore("df_quiz_scores", {});
@@ -330,7 +334,8 @@ class DataForgeApp {
         i += 2;
         const rows = [];
         while (i < lines.length && isTableRow(lines[i])) rows.push(cells(lines[i++]));
-        out.push(`<div class="table-wrap"><table><thead><tr>${head.map((c) => `<th>${this.inline(c)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td style="white-space:normal">${this.inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+        const cell = (c) => this.inline(c).replace(/&lt;br\s*\/?&gt;/g, "<br>"); // a written <br> is the only way to break a line inside a Markdown table cell
+        out.push(`<div class="table-wrap"><table><thead><tr>${head.map((c) => `<th>${cell(c)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td style="white-space:normal">${cell(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
       } else if (/^> ?/.test(line)) {
         const q = [];
         while (i < lines.length && /^> ?/.test(lines[i])) q.push(lines[i++].replace(/^> ?/, ""));
@@ -374,6 +379,10 @@ class DataForgeApp {
       this.activeLessonIdx = this.activeModuleTab === "concepts" && n >= 1 ? n - 1 : null;
     }
     if (view === "interview" && INTERVIEW_TABS.includes(parts[1])) this.activeInterviewTab = parts[1];
+    if (view === "job-sim") {
+      if (parts[1] && window.JOB_SIM_DATA && window.JOB_SIM_DATA.stories.some((s) => s.id === parts[1])) this.activeJobStoryId = parts[1];
+      if (parts[2] && ["easy", "normal", "hard", "expert"].includes(parts[2])) this.activeJobLevel = parts[2];
+    }
     this.renderChrome();
     this.renderView();
     window.scrollTo(0, 0);
@@ -400,7 +409,9 @@ class DataForgeApp {
   renderChrome() {
     const labels = {
       "start": this.l("Mulai di sini", "Start here"),
-      "roadmap": this.tr("navRoadmap"), "curriculum": this.tr("navCurriculum"), "interview": this.tr("navInterview"),
+      "roadmap": this.tr("navRoadmap"), "curriculum": this.tr("navCurriculum"),
+      "job-sim": this.l("Simulator Kerja", "Job Simulator"),
+      "interview": this.tr("navInterview"),
       "portfolio": this.tr("navPortfolio"), "cv-builder": this.tr("navCvBuilder"), "playground": this.tr("navPlayground"),
       "readiness": this.tr("navReadiness"), "remote-playbook": this.tr("navRemote")
     };
@@ -526,6 +537,7 @@ class DataForgeApp {
     const proofCount = allMods.filter((m) => this.proofFor(m.id)).length;
     const chaosCount = Object.keys(this.chaosProofs || {}).length;
     const portCount = Object.keys(this.portfolioProofs || {}).length;
+    const jobSimCount = Object.keys(this.jobSimProofs || {}).length;
     const sqlCount = (this.solvedChallenges || []).length;
     const bugCount = Object.values(this.bugState || {}).filter((x) => x && x.solved).length;
     const defCount = Object.values(this.defenseState || {}).filter((x) => x && x.solved).length;
@@ -534,7 +546,7 @@ class DataForgeApp {
       return m && this.quizScores[id].best >= Math.ceil(m.quiz.length * 0.8);
     }).length;
 
-    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
+    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (jobSimCount * 200) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
 
     let leagueName = this.l("Rookie DE", "Rookie DE");
     let leagueIcon = "🛡️";
@@ -653,6 +665,7 @@ class DataForgeApp {
       "start": () => this.renderStartView(),
       "roadmap": () => this.renderRoadmapView(),
       "curriculum": () => this.renderCurriculumView(),
+      "job-sim": () => this.renderJobSimView(),
       "interview": () => this.renderInterviewView(),
       "portfolio": () => this.renderPortfolioView(),
       "cv-builder": () => this.renderCvBuilderView(),
@@ -4917,6 +4930,240 @@ class DataForgeApp {
         ${section(2, `<div class="grid cols-2">${pb.sections[2].slackTemplates.map((st) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(st.phase))}</div><pre><code>${this.esc(st.text)}</code></pre></div>`).join("")}</div>`)}
         ${section(3, pb.sections[3].starExamples.map((s) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(s.question))}</div>${this.md(s.answer)}</div>`).join(""))}
         ${section(4, `<div class="grid cols-2">${pb.sections[4].tips.map((tip) => `<div class="well stack-sm"><div class="label">${this.esc(this.t(tip.topic))}</div><p>${this.esc(this.t(tip.detail))}</p></div>`).join("")}</div>`)}
+      </div>`;
+  }
+
+  // ================= 4-STORY REAL-LIFE DATA ENGINEER JOB SIMULATOR =================
+  setJobStory(storyId) {
+    this.activeJobStoryId = storyId;
+    this.go("job-sim", storyId, this.activeJobLevel);
+  }
+  setJobLevel(lvl) {
+    this.activeJobLevel = lvl;
+    this.go("job-sim", this.activeJobStoryId, lvl);
+  }
+  answerJobSimGate(missionId, optIdx) {
+    const stories = (window.JOB_SIM_DATA && window.JOB_SIM_DATA.stories) || [];
+    let mission = null;
+    for (const s of stories) {
+      for (const lv of s.levels) {
+        if (lv.missionId === missionId) mission = lv;
+      }
+    }
+    if (!mission || !mission.padmGate) return;
+    const opt = mission.padmGate.options[optIdx];
+    if (!opt) return;
+    this.jobSimGates[missionId] = { selected: optIdx, passed: Boolean(opt.correct) };
+    writeStore("df_job_sim_gates", this.jobSimGates);
+    if (this.playTone) this.playTone(opt.correct ? "ok" : "err");
+    this.renderView();
+  }
+  submitJobSimProof(missionId) {
+    const inp = document.getElementById("jobsim-proof-input-" + missionId);
+    const msg = document.getElementById("jobsim-proof-msg-" + missionId);
+    if (!inp || !msg) return;
+    const raw = inp.value.trim();
+    const res = window.ProofCheck && window.ProofCheck.verifyJobSim
+      ? window.ProofCheck.verifyJobSim(missionId, raw)
+      : { ok: false, reason: "format" };
+    if (!res.ok) {
+      if (this.playTone) this.playTone("err");
+      const why = res.reason === "mission"
+        ? this.l(`Kode ini untuk misi ${res.mission}, bukan ${missionId}.`, `This token is for mission ${res.mission}, not ${missionId}.`)
+        : this.l("Token JOB1 tidak valid. Jalankan `python3 scripts/job_sim.py verify` di terminal dan tempel kode JOB1 yang dicetak.", "Invalid JOB1 token. Run `python3 scripts/job_sim.py verify` in your terminal and paste the printed JOB1 token.");
+      msg.innerHTML = `<div class="feedback err">✗ ${this.esc(why)}</div>`;
+      return;
+    }
+    this.jobSimProofs[missionId] = { token: raw, ...res.info };
+    writeStore("df_job_sim_proofs", this.jobSimProofs);
+    if (this.playTone) this.playTone("win");
+    this.renderChrome();
+    this.renderView();
+  }
+  renderJobSimView() {
+    const data = window.JOB_SIM_DATA;
+    if (!data || !Array.isArray(data.stories)) return `<div class="card"><p>Job simulator data not loaded.</p></div>`;
+    const story = data.stories.find((s) => s.id === this.activeJobStoryId) || data.stories[0];
+    const mission = story.levels.find((l) => l.level === this.activeJobLevel) || story.levels[0];
+    const totalMissions = data.stories.reduce((acc, s) => acc + s.levels.length, 0);
+    const doneMissions = Object.keys(this.jobSimProofs || {}).length;
+    const storyDoneCount = story.levels.filter((lv) => Boolean(this.jobSimProofs[lv.missionId])).length;
+    const gateState = (this.jobSimGates && this.jobSimGates[mission.missionId]) || null;
+    const jProof = (this.jobSimProofs && this.jobSimProofs[mission.missionId]) || null;
+    const workDir = `~/job-sim/${mission.missionId}`;
+    const cmdInit = `python3 scripts/job_sim.py init ${mission.missionId} ${workDir}`;
+    const cmdVerify = `python3 scripts/job_sim.py verify ${mission.missionId} ${workDir}`;
+
+    return `
+      <div class="stack">
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Simulasi Pekerjaan Data Engineer Dunia Nyata · Reis & Housley Lifecycle", "Real-Life Data Engineer Job Simulator · Reis & Housley Lifecycle")}</span>
+              <h1 style="margin-top:4px">${this.l("4 Cerita Industri: Bangun dari Nol hingga Live di Produksi", "4 Industry Stories: Build from Scratch to Live in Production")}</h1>
+            </div>
+            <span class="chip ${doneMissions > 0 ? "chip-green" : ""}">${doneMissions}/${totalMissions} ${this.l("Misi JOB1 Terverifikasi", "JOB1 Missions Verified")}</span>
+          </div>
+          <p class="sub">${this.l(
+            "Bukan sekadar teori atau kuis: pilih salah satu dari 4 perusahaan di bawah, mulai dari tiket hari pertama (Easy), naik ke pemodelan Cloud Warehouse & privasi (Normal), streaming CDC & Spark skew (Hard), hingga krisis FinOps, DR & AI/ML (Expert). Setiap misi dimulai dari penyelarasan dengan stakeholder, desain arsitektur, hingga verifikasi kode Python produksi dengan token JOB1.",
+            "Not a passive tutorial or quiz: step into 4 distinct companies, start with Day-1 ingestion & storage fires (Easy), advance to Cloud Warehouse modeling & privacy (Normal), Kafka CDC & Spark skew (Hard), and Staff-level FinOps, DR & AI/ML serving crises (Expert). Every mission walks through stakeholder alignment, architecture trade-offs, and local Python verification via JOB1 tokens."
+          )}</p>
+        </div>
+
+        <!-- 4 Story Selector Cards -->
+        <div class="grid cols-2">
+          ${data.stories.map((s) => {
+            const sDone = s.levels.filter((lv) => Boolean(this.jobSimProofs[lv.missionId])).length;
+            const isAct = s.id === story.id;
+            return `
+              <button class="item ${isAct ? "active" : ""}" onclick="app.setJobStory('${s.id}')">
+                <div class="row between">
+                  <span class="chip">${s.icon} ${this.esc(this.t(s.badge))}</span>
+                  <span class="small ${sDone === 4 ? "state-done" : "muted"}">${sDone}/4 ${this.l("selesai", "done")}</span>
+                </div>
+                <div class="item-title" style="margin-top:6px">${this.esc(this.t(s.title))}</div>
+                <div class="item-meta">${this.esc(this.t(s.companyProfile))}</div>
+              </button>`;
+          }).join("")}
+        </div>
+
+        <!-- Active Story Overview & 4 Difficulty Level Tabs -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <h2>${story.icon} ${this.esc(this.t(story.title))}</h2>
+              <p class="muted small">${this.esc(this.t(story.summary))}</p>
+            </div>
+            <span class="chip">${storyDoneCount}/4 ${this.l("Level Lulus", "Levels Passed")}</span>
+          </div>
+          <div class="grid cols-4" role="tablist" aria-label="Difficulty levels">
+            ${story.levels.map((lv) => {
+              const lvDone = Boolean(this.jobSimProofs[lv.missionId]);
+              const isCur = lv.level === mission.level;
+              return `
+                <button role="tab" aria-selected="${isCur}" class="item ${isCur ? "active" : ""}" onclick="app.setJobLevel('${lv.level}')">
+                  <div class="row between">
+                    <span class="small"><strong>${lv.level.toUpperCase()}</strong></span>
+                    ${lvDone ? `<span class="state-done">✓ JOB1</span>` : `<span class="muted small">○</span>`}
+                  </div>
+                  <div class="item-meta" style="margin-top:4px">${this.esc(this.t(lv.title))}</div>
+                </button>`;
+            }).join("")}
+          </div>
+        </div>
+
+        <!-- Step 0: Incident Ticket & Reis & Housley Lifecycle Context -->
+        <div class="card stack-sm" style="border-left:4px solid var(--accent)">
+          <div class="row between">
+            <span class="chip">${this.esc(this.t(mission.difficultyBadge))}</span>
+            <span class="chip">📐 ${this.esc(mission.lifecycle)}</span>
+          </div>
+          <h2>${this.esc(this.t(mission.title))}</h2>
+          <div class="well stack-sm">
+            <div class="row between">
+              <span class="label">📟 ${this.l("Tiket Insiden & Pager", "Incident Ticket & Pager")}: ${this.esc(mission.incidentTicket.from)}</span>
+              <span class="small muted"><strong>SLA:</strong> ${this.esc(this.t(mission.incidentTicket.sla))}</span>
+            </div>
+            <p>${this.esc(this.t(mission.incidentTicket.brief))}</p>
+            <div class="row" style="gap:6px;flex-wrap:wrap">
+              <span class="small muted">${this.l("Undercurrents (Reis & Housley):", "Undercurrents (Reis & Housley):")}</span>
+              ${mission.undercurrents.map((u) => `<span class="chip">${this.esc(u)}</span>`).join("")}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 1: Requirements & Architecture Decision -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Langkah 1 · Keputusan Kebutuhan & Arsitektur", "Step 1 · Requirements & Architecture Decision")}</span>
+              <h3 style="margin-top:4px">${this.esc(this.t(mission.padmGate.question))}</h3>
+            </div>
+            ${gateState && gateState.passed ? `<span class="state-done">✓ ${this.l("Arsitektur Disetujui", "Architecture Approved")}</span>` : ""}
+          </div>
+          <div class="stack-sm">
+            ${mission.padmGate.options.map((opt, idx) => {
+              const isSelected = gateState && gateState.selected === idx;
+              return `
+                <button class="item ${isSelected ? "active" : ""}" style="text-align:left;width:100%" onclick="app.answerJobSimGate('${mission.missionId}', ${idx})">
+                  <div>${this.esc(this.t(opt.text))}</div>
+                </button>
+                ${isSelected ? `<div class="callout ${opt.correct ? "success" : "danger"}"><p>${this.esc(this.t(opt.feedback))}</p></div>` : ""}`;
+            }).join("")}
+          </div>
+        </div>
+
+        <!-- Step 2: Engineering Contract & Reference Blueprint -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Langkah 2 · Kontrak Spesifikasi Teknis & Implementasi Produksi", "Step 2 · Technical Specification Contract & Production Implementation")}</span>
+              <h3 style="margin-top:4px"><code>${this.esc(mission.spec.file)}</code> → <code>${this.esc(mission.spec.functionSig)}</code></h3>
+            </div>
+          </div>
+          <ul>
+            ${(mission.spec.rules[this.lang] || mission.spec.rules.en).map((r) => `<li>${this.inline(r)}</li>`).join("")}
+          </ul>
+          <details class="tryit-reveal">
+            <summary>📄 ${this.l("Lihat file awal yang ditulis perintah init (aturan di atas, fungsi masih kosong)", "See the starter file that init writes (the rules above, an empty function)")}</summary>
+            <div class="code-wrap" style="margin-top:8px">
+              <pre data-lang="python"><code>${this.esc(mission.spec.starterCode)}</code></pre>
+            </div>
+          </details>
+          ${jProof ? `<details class="tryit-reveal">
+            <summary>👁️ ${this.l("Bandingkan dengan solusi referensi (terbuka karena misi ini sudah Anda verifikasi)", "Compare with the reference solution (open because you verified this mission)")}</summary>
+            <div class="code-wrap" style="margin-top:8px">
+              <pre data-lang="python"><code>${this.esc(mission.spec.referenceCode)}</code></pre>
+            </div>
+          </details>` : `<p class="small muted">🔒 ${this.l("Solusi referensi terbuka setelah token JOB1 misi ini diterima. Pemeriksa juga menguji fungsi Anda pada data tersembunyi dan menolak salinan solusi referensi.", "The reference solution opens after this mission's JOB1 token is accepted. The checker also tests your function on hidden data and refuses a copy of the reference solution.")}</p>`}
+        </div>
+
+        <!-- Step 3: First-Law Local CLI Verification (JOB1 Token) -->
+        <div class="card stack-sm" style="border-left:4px solid var(--green)">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Langkah 3 · Verifikasi Lokal Hukum Pertama (JOB1 Token)", "Step 3 · First-Law Local Terminal Verification (JOB1 Token)")}</span>
+              <h3 style="margin-top:4px">${this.l("Jalankan & Uji Misi Ini di Komputer Anda", "Initialize & Verify This Mission on Your Machine")}</h3>
+            </div>
+            ${jProof ? `<span class="state-done">✓ JOB1 (${jProof.passed} checks · Python ${jProof.py})</span>` : `<span class="muted small">${this.l("Belum diverifikasi", "Not verified yet")}</span>`}
+          </div>
+          <p class="small muted">${this.l(
+            "1. Buat file awal di terminal Anda, 2. tulis sendiri fungsinya berdasarkan aturan, lalu 3. jalankan verifier untuk mendapatkan token bukti JOB1:",
+            "1. Create the starter file in your terminal, 2. write the function yourself from the rules, and 3. run the verifier to earn your JOB1 proof token:"
+          )}</p>
+          <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdInit + "\n" + cmdVerify)}</code></pre></div>
+          <div class="row">
+            <input type="text" id="jobsim-proof-input-${mission.missionId}" autocomplete="off" spellcheck="false" placeholder="JOB1:${mission.missionId}:…" value="${jProof ? this.esc(jProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitJobSimProof('${mission.missionId}')}" />
+            <button class="btn btn-sm btn-primary" onclick="app.submitJobSimProof('${mission.missionId}')">${this.l("Verifikasi JOB1", "Verify JOB1")}</button>
+          </div>
+          <div id="jobsim-proof-msg-${mission.missionId}">
+            ${jProof ? `<div class="feedback ok">✓ ${this.l(`Misi produksi ${mission.missionId} lulus verifikasi lokal (${jProof.passed} tes lulus, Python ${jProof.py} di ${jProof.os}).`, `Production mission ${mission.missionId} verified locally (${jProof.passed} checks passed, Python ${jProof.py} on ${jProof.os}).`)}</div>` : ""}
+          </div>
+        </div>
+
+        <!-- Step 4: STAR-Format Resume & Portfolio Impact Bullets for This Story -->
+        <div class="card stack-sm">
+          <div class="row between">
+            <div>
+              <span class="label">${this.l("Dampak Karir & CV (Metode STAR / Google XYZ)", "Career & Resume Impact (STAR / Google XYZ Method)")}</span>
+              <h3 style="margin-top:4px">${this.l(`Poin Resume Siap Pakai dari Cerita ${this.t(story.title)}`, `Quantified Resume Bullets Unlocked by ${this.t(story.title)}`)}</h3>
+            </div>
+            <span class="chip">${storyDoneCount}/4 ${this.l("Terbukti", "Proven")}</span>
+          </div>
+          <p class="small muted">${this.l(
+            "Setiap level yang Anda selesaikan di cerita ini membekali Anda dengan pencapaian teknis terukur yang dapat Anda jelaskan langkah demi langkah saat wawancara:",
+            "Each level you verify in this story equips you with a quantified engineering achievement you can defend step-by-step in interviews:"
+          )}</p>
+          <div class="stack-sm">
+            ${story.starResumeBullets.map((b, i) => {
+              const lvObj = story.levels[i];
+              const isLvDone = lvObj && Boolean(this.jobSimProofs[lvObj.missionId]);
+              return `<div class="well row between" style="gap:10px">
+                <span class="small">${isLvDone ? "✅" : "🔒"} <strong>${lvObj ? lvObj.level.toUpperCase() : ""}:</strong> ${this.inline(b)}</span>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
       </div>`;
   }
 }

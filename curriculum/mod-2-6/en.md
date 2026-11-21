@@ -508,6 +508,75 @@ CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
 >
 > **You should see:** each dry run prints the bytes it would process, and `SELECT *` is several times the one-column query. The first real run of the `CA` query shows `cache_hit = false`; the identical second run is answered from the result cache, with `cache_hit = true` and `total_bytes_billed = 0` (lesson 4's `ResultCache`, on a real warehouse). Write down your byte counts and timings; no measured values are given here yet.
 
+## @lesson Python-to-warehouse connectors, RBAC role hierarchies, BI rollup marts, and external vs. native tables
+
+Combining the best production practices from *Data Engineering 101*, *DataTalksClub Data Engineering Zoomcamp*, and *Google Business Intelligence*, four practical workflows complete your cloud data warehouse toolkit:
+
+**1. Programmatic Python-to-Warehouse Bulk Connectors (`Snowflake` & `BigQuery`).** When a Python pipeline loads a cleaned DataFrame into a cloud warehouse, never loop over rows with `cursor.execute("INSERT INTO ...")`. Use the native columnar bulk loader SDKs, which stage compressed Parquet/Arrow buffers directly into cloud storage and trigger a parallel warehouse load job:
+
+```python
+# --- A. SNOWFLAKE: Bulk Arrow/Parquet Load via write_pandas + Parameterized Query ---
+import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
+
+conn = snowflake.connector.connect(
+    user="SVC_ELT_LOADER",
+    account="kopiku-ap-southeast-1",
+    private_key_file="/secrets/rsa_key.p8",   # Key-pair auth (never hardcode passwords!)
+    warehouse="WH_LOADING_XS",
+    database="PROD_DW",
+    schema="RAW"
+)
+# Stages compressed Parquet chunks in parallel & runs COPY INTO under the hood:
+success, nchunks, nrows, _ = write_pandas(conn, cleaned_df, "STG_ORDERS", auto_create_table=False)
+
+# Always use parameterized placeholders (%s), NEVER f-strings, to prevent SQL injection:
+with conn.cursor() as cur:
+    cur.execute("SELECT COUNT(*) FROM STG_ORDERS WHERE order_date = %s", ("2026-02-02",))
+
+# --- B. GOOGLE BIGQUERY: Zero-Copy Arrow/Parquet Load Job ---
+from google.cloud import bigquery
+
+bq = bigquery.Client(project="kopiku-prod")
+job_config = bigquery.LoadJobConfig(
+    write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    time_partitioning=bigquery.TimePartitioning(field="order_date"),
+    clustering_fields=["store_id", "status"],
+)
+# Uploads DataFrame as compressed Parquet to Colossus in a single batch job:
+load_job = bq.load_table_from_dataframe(
+    cleaned_df, "kopiku-prod.raw_kopiku.stg_orders$20260202", job_config=job_config
+)
+load_job.result()  # Waits for atomic partition replacement
+```
+
+**2. Cloud Warehouse Role-Based Access Control (RBAC) Hierarchy.** In Snowflake, BigQuery, and Databricks Unity Catalog, never grant table permissions directly to individual human users, and never run pipelines as `ACCOUNTADMIN` / `Project Owner`. Separate **Access Roles** (what objects can be read/written) from **Functional Roles** (job titles):
+
+```sql
+-- Snowflake / Warehouse RBAC Least-Privilege Pattern:
+CREATE ROLE IF NOT EXISTS ROLE_ELT_WRITER;
+CREATE ROLE IF NOT EXISTS ROLE_BI_READER;
+
+GRANT USAGE ON WAREHOUSE WH_BI_XS TO ROLE ROLE_BI_READER;
+GRANT USAGE ON DATABASE PROD_DW TO ROLE ROLE_BI_READER;
+GRANT USAGE ON SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+
+-- Grant read access to all current AND future mart tables automatically:
+GRANT SELECT ON ALL TABLES IN SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+
+-- Assign functional role to the Looker/Tableau service account:
+GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
+```
+
+**3. External Tables vs. Native Managed Warehouse Tables.** Both BigQuery and Snowflake can query Parquet/Iceberg files sitting in your GCS/S3 bucket directly via an **External Table** (`CREATE EXTERNAL TABLE ... OPTIONS(format='PARQUET', uris=['gs://kopiku-lake/orders/*.parquet'])`), or ingest them into a **Native Table**:
+- **External Tables:** Zero warehouse storage duplication cost; great for cold archival logs or one-off exploration. However, query planning is slower and fine-grained clustering/BI Engine acceleration is more limited (unless using **BigLake / Iceberg tables** with pinned metadata).
+- **Native Managed Tables + Pre-Aggregated BI Rollup Marts:** For hot executive dashboards in Tableau or Looker, load atomic facts into partitioned/clustered native tables and materialize **Rollup Target Tables** (`mart_daily_store_rollup` at `(order_date, store_id, product_category)` grain). Pointing Tableau at a 50,000-row daily rollup instead of a 2-billion-row fact table means every filter reads 40,000 times fewer rows (2,000,000,000 / 50,000), and on a warehouse that bills by bytes scanned, the bill shrinks with it.
+
+> 🛠 **Try it (15 min, Python with DuckDB).** Load the rows of `data/orders.csv` whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST`, and make a bigger fact table by repeating them 300 times (`CROSS JOIN range(300)`), with `order_date`, `payment_method`, `status` and `total_idr`. Build a rollup at the grain `(order_date, payment_method, status)` with `count(*)` and `sum(total_idr)`. Answer the dashboard question "revenue per payment method, not cancelled, 10 to 16 January" from both tables, check that the answers are identical, and time each query five times.
+>
+> **You should see:** `1061700` fact rows and `657` rollup rows, the same four totals from both, and a median of about `10.6` ms on the fact table against `1.8` ms on the rollup. On a warehouse that bills by bytes scanned the gap is in money as well as time. The rollup only works because every filter the dashboard offers is a column of its grain: ask it for revenue per customer and it cannot answer. Measured with DuckDB 2.0.1 on the course's default data.
+
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
 

@@ -193,6 +193,65 @@ A streaming job is a service that never finishes, and it fails in ways batch doe
 >
 > **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). Nobody has to be paged for a job that fails, but a job that is merely slower than its input is a failure that grows quietly; that is why lag is the first metric to alert on.
 
+## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream joins, and real-time OLAP (Pinot, ClickHouse, Druid)
+
+Extending Chapters 7 and 8 (ingestion, and queries including streaming) of *Fundamentals of Data Engineering* and Module 6 of the *DataTalksClub Data Engineering Zoomcamp*, four production streaming architectures appear frequently in system design interviews and low-latency platforms:
+
+**1. Evolution of Streaming Architectures: Lambda → Kappa → Unified Lakehouse.**
+- **Lambda Architecture (2011):** Ran two separate codebases in parallel—a **Batch Layer** (Hadoop/Spark nightly full accuracy) and a **Speed Layer** (Storm/Flink approximate low-latency)—merged in a serving view. *Fatal flaw:* Maintaining and debugging the exact same business logic in two different frameworks caused constant drift.
+- **Kappa Architecture (2014):** Eliminated the batch codebase by treating the **append-only Kafka log** as the single source of truth; to recompute historical logic, you spin up a new streaming consumer instance from offset `0`. *Limitation:* Replaying 2 years of raw events from Kafka takes days and scanning raw Kafka topics for ad-hoc SQL analytics is inefficient.
+- **Unified Lakehouse Streaming (Modern Standard):** One codebase (Spark Structured Streaming / Delta Live Tables / **PyFlink**) reads from **Kafka / Redpanda** and writes incremental checkpoints into **Apache Iceberg / Delta Lake** tables on S3/GCS, unifying sub-minute streaming ingestion with petabyte-scale columnar historical backfills.
+
+**2. Local & Production Event Streaming with `Redpanda` and `PyFlink` (Flink SQL).**
+In local development and CI (as popularized by *Data Engineering Zoomcamp*), spinning up a full JVM Apache Kafka + ZooKeeper/KRaft cluster is heavy. **Redpanda** is a Kafka-API-compatible broker written in C++: one container, no JVM and no ZooKeeper, and Kafka clients such as `confluent-kafka` and Flink's Kafka connector talk to it unchanged. When paired with **PyFlink's Table API / Flink SQL**, you can declare stateful event-time tumbling windows and watermarks directly in SQL:
+
+```python
+# PyFlink Table API / Flink SQL: Event-time 5-minute Tumbling Window with a 30-second Watermark
+from pyflink.table import EnvironmentSettings, TableEnvironment
+
+t_env = TableEnvironment.create(EnvironmentSettings.in_streaming_mode())
+
+t_env.execute_sql("""
+    CREATE TABLE courier_pings (
+        courier_id STRING,
+        region_id  STRING,
+        speed_kmh  DOUBLE,
+        ping_ts    TIMESTAMP(3),
+        WATERMARK FOR ping_ts AS ping_ts - INTERVAL '30' SECOND
+    ) WITH (
+        'connector' = 'kafka',
+        'topic' = 'gokirim.gps.pings',
+        'properties.bootstrap.servers' = 'redpanda:9092',
+        'format' = 'json'
+    )
+""")
+
+# Stateful event-time window aggregation sinking continuously to Postgres / Iceberg:
+t_env.execute_sql("""
+    SELECT
+        window_start,
+        window_end,
+        region_id,
+        COUNT(DISTINCT courier_id) AS active_couriers,
+        AVG(speed_kmh)             AS avg_speed_kmh
+    FROM TABLE(
+        TUMBLE(TABLE courier_pings, DESCRIPTOR(ping_ts), INTERVAL '5' MINUTES)
+    )
+    GROUP BY window_start, window_end, region_id
+""")
+```
+
+**3. Stream-to-Table Lookup Joins vs. Stream-to-Stream Interval Joins.**
+- **Stream-to-Table Join (Enrichment):** Joining a live stream of `orders` against a slowly changing `dim_store` table. Only the stream side is buffered; the table side is looked up in memory or broadcast state.
+- **Stream-to-Stream Interval Join:** Joining a live stream of `ad_impressions` with a live stream of `ad_clicks` that arrive up to 30 minutes later. **Both streams must be buffered in RocksDB state**, and you **must** define an explicit time-bound interval (`ON click.imp_id = imp.imp_id AND click.ts BETWEEN imp.ts AND imp.ts + INTERVAL '30' MINUTE`) plus watermarks on *both* streams—otherwise Flink/Spark must keep every impression in state forever and will crash with an Out-Of-Memory (OOM) error!
+
+**4. Real-Time OLAP Serving Engines (`ClickHouse`, `Apache Pinot`, `Apache Druid`, `StarRocks`).**
+When a user-facing product (like live surge-pricing maps or merchant analytics) requires **5,000 concurrent queries per second at `< 100 ms` p95 latency** over fresh Kafka streams, traditional cloud warehouses (BigQuery / Snowflake, designed for `1–10 second` analytical scans) are too slow and expensive. Real-time OLAP databases (**ClickHouse**, **Apache Pinot**, **Apache Druid**) ingest directly from Kafka topics, maintain pre-sorted sparse primary indexes / star-tree rollup indexes, and serve sub-100ms aggregations at high concurrency.
+
+> 🛠 **Try it (15 min, Python).** Simulate an impression-click stream join without Flink. With `random.seed(42)`, make 20,000 impressions, one every half second, and give 10% of them a click between 1 and 1,800 seconds later; sort all events by time. Process them in order, keeping impressions in a dict and counting a match when a click finds its impression no more than 30 minutes old. Run it twice: once keeping every impression forever, once also dropping impressions older than 30 minutes before each event (the time bound plus a watermark). Track the largest number of impressions held in state.
+>
+> **You should see:** both runs match the same `1999` clicks. Without the bound the state peaks at `20000` impressions and is still `20000` at the end: it grows for as long as the stream runs. With the bound it never holds more than `3601` (30 minutes of impressions) and ends at `404`. A real stream runs for months, so only the second version survives. Measured with Python 3.14.
+
 ## @lab Lab: model a watermark, then check it against real Spark
 Part A: write the windowing and watermark logic in plain Python until it reproduces the behaviour in the lesson's table. Part B: write the real Structured Streaming job that reads files as micro-batches, and verify that **Spark agrees with your model**, restarts correctly from its checkpoint, and drops a genuinely late event.
 

@@ -216,6 +216,53 @@ ASOF LEFT JOIN tier_feed f
 >
 > **Seharusnya Anda melihat:** `808` pelanggan pada 2026-01-15 (`466` memesan lagi) dan `915` pada 2026-01-22; selalu menebak "ya" mendapat `57.7%` dan `56.8%`. Fitur yang bocor tampak berguna saat pelatihan, `70.4%` dengan k = 3, lalu jatuh ke `44.7%` pada tanggal berikutnya, lebih buruk daripada menebak. Fitur point-in-time mendapat `57.7%` dan `54.9%`: pada data ini sinyal yang jujur memang lemah, dan justru itulah yang perlu Anda ketahui sebelum ada yang merilis modelnya. `14` dari 808 pelanggan punya tier yang berbeda pada 15 Januari dibanding hari ini, jadi menjoin tier saat ini pun akan bocor. Diukur dengan DuckDB 2.0.1.
 
+## @lesson Feature store penyimpanan ganda (pola Feast), ML di dalam warehouse (BigQuery ML), dan verifikasi ASOF point-in-time
+
+Dalam Bab 9 (*Serving Data for Analytics, Machine Learning, and Reverse ETL*) buku *Fundamentals of Data Engineering* serta Modul 3 *DataTalksClub Data Engineering Zoomcamp*, dua pola data ML produksi ini menjembatani data warehouse dengan inferensi waktu-nyata:
+
+**1. Arsitektur Feature Store Penyimpanan Ganda (Offline Warehouse + Online Key-Value Store Berlatensi Rendah).**
+Pelajaran 7 sudah memperkenalkan feature store dan training-serving skew yang dicegahnya. Alasan adanya *dua* penyimpanan adalah latensi: job pelatihan membaca jutaan baris historis dan boleh menunggu query warehouse dimulai, sedangkan pemeriksaan fraud saat checkout butuh nilai terbaru untuk **satu** pelanggan dalam beberapa milidetik, yang berupa lookup key-value (`Redis / DynamoDB / Bigtable`), bukan scan warehouse. Feature store (`Feast`, Databricks Feature Engineering) menjalankan satu definisi fitur dan menulisnya dua kali: seluruh riwayat ke **offline store** untuk join latih point-in-time, dan hanya nilai terbaru per entitas ke **online store**. Coba sendiri di bawah membangun kedua tampilan itu dan menemukan baris yang akan bocor lewat join naif.
+
+**2. Machine Learning di Dalam Warehouse (`BigQuery ML` / `Snowpark ML`).**
+Ketika kebutuhan prediksi bersifat batch atau near-real-time dan seluruh fitur sudah berada di dalam warehouse, mengekspor data ber-terabyte ke server Python luar justru menambah risiko keamanan dan biaya egress. **BigQuery ML** memungkinkan Anda melatih, mengevaluasi, dan menjalankan prediksi batch untuk model XGBoost, Regresi Logistik, Deret Waktu (`ARIMA_PLUS`), hingga model Vertex AI langsung di dalam SQL standar. (SQL di bawah mengikuti dokumentasi BigQuery ML tetapi tidak dijalankan untuk kursus ini, karena butuh project BigQuery; pelajaran 8 Modul 2.6 menunjukkan cara mendapatkan sandbox gratis.)
+
+```sql
+-- 1. Latih Model Churn Boosted Tree langsung di BigQuery menggunakan fitur Point-in-Time:
+CREATE OR REPLACE MODEL `kopiku_prod.ml_marts.customer_churn_xgb`
+OPTIONS (
+  model_type = 'BOOSTED_TREE_CLASSIFIER',
+  input_label_cols = ['churned_next_30d'],
+  auto_class_weights = TRUE,
+  data_split_method = 'SEQ',
+  data_split_col = 'snapshot_date'   -- Pembagian urut waktu (JANGAN acak tanggal pada data deret waktu!)
+) AS
+SELECT
+  snapshot_date,
+  orders_trailing_14d,
+  spend_trailing_14d_idr,
+  tier_at_snapshot,
+  churned_next_30d
+FROM `kopiku_prod.ml_marts.fct_customer_pit_features`
+WHERE snapshot_date < DATE '2026-02-01';
+
+-- 2. Skor pelanggan aktif hari ini menggunakan SQL untuk kampanye Reverse ETL:
+SELECT customer_id, predicted_churned_next_30d, predicted_churned_next_30d_probs
+FROM ML.PREDICT(
+  MODEL `kopiku_prod.ml_marts.customer_churn_xgb`,
+  (SELECT * FROM `kopiku_prod.ml_marts.fct_customer_pit_features` WHERE snapshot_date = CURRENT_DATE())
+);
+```
+
+> 🛠 **Coba sendiri (20 menit, Python — Lab Feature Store `ASOF` Point-in-Time & Detektor Kebocoran Label).** Buat file `~/practice/feature_store.py` dan implementasikan fungsi `build_feature_store_views(prediction_requests, feature_updates)`:
+> - `prediction_requests`: list dict `{"request_id": str, "entity_id": str, "prediction_ts": int}`
+> - `feature_updates`: list dict `{"entity_id": str, "updated_at": int, "risk_score": int, "tx_count_24h": int}`
+> - Kembalikan sebuah dict dengan tiga kunci:
+>   1. `"offline_training_rows"`: untuk setiap request (diurutkan berdasarkan `request_id`), cari **record fitur `ASOF` point-in-time** milik `entity_id` tersebut dengan nilai `updated_at` terbesar yang memenuhi `updated_at <= prediction_ts`. Jika ditemukan, keluarkan `{"request_id": ..., "entity_id": ..., "prediction_ts": ..., "risk_score": ..., "tx_count_24h": ..., "feature_ts": updated_at}`; jika belum ada update pada atau sebelum `prediction_ts`, keluarkan `risk_score=0, tx_count_24h=0, feature_ts=None`.
+>   2. `"online_store"`: dict yang memetakan setiap `entity_id` ke satu state terbarunya secara keseluruhan (`max(updated_at)`): `{"risk_score": ..., "tx_count_24h": ..., "updated_at": ...}`.
+>   3. `"leaked_request_ids"`: list terurut `request_id` di mana join naif terhadap state terbaru `online_store` akan memakai data masa depan (`updated_at > prediction_ts`) yang nilai `risk_score` atau `tx_count_24h`-nya berbeda dari nilai `ASOF` point-in-time yang sebenarnya!
+>
+> **Periksa:** `python3 labs/tryit/check.py 3.5-1 ~/practice`
+
 ## @lab Lab: pipeline data RAG di PostgreSQL dan pgvector
 Bangun separuh arsitektur offline dari sistem RAG untuk pusat bantuan pelanggan KopiKu: mengelola 116 dokumen panduan bisnis (jam operasional gerai, metode pembayaran, aturan parkir, daftar menu, informasi alergen, dan kebijakan refund) serta mengevaluasi 116 pertanyaan pengguna dengan jawaban berlabel. Anda akan mengimplementasikan fungsi pemotongan teks (chunking), komputasi embeddings, content hashing, sinkronisasi inkremental yang atomik, pencarian terfilter, evaluasi metrik akurasi, serta pembuatan indeks HNSW di pgvector. Rangkaian 43 pengujian otomatis akan memverifikasi setiap fungsionalitas dan membuktikan sifat idempotensi serta isolasi versi model.
 

@@ -507,6 +507,75 @@ CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
 >
 > **Seharusnya Anda melihat:** setiap dry run mencetak byte yang akan diproses, dan `SELECT *` beberapa kali lipat query satu kolom. Eksekusi sungguhan pertama query `CA` menunjukkan `cache_hit = false`; eksekusi kedua yang identik dijawab dari result cache, dengan `cache_hit = true` dan `total_bytes_billed = 0` (`ResultCache` dari pelajaran 4, di warehouse sungguhan). Catat jumlah byte dan waktu Anda; belum ada nilai terukur yang dicantumkan di sini.
 
+## @lesson Konektor Python ke warehouse, hierarki peran RBAC, mart rollup BI, serta tabel eksternal vs. native
+
+Memadukan praktik produksi terbaik dari *Data Engineering 101*, *DataTalksClub Data Engineering Zoomcamp*, dan *Google Business Intelligence*, empat alur kerja praktis ini melengkapi keahlian cloud data warehouse Anda:
+
+**1. Konektor Pemuatan Massal Python ke Cloud Warehouse (`Snowflake` & `BigQuery`).** Saat pipeline Python memuat DataFrame bersih ke cloud warehouse, jangan pernah melakukan loop baris demi baris dengan `cursor.execute("INSERT INTO ...")`. Gunakan SDK bulk loader kolumnar resmi yang mengunggah buffer Parquet/Arrow terkompresi langsung ke cloud storage dan memicu job pemuatan paralel:
+
+```python
+# --- A. SNOWFLAKE: Pemuatan Massal Arrow/Parquet via write_pandas + Query Berparameter ---
+import snowflake.connector
+from snowflake.connector.pandas_tools import write_pandas
+
+conn = snowflake.connector.connect(
+    user="SVC_ELT_LOADER",
+    account="kopiku-ap-southeast-1",
+    private_key_file="/secrets/rsa_key.p8",   # Autentikasi key-pair (jangan hardcode password!)
+    warehouse="WH_LOADING_XS",
+    database="PROD_DW",
+    schema="RAW"
+)
+# Mengunggah potongan Parquet terkompresi secara paralel & menjalankan COPY INTO di balik layar:
+success, nchunks, nrows, _ = write_pandas(conn, cleaned_df, "STG_ORDERS", auto_create_table=False)
+
+# Selalu gunakan placeholder berparameter (%s), JANGAN f-string, untuk mencegah SQL injection:
+with conn.cursor() as cur:
+    cur.execute("SELECT COUNT(*) FROM STG_ORDERS WHERE order_date = %s", ("2026-02-02",))
+
+# --- B. GOOGLE BIGQUERY: Job Pemuatan Arrow/Parquet Zero-Copy ---
+from google.cloud import bigquery
+
+bq = bigquery.Client(project="kopiku-prod")
+job_config = bigquery.LoadJobConfig(
+    write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    time_partitioning=bigquery.TimePartitioning(field="order_date"),
+    clustering_fields=["store_id", "status"],
+)
+# Mengunggah DataFrame sebagai Parquet terkompresi ke Colossus dalam satu job batch:
+load_job = bq.load_table_from_dataframe(
+    cleaned_df, "kopiku-prod.raw_kopiku.stg_orders$20260202", job_config=job_config
+)
+load_job.result()  # Menunggu penggantian partisi atomik selesai
+```
+
+**2. Hierarki Role-Based Access Control (RBAC) di Cloud Warehouse.** Di Snowflake, BigQuery, dan Databricks Unity Catalog, jangan pernah memberikan izin tabel langsung ke akun pengguna individu, dan jangan pernah menjalankan pipeline sebagai `ACCOUNTADMIN` / `Project Owner`. Pisahkan **Peran Akses** (objek apa yang boleh dibaca/ditulis) dari **Peran Fungsional** (jabatan kerja):
+
+```sql
+-- Pola Least-Privilege RBAC Snowflake / Warehouse:
+CREATE ROLE IF NOT EXISTS ROLE_ELT_WRITER;
+CREATE ROLE IF NOT EXISTS ROLE_BI_READER;
+
+GRANT USAGE ON WAREHOUSE WH_BI_XS TO ROLE ROLE_BI_READER;
+GRANT USAGE ON DATABASE PROD_DW TO ROLE ROLE_BI_READER;
+GRANT USAGE ON SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+
+-- Berikan akses baca ke seluruh tabel mart saat ini DAN yang akan dibuat di masa depan:
+GRANT SELECT ON ALL TABLES IN SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+GRANT SELECT ON FUTURE TABLES IN SCHEMA PROD_DW.MARTS TO ROLE ROLE_BI_READER;
+
+-- Berikan peran fungsional ke akun layanan Looker/Tableau:
+GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
+```
+
+**3. External Table vs. Native Managed Table & Mart Rollup BI.** Baik BigQuery maupun Snowflake dapat men-query file Parquet/Iceberg di bucket GCS/S3 Anda secara langsung lewat **External Table** (`CREATE EXTERNAL TABLE ... OPTIONS(format='PARQUET', uris=['gs://kopiku-lake/orders/*.parquet'])`), atau memuatnya ke dalam **Native Table**:
+- **External Table:** Nol biaya duplikasi storage di warehouse; cocok untuk arsip log dingin atau eksplorasi sesekali. Namun, perencanaan query lebih lambat dan optimasi clustering/BI Engine lebih terbatas (kecuali memakai **BigLake / tabel Iceberg**).
+- **Native Table + Mart Rollup Pra-Agregasi untuk BI:** Untuk dashboard eksekutif di Tableau atau Looker, simpan fakta atomik di tabel native terpartisi/terklaster, lalu bangun **Tabel Target Rollup** (`mart_daily_store_rollup` pada grain `(order_date, store_id, product_category)`). Mengarahkan Tableau ke rollup harian berisi 50.000 baris alih-alih tabel fakta 2 miliar baris berarti setiap filter membaca 40.000 kali lebih sedikit baris (2.000.000.000 / 50.000), dan di warehouse yang menagih per byte yang dipindai, tagihannya ikut menyusut.
+
+> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat baris `data/orders.csv` yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST`, lalu buat tabel fakta yang lebih besar dengan mengulangnya 300 kali (`CROSS JOIN range(300)`), berisi `order_date`, `payment_method`, `status`, dan `total_idr`. Bangun rollup pada grain `(order_date, payment_method, status)` dengan `count(*)` dan `sum(total_idr)`. Jawab pertanyaan dashboard "pendapatan per metode pembayaran, bukan cancelled, 10 sampai 16 Januari" dari kedua tabel, pastikan jawabannya identik, dan ukur setiap query lima kali.
+>
+> **Seharusnya Anda melihat:** `1061700` baris fakta dan `657` baris rollup, empat total yang sama dari keduanya, dan median sekitar `10.6` ms pada tabel fakta melawan `1.8` ms pada rollup. Di warehouse yang menagih per byte yang dipindai, selisih itu juga berupa uang, bukan hanya waktu. Rollup hanya berhasil karena setiap filter di dashboard adalah kolom pada grain-nya: minta pendapatan per pelanggan dan ia tidak bisa menjawab. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
 

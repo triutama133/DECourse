@@ -78,7 +78,17 @@
     return { ok: true, info: { proj, passed: parseInt(passed, 10), commits: parseInt(commits, 10), py, os } };
   }
 
-  const api = { sha256, verify, verifyTryIt, verifyChaos, verifyPortfolio };
+  function verifyJobSim(expectedMission, raw) {
+    const f = String(raw || "").trim().replace(/\s+/g, "").split(":");
+    if (f.length !== 6 || f[0] !== "JOB1") return { ok: false, reason: "format" };
+    const [, mission, passed, py, os, chk] = f;
+    if (sha256(f.slice(0, 5).join("|")).slice(0, 6) !== chk.toLowerCase()) return { ok: false, reason: "checksum" };
+    if (expectedMission && mission !== expectedMission) return { ok: false, reason: "mission", mission };
+    if (!(parseInt(passed, 10) >= 2)) return { ok: false, reason: "passed" };
+    return { ok: true, info: { mission, passed: parseInt(passed, 10), py, os } };
+  }
+
+  const api = { sha256, verify, verifyTryIt, verifyChaos, verifyPortfolio, verifyJobSim };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.ProofCheck = api;
 })(typeof window !== "undefined" ? window : globalThis);

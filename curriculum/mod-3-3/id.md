@@ -196,6 +196,65 @@ Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti
 >
 > **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Tidak ada yang perlu dibangunkan untuk job yang gagal, tetapi job yang sekadar lebih lambat dari inputnya adalah kegagalan yang tumbuh diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
 
+## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream join, dan real-time OLAP (Pinot, ClickHouse, Druid)
+
+Memperluas Bab 7 dan 8 (ingestion, serta query termasuk streaming) dari *Fundamentals of Data Engineering* serta Modul 6 *DataTalksClub Data Engineering Zoomcamp*, empat arsitektur streaming produksi ini sangat sering muncul dalam wawancara system design dan platform berlatensi rendah:
+
+**1. Evolusi Arsitektur Streaming: Lambda → Kappa → Unified Lakehouse.**
+- **Arsitektur Lambda (2011):** Menjalankan dua basis kode terpisah secara paralel—**Batch Layer** (Hadoop/Spark malam hari untuk akurasi penuh) dan **Speed Layer** (Storm/Flink untuk latensi rendah perkiraan)—yang digabungkan di lapisan serving. *Kelemahan fatal:* Memelihara logika bisnis yang sama di dua framework berbeda selalu memicu selisih angka.
+- **Arsitektur Kappa (2014):** Menghapus kode batch dengan menjadikan **log Kafka append-only** sebagai satu-satunya sumber kebenaran; untuk menghitung ulang logika historis, Anda memutar ulang konsumen streaming dari offset `0`. *Keterbatasan:* Memutar ulang event 2 tahun dari Kafka memakan waktu berhari-hari dan kurang efisien untuk query SQL ad-hoc.
+- **Unified Lakehouse Streaming (Standar Modern):** Satu basis kode (Spark Structured Streaming / Delta Live Tables / **PyFlink**) membaca dari **Kafka / Redpanda** lalu menulis checkpoint inkremental ke tabel **Apache Iceberg / Delta Lake** di S3/GCS, menyatukan streaming sub-menit dengan backfill kolumnar skala petabyte.
+
+**2. Event Streaming Lokal & Produksi dengan `Redpanda` dan `PyFlink` (Flink SQL).**
+Dalam pengembangan lokal dan CI (seperti di *Data Engineering Zoomcamp*), menyalakan klaster JVM Apache Kafka penuh cukup berat. **Redpanda** adalah broker yang kompatibel dengan API Kafka dan ditulis dalam C++: satu container, tanpa JVM dan tanpa ZooKeeper, dan klien Kafka seperti `confluent-kafka` serta konektor Kafka milik Flink bisa memakainya tanpa diubah. Saat dipadukan dengan **PyFlink Table API / Flink SQL**, Anda dapat mendeklarasikan tumbling window berbasis event-time beserta watermark langsung dalam SQL:
+
+```python
+# PyFlink Table API / Flink SQL: Tumbling Window Event-Time 5 Menit dengan Watermark 30 Detik
+from pyflink.table import EnvironmentSettings, TableEnvironment
+
+t_env = TableEnvironment.create(EnvironmentSettings.in_streaming_mode())
+
+t_env.execute_sql("""
+    CREATE TABLE courier_pings (
+        courier_id STRING,
+        region_id  STRING,
+        speed_kmh  DOUBLE,
+        ping_ts    TIMESTAMP(3),
+        WATERMARK FOR ping_ts AS ping_ts - INTERVAL '30' SECOND
+    ) WITH (
+        'connector' = 'kafka',
+        'topic' = 'gokirim.gps.pings',
+        'properties.bootstrap.servers' = 'redpanda:9092',
+        'format' = 'json'
+    )
+""")
+
+# Agregasi window event-time stateful yang mengalir kontinu ke Postgres / Iceberg:
+t_env.execute_sql("""
+    SELECT
+        window_start,
+        window_end,
+        region_id,
+        COUNT(DISTINCT courier_id) AS active_couriers,
+        AVG(speed_kmh)             AS avg_speed_kmh
+    FROM TABLE(
+        TUMBLE(TABLE courier_pings, DESCRIPTOR(ping_ts), INTERVAL '5' MINUTES)
+    )
+    GROUP BY window_start, window_end, region_id
+""")
+```
+
+**3. Stream-to-Table Lookup Join vs. Stream-to-Stream Interval Join.**
+- **Stream-to-Table Join (Pengayaan):** Menggabungkan aliran langsung `orders` dengan tabel dimensi `dim_store`. Hanya sisi stream yang di-buffer; tabel dimensi cukup dicari di memori atau broadcast state.
+- **Stream-to-Stream Interval Join:** Menggabungkan aliran langsung `ad_impressions` dengan aliran langsung `ad_clicks` yang bisa datang hingga 30 menit kemudian. **Kedua stream wajib disimpan di state RocksDB**, dan Anda **wajib** menetapkan batas interval waktu eksplisit (`ON click.imp_id = imp.imp_id AND click.ts BETWEEN imp.ts AND imp.ts + INTERVAL '30' MINUTE`) ditambah watermark pada *kedua* stream—jika tidak, Flink/Spark harus menyimpan seluruh impresi selamanya di RAM hingga crash karena Out-Of-Memory (OOM)!
+
+**4. Mesin Serving Real-Time OLAP (`ClickHouse`, `Apache Pinot`, `Apache Druid`, `StarRocks`).**
+Ketika aplikasi pengguna langsung (seperti peta harga lonjakan/surge pricing langsung atau analitik merchant) membutuhkan **5.000 query konkuren per detik dengan latensi p95 `< 100 ms`** di atas aliran Kafka segar, cloud warehouse tradisional (BigQuery / Snowflake, yang dirancang untuk pemindaian analitik `1–10 detik`) terlalu lambat dan mahal. Database Real-Time OLAP (**ClickHouse**, **Apache Pinot**, **Apache Druid**) menarik data langsung dari topik Kafka, memelihara indeks primer renggang terurut / indeks star-tree rollup, dan menyajikan agregasi di bawah 100 milidetik pada konkurensi tinggi.
+
+> 🛠 **Coba sendiri (15 menit, Python).** Simulasikan stream join impression-click tanpa Flink. Dengan `random.seed(42)`, buat 20.000 impression, satu setiap setengah detik, dan beri 10% di antaranya sebuah klik antara 1 dan 1.800 detik kemudian; urutkan semua event menurut waktu. Proses berurutan, simpan impression dalam dict, dan hitung kecocokan ketika sebuah klik menemukan impression-nya yang umurnya tidak lebih dari 30 menit. Jalankan dua kali: sekali menyimpan setiap impression selamanya, sekali lagi juga membuang impression yang lebih tua dari 30 menit sebelum setiap event (batas waktu plus watermark). Catat jumlah impression terbanyak yang ditahan di state.
+>
+> **Seharusnya Anda melihat:** kedua run mencocokkan `1999` klik yang sama. Tanpa batas, state memuncak di `20000` impression dan masih `20000` di akhir: ia terus tumbuh selama stream berjalan. Dengan batas, ia tidak pernah menahan lebih dari `3601` (impression selama 30 menit) dan berakhir di `404`. Stream sungguhan berjalan berbulan-bulan, jadi hanya versi kedua yang bertahan. Diukur dengan Python 3.14.
+
 ## @lab Lab: memodelkan watermark, lalu memverifikasinya terhadap Spark nyata
 Lab ini terdiri dari dua bagian yang saling melengkapi: Bagian A membangun model logika windowing dan watermark dalam Python murni hingga mereproduksi tabel perilaku modul secara presisi. Bagian B membangun job nyata Apache Spark Structured Streaming yang memproses file micro-batch, membuktikan bahwa **hasil emisi window Spark identik 100% dengan prediksi model Anda**, memverifikasi pemulihan dari checkpoint, serta membuktikan pembuangan event yang benar-benar terlambat.
 

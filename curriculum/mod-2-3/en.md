@@ -284,6 +284,68 @@ A healthy workflow: develop in a personal schema, open a pull request, let CI ru
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Success Indicator:** `OK snapshotted snapshots.customers_snapshot`, ready to capture city moves and tier changes when the second batch is loaded.
 
+## @lesson Production dbt on cloud warehouses: incremental strategies, unit tests, model contracts, and Slim CI
+
+On your first day joining a modern Analytics Engineering or Data Engineering team, you will rarely run `dbt build` against a small local file; you will open a 300-model dbt repository connected to **BigQuery, Snowflake, or Databricks**. Four production dbt practices prevent cloud bill explosions and broken downstream marts:
+
+**1. Cloud-Specific Incremental Strategies (`merge` vs. `insert_overwrite` vs. `delete+insert` vs. `microbatch`).**
+A naive incremental model with `incremental_strategy='merge'` and `unique_key='order_id'` forces BigQuery or Databricks to scan the **entire multi-terabyte target table** to find matching `order_id`s—so a run that changed three days of data is billed for a scan of the whole table.
+
+| Incremental Strategy | How dbt Compiles It | Best Warehouse & Use Case | Cost-Saving Rule |
+|---|---|---|---|
+| **`merge`** | `MERGE INTO target USING temp ON target.id = temp.id WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT ...` | Snowflake, Databricks, BigQuery when updates scatter across random IDs. | **Always pair with `incremental_predicates: ["DBT_INTERNAL_DEST.order_date >= date_sub(current_date(), interval 7 day)"]`** so the `MERGE` prunes target partitions! |
+| **`insert_overwrite`** | Replaces entire target date partitions atomically (`INSERT OVERWRITE` / BigQuery partition replacement) without row-by-row key matching. | **BigQuery & Databricks / Spark** for partitioned event/order tables with a 3-day lookback window. | **Usually much cheaper than `merge`** on large tables, because it swaps only the modified daily partitions and never scans the historical ones. |
+| **`delete+insert`** | `BEGIN; DELETE FROM target WHERE id IN (...); INSERT INTO target SELECT ...; COMMIT;` | **Redshift & Snowflake** where two-step delete-then-insert outperforms heavy `MERGE` joins. | Ensure the `DELETE` filter includes the partition/sort key column. |
+| **`microbatch`** *(dbt 1.9+)* | Splits large time-series backfills automatically into independent hourly/daily batch queries by `event_time`. | High-volume clickstream / IoT telemetry tables across all cloud warehouses. | Automatically bounds memory per batch and lets you retry only failed days during a 365-day backfill. |
+
+**2. Enforced Model Contracts (`contract: {enforced: true}`) & dbt Unit Tests (`unit_tests:` in dbt 1.8+).**
+Schema tests (`not_null`, `unique`) run *after* a table is built on real data. **Model Contracts** refuse to build the table at compile/DDL time if a column name or data type drifts, while **dbt Unit Tests** let you test complex SQL business logic (regex, `CASE WHEN`, window functions) in seconds using tiny mocked rows in YAML without querying terabytes of warehouse data:
+
+```yaml
+version: 2
+
+models:
+  - name: fct_orders
+    config:
+      contract:
+        enforced: true        # Fails build immediately if column names or data types change!
+    columns:
+      - name: order_id
+        data_type: string
+        constraints:
+          - type: not_null
+      - name: net_revenue_idr
+        data_type: int64
+
+unit_tests:
+  - name: test_net_revenue_excludes_refunded_and_subtracts_tax
+    model: fct_orders
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {order_id: 'O-1', status: 'paid',     gross_idr: 100000, discount_idr: 10000, tax_idr: 9000}
+          - {order_id: 'O-2', status: 'refunded', gross_idr: 250000, discount_idr: 0,     tax_idr: 25000}
+    expect:
+      rows:
+        - {order_id: 'O-1', net_revenue_idr: 81000}
+        - {order_id: 'O-2', net_revenue_idr: 0}
+```
+
+**3. GitHub Actions "Slim CI" (`state:modified+ --defer`).** When you open a Pull Request that modifies 2 models in a 400-model project, rebuilding all 400 models in CI would make every PR wait for, and pay for, a full rebuild. **Slim CI** downloads the latest production `manifest.json` and runs only the modified models and their downstream dependents (`state:modified+`), while automatically resolving all unmodified upstream `ref()` calls against the real production tables (`--defer`):
+
+```bash
+# Run inside GitHub Actions PR check: builds & tests ONLY modified models + downstream children!
+dbt build \
+  --select state:modified+ \
+  --defer \
+  --state ./prod-manifest-artifacts \
+  --target ci_pr_${GITHUB_PR_NUMBER}
+```
+
+> 🛠 **Try it (20 min, your Lab 2.3 dbt project).** After `dbt build` passes, add `models/marts/unit_tests.yml` with a unit test for `fct_daily_revenue`: give `ref('stg_orders')` one row (an `order_date` and a `_loaded_at`) and `ref('fct_order_items')` four lines on that date: two `delivered` lines of one order (50,000 and 20,000), one `cancelled` order (90,000) and one `refunded` order (40,000). Expect one row with `orders: 1` and `revenue_idr: 70000`. Run `dbt test --select test_type:unit`. Then remove `'refunded'` from the model's filter and run it again. Put the filter back afterwards.
+>
+> **You should see:** first a parsing error, because the model is incremental: dbt wants to know which branch to test, so add `overrides: {macros: {is_incremental: false}}` to the test. Then `PASS`. With the broken filter the test fails and dbt prints the difference, `orders 1→2` and `revenue_idr 70000→110000`, without reading a single row of your real data. Measured with dbt-core 1.12.7 and dbt-duckdb 1.11.1.
+
 ## @lab Lab: a tested dbt project, run twice
 You get a DuckDB database of raw KopiKu tables (append-only, dirty, with duplicates) and a dbt project with sources configured and every model stubbed. Fill in the staging layer, the marts, the incremental model, the tests and a snapshot. The tests run `dbt build`, then simulate a **second load** (new orders, orders that changed status, customers who moved) and run it again, comparing your incremental table with a full recalculation.
 

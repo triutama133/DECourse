@@ -196,6 +196,54 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 > `pytest labs/mod-1-5/test_lab.py -v`
 > Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
 
+## @lesson Engine vektorisasi satu-node modern: eksekusi lazy Polars dan zero-copy Apache Arrow
+
+Meskipun `pandas` tetap digunakan secara luas di banyak basis kode produksi, ada dua batas arsitektur yang muncul ketika ukuran dataset di satu mesin tumbuh dari 100 MB menjadi 20 GB:
+1. **Eksekusi Satu Inti CPU (Single-Core) & Materialisasi Eager:** `pandas` standar menjalankan operasi pada satu thread CPU dan mengalokasikan DataFrame perantara baru di RAM pada setiap langkah rangkaian method (`df[df.status == 'paid'].groupby('city')...`), sehingga itulah sebabnya Wes McKinney, pembuat pandas, menyarankan **RAM 5 sampai 10 kali ukuran dataset**.
+2. **Biaya Serialisasi Antar-Alat:** Dahulu, memindahkan tabel dari engine SQL ke pandas berarti menyalin dan mengurai ulang setiap nilai di memori.
+
+Rekayasa data Python modern menyelesaikan kedua masalah tersebut dengan **Apache Arrow** dan **Polars** (bersama **DuckDB**, yang akan Anda uji langsung di Modul 2.1):
+
+| Kemampuan | `pandas` (Eager DataFrame) | `Polars` (`import polars as pl`) | `Apache Arrow` (`pyarrow`) |
+|---|---|---|---|
+| **Tata Letak Memori** | Array NumPy (atau berbasis Arrow via `dtype_backend="pyarrow"`). | Buffer kolumnar **Apache Arrow** asli yang ditulis dengan Rust. | Standar memori kolumnar universal yang dipakai bersama oleh Polars, DuckDB, Spark, serta konektor BigQuery/Snowflake. |
+| **Model Eksekusi** | **Eager & Single-Threaded:** Mengeksekusi setiap baris kode seketika pada 1 core CPU. | **Lazy & Multithreaded (`LazyFrame`):** Menyusun rencana query (query plan), mendorong filter ke row-group Parquet, dan berjalan paralel di seluruh core CPU. | **Transfer Zero-Copy:** Memungkinkan DuckDB men-query tabel Arrow dari Polars/pandas (`df.to_arrow()`) tanpa menyalin datanya. |
+| **Streaming Out-of-Core** | Loop manual `chunksize=` pada CSV. | Engine streaming bawaan: `pl.scan_parquet(...).collect(engine="streaming")` mengolah data per batch, sehingga bisa menangani data yang lebih besar dari RAM. | Pembaca batch IPC / Feather & Parquet berbasis memory-mapped (`mmap`). |
+
+**Menulis Pipeline Polars Lazy dengan Predicate Pushdown.** Perhatikan bagaimana `pl.scan_parquet()` (berbeda dengan `read_parquet()`) tidak langsung memuat file ke RAM saat dipanggil. Sebaliknya, Polars memeriksa seluruh rangkaian transformasi Anda, memangkas kolom yang tidak dipakai (*projection pushdown*), melewati row-group Parquet yang statistik min/max-nya tidak memenuhi filter (*predicate pushdown*), dan baru mengeksekusi rencana optimal tersebut secara paralel di seluruh thread Rust saat `.collect()` atau `.sink_parquet()` dipanggil:
+
+```python
+import polars as pl
+
+# Rencana query lazy: hanya membaca kolom yang dibutuhkan, dan bisa melewati row group yang min/max-nya tidak cocok dengan filter
+lazy_plan = (
+    pl.scan_parquet("data/orders_*.parquet")
+    .filter(
+        (pl.col("status") == "paid")
+        & (pl.col("order_ts") >= "2026-01-01")
+    )
+    .group_by("city")
+    .agg([
+        pl.len().alias("paid_orders"),
+        pl.col("total_idr").sum().alias("revenue_idr"),
+    ])
+    .sort("revenue_idr", descending=True)
+)
+
+# Periksa rencana eksekusi optimal (menampilkan pushdown SELECTION dan PROJECT ke dalam Parquet SCAN)
+print(lazy_plan.explain())
+
+# Eksekusi di seluruh core CPU dengan batas memori streaming out-of-core
+result_df = lazy_plan.collect(engine="streaming")   # Polars 1.25+; kode lama memakai streaming=True, yang dihapus di Polars 2
+
+# Penyerahan zero-copy ke Apache Arrow / DuckDB / Pandas bila diperlukan:
+arrow_tbl = result_df.to_arrow()
+```
+
+> 🛠 **Coba sendiri (15 menit, Python dengan `polars`, `pandas`, dan `pyarrow`).** Baca `data/orders.csv` dengan pandas sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka lalu jadikan integer, ulang barisnya 30 kali (`pd.concat([df] * 30)`), dan tulis sebagai 10 file Parquet `big/part-00.parquet` … `big/part-09.parquet`. Bangun rencana lazy dengan `pl.scan_parquet("big/*.parquet")`: simpan `status == "delivered"`, kelompokkan per `payment_method`, hitung pesanan dan jumlahkan `total_idr`, urutkan menurut jumlahnya. Cetak `.explain()` sebelum collect, lalu collect dengan `engine="streaming"` dan bandingkan dengan hal yang sama di pandas.
+>
+> **Seharusnya Anda melihat:** `107400` baris di disk. Di dalam node `Parquet SCAN` plan-nya menyebut `PROJECT 3/6 COLUMNS` dan `SELECTION: col("status") == "delivered"`: filter dan daftar kolom pindah ke dalam scan, jadi tiga kolom lainnya tidak pernah dibaca. Empat metode pembayaran, dipimpin `cod` dengan `15600` pesanan dan `5349150000`, persis sama dengan hitungan dan jumlah dari pandas. Diukur dengan Polars 2.1.0 dan pandas 3.1.1 pada data bawaan kursus.
+
 ## @lab Lab: bersihkan dan ringkas ekspor pesanan yang berantakan
 Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.
 

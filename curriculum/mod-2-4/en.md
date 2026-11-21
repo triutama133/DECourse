@@ -231,6 +231,57 @@ Anti-patterns to avoid: using `now()` inside tasks; appending instead of replaci
 >
 > **You should see:** `2026-01-03`, `2026-01-06` and `2026-01-07`, and a longest stretch of `2` days. Notice that nothing failed on those days: nothing ran at all, so no failure alert would ever fire. This is the "missing run" alert from the list above.
 
+## @lesson Dockerized local orchestration stack and the safe production backfill runbook
+
+When you inherit a production pipeline in your first 90 days on the job (or build an end-to-end project like in the *DataTalksClub Data Engineering Zoomcamp*), two operational skills keep your systems reproducible and prevent catastrophic outages:
+
+**1. Multi-Container Local Data Stack (`docker-compose.yaml`).** Production pipelines never rely on "it worked on my laptop's global Python install." A reproducible data repository defines its database, ingestion worker, and orchestrator in a single `docker-compose.yaml` sharing an isolated bridge network, healthchecks, and named volumes:
+
+```yaml
+services:
+  postgres-warehouse:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER:-kopiku}
+      POSTGRES_PASSWORD: ${PG_PASS:-local_dev_only}
+      POSTGRES_DB: ${PG_DB:-kopiku_dw}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kopiku -d kopiku_dw"]
+      interval: 5s
+      retries: 5
+
+  ingest-worker:
+    build: .
+    depends_on:
+      postgres-warehouse:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kopiku:local_dev_only@postgres-warehouse:5432/kopiku_dw
+    command: ["python3", "-m", "pipeline.ingest", "--date", "${LOGICAL_DATE:-2026-01-15}"]
+
+volumes:
+  pg_data:
+```
+
+Notice `condition: service_healthy`: `depends_on` alone only waits for the container process to start, not for PostgreSQL to finish initializing and accept TCP connections!
+
+**2. The 6-Step Safe Production Backfill Runbook.** Sooner or later, a business logic change or fixed parsing bug requires you to **backfill 12 months of historical data** across a multi-terabyte table. Running an unthrottled backfill in production can crash the source database, run up an unplanned warehouse bill, lock BI dashboards, and re-send Reverse ETL marketing emails for every historical order. Follow this 6-step runbook every time:
+
+| Step | Action | Why It Prevents a Production Incident |
+|---|---|---|
+| **1. Mute Downstream Side-Effects** | Disable or pause **Reverse ETL syncs, Slack/email webhook triggers, and ML auto-retraining** connected to the target table. | Prevents re-sending "Welcome VIP!" CRM messages for orders from 2025. |
+| **2. Dry-Run & Estimate Cost on 1 Partition** | Run the backfill for a single logical date (`--start 2026-01-01 --end 2026-01-01`) and multiply bytes scanned & runtime by 365. | Catches a hidden full-table scan before multiplying it 365×. |
+| **3. Cap Concurrency (`max_active_runs`)** | Set `max_active_runs=2` or `max_concurrency=4` in Airflow/Dagster/Kestra. | Prevents 365 parallel workers from saturating the source OLTP database or warehouse slot pool. |
+| **4. Prefer Chunked Partition Batches Over 365 Single-Day Runs** | In cloud warehouses (`BigQuery / Snowflake / Databricks`), process monthly ranges or use `dbt microbatch` / partition replacement. | 12 monthly runs pay the fixed cost of a query (planning, reading metadata, minimum billing) 12 times instead of 365. |
+| **5. Build into a Staging/Clone Table First (Blue-Green Swap)** | On critical Gold tables, zero-copy clone (`CREATE TABLE fct_orders_backfill CLONE fct_orders`), run the backfill there, verify tests, then `ALTER TABLE ... SWAP WITH`. | Downstream BI dashboards never see a half-empty or inconsistent table during a 4-hour backfill. |
+| **6. Reconcile Totals & Re-Enable Downstream Syncs** | Compare row counts and invariant sums (`SUM(net_revenue_idr)`) before and after, advance the Reverse ETL watermark so historical rows aren't re-sent, and unpause downstream jobs. | Proves the backfill solved the issue with zero unintended side effects. |
+
+> 🛠 **Try it (15 min, Python with DuckDB).** Load `data/orders.csv` with `read_csv(..., all_varchar=true)`, keeping rows whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST(order_ts AS TIMESTAMP)`. Create two empty tables `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11 and 12 into both, one day at a time, counting the orders that are not `cancelled`: into the first with a plain `INSERT`, into the second with `DELETE` of that day and then `INSERT`, in one transaction. Run the whole backfill a second time, as you would after a crash, and print the row count and total revenue of both tables after each run.
+>
+> **You should see:** after the first run both tables hold `3` rows and `101925000`. After the second run the plain-`INSERT` table holds `6` rows and `203850000`, every day counted twice, while the replace-the-day table still holds `3` and `101925000`. That second table is what step 6 of the runbook reconciles against. Measured with DuckDB 2.0.1 on the course's default data.
+
 ## @lab Lab: a daily pipeline in Dagster, tested like software
 Build the KopiKu daily pipeline as Dagster assets: clean orders per day, compute daily revenue, a report over all days, checks, a retry policy, and a Jakarta-time schedule. The tests exercise it with the real orchestration engine against temporary folders.
 

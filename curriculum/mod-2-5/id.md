@@ -271,6 +271,29 @@ Kursus menyediakan template (bahasa Inggris dan Indonesia) di `labs/shared/writi
 >
 > **Seharusnya Anda melihat:** draf itu lulus 6 pemeriksaan bagian dan gagal di 6 lainnya: terlalu pendek, `0` angka, tidak ada jam di kronologi, dampak yang tidak terukur, `0 of 2` tindak lanjut yang punya pemilik dan tanggal, dan kata-kata menyalahkan (`ceroboh`, `kesalahan manusia`, `salahnya`). Tulisan ulang Anda seharusnya diakhiri `Structure looks right`. Perbedaan kedua versi itulah yang pertama kali diperhatikan manajer perekrutan dalam tugas take-home.
 
+## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan depresiasi skema tanpa downtime
+
+Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah—bisa tolong cek?"*
+
+**1. Pelacakan Akar Masalah 5 Langkah Mundur (Debugging Angka Salah).** Jangan pernah menebak-nebak atau menjalankan ulang pipeline secara acak saat angka dashboard terlihat salah. Lacak silsilah data (lineage) **mundur dari layar dashboard hingga ke sumber** dalam lima lompatan deterministik:
+
+| Lompatan | Lapisan yang Diperiksa | Query / Pemeriksaan Diagnostik Pasti | Bug Klasik yang Ditemukan di Lompatan Ini |
+|---|---|---|---|
+| **Lompatan 1** | **Dashboard BI / Lapisan Cache** (`Tableau / Looker / Power BI`) | Periksa SQL persis yang dihasilkan grafik BI (`Query History`), filter aktif di dashboard, dan jam pembaruan extract/cache BI. | Filter dashboard tidak menyertakan metode bayar baru (`'QRIS'`), atau extract BI berjalan *sebelum* job dbt warehouse selesai. |
+| **Lompatan 2** | **Lapisan Metrik Gold / Semantik** (`mart_daily_revenue`) | Bandingkan `SUM(net_revenue_idr)` dan `COUNT(*)` terhadap `COUNT(DISTINCT order_id)` di tabel Gold pada tanggal tersebut. | Penyimpangan rumus: mart Gold mengurangi `discount_idr` dua kali, atau tidak sengaja menghitung `status = 'pending'`. |
+| **Lompatan 3** | **Join Silver & Riwayat SCD2** (`int_orders_enriched`) | Periksa apakah `COUNT(*)` setelah men-join `stg_orders` ke `dim_customers` atau `dim_stores` lebih besar daripada `COUNT(*)` di `stg_orders`. | **Join Fan-Out (1:N)** karena `dim_customers` memiliki baris aktif ganda (`is_current = TRUE` rusak) atau batas waktu SCD2 point-in-time hilang. |
+| **Lompatan 4** | **Watermark Inkremental & Batas Zona Waktu** (`stg_orders`) | Periksa `MIN(order_ts)`, `MAX(order_ts)`, dan `MAX(ingested_at)` untuk partisi kemarin. | **Pergeseran zona waktu (`UTC` vs `Asia/Jakarta UTC+7`)** memotong 7 jam terakhir transaksi malam, atau watermark tanpa jendela lihat-balik membuang pesanan yang datang terlambat. |
+| **Lompatan 5** | **Pendaratan Mentah Bronze & Karantina DLQ** (`raw_orders`, `dlq.jsonl`) | Periksa rasio penolakan file karantina kemarin dan lag API/CDC hulu. | Tim aplikasi checkout mengubah nama field `"total_idr"` menjadi `"amount_idr"`, sehingga 12% pesanan dari versi aplikasi mobile baru masuk ke Dead-Letter Quarantine. |
+
+**2. Depresiasi Skema Tanpa Downtime (*Expand → Migrate → Contract*).** Saat Anda harus mengganti nama atau tipe data sebuah kolom (misalnya mengganti float `total_amount` menjadi integer `total_idr`) pada tabel yang dipakai oleh 15 analis dan 8 dashboard, **jangan pernah menghapus atau mengubah nama kolom tersebut dalam satu commit tunggal**. Gunakan protokol 3 fase **Expand → Migrate → Contract**:
+1. **Fase 1 — Expand (Perluas):** Tambahkan kolom baru `total_idr` berdampingan dengan kolom lama `total_amount` (keduanya diisi di dalam model). Umumkan masa transisi 14 hari di kanal `#data-announcements`.
+2. **Fase 2 — Migrate (Migrasi):** Audit log query (`INFORMATION_SCHEMA.JOBS_BY_USER`) dan dbt exposures untuk menemukan setiap dashboard atau skrip hilir yang masih membaca `total_amount`, lalu arahkan ke `total_idr`.
+3. **Fase 3 — Contract (Susutkan):** Hanya setelah log query menunjukkan **nol pembacaan** pada `total_amount` selama 7 hari berturut-turut, hapus kolom `total_amount` dari model.
+
+> 🛠 **Coba sendiri (15 menit, SQL pada `warehouse.db` Lab 1.4 Anda).** Bagian Keuangan bilang "pendapatan per kota saat ini" terlalu tinggi. Query seorang rekan mengambil `customer_id` setiap baris lewat `customer_sk`, lalu menjoin `dim_customer` untuk kedua kalinya pada `customer_id` untuk membaca kotanya, dan lupa `is_current = 1`. Telusuri hop 3: hitung baris dan jumlahkan `line_total_idr` dari `fact_order_items` saja, lalu lewat join rekan tadi, lalu dengan tambahan `is_current = 1`. Cari tahu berapa pelanggan yang membuat selisihnya.
+>
+> **Seharusnya Anda melihat:** fakta saja berisi `7123` baris dan `1208770000`. Join rekan tadi berisi `8584` baris dan `1459220000`, sekitar 21% terlalu tinggi, dan tidak ada error sama sekali. Dengan `is_current = 1` kembali menjadi `7123` dan `1208770000`. Penyebabnya: `100` pelanggan punya lebih dari satu versi di dimensi SCD Type 2, jadi baris mereka terhitung sekali per versi. Diukur dengan warehouse referensi lab pada data bawaan kursus.
+
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 

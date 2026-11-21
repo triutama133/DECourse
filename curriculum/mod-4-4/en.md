@@ -150,6 +150,29 @@ This lesson is the specification. The checker follows it to the letter.
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
 > 4. **Success Indicator:** All step 4 checks report `PASS`, verifying repeated reruns and arbitrary backfill execution order never duplicate records.
 
+## @lesson The 48-hour take-home assignment blueprint and the 10-point hiring manager rubric
+
+Many data engineering hiring processes include a **take-home assignment**, often with a 48-hour window, or a review of a project repository (the *DataTalksClub Data Engineering Zoomcamp* grades its capstone projects with a peer-review rubric). Reviewers have little time for each submission, so they check production hygiene first: does it run on a fresh clone, is it tested, is it safe to run twice.
+
+Before you submit any take-home assignment or portfolio project, verify it against this **10-Point Hiring Manager & Zoomcamp Capstone Rubric** (and run `python3 scripts/verify_portfolio.py /path/to/your/repo` locally):
+
+| # | Grading Criterion | What Rejects a Submission in 60 Seconds (❌) | What Gets You Fast-Tracked to Final Onsite (✅) |
+|---|---|---|---|
+| **1** | **One-Command Reproducibility** | A Jupyter notebook with hardcoded `/Users/budi/Desktop/data.csv` paths that crashes on line 3. | A `Makefile` or `docker compose up --build` where `make setup && make test && make run` works on a fresh clone. |
+| **2** | **Idempotent Re-Runs & Backfills** | Using `INSERT INTO` without partition replacement or `MERGE`, so running the script twice doubles the revenue. | Partitioned overwrite (`DELETE WHERE ds = ?` + `INSERT`, or `insert_overwrite` / `MERGE`), proven by a test that runs the pipeline twice. |
+| **3** | **Boundary Validation & Dead-Letter Quarantine (DLQ)** | Calling `pd.to_numeric(..., errors="coerce")` or crashing the entire batch on 1 malformed row. | Strict Pydantic / schema contract at ingestion that routes bad rows with error reasons to `quarantine_dlq.jsonl` and alerts if rejection exceeds the SLA threshold. |
+| **4** | **Explicit Grain & Data Modeling Contract** | Dumping a single unmodeled flat CSV dump into the database with no primary keys or types. | Explicit `Staging → Core/Dimensional (Star Schema / SCD2 or Data Vault) → BI Rollup Mart` layers with documented grain per table. |
+| **5** | **Partitioning, Clustering & Cost Guardrails** | Unpartitioned warehouse tables queried with `SELECT *`. | Tables partitioned by date (`PARTITION BY order_date`) and clustered by high-filter keys (`CLUSTER BY store_id, status`). |
+| **6** | **Automated Hostile Test Suite (`pytest` + `dbt test`)** | Zero tests, or one happy-path test on 3 clean rows. | `pytest` unit + integration tests covering `NULL`s, duplicate retries, negative values, late events, and float-to-integer money conversion. |
+| **7** | **Infrastructure as Code (IaC) & Secret Hygiene** | Manual cloud console clicks or hardcoded credentials in Python files. | Declarative Terraform (`main.tf`, `variables.tf`), `.env.example`, and `.pre-commit-config.yaml` secret scanning. |
+| **8** | **Continuous Integration (`.github/workflows/ci.yml`)** | No CI; broken code pushed directly to `main`. | GitHub Actions workflow running `ruff`, `pytest`, and `dbt build` on every Push / Pull Request. |
+| **9** | **Observability & Run Summary** | Silent execution (`print("done")`). | Structured JSON logs emitting `rows_read`, `rows_loaded`, `rows_quarantined`, `net_revenue_sum`, and `duration_ms`. |
+| **10** | **One-page design doc (`DESIGN.md`)** | A README that only lists libraries installed. | A concise `README.md` plus the one-page `DESIGN.md` from Module 2.5 (an ADR does the same job), explaining: **(a) Problem & Stakeholder KPIs**, **(b) Architecture Diagram & Grain**, **(c) Trade-offs Chosen**, and **(d) What Changes at 100× Scale**. |
+
+> 🛠 **Try it (15 min, terminal).** Make a deliberately weak repository: `git init`, a `README.md` with only a title, and a `pipeline.py` that reads `/Users/budi/Desktop/data.csv` and prints `done`, in one commit. Run `python3 scripts/verify_portfolio.py proj-1 <that folder>`. Then go through the ten rubric rows above and mark each one: did the verifier check it, or does it need a person to read the code?
+>
+> **You should see:** `Not yet: 7 check(s) failed`: fewer than 3 commits, no `.gitignore`, no decision record in the README, no CI workflow, no tests of your own code, no lakehouse tools, and no dashboard. Rows 6, 7, 8 and 10 have a machine check, and 4 and 5 partly. Rows 1 (does it run on a fresh clone?), 2 (is it safe to run twice?), 3 (where do bad rows go?) and 9 (what does a run report?) need a reviewer to read and run your code, which is why the take-home needs the README and design doc that explain them.
+
 ## @lab Lab: five steps to a pipeline Airflow can run every night
 Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your DAG on the real deliveries and on broken ones, and compares the warehouse with answers it computes independently.
 

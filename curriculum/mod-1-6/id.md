@@ -249,6 +249,52 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (skrip Anda membaca `data/orders.csv` relatif terhadap folder tempat ia dijalankan).
 
+## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif
+
+Dalam Bab 7 (*Ingestion*) buku *Fundamentals of Data Engineering* dan pipeline cloud modern (seperti workshop `dlt` pada *DataTalksClub Data Engineering Zoomcamp*), terdapat empat pola ingestion produksi yang menjembatani mekanika HTTP mentah dengan platform data enterprise:
+
+**1. Push Ingestion: Verifikasi Webhook `HMAC-SHA256` & Perlindungan Replay Attack.** Saat layanan Anda *menarik (pull)* data dari API, Anda berautentikasi dengan API key. Namun saat layanan eksternal (Stripe, Shopify, Midtrans, GitHub) *mendorong (push)* event ke URL webhook Anda (`POST /webhooks/orders`), siapa pun di internet bisa mengirim request POST palsu yang berpura-pura menjadi pesanan lunas. Penerima webhook produksi wajib memverifikasi tiga hal sebelum menerima payload:
+1. **Tanda Tangan Kriptografis (`HMAC-SHA256`):** Hitung `expected = "sha256=" + hmac.new(secret.encode(), f"{timestamp}.{raw_body}".encode(), hashlib.sha256).hexdigest()`.
+2. **Perbandingan Waktu-Konstan (`hmac.compare_digest`):** Jangan gunakan `signature == expected` (yang membocorkan informasi waktu byte demi byte); selalu gunakan `hmac.compare_digest(signature, expected)`.
+3. **Pemeriksaan Jendela Waktu Replay:** Tolak webhook mana pun yang `timestamp`-nya berselisih lebih dari `300 detik` (5 menit) dari waktu server saat ini, sehingga penyerang yang menyadap paket valid tidak dapat memutarnya ulang keesokan harinya.
+
+**2. Ekstraksi Snapshot vs. Diferensial (Differential Extraction).** Banyak sistem mitra tidak menyediakan aliran perubahan (CDC), melainkan hanya mengirim dump penuh harian (`customers_2026_02_02.json`). Memuat ulang seluruh snapshot setiap hari memboroskan storage warehouse dan menyembunyikan baris mana yang benar-benar berubah. **Differential extractor** membandingkan snapshot hari ini dengan state kemarin berdasarkan primary key (`id`) dan hanya mengeluarkan selisih murninya:
+- **`inserts`:** Kunci yang ada hari ini tetapi belum ada kemarin.
+- **`updates`:** Kunci yang ada di kedua hari tetapi isi atributnya berubah.
+- **`deletes`:** Kunci yang ada kemarin tetapi hilang hari ini (sangat penting untuk mendeteksi penghapusan!).
+- **`unchanged_count`:** Kunci dengan atribut identik (dilewati agar tabel hilir tidak ditulis ulang secara sia-sia).
+
+**3. Streaming Multipart Langsung ke Cloud Storage (`boto3` / `gcsfs`).** Di lingkungan produksi AWS atau GCP, worker ingestion jarang menulis file besar ke disk lokal container (yang bersifat sementara dan sering dibatasi 512 MB). Sebagai gantinya, mereka mengalirkan buffer langsung ke S3 atau GCS menggunakan multipart upload stream (`s3_client.upload_fileobj(file_like_stream, Bucket="kopiku-raw", Key="orders/dt=2026-02-02/part-000.parquet")`).
+
+**4. Ingestion Python Deklaratif dengan `dlt` (`data load tool`).** Setelah Anda menguasai cara membangun cursor pagination, retry backoff, dan normalisasi skema secara manual menggunakan `urllib`, tim data modern sering menggunakan **`dlt` (`import dlt`)** di produksi untuk memangkas kode berulang sekaligus menangani normalisasi JSON bersarang, peringatan evolusi skema, dan penyimpanan state watermark inkremental secara otomatis ke DuckDB, BigQuery, Snowflake, maupun S3:
+
+```python
+import dlt
+
+@dlt.resource(name="orders", write_disposition="merge", primary_key="order_id")
+def kopiku_orders_source(
+    updated_after=dlt.sources.incremental("updated_at", initial_value="2026-01-01T00:00:00Z")
+):
+    # Menghasilkan halaman record JSON mulai dari watermark terakhir yang tersimpan
+    for page in paginate_orders_api(since=updated_after.last_value):
+        yield page
+
+# Muat satu baris kode ke DuckDB lokal untuk tes, atau ganti destination="bigquery" / "snowflake" di produksi!
+pipeline = dlt.pipeline(pipeline_name="kopiku_ingest", destination="duckdb", dataset_name="raw_kopiku")
+load_info = pipeline.run(kopiku_orders_source())
+```
+
+> 🛠 **Coba sendiri (20 menit, Python — Lab Keamanan Webhook & Ekstraksi Diferensial).** Buat file `~/practice/webhook_diff.py` dan implementasikan dua fungsi:
+> 1. `verify_webhook_batch(events, secret, now_ts, tolerance_sec=300)`: setiap event di `events` adalah dict `{"event_id": str, "timestamp": int, "body": str, "signature": str}` di mana tanda tangan yang valid adalah `"sha256=" + hmac_sha256(secret, f"{timestamp}.{body}")`. Menggunakan `hmac.compare_digest`, validasi setiap event:
+>    - Jika `abs(now_ts - event["timestamp"]) > tolerance_sec`, tambahkan `{"event_id": ..., "reason": "stale_timestamp"}` ke `rejected`.
+>    - Jika tanda tangan tidak cocok, tambahkan `{"event_id": ..., "reason": "invalid_signature"}` ke `rejected`.
+>    - Jika `event_id` sudah pernah diterima sebelumnya di dalam batch yang sama, lewati (deduplikasi idempoten).
+>    - Jika lolos semua, urai `json.loads(event["body"])` dan tambahkan ke `accepted`.
+>    - Kembalikan `{"accepted": accepted, "rejected": rejected}`.
+> 2. `compute_snapshot_diff(prev_rows, curr_rows, pk="id")`: diberikan list dict kemarin dan list dict hari ini, kembalikan `{"inserts": [...], "updates": [...], "deletes": [...], "unchanged_count": int}` di mana `inserts` dan `updates` adalah list dict baris saat ini yang diurutkan berdasarkan `row[pk]`, dan `deletes` adalah list terurut dari nilai primary key yang terhapus (`row[pk]`).
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
+
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.
 

@@ -418,6 +418,61 @@ Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `-
 >
 > **Yang harus Anda lihat:** j-1 mengembalikan 7 baris dengan plan NULL untuk event 6; j-2 mengembalikan android 2, ios 2, unknown 2, web 1; j-3 mengembalikan 4 baris (event 1, 1, 3, dan 7), karena event 2, 4, 5, dan 6 tidak punya item; j-4 mengembalikan free 50000 dan pro 310000. Join biasa memberi 4 baris untuk j-3 dan `LEFT JOIN` memberi 8: 4 baris yang sama ditambah satu baris bernilai kosong untuk tiap event 2, 4, 5, dan 6.
 
+## @part Performa dan wawancara
+
+## @lesson Operator join cost-based optimizer, MVCC VACUUM, tuning Sargable, dan 7 pola wawancara SQL
+
+Saat Anda membaca rencana eksekusi `EXPLAIN ANALYZE` di PostgreSQL, Spark, Snowflake, atau BigQuery, **Cost-Based Optimizer (CBO)** tidak hanya memutuskan apakah akan memakai indeks—ia juga memilih algoritma fisik untuk menggabungkan (join) dua tabel:
+
+| Operator Join Fisik | Cara Kerja di Balik Layar | Kompleksitas & Profil Memori | Kapan Optimizer Memilihnya (dan Kapan Menjadi Bencana) |
+|---|---|---|---|
+| **Nested Loop Join** | Untuk setiap baris di tabel luar, mencari pasangan di tabel dalam (baik lewat full scan maupun pencarian indeks). | O(N × M) tanpa indeks; O(N log M) dengan indeks B-Tree di tabel dalam. Memori hampir nol. | Terbaik saat tabel luar sangat kecil (< 1.000 baris) dan kunci tabel dalam terindeks. **Bencana** saat statistik `ANALYZE` yang usang menipu CBO hingga mengira tabel 5 juta baris hanya berisi 10 baris! |
+| **Hash Join** | Membaca tabel yang lebih kecil (*build side*) ke dalam hash table di memori berdasarkan kunci join, lalu mengalirkan tabel besar (*probe side*) melewatinya dalam satu lintasan. | Waktu CPU O(N + M); membutuhkan RAM sebesar O(ukuran tabel build) (`work_mem`). | Pekerja utama untuk equijoin besar (`ON a.id = b.id`). **Bahaya:** Jika tabel build melebihi batas `work_mem` / RAM executor, hash table akan **tumpah ke disk (spill)** dalam banyak batch (`Batches: 16` di `EXPLAIN` Postgres). |
+| **Sort-Merge Join** | Mengurutkan kedua tabel pada kunci join (atau membacanya dalam keadaan sudah terurut dari indeks B-Tree / clustering key) lalu menyatukannya secara beriringan. | O(N log N + M log M) jika belum terurut; O(N + M) jika sudah terurut/terklaster. | Terbaik untuk input sangat besar yang sudah terurut pada kuncinya, atau ketika tidak ada sisi yang muat di memori. PostgreSQL hanya memakainya untuk kondisi kesamaan; join pertidaksamaan (`<=`, `>=`) kembali ke nested loop. |
+
+**Dead Tuple MVCC PostgreSQL, `VACUUM`, dan `ANALYZE`.** Di PostgreSQL, perintah `UPDATE` atau `DELETE` tidak menimpa baris lama secara langsung di disk; di bawah **Multi-Version Concurrency Control (MVCC)**, PostgreSQL menulis versi baris baru (*tuple*) dan menandai baris lama sebagai **dead tuple** agar pembaca konkuren tetap melihat snapshot yang konsisten. Jika tabel staging menerima 500.000 update sehari dan `autovacuum` tertinggal, ukuran tabel membengkak beberapa kali lipat dari ukuran sebenarnya (memperlambat sequential scan) dan statistik kolom menjadi usang. Menjalankan `VACUUM` membebaskan ruang dead tuple agar bisa dipakai ulang; menjalankan `ANALYZE` memperbarui histogram dan estimasi kardinalitas yang dibutuhkan CBO agar tidak salah memilih Nested Loop Join.
+
+**Klinik Refactoring Query Lambat "Sebelum vs. Sesudah" (Predikat Sargable).** Sebuah kondisi filter disebut **Sargable (*Search Argument Able*)** jika engine database dapat mendorongnya langsung ke pencarian indeks B-Tree atau zone map partisi kolumnar tanpa harus menghitung fungsi pada setiap baris:
+
+```sql
+-- ❌ LAMBAT (sekitar 32 detik pada 300.000 pesanan di SQLite: correlated subquery + fungsi pada kolom)
+SELECT c.customer_id, c.city,
+       (SELECT SUM(o.total_idr) FROM orders o
+        WHERE o.customer_id = c.customer_id
+          AND strftime('%Y-%m', o.order_ts) = '2026-01'
+          AND LOWER(o.status) = 'paid') AS jan_paid_idr
+FROM customers c;
+
+-- ✅ CEPAT (sekitar 19 ms pada data yang sama: pencarian rentang pada indeks (status, order_ts, customer_id) + satu CTE pra-agregasi)
+WITH jan_paid AS (
+    SELECT customer_id, SUM(total_idr) AS jan_paid_idr
+    FROM orders
+    WHERE status = 'paid'
+      AND order_ts >= '2026-01-01T00:00:00'
+      AND order_ts <  '2026-02-01T00:00:00'
+    GROUP BY customer_id
+)
+SELECT c.customer_id, c.city, COALESCE(j.jan_paid_idr, 0) AS jan_paid_idr
+FROM customers c
+LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
+```
+
+**7 Cetak Biru Utama Live-Coding SQL 45 Menit dalam Wawancara Data Engineer.** Hampir setiap tes teknis SQL Data Engineering menguji variasi dari tujuh pola ini. Sebelum menulis satu kata `SELECT`, selalu sebutkan kepada pewawancara: **(1) grain hasil akhir**, **(2) aturan pemecah seri (tie-breaker)**, dan **(3) perlakuan terhadap `NULL` atau tanggal yang kosong**:
+
+| # | Cetak Biru Wawancara SQL | Kerangka Inti SQL & Penjaga Kasus Tepi |
+|---|---|---|
+| **1** | **Deduplikasi Deterministik / State Terbaru** | `QUALIFY ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY updated_at DESC, event_id DESC) = 1` (Selalu tambahkan kolom tie-breaker unik setelah `updated_at`!). |
+| **2** | **Sessionization (Jeda Inaktivitas 30 Menit)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → tandai `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts)` di query luar membentuk `session_id`. |
+| **3** | **Streak Hari Berturut-turut / Gaps & Islands** | Deduplikasi dulu ke `(user_id, active_date)` unik! Lalu kurangi `DATE(active_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY active_date) || ' days') AS island_anchor`; hari-hari yang berurutan akan memiliki `island_anchor` yang persis sama. |
+| **4** | **Atribusi Point-in-Time (`ASOF`) / SCD2** | Join fakta ke dimensi dengan `f.event_ts >= d.effective_from AND f.event_ts < COALESCE(d.effective_to, '9999-12-31')` (atau memilih versi terbaru di mana `d.updated_at <= f.event_ts`). Mencegah kebocoran masa depan (future label leakage)! |
+| **5** | **Rolling 7 Hari pada Tanggal yang Bolong** | Bangun kalender kontinu `date_spine` terlebih dahulu, `LEFT JOIN` agregat harian (`COALESCE(rev, 0)`), lalu gunakan `AVG(rev) OVER (PARTITION BY store_id ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` agar hari Selasa yang tanpa transaksi tidak terlewati. |
+| **6** | **Matriks Retensi Kohort (`Bulan 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = selisih_bulan(order_month, first_month)`. Hasil: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` dikelompokkan per `(first_month, month_num)`. |
+| **7** | **Pencegahan Fan-Out Multi-Fakta** | Jangan pernah men-join `accounts` ke `transfers` (1:N) dan `chargebacks` (1:M) dalam satu klausa `FROM` yang sama (5 × 3 = 15 baris!). Pra-agregasi `transfers_by_account` dan `chargebacks_by_account` di CTE terpisah pada grain `account_id` terlebih dahulu, baru `LEFT JOIN` keduanya ke `accounts`. |
+
+> 🛠 **Coba sendiri (20 menit, Python dengan `sqlite3`).** Bangun tabel uji: 2.000 pelanggan dan 300.000 pesanan dengan `order_ts` acak antara 2025-07-01 dan 2026-06-30 (teks ISO), status acak (`paid` tiga kali lebih mungkin daripada `cancelled` atau `refunded`) dan nominal acak, lalu buat indeks `(status, order_ts, customer_id)` sebelum menjalankan `ANALYZE`. Jalankan `EXPLAIN QUERY PLAN` pada query lambat dan cepat di atas, lalu temukan baris untuk `orders` di masing-masing. Setelah itu ukur waktu keduanya dan pastikan totalnya sama.
+>
+> **Seharusnya Anda melihat:** plan yang lambat berbunyi `CORRELATED SCALAR SUBQUERY` dan `SCAN o`: scan penuh atas pesanan untuk setiap 2.000 pelanggan, karena fungsi pada `order_ts` dan `status` menyembunyikan kolomnya dari indeks. Plan yang cepat berbunyi `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Keduanya memberi total yang sama (`3192691000` pada data yang diukur di sini, `random.seed(7)`), dalam sekitar `31` sampai `33` detik versus `18` sampai `19` ms. Angka Anda akan sedikit berbeda dengan data acak Anda sendiri; selisihnya tidak. Diukur dengan SQLite 3.46.
+
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.
 

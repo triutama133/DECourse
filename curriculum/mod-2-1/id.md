@@ -246,6 +246,34 @@ Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena memat
 > 2. Pastikan ke-10 pengujian lulus sempurna tanpa hambatan (`10 passed`).
 > 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
 
+## @lesson Matriks serialisasi & kompresi (Lampiran A) serta arsitektur internal NoSQL (LSM-Tree vs. B-Tree)
+
+Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab 6 & Lampiran A *Fundamentals of Data Engineering* karya Reis & Housley) maupun wawancara senior data engineer: **(1) Format file dan codec kompresi apa yang paling tepat untuk tiap tahap pipeline?** dan **(2) Bagaimana mesin penyimpanan NoSQL (`LSM-Tree`) berbeda dari database relasional (`B+Tree`) saat kita menarik atau menyajikan data?**
+
+**1. Matriks Trade-Off Serialisasi & Kompresi (Lampiran A Reis & Housley).**
+
+| Format | Tata Letak | Evolusi Skema | Kompresi & Splittability | Kasus Penggunaan Produksi Terbaik |
+|---|---|---|---|---|
+| **Apache Parquet** | **Kolumnar** (Row Group → Column Chunk → Page + statistik Footer) | Baik (tambah/hapus kolom; berbasis ID di Iceberg/Delta) | Tinggi (`4×–10×` via Dictionary + RLE + Bit-packing + **Zstd / Snappy**). Dapat dibagi (splittable) per row group. | **Standar utama penyimpanan lakehouse & warehouse analitik** (`S3/GCS`, Spark, DuckDB, Polars, BigQuery, Snowflake). |
+| **Apache ORC** | **Kolumnar** (Stripe + Index/Data/Footer) | Baik | Kompresi sangat tinggi dengan **Zstd / Zlib**. Splittable per stripe. | Klaster analitik skala besar berbasis Hive / Trino / Presto. |
+| **Apache Avro** | **Biner berbasis baris** (skema JSON di dalam header file) | **Terbaik di kelasnya** (resolusi skema reader/writer penuh di Schema Registry) | Penanda blok splittable; dipadukan dengan **Snappy / Deflate**. | **Payload event streaming Kafka**, log CDC, dan landing zone padat-tulis yang membaca satu baris utuh sekaligus. |
+| **Protocol Buffers (Protobuf)** | **Biner berbasis baris** (tag nomor field `1, 2, 3`) | **Terbaik di kelasnya** (aman backward/forward lewat ID tag nomor) | Ukuran paket jaringan sangat ringkas. | **Microservice gRPC, telemetri mobile, dan topik Kafka berkecepatan tinggi**. |
+| **Apache Arrow (IPC / Feather)** | **Kolumnar di memori** (buffer byte zero-copy) | Spesifikasi tipe memori yang presisi | Framing **LZ4 / Zstd** opsional untuk transfer jaringan cepat. | **Pertukaran memori zero-copy** antara Python, Polars, DuckDB, Spark Pandas UDF, dan Flight RPC. |
+| **CSV / JSONL** | **Teks berbasis baris** | Tidak ada (teks tanpa tipe, rawan schema drift diam-diam) | Hanya splittable jika tidak dikompresi atau memakai `bzip2`; **CSV Gzip TIDAK splittable**! | Pertukaran file manual atau pendaratan awal API pihak ketiga sebelum diubah ke Parquet Bronze. |
+
+*Aturan Praktis Codec Kompresi:* Gunakan **Zstandard (`Zstd`)** untuk data lake Parquet hangat/dingin (rasio kompresi lebih hemat *sekaligus* dekompresi lebih cepat daripada Gzip) dan **Snappy** atau **LZ4** untuk buffer streaming/shuffle panas yang mengutamakan latensi CPU rendah. Jangan pernah menyimpan file CSV multi-gigabyte sebagai satu file `.csv.gz` di S3/GCS: karena **Gzip tidak dapat dibagi (non-splittable)**, klaster Spark atau DuckDB dengan 100 core terpaksa menyerahkan seluruh file itu ke **1 core CPU saja**!
+
+**2. Arsitektur Internal `B+Tree` Relasional vs. `LSM-Tree` (Log-Structured Merge-Tree) NoSQL.** Saat membangun pipeline ingestion, Anda akan sering menarik data dari sistem NoSQL (**MongoDB** document store, **DynamoDB / Redis** key-value store, **Cassandra / Bigtable** wide-column store):
+
+| Mesin Penyimpanan | Digunakan Oleh | Jalur Tulis (Write Path) | Jalur Baca (Read Path) | Dampak bagi Data Engineer (Ingestion & Serving) |
+|---|---|---|---|---|
+| **B+Tree** (Berorientasi halaman, update halaman di tempat + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Menulis ke WAL, lalu memodifikasi halaman B-Tree berukuran tetap `8 KB / 16 KB` di tempat (memicu I/O disk acak saat penulisan padat). | **Pembacaan titik & rentang O(log N) yang sangat cepat** menelusuri pointer pohon berimbang. | Tarik data menggunakan **WAL Change Data Capture (Debezium)** alih-alih melakukan polling `SELECT *`, agar tidak berebut kunci halaman (page lock) dengan transaksi OLTP. |
+| **LSM-Tree** (Append-only MemTable → SSTable immutable + Compaction) | Cassandra, RocksDB, Bigtable, HBase, ScyllaDB | Menulis ke WAL + **MemTable** terurut di RAM; menguras secara berurutan ke file **SSTable (Sorted String Table)** immutable di disk; proses latar **Compaction** menggabungkan SSTable. | Memeriksa MemTable + memeriksa SSTable dengan bantuan **Bloom Filter** (yang memberi tahu dalam O(1) apakah suatu kunci *pasti tidak ada* di sebuah SSTable). | **Throughput tulis super tinggi** untuk telemetri IoT dan online feature store. Tarik perubahan ke hilir melalui **DynamoDB Streams / MongoDB Change Streams** ke Parquet Bronze. |
+
+> 🛠 **Coba sendiri (15 menit, Python dengan `pandas` dan `pyarrow`).** Baca `data/orders.csv` sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka dan jadikan `order_id`, `customer_id`, dan `total_idr` integer, lalu ulang barisnya 30 kali. Tulis tabel yang sama dengan enam cara: CSV, CSV ber-gzip, dan Parquet dengan `compression=` `"none"`, `"snappy"`, `"gzip"`, dan `"zstd"` (`pyarrow.parquet.write_table`). Bandingkan ukuran filenya, dan tebak urutannya sebelum melihat.
+>
+> **Seharusnya Anda melihat:** `107400` baris. CSV `5,650,952` byte, CSV ber-gzip `1,419,659`, Parquet tanpa kompresi `770,696`, Snappy `402,243`, gzip `168,852`, dan Zstd `163,042`. Encoding bawaan Parquet (dictionary dan run-length) sudah membuatnya tujuh kali lebih kecil daripada CSV sebelum codec apa pun berjalan, dan di sini Zstd sedikit mengungguli gzip sambil mendekompresi lebih cepat. Diukur dengan pyarrow 26.0.1 pada data bawaan kursus.
+
 ## @lab Lab: konversi CSV ke Parquet, dua mesin analitik, dan implementasi pushdown
 Konversikan tabel operasional KopiKu ke dalam format Parquet terkompresi, jawab pertanyaan bisnis yang sama menggunakan SQL di DuckDB dan lazy dataframe di Polars (buktikan kedua mesin menghasilkan angka omset yang identik dengan verifikasi independen SQLite), serta implementasikan logika predicate pushdown sendiri langsung dari metadata footer Parquet. Terakhir, lakukan pengujian benchmark mandiri pada data berskala lebih besar untuk membandingkan performa ketiga alat.
 

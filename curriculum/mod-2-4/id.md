@@ -231,6 +231,57 @@ Anti-pattern yang wajib dihindari: pemanggilan `now()` di dalam badan task; oper
 >
 > **Seharusnya Anda melihat:** `2026-01-03`, `2026-01-06`, dan `2026-01-07`, dan rentang terpanjang `2` hari. Perhatikan bahwa tidak ada yang gagal di hari-hari itu: tidak ada yang berjalan sama sekali, jadi peringatan kegagalan tidak akan pernah berbunyi. Inilah peringatan "run yang hilang" dari daftar di atas.
 
+## @lesson Stack orkestrasi lokal berbasis Docker Compose dan panduan aman backfill produksi
+
+Saat Anda mewarisi pipeline produksi pada 90 hari pertama bekerja (atau membangun proyek end-to-end seperti di *DataTalksClub Data Engineering Zoomcamp*), dua keterampilan operasional ini menjaga sistem Anda tetap reproducible dan mencegah gangguan fatal di produksi:
+
+**1. Stack Data Lokal Multi-Container (`docker-compose.yaml`).** Pipeline produksi tidak pernah bergantung pada kalimat "di laptop saya jalan kok." Repositori data yang dapat direproduksi mendefinisikan database, worker ingestion, dan orchestrator di dalam satu `docker-compose.yaml` yang berbagi jaringan bridge terisolasi, healthcheck, dan volume bernama:
+
+```yaml
+services:
+  postgres-warehouse:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${PG_USER:-kopiku}
+      POSTGRES_PASSWORD: ${PG_PASS:-local_dev_only}
+      POSTGRES_DB: ${PG_DB:-kopiku_dw}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kopiku -d kopiku_dw"]
+      interval: 5s
+      retries: 5
+
+  ingest-worker:
+    build: .
+    depends_on:
+      postgres-warehouse:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kopiku:local_dev_only@postgres-warehouse:5432/kopiku_dw
+    command: ["python3", "-m", "pipeline.ingest", "--date", "${LOGICAL_DATE:-2026-01-15}"]
+
+volumes:
+  pg_data:
+```
+
+Perhatikan `condition: service_healthy`: `depends_on` biasa hanya menunggu proses container menyala, bukan menunggu PostgreSQL selesai menginisialisasi disk dan siap menerima koneksi TCP!
+
+**2. Panduan 6 Langkah Aman Backfill Produksi.** Cepat atau lambat, perubahan rumus bisnis atau perbaikan bug penguraian mengharuskan Anda melakukan **backfill data historis 12 bulan** pada tabel berukuran multi-terabyte. Menjalankan backfill tanpa pembatas di produksi dapat merobohkan database sumber, memicu tagihan warehouse yang tidak direncanakan, mengunci dashboard BI, dan mengirim ulang email pemasaran Reverse ETL untuk setiap pesanan historis. Ikuti 6 langkah ini setiap kali melakukan backfill:
+
+| Langkah | Tindakan | Mengapa Mencegah Insiden Produksi |
+|---|---|---|
+| **1. Bisukan Efek Samping Hilir** | Matikan sementara **sinkronisasi Reverse ETL, webhook Slack/email, dan auto-retraining ML** yang terhubung ke tabel target. | Mencegah terkirimnya ulang pesan CRM "Selamat datang VIP!" untuk pesanan tahun 2025. |
+| **2. Dry-Run & Estimasi Biaya pada 1 Partisi** | Jalankan backfill untuk satu tanggal logis (`--start 2026-01-01 --end 2026-01-01`) lalu kalikan byte yang dipindai & durasi dengan 365. | Menangkap bug full-table scan tersembunyi sebelum dikalikan 365×. |
+| **3. Batasi Konkurensi (`max_active_runs`)** | Atur `max_active_runs=2` atau `max_concurrency=4` di Airflow/Dagster/Kestra. | Mencegah 365 worker paralel membanjiri database OLTP sumber atau slot warehouse. |
+| **4. Gunakan Batch Rentang Partisi daripada 365 Run Harian Terpisah** | Di cloud warehouse (`BigQuery / Snowflake / Databricks`), proses per rentang bulan atau gunakan `dbt microbatch` / penggantian partisi. | 12 run bulanan membayar biaya tetap sebuah query (perencanaan, membaca metadata, tagihan minimum) 12 kali, bukan 365 kali. |
+| **5. Bangun di Tabel Staging/Clone Dulu (Blue-Green Swap)** | Pada tabel Gold kritis, buat zero-copy clone (`CREATE TABLE fct_orders_backfill CLONE fct_orders`), jalankan backfill di sana, uji dengan tes, lalu `ALTER TABLE ... SWAP WITH`. | Dashboard BI eksekutif tidak pernah melihat tabel setengah kosong selama proses backfill 4 jam. |
+| **6. Rekonsiliasi Total & Aktifkan Kembali Sinkronisasi Hilir** | Bandingkan jumlah baris dan total metrik (`SUM(net_revenue_idr)`) sebelum vs. sesudah, majukan watermark Reverse ETL agar baris lama tidak dikirim ulang, lalu aktifkan kembali job hilir. | Membuktikan backfill menuntaskan masalah tanpa efek samping liar. |
+
+> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat `data/orders.csv` dengan `read_csv(..., all_varchar=true)`, simpan baris yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST(order_ts AS TIMESTAMP)`. Buat dua tabel kosong `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11, dan 12 ke keduanya, satu hari setiap kali, dengan menghitung pesanan yang bukan `cancelled`: ke tabel pertama dengan `INSERT` biasa, ke tabel kedua dengan `DELETE` hari itu lalu `INSERT`, dalam satu transaksi. Jalankan seluruh backfill untuk kedua kalinya, seperti setelah crash, dan cetak jumlah baris dan total pendapatan kedua tabel setelah setiap run.
+>
+> **Seharusnya Anda melihat:** setelah run pertama kedua tabel berisi `3` baris dan `101925000`. Setelah run kedua tabel `INSERT` biasa berisi `6` baris dan `203850000`, setiap hari terhitung dua kali, sedangkan tabel yang mengganti per hari tetap `3` dan `101925000`. Tabel kedua itulah yang direkonsiliasi pada langkah 6 runbook. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+
 ## @lab Lab: pipeline harian di Dagster, diuji layaknya software
 Bangun pipeline pemrosesan data harian KopiKu sebagai rangkaian asset terkelola di Dagster: lakukan pembersihan data transaksi per partisi harian, hitung ringkasan pendapatan harian, buat laporan agregasi seluruh hari, pasang asset checks untuk menjamin kualitas data, tetapkan kebijakan retry, dan pasang penjadwalan berbasis zona waktu Asia/Jakarta. Suite pengujian akan mengeksekusi pipeline Anda menggunakan engine orkestrasi nyata terhadap direktori filesystem temporary.
 

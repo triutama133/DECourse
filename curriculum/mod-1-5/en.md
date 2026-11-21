@@ -196,6 +196,54 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 > `pytest labs/mod-1-5/test_lab.py -v`
 > When all 35 tests show PASSED, your production pandas lab is 100% complete!
 
+## @lesson Modern single-node vectorized engines: Polars lazy execution and Apache Arrow zero-copy
+
+While `pandas` remains ubiquitous across existing codebases, two architectural limits show up when a single-machine dataset grows from 100 MB to 20 GB:
+1. **Single-Core Execution & Eager Materialization:** Standard pandas runs operations on a single CPU thread and allocates a brand-new intermediate DataFrame in RAM at every step of a method chain (`df[df.status == 'paid'].groupby('city')...`), which is why Wes McKinney, who created pandas, advised having **5 to 10 times as much RAM as the dataset**.
+2. **Serialization Overhead Between Tools:** Historically, moving a table from a SQL engine into pandas meant copying and re-parsing every value in memory.
+
+Modern Python data engineering solves both problems with **Apache Arrow** and **Polars** (alongside **DuckDB**, which you will benchmark in Module 2.1):
+
+| Capability | `pandas` (Eager DataFrame) | `Polars` (`import polars as pl`) | `Apache Arrow` (`pyarrow`) |
+|---|---|---|---|
+| **Memory Layout** | NumPy arrays (or Arrow-backed via `dtype_backend="pyarrow"`). | Native **Apache Arrow** columnar buffers in Rust. | The universal in-memory columnar standard shared by Polars, DuckDB, Spark, and BigQuery/Snowflake connectors. |
+| **Execution Model** | **Eager & Single-Threaded:** Executes each line immediately on 1 CPU core. | **Lazy & Multithreaded (`LazyFrame`):** Builds a query plan, pushes filters down to Parquet row groups, and runs across all CPU cores in parallel. | **Zero-Copy Transfer:** Lets DuckDB query a Polars or pandas Arrow table (`df.to_arrow()`) without copying the data. |
+| **Out-of-Core Streaming** | Manual `chunksize=` loops over CSVs. | Native streaming engine: `pl.scan_parquet(...).collect(engine="streaming")` works through the data in batches, so it can handle more than fits in RAM. | Memory-mapped (`mmap`) IPC / Feather & Parquet batch readers. |
+
+**Writing Lazy, Predicate-Pushdown Polars Pipelines.** Notice how `pl.scan_parquet()` (unlike `read_parquet()`) does not load the file when called. Instead, Polars inspects your entire chain, prunes unused columns (*projection pushdown*), skips Parquet row-groups whose min/max statistics cannot match your filter (*predicate pushdown*), and executes the optimized plan in parallel Rust threads only when `.collect()` or `.sink_parquet()` is called:
+
+```python
+import polars as pl
+
+# Lazy query plan: reads only the columns it needs, and can skip row groups whose min/max rule out the filter
+lazy_plan = (
+    pl.scan_parquet("data/orders_*.parquet")
+    .filter(
+        (pl.col("status") == "paid")
+        & (pl.col("order_ts") >= "2026-01-01")
+    )
+    .group_by("city")
+    .agg([
+        pl.len().alias("paid_orders"),
+        pl.col("total_idr").sum().alias("revenue_idr"),
+    ])
+    .sort("revenue_idr", descending=True)
+)
+
+# Inspect the optimized plan (shows SELECTION and PROJECT pushdown into Parquet SCAN)
+print(lazy_plan.explain())
+
+# Execute across all CPU cores with out-of-core streaming memory bounds
+result_df = lazy_plan.collect(engine="streaming")   # Polars 1.25+; older code says streaming=True, removed in Polars 2
+
+# Zero-copy handoff to Apache Arrow / DuckDB / Pandas when needed:
+arrow_tbl = result_df.to_arrow()
+```
+
+> 🛠 **Try it (15 min, Python with `polars`, `pandas` and `pyarrow`).** Read `data/orders.csv` with pandas as text, keep the rows whose `total_idr` is all digits and make it an integer, repeat the rows 30 times (`pd.concat([df] * 30)`) and write them as 10 Parquet files `big/part-00.parquet` … `big/part-09.parquet`. Build a lazy plan with `pl.scan_parquet("big/*.parquet")`: keep `status == "delivered"`, group by `payment_method`, count the orders and sum `total_idr`, sort by the sum. Print `.explain()` before you collect, then collect with `engine="streaming"` and compare with the same thing in pandas.
+>
+> **You should see:** `107400` rows on disk. Inside the `Parquet SCAN` node the plan says `PROJECT 3/6 COLUMNS` and `SELECTION: col("status") == "delivered"`: the filter and the column list moved into the scan, so the other three columns are never read. Four payment methods, led by `cod` with `15600` orders and `5349150000`, exactly the counts and sums pandas gives. Measured with Polars 2.1.0 and pandas 3.1.1 on the course's default data.
+
 ## @lab Lab: clean and summarise a messy orders export
 Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops.
 

@@ -232,6 +232,47 @@ Finally, **practise the loop** until it is automatic: make a small change, run i
 > `python3 $COURSE/labs/mod-0-2/check.py ~/kopiku`
 > When all checks PASS, congratulations! You have a verified professional data engineering environment!
 
+## @lesson Pre-commit hooks, virtual environments, and Agile data team pull requests
+
+On a real data engineering team, you rarely work alone on the `main` branch. Every change goes through a feature branch (`git switch -c feat/add-store-scd2`), automated **pre-commit hooks** on your laptop, a **GitHub Actions CI** run, and a **Pull Request (PR)** reviewed by a teammate.
+
+**1. Automated Pre-Commit Hooks (`.pre-commit-config.yaml`).** Waiting until code reaches GitHub to discover that you accidentally staged a 200 MB CSV export, left a private API key in a script, or broke Python formatting wastes everyone's time. The `pre-commit` framework runs fast local checks *before* `git commit` is allowed to succeed:
+
+```yaml
+# .pre-commit-config.yaml — runs automatically on every `git commit`
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']          # Blocks accidental commit of raw CSV/Parquet dumps
+      - id: detect-private-key         # Blocks PEM/SSH/API private keys before they enter Git history
+      - id: check-yaml                 # Validates dbt schema.yml and GitHub Actions workflows
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff                       # Fast Rust-based Python linter (replaces flake8 + isort)
+        args: [--fix]
+      - id: ruff-format                # Deterministic Python formatter (replaces black)
+```
+
+Once you run `pip install pre-commit && pre-commit install`, Git runs those seven checks automatically on every commit, and the commit stops if one fails.
+
+**2. Modern Environment Isolation (`venv` and `uv`).** Whether a team uses standard `python3 -m venv .venv` with `requirements.txt` or modern `pyproject.toml` with `uv` (`uv venv && uv pip sync`), the rule is identical: **one project, one isolated environment, pinned versions committed to Git, virtual environment directory ignored in `.gitignore`**.
+
+**3. How Data Engineers Write Pull Requests in Agile Sprints.** A software engineer's PR screenshot shows a UI button; a **data engineer's PR description must show data proof**. When you open a PR on a real team, include four lines in the summary:
+- **Grain & Contract:** What is the primary key of the new/modified table, and did the grain change?
+- **Row & Money Reconciliation Proof:** Before vs. after row count and key metric sum (e.g., `fact_orders: 3,599 rows before -> 3,599 rows after; net_revenue_idr: Rp 1,208,770,000 -> Rp 1,208,770,000 (0.00% drift)`).
+- **Query Cost / Runtime Impact:** Bytes scanned or execution time before vs. after (e.g., `BigQuery dry-run scan dropped from 42.1 GB to 1.4 GB via date partition pruning`).
+- **Backfill & Rollback Plan:** Does merging this PR require a historical backfill (`dbt run --full-refresh` or date-range backfill), and how do we revert if downstream BI dashboards break?
+
+> 🛠 **Try it (5 min, terminal).** Inside any Git repo, inspect `.git/hooks/`. Even without installing third-party tools, you can create an executable `.git/hooks/pre-commit` shell script (first line `#!/bin/sh`, then `chmod +x .git/hooks/pre-commit`) that runs `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Do not commit data files!" && exit 1 || exit 0`. Try `git add` on a dummy `.csv` file and commit it, then do the same with a `.txt` file.
+>
+> **You should see:** the `.csv` commit stops: the hook prints the file name and `ERROR: Do not commit data files!`, and `echo $?` right after `git commit` shows `1`. The `.txt` commit goes through. If nothing happens, check `chmod +x`: without it Git skips the hook and only prints a `hint:` that it was ignored because it is not executable. Measured with Git 2.53.
+
 ## @lab Lab: build your KopiKu workspace
 Create the project folder that you will use for the rest of the course, and prove it is set up correctly with an automatic checker. Your workspace needs an isolated environment, a Git history with sensible commits, a `.gitignore` that protects you, and a small script that counts orders by status.
 
