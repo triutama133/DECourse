@@ -237,6 +237,35 @@ Inside one *availability zone* (AZ: one data centre within a region), traffic be
 >
 > **You should see:** cross-zone: 13,333 GB × $0.02 ≈ $267 a day; NAT: 5,000 GB × $0.045 = $225 a day; together about $492 a day, or about $14,750 for 30 days. Running the shuffle inside one zone saves about $8,000 a month, but if that zone fails the job stops, which is a trade-off worth saying out loud. An S3 gateway endpoint saves the $6,750 of NAT fees at no risk. Together they remove almost all of it.
 
+## @lesson Optional: apply it for real, on a fake AWS on your laptop
+The lab only *plans*: the provider uses fake credentials and never talks to AWS. The other half of Terraform's job, actually creating, checking, repairing and destroying resources, needs an AWS endpoint. A real AWS account needs a payment card; **moto** needs nothing. It is an open-source Python program that answers the same API calls as AWS (S3, IAM, KMS and many more) on your own computer. Terraform, the `aws` command line and `boto3` cannot tell the difference, so you practise the real tools and the real workflow; only the cloud behind them is pretend.
+
+**What a fake AWS cannot teach.** moto does not check permissions unless you ask it to, so an IAM policy that would be denied in a real account still works here; it has no prices and no real network delays; and some services are only partly implemented. Treat it as a flight simulator: the controls and procedures are real, the consequences are not.
+
+**Set up (once, in your venv):** install the fake AWS and the AWS command line, then start the fake AWS in its **own** terminal and leave it running:
+
+```bash
+python -m pip install "moto[server]" awscli
+moto_server -p 5055
+```
+
+In your working terminal, give the tools dummy credentials and copy **your** Terraform project from the lab, plus the override file that points it at port 5055. Work in the copy, so the offline lab tests keep working:
+
+```bash
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=ap-southeast-3
+cp -r labs/mod-3-4/terraform ~/tf-local
+cp labs/mod-3-4/local-aws/local_aws_override.tf ~/tf-local/
+cd ~/tf-local && terraform init && terraform apply -var-file=dev.tfvars
+```
+
+Terraform merges any file whose name ends in `_override.tf` into the matching block, so your `provider.tf` stays unchanged. Read the plan before you type `yes`. Then look at what you built with the same commands you would use on real AWS, for example `aws --endpoint-url http://127.0.0.1:5055 s3api get-bucket-tagging --bucket kopiku-lakehouse-dev`.
+
+**Measured** with the lab's reference project (Terraform 1.17.2, AWS provider 5.100.0, moto 5.2.5): `apply` created **7 resources** in **64 seconds**, 55 of them spent on the lifecycle rule, because the provider waits and re-checks after creating it, as it does on real AWS. The bucket carried the five cost tags from `default_tags`. A second `terraform plan` printed `No changes. Your infrastructure matches the configuration.`, and `terraform destroy` removed all 7 in about 14 seconds.
+
+> 🛠 **Try it (15 min, terminal, needs the setup above).** Practise **drift**: a change made by hand outside Terraform. With your project applied, remove the bucket's public access protection the way a hurried colleague might: `aws --endpoint-url http://127.0.0.1:5055 s3api delete-public-access-block --bucket kopiku-lakehouse-dev`. Run `terraform plan -var-file=dev.tfvars -detailed-exitcode` and note the exit code with `echo $?`. Then `apply` to repair it, `plan` once more, and finally `terraform destroy -var-file=dev.tfvars`.
+>
+> **You should see:** the plan finds the drift: `Plan: 1 to add, 0 to change, 0 to destroy.` for `aws_s3_bucket_public_access_block.lakehouse`, and exit code `2` (changes needed; `0` means none). `apply` reports `1 added`, the next plan `No changes`, and `destroy` reports `7 destroyed`. This is why teams run `terraform plan` on a schedule: drift is silent until a plan shows it, and an open bucket is exactly the drift that leaks data.
+
 ## @lab Lab: a secure lakehouse bucket and a cost guardrail toolkit
 Part A: finish a Terraform configuration until an offline plan proves the bucket is private, encrypted, lifecycle-managed, tagged and accessible only through a least-privilege policy. Part B: write the Python functions behind your FinOps controls: warehouse billing, cost by team, runaway detection, a budget forecast and storage tiering.
 
@@ -276,6 +305,7 @@ pytest labs/mod-3-4 -v          # the starter fails at first
 - labs/mod-3-4/test_finops.py :: Part B tests (29) :: test
 - labs/shared/querylog.py :: Deterministic 30-day query log with a planted runaway :: data
 - labs/mod-3-4/requirements.txt :: pytest and installation notes :: config
+- labs/mod-3-4/local-aws/local_aws_override.tf :: Optional lesson: points the provider at a fake AWS on your laptop (moto) :: config
 - labs/mod-3-4/reference/terraform/main.tf :: Part A reference (try first!) :: reference
 - labs/mod-3-4/reference/terraform/variables.tf :: Part A reference variables :: reference
 - labs/mod-3-4/reference/terraform/outputs.tf :: Part A reference outputs :: reference

@@ -139,6 +139,27 @@ Perhatikan bahwa **proyeksi kolom** (hanya dua kolom yang dibaca) dan **filter**
 
 **Mengolah data yang lebih besar dari kapasitas RAM (Out-of-Core Processing).** DuckDB secara otomatis menumpahkan data sementara ke disk (spill to disk) saat kebutuhan memori query melebihi batas yang ditentukan: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. Pada pengujian lab, pengurutan 5.000.000 baris di bawah batas memori 200 MB selesai dalam 0,3 detik dengan puncak konsumsi RAM hanya 194 MB tanpa mengalami crash OOM. Konfigurasi berguna lainnya: `SET threads = 4` untuk membatasi pemakaian core CPU di lingkungan container bersama.
 
+**File di object storage.** Di platform sungguhan, file Parquet ini tinggal di object storage seperti Amazon S3, bukan di laptop, dan setiap file yang dibuka DuckDB adalah satu request jaringan yang memakan waktu dan, di S3, uang. Anda bisa melihatnya tanpa akun AWS: **moto** adalah program open-source yang menjawab seperti S3 di komputer Anda sendiri (Modul 3.4 memakainya untuk Terraform). Jalankan di terminalnya sendiri dan biarkan tetap berjalan, lalu arahkan DuckDB ke sana:
+
+```bash
+python -m pip install "moto[server]"
+moto_server -p 5055          # setiap request dicetak di sini, satu baris per request
+```
+
+```python
+import boto3, duckdb
+boto3.client("s3", endpoint_url="http://127.0.0.1:5055", aws_access_key_id="test", aws_secret_access_key="test",
+             region_name="ap-southeast-3").create_bucket(Bucket="kopiku-raw", CreateBucketConfiguration={"LocationConstraint": "ap-southeast-3"})
+con = duckdb.connect()
+con.execute("INSTALL httpfs; LOAD httpfs")
+con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', REGION 'ap-southeast-3',
+               ENDPOINT '127.0.0.1:5055', URL_STYLE 'path', USE_SSL false)""")
+```
+
+> 🛠 **Coba sendiri (20 menit, Python, perlu S3 tiruan di atas).** Tulis 200.000 pesanan ke `s3://kopiku-raw/orders` dengan `COPY ... TO`, dipartisi per `order_date`, dari `SELECT range AS order_id, 10000 + (range * 37) % 500000 AS total_idr, DATE '2026-11-01' + CAST(range % 30 AS INTEGER) AS order_date FROM range(200000)`. Lalu, setiap kali dengan koneksi **baru** dan secret yang sama (DuckDB menyimpan cache file yang sudah dibacanya), hitung baris untuk `order_date = DATE '2026-11-21'`, untuk semua hari, dan untuk `total_idr > 400000`, dengan membaca memakai `hive_partitioning = true`. Hitung baris request yang dicetak moto untuk setiap query.
+>
+> **Seharusnya Anda melihat:** `6666` baris dari **3** request untuk satu hari: satu listing folder, file pertama (untuk mengetahui nama kolom), dan file hari itu. Semua hari menghasilkan `200000` baris dari **31** request: listing ditambah ke-30 file. Filter `total_idr` menghasilkan `41892` baris tetapi juga butuh **31**: hanya kolom partisi yang membuat DuckDB bisa melewati file tanpa membukanya. Di S3 setiap request ditagih dan menambah jeda, jadi kolom partisi sebuah tabel sebaiknya kolom yang paling sering difilter query-nya. Diukur dengan DuckDB 2.0.1 dan moto 5.2.5.
+
 > 💡 **Jeda Praktik: Analisis SQL Kolumnar dengan DuckDB**
 > 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, buka fungsi `revenue_by_month_roast_duckdb(data_dir)`.
 > 2. Tulis query SQL DuckDB yang membaca `order_items.parquet`, `orders.parquet`, dan `products.parquet` menggunakan fungsi `read_parquet(...)`. Gabungkan ketiga tabel (JOIN), kelompokkan berdasarkan format bulan `strftime(o.order_ts, '%Y-%m')` dan `p.roast_level`, lalu hitung omset `SUM(i.qty * i.unit_price_idr)` dengan tipe `BIGINT` (integer). Urutkan hasil berdasarkan bulan dan tingkat sangrai (`ORDER BY 1, 2`).

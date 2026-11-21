@@ -236,6 +236,35 @@ Di dalam satu *availability zone* (AZ: satu pusat data di dalam region), lalu li
 >
 > **Seharusnya Anda melihat:** antar-zone: 13.333 GB × $0,02 ≈ $267 sehari; NAT: 5.000 GB × $0,045 = $225 sehari; totalnya sekitar $492 sehari, atau sekitar $14.750 untuk 30 hari. Menjalankan shuffle di dalam satu zone menghemat sekitar $8.000 sebulan, tetapi jika zone itu gagal, job berhenti; trade-off ini layak diucapkan dengan jelas. S3 gateway endpoint menghemat $6.750 biaya NAT tanpa risiko. Bersama-sama keduanya menghapus hampir semuanya.
 
+## @lesson Opsional: terapkan sungguhan, di AWS tiruan di laptop Anda
+Lab ini hanya membuat *plan*: provider memakai kredensial palsu dan tidak pernah menghubungi AWS. Separuh lain pekerjaan Terraform, yaitu benar-benar membuat, memeriksa, memperbaiki, dan menghapus resource, butuh endpoint AWS. Akun AWS sungguhan butuh kartu pembayaran; **moto** tidak butuh apa pun. moto adalah program Python open-source yang menjawab panggilan API yang sama dengan AWS (S3, IAM, KMS, dan banyak lagi) di komputer Anda sendiri. Terraform, command line `aws`, dan `boto3` tidak bisa membedakannya, jadi Anda melatih alat dan alur kerja yang sungguhan; hanya cloud di belakangnya yang tiruan.
+
+**Yang tidak bisa diajarkan AWS tiruan.** moto tidak memeriksa izin kecuali Anda memintanya, jadi policy IAM yang akan ditolak di akun sungguhan tetap berjalan di sini; ia tidak punya harga dan tidak punya jeda jaringan sungguhan; dan sebagian layanan baru diimplementasikan sebagian. Anggap seperti simulator penerbangan: kemudi dan prosedurnya nyata, akibatnya tidak.
+
+**Persiapan (sekali, di venv Anda):** pasang AWS tiruan dan command line AWS, lalu jalankan AWS tiruan di terminalnya **sendiri** dan biarkan tetap berjalan:
+
+```bash
+python -m pip install "moto[server]" awscli
+moto_server -p 5055
+```
+
+Di terminal kerja Anda, beri alat-alat itu kredensial dummy, lalu salin project Terraform **Anda** dari lab beserta file override yang mengarahkannya ke port 5055. Bekerjalah di salinan itu, supaya tes lab yang offline tetap berjalan:
+
+```bash
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=ap-southeast-3
+cp -r labs/mod-3-4/terraform ~/tf-local
+cp labs/mod-3-4/local-aws/local_aws_override.tf ~/tf-local/
+cd ~/tf-local && terraform init && terraform apply -var-file=dev.tfvars
+```
+
+Terraform menggabungkan setiap file yang namanya berakhiran `_override.tf` ke blok yang cocok, jadi `provider.tf` Anda tidak berubah. Baca plan-nya sebelum mengetik `yes`. Lalu lihat apa yang Anda bangun dengan perintah yang sama seperti di AWS sungguhan, misalnya `aws --endpoint-url http://127.0.0.1:5055 s3api get-bucket-tagging --bucket kopiku-lakehouse-dev`.
+
+**Diukur** dengan project referensi lab (Terraform 1.17.2, AWS provider 5.100.0, moto 5.2.5): `apply` membuat **7 resource** dalam **64 detik**, 55 di antaranya untuk aturan lifecycle, karena provider menunggu dan memeriksa ulang setelah membuatnya, sama seperti di AWS sungguhan. Bucket-nya membawa lima tag biaya dari `default_tags`. `terraform plan` kedua mencetak `No changes. Your infrastructure matches the configuration.`, dan `terraform destroy` menghapus ketujuhnya dalam sekitar 14 detik.
+
+> 🛠 **Coba sendiri (15 menit, terminal, perlu persiapan di atas).** Latih **drift**: perubahan yang dibuat dengan tangan di luar Terraform. Dengan project Anda sudah diterapkan, hapus perlindungan akses publik bucket seperti yang mungkin dilakukan rekan yang terburu-buru: `aws --endpoint-url http://127.0.0.1:5055 s3api delete-public-access-block --bucket kopiku-lakehouse-dev`. Jalankan `terraform plan -var-file=dev.tfvars -detailed-exitcode` dan catat exit code-nya dengan `echo $?`. Lalu `apply` untuk memperbaikinya, `plan` sekali lagi, dan terakhir `terraform destroy -var-file=dev.tfvars`.
+>
+> **Seharusnya Anda melihat:** plan menemukan drift-nya: `Plan: 1 to add, 0 to change, 0 to destroy.` untuk `aws_s3_bucket_public_access_block.lakehouse`, dan exit code `2` (perlu perubahan; `0` berarti tidak ada). `apply` melaporkan `1 added`, plan berikutnya `No changes`, dan `destroy` melaporkan `7 destroyed`. Inilah sebabnya tim menjalankan `terraform plan` secara terjadwal: drift diam sampai sebuah plan menunjukkannya, dan bucket yang terbuka adalah jenis drift yang membocorkan data.
+
 ## @lab Lab: bucket lakehouse aman dan perangkat kendali biaya FinOps
 Lab ini terbagi menjadi dua bagian: Bagian A melengkapi konfigurasi Terraform hingga menghasilkan execution plan offline yang memvalidasi bahwa storage bucket S3 lakehouse Anda terisolasi privat, terenkripsi KMS kustom, memiliki aturan lifecycle otomatis, bertag lengkap, dan hanya dapat diakses melalui kebijakan least-privilege. Bagian B membangun fungsi-fungsi Python untuk kendali FinOps: pemodelan penagihan warehouse, alokasi biaya per tim, deteksi query liar berbasis median, forecasting proyeksi anggaran, serta simulasi analisis tiering penyimpanan data.
 
@@ -275,6 +304,7 @@ pytest labs/mod-3-4 -v          # seluruh pengujian awal akan gagal
 - labs/mod-3-4/test_finops.py :: Suite pengujian Bagian B (29 pengujian unit test) :: test
 - labs/shared/querylog.py :: Dataset deterministik 30 hari riwayat query dengan simulasi query liar :: data
 - labs/mod-3-4/requirements.txt :: Dependensi pustaka pytest dan catatan instalasi CLI :: config
+- labs/mod-3-4/local-aws/local_aws_override.tf :: Pelajaran opsional: mengarahkan provider ke AWS tiruan di laptop Anda (moto) :: config
 - labs/mod-3-4/reference/terraform/main.tf :: Solusi referensi Bagian A: main.tf (coba mandiri terlebih dahulu!) :: reference
 - labs/mod-3-4/reference/terraform/variables.tf :: Solusi referensi Bagian A: variables.tf :: reference
 - labs/mod-3-4/reference/terraform/outputs.tf :: Solusi referensi Bagian A: outputs.tf :: reference

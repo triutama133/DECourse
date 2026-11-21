@@ -139,6 +139,27 @@ Both the **projection** (only two columns) and the **filter** are part of the sc
 
 **Larger than memory.** DuckDB spills to disk when a query exceeds its budget: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. In a test, sorting all 5,000,000 rows under a 200 MB limit completed in 0.3 seconds with a peak of 194 MB, instead of being killed (Module 1.1). Other useful settings: `SET threads = 4` (limit CPU use in a shared container).
 
+**Files on object storage.** In a real platform these Parquet files live in object storage such as Amazon S3, not on a laptop, and every file DuckDB opens is a network request that costs time and, on S3, money. You can see this without an AWS account: **moto** is an open-source program that answers like S3 on your own computer (Module 3.4 uses it for Terraform). Start it in its own terminal and leave it running, then point DuckDB at it:
+
+```bash
+python -m pip install "moto[server]"
+moto_server -p 5055          # every request is printed here, one line each
+```
+
+```python
+import boto3, duckdb
+boto3.client("s3", endpoint_url="http://127.0.0.1:5055", aws_access_key_id="test", aws_secret_access_key="test",
+             region_name="ap-southeast-3").create_bucket(Bucket="kopiku-raw", CreateBucketConfiguration={"LocationConstraint": "ap-southeast-3"})
+con = duckdb.connect()
+con.execute("INSTALL httpfs; LOAD httpfs")
+con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', REGION 'ap-southeast-3',
+               ENDPOINT '127.0.0.1:5055', URL_STYLE 'path', USE_SSL false)""")
+```
+
+> 🛠 **Try it (20 min, Python, needs the fake S3 above).** Write 200,000 orders to `s3://kopiku-raw/orders` with `COPY ... TO`, partitioned by `order_date`, from `SELECT range AS order_id, 10000 + (range * 37) % 500000 AS total_idr, DATE '2026-11-01' + CAST(range % 30 AS INTEGER) AS order_date FROM range(200000)`. Then, each time with a **new** connection and the same secret (DuckDB caches files it has read), count the rows for `order_date = DATE '2026-11-21'`, for all days, and for `total_idr > 400000`, reading with `hive_partitioning = true`. Count the request lines moto prints for each query.
+>
+> **You should see:** `6666` rows from **3** requests for one day: one listing of the folder, the first file (to learn the column names) and that day's file. All days return `200000` rows from **31** requests: the listing plus all 30 files. The `total_idr` filter returns `41892` rows but also needs **31**: only the partition column lets DuckDB skip files without opening them. On S3 every request is billed and adds delay, so a table's partition column should be the one its queries filter on most. Measured with DuckDB 2.0.1 and moto 5.2.5.
+
 > 💡 **Practice Pause: Columnar SQL Analysis with DuckDB**
 > 1. In your text editor in `labs/mod-2-1/analytics.py`, open function `revenue_by_month_roast_duckdb(data_dir)`.
 > 2. Write a DuckDB SQL query reading `order_items.parquet`, `orders.parquet`, and `products.parquet` via `read_parquet(...)`. Join all three tables, group by month `strftime(o.order_ts, '%Y-%m')` and `p.roast_level`, and sum revenue `SUM(i.qty * i.unit_price_idr)` cast to `BIGINT` (integer). Order the results by month and roast level (`ORDER BY 1, 2`).
