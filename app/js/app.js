@@ -675,12 +675,16 @@ class DataForgeApp {
         <div id="bl-ref">${this.blReferenceHtml(modId)}</div>
       </div>`;
   }
+  // The reference opens on progress, not on clicks: once at least half of the test groups have passed in one
+  // run. Pressing Run three times with broken code no longer reveals all eleven answers.
   blReferenceHtml(modId) {
     const bl = window.BROWSER_LABS[modId];
-    const runs = ((readStore("df_bl_runs", {}) || {})[modId]) || 0;
-    const need = 3;
-    if (runs < need) {
-      return `<p class="small muted">🔒 ${this.l(`Solusi referensi terbuka setelah Anda menjalankan tes minimal ${need} kali (sekarang ${runs}). Berjuanglah dulu: membaca pesan error dan memperbaikinya adalah inti latihan ini.`, `The reference solution unlocks after you have run the tests at least ${need} times (now ${runs}). Struggle first: reading the error and fixing it is the point of this exercise.`)}</p>`;
+    const best = ((readStore("df_bl_best", {}) || {})[modId]) || null;
+    const groupCount = (bl.tests || []).reduce((n, t) => n + (String(bl.files[t] || "").match(/^class Test\w+/gm) || []).length, 0);
+    const need = Math.ceil(groupCount / 2);
+    const have = best && Number.isFinite(best.groups) ? best.groups : 0;
+    if (have < need) {
+      return `<p class="small muted">🔒 ${this.l(`Solusi referensi terbuka setelah minimal ${need} dari ${groupCount} grup tes bertanda ✓ dalam satu run (terbaik Anda sejauh ini: ${have}). Sampai saat itu, pesan error adalah petunjuk Anda: membaca dan memperbaikinya adalah inti latihan ini.`, `The reference solution unlocks once at least ${need} of the ${groupCount} test groups show ✓ in one run (your best so far: ${have}). Until then the error messages are your hints: reading and fixing them is the point of this exercise.`)}</p>`;
     }
     return `<details class="file"><summary>${this.l("Lihat solusi referensi", "Show the reference solution")} <span class="muted small">${this.l("(bandingkan setelah Anda mencoba sendiri; jangan menyalin)", "(compare after you have tried yourself; do not copy it)")}</span></summary>
       <pre><code>${this.esc(bl.reference)}</code></pre></details>`;
@@ -728,8 +732,6 @@ class DataForgeApp {
     const runs = readStore("df_bl_runs", {}) || {};
     runs[modId] = (runs[modId] || 0) + 1;
     writeStore("df_bl_runs", runs);
-    const refBox = document.getElementById("bl-ref");
-    if (refBox) refBox.innerHTML = this.blReferenceHtml(modId);
     const btn = document.getElementById("bl-run");
     this._blBusy = true;
     if (btn) btn.disabled = true;
@@ -777,6 +779,14 @@ class DataForgeApp {
         const first = groups.find((g) => g.pass < g.total);
         this._blRun = this._blRun || {};
         this._blRun[modId] = { raw, groups, head: summary };
+        const passedGroups = groups.filter((g) => g.pass === g.total).length;
+        const bestAll = readStore("df_bl_best", {}) || {};
+        if (!bestAll[modId] || passedGroups > (bestAll[modId].groups || 0)) {
+          bestAll[modId] = { groups: passedGroups };
+          writeStore("df_bl_best", bestAll);
+        }
+        const refBox = document.getElementById("bl-ref");
+        if (refBox) refBox.innerHTML = this.blReferenceHtml(modId);
         this.blShowGroup(modId, first ? first.name : null);
       } else if (m.type === "error" && m.id === id) {
         if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; }
@@ -1045,7 +1055,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1095,6 +1105,7 @@ class DataForgeApp {
         writeStore("df_active_recall", this.recallState);
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
+        if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
         if (d.df_proofs && typeof d.df_proofs === "object" && !Array.isArray(d.df_proofs)) {
           const kept = {};
           for (const [id, rec] of Object.entries(d.df_proofs)) if (rec && typeof rec.code === "string" && this.verifyProof(id, rec.code).ok) kept[id] = { code: rec.code, at: String(rec.at || "") };
