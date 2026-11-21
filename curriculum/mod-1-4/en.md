@@ -44,6 +44,22 @@ The design is done in four steps, in order. Skipping the order is the most commo
 >
 > **You should see:** three tables (`orders`, `customers`, `order_items`) and two joins, and a first row `Bandung, Gold, 455000` followed by `Surabaya, Bronze, 365000`. In your sketch there is one fact table of order lines (the revenue) pointing at a customer dimension (city, tier): the analyst writes one join instead of remembering three tables.
 
+**Three levels of a model: conceptual, logical, physical.** Before any of these steps there is a question of *how detailed* a model is. Teams describe a design at three levels, each for a different audience, and skipping straight to `CREATE TABLE` is how misunderstandings get baked into tables:
+
+| Level | Answers | Audience | KopiKu example |
+|---|---|---|---|
+| **Conceptual** | Which things exist and how they relate, in business words | Business people | "A customer places orders. An order contains products. A product can be in many orders." |
+| **Logical** | Attributes, keys and how many of each relate, independent of any database | Engineers and analysts | `customer(customer_id, name, city, tier)`, `order(order_id, customer_id)`, and `order_item(order_id, product_id, qty)` with key `(order_id, product_id)`: the many-to-many between orders and products becomes its own entity |
+| **Physical** | How one specific engine stores it: types, constraints, indexes, partitioning | The engine and the people who run it | In SQLite: `INTEGER` money in rupiah, `NOT NULL`, `CHECK (qty > 0)`, foreign keys. In BigQuery: partition by order date, cluster by customer |
+
+The conceptual level is where you catch the expensive mistakes cheaply: "can one order belong to two customers?" is a two-minute conversation on a whiteboard and a two-week migration after the tables exist. The four steps above (process, grain, dimensions, facts) are logical design for analytics; one logical model can then have several physical versions, one per engine.
+
+The physical level differs more between engines than most people expect. An application database such as SQLite or PostgreSQL **enforces** keys: a bad row is refused. A cloud warehouse mostly does **not**: in Snowflake's standard tables, `PRIMARY KEY`, `FOREIGN KEY` and `UNIQUE` are "optional, not enforced" (only `NOT NULL` and `CHECK` are), and BigQuery's documentation warns that "key constraints aren't enforced" and that queries over tables with violated constraints "might return incorrect results", because the optimizer trusts the keys you declare. In a warehouse, the tests of lesson 6 do the job the constraints did in the application.
+
+> 🛠 **Try it (15 min, Python).** Turn the logical model above into a physical one in SQLite with `sqlite3`: tables `customers`, `products`, `orders` and `order_items`, with primary keys, foreign keys (`REFERENCES`), `NOT NULL` and `CHECK (qty > 0)`. Run `PRAGMA foreign_keys = ON` first. Insert these 11 rows one at a time and catch `sqlite3.IntegrityError`: customers `(1,'Ani','Bandung','Gold')` and `(2,'Budi','Surabaya','Bronze')`; products `(10,'Gayo')` and `(11,'Toraja')`; orders `(100,1)`, `(101,2)`, `(102,99)`; order items `(100,10,2)`, `(100,11,1)`, `(100,10,1)`, `(101,11,-1)`. Count the stored rows. Then run it again without the `PRAGMA`, and once more with no constraints at all.
+>
+> **You should see:** with constraints, **8** rows stored and 3 refused: `FOREIGN KEY constraint failed` (order 102 for a customer who does not exist), `UNIQUE constraint failed: order_items.order_id, order_items.product_id` (the same product twice in one order) and `CHECK constraint failed: qty > 0`. Without the `PRAGMA`, **9** are stored: SQLite does not enforce foreign keys unless you switch them on, so the orphan order slips in silently. With no constraints, all **11** are stored, which is the normal situation in a warehouse. Measured with SQLite 3.46; older versions word the messages slightly differently.
+
 ## @lesson The grain: the most important sentence in the model
 The **grain** is a single sentence that says what one row of a fact table means. For KopiKu: *"one row per order line: one product, in one order, at one price."* Everything else follows from it.
 

@@ -44,6 +44,22 @@ Perancangan star schema selalu dilakukan melalui empat langkah berurutan. Melewa
 >
 > **Seharusnya Anda melihat:** tiga tabel (`orders`, `customers`, `order_items`) dan dua join, dan baris pertama `Bandung, Gold, 455000` diikuti `Surabaya, Bronze, 365000`. Di sketsa Anda ada satu tabel fakta baris pesanan (revenue-nya) yang menunjuk ke dimensi pelanggan (kota, tier): analis menulis satu join alih-alih mengingat tiga tabel.
 
+**Tiga tingkat model: konseptual, logis, fisik.** Sebelum langkah-langkah itu ada pertanyaan *seberapa rinci* sebuah model. Tim menggambarkan desain dalam tiga tingkat, masing-masing untuk audiens berbeda, dan melompat langsung ke `CREATE TABLE` adalah cara salah paham tertanam di dalam tabel:
+
+| Tingkat | Menjawab | Audiens | Contoh KopiKu |
+|---|---|---|---|
+| **Konseptual** | Benda apa saja yang ada dan bagaimana hubungannya, dalam bahasa bisnis | Orang bisnis | "Pelanggan membuat pesanan. Pesanan berisi produk. Satu produk bisa ada di banyak pesanan." |
+| **Logis** | Atribut, kunci, dan berapa banyak yang saling terkait, tanpa bergantung pada database tertentu | Engineer dan analis | `customer(customer_id, name, city, tier)`, `order(order_id, customer_id)`, dan `order_item(order_id, product_id, qty)` dengan kunci `(order_id, product_id)`: hubungan banyak-ke-banyak antara pesanan dan produk menjadi entitasnya sendiri |
+| **Fisik** | Bagaimana satu engine tertentu menyimpannya: tipe, constraint, indeks, partisi | Engine dan orang yang menjalankannya | Di SQLite: uang `INTEGER` dalam rupiah, `NOT NULL`, `CHECK (qty > 0)`, foreign key. Di BigQuery: partisi per tanggal pesanan, cluster per pelanggan |
+
+Tingkat konseptual adalah tempat kesalahan mahal ditangkap dengan murah: "bisakah satu pesanan milik dua pelanggan?" adalah obrolan dua menit di papan tulis, dan migrasi dua minggu setelah tabelnya ada. Empat langkah di atas (proses, grain, dimensi, fakta) adalah desain logis untuk analitik; satu model logis lalu bisa punya beberapa versi fisik, satu per engine.
+
+Tingkat fisik berbeda antar-engine lebih jauh daripada yang dikira kebanyakan orang. Database aplikasi seperti SQLite atau PostgreSQL **menegakkan** kunci: baris yang salah ditolak. Cloud warehouse umumnya **tidak**: di tabel standar Snowflake, `PRIMARY KEY`, `FOREIGN KEY`, dan `UNIQUE` berstatus "optional, not enforced" (hanya `NOT NULL` dan `CHECK` yang ditegakkan), dan dokumentasi BigQuery memperingatkan bahwa "key constraints aren't enforced" dan query atas tabel yang constraint-nya dilanggar "might return incorrect results", karena optimizer memercayai kunci yang Anda deklarasikan. Di warehouse, tes di pelajaran 6 mengerjakan tugas yang di aplikasi dikerjakan constraint.
+
+> 🛠 **Coba sendiri (15 menit, Python).** Ubah model logis di atas menjadi model fisik di SQLite dengan `sqlite3`: tabel `customers`, `products`, `orders`, dan `order_items`, dengan primary key, foreign key (`REFERENCES`), `NOT NULL`, dan `CHECK (qty > 0)`. Jalankan `PRAGMA foreign_keys = ON` lebih dulu. Masukkan 11 baris ini satu per satu dan tangkap `sqlite3.IntegrityError`: customers `(1,'Ani','Bandung','Gold')` dan `(2,'Budi','Surabaya','Bronze')`; products `(10,'Gayo')` dan `(11,'Toraja')`; orders `(100,1)`, `(101,2)`, `(102,99)`; order items `(100,10,2)`, `(100,11,1)`, `(100,10,1)`, `(101,11,-1)`. Hitung baris yang tersimpan. Lalu jalankan lagi tanpa `PRAGMA`, dan sekali lagi tanpa constraint sama sekali.
+>
+> **Seharusnya Anda melihat:** dengan constraint, **8** baris tersimpan dan 3 ditolak: `FOREIGN KEY constraint failed` (pesanan 102 untuk pelanggan yang tidak ada), `UNIQUE constraint failed: order_items.order_id, order_items.product_id` (produk yang sama dua kali dalam satu pesanan), dan `CHECK constraint failed: qty > 0`. Tanpa `PRAGMA`, **9** tersimpan: SQLite tidak menegakkan foreign key kecuali Anda menyalakannya, jadi pesanan yatim itu masuk diam-diam. Tanpa constraint, kesebelasnya tersimpan, dan itulah keadaan normal di warehouse. Diukur dengan SQLite 3.46; versi lama memakai kata-kata pesan yang sedikit berbeda.
+
 ## @lesson Grain: kalimat paling krusial dalam pemodelan data
 **Grain** adalah satu kalimat tunggal yang mendefinisikan apa makna tepat dari satu baris di dalam tabel fakta. Untuk KopiKu: *"satu baris mewakili satu item dalam pesanan: satu produk, dalam satu pesanan, pada satu harga tertentu."* Segala keputusan teknis selanjutnya diturunkan dari kalimat ini.
 
