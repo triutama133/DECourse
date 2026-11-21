@@ -56,6 +56,8 @@ watermark = (timestamp event paling baru yang pernah terlihat) - (delay batas to
 
 Nilai delay adalah batas toleransi keterlambatan yang Anda tentukan. Dengan konfigurasi `withWatermark("event_time", "2 minutes")`, jika event paling baru yang diterima sejauh ini bertimestamp 10:07, maka posisi watermark berada di 10:05: "Engine streaming memperlakukan seluruh event sebelum 10:05 sebagai data yang pada dasarnya sudah lengkap." Dalam mode append (`OutputMode.Append()`), **sebuah window akan dipancarkan hasilnya dan ditutup saat posisi watermark telah melampaui batas akhir (end time) window tersebut**.
 
+[[diagram:watermark]]
+
 Mekanisme internal ini sangat halus dan kerap disalahpahami, berikut adalah kronologi nyata dari sebuah job Spark (yang direproduksi secara identik oleh model Python pada lab): tumbling window 5 menit, delay watermark 2 menit, satu file data per micro-batch:
 
 | Batch | Daftar Event yang Tiba (event time → value) | Posisi Watermark Awal | Peristiwa yang Terjadi di Engine |

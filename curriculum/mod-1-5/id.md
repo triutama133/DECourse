@@ -135,6 +135,8 @@ Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang s
 
 Kami mengukurnya pada pesanan yang sudah bersih: 1.911 pesanan dan daftar pelanggan yang 30 pelanggannya tanpa sengaja tercantum dua kali. Left join mengembalikan **2.187 baris** alih-alih 1.911, dan kolom omset berjumlah **378.380.000 alih-alih 331.555.000**, kelebihan **14,1%**, tanpa error dan dengan hasil yang tampak sangat masuk akal. Dashboard yang dibangun di atasnya akan salah dan tak seorang pun tahu sebabnya.
 
+[[diagram:dupkey]]
+
 Pertahanannya satu argumen: **`validate="m:1"`** ("banyak pesanan ke satu pelanggan"). Sekarang pandas memeriksa kunci di tabel kanan dan memunculkan `MergeError` begitu ada kunci yang berulang. Pakai `validate` di setiap merge yang Anda tulis: `"1:1"`, `"m:1"`, atau `"1:m"`, mana pun yang Anda yakini benar. Ia mengubah asumsi menjadi tes. Bandingkan juga `len()` sebelum dan sesudah.
 
 Kebiasaan join lain:

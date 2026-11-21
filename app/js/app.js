@@ -291,6 +291,11 @@ class DataForgeApp {
         while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
         i++;
         out.push(`<div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)" aria-label="${this.l("Salin kode", "Copy code")}">${this.l("Salin", "Copy")}</button><pre${m[1] ? ` data-lang="${this.esc(m[1])}"` : ""}><code>${this.esc(body.join("\n"))}</code></pre></div>`);
+      } else if ((m = line.match(/^\[\[diagram:([a-z0-9-]+)\]\]\s*$/))) {
+        const fn = window.DIAGRAMS && window.DIAGRAMS[m[1]];
+        const num = (n) => n.toLocaleString(this.lang === "id" ? "id-ID" : "en-US");
+        if (fn) out.push(fn((idText, enText) => this.l(idText, enText), num).replace("</figure>", `<figcaption class="dg-swipe">${this.l("Geser ke samping untuk melihat seluruh diagram", "Swipe sideways to see the whole diagram")} →</figcaption></figure>`));
+        i++;
       } else if ((m = line.match(/^(#{3,4}) (.+)$/))) {
         out.push(`<h4 class="md-h">${this.inline(m[2])}</h4>`); i++;
       } else if (/^---+\s*$/.test(line)) {
@@ -849,7 +854,7 @@ class DataForgeApp {
     }
   }
   stripMd(text) {
-    return String(text || "").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
+    return String(text || "").replace(/\[\[diagram:[a-z0-9-]+\]\]/g, " ").replace(/```[a-z]*\n?/g, " ").replace(/[*`#|>_]/g, " ").replace(/\s+/g, " ").trim();
   }
   searchIndex() {
     this._searchIdx = this._searchIdx || {};
@@ -1011,11 +1016,31 @@ class DataForgeApp {
     this.lessonsDone[modId] = arr;
     writeStore("df_lessons_done", this.lessonsDone);
     this.renderView();
+    if (pos < 0) {
+      const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+      const total = mod ? mod.lessons.length : 0;
+      const nextIdx = mod ? mod.lessons.findIndex((_, i) => !arr.includes(i)) : -1;
+      if (total && arr.length >= total) {
+        this.showToast(`✓ ${this.l(`Semua ${total} materi selesai dibaca. Langkah berikutnya ada di atas.`, `All ${total} lessons read. Your next step is at the top.`)}`);
+        setTimeout(() => { const c = document.getElementById("module-complete"); if (c) c.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60);
+        return;
+      }
+      this.showToast(`✓ ${this.l(`Materi ${idx + 1} selesai · ${arr.length} dari ${total}`, `Lesson ${idx + 1} done · ${arr.length} of ${total}`)}${nextIdx >= 0 ? ` · ${this.l("berikutnya", "next")}: ${this.esc(this.t(mod.lessons[nextIdx].title))}` : ""}`);
+    }
     if (jumpNext && pos < 0) {
       setTimeout(() => this.scrollToLesson(idx + 1), 50);
     } else {
       setTimeout(() => this.scrollToLesson(idx), 30);
     }
+  }
+  showToast(html) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.innerHTML = html;
+    el.hidden = false;
+    el.classList.add("show");
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => { el.classList.remove("show"); setTimeout(() => { el.hidden = true; }, 250); }, 4000);
   }
   setLessonFilter(filter) {
     this.lessonFilter = filter;
@@ -2238,6 +2263,33 @@ class DataForgeApp {
       const prereqNote = noteAt < 0 ? "" : prereqRaw.slice(noteAt).trim();
 
       return `
+        ${totalLessons > 0 && readCount >= totalLessons ? (() => {
+          const tri = this.moduleTryItStats(mod);
+          const proven = Boolean(this.proofFor(mod.id));
+          const qs = this.quizScores[mod.id];
+          const qNeed = Math.ceil((mod.quiz || []).length * 0.8);
+          const quizOk = Boolean(qs && qs.best >= qNeed);
+          const chaosOk = Boolean(this.chaosDone[mod.id] && this.chaosDone[mod.id].done);
+          const next = !proven && mod.lab ? ["lab", this.l("Kerjakan lab-nya", "Build the lab")]
+            : !chaosOk && mod.chaosLab ? ["chaos", this.l("Bedah insidennya", "Work through the incident")]
+            : !quizOk && (mod.quiz || []).length ? ["quiz", this.l("Ikuti kuisnya", "Take the quiz")] : null;
+          return `
+        <div class="complete-card" id="module-complete" role="status">
+          <div class="complete-check" aria-hidden="true">✓</div>
+          <h2>${this.l("Semua materi selesai dibaca", "Lessons complete")}</h2>
+          <p class="muted small">${this.l("Membaca baru separuh jalan. Kunci pemahamannya ada di lab, insiden, dan kuis.", "Reading is half the work. The lab, the incident and the quiz are where it sticks.")}</p>
+          <div class="complete-stats">
+            <div><strong>${readCount}/${totalLessons}</strong><span>${this.l("materi", "lessons")}</span></div>
+            <div><strong>${tri.total ? `${tri.done}/${tri.total}` : "–"}</strong><span>${this.l("Try-it terverifikasi", "Try-its verified")}</span></div>
+            <div><strong>~${this.readingMinutes(mod)}m</strong><span>${this.l("waktu baca", "reading time")}</span></div>
+          </div>
+          ${tri.total && tri.done < tri.total ? `<p class="small muted">${this.l(`${tri.total - tri.done} Try-it belum diverifikasi. Mengerjakannya membuat materi ini benar-benar melekat.`, `${tri.total - tri.done} Try-it(s) not verified yet. Doing them is what makes these lessons stick.`)}</p>` : ""}
+          <div class="row" style="justify-content:center">
+            ${next ? `<button class="btn btn-primary" onclick="app.go('curriculum','${mod.id}','${next[0]}')">${next[1]} →</button>` : `<span class="state-done">✓ ${this.l("Lab, insiden, dan kuis sudah selesai", "Lab, incident and quiz are done")}</span>`}
+          </div>
+        </div>`;
+        })() : ""}
+
         <details class="callout fold-callout" ${readCount === 0 ? "open" : ""}>
           <summary class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}${readCount === 0 ? "" : ` · ${this.l("prasyarat dan waktu baca", "prerequisites and reading time")}`}</summary>
           <ul style="margin-left:18px">${mod.outcomes.map((o) => `<li>${this.inline(this.t(o))}</li>`).join("")}</ul>

@@ -16,7 +16,7 @@
       } catch (e) { /* storage blocked: app.js picks the theme */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/style.css?v=26" />
+  <link rel="stylesheet" href="css/style.css?v=31" />
 </head>
 <body>
   <a class="skip-link" href="#main-content" onclick="document.getElementById('main-content').focus()">Skip to content / Lewati ke konten</a>
@@ -58,6 +58,7 @@
   </header>
 
   <main id="main-content" tabindex="-1"></main>
+  <div id="toast" class="toast no-print" role="status" aria-live="polite" hidden></div>
 
   <div class="search-overlay" id="search-overlay" hidden onclick="if(event.target===this)app.closeSearch()">
     <div class="search-box" role="dialog" aria-modal="true" aria-label="Search">
@@ -84,7 +85,7 @@
 
   <script src="vendor/sqljs/sql-wasm.js"></script>
   <script src="js/translations.js?v=20"></script>
-  <script src="js/curriculum-data.js?v=20"></script>
+  <script src="js/curriculum-data.js?v=21"></script>
   <script src="js/browser-labs-data.js?v=20"></script>
   <script src="js/proof-data.js?v=20"></script>
   <script src="js/proof.js?v=20"></script>
@@ -95,6 +96,7 @@
   <script src="js/remote-playbook.js?v=20"></script>
   <script src="js/practice-labs.js?v=20"></script>
   <script src="js/market-data.js?v=20"></script>
-  <script src="js/app.js?v=25"></script>
+  <script src="js/diagrams.js?v=4"></script>
+  <script src="js/app.js?v=29"></script>
 </body>
 </html>

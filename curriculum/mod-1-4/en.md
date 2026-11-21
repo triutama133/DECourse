@@ -154,6 +154,8 @@ JOIN dim_customer c
  AND o.order_ts <  c.valid_to
 ```
 
+[[diagram:scd]]
+
 If you forget the range and join on `customer_id` alone, every order matches *every* version of its customer: in the lab data 7,123 order lines become **8,552** rows, a silent 20% inflation. This is the Type 2 version of the fan-out trap. Tests for the model should assert that the fact row count is unchanged after building it.
 
 **Loading a Type 2 dimension incrementally** (when you do not have a clean change feed, only today's snapshot): compare each incoming row with the current version on the *tracked* attributes; if different, close the current row (`valid_to = now`, `is_current = 0`) and insert a new current row. Use `IS DISTINCT FROM` rather than `<>` so a change to or from NULL is detected, and make the step idempotent (running twice must not create a second identical version). Two real-world complications: **late-arriving changes** (an update that happened Tuesday arrives on Thursday must be inserted *between* existing versions, re-cutting the ranges) and **out-of-order events** (always order by the source's event time, not by arrival time).

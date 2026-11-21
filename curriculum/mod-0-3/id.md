@@ -204,6 +204,8 @@ Pola ini disebut **anti-join** dan mengembalikan Fajar Nugroho dan Rizky Saputra
 
 **Jebakan fan-out.** Menggabungkan tabel pada satu grain dengan tabel pada grain yang lebih halus **mengulang** baris yang lebih kasar. `orders` punya satu baris per pesanan, `order_items` satu per baris produk, jadi menggabungkannya menghasilkan satu baris per *baris produk*: 24 baris untuk 18 pesanan. Apa pun yang disimpan per pesanan (seperti biaya kirim) kini terulang untuk setiap baris produk. Bandingkan:
 
+[[diagram:fanout]]
+
 ```sql
 -- Benar: satu baris per pesanan
 SELECT SUM(shipping_fee_idr) FROM orders WHERE status = 'delivered';   -- 235.000

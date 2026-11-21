@@ -142,6 +142,8 @@ JOIN dim_customer c
  AND o.order_ts <  c.valid_to
 ```
 
+[[diagram:scd]]
+
 Jika Anda lupa menyertakan syarat rentang tanggal dan hanya melakukan join pada `customer_id`, setiap pesanan akan terhubung ke *seluruh* versi pelanggan tersebut: pada data lab, 7.123 baris pesanan membengkak menjadi **8.552** baris, lonjakan inflasi data palsu sebesar 20%. Ini adalah varian SCD Tipe 2 dari jebakan fan-out. Rangkaian pengujian data wajib memvalidasi bahwa jumlah baris fakta tidak berubah sebelum dan sesudah join dilakukan.
 
 **Pemuatan bertahap (incremental load) pada Tipe 2** (saat Anda tidak memiliki feed mutasi bersih, melainkan hanya snapshot harian): bandingkan setiap baris baru yang masuk dengan versi aktif saat ini pada atribut yang dilacak; jika berbeda, tutup baris aktif (`valid_to = now`, `is_current = 0`) dan masukkan baris aktif baru. Gunakan operator `IS DISTINCT FROM` alih-alih `<>` agar perubahan dari atau ke nilai NULL tetap terdeteksi, dan pastikan langkah ini bersifat idempoten. Dua komplikasi dunia nyata yang harus diantisipasi: **perubahan yang datang terlambat (late-arriving changes)** yang mengharuskan pemotongan ulang rentang tanggal di antara versi yang sudah ada, serta **event yang tiba tidak berurutan (out-of-order events)** di mana Anda wajib mengurutkan data berdasarkan waktu kejadian di sistem sumber, bukan waktu data tiba di pipeline.

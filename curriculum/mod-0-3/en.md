@@ -215,6 +215,8 @@ This pattern is the **anti-join** and returns Fajar Nugroho and Rizky Saputra. (
 
 **The fan-out trap.** Joining a table at one grain to a table at a finer grain **repeats** the coarse rows. `orders` has one row per order, `order_items` one per line, so joining them gives one row per *line*: 24 rows for 18 orders. Anything stored per order (like the shipping fee) is now repeated for every line. Compare:
 
+[[diagram:fanout]]
+
 ```sql
 -- Correct: one row per order
 SELECT SUM(shipping_fee_idr) FROM orders WHERE status = 'delivered';   -- 235,000

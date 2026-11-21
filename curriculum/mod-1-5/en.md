@@ -139,6 +139,8 @@ Check your aggregates against an independent calculation. The lab tests recomput
 
 We measured it on the cleaned orders: 1,911 orders and a customer list where 30 customers were accidentally listed twice. The left join returned **2,187 rows** instead of 1,911, and the revenue column summed to **378,380,000 instead of 331,555,000**, an overstatement of **14.1%**, with no error and a result that looks perfectly reasonable. A dashboard built on this would be wrong and nobody would see why.
 
+[[diagram:dupkey]]
+
 The defence is one argument: **`validate="m:1"`** ("many orders to one customer"). Now pandas checks the right-hand keys and raises `MergeError` the moment a key repeats. Use `validate` on every merge you write: `"1:1"`, `"m:1"` or `"1:m"`, whichever you believe is true. It turns an assumption into a test. Also compare `len()` before and after.
 
 Other join habits:

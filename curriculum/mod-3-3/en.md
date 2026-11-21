@@ -60,6 +60,8 @@ watermark = (newest event time seen so far) - (the delay you chose)
 
 The delay is your tolerance for lateness. With `withWatermark("event_time", "2 minutes")`, if the newest event seen was 10:07, the watermark is 10:05: "I will treat everything before 10:05 as essentially complete." In append mode, **a window is emitted once the watermark passes its end**.
 
+[[diagram:watermark]]
+
 The mechanics are subtle and frequently misunderstood, so here they are, observed from a real Spark job (and reproduced by the lab's pure-Python model). Five-minute tumbling windows, a 2-minute watermark delay, one file per micro-batch:
 
 | Batch | Events (event time → value) | Watermark at start | What happens |
