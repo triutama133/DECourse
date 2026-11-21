@@ -106,7 +106,7 @@ class TestPushdown:
         return 0 if t is None else sum(1 for v in t.column("event_ts").to_pylist() if self.LO <= v <= self.HI)
 
     def truth(self, path):
-        return duckdb.sql(f"SELECT count(*) FROM read_parquet('{path}') WHERE event_ts BETWEEN {self.LO} AND {self.HI}").fetchone()[0]
+        return duckdb.execute(f"SELECT count(*) FROM read_parquet('{path}') WHERE event_ts BETWEEN {self.LO} AND {self.HI}").fetchone()[0]
 
     def test_never_skips_a_group_that_holds_matching_rows(self, event_files):
         for name in ("sorted", "shuffled"):

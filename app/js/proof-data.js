@@ -97,7 +97,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-2-1",
   "argExample": null,
-  "tests": "65e72380",
+  "tests": "774c2397",
   "starter": "e0a581fc",
   "reference": "95a121d6"
  },
