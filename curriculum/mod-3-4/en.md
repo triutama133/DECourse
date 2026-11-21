@@ -130,6 +130,34 @@ One subtle point from the lab. The IAM policy mentions the bucket's ARN. If you 
 >    `pytest labs/mod-3-4/test_terraform.py -v`
 > 4. **Success Indicator:** All 12 tests in `test_terraform.py` report `PASSED` (or cleanly skip if CLI is not installed), proving that the offline dev and prod plans satisfy enterprise security standards.
 
+### Who secures what, and the network around the data
+
+**Shared responsibility.** AWS describes the split as security "of" the cloud versus security "in" the cloud. AWS protects the infrastructure: the hardware, software, networking and facilities that run its services. You are responsible for what you build on it, and how much that is depends on the service: on a virtual machine you also patch the operating system; on S3 you configure access, encryption and lifecycle. Every protection above is on your side of the line: the provider will not block public access, write least-privilege policies or rotate your keys for you.
+
+**The network.** A **VPC** is your private network inside one cloud region. You choose its address range in CIDR notation: `10.0.0.0/16` means the first 16 bits are fixed, which leaves 2¹⁶ = 65,536 addresses. You cut it into **subnets** (on AWS between `/16` and `/28`), and AWS reserves the first four and the last address of every subnet, so a subnet always holds 5 fewer usable addresses than its size. A **public** subnet has a route to the internet; a **private** one does not. Databases, warehouse compute and pipeline workers belong in private subnets: nothing on the internet can even try to reach them.
+
+Two kinds of firewall rules control traffic, and they behave differently:
+
+| | Security group | Network ACL |
+|---|---|---|
+| Attached to | a resource (its network interface) | a whole subnet |
+| State | **stateful**: the reply to allowed traffic is allowed automatically | **stateless**: replies need their own rule |
+| Rules | **allow** rules only; a new group lets nothing in | allow **and** deny rules, numbered |
+
+The everyday tool is the security group: "the warehouse database accepts port 5432 only from the private subnet". A rule with `0.0.0.0/0` (the whole internet) on a database port is the network version of a public bucket.
+
+Pipelines read S3 constantly. Without help, that traffic from a private subnet would need a path to the internet. A **gateway endpoint** for S3 adds a route in the subnet's route table instead, so the data never leaves AWS's network, and AWS documents "no additional charge for using gateway endpoints". Other services can be reached privately through **interface endpoints** (AWS PrivateLink).
+
+**Security as a habit.** *Fundamentals of Data Engineering* separates security theatre (rules on paper) from security habits (what you do every day). The habits that matter most in data work: least privilege by default; nothing public without a written reason; secrets never in code (Module 0.2); assume credentials will leak one day and limit what they can reach; read every plan for security-relevant changes; and run `plan` on a schedule so that a hand-made change is found by you, not by an attacker.
+
+> 🛠 **Try it (10 min, Python).** Your VPC is `10.0.0.0/16`. With the `ipaddress` module, split it into `/20` subnets. How many are there, how many addresses does each hold, and how many can you use on AWS? Which subnet contains `10.0.37.5`? How many `/24` subnets fit into one `/20`?
+>
+> **You should see:** `16` subnets of `4096` addresses, `4091` usable on AWS (5 reserved); `10.0.37.5` sits in `10.0.32.0/20`, the third subnet; and one `/20` holds `16` `/24`s. Sizing is hard to undo: change a subnet's range and Terraform's plan says the subnet `must be replaced` (`# forces replacement`), so everything running in it has to move. Leave room to grow.
+
+> 🛠 **Try it (25 min, terminal, optional: needs the fake AWS from the last lesson of this module).** In a new folder, copy the lab's `versions.tf` and `labs/mod-3-4/local-aws/local_aws_override.tf`, add a provider block with `region = "ap-southeast-3"`, and write the network yourself: a VPC `10.0.0.0/16`; a public and a private subnet made with `cidrsubnet(…, 4, 0)` and `cidrsubnet(…, 4, 1)`; a route table associated with the private subnet; a security group `warehouse-db` that allows TCP 5432 only from the private subnet's range; and an S3 gateway endpoint (`com.amazonaws.ap-southeast-3.s3`) on that route table. Apply it, then check with `aws --endpoint-url http://127.0.0.1:5055 ec2 describe-subnets --query 'Subnets[].[CidrBlock,AvailableIpAddressCount]'`. Finally open the database to the world by hand, `aws --endpoint-url http://127.0.0.1:5055 ec2 authorize-security-group-ingress --group-id <your group id> --protocol tcp --port 5432 --cidr 0.0.0.0/0`, and run `terraform plan -detailed-exitcode`.
+>
+> **You should see:** `Apply complete! Resources: 7 added` (about 15 seconds); both subnets with `4091` available addresses, the number from the first Try it; and a route in the private route table to an S3 prefix list (`pl-…`) through the endpoint (`vpce-…`). After the hand-made change the plan exits with code `2`, says the security group `will be updated in-place`, shows `- "0.0.0.0/0"` and ends with `Plan: 0 to add, 1 to change, 0 to destroy.`; `apply` removes the hole. Measured with Terraform 1.17.2, AWS provider 5.100.0 and moto 5.2.5; `destroy` takes about 17 seconds.
+
 ## @lesson Where cloud data platforms spend your money
 Cloud pricing has three shapes. Learn which one each service uses and most surprises disappear.
 

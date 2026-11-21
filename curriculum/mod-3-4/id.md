@@ -130,6 +130,34 @@ Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsu
 >    `pytest labs/mod-3-4/test_terraform.py -v`
 > 4. **Indikator Sukses:** Seluruh 12 pengujian di `test_terraform.py` berstatus `PASSED` (atau dilewati jika CLI belum terpasang), membuktikan bahwa execution plan offline dev dan prod memenuhi seluruh standar keamanan korporat.
 
+### Siapa mengamankan apa, dan jaringan di sekitar data
+
+**Tanggung jawab bersama.** AWS menggambarkan pembagiannya sebagai keamanan "dari" cloud (*of the cloud*) versus keamanan "di dalam" cloud (*in the cloud*). AWS melindungi infrastrukturnya: hardware, software, jaringan, dan fasilitas yang menjalankan layanannya. Anda bertanggung jawab atas apa yang Anda bangun di atasnya, dan seberapa banyak itu bergantung pada layanannya: di mesin virtual Anda juga menambal sistem operasinya; di S3 Anda mengatur akses, enkripsi, dan lifecycle. Setiap perlindungan di atas ada di sisi Anda: provider tidak akan memblokir akses publik, menulis policy least-privilege, atau merotasi kunci Anda untuk Anda.
+
+**Jaringan.** **VPC** adalah jaringan privat Anda di dalam satu region cloud. Anda memilih rentang alamatnya dalam notasi CIDR: `10.0.0.0/16` berarti 16 bit pertama tetap, sehingga tersisa 2¹⁶ = 65.536 alamat. Anda memotongnya menjadi **subnet** (di AWS antara `/16` dan `/28`), dan AWS mencadangkan empat alamat pertama dan satu alamat terakhir di setiap subnet, jadi sebuah subnet selalu punya 5 alamat terpakai lebih sedikit daripada ukurannya. Subnet **publik** punya rute ke internet; subnet **privat** tidak. Database, komputasi warehouse, dan worker pipeline tempatnya di subnet privat: tidak ada apa pun di internet yang bahkan bisa mencoba menjangkaunya.
+
+Dua jenis aturan firewall mengatur lalu lintas, dan perilakunya berbeda:
+
+| | Security group | Network ACL |
+|---|---|---|
+| Dipasang pada | sebuah resource (network interface-nya) | seluruh subnet |
+| Status | **stateful**: balasan untuk lalu lintas yang diizinkan otomatis diizinkan | **stateless**: balasan butuh aturannya sendiri |
+| Aturan | hanya aturan **allow**; grup baru tidak mengizinkan apa pun masuk | aturan allow **dan** deny, bernomor |
+
+Alat sehari-harinya adalah security group: "database warehouse hanya menerima port 5432 dari subnet privat". Aturan dengan `0.0.0.0/0` (seluruh internet) pada port database adalah versi jaringan dari bucket publik.
+
+Pipeline terus-menerus membaca S3. Tanpa bantuan, lalu lintas itu dari subnet privat butuh jalan ke internet. **Gateway endpoint** untuk S3 justru menambahkan rute di route table subnet, sehingga data tidak pernah keluar dari jaringan AWS, dan AWS mendokumentasikan "no additional charge for using gateway endpoints". Layanan lain bisa dijangkau secara privat melalui **interface endpoint** (AWS PrivateLink).
+
+**Keamanan sebagai kebiasaan.** *Fundamentals of Data Engineering* membedakan teater keamanan (aturan di atas kertas) dari kebiasaan keamanan (apa yang Anda lakukan setiap hari). Kebiasaan yang paling penting dalam pekerjaan data: least privilege sebagai bawaan; tidak ada yang publik tanpa alasan tertulis; rahasia tidak pernah di dalam kode (Modul 0.2); anggap kredensial suatu hari akan bocor dan batasi apa yang bisa dijangkaunya; baca setiap plan untuk perubahan yang menyangkut keamanan; dan jalankan `plan` secara terjadwal supaya perubahan buatan tangan ditemukan oleh Anda, bukan oleh penyerang.
+
+> 🛠 **Coba sendiri (10 menit, Python).** VPC Anda adalah `10.0.0.0/16`. Dengan modul `ipaddress`, pecah menjadi subnet `/20`. Ada berapa, berapa alamat di masing-masing, dan berapa yang bisa Anda pakai di AWS? Subnet mana yang berisi `10.0.37.5`? Berapa subnet `/24` yang muat dalam satu `/20`?
+>
+> **Seharusnya Anda melihat:** `16` subnet berisi `4096` alamat, `4091` bisa dipakai di AWS (5 dicadangkan); `10.0.37.5` ada di `10.0.32.0/20`, subnet ketiga; dan satu `/20` memuat `16` `/24`. Ukuran sulit diubah belakangan: ubah rentang sebuah subnet dan plan Terraform menyatakan subnet itu `must be replaced` (`# forces replacement`), sehingga semua yang berjalan di dalamnya harus pindah. Sisakan ruang untuk tumbuh.
+
+> 🛠 **Coba sendiri (25 menit, terminal, opsional: perlu AWS tiruan dari pelajaran terakhir modul ini).** Di folder baru, salin `versions.tf` dari lab dan `labs/mod-3-4/local-aws/local_aws_override.tf`, tambahkan blok provider dengan `region = "ap-southeast-3"`, lalu tulis jaringannya sendiri: VPC `10.0.0.0/16`; subnet publik dan privat yang dibuat dengan `cidrsubnet(…, 4, 0)` dan `cidrsubnet(…, 4, 1)`; route table yang dikaitkan ke subnet privat; security group `warehouse-db` yang hanya mengizinkan TCP 5432 dari rentang subnet privat; dan S3 gateway endpoint (`com.amazonaws.ap-southeast-3.s3`) pada route table itu. Terapkan, lalu periksa dengan `aws --endpoint-url http://127.0.0.1:5055 ec2 describe-subnets --query 'Subnets[].[CidrBlock,AvailableIpAddressCount]'`. Terakhir, buka database ke seluruh dunia dengan tangan, `aws --endpoint-url http://127.0.0.1:5055 ec2 authorize-security-group-ingress --group-id <id grup Anda> --protocol tcp --port 5432 --cidr 0.0.0.0/0`, lalu jalankan `terraform plan -detailed-exitcode`.
+>
+> **Seharusnya Anda melihat:** `Apply complete! Resources: 7 added` (sekitar 15 detik); kedua subnet dengan `4091` alamat tersedia, angka dari Coba sendiri pertama; dan rute di route table privat ke prefix list S3 (`pl-…`) melalui endpoint (`vpce-…`). Setelah perubahan buatan tangan itu, plan keluar dengan kode `2`, menyatakan security group `will be updated in-place`, menunjukkan `- "0.0.0.0/0"`, dan diakhiri `Plan: 0 to add, 1 to change, 0 to destroy.`; `apply` menutup lubangnya. Diukur dengan Terraform 1.17.2, AWS provider 5.100.0, dan moto 5.2.5; `destroy` memakan sekitar 17 detik.
+
 ## @lesson Di mana platform data cloud menghabiskan anggaran Anda
 Model penetapan harga layanan cloud pada dasarnya terbagi ke dalam tiga pola utama:
 
