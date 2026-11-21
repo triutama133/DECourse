@@ -1353,3 +1353,20 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
 }
+
+/* ---------- One lesson per screen ---------- */
+.lesson-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.lesson-bar-pos { font-size: 14px; color: var(--text-muted); }
+.lesson-bar-pos strong { color: var(--text); }
+.lesson-dots { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.lesson-dot { width: 28px; height: 28px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--card); color: var(--text-muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; }
+.lesson-dot.read { background: var(--green-tint); border-color: var(--green); color: var(--green); }
+.lesson-dot.current { background: var(--blue); border-color: var(--blue); color: #fff; }
+.lesson-dot:hover:not(.current) { border-color: var(--blue); color: var(--blue); }
+.lesson-pager { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 4px; }
+.lesson-pager .btn-primary { margin-left: auto; }
+.toc-item.is-next { border-color: var(--blue); box-shadow: inset 3px 0 0 var(--blue); }
+@media (max-width: 600px) {
+  .lesson-dots { margin-left: 0; width: 100%; }
+  .lesson-pager .btn { flex: 1 1 auto; justify-content: center; }
+}

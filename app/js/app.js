@@ -25,6 +25,10 @@ function writeStore(key, value) {
   } catch (e) { /* storage unavailable (private mode): keep working in memory */ }
   if (STUDY_KEYS.has(key) && window.app && !window.app._importing) window.app.recordStudy();
 }
+function mod_next_exists(app, modId, idx) {
+  const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+  return Boolean(mod && idx + 1 < mod.lessons.length);
+}
 function localDay(d = new Date()) {   // the learner's own calendar day, not the UTC one
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -36,6 +40,7 @@ class DataForgeApp {
     this.activeLevelId = "zero";
     this.activeModuleId = "mod-0-0";
     this.activeModuleTab = "concepts";
+    this.activeLessonIdx = null;   // null = the module overview with its lesson map; a number = one lesson on screen
     this.activeInterviewTab = "system-design";
     this.activeSystemDesignId = "sd-1";
     this.activeSqlId = "sql-1";
@@ -358,6 +363,8 @@ class DataForgeApp {
       const lvl = CURRICULUM_DATA.find((L) => L.modules.some((m) => m.id === parts[1]));
       if (lvl) { this.activeLevelId = lvl.levelId; this.activeModuleId = parts[1]; }
       this.activeModuleTab = MODULE_TABS.includes(parts[2]) ? parts[2] : "concepts";
+      const n = parseInt(parts[3], 10);
+      this.activeLessonIdx = this.activeModuleTab === "concepts" && n >= 1 ? n - 1 : null;
     }
     if (view === "interview" && INTERVIEW_TABS.includes(parts[1])) this.activeInterviewTab = parts[1];
     this.renderChrome();
@@ -1082,8 +1089,8 @@ class DataForgeApp {
     const e = (this._hits || [])[n];
     if (!e) return;
     this.closeSearch();
-    this.go("curriculum", e.mod, e.kind === "chaos" ? "chaos" : "concepts");
-    if (e.kind === "lesson") setTimeout(() => this.scrollToLesson(e.i), 60);
+    if (e.kind === "lesson") this.openLesson(e.mod, e.i);
+    else this.go("curriculum", e.mod, e.kind === "chaos" ? "chaos" : "concepts");
   }
 
   exportProgress() {
@@ -1180,17 +1187,12 @@ class DataForgeApp {
       const total = mod ? mod.lessons.length : 0;
       const nextIdx = mod ? mod.lessons.findIndex((_, i) => !arr.includes(i)) : -1;
       if (total && arr.length >= total) {
-        this.showToast(`✓ ${this.l(`Semua ${total} materi selesai dibaca. Langkah berikutnya ada di atas.`, `All ${total} lessons read. Your next step is at the top.`)}`);
-        setTimeout(() => { const c = document.getElementById("module-complete"); if (c) c.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60);
+        this.showToast(`✓ ${this.l(`Semua ${total} materi selesai dibaca. Langkah berikutnya ada di peta materi.`, `All ${total} lessons read. Your next step is on the lesson map.`)}`);
         return;
       }
       this.showToast(`✓ ${this.l(`Materi ${idx + 1} selesai · ${arr.length} dari ${total}`, `Lesson ${idx + 1} done · ${arr.length} of ${total}`)}${nextIdx >= 0 ? ` · ${this.l("berikutnya", "next")}: ${this.esc(this.t(mod.lessons[nextIdx].title))}` : ""}`);
     }
-    if (jumpNext && pos < 0) {
-      setTimeout(() => this.scrollToLesson(idx + 1), 50);
-    } else {
-      setTimeout(() => this.scrollToLesson(idx), 30);
-    }
+    if (jumpNext && pos < 0 && mod_next_exists(this, modId, idx)) this.openLesson(modId, idx + 1);
   }
   showToast(html) {
     const el = document.getElementById("toast");
@@ -1209,9 +1211,7 @@ class DataForgeApp {
     const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
     if (!mod) return;
     const nextIdx = mod.lessons.findIndex((_, i) => !this.isLessonDone(modId, i));
-    if (nextIdx >= 0) {
-      this.scrollToLesson(nextIdx);
-    }
+    if (nextIdx >= 0) this.openLesson(modId, nextIdx);
   }
   toggleTryIt(key) {
     if (!key) return;
@@ -2431,6 +2431,7 @@ class DataForgeApp {
     const quizScore = this.quizScores[mod.id];
     const quizNeed = Math.ceil((mod.quiz || []).length * 0.8);
     const isQuizPassed = Boolean(quizScore && quizScore.best >= quizNeed);
+    const inLesson = this.activeModuleTab === "concepts" && this.activeLessonIdx != null && this.activeLessonIdx < (mod.lessons || []).length;
     const noteText = this.moduleNotes[mod.id] || "";
 
     return `
@@ -2508,12 +2509,12 @@ class DataForgeApp {
               </div>
             </div>
             <h1>${mod.number} ${this.esc(this.t(mod.title))}</h1>
-            <p class="muted">${this.esc(this.t(mod.summary))}</p>
+            ${inLesson ? "" : `<p class="muted">${this.esc(this.t(mod.summary))}</p>`}
             ${mod.idPending && this.lang === "id" ? `<div class="callout"><p>Modul ini belum diterjemahkan ke bahasa Indonesia, jadi ditampilkan dalam bahasa Inggris.</p></div>` : ""}
-            <details class="callout neutral fold-callout" ${readCount === 0 && !this.focusMode ? "open" : ""}>
+            ${inLesson ? "" : `<details class="callout neutral fold-callout" ${readCount === 0 && !this.focusMode ? "open" : ""}>
               <summary class="label">${t.whyTutorialsLieHeader}</summary>
               <p>${this.esc(this.t(mod.whyTutorialsLie))}</p>
-            </details>
+            </details>`}
 
             <!-- 4-Step Module Mastery Pipeline -->
             <div class="mastery-pipeline" role="tablist" aria-label="${this.l("Bagian modul", "Module sections")}">
@@ -2547,7 +2548,7 @@ class DataForgeApp {
               </button>
             </div>
 
-            ${this.activeModuleTab === "concepts" && readCount === 0 && !isQuizPassed && (mod.quiz || []).length ? `
+            ${this.activeModuleTab === "concepts" && !inLesson && readCount === 0 && !isQuizPassed && (mod.quiz || []).length ? `
             <div class="callout neutral skip-hint">
               <p><strong>${this.l("Sudah menguasai topik ini?", "Already know this topic?")}</strong> ${this.l(`Kerjakan kuisnya dulu sebagai tes penempatan. Jika Anda lulus (≥${quizNeed}/${mod.quiz.length}), boleh melewati bacaan dan langsung ke Lab; lab dan kode buktinya tetap wajib, karena itulah yang membuktikan Anda bisa. Jika belum lulus, penjelasan di setiap jawaban menunjukkan pelajaran mana yang perlu dibaca.`, `Take the quiz first as a placement test. If you pass (≥${quizNeed}/${mod.quiz.length}), you may skip the reading and go straight to the Lab; the lab and its proof code are still required, because they are what shows you can do it. If you do not pass, the explanation under each answer points to the lesson to read.`)}</p>
               <button class="btn btn-sm" onclick="app.go('curriculum','${mod.id}','quiz')">${this.l("Kerjakan kuis dulu", "Take the quiz first")} →</button>
@@ -2579,9 +2580,15 @@ class DataForgeApp {
     return Math.max(1, Math.round(w / 200));
   }
 
-  scrollToLesson(i) {
-    const el = document.getElementById(`lesson-${i}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  // One lesson per screen: the address carries the lesson number, so Back, links and search results work.
+  openLesson(modId, i) { this.go("curriculum", modId, "concepts", String(i + 1)); }
+  openModuleOverview(modId) { this.go("curriculum", modId, "concepts"); }
+  scrollToLesson(i) { this.openLesson(this.activeModuleId, i); }
+  // Mark a lesson done (never un-mark it) and move on: to the next lesson, or to the given tab after the last one.
+  finishLesson(modId, i, nextTab) {
+    if (!this.isLessonDone(modId, i)) this.toggleLessonDone(modId, i, false);
+    if (nextTab) this.go("curriculum", modId, nextTab);
+    else this.openLesson(modId, i + 1);
   }
 
   renderModuleTabContent(mod, t) {
@@ -2597,15 +2604,54 @@ class DataForgeApp {
       const totalLessons = mod.lessons.length;
       const pctRead = totalLessons ? Math.round((readCount / totalLessons) * 100) : 0;
       const hasUnread = readCount < totalLessons;
-      const visibleLessons = mod.lessons
-        .map((ls, i) => ({ ls, i }))
-        .filter(({ i }) => this.lessonFilter !== "unread" || !this.isLessonDone(mod.id, i));
       // the prerequisites text may end with a quoted note ("> [!IMPORTANT] ..."): keep the sentence inline, show the note as a callout
       const prereqRaw = mod.prerequisites ? this.t(mod.prerequisites) : "";
       const noteAt = prereqRaw.search(/^>/m);
       const prereqText = (noteAt < 0 ? prereqRaw : prereqRaw.slice(0, noteAt)).trim();
       const prereqNote = noteAt < 0 ? "" : prereqRaw.slice(noteAt).trim();
 
+      const lessonIdx = this.activeLessonIdx != null && this.activeLessonIdx < totalLessons ? this.activeLessonIdx : null;
+      const nextUnread = mod.lessons.findIndex((_, i) => !this.isLessonDone(mod.id, i));
+
+      // ---------- one lesson on screen ----------
+      if (lessonIdx != null) {
+        const i = lessonIdx, ls = mod.lessons[i];
+        const isRead = this.isLessonDone(mod.id, i);
+        const isLast = i === totalLessons - 1;
+        const lessonAnims = this.getAnimsForLesson(mod.id, i);
+        const dots = mod.lessons.map((l2, k) => `<button class="lesson-dot ${k === i ? "current" : ""} ${this.isLessonDone(mod.id, k) ? "read" : ""}" onclick="app.openLesson('${mod.id}', ${k})" aria-label="${this.l("Materi", "Lesson")} ${k + 1}: ${this.esc(this.t(l2.title))}${this.isLessonDone(mod.id, k) ? this.l(" (selesai)", " (done)") : ""}" ${k === i ? 'aria-current="step"' : ""}>${k + 1}</button>`).join("");
+        const nextLabel = isLast
+          ? this.l("Selesai, lanjut ke Lab", "Done, continue to the Lab")
+          : isRead ? `${this.l("Materi", "Lesson")} ${i + 2}` : this.l(`Selesai, lanjut ke materi ${i + 2}`, `Done, next: lesson ${i + 2}`);
+        const nextAction = isLast ? `app.finishLesson('${mod.id}', ${i}, 'lab')` : `app.finishLesson('${mod.id}', ${i})`;
+        return `
+        <nav class="lesson-bar" aria-label="${this.l("Navigasi materi", "Lesson navigation")}">
+          <button class="btn btn-sm btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>
+          <span class="lesson-bar-pos">${this.l("Materi", "Lesson")} <strong>${i + 1}</strong> ${this.l("dari", "of")} ${totalLessons} · ~${this.lessonMinutes(ls)} ${this.l("menit", "min")}</span>
+          <div class="lesson-dots">${dots}</div>
+        </nav>
+        <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
+          <div class="lesson-head">
+            <h2 class="row" style="flex-wrap:nowrap;align-items:flex-start;margin:0">
+              <span class="number-dot" style="margin-top:2px">${i + 1}</span>
+              <span>${this.esc(this.t(ls.title))}</span>
+            </h2>
+            <div class="row" style="flex-shrink:0">
+              <button class="btn btn-sm ${isRead ? "btn-done" : "btn-quiet"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)">
+                ${isRead ? "✓ " + this.l("Dipahami", "Understood") : "○ " + this.l("Tandai Paham", "Mark Read")}
+              </button>
+            </div>
+          </div>
+          ${lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("")}
+          ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
+        </section>
+        <div class="lesson-pager">
+          ${i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← <span class="pager-label">${this.l("Materi", "Lesson")} ${i}</span></button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`}
+          <button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>
+        </div>`;
+      }
+
+      // ---------- module overview: what you will learn, and the lesson map ----------
       return `
         ${totalLessons > 0 && readCount >= totalLessons ? (() => {
           const tri = this.moduleTryItStats(mod);
@@ -2634,6 +2680,36 @@ class DataForgeApp {
         </div>`;
         })() : ""}
 
+        <div class="well stack-sm" id="module-toc">
+          <div class="row between">
+            <div>
+              <div class="label">${this.l("Peta Materi & Progres Baca", "Lesson Map & Reading Progress")} (${readCount}/${totalLessons})</div>
+              <p class="small muted">${this.l("Satu materi per layar, masing-masing beberapa menit. Klik materi untuk membukanya.", "One lesson per screen, a few minutes each. Click a lesson to open it.")}</p>
+            </div>
+            ${totalLessons ? `<button class="btn btn-primary" onclick="app.openLesson('${mod.id}', ${nextUnread >= 0 ? nextUnread : 0})">${readCount === 0 ? this.l("Mulai materi 1", "Start lesson 1") : nextUnread >= 0 ? this.l(`Lanjutkan: materi ${nextUnread + 1}`, `Continue: lesson ${nextUnread + 1}`) : this.l("Tinjau dari materi 1", "Review from lesson 1")} →</button>` : ""}
+          </div>
+          <div class="progress" style="height:6px"><div style="width:${pctRead}%;background:${pctRead === 100 ? "var(--green)" : "var(--blue)"}"></div></div>
+          <div class="toc-grid">
+            ${mod.lessons.map((ls, i) => {
+              const isRead = this.isLessonDone(mod.id, i);
+              const bodyTxt = this.lessonBody(ls);
+              const hasTryIt = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/m.test(bodyTxt);
+              const hasPause = /^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))/m.test(bodyTxt);
+              const hasAnim = this.getAnimsForLesson(mod.id, i).length > 0;
+              return `
+                <div class="toc-item ${isRead ? "is-read" : ""} ${i === nextUnread ? "is-next" : ""}">
+                  <button class="toc-check ${isRead ? "checked" : ""}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)" title="${isRead ? this.l("Batal tandai selesai", "Mark unread") : this.l("Tandai sudah dipahami", "Mark as understood")}" aria-label="${this.l("Tandai selesai", "Toggle lesson completion")}">✓</button>
+                  <button class="toc-link" onclick="app.openLesson('${mod.id}', ${i})"><strong>${i + 1}.</strong> ${this.esc(this.t(ls.title))}</button>
+                  <div class="toc-meta">
+                    ${hasAnim ? `<span class="micro-badge info" title="${this.l("Dilengkapi animasi konsep interaktif", "Includes interactive step-by-step concept animation")}">🎬 ${this.l("Animasi", "Anim")}</span>` : ""}
+                    ${hasTryIt ? `<span class="micro-badge ok" title="${this.l("Memiliki latihan praktik Try It", "Includes hands-on Try It exercise")}">🛠 Try It</span>` : ""}
+                    ${hasPause ? `<span class="micro-badge info" title="${this.l("Memiliki Jeda Praktik Lab", "Includes Lab Practice Pause")}">💡 Lab</span>` : ""}
+                    <span>~${this.lessonMinutes(ls)}m</span>
+                  </div>
+                </div>`;
+            }).join("")}
+          </div>
+        </div>
         <div class="context-drawer-grid">
           <details class="callout fold-callout" ${readCount === 0 && !this.focusMode ? "open" : ""}>
             <summary class="label">${this.l("Setelah modul ini Anda bisa", "After this module you can")}</summary>
@@ -2650,81 +2726,6 @@ class DataForgeApp {
         </div>
         ${this.renderModuleSimulator(mod.id)}
 
-        <div class="well stack-sm" id="module-toc">
-          <div class="row between">
-            <div>
-              <div class="label">${this.l("Peta Materi & Progres Baca", "Lesson Map & Reading Progress")} (${readCount}/${totalLessons})</div>
-              <p class="small muted">${this.l("Centang setiap materi setelah Anda membaca dan mencoba latihan praktiknya.", "Check off each lesson after reading and completing its hands-on exercise.")}</p>
-            </div>
-            <div class="row">
-              ${hasUnread ? `<button class="btn btn-sm btn-primary" onclick="app.jumpNextUnreadLesson('${mod.id}')">${this.l("Lompat ke Materi Berikutnya", "Next Unread Lesson")} ↓</button>` : ""}
-              <div class="segmented">
-                <button class="${this.lessonFilter === "all" ? "active" : ""}" onclick="app.setLessonFilter('all')">${this.l("Semua", "All")} (${totalLessons})</button>
-                <button class="${this.lessonFilter === "unread" ? "active" : ""}" onclick="app.setLessonFilter('unread')">${this.l("Belum Dibaca", "Unread")} (${totalLessons - readCount})</button>
-              </div>
-            </div>
-          </div>
-          <div class="progress" style="height:6px"><div style="width:${pctRead}%;background:${pctRead === 100 ? "var(--green)" : "var(--blue)"}"></div></div>
-          <div class="toc-grid">
-            ${mod.lessons.map((ls, i) => {
-              const isRead = this.isLessonDone(mod.id, i);
-              const bodyTxt = this.lessonBody(ls);
-              const hasTryIt = /^>\s*(?:🛠|\*\*(?:Try it|Coba sendiri))/m.test(bodyTxt);
-              const hasPause = /^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))/m.test(bodyTxt);
-              const hasAnim = this.getAnimsForLesson(mod.id, i).length > 0;
-              return `
-                <div class="toc-item ${isRead ? "is-read" : ""}">
-                  <button class="toc-check ${isRead ? "checked" : ""}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)" title="${isRead ? this.l("Batal tandai selesai", "Mark unread") : this.l("Tandai sudah dipahami", "Mark as understood")}" aria-label="${this.l("Tandai selesai", "Toggle lesson completion")}">✓</button>
-                  <button class="toc-link" onclick="app.scrollToLesson(${i})"><strong>${i + 1}.</strong> ${this.esc(this.t(ls.title))}</button>
-                  <div class="toc-meta">
-                    ${hasAnim ? `<span class="micro-badge info" title="${this.l("Dilengkapi animasi konsep interaktif", "Includes interactive step-by-step concept animation")}">🎬 ${this.l("Animasi", "Anim")}</span>` : ""}
-                    ${hasTryIt ? `<span class="micro-badge ok" title="${this.l("Memiliki latihan praktik Try It", "Includes hands-on Try It exercise")}">🛠 Try It</span>` : ""}
-                    ${hasPause ? `<span class="micro-badge info" title="${this.l("Memiliki Jeda Praktik Lab", "Includes Lab Practice Pause")}">💡 Lab</span>` : ""}
-                    <span>~${this.lessonMinutes(ls)}m</span>
-                  </div>
-                </div>`;
-            }).join("")}
-          </div>
-        </div>
-
-        ${visibleLessons.length === 0 ? `
-          <div class="callout success">
-            <strong>🎉 ${this.l("Semua materi di modul ini sudah Anda baca!", "You have read all lessons in this module!")}</strong>
-            <p class="small" style="margin-top:4px">${this.l("Klik \"Semua\" di atas untuk meninjau ulang materi, atau lanjutkan ke Tab Lab untuk menguji kode Anda.", "Click \"All\" above to review the lessons, or proceed to the Lab Tab to test your code.")}</p>
-          </div>` : ""}
-
-        ${visibleLessons.map(({ ls, i }) => {
-          const isRead = this.isLessonDone(mod.id, i);
-          const mins = this.lessonMinutes(ls);
-          const isLast = i === mod.lessons.length - 1;
-          const lessonAnims = this.getAnimsForLesson(mod.id, i);
-          return `
-            <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
-              <div class="lesson-head">
-                <h2 class="row" style="flex-wrap:nowrap;align-items:flex-start;margin:0">
-                  <span class="number-dot" style="margin-top:2px">${i + 1}</span>
-                  <span>${this.esc(this.t(ls.title))}</span>
-                </h2>
-                <div class="row" style="flex-shrink:0">
-                  <span class="muted small">~${mins} ${this.l("mnt baca", "min read")}</span>
-                  <button class="btn btn-sm ${isRead ? "btn-done" : "btn-quiet"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)">
-                    ${isRead ? "✓ " + this.l("Dipahami", "Understood") : "○ " + this.l("Tandai Paham", "Mark Read")}
-                  </button>
-                </div>
-              </div>
-              ${lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("")}
-              ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
-              <div class="lesson-foot">
-                <button class="btn btn-sm ${isRead ? "btn-done" : "btn-primary"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, ${!isRead && !isLast})">
-                  ${isRead ? "✓ " + this.l("Materi #" + (i + 1) + " Selesai Dibaca", "Lesson #" + (i + 1) + " Completed") : "✓ " + this.l("Selesai Baca" + (!isLast ? " & Lanjut Materi #" + (i + 2) + " ↓" : ""), "Complete Lesson" + (!isLast ? " & Next #" + (i + 2) + " ↓" : ""))}
-                </button>
-                <div class="row">
-                  <button class="btn btn-sm btn-quiet" onclick="document.getElementById('module-toc')?.scrollIntoView({behavior:'smooth'})">↑ ${this.l("Daftar Isi", "Top / TOC")}</button>
-                  ${isLast ? `<button class="btn btn-sm btn-primary" onclick="app.go('curriculum','${mod.id}','lab')">${this.l("Lanjut ke Lab", "Continue to Lab")} →</button>` : ""}
-                </div>
-              </div>
-            </section>`;
-        }).join("")}
         ${mod.resources && mod.resources.length ? `<div class="well"><div class="label">${this.l("Bacaan lanjutan (dokumentasi resmi)", "Further reading (official docs)")}</div><ul style="margin-left:18px">${mod.resources.map((r) => `<li><a href="${this.esc(r.url)}" target="_blank" rel="noopener">${this.esc(this.t(r.label))}</a></li>`).join("")}</ul></div>` : ""}
         ${nav(null, ["lab", plainTab("tabLab")])}`;
     }
@@ -3174,9 +3175,7 @@ class DataForgeApp {
   }
 
   reviewLessonFromQuiz(modId, lessonIdx) {
-    this.lessonFilter = "all";
-    this.go("curriculum", modId, "concepts");
-    setTimeout(() => this.scrollToLesson(lessonIdx), 80);
+    this.openLesson(modId, lessonIdx);
   }
 
   submitQuiz(modId) {
