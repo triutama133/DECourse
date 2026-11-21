@@ -40,7 +40,8 @@ class DataForgeApp {
     this.activeLevelId = "zero";
     this.activeModuleId = "mod-0-0";
     this.activeModuleTab = "concepts";
-    this.activeLessonIdx = null;   // null = the module overview with its lesson map; a number = one lesson on screen
+    this.activeLessonIdx = null;
+    this.sideOpen = {};   // sidebar: which modules show their lesson list (the current module does unless closed)   // null = the module overview with its lesson map; a number = one lesson on screen
     this.activeInterviewTab = "system-design";
     this.activeSystemDesignId = "sd-1";
     this.activeSqlId = "sql-1";
@@ -661,6 +662,15 @@ class DataForgeApp {
     };
     container.innerHTML = views[this.currentView]();
     if (this.currentView === "playground") this.afterPlaygroundRender();
+    if (this.currentView === "curriculum") {
+      // keep the open lesson visible inside the sticky sidebar, without moving the page itself
+      const aside = container.querySelector(".split > aside");
+      const here = aside && (aside.querySelector(".side-lesson.here") || aside.querySelector(".mod-nav-card.active"));
+      if (aside && here && aside.scrollHeight > aside.clientHeight) {
+        const top = here.offsetTop - aside.offsetTop;
+        if (top < aside.scrollTop || top > aside.scrollTop + aside.clientHeight - 40) aside.scrollTop = Math.max(0, top - aside.clientHeight / 3);
+      }
+    }
   }
 
   // ================= IN-BROWSER PYTHON LABS (Pyodide, in a Web Worker) =================
@@ -2462,8 +2472,18 @@ class DataForgeApp {
             const mPrf = Boolean(this.proofFor(m.id));
             const mQz = this.quizScores[m.id];
             const mNote = Boolean(this.moduleNotes[m.id]);
+            const isCur = m.id === mod.id;
+            const open = this.sideOpen[m.id] !== undefined ? this.sideOpen[m.id] : isCur;
+            const parts = this.moduleParts(m);
+            const lessonList = open && mTot ? `<div class="side-lessons" id="side-lessons-${m.id}">${(m.lessons || []).map((ls, i) => {
+              const pt = parts.find((x) => x.start === i);
+              const read = this.isLessonDone(m.id, i);
+              const here = isCur && this.activeModuleTab === "concepts" && this.activeLessonIdx === i;
+              return `${pt ? `<div class="side-part">${this.l("Bagian", "Part")} ${pt.k + 1} · ${this.esc(this.t(pt.title))}</div>` : ""}<button class="side-lesson ${read ? "read" : ""} ${here ? "here" : ""}" onclick="app.openLesson('${m.id}', ${i})" ${here ? 'aria-current="page"' : ""}><span class="side-mark" aria-hidden="true">${read ? "✓" : ""}</span><span class="side-num">${i + 1}.</span><span class="side-title">${this.esc(this.t(ls.title))}</span><span class="sr-only">${read ? this.l(" (selesai)", " (done)") : ""}</span></button>`;
+            }).join("")}</div>` : "";
             return `
-              <button class="item ${m.id === mod.id ? "active" : ""}" onclick="app.go('curriculum','${m.id}')">
+              <div class="mod-nav ${open ? "open" : ""}">
+                <button class="item mod-nav-card ${m.id === mod.id ? "active" : ""}" onclick="app.go('curriculum','${m.id}')">
                 <div class="module-row">
                   <div>
                     <div class="item-title"><span class="module-num">${m.number}</span>${this.esc(this.t(m.title))}</div>
@@ -2477,7 +2497,10 @@ class DataForgeApp {
                   </div>
                   ${mDone ? `<span class="state-done">✓ ${this.l("Selesai", "Done")}</span>` : ""}
                 </div>
-              </button>`;
+              </button>
+                ${mTot ? `<button class="side-toggle" onclick="app.toggleSideLessons('${m.id}', ${open})" aria-expanded="${open}" aria-controls="side-lessons-${m.id}" title="${open ? this.l("Sembunyikan daftar materi", "Hide the lessons") : this.l("Tampilkan daftar materi", "Show the lessons")}">${open ? "▾" : "▸"} <span>${open ? this.l("Sembunyikan materi", "Hide lessons") : this.l(`${mTot} materi`, `${mTot} lessons`)}</span></button>` : ""}
+                ${lessonList}
+              </div>`;
           }).join("")}
         </aside>
 
@@ -2586,6 +2609,10 @@ class DataForgeApp {
     return Math.max(1, Math.round(w / 200));
   }
 
+  toggleSideLessons(modId, isOpen) {
+    this.sideOpen[modId] = !isOpen;
+    this.renderView();
+  }
   // Parts group a module's lessons for display ("## @part" in the lesson files); lesson numbers stay the same.
   moduleParts(mod) {
     const parts = mod.parts || [];

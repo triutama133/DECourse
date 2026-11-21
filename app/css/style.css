@@ -1390,3 +1390,18 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
 .advanced-fold[open] > summary::after { content: "▴"; }
 .advanced-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--amber); background: var(--amber-tint); border: 1px solid var(--amber); border-radius: 999px; padding: 1px 8px; }
 .advanced-body { padding: 0 14px 12px; }
+
+/* ---------- Sidebar: lessons under each module ---------- */
+.mod-nav { display: flex; flex-direction: column; gap: 4px; }
+.side-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; padding: 2px 8px; border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 12.5px; cursor: pointer; border-radius: 6px; }
+.side-toggle:hover { color: var(--blue); background: var(--blue-tint); }
+.side-lessons { display: flex; flex-direction: column; gap: 2px; margin: 0 0 6px 10px; padding-left: 10px; border-left: 2px solid var(--border); }
+.side-part { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 8px 0 2px; }
+.side-part:first-child { margin-top: 2px; }
+.side-lesson { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); align-items: start; gap: 2px; width: 100%; text-align: left; padding: 5px 8px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13px; line-height: 1.35; cursor: pointer; }
+.side-lesson:hover { background: var(--card-subtle); border-color: var(--border); }
+.side-lesson .side-mark { color: var(--green); font-weight: 700; }
+.side-lesson .side-num { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.side-lesson.read .side-title { color: var(--text-muted); }
+.side-lesson.here { background: var(--blue-tint); border-color: var(--blue); }
+.side-lesson.here .side-title, .side-lesson.here .side-num { color: var(--text); font-weight: 600; }
