@@ -55,9 +55,9 @@ Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10
 
 > 💡 **Jeda Praktik 1 (Coba Sekarang):**
 > Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (setelah Modul 0.2: file `labs/mod-0-0/basics.py` di editor Anda sendiri).
-> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar: langkah ini selesai jika tidak ada baris `FAILED` yang menyebut `TestFormatRupiah`. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
+> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar: langkah ini selesai jika `TestFormatRupiah` bertanda ✓ di daftar grup tes di bawah tombol. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> Jika `TestFormatRupiah` sudah hilang dari daftar kegagalan, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
+> Jika `TestFormatRupiah` bertanda ✓, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
@@ -87,7 +87,7 @@ Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict,
 > Kembali ke `basics.py` (kotak pratinjau, atau editor Anda setelah Modul 0.2). Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
 > 1. Kerjakan `count_by_status(orders)` menggunakan pola penghitungan dict `counts[status] = counts.get(status, 0) + 1`.
 > 2. Kerjakan `unique_customer_ids(orders)` menggunakan `set` dan `sorted()`.
-> Klik **Jalankan tes** dan pastikan tidak ada baris `FAILED` yang menyebut `TestCountByStatus` atau `TestUniqueCustomerIds` (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes** dan pastikan `TestCountByStatus` dan `TestUniqueCustomerIds` bertanda ✓ (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Keputusan: if, elif, else
@@ -114,7 +114,7 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
 
 > 💡 **Jeda Praktik 3 (Coba Sekarang):**
-> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu klik **Jalankan tes** dan cari `TestAverageTotal` di daftar kegagalan (terminal, setelah Modul 0.2):
+> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu klik **Jalankan tes**: `TestAverageTotal` harus bertanda ✓ (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Pengulangan: for, while, dan comprehension
@@ -147,7 +147,7 @@ Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. P
 > 1. Kerjakan `total_revenue(orders)` untuk menjumlahkan pesanan yang tidak dibatalkan.
 > 2. Kerjakan `batches(items, size)` menggunakan loop `range(0, len(items), size)`.
 > 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Klik **Jalankan tes**; tidak satu pun dari tiga kelompok itu boleh muncul di daftar kegagalan (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Fungsi: def, parameter, dan return
@@ -210,7 +210,7 @@ Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (me
 > 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
 > 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
 > 3. Kerjakan `split_valid(orders)` menggunakan fungsi `safe_int` yang Anda buat.
-> Klik **Jalankan tes**; tidak satu pun dari tiga kelompok itu boleh muncul di daftar kegagalan (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (terminal, setelah Modul 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson File, import, dan menjalankan skrip

@@ -55,9 +55,9 @@ Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`
 
 > 💡 **Practice Pause 1 (Try It Now):**
 > Do not read the next section yet! Open the **Browser preview** on the Lab tab (after Module 0.2: the file `labs/mod-0-0/basics.py` in your own editor).
-> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected: this step is done when no `FAILED` line names `TestFormatRupiah`. In your own terminal after Module 0.2, the same check is:
+> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected: this step is done when `TestFormatRupiah` shows ✓ in the list of test groups under the button. In your own terminal after Module 0.2, the same check is:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> When `TestFormatRupiah` has gone from the failures, you have written your first working function. Go on to Lesson 2.
+> When `TestFormatRupiah` shows ✓, you have written your first working function. Go on to Lesson 2.
 
 ## @lesson Collections: one value is never enough
 One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
@@ -87,7 +87,7 @@ One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can 
 > Go back to `basics.py` (the preview box, or your editor after Module 0.2). Apply the dictionary and set concepts you just learned:
 > 1. Implement `count_by_status(orders)` using the dict counting pattern `counts[status] = counts.get(status, 0) + 1`.
 > 2. Implement `unique_customer_ids(orders)` using `set` and `sorted()`.
-> Click **Run tests** and check that no `FAILED` line names `TestCountByStatus` or `TestUniqueCustomerIds` (terminal, after Module 0.2):
+> Click **Run tests** and check that `TestCountByStatus` and `TestUniqueCustomerIds` show ✓ (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Decisions: if, elif, else
@@ -114,7 +114,7 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
 
 > 💡 **Practice Pause 3 (Try It Now):**
-> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then click **Run tests** and look for `TestAverageTotal` in the failures (terminal, after Module 0.2):
+> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then click **Run tests**: `TestAverageTotal` should show ✓ (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k TestAverageTotal -v`
 
 ## @lesson Repetition: for, while and comprehensions
@@ -147,7 +147,7 @@ A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`
 > 1. Implement `total_revenue(orders)` to sum uncancelled orders.
 > 2. Implement `batches(items, size)` using a `range(0, len(items), size)` loop.
 > 3. Implement `top_customers(orders, n)` using `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Click **Run tests**; none of the three groups should appear in the failures (terminal, after Module 0.2):
+> Click **Run tests**; all three groups should show ✓ (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @lesson Functions: def, parameters and return
@@ -210,7 +210,7 @@ A bad row from a customer is *expected* data, so you handle it (put it aside wit
 > 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
 > 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
 > 3. Implement `split_valid(orders)` using your `safe_int` function.
-> Click **Run tests**; none of the three groups should appear in the failures (terminal, after Module 0.2):
+> Click **Run tests**; all three groups should show ✓ (terminal, after Module 0.2):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson Files, imports and running a script

@@ -743,11 +743,15 @@ class DataForgeApp {
           const mark = document.getElementById("bl-passed");
           if (mark) { mark.className = "state-done"; mark.textContent = "✓ " + this.l("Pratinjau lulus", "Preview passed"); }
           summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus di pratinjau. Langkah yang sesungguhnya: selesaikan Modul 0.2, lalu ulangi lab ini di komputer Anda sendiri (venv, pytest, editor Anda) dan tulis ulang kodenya tanpa menyalin. Hanya itu yang dihitung.`, `All ${passed} tests pass in the preview. The real step: finish Module 0.2, then repeat this lab on your own computer (venv, pytest, your own editor) and write the code again without copying. Only that counts.`)}</div>`;
+        } else if (passed > 0) {
+          summary = `<div class="feedback info">${this.l(`${passed} dari ${passed + failed + errors} tes lulus. Grup bertanda ✓ sudah selesai; kerjakan fungsi berikutnya, lalu jalankan lagi. Pesan di bawah menjelaskan yang masih gagal (baca dari baris paling bawah).`, `${passed} of ${passed + failed + errors} tests pass. Groups marked ✓ are done; write the next function, then run again. The messages below explain what still fails (read them from the bottom up).`)}</div>`;
         } else {
           summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one function, then run again.`)}</div>`;
         }
+        summary += this.blGroupsHtml(bl, String(m.output));
         const out = String(m.output).replace(/\/lab\//g, "");
-        this.blStatus(modId, "", summary, out.length > 8000 ? "…\n" + out.slice(-8000) : out);
+        const cut = out.length > 8000 ? out.slice(-8000) : out;
+        this.blStatus(modId, "", summary, cut === out ? out : "…\n" + cut.slice(cut.indexOf("\n") + 1));
       } else if (m.type === "error" && m.id === id) {
         if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; }
         finish();
@@ -756,7 +760,27 @@ class DataForgeApp {
     };
     w.onerror = (e) => kill(this.l("Python gagal dimuat. Muat ulang halaman dan coba lagi.", "Python failed to load. Reload the page and try again.") + " " + this.esc(e.message || ""));
     const files = Object.assign({}, bl.files, { [bl.editable]: area.value });
-    w.postMessage({ type: "run", id, files, args: bl.tests });
+    // -rA lists every test as PASSED/FAILED at the end, so the result can show one line per test group.
+    w.postMessage({ type: "run", id, files, args: [...bl.tests, "-rA"] });
+  }
+  // One chip per test class (TestFormatRupiah ✓ 4/4), in the order the test file defines them.
+  blGroupsHtml(bl, output) {
+    const order = [];
+    for (const t of bl.tests) {
+      for (const m of String(bl.files[t] || "").matchAll(/^class (Test\w+)/gm)) order.push(m[1]);
+    }
+    const stat = {};
+    for (const m of output.matchAll(/^(PASSED|FAILED|ERROR) [^\s:]+::(Test\w+)::/gm)) {
+      const s = (stat[m[2]] = stat[m[2]] || { pass: 0, total: 0 });
+      s.total += 1;
+      if (m[1] === "PASSED") s.pass += 1;
+    }
+    const names = order.filter((n) => stat[n]);
+    if (!names.length) return "";
+    return `<ul class="bl-groups" aria-label="${this.l("Hasil per grup tes", "Results per test group")}">${names.map((n) => {
+      const s = stat[n], ok = s.pass === s.total;
+      return `<li class="${ok ? "ok" : "bad"}"><span aria-hidden="true">${ok ? "✓" : "✗"}</span> <code>${n}</code> <span class="muted">${s.pass}/${s.total}</span><span class="sr-only">${ok ? this.l(" lulus", " passing") : this.l(" belum lulus", " not passing yet")}</span></li>`;
+    }).join("")}</ul>`;
   }
 
   // ================= LAB PROOF (scripts/prove.py prints a code; the app checks it) =================
@@ -1403,16 +1427,16 @@ class DataForgeApp {
             <div class="sim-control">
               <label><span>${this.l("Tahap Kematangan Data Perusahaan (Reis & Housley)", "Company Data Maturity Stage (Reis & Housley)")}</span></label>
               <div class="segmented" style="margin-top:4px">
-                <button class="${stage === 1 ? "active" : ""}" onclick="app.updateSim('matStage', 1)">Stage 1: Starting</button>
-                <button class="${stage === 2 ? "active" : ""}" onclick="app.updateSim('matStage', 2)">Stage 2: Scaling</button>
-                <button class="${stage === 3 ? "active" : ""}" onclick="app.updateSim('matStage', 3)">Stage 3: Leading</button>
+                <button class="${stage === 1 ? "active" : ""}" onclick="app.updateSim('matStage', 1)">${this.l("Tahap 1: Merintis", "Stage 1: Starting")}</button>
+                <button class="${stage === 2 ? "active" : ""}" onclick="app.updateSim('matStage', 2)">${this.l("Tahap 2: Berkembang", "Stage 2: Scaling")}</button>
+                <button class="${stage === 3 ? "active" : ""}" onclick="app.updateSim('matStage', 3)">${this.l("Tahap 3: Memimpin", "Stage 3: Leading")}</button>
               </div>
             </div>
             <div class="sim-control">
               <label><span>${this.l("Pilihan Arsitektur Platform", "Platform Architecture Choice")}</span></label>
               <div class="segmented" style="margin-top:4px">
-                <button class="${arch === "typeA" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeA')">Type A (Managed ELT + DuckDB/Warehouse)</button>
-                <button class="${arch === "typeB" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeB')">Type B (Custom K8s + Kafka + Spark)</button>
+                <button class="${arch === "typeA" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeA')">${this.l("Tipe A (ELT terkelola + DuckDB/warehouse)", "Type A (Managed ELT + DuckDB/Warehouse)")}</button>
+                <button class="${arch === "typeB" ? "active" : ""}" onclick="app.updateSim('matArch', 'typeB')">${this.l("Tipe B (K8s + Kafka + Spark buatan sendiri)", "Type B (Custom K8s + Kafka + Spark)")}</button>
               </div>
             </div>
             <div class="sim-control">
@@ -3884,14 +3908,14 @@ class DataForgeApp {
                 <div class="row between">
                   <h3>${this.esc(this.t(challenge.title))}</h3>
                   <div class="row">
-                    <span class="chip">${this.l("Percobaan", "Attempts")}: ${attempts}</span>
+                    <span class="chip" id="pg-attempts">${this.l("Percobaan", "Attempts")}: ${attempts}</span>
                     <span class="chip">${this.esc(this.t(challenge.level))}</span>
                   </div>
                 </div>
                 <p>${this.esc(this.t(challenge.task))}</p>
                 <div class="row">
                   <button class="btn btn-sm btn-quiet" onclick="app.toggleHint()">${this.l("Petunjuk", "Hint")}</button>
-                  <button class="btn btn-sm btn-quiet" onclick="app.toggleSolution()" ${canShowSolution ? "" : `title="${this.l("Coba periksa minimal 5 query terlebih dahulu", "Try checking at least 5 queries first")}"`}>
+                  <button class="btn btn-sm btn-quiet" id="pg-sol-btn" onclick="app.toggleSolution()" ${canShowSolution ? "" : `title="${this.l("Coba periksa minimal 5 query terlebih dahulu", "Try checking at least 5 queries first")}"`}>
                     ${canShowSolution ? "🔓 " + this.l("Lihat solusi", "Show solution") : `🔒 ${this.l("Solusi", "Solution")} (${attempts}/5 ${this.l("percobaan", "tries")})`}
                   </button>
                 </div>
@@ -4039,6 +4063,15 @@ class DataForgeApp {
     if (challenge && sqlText.length >= 10) {
       this.sqlAttempts[challenge.id] = (this.sqlAttempts[challenge.id] || 0) + 1;
       writeStore("df_sql_attempts", this.sqlAttempts);
+      // The card was drawn before this check: update the counter and the solution lock in place.
+      const n = this.sqlAttempts[challenge.id];
+      const chip = document.getElementById("pg-attempts");
+      if (chip) chip.textContent = `${this.l("Percobaan", "Attempts")}: ${n}`;
+      const sol = document.getElementById("pg-sol-btn");
+      if (sol && !this.solvedChallenges.includes(challenge.id)) {
+        if (n >= 5) { sol.textContent = "🔓 " + this.l("Lihat solusi", "Show solution"); sol.removeAttribute("title"); }
+        else sol.textContent = `🔒 ${this.l("Solusi", "Solution")} (${n}/5 ${this.l("percobaan", "tries")})`;
+      }
     }
     this.runSql();
     const r = SQL_PLAYGROUND.check(challenge, editor.value);
