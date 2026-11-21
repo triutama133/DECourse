@@ -32,6 +32,10 @@ Dua gagasan membantu Anda bernalar tentang pertukaran itu. **Teorema CAP** menya
 
 ACID (transaksi atomik, konsisten, terisolasi, tahan lama) adalah janji relasional. Sebagian sistem NoSQL melonggarkannya (kadang bercanda disebut BASE: basically available, soft state, eventually consistent), dan banyak yang kemudian menambahkan transaksi terbatas. Selalu baca apa yang dijamin produk tertentu.
 
+> 🛠 **Coba sendiri (5 menit, pena dan kertas).** Untuk setiap kebutuhan, sebutkan keluarganya (relasional, key-value, dokumen, wide-column, graf, pencarian, atau time-series) dan tekanan yang dijawabnya: (a) "apakah sesi login ini masih berlaku?" dalam waktu di bawah satu milidetik; (b) katalog produk yang setiap kategorinya punya atribut berbeda; (c) 5 juta pembacaan sensor per jam, di-query berdasarkan rentang waktu; (d) teman dari teman yang membeli barang ini; (e) pencarian teks bebas dengan peringkat; (f) faktur yang tidak boleh pernah tidak konsisten.
+>
+> *Bandingkan:* (a) key-value (latensi), (b) dokumen (bentuk data), (c) time-series atau wide-column (volume tulis), (d) graf, (e) mesin pencari, (f) relasional (kebenaran). Lalu tulis satu kalimat tentang apa yang Anda korbankan saat meninggalkan SQL untuk (a).
+
 ## @lesson Key-value store: database paling sederhana
 Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah sebuah **key** dan **get** kembali lewat key itu. Itu saja. Tampaknya terlalu sederhana untuk berguna, tetapi justru itu yang membuatnya sangat cepat: tidak ada yang perlu direncanakan, diurai, atau di-join. Contoh: **Redis**, Memcached, dan DynamoDB dalam bentuk paling sederhananya.
 
@@ -120,6 +124,12 @@ Beberapa pola akses bukan satu pun dari yang di atas.
 **Database time-series** (TimescaleDB, InfluxDB) disetel untuk data yang banyak ditambah dan diindeks menurut waktu (metrik, pembacaan sensor), dengan retensi dan downsampling otomatis. **Database vektor** menyimpan embedding untuk pencarian kemiripan (Modul 3.5). Banyak dari ini adalah fitur sistem lain: PostgreSQL melakukan time series dengan ekstensi dan pencarian vektor dengan pgvector.
 
 Pelajaran untuk disimpan: sebuah keluarga database adalah kumpulan **optimasi untuk sebuah pola akses**. Jika Anda tahu polanya, keluarganya biasanya mengikuti; jika Anda belum tahu polanya, mulailah dengan database relasional dan pelajari polanya dulu.
+
+> 🛠 **Coba sendiri (12 menit, Python).**
+> 1. Bangun **inverted index** untuk enam nama produk KopiKu (`Gayo Medium 250g`, `Toraja Dark 250g`, `Kintamani Light 250g`, `Flores Medium 250g`, `Mandheling Dark 250g`, `Java Preanger Light 250g`): sebuah dict dari setiap kata huruf kecil ke himpunan posisi nama-nama yang memuatnya. Cari `dark`, lalu `dark` dan `250g` bersama-sama.
+> 2. Bangun dict pertemanan (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) dan tulis breadth-first search yang mengembalikan jalur terpendek dari `budi` ke `rina`.
+>
+> **Seharusnya Anda melihat:** `dark` menghasilkan posisi `[1, 4]` (Toraja Dark dan Mandheling Dark), `dark` dan `250g` bersama-sama menghasilkan dua yang sama, dan jalur `['budi', 'siti', 'dewi', 'rina']`. Dalam sekitar 15 baris, Anda sudah membangun inti sebuah mesin pencari dan penelusuran graf.
 
 ## @lesson Memilih, dan apa yang dilakukan data engineer dengannya
 Panduan keputusan singkat, didorong oleh cara data dibaca:

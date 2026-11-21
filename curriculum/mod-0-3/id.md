@@ -36,6 +36,13 @@ Tanyakan pada setiap tabel sebelum Anda meng-query-nya: **satu baris mewakili ap
 
 Sepatah kata tentang spreadsheet. Excel sangat baik untuk pekerjaan kecil dan ad hoc. Ia kurang cocok bila data besar (Excel berhenti di 1.048.576 baris per sheet), dipakai banyak orang bersamaan, harus tetap konsisten (siapa pun bisa mengetik teks di kolom angka), atau harus diulang otomatis tiap malam. Database memberi Anda tipe, constraint, akses bersamaan, riwayat, dan kecepatan, dan itulah sebabnya pipeline memuat data ke dalamnya.
 
+> 🛠 **Coba sendiri (8 menit, SQL Sandbox dengan dataset KopiKu).**
+> 1. Jalankan `SELECT * FROM customers LIMIT 3;` dan `SELECT * FROM order_items LIMIT 3;`. Untuk setiap tabel, sebutkan dalam satu kalimat apa yang diwakili satu baris (grain-nya) dan sebutkan primary key-nya.
+> 2. Jalankan `SELECT COUNT(*), COUNT(DISTINCT order_id) FROM orders;` dan query yang sama pada `order_items`.
+> 3. Coba rusak sebuah key: `INSERT INTO customers (customer_id, name) VALUES (1, 'Dup');`
+>
+> **Seharusnya Anda melihat:** `18 18` untuk `orders` (satu baris per pesanan) tetapi `24 18` untuk `order_items` (beberapa baris per pesanan, itulah sebabnya key-nya terdiri dari dua kolom), dan error `UNIQUE constraint failed: customers.customer_id` di langkah 3.
+
 ## @lesson Membaca data: SELECT, WHERE, ORDER BY
 Query dasar punya bentuk tetap:
 
@@ -131,6 +138,10 @@ SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...              
 Dua kebiasaan lagi. **Pakai rentang setengah terbuka**: `order_date >= '2026-01-10' AND order_date < '2026-01-20'` (4 pesanan KopiKu). `BETWEEN '2026-01-10' AND '2026-01-19'` tampak sama pada tanggal biasa, tetapi diam-diam membuang apa pun setelah tengah malam tanggal 19 ketika kolomnya berisi timestamp: kami memasukkan `'2026-01-19 15:30:00'` dan `BETWEEN` melewatkannya sementara rentang setengah terbuka menemukannya. Dan **bulan tidak semuanya sama**: `date('2026-01-31', '+1 month')` adalah **2026-03-03** di SQLite (ia menghitung 31 Februari lalu meluap), sedangkan `DATE '2026-01-31' + INTERVAL '1 month'` di PostgreSQL adalah 2026-02-28. Simpan timestamp dalam UTC dan ubah ke zona waktu lokal hanya saat menampilkannya.
 
 Satu aturan performa yang dijelaskan Modul 1.3 dengan EXPLAIN: jangan membungkus kolom ber-index dengan fungsi di dalam `WHERE`. Pada tabel dengan index di `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` membuat SQLite **memindai seluruh tabel**, sedangkan rentang setara `ts >= '2026-01-01' AND ts < '2026-02-01'` **mencari lewat index**.
+
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama), **k-17** (kota yang tidak diketahui), dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini. Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
+>
+> **Seharusnya Anda melihat:** sandbox menyatakan Benar untuk setiap tantangan; percobaan k-18 yang salah menampilkan `0`, yang benar `11.1`.
 
 ## @lesson Agregasi: GROUP BY dan HAVING
 Agregasi meringkas banyak baris menjadi satu angka per kelompok. Fungsinya `COUNT`, `SUM`, `AVG`, `MIN`, dan `MAX`.
@@ -347,6 +358,10 @@ Jika server crash di antara dua update, tidak ada yang berlaku; uang tidak perna
 
 Terakhir, **SQL punya dialek**. Inti pelajaran ini bekerja di mana-mana, tetapi fungsi tanggal, fungsi string, `LIMIT` versus `TOP`, dan fitur khusus berbeda antara SQLite (dipakai di sandbox kursus ini), PostgreSQL, MySQL, DuckDB, Snowflake, dan BigQuery. Ketika sesuatu gagal setelah menyalin query, periksa dialeknya dulu.
 
+> 🛠 **Coba sendiri (8 menit, SQL Sandbox).** Transaksi memungkinkan Anda mencoba sebuah perubahan lalu menariknya kembali. Jalankan ini sebagai dua kali jalan terpisah: (1) `BEGIN; DELETE FROM orders WHERE status = 'cancelled'; SELECT COUNT(*) FROM orders;` lalu (2) `ROLLBACK; SELECT COUNT(*) FROM orders;`. Lalu latih kebiasaan aman: tulis dulu `SELECT COUNT(*) FROM orders WHERE status = 'cancelled'`, baru setelahnya `DELETE` dengan `WHERE` yang sama.
+>
+> **Seharusnya Anda melihat:** `16` setelah delete di dalam transaksi dan `18` setelah `ROLLBACK`; query pemeriksa sebelum delete menghasilkan `2`. Tanpa `BEGIN`, penghapusannya akan bertahan sampai Anda menekan **Reset data**.
+
 ## @lesson Mendefinisikan tabel: DDL, tipe, dan view
 Sejauh ini Anda membaca dan mengubah baris. **DDL** (Data Definition Language) membuat dan mengubah *struktur*: `CREATE`, `ALTER`, dan `DROP`. Tabel yang Anda rancang sendiri tampak seperti ini:
 
@@ -382,6 +397,10 @@ CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
 View menyimpan **querynya, bukan datanya**. Kami membuat `v_gold` saat ia cocok dengan 1 baris, memasukkan satu pelanggan Gold lagi, dan view langsung mengembalikan 2 baris. Jika tabel di bawahnya di-drop, view tetap ada tetapi gagal dengan `no such table` saat dipakai. `CREATE TABLE snap AS SELECT ...` (CTAS) berbeda: ia menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (ia mempertahankan barisnya ketika view bertambah), dan ia kehilangan constraint aslinya (salinan yang kami buat tidak punya primary key, `NOT NULL`, maupun `CHECK`). PostgreSQL dan warehouse juga menyediakan **materialized view**: hasil yang tersimpan dan **basi sampai di-refresh**. Di PostgreSQL sebuah materialized view menampilkan 2 baris setelah baris ketiga dimasukkan, dan 3 baris hanya setelah `REFRESH MATERIALIZED VIEW`.
 
 Mengapa ini penting bagi data engineer: view adalah cara tim mendefinisikan sebuah metrik di satu tempat ("omset" berarti query ini) dan cara warehouse mengekspos subset kolom yang aman. Model yang Anda bangun dengan dbt di Modul 2.3 adalah view dan tabel yang dibuat oleh DDL yang ditulis alat itu untuk Anda; mengetahui apa mereka sebenarnya adalah yang memungkinkan Anda men-debug-nya.
+
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Buat tabel `reviews` dari pelajaran ini, lalu rusak dengan sengaja, satu aturan demi satu aturan: ulasan dengan 9 bintang; pelanggan yang sama mengulas produk yang sama dua kali; ulasan tanpa pelanggan. Baca setiap error-nya. Lalu buat view `v_delivered` (`SELECT * FROM orders WHERE status = 'delivered'`), hitung barisnya, masukkan satu pesanan delivered lagi ke `orders`, dan hitung lagi.
+>
+> **Seharusnya Anda melihat:** `CHECK constraint failed: stars BETWEEN 1 AND 5`, lalu `UNIQUE constraint failed: reviews.customer_id, reviews.product_id`, lalu `NOT NULL constraint failed: reviews.customer_id`; dan view yang jumlahnya berubah dari `12` menjadi `13` tanpa Anda menyentuh view itu.
 
 ## @lab Lab: sepuluh pertanyaan tentang KopiKu
 Anda data engineer baru dan pendiri toko punya sepuluh pertanyaan. Jawab dengan SQL pada dataset mini KopiKu: tabel pelanggan dengan kota NULL, pesanan dengan pembatalan dan refund, dan biaya kirim yang menggoda Anda membuat bug fan-out.

@@ -49,6 +49,17 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berjalan, tetapi mendokumentasikan maksud, membantu editor menangkap kesalahan, dan memungkinkan pemeriksa seperti `mypy` atau `pyright` menemukan bug sebelum kode dijalankan. Tambahkan ke signature fungsi sejak awal.
 
+> 🛠 **Coba sendiri (12 menit, di `etl_try.py`).** Tulis fungsi **murni** `parse_total(raw)` yang mengembalikan int, atau `None` jika teksnya bukan bilangan bulat yang tidak negatif (ia juga harus mengerti gaya `Rp 150.000`). Fungsi itu harus lulus:
+> `assert parse_total("150000") == 150000`
+> `assert parse_total("Rp 150.000") == 150000`
+> `assert parse_total("-5000") is None`
+> `assert parse_total("abc") is None`
+> `assert parse_total("") is None`
+>
+> Lalu tulis `run(path)`, bagian tepinya: ia membuka `data/orders.csv`, memanggil `parse_total` untuk setiap `total_idr`, dan mengembalikan jumlah baris yang valid dan tidak valid. Tidak ada bagian lain yang boleh menyentuh file.
+>
+> **Seharusnya Anda melihat:** tidak ada assertion error, dan `run("data/orders.csv")` mengembalikan `(3617, 17)`. Perhatikan bahwa Anda menguji `parse_total` tanpa file apa pun. Coba lakukan hal yang sama pada versi yang membuka file di dalam fungsinya, dan rasakan bedanya.
+
 ## @lesson Validasi di batas dengan Pydantic
 Pipeline yang paling andal tidak mempercayai masukannya. Data melintasi sebuah **batas** (file, API, antrean) dan Anda mengubahnya dari "apa pun yang dihasilkan pengirim" menjadi "nilai yang bisa diandalkan kode saya". Lakukan sekali, di pintu; semua yang setelah pintu bisa mengasumsikan data bersih.
 
@@ -196,6 +207,10 @@ Tingkat dalam praktik: `DEBUG` (detail untuk pengembang), `INFO` (tonggak normal
 
 Baris log tunggal yang paling berguna di pipeline mana pun adalah **ringkasan eksekusi**: berapa baris dibaca, berapa valid, berapa ditolak dan mengapa, berapa lama. Itu monitoring pertama dan termurah Anda: perubahan mendadak angka-angka itu antar malam sering menjadi tanda pertama masalah di hulu, itulah sebabnya lab meminta Anda mencatatnya dan exit code mencerminkan tingkat penolakan.
 
+> 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri sebelumnya: panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
+>
+> **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan.
+
 ## @lesson Menguji kode data dengan pytest
 Tes adalah cara Anda mengubah kode tanpa takut. Untuk job data, tes juga mendokumentasikan, dalam bentuk yang bisa dijalankan, apa arti "benar". **pytest** adalah alat standar: taruh fungsi bernama `test_*` di file bernama `test_*.py` dan jalankan `pytest`.
 
@@ -243,6 +258,10 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 **Performa dalam satu paragraf.** CPython menjalankan satu thread bytecode Python sekali waktu (**GIL**), sehingga thread membantu untuk pekerjaan *menunggu* (banyak panggilan jaringan, pembacaan disk) tetapi tidak untuk pekerjaan berat CPU; untuk itu pakai banyak proses (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) atau, lebih baik, engine tervektorisasi. Ukur sebelum mengoptimalkan (`cProfile`, atau sekadar pengukuran waktu): bagian yang lambat jarang berada di tempat yang Anda tebak.
 
 **Memilih alat yang tepat.** Python biasa sangat baik untuk perekat: memanggil API, memvalidasi record, memindah dan membentuk ulang data berukuran sedang, mengorkestrasi alat lain. Untuk **agregasi berat, join, dan analitik pada data besar**, engine SQL (DuckDB, Modul 2.1; warehouse, Modul 2.3) dan engine dataframe (Polars, Spark) jauh lebih cepat dan memakai memori jauh lebih baik daripada loop tulisan tangan. Data engineer yang baik menulis validasi dan perpipaan di Python dan mendorong komputasi berat ke engine yang dibangun untuknya.
+
+> 🛠 **Coba sendiri (10 menit, terminal).** Di virtual environment yang baru, jalankan `pip install ruff`. Simpan `bad.py` berisi baris `import os`, `import json`, `x=1`, dan `print( x )`. Jalankan `ruff check bad.py`, lalu `ruff check --fix bad.py`, lalu `ruff format bad.py` dan lihat file-nya. Terakhir jalankan `pip freeze > requirements.txt` dan baca baris-baris pertamanya.
+>
+> **Seharusnya Anda melihat:** satu `F401` ("imported but unused") untuk `os` dan satu untuk `json`; perbaikannya menghapus kedua import itu; formatter mengubah sisanya menjadi `x = 1` dan `print(x)`; `requirements.txt` mencantumkan versi persis seperti `ruff==0.x.y`. Pemeriksaan mana yang Anda inginkan di setiap pull request?
 
 ## @lab Lab: ETL tervalidasi, streaming, dan idempoten
 Bangun versi produksi dari job pembersihan di Modul 0.1. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.

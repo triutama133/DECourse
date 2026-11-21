@@ -37,6 +37,10 @@ cp labs/mod-4-1/starter/pipeline.py ~/taxi/pipeline.py
 
 Alokasikan waktu sekitar 15 hingga 25 jam secara keseluruhan. Setiap eksekusi penuh pipeline Anda akan menghasilkan data sekitar 300 MB, dan skrip pemeriksa akan menjalankannya beberapa kali di dalam folder sementara yang otomatis dihapus setelah selesai.
 
+> 🛠 **Coba sendiri (20 menit, terminal).** Kerjakan persiapan di atas persis seperti tertulis, di folder `~/taxi` milik Anda. Sebelum menulis satu baris pun dari pipeline, jalankan pemeriksa untuk langkah 1 pada starter yang belum disentuh: `python3 labs/mod-4-1/check.py ~/taxi --step 1`. Baca output-nya pelan-pelan. Lalu minta petunjuk terendah dengan `--hint 1` dan putuskan apakah petunjuk itu membocorkan jawabannya.
+>
+> **Seharusnya Anda melihat:** `fetch_data.py` mencetak `ok` untuk file Parquet dan untuk zone lookup. Pemeriksa mencetak judul `== Step 1: profile the raw data (profile.json)`, satu baris `FAIL  profile.json exists in your workspace` dengan petunjuk singkat, dan `0 passed, 1 failed`. Petunjuk 1 hanya mengarah ke DuckDB (`DESCRIBE`, `SELECT count(*)`): ia mendorong, tidak menjawab. Putaran merah-lalu-hijau inilah cara Anda bekerja selama beberapa jam ke depan.
+
 ## @lesson Mengenal datanya
 **NYC Taxi and Limousine Commission (TLC)** menerbitkan setiap rekaman perjalanan taksi kuning sebagai file bulanan berformat Parquet (data publik resmi Kota New York). Kita menggunakan data **Januari 2024**: satu file berukuran sekitar 50 MB yang memuat hampir tiga juta perjalanan dengan 19 kolom. Skrip pemeriksa memverifikasi hash SHA-256 dari file unduhan Anda, sehingga setiap peserta bekerja di atas data biner yang identik.
 
@@ -106,6 +110,10 @@ Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `s
 3. Uji aturan satu per satu pada file mentah dengan query sederhana `SELECT count(*) ... WHERE ...`, lalu cocokkan dengan jumlah per kategori alasan di file data yang Anda tolak.
 4. Ketika pemeriksaan skrip checker gagal, baca pesannya secara harfiah. Pesan "expected 2,927,800, you have 2,927,801" berarti ada kelebihan satu baris; temukan baris tersebut dengan memfilter baris bersih yang melanggar aturan.
 5. Ubah satu hal dalam satu waktu lalu uji kembali. Pipeline sebesar ini selesai dalam hitungan detik, sehingga tidak ada alasan untuk menebak-nebak tanpa data.
+
+> 🛠 **Coba sendiri (20 menit, Python).** Latih pola satu baris pada file aslinya, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. Dengan DuckDB, cetak: (1) jumlah perjalanan per hari dalam seminggu dengan `isodow(tpep_pickup_datetime)` untuk penjemputan di Januari 2024 saja; (2) berapa baris yang penjemputannya di luar Januari 2024; (3) berapa baris yang waktu turunnya tidak setelah waktu jemput, dengan `date_diff('second', ...)`. Terakhir, pastikan `hash('a', 1) = hash('a', 1)` bernilai benar dan `hash('a', 1) = hash('a', 2)` bernilai salah.
+>
+> **Seharusnya Anda melihat:** (1) Senin sampai Minggu: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` baris di luar Januari; (3) `870` baris yang durasinya nol atau negatif; dan kedua perbandingan hash memberi `True` dan `False`. Masing-masing bisa menjadi aturan di langkah pembersihan Anda: kini Anda tahu seberapa besar setiap masalah sebelum memutuskan apa yang dilakukan terhadapnya.
 
 ## @lesson Kontrak teknis
 Bagian ini adalah spesifikasi teknis formal. Baca secara menyeluruh sebelum memulai step 2; skrip pemeriksa mengikuti kontrak ini secara persis.

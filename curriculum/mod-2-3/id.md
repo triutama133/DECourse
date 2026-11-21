@@ -42,6 +42,10 @@ from {{ ref('stg_customers') }}
 
 Sintaks kurung kurawal ganda `{{ ... }}` adalah **Jinja**, bahasa templating yang dievaluasi oleh dbt sebelum SQL dikirim ke engine. Pemanggilan `ref('stg_customers')` menjalankan dua fungsi krusial: pertama, menerjemahkan nama tabel menjadi nama fisik yang sesuai dengan lingkungan saat ini (`dev_alice.stg_customers` atau `analytics.stg_customers`), dan kedua, mencatat dependensi ke dalam DAG sehingga dbt menjamin model `stg_customers` selesai dibangun sebelum `dim_customers` mulai dieksekusi.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Tulis empat "model" sebagai string SQL di sebuah dict Python: `stg_orders` (`select * from raw.orders`), `stg_customers` (`select * from raw.customers`), `fct_orders` (join dari `{{ ref('stg_orders') }}` dan `{{ ref('stg_customers') }}`), dan `mart_daily` (sebuah `group by` atas `{{ ref('fct_orders') }}`). Ambil dependensi setiap model dengan `re.findall(r"ref\('(\w+)'\)", sql)`, cetak dict dependensinya, dan cetak urutan build dengan `graphlib.TopologicalSorter(graph).static_order()`. Lalu tambahkan `{{ ref('mart_daily') }}` di dalam `stg_customers` dan jalankan lagi.
+>
+> **Seharusnya Anda melihat:** `mart_daily` bergantung pada `fct_orders`, `fct_orders` pada kedua model staging, dan model staging tidak bergantung pada apa pun; urutan build-nya adalah kedua model `stg_` (urutan bebas), lalu `fct_orders`, lalu `mart_daily`. Setelah Anda menambahkan referensi melingkar, `graphlib.CycleError` menyebut putarannya (`mart_daily`, `stg_customers`, `fct_orders`). Persis inilah yang dilakukan dbt dengan `ref()`: ia membangun DAG dan menolak menjalankan siklus.
+
 ## @lesson Anatomi proyek dbt dan perintah-perintah CLI inti
 Struktur direktori standar proyek dbt:
 

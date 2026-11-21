@@ -40,6 +40,10 @@ Perancangan star schema selalu dilakukan melalui empat langkah berurutan. Melewa
 3. **Pilih dimensi.** Segala hal yang mendeskripsikan baris pada tingkat grain tersebut: tanggal, pelanggan, produk.
 4. **Pilih fakta (ukuran numerik / measures).** Angka-angka numerik pada grain tersebut: kuantitas, harga satuan, subtotal item.
 
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Jawab "revenue per kota dan tier untuk pesanan delivered" pada tabel KopiKu yang ternormalisasi (revenue = `qty * unit_price_idr`). Hitung berapa tabel yang harus Anda join dan berapa syarat `ON` yang harus benar. Lalu gambar di kertas star schema untuk pertanyaan yang sama: tabel mana yang menyimpan revenue, tabel mana yang menyimpan kota dan tier?
+>
+> **Seharusnya Anda melihat:** tiga tabel (`orders`, `customers`, `order_items`) dan dua join, dan baris pertama `Bandung, Gold, 455000` diikuti `Surabaya, Bronze, 365000`. Di sketsa Anda ada satu tabel fakta baris pesanan (revenue-nya) yang menunjuk ke dimensi pelanggan (kota, tier): analis menulis satu join alih-alih mengingat tiga tabel.
+
 ## @lesson Grain: kalimat paling krusial dalam pemodelan data
 **Grain** adalah satu kalimat tunggal yang mendefinisikan apa makna tepat dari satu baris di dalam tabel fakta. Untuk KopiKu: *"satu baris mewakili satu item dalam pesanan: satu produk, dalam satu pesanan, pada satu harga tertentu."* Segala keputusan teknis selanjutnya diturunkan dari kalimat ini.
 
@@ -64,6 +68,10 @@ Klasifikasi tabel fakta berdasarkan cara data mengalir:
 | **Accumulating snapshot** | siklus hidup satu proses yang diperbarui bertahap | pesanan dari dibuat, dibayar, dikirim, hingga selesai | tanggal timestamp dan durasi latensi antar-tahap |
 
 Ukuran numerik (measures) juga dibedakan berdasarkan **kemampuan penjumlahan (additivity)**: *aditif penuh* (kuantitas, omset) dapat dijumlahkan di seluruh dimensi apa pun; *semi-aditif* (saldo rekening, stok gudang) dapat dijumlahkan lintas pelanggan tetapi keliru jika dijumlahkan melintasi dimensi tanggal; *non-aditif* (rasio, margin persentase, harga rata-rata) tidak boleh dijumlahkan sama sekali, sehingga selalu simpan pembilang dan penyebutnya secara terpisah lalu lakukan pembagian di akhir query.
+
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** `orders` menyimpan `shipping_fee_idr` per pesanan. Hitung total ongkir dengan dua cara: `SELECT SUM(shipping_fee_idr) FROM orders;` dan jumlah yang sama setelah join `orders` ke `order_items` pada `order_id`. Lalu nyatakan grain setiap tabel dalam satu kalimat, dan di grain mana ongkir boleh dijumlahkan.
+>
+> **Seharusnya Anda melihat:** `355000` lalu `470000`, yang 32% terlalu tinggi: pesanan dengan tiga baris dihitung tiga kali. Ongkir milik grain pesanan, bukan grain baris pesanan.
 
 ## @lesson Tabel dimensi: konteks deskriptif pelaporan
 Satu baris dimensi mendeskripsikan satu entitas spesifik (satu produk, satu pelanggan, satu tanggal kalender) dengan deretan atribut rinci yang dipakai untuk pengelompokan dan pemfilteran: `roast_level`, `origin`, `tier`, `city`. Dimensi yang dirancang dengan baik sengaja dibuat lebar dan tidak dinormalisasi (denormalized), karena dalam analitik kita menginginkan satu kali join langsung, bukan rantai join berjenjang.
@@ -109,6 +117,10 @@ Selalu pertahankan natural key asli di dalam tabel dimensi sebagai kolom biasa, 
 **Setiap baris fakta wajib merujuk ke baris dimensi yang nyata.** Namun data dunia nyata tidak pernah ideal: transaksi pesanan tiba untuk pelanggan yang belum terdaftar di snapshot pelanggan hari itu (*late-arriving dimension*), produk dihapus di sistem sumber, atau kolom bernilai NULL. Nilai foreign key NULL adalah racun: pada operasi INNER JOIN baris fakta akan hilang tanpa peringatan dan angka omset dashboard langsung menyusut. Solusi standar industri adalah **anggota unknown (unknown member)**: baris khusus di tabel dimensi dengan nomor kunci khusus (misalnya `customer_sk = -1`, `city = 'Unknown'`) tempat tabel fakta merujuk ketika entitas aslinya tidak ditemukan. Total omset tetap akurat 100%, data yang tidak dikenal terlihat jelas di laporan (dan dapat dihitung untuk memicu peringatan otomatis tim engineering), dan ketika data dimensi susulan tiba, kunci fakta dapat diperbaiki.
 
 Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terdaftar di tabel pelanggan sumber. Dengan anggota unknown, transaksi tersebut tercatat rapi di bawah kategori tier "Unknown" dengan nilai omset Rp 5.965.000; tanpa pola ini, omset tersebut akan lenyap diam-diam dari setiap query pelaporan per tier pelanggan.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Dengan file KopiKu yang sudah dibuat, temukan pesanan yang `customer_id`-nya tidak ada di `data/customers.csv`, dan berapa baris pesanan milik mereka. Lalu putuskan: jika tabel fakta mewajibkan key pelanggan yang nyata, apa yang terjadi pada baris-baris itu, dan bagaimana anggota "Unknown" menyelamatkannya?
+>
+> **Seharusnya Anda melihat:** `16` pesanan dan `32` baris pesanan (angka yang disebut pelajaran ini). Tulis satu kalimat yang akan Anda cantumkan di dokumentasi model tentang mereka.
 
 ## @lesson Slowly changing dimensions: merekam kebenaran masa lalu
 Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diperbarui. Nilai atribut dalam dimensi berubah secara **perlahan (slowly)** seiring waktu, dan Anda harus memutuskan apa yang harus ditampilkan oleh laporan tentang masa lalu. Keputusan arsitektur inilah yang dinamakan tipe **Slowly Changing Dimension (SCD)**:

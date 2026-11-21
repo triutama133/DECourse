@@ -27,6 +27,10 @@ Kalkulasi analitik yang benar wajib menggunakan **event time**: mengelompokkan d
 
 Prinsip penting arsitektur: jika sebuah keputusan bisnis masih dapat menunggu laporan dalam hitungan jam, **pendekatan batch jauh lebih sederhana, murah, dan stabil** (Modul 0.1). Kompleksitas engine stream processing dibenarkan untuk skenario deteksi fraud realtime, dashboard operasional toko langsung, alerting otomatis, serta penyaluran data cepat ke sistem hilir.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Simulasikan sebuah gangguan. Ada satu event per menit dengan menit event 0 sampai 59. Biasanya menit pemrosesan sama dengan menit event, tetapi event menit 20 sampai 39 baru diproses bersamaan pada menit pemrosesan 40, setelah pipeline pulih. Hitung event per menit pemrosesan dan per menit event dengan `collections.Counter`. Cetak menit tersibuk dari masing-masing, dan berapa menit berbeda yang punya data di masing-masing.
+>
+> **Seharusnya Anda melihat:** waktu pemrosesan: menit `40` berisi `21` event (lonjakan yang sebenarnya tidak pernah terjadi), dan hanya `40` menit yang punya data (celah 20 menit kosong); waktu event: setiap dari `60` menit berisi tepat `1` event. Tampilan waktu event itulah yang benar, dan sebuah window harus menunggu event yang terlambat untuk melihatnya.
+
 ## @lesson Windowing (jendela waktu)
 Operasi agregasi matematika (seperti `count`, `sum`, `avg`) pada aliran data streaming yang tidak terbatas (unbounded) membutuhkan batasan kelompok waktu yang terhingga, yang diwujudkan dalam bentuk **Window** berbasis event time:
 
@@ -119,6 +123,10 @@ Pada skala produksi nyata (jutaan akun transaksi pelanggan, berjalan berbulan-bu
 
 Tanpa pemenuhan syarat ketiga, Anda hanya memiliki jaminan at-least-once dengan potensi rekaman data duplikat (Modul 3.2). Dengan memadukan ketiganya, Anda memperoleh *efek exactly-once* yang sempurna.
 
+> 🛠 **Coba sendiri (20 menit, Python).** Tulis job streaming dalam bentuk mini: list sumber `["a","b","a","c","a","b","a","a"]` diproses dalam batch berisi 3, sambil menyimpan hitungan berjalan per key. Setelah setiap batch, tulis output ke sink lalu tulis file checkpoint (`{"offset": ..., "state": ...}`). Buat job-nya crash setelah output batch 1 ditulis tetapi sebelum checkpoint-nya, lalu jalankan lagi. Jalankan dua kali: sekali dengan sink yang **menambahkan** baris `(batch_id, counts)`, dan sekali dengan sink yang **menimpa** berdasarkan `batch_id` (sebuah dict). Bandingkan state akhirnya dan jumlah baris di sink.
+>
+> **Seharusnya Anda melihat:** kedua run berakhir dengan state `{'a': 5, 'b': 2, 'c': 1}` karena checkpoint menyimpan kemajuannya. Sink yang menambahkan berisi `4` baris (batch 1 muncul dua kali: output terduplikasi), sink yang menimpa berisi `3`, satu per batch id. Sumber yang bisa diputar ulang, checkpoint, dan sink yang idempoten: Anda baru saja membangun tiga syarat untuk efek exactly-once.
+
 ## @lesson Spark Structured Streaming dan Apache Flink
 **Apache Spark Structured Streaming** memandang aliran streaming sebagai sebuah tabel yang bertambah terus tanpa batas (unbounded table) dan menggunakan DataFrame dan SQL API deklaratif yang sama persis dengan mode batch. Logika transformasi batch Anda sering kali dapat dipindahkan ke streaming dengan sedikit adaptasi. Di balik layar, engine-nya bekerja dengan paradigma **micro-batch**: mengeksekusi serangkaian mini batch job secara berulang dan cepat terhadap data yang baru tiba. Arsitektur ini memberikan throughput data raksasa, toleransi kesalahan yang tangguh dari engine batch, serta latensi end-to-end berkisar antara hitungan detik hingga sub-detik.
 
@@ -179,6 +187,10 @@ Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti
 - **Penegakan Kualitas Data Tetap Berlaku** (Modul 2.5): ukur rasio event terlambat (late data rate), jumlah data yang dibuang (dropped events), persentase nilai null, dan anomali duplikasi sebagai metrik observabilitas dengan threshold alert otomatis.
 - **Pengujian Deterministik.** Terapkan metodologi pengujian seperti yang dilakukan pada lab modul ini: kendalikan aliran data pengujian menggunakan file dengan timestamp terurut eksplisit, jalankan dalam mode `availableNow`, dan bandingkan outputnya terhadap model matematika independen. Hindari pengujian rapuh yang mengandalkan fungsi jeda waktu `sleep()` jam dinding.
 - **Efisiensi Biaya Cloud.** Klaster komputasi yang menyala 24/7 menelan biaya cloud konstan. Jika dashboard bisnis hanya dipantau setiap sepuluh menit sekali, menjalankan job terjadwal dengan trigger `availableNow=True` setiap sepuluh menit bisa jauh lebih murah dibandingkan menjalankan streaming nonstop.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Sebuah job menerima 100 event per detik tetapi hanya mampu memproses 80. Simulasikan 600 detik, dengan `lag += arrived - processed` setiap detik, dan cetak lag-nya. Lalu turunkan input menjadi 50 per detik dan hitung berapa detik lagi sampai lag-nya mencapai nol (pemrosesan tetap 80, dan lag tidak bisa di bawah 0).
+>
+> **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Tidak ada yang perlu dibangunkan untuk job yang gagal, tetapi job yang sekadar lebih lambat dari inputnya adalah kegagalan yang tumbuh diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
 
 ## @lab Lab: memodelkan watermark, lalu memverifikasinya terhadap Spark nyata
 Lab ini terdiri dari dua bagian yang saling melengkapi: Bagian A membangun model logika windowing dan watermark dalam Python murni hingga mereproduksi tabel perilaku modul secara presisi. Bagian B membangun job nyata Apache Spark Structured Streaming yang memproses file micro-batch, membuktikan bahwa **hasil emisi window Spark identik 100% dengan prediksi model Anda**, memverifikasi pemulihan dari checkpoint, serta membuktikan pembuangan event yang benar-benar terlambat.

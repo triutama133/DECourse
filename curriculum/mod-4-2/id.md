@@ -48,6 +48,10 @@ python3 labs/mod-4-2/fetch_data.py
 cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 ```
 
+> 🛠 **Coba sendiri (20 menit, terminal).** Kerjakan persiapan di atas di `~/seismic`. Sebelum menulis pipeline-nya, jalankan pemeriksa untuk langkah 1 pada starter yang belum disentuh: `python3 labs/mod-4-2/check.py ~/seismic --step 1`, lalu `--hint 1`. Baca apa yang dikatakan pemeriksa apa adanya, dan catat "serangan" mana dari empat yang disebut di atas yang belum Anda pikirkan cara menanganinya.
+>
+> **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `earthquakes_seed.json` dengan hash yang cocok. Pemeriksa mencetak `--- Step 1: Raw data profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, dan `Summary: 0 passed, 1 failed`; petunjuk 1 menyuruh Anda memuat file seed dengan `json.load()` dan melihat properti serta geometri setiap feature. Tidak lebih: pekerjaannya milik Anda.
+
 ## @lesson Mengenal datanya: USGS Earthquake Hazards API
 **United States Geological Survey (USGS)** mengoperasikan Earthquake Hazards Program yang menyediakan data seismik gempa bumi global secara terbuka (public domain). Endpoint API publik mereka mengembalikan feed berformat GeoJSON:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`

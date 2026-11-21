@@ -39,6 +39,10 @@ Beberapa kode yang akan Anda temui:
 
 Perintah proses yang berguna: `ps aux` (daftar proses), `top` atau `htop` (tampilan langsung CPU dan memori), `kill <pid>` (kirim SIGTERM), `kill -9 <pid>` (SIGKILL, tidak bisa ditangkap, pakai sebagai pilihan terakhir), dan `Ctrl+C` (kirim SIGINT ke proses latar depan).
 
+> 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus, jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, jalankan `bash job.sh` dan periksa `echo $?`.
+>
+> **Seharusnya Anda melihat:** `0`, `1`, `2`, `1`, `7`; dan untuk skripnya `start` lalu exit code `1`. Hapus `set -e` dan jalankan lagi: baris terakhir kini ikut tercetak, dan exit code-nya menjadi `0`, sebuah kebohongan kepada setiap penjadwal.
+
 ## @lesson Perkakas pengolah teks
 Sebagian besar data di server datang sebagai teks. Alat-alat ini memungkinkan Anda memeriksa dan meringkasnya dalam hitungan detik, dan mereka **streaming**: memproses satu baris sekali waktu, sehingga pemakaian memori tetap datar bahkan pada file 50 GB. Pakai untuk eksplorasi dan untuk job sederhana yang tangguh.
 
@@ -159,6 +163,13 @@ Baris pertama berjalan pukul 02.00 setiap hari. Ketahui kejutan-kejutan ini sebe
 
 Poin terakhir itulah alasan pipeline sungguhan pindah ke **orchestrator** seperti Airflow atau Dagster (Modul 2.4), yang menambah dependensi, retry, backfill, dan UI. cron tetap alat yang tepat untuk job sederhana yang mandiri di satu mesin.
 
+> 🛠 **Coba sendiri (10 menit, terminal).** Anda tidak bisa menunggu sampai tengah malam, jadi latih tiga hal yang paling sering menjebak orang.
+> 1. Tulis baris cron lima kolom untuk: setiap hari pukul 02:30; setiap 15 menit; pukul 06:00 hanya di hari kerja; tengah malam pada hari pertama setiap bulan.
+> 2. Lihat seperti apa environment cron yang kosong: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, lalu `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` di shell Anda sendiri.
+> 3. Run yang tumpang tindih: di satu terminal jalankan `flock -n /tmp/demo.lock sleep 20`; di terminal kedua jalankan `flock -n /tmp/demo.lock echo second; echo $?`.
+>
+> **Seharusnya Anda melihat:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` di environment kosong (shell Anda punya keduanya); dan `1` dari `flock` kedua tanpa `second` tercetak: kuncinya sedang dipegang, jadi salinan yang tumpang tindih menolak berjalan.
+
 ## @lesson Container: lingkungan yang sama di mana-mana
 "Di mesin saya jalan" adalah masalah tertua dalam perangkat lunak. Job Anda bergantung pada versi Python tertentu, library, paket sistem, dan tata letak file; server punya yang berbeda. **Container** mengemas aplikasi bersama semua yang dibutuhkannya untuk berjalan, terisolasi dari host, sehingga berperilaku sama di laptop Anda, di CI, dan di produksi.
 
@@ -223,6 +234,12 @@ Penyebab yang lazim dalam kerja data:
 Perbaikannya mengikuti prinsip yang sama: **proses secara stream atau dalam potongan terbatas, dan jaga memori sebanding dengan satu batch, bukan dengan seluruh masukan.** Alat shell di modul ini melakukannya secara alami; Modul 1.2 menunjukkan versi Python-nya (generator), dan Modul 2.1 menunjukkan engine (DuckDB, Polars) yang menumpahkan ke disk alih-alih mati.
 
 Batas terkait yang perlu dipantau: **disk** (disk penuh membuat penulisan gagal dengan cara aneh, jadi bersihkan file sementara dan pantau pemakaian), throttling **CPU** (job Anda hanya jadi lambat), dan **file terbuka**. Ketika container berperilaku aneh, perintah pertama adalah `docker logs <nama>`, `docker stats` (memori dan CPU langsung), `docker inspect <nama>` (exit code, OOMKilled), dan `docker exec -it <nama> sh` (melihat-lihat di dalam).
+
+> 🛠 **Coba sendiri (10 menit).**
+> 1. Exit code 137 adalah 128 + 9, sinyal SIGKILL yang membunuh container yang melewati batas memorinya. Buktikan: `sleep 100 & kill -9 $!; wait $!; echo $?`.
+> 2. Bandingkan memori. Di Python, tulis dua fungsi yang menjumlahkan total yang valid dari `data/orders.csv`: satu membaca seluruh file ke list dulu (`list(csv.reader(...))`), yang lain menjumlahkan baris demi baris. Bungkus setiap pemanggilan dengan `tracemalloc` (`tracemalloc.start()` sebelumnya, `tracemalloc.get_traced_memory()[1]` sesudahnya, lalu `tracemalloc.stop()`) dan cetak puncaknya dalam KiB.
+>
+> **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dibanding sekitar 50 KiB untuk versi streaming (kira-kira 30 kali lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
 
 ## @lab Lab: laporan shell dan container untuk job KopiKu
 Bagian A: tulis skrip shell yang tangguh untuk meringkas file event website, yang berisi baris rusak dan duplikat. Bagian B: kemas job Python kecil menjadi image Docker yang baik. Keduanya diperiksa otomatis.

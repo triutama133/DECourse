@@ -250,6 +250,10 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 
 > **Tip:** Uji pada volume yang realistis. Pada 1.000 baris setiap plan cepat dan tidak memberi tahu apa-apa. Bangkitkan data pada skala produksi (lab melakukannya) sebelum menilai sebuah query.
 
+> 🛠 **Coba sendiri (12 menit, Python dan SQLite).** Muat `data/orders.csv` ke SQLite (pakai lagi skrip Anda dari Modul 0.1). Untuk setiap query, cetak `EXPLAIN QUERY PLAN` (kolom terakhir): (1) `WHERE customer_id = '479'`; (2) yang sama setelah `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` dengan index sudah ada; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` sebelum dan sesudah `CREATE INDEX ix_ts ON orders(order_ts)`.
+>
+> **Seharusnya Anda melihat:** `SCAN orders` untuk (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` untuk (2); `SCAN orders` lagi untuk (3), karena fungsi pada kolom membuat index tidak terpakai (sargability); dan untuk (4) sebuah `SCAN` yang berubah menjadi `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
+
 ## @lesson Index: apa itu, mana yang dibangun, apa biayanya
 **Index** adalah struktur terurut terpisah yang memetakan nilai kolom ke lokasi baris, seperti indeks di belakang buku. Bawaannya adalah **B-tree**: mendukung kesamaan (`=`), rentang (`<`, `BETWEEN`), dan pengurutan (`ORDER BY`), karena menjaga kunci tetap terurut. Memilih index adalah keterampilan desain dengan beberapa aturan.
 
@@ -323,6 +327,10 @@ Baca baris ketiga dan keempat dua kali. Laporan yang mengurutkan menurut kolom n
 5. **Saat bertemu engine baru**, jawab ini sebelum menulis query: bagaimana tanggal dan zona waktu disimpan? apa yang dilakukan `/` pada bilangan bulat? di mana NULL terurut? bagaimana nama dikutip dan dibandingkan (huruf besar-kecil, spasi)? apakah constraint dan foreign key ditegakkan? bagaimana string diagregasi? apakah ada `QUALIFY`? bagaimana `LIMIT`/`OFFSET` (atau `TOP`, `FETCH FIRST`) ditulis? apa yang terjadi pada `CAST` yang buruk?
 
 Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan DDL, Modul 0.3) dan **w-11 sampai w-14** (QUALIFY, FILTER, pengelompokan tanggal, median tanpa `MEDIAN()`) memakai persis gagasan-gagasan ini.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install duckdb`. Eksekusi setiap pernyataan di SQLite (`sqlite3`) dan di DuckDB, lalu cetak kedua hasilnya berdampingan: `SELECT 7/2`; `SELECT 'abc' LIKE 'ABC'`; `SELECT x FROM (SELECT 1 AS x UNION ALL SELECT NULL UNION ALL SELECT 2) ORDER BY x`; `SELECT x, y FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 1, 3) GROUP BY x` (tangkap error-nya).
+>
+> **Seharusnya Anda melihat:** `3` dibanding `3.5`; `1` dibanding `False`; NULL di awal dibanding NULL di akhir; sebuah baris sembarang `(1, 2)` dibanding `Binder Error`. Empat perbedaan diam-diam dalam empat baris: mana yang akan menipu Anda?
 
 ## @lesson Subtotal dan total akhir: GROUPING SETS, ROLLUP, dan CUBE
 Sebuah laporan sering butuh baris detail, subtotal, dan total akhir dalam satu tabel. Dengan `GROUP BY` biasa itu memerlukan satu query per tingkat, disambung dengan `UNION ALL` (tantangan k-29 melakukannya untuk satu baris total). SQL punya perluasan `GROUP BY` yang menghitung beberapa pengelompokan dalam **satu kali lewat** data:

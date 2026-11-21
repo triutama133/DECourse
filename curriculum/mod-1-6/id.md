@@ -17,6 +17,7 @@ why: Tutorial memanggil satu API sekali dan mencetak hasilnya. Ingestion sungguh
 Modul 0.0 dan 1.2 (Python, error, idempotensi). Lab hanya butuh pustaka standar Python dan tidak butuh koneksi internet: tes menjalankan API palsu kecil di komputer Anda sendiri.
 
 ## @lesson Bagaimana data masuk ke platform
+> **Intinya:** Data datang sebagai file, panggilan API, pembacaan database, atau event. Anda memilih pull atau push, dan penuh atau inkremental. Job yang bisa dipercaya itu lengkap, aman diulang, mentah dulu, bisa diamati, dan sopan kepada sumbernya.
 Semua yang dibangun data engineer dimulai dari **ingestion**: memindahkan data dari tempat ia dibuat ke tempat ia bisa dipakai. Sumbernya terbagi dalam empat keluarga:
 
 - **File**: CSV, JSON, Parquet yang dijatuhkan di server, folder SFTP, atau penyimpanan cloud oleh mitra atau job ekspor.
@@ -36,7 +37,18 @@ Apa yang dijanjikan **job ingestion yang tepercaya**, dan apa yang diajarkan mod
 
 Satu prinsip terakhir: sumber **tidak berada di bawah kendali Anda**. Ia bisa lambat, mengubah field-nya, mengembalikan error pukul 3 pagi, atau memblokir Anda karena penyalahgunaan. Kode yang ditulis seolah jaringan itu sempurna rusak di minggu pertama.
 
+> 🛠 **Coba sendiri (3 menit, pena dan kertas).** Untuk setiap kasus, tulis keluarga sumbernya (file, API, database, event), pull atau push, dan penuh atau inkremental.
+> 1. Seorang mitra mengunggah `sales.csv` ke folder SFTP setiap malam.
+> 2. Penyedia pembayaran memanggil URL milik Anda setiap kali pembayaran berhasil.
+> 3. Sebuah job menjalankan `SELECT * FROM orders WHERE updated_at > :last_run` setiap jam.
+> 4. Sebuah aplikasi menerbitkan setiap klik ke topic Kafka.
+>
+> Lalu pilih janji yang paling sulit dari kelima janji (lengkap, aman diulang, mentah dulu, bisa diamati, sopan) untuk setiap kasus, dan jelaskan alasannya dalam satu kalimat.
+>
+> *Bandingkan setelah selesai:* 1 adalah file yang Anda tarik (penuh, atau inkremental jika file hanya berisi baris baru); 2 adalah event yang didorong ke Anda (inkremental secara alami); 3 adalah database yang Anda tarik secara inkremental; 4 adalah aliran event: aplikasi mendorong ke log dan consumer Anda menariknya dari sana. Latihan ini tidak punya pemeriksa: jawaban di atas itulah pemeriksaannya.
+
 ## @lesson API HTTP dalam sepuluh menit
+> **Intinya:** Sebuah request terdiri dari metode, URL, dan header; jawabannya berupa status, header, dan JSON. 2xx berarti beres, 4xx berarti request Anda salah (jangan diulang), 429 dan 5xx berarti coba lagi nanti. Jauhkan rahasia dari kode dan selalu pasang timeout.
 API HTTP bekerja seperti halaman web untuk program. Anda mengirim **request** (metode seperti GET, sebuah URL, header, dan kadang body) dan menerima **response** (status code, header, dan body, biasanya JSON).
 
 ```text
@@ -72,7 +84,17 @@ Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), 
 > `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Pelajaran 3 untuk menangani pagination dan retry jaringan!
 
+> 🛠 **Coba sendiri (10 menit, praktik langsung).** Jalankan API latihan di terminal kedua dan biarkan menyala: `python3 labs/mod-1-6/fakeapi.py` (isinya 25 pesanan; tokennya `learner-token`; docstring file itu mendaftar endpoint-nya).
+> 1. Di terminal pertama: `curl -i "localhost:8765/orders?limit=3"`. Status apa yang Anda dapat, dan mengapa?
+> 2. Perbaiki sendiri dengan menambahkan header `-H "Authorization: Bearer learner-token"`. Baca baris status, header `Content-Type`, dan JSON-nya. Apa isi `next_cursor`?
+> 3. Di `try_http.py`, hanya dengan `urllib` dari standard library, lakukan GET ke URL yang sama dengan header itu dan cetak status code serta daftar id pesanan. Lalu panggil tanpa header, tangkap error-nya, dan cetak kodenya.
+>
+> **Seharusnya Anda melihat:** `401` untuk langkah 1, lalu `HTTP/1.0 200 OK`, `application/json`, dan `"next_cursor": "3"` untuk langkah 2, dan dari skrip Anda `200 [1, 2, 3]` diikuti `401`.
+>
+> **Periksa:** simpan skrip-skrip latihan ini dalam satu folder, misalnya `~/practice`, dan jalankan `python3 labs/tryit/check.py 1.6-2 ~/practice`. Pemeriksa menjalankan salinan API latihannya sendiri, jadi hentikan milik Anda (Ctrl+C) lebih dulu.
+
 ## @lesson Membaca semua data: pagination, rate limit, dan retry
+> **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
 API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
 
 - **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data hidup. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman 10 sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris diambil untuk 25 pesanan sebenarnya**: 3 duplikat (baris yang lebih lama bergeser ke halaman berikutnya). Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.
@@ -98,7 +120,17 @@ Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di 
 > `pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 4 untuk mekanisme checkpoint pemuatan bertahap!
 
+> 🛠 **Coba sendiri (15 menit, praktik langsung).** Biarkan API latihan tetap menyala. Mulai setiap langkah dari keadaan bersih dengan `curl localhost:8765/reset`.
+> 1. *Halaman offset bergeser.* Baca halaman 1 dengan `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Sekarang biarkan 3 pesanan baru datang (`.../arrive?n=3`, header yang sama). Baca halaman 2 dengan `offset=10`. Id mana di halaman 2 yang sudah ada di halaman 1?
+> 2. *Cursor tidak bergeser.* Di `cursor_all.py`, baca **semua** pesanan dari `/orders?limit=10` dengan mengikuti `next_cursor` sampai kosong, dan panggil `/arrive?n=3` sekali tepat setelah halaman pertama. Cetak berapa id yang Anda kumpulkan dan berapa yang unik.
+> 3. *Rate limit.* Panggil `/limited` dari `limited.py`. Saat mendapat 429, cetak statusnya dan nilai `Retry-After`, tidur tepat selama itu, panggil lagi, dan cetak status yang baru.
+>
+> **Seharusnya Anda melihat:** halaman 1 berisi id 25 turun sampai 16, dan halaman 2 mengulang 18, 17, dan 16; skrip cursor mencetak `28 28`; skrip rate limit mencetak `429 2.0` lalu `200`.
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (perlu `cursor_all.py` dan `limited.py`; hentikan dulu API latihan Anda sendiri). Pemeriksa juga mencoba `limited.py` Anda pada server yang meminta waktu tunggu berbeda, jadi baca header-nya, jangan menulis angkanya langsung di kode.
+
 ## @lesson Pemuatan inkremental dan checkpoint
+> **Intinya:** Checkpoint menyatakan sejauh mana Anda sudah sampai. Tulis datanya dulu, baru checkpoint-nya, dan buat pemuatannya aman diulang (ganti atau hapus duplikat), agar crash hanya berarti mengulang, bukan kehilangan data.
 Menyalin 5 tahun pesanan setiap malam itu boros. **Pemuatan inkremental** hanya mengambil yang baru atau berubah. Ia membutuhkan dua hal: parameter API seperti `updated_since`, dan sebuah **checkpoint** (disebut juga high-water mark atau watermark): titik sampai mana Anda sudah memuat, misalnya `updated_at` terbesar yang pernah Anda lihat.
 
 Satu putaran lalu tampak seperti ini:
@@ -129,7 +161,17 @@ Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah!
 
+> 🛠 **Coba sendiri (15 menit, praktik langsung).** Tulis `load.py` untuk API latihan: baca pesanan dengan cursor (`limit=5`) dan tambahkan ke `out.jsonl`; **setelah** setiap halaman ditulis, simpan `{"cursor": ...}` ke `checkpoint.json` (tulis file sementara, lalu `os.replace`). Saat skrip mulai, ia melanjutkan dari `checkpoint.json` jika file itu ada. Taruh `time.sleep(1)` setelah menulis setiap halaman, agar Anda sempat menghentikannya.
+> 1. Jalankan `curl localhost:8765/reset`, lalu mulai `load.py` dan tekan Ctrl+C setelah kira-kira dua halaman. Bandingkan `wc -l out.jsonl` dengan cursor di `checkpoint.json`: mengapa file bisa berisi lebih banyak baris daripada yang dikatakan checkpoint?
+> 2. Jalankan `load.py` lagi sampai selesai, lalu jalankan `python3 -c "import json; ids=[json.loads(l)['id'] for l in open('out.jsonl')]; print(len(ids), len(set(ids)))"`. Buat loader Anda menghapus duplikat berdasarkan `id` sampai ia mencetak `25 25`.
+> 3. Sekarang rusak dengan sengaja: hapus `out.jsonl` dan `checkpoint.json`, reset API-nya, dan tukar urutannya (simpan checkpoint **lebih dulu**, tidur, baru tulis halamannya). Hentikan saat tidur, jalankan sampai selesai, lalu jalankan lagi pemeriksaan dari langkah 2.
+>
+> **Seharusnya Anda melihat:** di langkah 1 lebih banyak baris daripada yang tersirat dari checkpoint (halaman yang sedang diproses sudah ditulis tetapi belum di-checkpoint); `25 25` di langkah 2; di langkah 3 kurang dari 25 baris, dan id yang hilang membentuk satu halaman berisi lima. Halaman itu hilang selamanya, dan itulah sebabnya checkpoint disimpan paling akhir.
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.6-4 ~/practice` memeriksa versi `load.py` dari langkah 1 dan 2 (checkpoint disimpan paling akhir). Pemeriksa menghentikan skrip Anda sendiri, seperti Ctrl+C, lalu menjalankannya lagi.
+
 ## @lesson Mendaratkan dan membentuk data mentah
+> **Intinya:** Daratkan data mentah tanpa diubah, beserta metadata dan partisi tanggal. Ratakan objek bersarang menjadi kolom, simpan list sebagai teks JSON, dan deteksi saat sebuah field berubah tipe.
 Simpan apa yang Anda terima, sebagaimana Anda menerimanya, di area **landing** (disebut juga raw atau bronze, Modul 2.2). Jangan memperbaiki, mengganti nama, atau membuang apa pun pada tahap ini; lakukan pembersihan di langkah berikutnya yang bisa diulang (Modul 2.3). Alasannya praktis: jika pembersihan Anda punya bug, Anda bisa memperbaikinya dan memproses ulang dari salinan mentah alih-alih meminta sumber mengirim data bulan lalu lagi, yang mungkin sudah tidak tersedia.
 
 Kebiasaan landing yang baik:
@@ -152,7 +194,21 @@ Kebiasaan landing yang baik:
 > `pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 6 untuk merangkai pipeline ingestion inkremental penuh!
 
+> 🛠 **Coba sendiri (10 menit, praktik langsung).** Dengan API latihan menyala, ambil satu pesanan yang datanya bersarang: `curl -H "Authorization: Bearer learner-token" localhost:8765/orders/1`.
+> 1. Tulis `flatten(record)` di `flat.py`: objek bersarang menjadi kolom yang dinamai menurut jalurnya (`customer_address_city`), list disimpan sebagai teks JSON. Kode Anda harus lulus pemeriksaan ini (`order1` adalah JSON dari `/orders/1` yang sudah di-parse):
+>    `flat = flatten(order1)`
+>    `assert flat["customer_address_city"] == "Jakarta"`
+>    `assert flat["customer_id"] == 7`
+>    `assert flat["items"] == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]'`
+>    `assert "customer" not in flat`
+> 2. Buat salinan `flat` yang `total_idr`-nya berupa teks `"Rp 1.000"`. Di `flat.py`, tulis juga `type_changes(old, new)`: ia mengembalikan list berisi satu teks, misalnya `total_idr: int -> str`, untuk setiap field yang ada di kedua record dan tipenya berubah (list kosong jika tidak ada yang berubah). Cetak hasilnya untuk `flat` dan salinan Anda.
+>
+> **Seharusnya Anda melihat:** tidak ada assertion error, dan untuk langkah 2 `['total_idr: int -> str']`. Itulah schema drift, ditemukan dalam empat baris kode.
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.6-5 ~/practice` juga mencoba `flat.py` pada record lain.
+
 ## @lesson File, database, dan menjalankannya sungguhan
+> **Intinya:** File: tunggu sampai lengkap dan catat nama serta checksum-nya. Database: baca dari replika dan pakai kolom inkremental. Jalankan dengan hitungan, rekonsiliasi, dan backfill yang disengaja.
 **File.** Mitra menjatuhkan file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau ("file pukul 06:00 belum datang").
 
 **Database.** Pilihannya **salinan tabel penuh** (sederhana, berat bagi sumber), **salinan inkremental menurut timestamp atau id yang naik** (logika checkpoint yang sama seperti di atas; ia melewatkan penghapusan dan mengandalkan `updated_at` yang tepercaya), dan **change data capture** dari log (Modul 3.2). Apa pun pilihan Anda, baca dari **replika** bila mungkin dan hindari query panjang pada primary produksi (Modul 1.3). Hormati batas tim aplikasi seperti Anda menghormati batas API.
@@ -179,6 +235,15 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 > 2. Jalankan seluruh rangkaian pengujian di terminal:
 > `pytest labs/mod-1-6/test_lab.py -v`
 > Ketika semua 37 tes berstatus PASSED, pipeline data ingestion Anda telah memenuhi standar industri data engineering!
+
+> 🛠 **Coba sendiri (10 menit, praktik langsung).** Buat file KopiKu (`python3 labs/shared/shopgen.py --out data`) dan perlakukan `data/orders.csv` sebagai kiriman dari mitra. Tulis ketiga langkah dalam satu skrip, `load_orders.py`.
+> 1. Dengan modul `csv`, hitung jumlah baris dan jumlah nilai `order_id` yang unik. Bandingkan dengan `orders_rows`, `orders_distinct`, dan `orders_duplicate_rows` di `data/manifest.json`.
+> 2. Muat file ke tabel SQLite yang primary key-nya `order_id` (pakai `INSERT OR REPLACE`), lalu cetak jumlah barisnya.
+> 3. Jalankan pemuatan untuk kedua kalinya di skrip yang sama, lalu cetak lagi jumlah barisnya.
+>
+> **Seharusnya Anda melihat:** `3634 3599` di langkah 1 (35 baris duplikat, sesuai manifest), lalu `3599` dan `3599` di langkah 2 dan 3. Bandingkan juga dengan `wc -l data/orders.csv`: hasilnya 3635, karena ada baris header. Menghitung baris di setiap perpindahan adalah cara termurah untuk membuktikan tidak ada yang hilang.
+>
+> **Periksa:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (skrip Anda membaca `data/orders.csv` relatif terhadap folder tempat ia dijalankan).
 
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.

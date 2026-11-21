@@ -40,6 +40,10 @@ Model mental yang paling penting: **pandas bekerja pada seluruh kolom sekaligus.
 
 Dua kebiasaan untuk dimulai. Pertama, **lihat sebelum mengubah**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df["country"].value_counts()`. Kedua, **jangan mengedit di tempat tanpa alasan**: bangun frame baru dari yang lama (`assign`, `rename`, `dropna`), yang juga membuat fungsi Anda mudah diuji, seperti di lab.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install pandas`. Muat `data/orders.csv` dengan `pd.read_csv`. Cetak `df.shape` dan `df.dtypes`. Terjemahkan tiga query SQL ke pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, dan jumlah baris dengan `WHERE status = 'delivered'`. Lalu ulangi hitungan status setelah `df["status"].str.strip().str.lower()` dan bandingkan.
+>
+> **Seharusnya Anda melihat:** `(3634, 6)`; hitungan status mentah yang memuat varian seperti `DELIVERED`, tepat `2080` baris `delivered` pada hitungan yang persis sama, dan setelah huruf kecil lima status: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
+
 ## @lesson Memuat file dengan benar
 `pd.read_csv("orders.csv")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:
 

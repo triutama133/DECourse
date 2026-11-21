@@ -48,6 +48,10 @@ python3 labs/mod-4-3/fetch_data.py
 cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py
 ```
 
+> 🛠 **Coba sendiri (20 menit, terminal).** Kerjakan persiapan di atas di `~/fleet`. Sebelum menulis prosesornya, jalankan pemeriksa untuk langkah 1 pada starter yang belum disentuh: `python3 labs/mod-4-3/check.py ~/fleet --step 1`, lalu `--hint 1`. Tulis dalam satu kalimat apa yang menurut Anda dimaksud "tidak berurutan" untuk data di `events_seed.jsonl`, lalu buka `labs/mod-4-3/data/events_seed.jsonl` dan cocokkan tebakan Anda dengan dua puluh baris pertamanya.
+>
+> **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `events_seed.jsonl` dengan hash yang cocok. Pemeriksa mencetak `--- Step 1: Raw stream profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, dan `Summary: 0 passed, 1 failed`. Di file itu, baris kedua sudah punya `event_time` yang lebih awal daripada baris pertama. Itulah yang harus ditangani watermark di capstone ini.
+
 ## @lesson Semantik waktu: Event time, processing time & aliran data tidak berurutan
 Dalam pemrosesan batch tradisional, waktu bersifat statis: file memuat data historis kemarin, dan Anda menjalankan kueri SQL atas seluruh snapshot tersebut. Dalam pemrosesan stream, waktu bersifat mengalir dan memiliki banyak dimensi. Terdapat tiga konsep waktu yang fundamental:
 

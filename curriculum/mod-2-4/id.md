@@ -32,6 +32,10 @@ Apa yang **bukan** tugas orkestrator: orkestrator bukanlah tempat untuk melakuka
 
 Dua ekosistem orkestrator yang paling dominan di industri adalah **Apache Airflow** (standar de facto industri yang sudah lama mapan, berpusat pada task/tugas, digunakan oleh ribuan korporasi global) dan **Dagster** (orkestrator modern yang berpusat pada data asset, dirancang mengikuti aliran lifecycle data). Ada pula alternatif lain seperti Prefect, Kestra, dan Mage; namun begitu Anda menguasai prinsip fundamental di modul ini, konsep tersebut dapat ditransfer ke platform mana pun dengan mudah.
 
+> 🛠 **Coba sendiri (20 menit, Python).** Bangun orkestrator mini. Dependensinya adalah `{"extract": [], "clean": ["extract"], "audit": ["extract"], "load": ["clean"], "report": ["load"]}`, dan setiap task adalah fungsi Python kecil. Buat `load` memunculkan `RuntimeError("warehouse busy")` pada dua panggilan pertamanya dan berhasil pada panggilan ketiga. Tulis `run(retries)`: mulai sebuah task hanya jika semua task hulunya berhasil, ulangi sampai `retries` kali tambahan saat ia gagal, tandai `failed` jika jatah ulang habis, dan tandai semua yang ada di hilir kegagalan sebagai `skipped`. Cetak satu baris per percobaan dan status akhir setiap task. Jalankan dengan `retries=2` dan sekali lagi dengan `retries=1`.
+>
+> **Seharusnya Anda melihat:** dengan `retries=2`, `load` gagal dua kali (`warehouse busy`) dan berhasil pada percobaan ke-3, dan kelima task berakhir `success`. Dengan `retries=1`, `load` berakhir `failed`, `report` menjadi `skipped`, dan `extract`, `clean`, serta `audit` tetap `success`: `audit` tidak bergantung pada `load`, jadi kegagalan itu tidak menghentikannya. Loop kecil itulah inti setiap orkestrator: dependensi, retry, dan status untuk setiap task.
+
 ## @lesson Konsep inti: runs, intervals, dan partitions
 Graf dependensi di orkestrator dimodelkan sebagai **DAG (Directed Acyclic Graph)**: node melambangkan task atau asset data, tanda panah melambangkan "berjalan setelah" atau "bergantung pada", dan sifat **acyclic** memastikan tidak ada lingkaran setan/rekursi tak berujung (no circular dependencies), sehingga urutan eksekusi selalu deterministik.
 
@@ -218,6 +222,10 @@ Tidak ada satu platform yang "secara mutlak lebih superior". Airflow tetap menja
 - **Dokumentasikan kepemilikan dan panduan insiden (runbooks)**: siapa insinyur yang bertanggung jawab jika terjadi kegagalan, prosedur investigasi awal yang harus dilakukan, serta langkah aman untuk melakukan eksekusi ulang.
 
 Anti-pattern yang wajib dihindari: pemanggilan `now()` di dalam badan task; operasi penambahan baris (append) tanpa partisi; pengiriman data besar melalui mekanisme XCom; query database berat di top-level file DAG Airflow; retry tanpa henti untuk error deterministik; serta meluncurkan backfill ratusan partisi tanpa batasan konkurensi.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Sebuah job seharusnya berhasil setiap hari pukul 02:00. Run yang berhasil di Januari 2026 ada pada tanggal 1, 2, 4, 5, 8, 9, dan 10. Dengan `datetime.date` dan `timedelta`, tulis `missing_runs(success_dates, start, end)` yang mengembalikan hari-hari tanpa run yang berhasil, lalu cetak hari yang hilang antara 2026-01-01 dan 2026-01-10 serta rentang terpanjang hari hilang yang berturut-turut.
+>
+> **Seharusnya Anda melihat:** `2026-01-03`, `2026-01-06`, dan `2026-01-07`, dan rentang terpanjang `2` hari. Perhatikan bahwa tidak ada yang gagal di hari-hari itu: tidak ada yang berjalan sama sekali, jadi peringatan kegagalan tidak akan pernah berbunyi. Inilah peringatan "run yang hilang" dari daftar di atas.
 
 ## @lab Lab: pipeline harian di Dagster, diuji layaknya software
 Bangun pipeline pemrosesan data harian KopiKu sebagai rangkaian asset terkelola di Dagster: lakukan pembersihan data transaksi per partisi harian, hitung ringkasan pendapatan harian, buat laporan agregasi seluruh hari, pasang asset checks untuk menjamin kualitas data, tetapkan kebijakan retry, dan pasang penjadwalan berbasis zona waktu Asia/Jakarta. Suite pengujian akan mengeksekusi pipeline Anda menggunakan engine orkestrasi nyata terhadap direktori filesystem temporary.

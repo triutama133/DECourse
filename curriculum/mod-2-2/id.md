@@ -31,6 +31,10 @@ Modul 2.1 telah memberi Anda format file kolumnar yang sangat efisien. Langkah l
 
 Tiga format tabel terbuka utama di industri saat ini adalah **Apache Iceberg**, **Delta Lake**, dan **Apache Hudi**. Mereka bukan format file penyimpanan (datanya tetap Parquet) dan bukan mesin komputasi: Spark, Trino, Flink, DuckDB, Snowflake, BigQuery, dan alat lainnya dapat membaca dan menulis format ini. Dipadukan dengan mesin query dan katalog metadata, lahirlah arsitektur **Lakehouse**: keandalan transaksi ACID setara data warehouse tradisional di atas media penyimpanan murah data lake.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Muat `data/orders.csv` dan potong menjadi lima bagian berisi 727 baris (`df.iloc[i*727:(i+1)*727]`). Tulis sebagai `lake/orders/part-0.parquet` sampai `part-4.parquet`, tetapi buat job-nya mati dengan `raise RuntimeError("job killed")` tepat sebelum menulis file keempat. Sekarang baca foldernya dengan `pd.read_parquet("lake/orders")` dan bandingkan jumlah barisnya dengan 3634. Lalu perbaiki penulisnya agar pembaca tidak pernah melihat setengah tabel: tulis ke `lake/orders.tmp` dan baru `os.rename` menjadi `lake/orders` setelah kelima file ada. Buat crash lagi di folder baru dan periksa apa yang ditemukan pembaca. Hapus `lake/` setelah selesai.
+>
+> **Seharusnya Anda melihat:** penulis yang rusak meninggalkan `lake/orders` berisi 3 file dan pembaca mengembalikan `2181` baris dari 3634 **tanpa error sama sekali**. Dengan penulis folder-sementara-lalu-rename, `lake/orders` tidak ada setelah crash, sehingga pembaca gagal dengan jelas lewat `FileNotFoundError` alih-alih diam-diam mengembalikan data sebagian, dan sisa `orders.tmp` mudah ditemukan dan dibersihkan. Table format (pelajaran berikutnya) melakukan trik yang sama dengan file metadata, bukan rename folder.
+
 ## @lesson Arsitektur Iceberg: pohon metadata hierarkis
 Arsitektur Apache Iceberg dirancang sebagai **pohon file metadata immutable (metadata tree)** dengan satu pointer atomik tunggal di bagian puncaknya:
 

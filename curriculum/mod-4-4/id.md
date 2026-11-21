@@ -42,6 +42,10 @@ Argumen `--constraint` mengunci versi dependensi yang telah teruji kompatibel se
 
 Bantuan petunjuk tersedia dalam tiga level bertingkat (`--hint 1`, `2`, `3`). Luangkan waktu minimal 30 menit untuk menganalisis masalah sebelum meminta petunjuk. Menghadapi pesan error secara mandiri adalah cara terbaik melatih kemampuan membaca pesan diagnostik Airflow, keterampilan yang akan sangat sering Anda gunakan di lingkungan kerja produksi.
 
+> 🛠 **Coba sendiri (30 menit, terminal).** Kerjakan persiapan di atas di `~/airflow-lab` (instalasi Airflow butuh beberapa menit; pertahankan constraint file-nya). Sebelum menulis DAG, jalankan `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, lalu `--hint 1`. Lalu lihat isi `labs/mod-4-4/data/inbox/`: ada berapa file, dan seperti apa satu baris dari satu file?
+>
+> **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. Pemeriksa mencetak `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace`, dan `0 passed, 1 failed`. Petunjuk 1 menyarankan membaca ketujuh file dengan `json` dan `collections`, menghitung lebih dulu, dan melihat baris-baris yang aneh dengan mata. Inbox berisi tujuh file, satu per hari, dan setiap baris adalah satu objek JSON.
+
 ## @lesson Mengenal data pengiriman
 Setiap hari, tepat satu file pengiriman tiba di folder inbox: mulai dari `jobs_2026-03-01.jsonl` hingga `jobs_2026-03-07.jsonl`. Setiap baris mewakili satu postingan lowongan kerja dalam format objek JSON:
 

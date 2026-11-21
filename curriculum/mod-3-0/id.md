@@ -32,6 +32,10 @@ Hadoop adalah keluarga empat bagian yang diikuti modul ini berurutan:
 
 Gagasan kedua mengalir melalui semuanya: **pindahkan komputasi ke data, bukan data ke komputasi**. Memindahkan blok 1 GB lewat jaringan untuk menjalankan program satu kilobyte itu boros; mengirim program ke mesin yang sudah menyimpan blok itu murah. Prinsip yang sama akan Anda temui lagi sebagai partition pruning, predicate pushdown, dan data locality.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Simulasikan kehilangan mesin. Pakai `random.Random(seed)`. Taruh 1.000 blok di 20 mesin: setiap blok mendapat `r` salinan di `r` mesin yang *berbeda* (`rnd.sample(range(20), r)`). Lalu "matikan" 3 mesin secara acak (`rnd.sample(range(20), 3)`) dan hitung blok yang salinannya **semua** ada di mesin yang mati. Tulis `lost(r, seed)` dan cetak hasilnya untuk `r` = 1, 2, dan 3 dengan seed 0 sampai 4.
+>
+> **Seharusnya Anda melihat:** kira-kira `150` blok hilang dengan satu salinan (130 sampai 162 di berbagai seed), kira-kira `15` dengan dua salinan (11 sampai 17), dan `0` sampai `3` dengan tiga. Nilai harapannya 150, 15,8, dan 0,9. Setiap salinan tambahan memangkas kehilangan sekitar sepuluh kali, itulah sebabnya HDFS secara default menyimpan tiga salinan di mesin-mesin murah.
+
 ## @lesson HDFS: sistem file yang terbuat dari banyak mesin
 Hadoop Distributed File System menyimpan file raksasa di mesin biasa. Sebuah **file** dipotong menjadi **blok** berukuran tetap (bawaannya **128 MiB**; sistem file disk biasa memakai blok 4 KiB). Setiap blok **direplikasi**: secara bawaan **tiga salinan** pada tiga mesin berbeda. Blok terakhir sebuah file sepanjang yang dibutuhkan saja (file 300 MiB menjadi blok 128, 128, dan 44 MiB; `split_into_blocks` di lab melakukan persis ini).
 
@@ -122,6 +126,10 @@ Hive dimulai dengan file teks dan pindah ke format kolumnar, **ORC** dan **Parqu
 
 Hive Metastore bertahan melewati semua ini, dan ia bagian yang paling mungkin Anda temui di tumpukan modern: Spark, Trino, Athena, dan lainnya masih memakainya (atau AWS Glue Catalog, yang berperan sama) untuk mengetahui "tabel apa yang ada dan di mana". Kelemahannya ada pada format tabel: tabel Hive adalah folder berisi file, tanpa commit atomik, listing direktori yang lambat di penyimpanan cloud, tanpa penulis konkuren yang aman, dan tanpa time travel. **Apache Iceberg** (Modul 2.2) dibuat untuk memperbaiki persis ini sambil mempertahankan gagasan "file terbuka ditambah katalog".
 
+> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install duckdb`. Buat folder `orders/dt=2026-01-15/` berisi dua file CSV yang keduanya ber-header `id,amount`. `a.csv` berisi baris `1,100` dan `2,250`; `b.csv` berisi `3,n/a` dan `4,400` (job milik orang lain menulis nilai yang salah). Perlakukan folder itu sebagai tabel gaya Hive: query `count(*)` dan `sum(amount)` dengan `read_csv('orders/*/*.csv', header=true, columns={'id':'INTEGER','amount':'INTEGER'})`. Lalu jalankan query yang sama lagi dengan menambahkan `ignore_errors=true` ke `read_csv`.
+>
+> **Seharusnya Anda melihat:** query pertama gagal dengan `ConversionException` yang menyebut baris yang buruk, dan baru sekarang, saat dibaca, bukan saat `b.csv` ditulis (schema on read). Dengan `ignore_errors=true` hasilnya `(3, 750)`: baris berisi `n/a` lenyap dan jumlahnya salah tanpa peringatan apa pun. Perilaku mana yang lebih Anda inginkan di produksi, dan contract (Modul 2.5) mana yang akan menangkap file buruk itu di pintu masuk?
+
 ## @lesson Mengapa Spark dan lakehouse menggantikan sebagian besarnya, dan apa yang tersisa
 Tiga perubahan bersama menjelaskan pergeseran itu:
 
@@ -146,6 +154,10 @@ Tabel terjemahan untuk wawancara:
 | ZooKeeper (koordinasi) | konsensus bawaan, seperti KRaft milik Kafka |
 
 **Pertanyaan yang kini bisa Anda jawab:** "Mengapa tiga replika?" (kegagalan itu normal; dua akan menyisakan satu salinan saat gagal; tiga juga memungkinkan satu salinan di luar rak). "Apa itu shuffle?" (pengelompokan keluaran map per key lewat jaringan; langkah yang mahal di MapReduce dan Spark). "Mengapa Spark menggantikan MapReduce?" (di memori, perencanaan graf, API lebih ramah). "Apa itu masalah file kecil?" (objek metadata menghabiskan memori NameNode; di S3 itu biaya listing dan membuka banyak file).
+
+> 🛠 **Coba sendiri (10 menit, Python).** Bandingkan dua cara menjalankan job iteratif. Tulis 500.000 bilangan bulat acak (1 sampai 1000) ke file teks, satu per baris. Versi A membaca dan mem-parse ulang seluruh file di **setiap** putaran (kebiasaan MapReduce); versi B membacanya sekali dan menyimpan list-nya di memori (kebiasaan Spark). Setiap putaran melakukan pembaruan kecil yang sama, `x = (x + sum(vals) / len(vals)) / 2`, dimulai dari `x = 500.0`. Ukur waktu keduanya untuk 1 putaran dan untuk 10 putaran, dan pastikan `x` akhirnya identik.
+>
+> **Seharusnya Anda melihat:** `x` yang sama dari kedua versi (sekitar `500.17` setelah 10 putaran). Dengan 1 putaran keduanya butuh waktu kira-kira sama; dengan 10 putaran versi A sekitar 800 ms dan versi B sekitar 115 ms, kira-kira tujuh kali lebih cepat, karena B hanya sekali membayar biaya membaca. Waktu persisnya tergantung mesin Anda; polanya tidak.
 
 ## @lab Lab: HDFS, MapReduce, dan YARN dalam miniatur
 Bangun tiga model kecil yang deterministik dalam Python murni: pemecahan blok HDFS, penempatan replika sadar-rak, kegagalan, dan aritmetika file kecil; mesin MapReduce (map, partisi, shuffle, reduce, combiner, reduce-side join, pengulangan task); dan scheduler YARN mainan. Tidak perlu klaster, dan tesnya (38) memeriksa setiap perilaku yang dijelaskan pelajaran.

@@ -36,6 +36,10 @@ Cloud warehouse menambah gagasan ketiga: **pisahkan penyimpanan dari komputasi**
 
 Di mana posisinya: data mentah mendarat di object storage (Modul 2.2, 3.4), alat seperti dbt (Modul 2.3) membangun tabel yang dimodelkan di dalam warehouse, dan analis serta alat BI mengkuerinya. Semua yang Anda pelajari tentang grain, dimensi, dan fakta (Modul 1.4) adalah cara tabel-tabel itu seharusnya dibentuk.
 
+> 🛠 **Coba sendiri (10 menit, Python).** Pakai lagi `orders.parquet` dari Modul 2.1 (atau buat lagi dengan `df.to_parquet`). Dari metadatanya, ambil `total_compressed_size` setiap kolom dan hitung porsi byte yang dibutuhkan `SELECT status, SUM(total_idr) ... GROUP BY status`. Anggap tabel aslinya 2 TB dengan harga $5 per TB, lalu cetak biaya satu kali menjalankan query itu dibanding `SELECT *`, dan biaya per hari jika sebuah tile dashboard menjalankannya 96 kali.
+>
+> **Seharusnya Anda melihat:** porsi `9.1%`, jadi `0.181 TB` yang dipindai: sekitar `$0.91` per run dan `$87` per hari, dibanding `$10` per run dan `$960` per hari untuk `SELECT *`. "Dry run" sebuah warehouse menghitung perkiraan ini dari metadata sebelum menjalankan apa pun. (BigQuery menagih ukuran kolom yang tidak terkompresi, bukan byte terkompresi yang Anda pakai di sini, tetapi idenya sama.)
+
 ## @lesson Cara data disimpan: micro-partition, zone map, dan pruning
 Warehouse tidak menyimpan tabel sebagai satu file besar. Ia memotongnya menjadi banyak **micro-partition** (nama Snowflake; BigQuery dan Redshift punya padanannya), masing-masing memuat irisan baris dalam bentuk kolumnar, biasanya puluhan hingga ratusan megabyte. Untuk setiap partisi dan setiap kolom ia mencatat **statistik** yang murah: nilai terkecil dan terbesar, sebuah **zone map**. Ini tinggal di metadata, sehingga membacanya nyaris tanpa biaya.
 

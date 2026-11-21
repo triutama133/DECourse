@@ -173,6 +173,13 @@ Bagian-bagiannya: `def`, **nama**, **parameter** dalam tanda kurung (masukan; `o
 
 Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.1: idempotensi).
 
+> 🛠 **Coba sendiri (8 menit, di file `fn.py`).** Tebak dulu setiap output di kepala Anda, baru jalankan.
+> 1. Tulis `def show_square(n): print(n * n)` dan `def give_square(n): return n * n` (masing-masing di barisnya sendiri seperti biasa). Jalankan `a = show_square(4)` dan `b = give_square(4)`, lalu `print(a, b)`.
+> 2. Tulis `def add(item, box=[]): box.append(item); return box` (dengan baris yang benar) dan jalankan `print(add(1))`, `print(add(2))`, `print(add(3))`. Lalu perbaiki agar setiap pemanggilan tanpa argumen kedua mulai dengan list kosong yang baru.
+> 3. Tulis `total(orders)` yang menjumlahkan `int(order["total_idr"])` dari list dict pesanan, tanpa `print` di dalamnya. Periksa dengan `total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350` dan `total([]) == 0`.
+>
+> **Seharusnya Anda melihat:** `16` dicetak oleh langkah 1, lalu `None 16` (`print` menampilkan, `return` mengembalikan); `add` yang salah mencetak `[1]`, `[1, 2]`, `[1, 2, 3]` dan yang sudah Anda perbaiki `[1]`, `[2]`, `[3]`; kedua pemeriksaan di langkah 3 bernilai `True`.
+
 ## @lesson Saat ada yang salah: error dan try/except
 Error bukan kegagalan pelajar; ia adalah program yang memberi tahu persis apa yang tidak bisa dilakukannya. Belajarlah membacanya. **Traceback** mendaftar jalur pemanggilan; **bacalah dari bawah**. Baris terakhir menyebut jenis error dan pesannya (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); baris di atasnya menunjukkan di mana ia terjadi, dan baris terakhir yang menunjuk ke kode *Anda* biasanya tempat untuk melihat.
 
@@ -264,6 +271,10 @@ def test_format_rupiah():
 `assert` memunculkan error jika kondisinya salah. Alat uji (pytest) menemukan fungsi bernama `test_...`, menjalankan semuanya dan melaporkan mana yang gagal dan mengapa. Lab punya 31 tes seperti itu: bacalah tes yang gagal sebagai **spesifikasi** (ia menyatakan persis apa yang diharapkan), bukan sebagai rintangan.
 
 Anda tidak akan mengingat semuanya setelah sekali membaca, dan memang tidak diharapkan. Ketik contoh-contohnya, rusak dengan sengaja, dan lihat pesan errornya. Setiap fungsi lab di bawah melatih satu pelajaran; kerjakan berurutan dan jalankan tes setelah masing-masing.
+
+> 🛠 **Coba sendiri (15 menit).** Jalankan `python3 labs/mod-0-0/debug_me.py`. Isinya tiga fungsi kecil, masing-masing dengan satu bug, dan mencetak PASS atau FAIL untuk setiap fungsi. Perbaiki satu per satu dengan rutinitas dari pelajaran ini: baca error dari bawah, ulangi dengan input sekecil mungkin, periksa nilainya tepat sebelum baris yang gagal. Jangan menulis ulang fungsinya; temukan bug-nya.
+>
+> **Seharusnya Anda melihat:** tiga baris FAIL di awal (satu `TypeError`, dua jawaban salah) dan `all three fixed` di akhir. Lalu tulis satu kalimat per bug: petunjuk apa yang membawa Anda ke sana? Kalimat itulah keahliannya.
 
 ## @lab Lab: sebelas fungsi kecil pada pesanan KopiKu
 Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran: memformat angka, mengonversi teks dengan aman, mengulang dan menjumlahkan, menghitung dengan dictionary, membuang duplikat dengan set, memisahkan yang valid dari yang tidak, merata-rata tanpa membagi dengan nol, membuat peringkat, memotong list menjadi batch, menghindari jebakan nilai bawaan mutable, dan membaca file CSV. Tesnya (31) memberi tahu apa yang harus dilakukan setiap fungsi.

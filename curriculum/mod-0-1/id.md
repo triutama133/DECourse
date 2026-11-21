@@ -39,6 +39,12 @@ Karena itu perusahaan menyalin data ke **sistem terpisah yang dibangun untuk ana
 
 > **Tip:** Ketika seseorang bilang "kita butuh data warehouse", kebutuhan sebenarnya hampir selalu: "kita butuh angka yang bisa dipercaya tanpa memperlambat produk." Ingat kalimat itu; ia menjelaskan sebagian besar keputusan desain di kursus ini.
 
+> 🛠 **Coba sendiri (10 menit, dengan Python).** Buat datanya (`python3 labs/shared/shopgen.py --out data`) dan muat `data/orders.csv` ke tabel SQLite dengan modul `sqlite3`: `order_id INTEGER PRIMARY KEY`, kolom lain TEXT.
+> 1. Masukkan barisnya dengan `INSERT` biasa. Error apa yang muncul, dan apa artinya tentang file itu? Lalu masukkan dengan `INSERT OR REPLACE` dan hitung barisnya.
+> 2. Tanyakan kepada SQLite bagaimana ia akan menjalankan satu pertanyaan gaya OLTP dan satu gaya OLAP: cetak `EXPLAIN QUERY PLAN SELECT * FROM orders WHERE order_id = 1001` dan `EXPLAIN QUERY PLAN SELECT substr(order_ts, 1, 10) AS day, count(*) FROM orders GROUP BY day` (teks rencananya ada di kolom terakhir setiap baris).
+>
+> **Seharusnya Anda melihat:** `UNIQUE constraint failed: orders.order_id` (35 order id muncul dua kali di file), lalu `3599` baris; rencana pertama berbunyi `SEARCH orders USING INTEGER PRIMARY KEY` (langsung melompat ke satu baris), yang kedua `SCAN orders` (membaca setiap baris). Perbedaan itulah inti cerita OLTP versus OLAP.
+
 ## @lesson Siapa mengerjakan apa: peran di sekitar data
 Nama jabatan saling tumpang tindih dan berbeda antar perusahaan, jadi pikirkan **pekerjaannya**, bukan namanya. Pembagian yang umum, masih dengan KopiKu:
 
@@ -56,6 +62,10 @@ Di perusahaan kecil satu orang mengerjakan beberapa peran sekaligus. Di perusaha
 Cara yang berguna untuk menggambarkan hasil kerja data engineer: **produk seorang data engineer adalah kepercayaan**. Orang harus bisa membuka sebuah tabel, percaya angkanya, dan tahu seberapa baru data itu. Semua yang Anda pelajari di kursus ini (pengujian, idempotensi, kontrak data, monitoring) melayani satu tujuan itu.
 
 Keterampilan yang penting, kira-kira sesuai urutan kursus ini: SQL, Python, command line dan Git, pemodelan data, format dan mesin penyimpanan, transformasi, orkestrasi, kualitas data, lalu sistem terdistribusi dan real-time. Anda tidak perlu semuanya di hari pertama; Anda perlu empat yang pertama untuk memulai dan kebiasaan mempelajari sisanya lewat masalah nyata.
+
+> 🛠 **Coba sendiri (5 menit, pena dan kertas).** Siapa yang mengerjakan? Tulis perannya (software engineer, data engineer, analytics engineer, data analyst, data scientist, atau platform engineer) untuk setiap tugas: (a) job malam yang menyalin pesanan ke warehouse dan memberi peringatan jika terlambat; (b) dashboard revenue mingguan per kota; (c) model yang memprediksi pelanggan mana yang akan berhenti memesan; (d) halaman checkout toko; (e) tabel `fct_orders` yang terdokumentasi dengan satu definisi "revenue" yang disepakati; (f) klaster yang menjalankan semua job.
+>
+> *Bandingkan:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Lalu tulis dua kalimat: tugas mana yang akan menjadi tugas Anda di perusahaan berisi lima orang, dan mana yang tidak ingin Anda kerjakan sendirian?
 
 ## @lesson Gambaran besar: siklus hidup, undercurrents, dan orang-orangnya
 > **Intinya:** Setiap pekerjaan data engineering, apa pun alatnya, memindahkan data melalui lima tahap: generation, storage, ingestion, transformation, dan serving. Enam "undercurrents" mengalir di bawah kelimanya: security, data management, DataOps, data architecture, orchestration, dan software engineering. Apa yang Anda bangun harus sesuai dengan sejauh mana perusahaan sudah memakai data. Sebagian besar pekerjaannya adalah bekerja sama dengan orang-orang di kedua sisi Anda.
@@ -109,6 +119,10 @@ Dua istilah yang akan sering Anda temui:
 - **ETL vs ELT.** ETL mengubah data *sebelum* dimuat ke warehouse. ELT memuat data mentah lebih dulu lalu mengubahnya *di dalam* warehouse dengan SQL. Warehouse cloud modern cukup kuat dan murah sehingga ELT menjadi pilihan umum, itulah sebabnya alat seperti dbt (Modul 2.3) ada.
 
 > **Tip:** Gambarlah perjalanan data untuk setiap sistem yang Anda kerjakan: kotak untuk sumber, panah untuk job, dan tanda di setiap tempat kegagalan tidak akan terlihat. Gambar itu adalah hasil kerja pertama yang paling berguna bagi data engineer.
+
+> 🛠 **Coba sendiri (10 menit, di terminal).** Bawa satu file melewati perjalanannya dengan perintah, dari folder kursus: `python3 labs/shared/shopgen.py --out data` (sumber), `mkdir -p raw && cp data/orders.csv raw/orders_$(date +%F).csv` (ingestion dan penyimpanan mentah), dan `cut -d, -f4 raw/orders_*.csv | tail -n +2 | sort | uniq -c | sort -rn` (transformasi pertama: jumlah pesanan per status). Sebutkan dalam satu kalimat tahap mana yang baru saja Anda kerjakan dan mana yang masih kurang sebelum sebuah dashboard bisa membaca data ini.
+>
+> **Seharusnya Anda melihat:** `2080 delivered` di paling atas dan, lebih ke bawah, `34 DELIVERED` dan `34 Delivered`: status yang sama ditulis tiga cara. Sebuah langkah transformasi harus memperbaikinya sebelum ada yang bisa memercayai hitungannya, dan karena Anda menyalin ke `raw/` lebih dulu, Anda bisa memperbaikinya berulang kali tanpa meminta file lagi ke sumbernya.
 
 ## @lesson Lima cara data menjadi salah
 Dataset KopiKu yang akan Anda pakai sepanjang kursus ini sengaja dibuat sedikit kotor, karena data nyata memang begitu. Masalah-masalah ini mencakup sebagian besar yang akan pernah Anda debug. Kenali sejak awal.

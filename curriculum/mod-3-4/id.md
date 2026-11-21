@@ -30,6 +30,10 @@ Alat IaC terbagi ke dalam dua gaya arsitektur. Pendekatan **imperatif** mendeskr
 
 Praktik mengonfigurasi cloud secara manual lewat browser ("ClickOps") dilarang bukan karena mengklik mouse itu sulit. Praktik ini dilarang karena perubahan konsol tidak meninggalkan jejak review, mustahil direproduksi secara identik, dan menjadi sumber bencana pertama saat terjadi insiden di tengah malam.
 
+> 🛠 **Coba sendiri (15 menit, Python).** Modelkan alat deklaratif. `desired` adalah dict resource: `raw-bucket` (`encryption: True, versioning: True`), `curated-bucket` (`encryption: True, versioning: False`), dan `etl-role` (`policy: "read-raw"`). `actual` berisi `raw-bucket` (`encryption: False, versioning: True`), `old-bucket` (`encryption: True`), dan `etl-role` (`policy: "read-raw"`). Tulis `plan(desired, actual)` yang mengembalikan list `("create" | "update" | "destroy", name)` dan `apply(...)` yang membuat `actual` sama dengan yang diinginkan. Cetak plan-nya, terapkan, lalu cetak plan-nya lagi.
+>
+> **Seharusnya Anda melihat:** `[('create', 'curated-bucket'), ('update', 'raw-bucket'), ('destroy', 'old-bucket')]` lalu `[]`. Run kedua tidak menemukan apa pun untuk dikerjakan: itulah arti "aman dijalankan dua kali", dan itulah inti `terraform plan` dan `apply`. Baris `destroy` adalah baris yang dibaca dua kali oleh reviewer yang teliti.
+
 ## @lesson Praktik Terraform di dunia nyata
 Sebuah proyek Terraform tersusun dari sekumpulan file berekstensi `.tf` yang ditulis menggunakan HCL (HashiCorp Configuration Language). Blok-blok penyusun utama yang akan Anda gunakan secara konstan:
 
