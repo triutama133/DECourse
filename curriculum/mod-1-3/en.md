@@ -55,6 +55,81 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 
 Pick by the question: "the top 3 *orders*" is ROW_NUMBER; "the orders with the three highest *distinct totals*" is DENSE_RANK.
 
+### See it: GROUP BY collapses, a window keeps every row
+
+:::sqlsteps One row per customer, or one row per order?
+@data kopiku
+@stage 1. The orders: 18 rows, one per order
+SELECT order_id, customer_id FROM orders ORDER BY customer_id, order_id
+@say
+Several customers have more than one order.
+@stage 2. GROUP BY collapses them: one row per customer
+SELECT customer_id, COUNT(*) AS orders_of_customer FROM orders GROUP BY customer_id ORDER BY customer_id
+@say
+The individual orders are gone. You can no longer see *which* order is which.
+@stage 3. A window function keeps every order and adds the same number to each row
+SELECT order_id, customer_id, COUNT(*) OVER (PARTITION BY customer_id) AS orders_of_customer FROM orders ORDER BY customer_id, order_id
+@say
+All 18 rows are still here. `PARTITION BY customer_id` made one little group per customer, and every row of the group got that group's count.
+:::
+
+:::ask Three orders tie for the lowest total, then comes a bigger total. What is the RANK() of the bigger one (ordered from smallest)?
+@options
+2
+* 4
+3
+@why
+`RANK()` gives ties the same rank and then **skips**: 1, 1, 1, then 4. `DENSE_RANK()` would not skip (1, 1, 1, 2), and `ROW_NUMBER()` would number the rows 1, 2, 3, 4 and break ties arbitrarily.
+:::
+
+:::drill sql Rank with ties
+Show each order's `order_id` and `shipping_fee_idr`, and its rank by shipping fee, **highest fee first**, as `fee_rank`. Orders with the same fee must share the same rank (and the next rank skips).
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/over\s*\(/ ## Use a window function: RANK() OVER (ORDER BY ...).
+/rank\s*\(/ ## Use RANK(): ties share a rank and the next one skips.
+@hint
+`RANK() OVER (ORDER BY shipping_fee_idr DESC) AS fee_rank`
+@solution
+SELECT order_id, shipping_fee_idr, RANK() OVER (ORDER BY shipping_fee_idr DESC) AS fee_rank FROM orders;
+:::
+
+:::drill sql Number each customer's orders
+Show `order_id`, `customer_id`, and `nth_order`: 1 for the customer's first order, 2 for the second, and so on (by `order_date`, then `order_id`). The numbering restarts for every customer.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/partition\s+by/ ## Restart the numbering for each customer: PARTITION BY customer_id.
+/row_number/ ## Use ROW_NUMBER().
+@hint
+`ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date, order_id) AS nth_order`
+@solution
+SELECT order_id, customer_id, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date, order_id) AS nth_order FROM orders;
+:::
+
+:::drill sql Keep every row, add a count
+Show every order (`order_id`, `customer_id`) and, on the same row, how many orders its customer has in total, as `customer_orders`. Do **not** use GROUP BY: the 18 rows must stay.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/over\s*\(/ ## Use a window function: COUNT(*) OVER (PARTITION BY ...).
+!/group\s+by/ ## Do not use GROUP BY here (it would collapse the rows).
+@hint
+`COUNT(*) OVER (PARTITION BY customer_id) AS customer_orders`
+@solution
+SELECT order_id, customer_id, COUNT(*) OVER (PARTITION BY customer_id) AS customer_orders FROM orders;
+:::
+
 > 💡 **Practice Pause 1 (Window Ranking & Partition Share):**
 > Time to try ranking window functions and non-collapsing aggregations:
 > 1. Open `labs/mod-1-3/answers.sql` in your text editor (or open the SQL Sandbox in your web browser!).
@@ -93,6 +168,67 @@ With the default frame, the three tied rows all show 255,000 because each includ
 
 Aggregates over a partition **without** ORDER BY use the whole partition (a total on every row), which is what the share-of-total example used.
 
+### See it: a running total and a moving average
+
+Daily revenue of the Jakarta store for two weeks. Watch two columns being added, each looking at a different set of rows:
+
+:::sqlsteps Frames: which rows does each row look at?
+@data daily_sales
+@stage 1. The days, in order
+SELECT day, revenue FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+14 days, one row per day.
+@stage 2. A running total: this row and every row before it
+SELECT day, revenue, SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+`UNBOUNDED PRECEDING` means "from the very first row". The total only ever grows.
+@stage 3. A 3-day moving average: this row and the 2 before it
+SELECT day, revenue, ROUND(AVG(revenue) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 0) AS avg_3d FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+The window slides. The first two days average over fewer rows, because there are not 2 rows before them yet.
+:::
+
+:::ask Three orders are tied at 85,000 and are ordered by total only. With the DEFAULT frame (no ROWS written), what running total does the first of the three show?
+@options
+85,000
+* 255,000
+170,000
+@why
+With `ORDER BY` and no frame, the default is `RANGE ...`, which treats tied rows as **peers**: each tied row includes all of its peers, so all three show 85,000 x 3 = 255,000. Write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` (and a unique ORDER BY) for a true row-by-row running total.
+:::
+
+:::drill sql A running total
+For the `'jakarta'` store, show `day`, `revenue` and the running total of revenue so far as `running`, in day order. Write the frame explicitly with `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+@data daily_sales
+@names
+@starter
+-- write your query below this line
+
+@check
+/rows\s+between\s+unbounded\s+preceding\s+and\s+current\s+row/ ## Write the frame explicitly: ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
+/where/ ## Only the 'jakarta' store.
+@hint
+`SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running` and `WHERE store = 'jakarta'`
+@solution
+SELECT day, revenue, SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running FROM daily_sales WHERE store = 'jakarta';
+:::
+
+:::drill sql A moving average per store
+For **every** store, show `store`, `day` and the average revenue of the current day and the 2 days before it, **within that store**, as `avg_3d`. Use `PARTITION BY store`.
+@data daily_sales
+@names
+@starter
+-- write your query below this line
+
+@check
+/partition\s+by\s+store/ ## Keep the stores apart: PARTITION BY store.
+/rows\s+between\s+2\s+preceding/ ## Use ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.
+@hint
+`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d`
+@solution
+SELECT store, day, AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d FROM daily_sales;
+:::
+
 > 💡 **Practice Pause 2 (Frames & Moving Averages):**
 > Master row frame specifications for cumulative sums and rolling averages:
 > 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve 2 frame challenges:
@@ -126,6 +262,64 @@ SELECT * FROM ranked WHERE rn = 1;
 ```
 
 You cannot put a window function directly in `WHERE`, because windows are computed *after* WHERE, so you compute it in a CTE or subquery and filter outside. Snowflake, BigQuery and DuckDB offer `QUALIFY` as a shortcut (`... QUALIFY ROW_NUMBER() OVER (...) = 1`); PostgreSQL and SQLite do not, so know the portable form. The same pattern with `rn <= 3` gives **top-N per group**, and ordering by an update timestamp makes it the standard **de-duplication** step in pipelines. Make the ORDER BY unique (add a tiebreaker like the id) or the surviving row is arbitrary.
+
+### See it: LAG looks at the row before
+
+:::sqlsteps Compare each day with the day before
+@data daily_sales
+@stage 1. The days
+SELECT day, revenue FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+One revenue per day.
+@stage 2. LAG brings the previous row's value onto this row
+SELECT day, revenue, LAG(revenue) OVER (ORDER BY day) AS yesterday FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+The first day has no row before it, so `yesterday` is NULL.
+@stage 3. Subtract: the change since yesterday
+SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+NULL minus a number is NULL, so the first row's change is NULL too: a missing comparison, not a zero.
+:::
+
+:::drill sql Change since the day before
+For the `'jakarta'` store, show `day`, `revenue` and the change since the previous day as `change` (the first day has no change: NULL). Order by day.
+@data daily_sales
+@names
+@starter
+-- write your query below this line
+
+@check
+/lag\s*\(/ ## Use LAG(revenue) OVER (ORDER BY day).
+@hint
+`revenue - LAG(revenue) OVER (ORDER BY day) AS change`
+@solution
+SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day;
+:::
+
+:::ask Can you write `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` directly?
+@options
+yes, it is the standard way
+* no: windows are computed after WHERE, so compute it in a CTE or subquery and filter outside
+only in SQLite
+@why
+`WHERE` runs before window functions exist. So the portable pattern is two steps: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery and DuckDB have the shortcut `QUALIFY`; PostgreSQL and SQLite do not.
+:::
+
+:::drill sql The cheapest per roast
+Show, for each `roast`, the single cheapest product: `roast` and `name`. Use `ROW_NUMBER()` in a CTE and keep rank 1 outside.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/row_number\s*\(/ ## Use ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr).
+/with\s/ ## Compute the number in a CTE (WITH ...), then filter outside.
+@hint
+`WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;`
+@solution
+WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;
+:::
 
 > 💡 **Practice Pause 3 (Looking Sideways & De-duplication):**
 > Retrieve the latest records and measure gaps between events:

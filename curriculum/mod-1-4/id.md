@@ -180,6 +180,86 @@ Jika Anda lupa menyertakan syarat rentang tanggal dan hanya melakukan join pada 
 
 **Pemuatan bertahap (incremental load) pada Tipe 2** (saat Anda tidak memiliki feed mutasi bersih, melainkan hanya snapshot harian): bandingkan setiap baris baru yang masuk dengan versi aktif saat ini pada atribut yang dilacak; jika berbeda, tutup baris aktif (`valid_to = now`, `is_current = 0`) dan masukkan baris aktif baru. Gunakan operator `IS DISTINCT FROM` alih-alih `<>` agar perubahan dari atau ke nilai NULL tetap terdeteksi, dan pastikan langkah ini bersifat idempoten. Dua komplikasi dunia nyata yang harus diantisipasi: **perubahan yang datang terlambat (late-arriving changes)** yang mengharuskan pemotongan ulang rentang tanggal di antara versi yang sudah ada, serta **event yang tiba tidak berurutan (out-of-order events)** di mana Anda wajib mengurutkan data berdasarkan waktu kejadian di sistem sumber, bukan waktu data tiba di pipeline.
 
+### Lihat sendiri: as-of join, dan apa yang terjadi tanpa rentang waktu
+
+Pelanggan 1 punya tiga versi di dimensi dan tiga pesanan. Perhatikan join-nya:
+
+:::sqlsteps As-of join
+@data scd_demo
+@stage 1. Tiga pesanan pelanggan 1
+SELECT order_id, customer_id, order_ts FROM orders_small WHERE customer_id = 1 ORDER BY order_ts
+@say
+Tiga fakta, tiga momen waktu.
+@stage 2. Tiga versi pelanggan 1 di dimensi
+SELECT customer_sk, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
+@say
+Silver sampai 10 Januari, Gold sampai 20 Januari, lalu Gold di Bandung. Setiap versi punya rentang berlaku.
+@stage 3. SALAH: join hanya pada customer_id
+SELECT o.order_id, o.order_ts, d.tier, d.valid_from FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id WHERE o.customer_id = 1 ORDER BY o.order_id, d.valid_from
+@say
+3 pesanan x 3 versi = **9 baris**. Setiap pesanan cocok dengan setiap versi: penggelembungan diam-diam (jebakan fan-out versi Type 2).
+@stage 4. BENAR: join pada key DAN rentang waktu
+SELECT o.order_id, o.order_ts, d.tier, d.valid_from FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id AND o.order_ts >= d.valid_from AND o.order_ts < d.valid_to WHERE o.customer_id = 1 ORDER BY o.order_id
+@say
+Kembali ke **3 baris**: setiap pesanan bertemu persis versi yang benar saat itu terjadi. `valid_from` inklusif dan `valid_to` eksklusif, sehingga rentangnya menyusun garis waktu tanpa celah dan tanpa tumpang tindih.
+:::
+
+:::ask Pesanan digabung ke dimensi hanya pada `customer_id`, tanpa rentang waktu. Pelanggan 1 punya 3 pesanan dan 3 versi. Berapa baris yang keluar untuk pelanggan itu?
+@options
+3
+6
+* 9
+@why
+Tanpa kondisi waktu, setiap pesanan cocok dengan setiap versi pelanggannya: 3 x 3 = 9. Tes yang menegaskan "jumlah baris fakta tidak berubah setelah join" menangkap ini seketika.
+:::
+
+:::drill sql Hanya versi saat ini
+Tampilkan `customer_id`, `city`, dan `tier` dari versi **saat ini** setiap pelanggan (baris yang terbuka ujungnya), diurutkan menurut `customer_id`.
+@data scd_demo
+@ordered
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/is_current|9999/ ## Pakai flag is_current (atau valid_to terbuka 9999-12-31).
+@hint
+`WHERE is_current = 1`
+@solution
+SELECT customer_id, city, tier FROM dim_customer WHERE is_current = 1 ORDER BY customer_id;
+:::
+
+:::drill sql Hitung fan-out
+Tampilkan berapa baris **tambahan** yang dibuat join yang salah (hanya pada `customer_id`) dibandingkan jumlah pesanan: satu angka, `extra_rows` (baris join yang salah dikurangi jumlah baris `orders_small`).
+@data scd_demo
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/join/ ## Hitung baris orders_small JOIN dim_customer ON customer_id.
+@hint
+`SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;`
+@solution
+SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;
+:::
+
+:::drill sql Apa yang benar pada 15 Januari?
+Tampilkan `tier` yang dimiliki pelanggan `1` pada `'2026-01-15 00:00:00'`, memakai rentang setengah terbuka (`>= valid_from AND < valid_to`).
+@data scd_demo
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/valid_to/ ## Pakai ujung rentang: < valid_to.
+/valid_from/ ## Pakai awal rentang: >= valid_from.
+@hint
+`WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to`
+@solution
+SELECT tier FROM dim_customer WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to;
+:::
+
 > 💡 **Jeda Praktik 2 (SCD Tipe 2 & As-of Join):**
 > Kuasai pelacakan histori pelanggan dan join berbasis rentang waktu:
 > 1. Di `labs/mod-1-4/answers.sql` (atau SQL Sandbox), selesaikan 3 tantangan SCD:

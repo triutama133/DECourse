@@ -55,6 +55,81 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 
 Pilih sesuai pertanyaan: "3 *pesanan* teratas" adalah ROW_NUMBER; "pesanan dengan tiga *total berbeda* tertinggi" adalah DENSE_RANK.
 
+### Lihat sendiri: GROUP BY menggabungkan, window menyimpan setiap baris
+
+:::sqlsteps Satu baris per pelanggan, atau satu baris per pesanan?
+@data kopiku
+@stage 1. Pesanan: 18 baris, satu per pesanan
+SELECT order_id, customer_id FROM orders ORDER BY customer_id, order_id
+@say
+Beberapa pelanggan punya lebih dari satu pesanan.
+@stage 2. GROUP BY menggabungkannya: satu baris per pelanggan
+SELECT customer_id, COUNT(*) AS orders_of_customer FROM orders GROUP BY customer_id ORDER BY customer_id
+@say
+Pesanan individual hilang. Anda tidak bisa lagi melihat pesanan *yang mana*.
+@stage 3. Window function menyimpan setiap pesanan dan menambahkan angka yang sama pada setiap barisnya
+SELECT order_id, customer_id, COUNT(*) OVER (PARTITION BY customer_id) AS orders_of_customer FROM orders ORDER BY customer_id, order_id
+@say
+Semua 18 baris masih ada. `PARTITION BY customer_id` membuat kelompok kecil per pelanggan, dan setiap baris dalam kelompok itu mendapat hitungan kelompoknya.
+:::
+
+:::ask Tiga pesanan seri untuk total terendah, lalu datang total yang lebih besar. Berapa RANK() yang lebih besar itu (diurutkan dari terkecil)?
+@options
+2
+* 4
+3
+@why
+`RANK()` memberi peringkat sama pada yang seri lalu **melompat**: 1, 1, 1, lalu 4. `DENSE_RANK()` tidak melompat (1, 1, 1, 2), dan `ROW_NUMBER()` akan menomori baris 1, 2, 3, 4 dan memutus seri secara acak.
+:::
+
+:::drill sql Peringkat dengan seri
+Tampilkan `order_id` dan `shipping_fee_idr` setiap pesanan, dan peringkatnya menurut ongkos kirim, **ongkos tertinggi dulu**, sebagai `fee_rank`. Pesanan dengan ongkos sama harus berbagi peringkat yang sama (dan peringkat berikutnya melompat).
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/over\s*\(/ ## Pakai window function: RANK() OVER (ORDER BY ...).
+/rank\s*\(/ ## Pakai RANK(): yang seri berbagi peringkat dan berikutnya melompat.
+@hint
+`RANK() OVER (ORDER BY shipping_fee_idr DESC) AS fee_rank`
+@solution
+SELECT order_id, shipping_fee_idr, RANK() OVER (ORDER BY shipping_fee_idr DESC) AS fee_rank FROM orders;
+:::
+
+:::drill sql Nomori pesanan setiap pelanggan
+Tampilkan `order_id`, `customer_id`, dan `nth_order`: 1 untuk pesanan pertama pelanggan, 2 untuk yang kedua, dan seterusnya (menurut `order_date`, lalu `order_id`). Penomoran dimulai ulang untuk setiap pelanggan.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/partition\s+by/ ## Mulai ulang penomoran untuk setiap pelanggan: PARTITION BY customer_id.
+/row_number/ ## Pakai ROW_NUMBER().
+@hint
+`ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date, order_id) AS nth_order`
+@solution
+SELECT order_id, customer_id, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date, order_id) AS nth_order FROM orders;
+:::
+
+:::drill sql Simpan setiap baris, tambahkan hitungan
+Tampilkan setiap pesanan (`order_id`, `customer_id`) dan, pada baris yang sama, berapa total pesanan pelanggannya, sebagai `customer_orders`. **Jangan** pakai GROUP BY: 18 baris harus tetap ada.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/over\s*\(/ ## Pakai window function: COUNT(*) OVER (PARTITION BY ...).
+!/group\s+by/ ## Jangan pakai GROUP BY di sini (ia akan menggabungkan baris).
+@hint
+`COUNT(*) OVER (PARTITION BY customer_id) AS customer_orders`
+@solution
+SELECT order_id, customer_id, COUNT(*) OVER (PARTITION BY customer_id) AS customer_orders FROM orders;
+:::
+
 > 💡 **Jeda Praktik 1 (Peringkat Window & Pembagian Partisi):**
 > Saatnya mencoba window function ranking dan agregasi tanpa GROUP BY:
 > 1. Buka file `labs/mod-1-3/answers.sql` di Text Editor Anda (atau buka SQL Sandbox di web browser!).
@@ -93,6 +168,67 @@ Dengan frame bawaan, tiga baris kembar semuanya menampilkan 255.000 karena masin
 
 Agregat atas partisi **tanpa** ORDER BY memakai seluruh partisi (total pada setiap baris), yang dipakai contoh porsi-terhadap-total tadi.
 
+### Lihat sendiri: total berjalan dan rata-rata bergerak
+
+Omset harian toko Jakarta selama dua minggu. Perhatikan dua kolom ditambahkan, masing-masing melihat sekumpulan baris yang berbeda:
+
+:::sqlsteps Frame: baris mana yang dilihat setiap baris?
+@data daily_sales
+@stage 1. Hari-harinya, berurutan
+SELECT day, revenue FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+14 hari, satu baris per hari.
+@stage 2. Total berjalan: baris ini dan setiap baris sebelumnya
+SELECT day, revenue, SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+`UNBOUNDED PRECEDING` berarti "dari baris yang paling pertama". Total hanya terus bertambah.
+@stage 3. Rata-rata bergerak 3 hari: baris ini dan 2 baris sebelumnya
+SELECT day, revenue, ROUND(AVG(revenue) OVER (ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 0) AS avg_3d FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+Jendelanya bergeser. Dua hari pertama dirata-ratakan atas lebih sedikit baris, karena belum ada 2 baris sebelum mereka.
+:::
+
+:::ask Tiga pesanan seri di 85.000 dan diurutkan hanya berdasarkan total. Dengan frame BAWAAN (tanpa ROWS), berapa total berjalan yang ditampilkan yang pertama dari ketiganya?
+@options
+85.000
+* 255.000
+170.000
+@why
+Dengan `ORDER BY` dan tanpa frame, bawaannya `RANGE ...`, yang memperlakukan baris seri sebagai **peer**: setiap baris seri menyertakan semua peer-nya, jadi ketiganya menampilkan 85.000 x 3 = 255.000. Tulis `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` (dan ORDER BY yang unik) untuk total berjalan baris demi baris yang sebenarnya.
+:::
+
+:::drill sql Total berjalan
+Untuk toko `'jakarta'`, tampilkan `day`, `revenue`, dan total berjalan omset sejauh ini sebagai `running`, berurutan menurut hari. Tulis frame secara eksplisit dengan `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+@data daily_sales
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/rows\s+between\s+unbounded\s+preceding\s+and\s+current\s+row/ ## Tulis frame secara eksplisit: ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW.
+/where/ ## Hanya toko 'jakarta'.
+@hint
+`SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running` dan `WHERE store = 'jakarta'`
+@solution
+SELECT day, revenue, SUM(revenue) OVER (ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running FROM daily_sales WHERE store = 'jakarta';
+:::
+
+:::drill sql Rata-rata bergerak per toko
+Untuk **setiap** toko, tampilkan `store`, `day`, dan rata-rata omset hari ini dan 2 hari sebelumnya, **di dalam toko itu**, sebagai `avg_3d`. Pakai `PARTITION BY store`.
+@data daily_sales
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/partition\s+by\s+store/ ## Pisahkan tokonya: PARTITION BY store.
+/rows\s+between\s+2\s+preceding/ ## Pakai ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.
+@hint
+`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d`
+@solution
+SELECT store, day, AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d FROM daily_sales;
+:::
+
 > 💡 **Jeda Praktik 2 (Frame & Moving Average):**
 > Kuasai spesifikasi frame baris untuk akumulasi dan rata-rata berjalan:
 > 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), kerjakan 2 tantangan frame:
@@ -126,6 +262,64 @@ SELECT * FROM ranked WHERE rn = 1;
 ```
 
 Anda tidak bisa menaruh window function langsung di `WHERE`, karena window dihitung *setelah* WHERE, jadi hitung di CTE atau subquery dan filter di luarnya. Snowflake, BigQuery, dan DuckDB menyediakan `QUALIFY` sebagai jalan pintas (`... QUALIFY ROW_NUMBER() OVER (...) = 1`); PostgreSQL dan SQLite tidak, jadi ketahui bentuk portabelnya. Pola yang sama dengan `rn <= 3` menghasilkan **top-N per kelompok**, dan mengurutkan menurut stempel waktu update menjadikannya langkah **deduplikasi** standar di pipeline. Buat ORDER BY unik (tambah pemutus seri seperti id) atau baris yang bertahan akan acak.
+
+### Lihat sendiri: LAG melihat baris sebelumnya
+
+:::sqlsteps Bandingkan setiap hari dengan hari sebelumnya
+@data daily_sales
+@stage 1. Hari-harinya
+SELECT day, revenue FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+Satu omset per hari.
+@stage 2. LAG membawa nilai baris sebelumnya ke baris ini
+SELECT day, revenue, LAG(revenue) OVER (ORDER BY day) AS yesterday FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+Hari pertama tidak punya baris sebelumnya, jadi `yesterday` adalah NULL.
+@stage 3. Kurangkan: perubahan sejak kemarin
+SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day
+@say
+NULL dikurangi angka adalah NULL, jadi perubahan baris pertama juga NULL: perbandingan yang hilang, bukan nol.
+:::
+
+:::drill sql Perubahan sejak hari sebelumnya
+Untuk toko `'jakarta'`, tampilkan `day`, `revenue`, dan perubahan sejak hari sebelumnya sebagai `change` (hari pertama tidak punya perubahan: NULL). Urutkan menurut hari.
+@data daily_sales
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/lag\s*\(/ ## Pakai LAG(revenue) OVER (ORDER BY day).
+@hint
+`revenue - LAG(revenue) OVER (ORDER BY day) AS change`
+@solution
+SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day;
+:::
+
+:::ask Bisakah Anda menulis `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` langsung?
+@options
+ya, itu cara standarnya
+* tidak: window dihitung setelah WHERE, jadi hitung di CTE atau subquery dan saring di luar
+hanya di SQLite
+@why
+`WHERE` berjalan sebelum window function ada. Jadi pola portabelnya dua langkah: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery, dan DuckDB punya pintasan `QUALIFY`; PostgreSQL dan SQLite tidak.
+:::
+
+:::drill sql Yang termurah per roast
+Tampilkan, untuk setiap `roast`, satu produk termurah: `roast` dan `name`. Pakai `ROW_NUMBER()` dalam CTE dan simpan peringkat 1 di luar.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/row_number\s*\(/ ## Pakai ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr).
+/with\s/ ## Hitung nomornya dalam CTE (WITH ...), lalu saring di luar.
+@hint
+`WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;`
+@solution
+WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;
+:::
 
 > 💡 **Jeda Praktik 3 (Melihat Baris Lain & Deduplikasi):**
 > Ambil baris terbaru dan bandingkan jarak antar-event:

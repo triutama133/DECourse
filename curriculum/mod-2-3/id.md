@@ -241,6 +241,92 @@ Tiga aturan emas yang akan Anda buktikan di lab:
 - **Deklarasikan `ref()` di luar blok `is_incremental()`.** dbt membaca seluruh pemanggilan `ref()` saat pertama kali menyusun grafik DAG, sebelum dbt mengetahui apakah proses tersebut berjalan secara inkremental atau full-refresh. Menaruh `ref()` di dalam blok kondisional akan memicu error "dbt was unable to infer all dependencies"; deklarasikan di CTE paling atas.
 - **Buktikan dengan pengujian rekonsiliasi.** Pengujian unit test di lab membandingkan output tabel inkremental dengan hasil perhitungan kalkulasi ulang penuh dari data mentah setelah muatan kedua tiba. Selalu sertakan tes rekonsiliasi semacam ini, karena model inkremental yang salah secara logika tetap terlihat normal dan berjalan tanpa error. Jalankan `dbt run --full-refresh` secara berkala sebagai jaring pengaman produksi.
 
+### Lihat sendiri: tanggal mana yang harus dihitung ulang?
+
+Tabel harian dibangun setelah muatan pertama. Muatan kedua sudah tiba di tabel mentah yang append-only: satu pesanan **baru**, dan sebuah **refund** untuk pesanan 25 Januari yang sudah dihitung. Perhatikan apa yang ditemukan oleh setiap jenis watermark:
+
+:::sqlsteps Dua watermark, dua jawaban
+@data late_orders
+@stage 1. Apa kata tabel harian setelah muatan pertama
+SELECT order_date, orders, revenue_idr, max_loaded_at FROM daily_revenue ORDER BY order_date
+@say
+25 Januari: 3 pesanan, Rp 400.000 (pesanan 2, 3, dan 4).
+@stage 2. Apa yang tiba sejak run terakhir (watermark: _loaded_at, waktu MASUK)
+SELECT order_id, order_date, status, _loaded_at FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)
+@say
+Dua baris baru: pesanan baru 5 **dan** refund pesanan 3, yang tanggal bisnisnya tanggal 25.
+@stage 3. Watermark SALAH yang menggoda: hanya tanggal setelah tanggal terakhir di tabel
+SELECT order_id, order_date, status, _loaded_at FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)
+@say
+Hanya pesanan baru yang muncul. Refund punya tanggal bisnis **lama** (25 Januari), jadi terlewat diam-diam dan tanggal 25 mempertahankan angka lamanya yang salah.
+@stage 4. Logika yang benar: setiap tanggal yang punya baris dimuat sejak run terakhir
+SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date
+@say
+Dua tanggal ini dihitung ulang dari awal (tanggal 25 dan 26). Data yang terlambat dan yang diperbarui punya tanggal bisnis lama dan **waktu masuk baru**.
+@stage 5. Hari-hari yang dihitung ulang (versi terbaru setiap pesanan; refund tidak dihitung)
+WITH latest AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY _loaded_at DESC) AS rn FROM raw_orders) SELECT order_date, COUNT(*) AS orders, SUM(amount_idr) AS revenue_idr FROM latest WHERE rn = 1 AND status <> 'refunded' AND order_date IN ('2026-01-25', '2026-01-26') GROUP BY order_date ORDER BY order_date
+@say
+Tanggal 25 sekarang 2 pesanan dan Rp 250.000, bukan 3 dan Rp 400.000. Model incremental dengan watermark yang salah tidak akan pernah menyadarinya.
+:::
+
+:::ask Kolom mana yang harus dipakai watermark incremental: `order_date` (waktu bisnis) atau `_loaded_at` (waktu masuk)?
+@options
+`order_date`: itu tanggal pesanan terjadi
+* `_loaded_at`: ia menunjukkan apa yang baru bagi Anda, dan baris yang terlambat atau diperbarui punya tanggal bisnis lama tetapi waktu masuk baru
+keduanya memberi hasil yang sama
+@why
+Waktu bisnis menyatakan kapan sesuatu terjadi; waktu masuk menyatakan apa yang *tiba*. Refund untuk pesanan lama datang terlambat: `order_date`-nya lama, `_loaded_at`-nya baru, sehingga hanya watermark waktu masuk yang melihatnya.
+:::
+
+:::drill sql Baris baru sejak run terakhir
+Tampilkan `order_id` dan `order_date` baris mentah yang dimuat **setelah** `max_loaded_at` terbaru di `daily_revenue`.
+@data late_orders
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/_loaded_at/ ## Saring pada _loaded_at (waktu masuk).
+/max\s*\(/ ## Bandingkan dengan max_loaded_at terbaru dari daily_revenue: (SELECT MAX(max_loaded_at) FROM daily_revenue).
+@hint
+`WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)`
+@solution
+SELECT order_id, order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue);
+:::
+
+:::drill sql Tanggal yang dihitung ulang
+Tampilkan nilai `order_date` yang **berbeda** yang punya baris dimuat setelah `max_loaded_at` terbaru di `daily_revenue`: ini hari-hari yang harus dihitung ulang model incremental. Urutkan.
+@data late_orders
+@names
+@ordered
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/distinct/ ## Setiap tanggal sekali: DISTINCT.
+/_loaded_at/ ## Saring pada _loaded_at, bukan order_date.
+@hint
+`SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date`
+@solution
+SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date;
+:::
+
+:::drill sql Berapa baris yang terlewat watermark yang salah?
+Tampilkan satu angka, `missed_rows`: jumlah baris yang ditemukan watermark yang benar (`_loaded_at` setelah `max_loaded_at` terbaru) **dikurangi** jumlah yang ditemukan yang salah (`order_date` setelah `order_date` terbaru di `daily_revenue`).
+@data late_orders
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/_loaded_at/ ## Hitung baris watermark yang benar (_loaded_at).
+/order_date\s*>/ ## Dan baris watermark yang salah (order_date > ...).
+@hint
+`SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;`
+@solution
+SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;
+:::
+
 > 💡 **Jeda Praktik 4 (Model Inkremental dengan Watermark Ingestion):**
 > 1. Buka teks editor Anda, buka file `labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql`.
 > 2. Konfigurasikan header model: `{{ config(materialized='incremental', unique_key='order_date', incremental_strategy='delete+insert') }}`.

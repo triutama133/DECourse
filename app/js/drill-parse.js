@@ -25,7 +25,7 @@
  *   :::
  *
  *   SQL drills: ":::drill sql Title", "@data kopiku" (the dataset), @starter, @solution, @hint, "@check" lines of the form
- *   /regex/ ## message (the query must contain it), "@ordered" (row order matters), "@names" (column names matter), and
+ *   /regex/ ## message (the query must contain it) or !/regex/ ## message (it must NOT contain it), "@ordered" (row order matters), "@names" (column names matter), and
  *   "@verify" (a query run AFTER the learner's statements, for INSERT / UPDATE / CREATE drills). The learner's RESULT is compared
  *   with the result of the @solution, on the dataset and again on a copy with extra rows.
  *

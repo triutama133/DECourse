@@ -180,6 +180,86 @@ If you forget the range and join on `customer_id` alone, every order matches *ev
 
 **Loading a Type 2 dimension incrementally** (when you do not have a clean change feed, only today's snapshot): compare each incoming row with the current version on the *tracked* attributes; if different, close the current row (`valid_to = now`, `is_current = 0`) and insert a new current row. Use `IS DISTINCT FROM` rather than `<>` so a change to or from NULL is detected, and make the step idempotent (running twice must not create a second identical version). Two real-world complications: **late-arriving changes** (an update that happened Tuesday arrives on Thursday must be inserted *between* existing versions, re-cutting the ranges) and **out-of-order events** (always order by the source's event time, not by arrival time).
 
+### See it: the as-of join, and what happens without the time range
+
+Customer 1 has three versions in the dimension and three orders. Watch the join:
+
+:::sqlsteps The as-of join
+@data scd_demo
+@stage 1. The three orders of customer 1
+SELECT order_id, customer_id, order_ts FROM orders_small WHERE customer_id = 1 ORDER BY order_ts
+@say
+Three facts, three moments in time.
+@stage 2. The three versions of customer 1 in the dimension
+SELECT customer_sk, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
+@say
+Silver until 10 January, Gold until 20 January, then Gold in Bandung. Each version has a validity range.
+@stage 3. WRONG: join on customer_id alone
+SELECT o.order_id, o.order_ts, d.tier, d.valid_from FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id WHERE o.customer_id = 1 ORDER BY o.order_id, d.valid_from
+@say
+3 orders x 3 versions = **9 rows**. Every order matches every version: a silent inflation (the Type 2 fan-out trap).
+@stage 4. RIGHT: join on the key AND the time range
+SELECT o.order_id, o.order_ts, d.tier, d.valid_from FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id AND o.order_ts >= d.valid_from AND o.order_ts < d.valid_to WHERE o.customer_id = 1 ORDER BY o.order_id
+@say
+Back to **3 rows**: each order meets exactly the version that was true when it happened. `valid_from` is inclusive and `valid_to` exclusive, so the ranges tile the timeline with no gap and no overlap.
+:::
+
+:::ask Orders are joined to the dimension on `customer_id` only, with no time range. Customer 1 has 3 orders and 3 versions. How many rows come out for that customer?
+@options
+3
+6
+* 9
+@why
+Without the time condition, every order matches every version of its customer: 3 x 3 = 9. A test that asserts "the fact row count is unchanged after the join" catches this immediately.
+:::
+
+:::drill sql Only the current version
+Show `customer_id`, `city` and `tier` of the **current** version of each customer (the open-ended row), ordered by `customer_id`.
+@data scd_demo
+@ordered
+@names
+@starter
+-- write your query below this line
+
+@check
+/is_current|9999/ ## Use the is_current flag (or the open valid_to of 9999-12-31).
+@hint
+`WHERE is_current = 1`
+@solution
+SELECT customer_id, city, tier FROM dim_customer WHERE is_current = 1 ORDER BY customer_id;
+:::
+
+:::drill sql Count the fan-out
+Show how many **extra** rows the wrong join (on `customer_id` only) creates compared with the number of orders: one number, `extra_rows` (rows of the wrong join minus the number of rows in `orders_small`).
+@data scd_demo
+@names
+@starter
+-- write your query below this line
+
+@check
+/join/ ## Count the rows of orders_small JOIN dim_customer ON customer_id.
+@hint
+`SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;`
+@solution
+SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;
+:::
+
+:::drill sql What was true on 15 January?
+Show the `tier` that customer `1` had on `'2026-01-15 00:00:00'`, using the half-open range (`>= valid_from AND < valid_to`).
+@data scd_demo
+@names
+@starter
+-- write your query below this line
+
+@check
+/valid_to/ ## Use the end of the range: < valid_to.
+/valid_from/ ## Use the start of the range: >= valid_from.
+@hint
+`WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to`
+@solution
+SELECT tier FROM dim_customer WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to;
+:::
+
 > 💡 **Practice Pause 2 (SCD Type 2 & As-of Joins):**
 > Master customer history tracking and point-in-time joins:
 > 1. In `labs/mod-1-4/answers.sql` (or SQL Sandbox), solve 3 SCD challenges:

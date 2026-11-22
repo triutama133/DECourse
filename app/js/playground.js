@@ -118,6 +118,26 @@ window.SQL_PLAYGROUND = {
           (117,1,1,1,85000),
           (118,1,5,2,100000);`
     },
+    late_orders: {
+      name: { id: "Pesanan terlambat (model incremental)", en: "Late-arriving orders (incremental models)" },
+      description: {
+        id: "Tabel mentah append-only dengan kolom _loaded_at, dan tabel hasil harian yang dibangun setelah muatan pertama. Muatan kedua membawa satu pesanan baru DAN refund untuk pesanan lama. Dipakai untuk menunjukkan mengapa watermark harus waktu masuk, bukan tanggal bisnis.",
+        en: "An append-only raw table with a _loaded_at column, and a daily result table built after the first load. The second load brings one new order AND a refund for an older order. Used to show why the watermark must be the ingestion time, not the business date."
+      },
+      setup: `
+        CREATE TABLE raw_orders (order_id INTEGER, order_date TEXT, status TEXT, amount_idr INTEGER, _loaded_at TEXT);
+        INSERT INTO raw_orders VALUES
+          (1,'2026-01-24','delivered',100000,'2026-01-25 23:00:00'),
+          (2,'2026-01-25','delivered',200000,'2026-01-25 23:00:00'),
+          (3,'2026-01-25','delivered',150000,'2026-01-25 23:00:00'),
+          (4,'2026-01-25','delivered',50000,'2026-01-25 23:00:00'),
+          (5,'2026-01-26','delivered',120000,'2026-01-26 23:00:00'),
+          (3,'2026-01-25','refunded',150000,'2026-01-26 23:00:00');
+        CREATE TABLE daily_revenue (order_date TEXT PRIMARY KEY, orders INTEGER, revenue_idr INTEGER, max_loaded_at TEXT);
+        INSERT INTO daily_revenue VALUES
+          ('2026-01-24',1,100000,'2026-01-25 23:00:00'),
+          ('2026-01-25',3,400000,'2026-01-25 23:00:00');`
+    },
     daily_sales: {
       name: { id: "Penjualan harian per toko (window function)", en: "Daily sales per store (window functions)" },
       description: {

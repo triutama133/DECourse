@@ -1714,6 +1714,7 @@ class DataForgeApp {
     if (!d) return "";
     const key = ctx && ctx.modId != null ? `${ctx.modId}:${ctx.lessonIdx || 0}:${idx}` : `loose:${idx}`;
     this._drills[key] = d;
+    d.key = key;
     this.warmPython();
     const st = this.drillState(key);
     if (d.kind === "ask") return this.renderAsk(d, key, st);
@@ -2041,11 +2042,21 @@ class DataForgeApp {
   // The first law of the course: the learner does it on their OWN computer. A drill that passed points there, with the exact steps.
   drillLocalBox(d) {
     const C = (t) => `<code>${this.esc(t)}</code>`;
+    const beyond = d.key && this.levelIdOfModule(String(d.key).split(":")[0]) !== "zero";   // Level 1 and up: the browser drill is a warm-up, never the proof
+    const proof = beyond ? `<p class="small"><strong>${this.l("Pemanasan, bukan bukti:", "A warm-up, not the proof:")}</strong> ${this.l("yang dihitung adalah tes lab dan kode bukti yang berjalan di komputer Anda.", "what counts is the lab's tests and proof code running on your own computer.")}</p>` : "";
     const files = d.files && Object.keys(d.files).length ? this.l(` Buat juga file contoh di sebelahnya: ${Object.keys(d.files).map(C).join(", ")} (isinya ada di "Berkas contoh" di atas).`, ` Also create the sample file next to it: ${Object.keys(d.files).map(C).join(", ")} (its content is under "Sample files" above).`) : "";
-    const body = d.lang === "sql"
+    const ds = d.lang === "sql" && d.data !== "kopiku" ? this.sqlCtx(d.data) : null;   // the KopiKu dataset has a file in the course; the small teaching datasets are pasted
+    const setupBox = ds ? `<details class="sql-tables"><summary>${this.l("SQL untuk membuat dataset ini di komputer Anda", "The SQL that creates this dataset on your computer")}</summary><pre class="pad-out drill-setup">${this.esc(ds.setup.replace(/^ {8}/gm, "").trim())}</pre><button class="btn btn-sm" onclick="app.drillCopySetup(this)">${this.l("Salin SQL dataset", "Copy the dataset SQL")}</button></details>` : "";
+    const body = ds
+      ? this.l(`Jalankan ${C("python3 -m sqlite3 practice.db")}, tempel SQL dataset di bawah (sekali saja), lalu tempel query Anda di prompt ${C("sqlite>")}, akhiri dengan ${C(";")} dan Enter. Samakah hasilnya dengan tabel di atas? Keluar dengan ${C(".quit")}.`, `Run ${C("python3 -m sqlite3 practice.db")}, paste the dataset SQL below (once), then paste your query at the ${C("sqlite>")} prompt, end it with ${C(";")} and press Enter. Is the result the same as the table above? Leave with ${C(".quit")}.`)
+      : d.lang === "sql"
       ? this.l(`Dari folder kursus: ${C("python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql")} (sekali saja), lalu ${C("python3 -m sqlite3 kopiku.db")}. Tempel query Anda di prompt ${C("sqlite>")}, akhiri dengan ${C(";")} dan Enter. Samakah hasilnya dengan tabel di atas? Keluar dengan ${C(".quit")}.`, `From the course folder: ${C("python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql")} (once), then ${C("python3 -m sqlite3 kopiku.db")}. Paste your query at the ${C("sqlite>")} prompt, end it with ${C(";")} and press Enter. Is the result the same as the table above? Leave with ${C(".quit")}.`)
       : this.l(`Buka terminal Anda, ketik ${C("python3")} dan Enter, lalu ketik atau tempel kode Anda di prompt ${C(">>>")} (atau simpan sebagai ${C("~/practice/drill.py")} dan jalankan ${C("python3 ~/practice/drill.py")}; tambahkan ${C("print(...)")} untuk melihat nilainya).${files} Berperilaku samakah dengan di sini?`, `Open your terminal, type ${C("python3")} and press Enter, then type or paste your code at the ${C(">>>")} prompt (or save it as ${C("~/practice/drill.py")} and run ${C("python3 ~/practice/drill.py")}; add ${C("print(...)")} to see a value).${files} Does it behave the same as here?`);
-    return `<div class="callout drill-local"><strong>🖥️ ${this.l("Sekarang kerjakan di komputer Anda sendiri", "Now do it on your own computer")}</strong><p>${body}</p><p class="small muted">${this.l("Inilah bagian yang membuat ilmunya menempel. Pratinjau di browser hanya pemanasan.", "This is the part that makes it stick. The browser is only the warm-up.")}</p><button class="btn btn-sm" onclick="app.drillCopy(this)">${this.l("Salin jawaban saya", "Copy my answer")}</button></div>`;
+    return `<div class="callout drill-local"><strong>🖥️ ${this.l("Sekarang kerjakan di komputer Anda sendiri", "Now do it on your own computer")}</strong><p>${body}</p>${proof}${setupBox}<p class="small muted">${this.l("Inilah bagian yang membuat ilmunya menempel. Pratinjau di browser hanya pemanasan.", "This is the part that makes it stick. The browser is only the warm-up.")}</p><button class="btn btn-sm" onclick="app.drillCopy(this)">${this.l("Salin jawaban saya", "Copy my answer")}</button></div>`;
+  }
+  drillCopySetup(btn) {
+    const pre = btn.parentElement.querySelector(".drill-setup");
+    this.copyText(pre ? pre.textContent : "", btn);
   }
   drillCopy(btn) {
     const ta = this.drillBox(btn).querySelector(".drill-code");

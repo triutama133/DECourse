@@ -241,6 +241,92 @@ Three details that the lab will teach you the hard way:
 - **`ref()` must be outside the `is_incremental()` block.** dbt reads every `ref` when it builds the graph, before it knows whether the run is incremental. A `ref` hidden inside the condition fails with "dbt was unable to infer all dependencies"; declare it in a CTE above (or add a `-- depends_on: {{ ref('...') }}` hint).
 - **Prove it.** The lab's tests compare the incrementally maintained table with a from-scratch calculation on the raw data after the second load. Any incremental model deserves exactly that test, because an incorrect incremental model looks perfectly healthy. `dbt run --full-refresh` rebuilds from scratch (use it after logic changes) and a periodic full refresh is a cheap safety net.
 
+### See it: which dates must be recomputed?
+
+The daily table was built after the first load. A second load has arrived in the append-only raw table: one **new** order, and a **refund** for an order of 25 January that was already counted. Watch what each kind of watermark finds:
+
+:::sqlsteps Two watermarks, two answers
+@data late_orders
+@stage 1. What the daily table says after the first load
+SELECT order_date, orders, revenue_idr, max_loaded_at FROM daily_revenue ORDER BY order_date
+@say
+25 January: 3 orders, Rp 400,000 (orders 2, 3 and 4).
+@stage 2. What arrived since the last run (watermark: _loaded_at, the INGESTION time)
+SELECT order_id, order_date, status, _loaded_at FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)
+@say
+Two new rows: the new order 5 **and** the refund of order 3, whose business date is the 25th.
+@stage 3. The tempting WRONG watermark: only dates after the latest date in the table
+SELECT order_id, order_date, status, _loaded_at FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)
+@say
+Only the new order shows up. The refund has an **old** business date (25 January), so it is silently missed and the 25th keeps its old, wrong numbers.
+@stage 4. The right logic: every date that had any row loaded since the last run
+SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date
+@say
+These two dates are recomputed from scratch (the 25th and the 26th). Late and updated data has an old business date and a **new ingestion time**.
+@stage 5. The recomputed days (the latest version of every order; refunds do not count)
+WITH latest AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY _loaded_at DESC) AS rn FROM raw_orders) SELECT order_date, COUNT(*) AS orders, SUM(amount_idr) AS revenue_idr FROM latest WHERE rn = 1 AND status <> 'refunded' AND order_date IN ('2026-01-25', '2026-01-26') GROUP BY order_date ORDER BY order_date
+@say
+The 25th is now 2 orders and Rp 250,000 instead of 3 and Rp 400,000. An incremental model with the wrong watermark would never have noticed.
+:::
+
+:::ask Which column should the incremental watermark use: `order_date` (business time) or `_loaded_at` (ingestion time)?
+@options
+`order_date`: it is the date the order happened
+* `_loaded_at`: it says what is new to you, and late or updated rows have an old business date but a new ingestion time
+either one gives the same result
+@why
+Business time says when something happened; ingestion time says what *arrived*. A refund for an old order arrives late: its `order_date` is old, its `_loaded_at` is new, so only the ingestion watermark sees it.
+:::
+
+:::drill sql New rows since the last run
+Show the `order_id` and `order_date` of the raw rows loaded **after** the latest `max_loaded_at` in `daily_revenue`.
+@data late_orders
+@names
+@starter
+-- write your query below this line
+
+@check
+/_loaded_at/ ## Filter on _loaded_at (the ingestion time).
+/max\s*\(/ ## Compare with the latest max_loaded_at of daily_revenue: (SELECT MAX(max_loaded_at) FROM daily_revenue).
+@hint
+`WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)`
+@solution
+SELECT order_id, order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue);
+:::
+
+:::drill sql Dates to recompute
+Show the **different** `order_date` values that have any row loaded after the latest `max_loaded_at` in `daily_revenue`: these are the days an incremental model must recompute. Sort them.
+@data late_orders
+@names
+@ordered
+@starter
+-- write your query below this line
+
+@check
+/distinct/ ## Each date once: DISTINCT.
+/_loaded_at/ ## Filter on _loaded_at, not on order_date.
+@hint
+`SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date`
+@solution
+SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date;
+:::
+
+:::drill sql How many rows does the wrong watermark miss?
+Show one number, `missed_rows`: the number of rows found by the correct watermark (`_loaded_at` after the latest `max_loaded_at`) **minus** the number found by the wrong one (`order_date` after the latest `order_date` of `daily_revenue`).
+@data late_orders
+@names
+@starter
+-- write your query below this line
+
+@check
+/_loaded_at/ ## Count the rows of the correct watermark (_loaded_at).
+/order_date\s*>/ ## And the rows of the wrong watermark (order_date > ...).
+@hint
+`SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;`
+@solution
+SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;
+:::
+
 > 💡 **Practice Pause 4 (Incremental Models with Ingestion Watermarks):**
 > 1. In your text editor, open `labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql`.
 > 2. Configure the model header: `{{ config(materialized='incremental', unique_key='order_date', incremental_strategy='delete+insert') }}`.
