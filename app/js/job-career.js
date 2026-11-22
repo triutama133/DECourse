@@ -29,18 +29,26 @@
       const parts = (location.hash || "").replace(/^#\/?/, "").split("/");
       const data = window.JOB_SIM_DATA;
       const story = data && data.stories.find((s) => s.id === parts[1]);
-      const level = story && LEVELS.includes(parts[2]) ? parts[2] : null;
+      const level = story && (LEVELS.includes(parts[2]) || /^w[1-3]$/.test(parts[2] || "")) ? parts[2] : null;
       return { story, level };
     },
     jcCo(storyId) { return window.JOB_CAREER_DATA.COMPANIES[storyId]; },
     jcPerson(co, key) { return co.people[key] || { name: key, role: { id: "", en: "" }, color: "#52525b" }; },
     jcDone(story) { return story.levels.map((lv) => Boolean(this.jobSimProofs[lv.missionId])); },
-    jcUnlocked(story, i) { return i === 0 || Boolean(this.jobSimProofs[story.levels[i - 1].missionId]); },
+    jcWarmups(story) { return (window.JOB_SIM_WARMUP && window.JOB_SIM_WARMUP[story.id]) || []; },
+    jcWarmupDone(story) {
+      const st = this.jcState(story.id);
+      return Boolean(st.skipWarmup) || this.jcWarmups(story).every((w) => this.jobSimProofs[w.missionId]);
+    },
+    // mission 1 arrives after the warm-up week (or when the learner skips it); each later one after the one before
+    jcUnlocked(story, i) { return i === 0 ? this.jcWarmupDone(story) : Boolean(this.jobSimProofs[story.levels[i - 1].missionId]); },
+    jcSkipWarmup(storyId) { const st = this.jcState(storyId); st.skipWarmup = true; this.jcSave(); this.jcMsg = "m0"; this.renderView(); },
     jcTrust(story) {
       const st = this.jcState(story.id);
       const co = this.jcCo(story.id);
       let v = 50;
       (st.answers || []).forEach((a, qi) => { const q = co.interview.questions[qi]; if (q && q.options[a] && q.options[a].good) v += 5; });
+      this.jcWarmups(story).forEach((w) => { if (this.jobSimProofs[w.missionId]) v += 3; });
       story.levels.forEach((lv) => {
         const g = this.jobSimGates[lv.missionId];
         if (g && g.passed) v += Math.max(0, 6 - 3 * ((st.wrong || {})[lv.missionId] || 0));
@@ -226,7 +234,8 @@
       if (!story) html = this.jcRenderBoard(data);
       else {
         const st = this.jcState(story.id);
-        if (level) html = this.jcRenderMission(story, level);
+        if (level && /^w\d$/.test(level)) html = this.jcRenderWarmup(story, Number(level.slice(1)));
+        else if (level) html = this.jcRenderMission(story, level);
         else if (st.stage === "board" || st.stage === "posting") html = this.jcRenderPosting(story);
         else if (st.stage === "apply") html = this.jcRenderApply(story);
         else if (st.stage === "applied" || st.stage === "interview") html = this.jcRenderInterview(story);
@@ -293,8 +302,8 @@
             }).join("")}
           </div>
           <p class="small muted jc-enter">${this.l(
-            "Misi pertama setiap perusahaan butuh Python yang nyaman (Modul 1.2) dan mengerjakannya di terminal. Kalau Anda masih di Level 0, Anda tetap bisa melamar dan mengikuti hari pertama; misinya akan menunggu.",
-            "Each company's first mission needs comfortable Python (Module 1.2) and is done in your terminal. If you are still in Level 0, you can apply and do your first day; the missions will wait.")}</p>
+            "Minggu pertama di setiap perusahaan berisi tiga tugas kecil yang cocok untuk Level 0 (Python dasar dari Modul 0.0 dan satu query SQL dari Modul 0.3). Misi besar setelahnya butuh Python yang nyaman (Modul 1.2). Semua dikerjakan di komputer Anda sendiri dan diverifikasi di terminal.",
+            "The first week at every company has three small tasks that fit Level 0 (basic Python from Module 0.0 and one SQL query from Module 0.3). The big missions after it need comfortable Python (Module 1.2). Everything is done on your own computer and verified in your terminal.")}</p>
         </div>`;
     },
 
@@ -523,6 +532,9 @@
       const msgs = [];
       msgs.push({ id: "welcome", from: { name: `${co.name} HR`, color: "#52525b", role: { id: "HR", en: "HR" } }, subject: this.l("Selamat bergabung", "Welcome aboard"), kind: "hr" });
       msgs.push({ id: "week1", from: mgr, subject: this.l("Minggu pertama Anda", "Your first week"), kind: "week1" });
+      this.jcWarmups(story).slice().reverse().forEach((w) => {   // the list shows newest first, so task 1 ends up on top
+        msgs.push({ id: "w" + w.n, from: this.jcPerson(co, w.from), subject: this.t(w.title), kind: "warmup", w });
+      });
       story.levels.forEach((lv, i) => {
         const p = this.jcPerson(co, co.levels[i].from);
         if (this.jcUnlocked(story, i)) msgs.push({ id: "m" + i, from: p, subject: this.t(lv.title).replace(/^(Misi|Mission) \d\.\d: /, ""), kind: "mission", i, lv });
@@ -550,7 +562,7 @@
       else body = this.jcRenderCareer(story, co);
       return `
         <div data-scene="desk-${tab}" class="stack">
-          ${this.jcTopBar(story, co, (() => { const d = this.jcDone(story); const k = d.indexOf(false); return `<span class="jc-when-chip">${k < 0 ? this.l("Tahun 2", "Year 2") : this.esc(this.t(window.JOB_CAREER_DATA.COMMON.levelWhen[k]))}</span>`; })())}
+          ${this.jcTopBar(story, co, (() => { const d = this.jcDone(story); const k = d.indexOf(false); return `<span class="jc-when-chip">${!this.jcWarmupDone(story) ? this.l("Minggu 1", "Week 1") : k < 0 ? this.l("Tahun 2", "Year 2") : this.esc(this.t(window.JOB_CAREER_DATA.COMMON.levelWhen[k]))}</span>`; })())}
           <nav class="jc-tabs jc-enter" role="tablist">${tabs.map(([k, label]) => `<button role="tab" aria-selected="${k === tab}" class="${k === tab ? "active" : ""}" onclick="app.jcSetTab('${k}')">${label}</button>`).join("")}</nav>
           ${body}
         </div>`;
@@ -568,7 +580,9 @@
                 ${this.jcAvatar(m.from)}
                 <span class="jc-msg-meta"><strong>${this.esc(m.from.name)}</strong><span>${this.esc(m.subject)}</span></span>
                 ${m.kind === "mission" ? (this.jobSimProofs[m.lv.missionId] ? `<span class="jc-pill done">✓</span>` : `<span class="jc-pill">${this.l("Tiket", "Ticket")}</span>`) : ""}
+                ${m.kind === "warmup" ? (this.jobSimProofs[m.w.missionId] ? `<span class="jc-pill done">✓</span>` : `<span class="jc-pill">${this.l("Tugas kecil", "Small task")}</span>`) : ""}
               </button></li>`).join("")}
+            ${nextLocked === 0 ? `<li class="jc-msg-later">${this.l("Tiket besar pertama datang setelah tiga tugas kecil minggu ini selesai.", "The first big ticket arrives once this week's three small tasks are done.")}</li>` : ""}
             ${nextLocked > 0 ? `<li class="jc-msg-later">${this.l(`Pesan berikutnya datang setelah misi ${nextLocked} selesai.`, `The next message arrives after mission ${nextLocked} is done.`)}</li>` : ""}
           </ul>
           <div class="jc-msg-view">${sel ? this.jcRenderMessage(story, co, sel) : ""}</div>
@@ -583,7 +597,7 @@
         <p>${this.l(`Selamat datang di ${this.esc(co.name)}! Laptop Anda sudah siap di meja. Atasan Anda adalah ${this.esc(mgr.name)}.`, `Welcome to ${this.esc(co.name)}! Your laptop is ready on your desk. Your manager is ${this.esc(mgr.name)}.`)}</p>
         <p>${this.l("Masa percobaan Anda tiga bulan. Setelah itu, kenaikan jabatan mengikuti hasil kerja, bukan lama bekerja.", "Your probation is three months. After that, promotions follow results, not time served.")}</p>`;
       if (m.kind === "week1") {
-        const auto = { ticket: Boolean(this.jobSimGates[story.levels[0].missionId]) };
+        const auto = { ticket: this.jcWarmups(story).some((w) => this.jobSimProofs[w.missionId]) || Boolean(this.jobSimGates[story.levels[0].missionId]) };
         return `${head}
           <p>${this.l("Ini daftar minggu ini. Centang kalau sudah.", "Here's this week's list. Tick them off as you go.")}</p>
           <ul class="jc-checklist">
@@ -591,7 +605,11 @@
               const on = Boolean(st.tasks[t.id] || auto[t.id]);
               return `<li><label><input type="checkbox" ${on ? "checked" : ""} ${auto[t.id] ? "disabled" : ""} onchange="app.jcToggleTask('${story.id}','${t.id}')" /> <strong>${this.esc(this.t(t.title))}</strong></label><div class="small muted">${this.inline(this.t(t.detail))}</div></li>`;
             }).join("")}
-          </ul>`;
+          </ul>
+          ${this.jcWarmupDone(story) ? "" : `<p class="small muted">${this.l(
+            "Tiga tugas kecil minggu ini cocok untuk Level 0: Python dasar (Modul 0.0) dan satu query SQL (Modul 0.3). Sudah lancar Python dan SQL?",
+            "This week's three small tasks fit Level 0: basic Python (Module 0.0) and one SQL query (Module 0.3). Already comfortable with Python and SQL?")}
+            <button class="btn btn-sm btn-quiet" onclick="app.jcSkipWarmup('${story.id}')">${this.l("Lewati, langsung ke tiket besar pertama", "Skip to the first big ticket")}</button></p>`}`;
       }
       if (m.kind === "mission") {
         const lv = m.lv;
@@ -602,6 +620,14 @@
           <p>${this.inline(this.t(lv.incidentTicket.brief))}</p>
           <p class="small"><strong>${this.l("Selesai artinya", "Done means")}:</strong> ${this.inline(this.t(lv.incidentTicket.sla))}</p>
           <button class="btn btn-primary jc-cta" onclick="app.jcOpenMission('${story.id}','${lv.level}')">${proof ? this.l("Lihat pekerjaan ini", "Open this work") : this.l("Ambil tiket ini →", "Take this ticket →")}</button>`;
+      }
+      if (m.kind === "warmup") {
+        const w = m.w;
+        const proof = this.jobSimProofs[w.missionId];
+        return `${head}
+          <div class="small muted">${this.l("Minggu 1", "Week 1")} · ${this.l("sekitar 30 menit", "about 30 minutes")} · <a href="#/curriculum/${w.module}">${this.l("Modul", "Module")} ${w.module.replace("mod-", "").replace("-", ".")}</a></div>
+          <p>${this.inline(this.t(w.brief))}</p>
+          <button class="btn btn-primary jc-cta" onclick="app.jcOpenMission('${story.id}','w${w.n}')">${proof ? this.l("Lihat pekerjaan ini", "Open this work") : this.l("Kerjakan →", "Do it →")}</button>`;
       }
       if (m.kind === "thanks") return `${head}<p>${this.inline(this.t(co.levels[m.i].after))}</p>`;
       if (m.kind === "review") {
@@ -622,10 +648,17 @@
         return "todo";
       };
       const key = co.logo.text.toUpperCase();
+      const warmCards = (c) => this.jcWarmups(story).filter((w) => (this.jobSimProofs[w.missionId] ? "done" : "todo") === c).map((w) => `
+                <button class="jc-card warm" onclick="app.jcOpenMission('${story.id}','w${w.n}')">
+                  <div class="row between"><span class="jc-key">${key}-${w.n}</span>${this.jcAvatar(this.jcPerson(co, w.from), "sm")}</div>
+                  <div class="jc-card-title">${this.esc(this.t(w.title))}</div>
+                  <div class="jc-card-foot"><span>${this.l("Minggu 1 · tugas kecil", "Week 1 · small task")}</span><span></span></div>
+                </button>`).join("");
       return `
         <div class="jc-kanban jc-enter">
           ${cols.map(([c, label]) => `
             <div class="jc-col"><div class="jc-col-head">${label}</div>
+              ${warmCards(c)}
               ${story.levels.map((lv, i) => where(lv, i) !== c ? "" : `
                 <button class="jc-card ${this.jcUnlocked(story, i) ? "" : "locked"}" onclick="app.jcOpenMission('${story.id}','${lv.level}')">
                   <div class="row between"><span class="jc-key">${key}-${101 + i}</span>${this.jcAvatar(this.jcPerson(co, co.levels[i].from), "sm")}</div>
@@ -662,6 +695,81 @@
             <p class="small muted">${this.l("Terbuka per misi yang terverifikasi. Masuk ke ATS Resume sebagai proyek simulasi, bukan pengalaman kerja.", "They open per verified mission. They go into ATS Resume as a simulation project, not work experience.")}</p>
             ${story.starResumeBullets.map((b, i) => `<div class="well row between" style="gap:10px;align-items:center"><span class="small" style="flex:1">${done[i] ? "✅" : "🔒"} ${this.inline(b)}</span>${done[i] ? `<button class="btn btn-sm btn-quiet" onclick="app.pushJobSimBulletToCv('${story.id}', ${i})">➕ ${this.l("Ke CV", "Add to CV")}</button>` : ""}</div>`).join("")}
           </div>
+        </div>`;
+    },
+
+    // 7b. A warm-up task: the ask -> ticket and code -> review (no design meeting: it is a small task)
+    jcRenderWarmup(story, n) {
+      const co = this.jcCo(story.id);
+      const w = this.jcWarmups(story).find((x) => x.n === n);
+      if (!w) return this.jcRenderDesk(story);
+      const proof = this.jobSimProofs[w.missionId];
+      const from = this.jcPerson(co, w.from);
+      const mgr = this.jcPerson(co, co.manager);
+      const step = (this.jcSteps && this.jcSteps[w.missionId]) || (proof ? "review" : "brief");
+      const cur = step === "review" && !proof ? "ticket" : step;
+      const mod = w.module.replace("mod-", "").replace("-", ".");
+      const steps = [["brief", this.l("Permintaan", "The ask")], ["ticket", this.l("Tiket & kode", "Ticket & code")], ["review", this.l("Selesai", "Done")]];
+      const workDir = `~/job-sim/${w.missionId}`;
+      const key = `${co.logo.text.toUpperCase()}-${w.n}`;
+      let body;
+      if (cur === "brief") {
+        body = `
+          <div class="jc-chat jc-enter"><div class="jc-chat-head"><strong>${this.l("Pesan langsung", "Direct message")}</strong><span class="small muted">${this.esc(from.name)}</span></div>
+            <div class="jc-chat-body">
+              <div class="jc-chat-msg">${this.jcAvatar(from)}<div><div class="jc-chat-who"><strong>${this.esc(from.name)}</strong> <span>${this.esc(this.t(from.role))}</span></div><p>${this.inline(this.t(w.brief))}</p></div></div>
+              <div class="jc-chat-msg">${this.jcAvatar(mgr)}<div><div class="jc-chat-who"><strong>${this.esc(mgr.name)}</strong></div><p>${this.l(
+                `Tugas kecil yang bagus untuk minggu pertama. Yang Anda butuhkan ada di Modul ${mod}. Kerjakan sendiri, uji di komputer Anda, lalu kirim.`,
+                `A good small task for your first week. What you need is in Module ${mod}. Do it yourself, test it on your computer, then send it.`)}</p></div></div>
+            </div></div>
+          <button class="btn btn-primary jc-cta jc-enter" onclick="app.jcStep('${w.missionId}','ticket')">👍 ${this.l("Siap, buka tiketnya →", "On it, open the ticket →")}</button>`;
+      } else if (cur === "ticket") {
+        body = `
+          <div class="jc-ticket jc-enter">
+            <div class="jc-ticket-head"><span class="jc-key">${key}</span><span class="jc-pill ${proof ? "done" : "doing"}">${proof ? this.l("Selesai", "Done") : this.l("Sedang dikerjakan", "In progress")}</span><span class="small muted">${this.l("Modul", "Module")} ${mod}</span></div>
+            <h2>${this.esc(this.t(w.title))}</h2>
+            <h3>${this.l("Aturan", "Rules")}</h3>
+            <ul class="jc-ac">${(w.spec.rules[this.lang] || w.spec.rules.en).map((r) => `<li>${this.inline(r)}</li>`).join("")}</ul>
+            <p class="small"><strong>${this.l("Fungsi", "Function")}:</strong> <code class="jc-wrap">${this.esc(w.spec.functionSig)}</code> ${this.l("di", "in")} <code>${this.esc(w.spec.file)}</code></p>
+            <h3>${this.l("Kerjakan di komputer Anda", "Do it on your computer")}</h3>
+            <p class="small muted">${this.l("Di terminal, dari folder kursus. <code>init</code> membuat file berisi aturan di atas dan fungsi kosong; buka file itu di VS Code, tulis fungsinya, simpan, lalu jalankan <code>verify</code>. Ulangi sampai lulus; pesannya memberi tahu aturan mana yang belum terpenuhi.", "In the terminal, from the course folder. <code>init</code> makes a file with the rules above and an empty function; open it in VS Code, write the function, save, then run <code>verify</code>. Repeat until it passes; its messages say which rule is not met yet.")}</p>
+            <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(`python3 scripts/job_sim.py init ${w.missionId} ${workDir}
+# ${this.l("tulis fungsinya di", "write the function in")} ${workDir}/${w.spec.file}
+python3 scripts/job_sim.py verify ${w.missionId} ${workDir}`)}</code></pre></div>
+            <div class="row">
+              <input type="text" id="jobsim-proof-input-${w.missionId}" autocomplete="off" spellcheck="false" placeholder="JOB1:${w.missionId}:…" value="${proof ? this.esc(proof.token) : ""}" class="jc-token" onkeydown="if(event.key==='Enter'){app.submitJobSimProof('${w.missionId}')}" />
+              <button class="btn btn-sm btn-primary" onclick="app.submitJobSimProof('${w.missionId}')">${this.l("Kirim", "Send")}</button>
+            </div>
+            <div id="jobsim-proof-msg-${w.missionId}"></div>
+          </div>`;
+      } else {
+        const thanks = [
+          this.l("Terima kasih, ini persis yang saya butuhkan. Saya pakai mulai hari ini.", "Thank you, that is exactly what I needed. I'm using it from today."),
+          this.l("Angkanya cocok dengan yang saya hitung manual. Mantap.", "The numbers match what I counted by hand. Great."),
+          this.l("Query-nya jalan dan hasilnya masuk akal. Terima kasih!", "The query runs and the result makes sense. Thanks!")
+        ][(n - 1) % 3];
+        const left = this.jcWarmups(story).filter((x) => !this.jobSimProofs[x.missionId]).length;
+        body = `
+          <div class="jc-ship jc-enter">✅ <strong>${this.l("Terkirim dan terverifikasi", "Sent and verified")}</strong> · ${this.l(`${proof.passed} pemeriksaan lulus`, `${proof.passed} checks passed`)}</div>
+          <div class="jc-chat jc-enter"><div class="jc-chat-body">
+            <div class="jc-chat-msg">${this.jcAvatar(from)}<div><div class="jc-chat-who"><strong>${this.esc(from.name)}</strong></div><p>${this.esc(thanks)}</p></div></div>
+            <div class="jc-chat-msg">${this.jcAvatar(mgr)}<div><div class="jc-chat-who"><strong>${this.esc(mgr.name)}</strong></div><p>${left
+              ? this.l(`Bagus. Kecil, benar, dan teruji: begitulah kepercayaan dimulai. Masih ${left} tugas kecil lagi minggu ini.`, `Nice. Small, correct and tested is how trust starts. ${left} more small task${left > 1 ? "s" : ""} this week.`)
+              : this.l("Minggu pertama selesai, dan semuanya terverifikasi. Tiket besar pertama Anda sudah ada di kotak masuk.", "First week done, and all of it verified. Your first big ticket is in your inbox.")}</p></div></div>
+          </div></div>
+          <button class="btn btn-primary jc-cta jc-enter" onclick="app.jcSetTab('inbox');app.jcMsg='${left ? "w" + (this.jcWarmups(story).find((x) => !this.jobSimProofs[x.missionId]) || {}).n : "m0"}';app.go('job-sim','${story.id}')">📥 ${this.l("Kembali ke kotak masuk →", "Back to the inbox →")}</button>`;
+      }
+      return `
+        <div data-scene="warmup-${w.missionId}-${cur}" class="stack">
+          ${this.jcTopBar(story, co, `<span class="jc-when-chip">${this.l("Minggu 1", "Week 1")}</span>`)}
+          <button class="btn btn-quiet btn-sm jc-enter" style="align-self:flex-start" onclick="app.jcSetTab('inbox');app.go('job-sim','${story.id}')">← ${this.l("Ke meja Anda", "Back to your desk")}</button>
+          <ol class="jc-stepper three jc-enter">
+            ${steps.map(([s2, label], k) => {
+              const can = s2 === "brief" || s2 === "ticket" || (s2 === "review" && proof);
+              return `<li class="${s2 === cur ? "now" : can && k < steps.findIndex((x) => x[0] === cur) ? "past" : ""}"><button ${can ? "" : "disabled"} onclick="app.jcStep('${w.missionId}','${s2}')"><span>${k + 1}</span>${label}</button></li>`;
+            }).join("")}
+          </ol>
+          ${body}
         </div>`;
     },
 

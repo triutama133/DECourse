@@ -7,6 +7,9 @@ Covers 4 Distinct Industry Stories × 4 Progressive Difficulty Levels (16 Produc
   3. gokirim    (🚚 GoKirim Express Logistics & IoT Telemetry: easy, normal, hard, expert)
   4. cloudpulse (🧬 CloudPulse & MedFlow AI Healthcare Lakehouse & RAG: easy, normal, hard, expert)
 
+Plus a warm-up week for Level 0 learners: three small tasks per company (<story>-w1, -w2, -w3), defined in
+scripts/job_sim_warmup.py and verified the same way.
+
 Usage:
   python3 scripts/job_sim.py list
   python3 scripts/job_sim.py init <story>-<level> <workspace_dir>
@@ -44,6 +47,12 @@ MISSIONS = {
 }
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import job_sim_warmup as WARM  # noqa: E402 - the warm-up tasks live next to this file
+
+MISSIONS.update({mid: (t["file"], t["fn"]) for mid, t in WARM.TASKS.items()})
+
+
 def _sha256(val: str) -> str:
     return hashlib.sha256(val.encode("utf-8")).hexdigest()
 
@@ -79,6 +88,8 @@ def run_mission_checks(mission_id: str, work_dir: Path, fn=None) -> tuple[int, l
     filename, fn_name = MISSIONS[mission_id]
     if fn is None:
         fn = _load_fn(work_dir, filename, fn_name)
+    if mission_id in WARM.TASKS:
+        return WARM.visible_checks(mission_id, fn)
     checks = []
     errors = []
 
@@ -320,6 +331,8 @@ def _extract_from_js(field: str) -> dict[str, str]:
     out = {}
     for m in re.finditer(r'missionId:\s*"([^"]+)"[\s\S]*?' + field + r':\s*`((?:\\.|[^`\\])*)`', txt):
         out[m.group(1)] = m.group(2).replace("\\`", "`").replace("\\${", "${").replace("\\\\", "\\")
+    for mid, t in WARM.TASKS.items():
+        out[mid] = WARM.starter(mid) if field == "starterCode" else t["reference"]
     return out
 
 
@@ -537,6 +550,9 @@ def _reference_fn(mission_id: str, tmp_dir: Path):
 def run_hidden_check(mission_id: str, fn) -> list[str]:
     """Run the learner's function and the reference on a dataset the learner has not seen; return the differences."""
     import copy
+    if mission_id in WARM.TASKS:
+        with tempfile.TemporaryDirectory() as tmp:
+            return WARM.hidden_diffs(mission_id, fn, _reference_fn(mission_id, Path(tmp)))
     args, kwargs, _ = _hidden_case(mission_id)
     with tempfile.TemporaryDirectory() as tmp:
         ref = _reference_fn(mission_id, Path(tmp))
@@ -559,7 +575,7 @@ def _norm(code: str) -> str:
 
 
 def cmd_list():
-    print("DataForge Real-Life Data Engineer Job Simulator — 16 Production Missions:")
+    print(f"DataForge Job Simulator: {len(MISSIONS) - len(WARM.TASKS)} missions and {len(WARM.TASKS)} warm-up tasks:")
     for mid, (fname, fn) in MISSIONS.items():
         print(f"  - {mid:<18} -> {fname} :: {fn}()")
 
@@ -612,7 +628,7 @@ def cmd_verify(mission_id: str, work_dir: Path):
 def cmd_self_test():
     """Every reference passes; every starter, every copied reference and every 'replay the first answer' cheat fails."""
     refs, starters = _extract_from_js("referenceCode"), _extract_from_js("starterCode")
-    assert len(refs) == 16 and len(starters) == 16, f"Expected 16 references and starters, found {len(refs)} and {len(starters)}"
+    assert len(refs) == len(MISSIONS) and len(starters) == len(MISSIONS), f"Expected {len(MISSIONS)} references and starters, found {len(refs)} and {len(starters)}"
     bad = 0
     for mid, (fname, fn_name) in MISSIONS.items():
         results = {}
@@ -645,6 +661,8 @@ def cmd_self_test():
                 f"\n\n_real = {fn_name}\n_first = []\n\n"
                 f"def {fn_name}(*a, **k):\n    if not _first:\n        _first.append(_real(*a, **k))\n    return _first[0]\n"
             )
+            if mid in WARM.TASKS and WARM.TASKS[mid]["kind"] == "sql":
+                cheat = WARM.sql_cheat(mid)   # a query that returns the visible answer as literal rows
             (tdir / fname).write_text(cheat, encoding="utf-8")
             try:
                 verify_mission(mid, tdir)
@@ -657,7 +675,7 @@ def cmd_self_test():
     if bad:
         print(f"SELF_TEST_FAILED ({bad} missions)")
         sys.exit(1)
-    print("SELF_TEST_ALL_16_JOB_SIM_MISSIONS_OK")
+    print(f"SELF_TEST_ALL_{len(MISSIONS)}_JOB_SIM_MISSIONS_OK")
 
 
 if __name__ == "__main__":

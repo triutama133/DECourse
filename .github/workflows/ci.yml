@@ -95,6 +95,9 @@ jobs:
       - name: Job simulator passes the references and rejects starters, copies and hard-coded answers
         run: python3 scripts/job_sim.py --self-test
 
+      - name: The app's copy of the warm-up tasks matches scripts/job_sim_warmup.py
+        run: python3 scripts/job_sim_warmup.py --check-js
+
       - name: PR review cases fail as shipped, pass when fixed, and reject copies and hard-coded answers
         run: python3 scripts/pr_review.py --self-test
 

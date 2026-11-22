@@ -247,3 +247,8 @@ html[data-theme="dark"] .jc-stamp { border-color: #34d399; color: #34d399; }
   .jc-typing i { animation: none; }
   .jc-posting-row:hover, .jc-card:hover, .jc-sticky:hover:not(:disabled) { transform: none; }
 }
+
+/* warm-up week: small tasks, three steps */
+.jc-stepper.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.jc-card.warm { border-style: dashed; }
+@media (max-width: 760px) { .jc-stepper.three { grid-template-columns: 1fr; } }

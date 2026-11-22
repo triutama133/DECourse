@@ -593,7 +593,9 @@ class DataForgeApp {
     const proofCount = allMods.filter((m) => this.proofFor(m.id)).length;
     const chaosCount = Object.keys(this.chaosProofs || {}).length;
     const portCount = Object.keys(this.portfolioProofs || {}).length;
-    const jobSimCount = Object.keys(this.jobSimProofs || {}).length;
+    // warm-up tasks (<story>-w1..w3) are small Level 0 exercises: they count, but far less than a real mission
+    const jobSimCount = Object.keys(this.jobSimProofs || {}).filter((k) => !/-w\d$/.test(k)).length;
+    const warmupCount = Object.keys(this.jobSimProofs || {}).filter((k) => /-w\d$/.test(k)).length;
     const sqlCount = (this.solvedChallenges || []).length;
     const bugCount = Object.values(this.bugState || {}).filter((x) => x && x.solved).length;
     const defCount = Object.values(this.defenseState || {}).filter((x) => x && x.solved).length;
@@ -602,7 +604,7 @@ class DataForgeApp {
       return m && this.quizScores[id].best >= Math.ceil(m.quiz.length * 0.8);
     }).length;
 
-    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (jobSimCount * 200) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
+    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (jobSimCount * 200) + (warmupCount * 60) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
 
     let leagueName = this.l("Rookie DE", "Rookie DE");
     let leagueIcon = "🛡️";

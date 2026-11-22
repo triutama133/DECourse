@@ -7,7 +7,7 @@
   const T = (id, en) => ({ id, en });
 
   const COMMON = {
-    levelWhen: [T("Minggu 1", "Week 1"), T("Bulan 4", "Month 4"), T("Bulan 9", "Month 9"), T("Bulan 14", "Month 14")],
+    levelWhen: [T("Minggu 2", "Week 2"), T("Bulan 4", "Month 4"), T("Bulan 9", "Month 9"), T("Bulan 14", "Month 14")],
     titles: [
       T("Junior Data Engineer (masa percobaan)", "Junior Data Engineer (probation)"),
       T("Junior Data Engineer", "Junior Data Engineer"),
@@ -23,8 +23,8 @@
         detail: T("Baca ulang catatan rapat hari pertama di tab Tim. Tulis satu kalimat: masalah apa yang paling mahal bagi perusahaan ini?",
                   "Re-read the first-day meeting notes in the Team tab. Write one sentence: which problem costs this company the most?") },
       { id: "ticket", title: T("Ambil tiket pertama", "Pick up your first ticket"),
-        detail: T("Pesan pertama dari stakeholder ada di Kotak Masuk. Itulah misi pertama Anda.",
-                  "The first stakeholder message is in your Inbox. That is your first mission.") }
+        detail: T("Tiga tugas kecil dari rekan kerja ada di Kotak Masuk: Python dasar dan satu query SQL. Tiket besar pertama datang setelahnya.",
+                  "Three small tasks from your colleagues are in your Inbox: basic Python and one SQL query. The first big ticket comes after them.") }
     ]
   };
 
