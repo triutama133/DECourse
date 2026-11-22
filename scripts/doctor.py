@@ -210,9 +210,22 @@ def check_venv(r, mod):
         r.ok("no venv needed yet (Modules 0.0 and 0.1 can use the browser preview; Module 0.2 teaches the venv)")
 
 
-def check_data(r):
+def lab_uses_data(mod):
+    """Whether a module's lab reads the generated course data (data/...); its Try-its may still use it."""
+    try:
+        text = (ROOT / "curriculum" / mod / "en.md").read_text(encoding="utf-8")
+    except OSError:
+        return True
+    lab = text.split("## @lab", 1)[1] if "## @lab" in text else ""
+    return bool(re.search(r"shopgen|data/orders\.csv|data/customers", lab))
+
+
+def check_data(r, mod=None):
     if (ROOT / "data" / "orders.csv").exists():
         r.ok("course data generated (data/orders.csv)")
+    elif mod and not lab_uses_data(mod):
+        r.warn(f"the course data is not generated yet; the {mod} lab does not need it, some Try-its do",
+               "python3 labs/shared/shopgen.py --out data")
     else:
         r.bad("the course data is not generated yet", "python3 labs/shared/shopgen.py --out data")
 
@@ -354,7 +367,7 @@ def main(argv, cwd=None, out=print):
     check_basics(r, mod, Path(cwd or os.getcwd()))
     check_venv(r, mod)
     if mod not in CAPSTONE_DIRS:          # the capstones download their own data with fetch_data.py
-        check_data(r)
+        check_data(r, mod)
     if mod:
         check_packages(r, mod)
         check_tools(r, mod)

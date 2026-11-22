@@ -19,7 +19,7 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
 > - **Mulai di browser:** setiap pelajaran diakhiri **💡 Jeda Praktik**. Jeda itu mengarahkan Anda ke **Pratinjau di browser** pada tab Lab: tulis fungsinya di sana lalu klik **Jalankan tes**. Tidak ada yang perlu diinstal. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
-> - **Nanti, di komputer Anda sendiri (setelah Modul 0.2):** kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
+> - **Atau di terminal Anda sendiri, sekarang juga jika Anda sudah mengikuti Mulai di sini** (halaman lab menunjukkan empat perintah persiapannya, sekali saja): kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
 > - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
 
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
@@ -83,8 +83,8 @@ Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10
 **Tiga alat kecil untuk fungsi lab pertama Anda.** Kode format di dalam f-string mengubah cara sebuah angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`. `.replace(lama, baru)` pada sebuah teks menukar karakter: `"a-b-c".replace("-", "+")` menghasilkan `"a+b+c"`. Dan fungsi lab mengembalikan jawabannya dengan `return`: `return text` mengakhiri fungsi dan memberikan `text` kepada pemanggilnya, dan dengan cara itulah tes melihat hasil Anda. `print(text)` hanya menampilkannya di layar, dan tes tidak menerima apa pun. Pelajaran 5 menjelaskan fungsi selengkapnya; sampai saat itu, akhiri setiap fungsi lab dengan `return`.
 
 > 💡 **Jeda Praktik 1 (Coba Sekarang):**
-> Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (setelah Modul 0.2: file `labs/mod-0-0/basics.py` di editor Anda sendiri).
-> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda dengan alat-alat di atas. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar. Lihat `TestFormatRupiah` di daftar grup tes di bawah tombol dan targetkan 3 dari 4: tes keempat, jumlah negatif, butuh `if` yang diajarkan Pelajaran 3, dan Anda menyelesaikannya di sana. Klik grup ✗ untuk membaca mengapa tesnya gagal. Di terminal Anda sendiri setelah Modul 0.2, pemeriksaan yang sama adalah:
+> Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (jalur terminal: file `labs/mod-0-0/basics.py` di editor Anda).
+> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda dengan alat-alat di atas. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar. Lihat `TestFormatRupiah` di daftar grup tes di bawah tombol dan targetkan 3 dari 4: tes keempat, jumlah negatif, butuh `if` yang diajarkan Pelajaran 3, dan Anda menyelesaikannya di sana. Klik grup ✗ untuk membaca mengapa tesnya gagal. Di jalur terminal (lihat halaman lab untuk persiapan sekali saja), pemeriksaan yang sama adalah:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
 > Jika `TestFormatRupiah` menunjukkan 3/4, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
 
@@ -113,10 +113,10 @@ Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adala
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
 
 > 💡 **Jeda Praktik 2 (Coba Sekarang):**
-> Kembali ke `basics.py` (kotak pratinjau, atau editor Anda setelah Modul 0.2). Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
+> Kembali ke `basics.py` (kotak pratinjau, atau editor Anda di jalur terminal). Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
 > 1. Kerjakan `count_by_status(orders)` menggunakan pola penghitungan dict `counts[status] = counts.get(status, 0) + 1`.
 > 2. Kerjakan `unique_customer_ids(orders)` menggunakan `set` dan `sorted()`.
-> Klik **Jalankan tes** dan pastikan `TestCountByStatus` dan `TestUniqueCustomerIds` bertanda ✓ (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes** dan pastikan `TestCountByStatus` dan `TestUniqueCustomerIds` bertanda ✓ (jalur terminal):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Keputusan: if, elif, else
@@ -143,7 +143,7 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
 
 > 💡 **Jeda Praktik 3 (Coba Sekarang):**
-> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu kembali ke `format_rupiah` dan tangani jumlah negatif, karena sekarang Anda sudah mengenal `if`. Klik **Jalankan tes**: `TestAverageTotal` dan `TestFormatRupiah` harus sama-sama bertanda ✓ (terminal, setelah Modul 0.2):
+> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu kembali ke `format_rupiah` dan tangani jumlah negatif, karena sekarang Anda sudah mengenal `if`. Klik **Jalankan tes**: `TestAverageTotal` dan `TestFormatRupiah` harus sama-sama bertanda ✓ (jalur terminal):
 > `pytest labs/mod-0-0/test_lab.py -k "TestAverageTotal or TestFormatRupiah" -v`
 
 ## @lesson Pengulangan: for, while, dan comprehension
@@ -176,7 +176,7 @@ Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. P
 > 1. Kerjakan `total_revenue(orders)` untuk menjumlahkan pesanan yang tidak dibatalkan.
 > 2. Kerjakan `batches(items, size)` menggunakan loop `range(0, len(items), size)`.
 > 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (jalur terminal):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @part Fungsi, error, dan file
@@ -241,7 +241,7 @@ Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (me
 > 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
 > 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
 > 3. Kerjakan `split_valid(orders)` menggunakan fungsi `safe_int` yang Anda buat.
-> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (terminal, setelah Modul 0.2):
+> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (jalur terminal):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson File, import, dan menjalankan skrip
@@ -271,9 +271,9 @@ Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, da
 
 > 💡 **Jeda Praktik 6 (Lengkapi Seluruh Lab):**
 > Di `basics.py`, kerjakan fungsi terakhir `read_orders(path)` menggunakan `with open(...)` dan `csv.DictReader`.
-> Klik **Jalankan tes** sekali lagi: pratinjau sekarang seharusnya melaporkan ke-31 tes lulus. Setelah Modul 0.2 Anda menulis ulang lab ini di komputer Anda sendiri dan menjalankan ke-31 tes di sana:
+> Klik **Jalankan tes** sekali lagi (atau jalankan semua tes di terminal): ke-31 tes seharusnya lulus. Di jalur pratinjau, setelah Modul 0.2 Anda menulis ulang lab ini di komputer Anda sendiri dan menjalankan ke-31 tes di sana:
 > `pytest labs/mod-0-0/test_lab.py -v`
-> Pratinjau menunjukkan logika Anda benar; run di komputer Anda sendiri itulah yang dihitung.
+> Pratinjau menunjukkan logika Anda benar; run di komputer Anda sendiri itulah yang dihitung. Di jalur terminal run itu sudah milik Anda: `python3 scripts/prove.py mod-0-0` mencetak kode bukti Anda.
 
 ## @lesson Menyatukan semuanya, dan cara men-debug
 Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (pelajaran 7), ulangi baris-barisnya (4), putuskan mana yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus tiap langkah dalam fungsi (5). Berikut sebagai rencana yang bisa dibaca seperti cerita:
@@ -322,7 +322,27 @@ Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran, 
 
 **Apa itu lab.** File `basics.py` berisi sebelas fungsi yang isinya kosong: masing-masing hanya berisi `raise NotImplementedError`. Anda yang menulis isinya. File kedua, `test_lab.py`, berisi 31 **tes**: program kecil yang memanggil fungsi Anda dengan sebuah contoh dan memeriksa jawabannya, misalnya "`format_rupiah(1250000)` harus menghasilkan `"Rp 1.250.000"`". Sebuah tes ✓ jika fungsi Anda memberi jawaban yang diharapkan, dan ✗ jika memberi jawaban lain atau crash. Anda selesai ketika ke-31 tes ✓.
 
-**Di mana mengerjakannya di modul ini.** Di **Pratinjau browser** di bawah pada halaman ini, tanpa memasang apa pun: file ada di kotak editor, **Jalankan tes** menjalankan ke-31 tes, dan daftar di bawah tombol menampilkan setiap kelompok tes (satu kelompok per fungsi) sebagai ✓ atau ✗. Setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fungsi mana yang ditulis berikutnya, jadi bergantianlah: pelajaran, fungsi, pelajaran, fungsi. Setelah Modul 0.2 Anda menulis lab ini lagi di komputer sendiri, dan run itulah yang dihitung.
+**Di mana mengerjakannya: pilih satu dari dua jalur.**
+
+- **Jalur A, pratinjau browser** (tanpa memasang apa pun): kotak editor di bawah pada halaman ini berisi file-nya, **Jalankan tes** menjalankan ke-31 tes, dan daftar di bawah tombol menampilkan setiap kelompok tes (satu kelompok per fungsi) sebagai ✓ atau ✗. Lulus di pratinjau tidak dihitung: setelah Modul 0.2 Anda menulis lab ini lagi di komputer sendiri.
+- **Jalur B, terminal Anda sendiri** (disarankan jika Anda sudah mengikuti Mulai di sini): beginilah Anda akan bekerja di sepanjang kursus, dan run-nya dihitung. Siapkan sekali, di terminal:
+
+```bash
+cd ~/projects/DECourse                     # folder kursus Anda
+python3 -m venv venv                       # sekali: Python pribadi untuk kursus
+source venv/bin/activate                   # setiap terminal baru
+python -m pip install -r labs/mod-0-0/requirements.txt    # sekali: pytest
+```
+
+  Pakai folder kursus Anda sendiri di baris pertama. Jika namanya mengandung spasi, beri garis miring terbalik sebelum spasinya: `cd ~/Documents/Learn\ DE/DECourse`. Setelah `source`, prompt diawali `(venv)`; Modul 0.2 menjelaskan apa itu venv. Lalu buka folder kursus di VS Code (File, Open Folder) dan klik `labs/mod-0-0/basics.py` untuk mengeditnya. Jalankan tes satu fungsi, misalnya:
+
+```bash
+pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v
+```
+
+  Anda melihat satu baris per tes yang diakhiri `PASSED` atau `FAILED`; di bawah kegagalan, baris yang diawali `E` menyebutkan apa yang salah. Pada file yang belum disentuh isinya `E       NotImplementedError: TODO: implement format_rupiah`, yang hanya berarti Anda belum menulisnya. `-k TestFormatRupiah` memilih satu kelompok (27 tes lainnya "deselected"); tanpa `-k` Anda melihat ke-31 tes, dan baris terakhir menyebutkan, misalnya, `29 failed, 2 passed`.
+
+Jalur mana pun, setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fungsi mana yang ditulis berikutnya, jadi bergantianlah: pelajaran, fungsi, pelajaran, fungsi.
 
 **Putarannya, untuk setiap fungsi.**
 1. Baca deskripsi fungsi di file: teks di antara baris `"""` menyebutkan apa yang masuk dan apa yang harus keluar, dengan contoh.
@@ -348,11 +368,11 @@ Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran, 
 | 7 | `read_orders` | membaca file CSV menjadi list berisi dict | setiap pipeline dimulai dengan membaca file |
 
 ### @steps
-1. Buka **Pratinjau browser** di bawah. Baca seluruh file dari atas ke bawah sekali, tanpa menulis apa pun: sebelas fungsi, masing-masing dengan deskripsinya.
+1. Pilih jalur Anda (lihat "Di mana mengerjakannya" di atas): **Pratinjau browser** di bawah, atau `labs/mod-0-0/basics.py` di VS Code dengan tes di terminal Anda. Baca seluruh file dari atas ke bawah sekali, tanpa menulis apa pun: sebelas fungsi, masing-masing dengan deskripsinya.
 2. Ikuti Jeda Praktik: setelah Pelajaran 1 tulis `format_rupiah`; setelah Pelajaran 2 `count_by_status` dan `unique_customer_ids`; setelah Pelajaran 3 `average_total` (dan selesaikan `format_rupiah`); setelah Pelajaran 4 `total_revenue`, `batches`, dan `top_customers`; setelah Pelajaran 6 `safe_int`, `add_to_batch`, dan `split_valid`; setelah Pelajaran 7 `read_orders`. Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya.
 3. Ragu nilai apa yang ada di dalam fungsi Anda? Tambahkan `print(type(x), x)` di atas baris yang Anda ragukan lalu jalankan lagi; cetakannya muncul di output. Hapus setelah selesai.
 4. Sebelum setiap run, **tebak** kelompok mana yang akan ✓. Ketika hasilnya mengejutkan, cari tahu mengapa: kejutan itulah tempat belajar terjadi.
-5. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis lab ini lagi di komputer Anda sendiri, di venv Anda sendiri, **tanpa menyalin** dari pratinjau. Dari folder kursus:
+5. **Kerjakan yang sesungguhnya.** Di jalur terminal Anda sudah melakukannya: setelah ke-31 tes lulus, jalankan perintah bukti di bawah. Di jalur pratinjau, setelah Modul 0.2 tulis lab ini lagi di komputer Anda sendiri, di venv Anda sendiri, **tanpa menyalin** dari pratinjau. Dari folder kursus, dengan venv aktif:
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # semuanya

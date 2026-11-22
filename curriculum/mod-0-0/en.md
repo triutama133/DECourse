@@ -19,7 +19,7 @@ None. You do not need to have written code before, and it does not matter if ear
 > [!IMPORTANT]
 > **How to Work on Labs (Beginner Guide):**
 > - **Start in the browser:** each lesson ends with a **💡 Practice Pause**. It sends you to the **Browser preview** on the Lab tab: write the function there and click **Run tests**. Nothing needs to be installed. Do not read the whole chapter first; go back and forth between a lesson and its pause.
-> - **Later, on your own computer (after Module 0.2):** the same code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
+> - **Or in your own terminal, now if you did Start here** (the lab page shows the four setup commands, once): the same code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
 > - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
 
 ## @part The basics: values, collections, decisions and loops
@@ -83,8 +83,8 @@ Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`
 **Three small tools for your first lab function.** A format code inside an f-string changes how a number is written: `f"{1250000:,}"` gives the text `"1,250,000"`. A text's `.replace(old, new)` swaps characters: `"a-b-c".replace("-", "+")` gives `"a+b+c"`. And a lab function hands its answer back with `return`: `return text` ends the function and gives `text` to whoever called it, which is how the tests see your result. `print(text)` only shows it on the screen, and the tests receive nothing. Lesson 5 explains functions fully; until then, end each lab function with `return`.
 
 > 💡 **Practice Pause 1 (Try It Now):**
-> Do not read the next section yet! Open the **Browser preview** on the Lab tab (after Module 0.2: the file `labs/mod-0-0/basics.py` in your own editor).
-> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic with the tools above. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected. Look at `TestFormatRupiah` in the list of test groups under the button and aim for 3 of 4: the fourth test, a negative amount, needs `if`, which Lesson 3 teaches, and you finish it there. Click a ✗ group to read why its tests fail. In your own terminal after Module 0.2, the same check is:
+> Do not read the next section yet! Open the **Browser preview** on the Lab tab (terminal route: the file `labs/mod-0-0/basics.py` in your editor).
+> Find the function `format_rupiah(amount)` (around line 13), delete the line `raise NotImplementedError`, and write your Rupiah formatting logic with the tools above. Then click **Run tests**. All eleven functions are checked at once, so the other ten still fail, and that is expected. Look at `TestFormatRupiah` in the list of test groups under the button and aim for 3 of 4: the fourth test, a negative amount, needs `if`, which Lesson 3 teaches, and you finish it there. Click a ✗ group to read why its tests fail. On the terminal route (see the lab page for the one-time setup), the same check is:
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
 > When `TestFormatRupiah` shows 3/4, you have written your first working function. Go on to Lesson 2.
 
@@ -113,10 +113,10 @@ A real data file is therefore usually **a list of dictionaries**: the list is th
 One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
 > 💡 **Practice Pause 2 (Try It Now):**
-> Go back to `basics.py` (the preview box, or your editor after Module 0.2). Apply the dictionary and set concepts you just learned:
+> Go back to `basics.py` (the preview box, or your editor on the terminal route). Apply the dictionary and set concepts you just learned:
 > 1. Implement `count_by_status(orders)` using the dict counting pattern `counts[status] = counts.get(status, 0) + 1`.
 > 2. Implement `unique_customer_ids(orders)` using `set` and `sorted()`.
-> Click **Run tests** and check that `TestCountByStatus` and `TestUniqueCustomerIds` show ✓ (terminal, after Module 0.2):
+> Click **Run tests** and check that `TestCountByStatus` and `TestUniqueCustomerIds` show ✓ (terminal route):
 > `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
 
 ## @lesson Decisions: if, elif, else
@@ -143,7 +143,7 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
 
 > 💡 **Practice Pause 3 (Try It Now):**
-> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then go back to `format_rupiah` and handle a negative amount, now that you know `if`. Click **Run tests**: `TestAverageTotal` and `TestFormatRupiah` should both show ✓ (terminal, after Module 0.2):
+> In `basics.py`, find the function `average_total(orders)`. Apply the zero division guard: check if orders is empty first (`if not orders: return None`). Then go back to `format_rupiah` and handle a negative amount, now that you know `if`. Click **Run tests**: `TestAverageTotal` and `TestFormatRupiah` should both show ✓ (terminal route):
 > `pytest labs/mod-0-0/test_lab.py -k "TestAverageTotal or TestFormatRupiah" -v`
 
 ## @lesson Repetition: for, while and comprehensions
@@ -176,7 +176,7 @@ A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`
 > 1. Implement `total_revenue(orders)` to sum uncancelled orders.
 > 2. Implement `batches(items, size)` using a `range(0, len(items), size)` loop.
 > 3. Implement `top_customers(orders, n)` using `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Click **Run tests**; all three groups should show ✓ (terminal, after Module 0.2):
+> Click **Run tests**; all three groups should show ✓ (terminal route):
 > `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
 
 ## @part Functions, errors and files
@@ -241,7 +241,7 @@ A bad row from a customer is *expected* data, so you handle it (put it aside wit
 > 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
 > 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
 > 3. Implement `split_valid(orders)` using your `safe_int` function.
-> Click **Run tests**; all three groups should show ✓ (terminal, after Module 0.2):
+> Click **Run tests**; all three groups should show ✓ (terminal route):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson Files, imports and running a script
@@ -271,9 +271,9 @@ Paths: use `pathlib.Path("data") / "orders.csv"` instead of gluing strings, and 
 
 > 💡 **Practice Pause 6 (Complete the Entire Lab):**
 > In `basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
-> Click **Run tests** once more: the preview should now report all 31 passing. After Module 0.2 you write the lab again on your own computer and run all 31 there:
+> Click **Run tests** once more (or run all tests in the terminal): all 31 should pass. On the preview route, after Module 0.2 you write the lab again on your own computer and run all 31 there:
 > `pytest labs/mod-0-0/test_lab.py -v`
-> The preview shows your logic works; the run on your own computer is the one that counts.
+> The preview shows your logic works; the run on your own computer is the one that counts. On the terminal route that run is already yours: `python3 scripts/prove.py mod-0-0` prints your proof code.
 
 ## @lesson Putting it together, and how to debug
 You now have every piece of a tiny pipeline: read the file (lesson 7), loop over the rows (4), decide what is valid (3), set the bad ones aside (6), count with a dict (2), wrap each step in a function (5). Here it is as a plan you can read like a story:
@@ -322,7 +322,27 @@ Write eleven short functions, each practising one idea from the lessons, on Kopi
 
 **What a lab is.** The file `basics.py` holds eleven functions whose inside is empty: each one only says `raise NotImplementedError`. You write the inside. A second file, `test_lab.py`, holds 31 **tests**: small programs that call your function with an example and check the answer, for example "`format_rupiah(1250000)` must give `"Rp 1.250.000"`". A test is ✓ when your function gives the expected answer, and ✗ when it gives something else or crashes. You are done when all 31 are ✓.
 
-**Where to do it in this module.** In the **Browser preview** below on this page, with nothing to install: the file is in the editor box, **Run tests** runs all 31, and the list under the button shows each group of tests (one group per function) as ✓ or ✗. Every lesson ends with a **Practice Pause** that tells you which function to write next, so go back and forth: lesson, function, lesson, function. After Module 0.2 you write the lab again on your own computer, and that run is the one that counts.
+**Where to do it: choose one of two routes.**
+
+- **Route A, the browser preview** (nothing to install): the editor box further down this page holds the file, **Run tests** runs all 31, and the list under the button shows each group of tests (one group per function) as ✓ or ✗. A preview pass does not count: after Module 0.2 you write the lab again on your own computer.
+- **Route B, your own terminal** (recommended if you did Start here): this is how you will work for the rest of the course, and the run counts. Set it up once, in the terminal:
+
+```bash
+cd ~/projects/DECourse                     # your course folder
+python3 -m venv venv                       # once: a private Python for the course
+source venv/bin/activate                   # every new terminal
+python -m pip install -r labs/mod-0-0/requirements.txt    # once: pytest
+```
+
+  Use your own course folder in the first line. If its name has a space, put a backslash before the space: `cd ~/Documents/Learn\ DE/DECourse`. After `source`, the prompt starts with `(venv)`; Module 0.2 explains what a venv is. Then open the course folder in VS Code (File, Open Folder) and click `labs/mod-0-0/basics.py` to edit it. Run one function's tests with, for example:
+
+```bash
+pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v
+```
+
+  You see one line per test ending in `PASSED` or `FAILED`; under a failure, the line that starts with `E` says what went wrong. On the untouched file it is `E       NotImplementedError: TODO: implement format_rupiah`, which only means you have not written it yet. `-k TestFormatRupiah` picks one group (the other 27 tests are "deselected"); without `-k` you see all 31, and the last line says, for example, `29 failed, 2 passed`.
+
+Either way, every lesson ends with a **Practice Pause** that tells you which function to write next, so go back and forth: lesson, function, lesson, function.
 
 **The loop, for every function.**
 1. Read the function's description in the file: the text between the `"""` lines says what goes in and what must come out, with examples.
@@ -348,11 +368,11 @@ Write eleven short functions, each practising one idea from the lessons, on Kopi
 | 7 | `read_orders` | read a CSV file into a list of dicts | every pipeline starts by reading a file |
 
 ### @steps
-1. Open the **Browser preview** below. Read the whole file from top to bottom once, without writing anything: eleven functions, each with its description.
+1. Choose your route (see "Where to do it" above): the **Browser preview** below, or `labs/mod-0-0/basics.py` in VS Code with the tests in your terminal. Read the whole file from top to bottom once, without writing anything: eleven functions, each with its description.
 2. Follow the Practice Pauses: after Lesson 1 write `format_rupiah`; after Lesson 2 `count_by_status` and `unique_customer_ids`; after Lesson 3 `average_total` (and finish `format_rupiah`); after Lesson 4 `total_revenue`, `batches` and `top_customers`; after Lesson 6 `safe_int`, `add_to_batch` and `split_valid`; after Lesson 7 `read_orders`. Run the tests after each function and look only at its group.
 3. Unsure what a value is inside your function? Add `print(type(x), x)` above the line you doubt and run again; the printout appears in the output. Remove it when you are done.
 4. Before each run, **predict** which groups will be ✓. When the result surprises you, find out why: that surprise is where the learning is.
-5. **Do it for real.** After Module 0.2, write the lab again on your own computer, in your own venv, **without copying** from the preview. From the course folder:
+5. **Do it for real.** On the terminal route you already are: when all 31 pass, run the proof command below. On the preview route, after Module 0.2 write the lab again on your own computer, in your own venv, **without copying** from the preview. From the course folder, with the venv active:
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # all of them
