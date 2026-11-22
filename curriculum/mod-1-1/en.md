@@ -28,6 +28,18 @@ grep -q "paid" data/orders.csv ; echo $?     # 0 if found, 1 if not found, 2 on 
 
 Exit codes are how schedulers, CI systems and containers decide whether your job worked. A script that prints "ERROR" and still exits 0 is a lie to every system around it. Two operators use exit codes directly: `a && b` runs `b` only if `a` succeeded, and `a || b` runs `b` only if `a` failed.
 
+:::ask What does this print if `data/orders.csv` does NOT contain the word `zzzz`?
+```bash
+grep -q zzzz data/orders.csv && echo FOUND || echo MISSING
+```
+@options
+FOUND
+* MISSING
+both lines
+@why
+`grep -q` succeeds (exit code 0) only when it finds a match. It found none, so it exits 1: `&&` skips `echo FOUND`, and `||` runs `echo MISSING`. This is how scripts branch on success and failure.
+:::
+
 Some codes you will meet in the wild:
 
 | Code | Meaning |
@@ -126,7 +138,25 @@ set -euo pipefail
 - `-u`: treat use of an unset variable as an error (catches typos like `$DATAA_DIR`).
 - `-o pipefail`: a pipeline fails if *any* stage fails, not only the last. Without it, `zcat broken.gz | wc -l` exits 0 even when `zcat` failed halfway.
 
+:::ask A pipeline is `zcat broken.gz | wc -l`. `zcat` fails halfway because the file is corrupt, `wc` still counts what it got. Without `-o pipefail`, what exit code does the pipeline report?
+@options
+non-zero, because `zcat` failed
+* 0, because only the last stage (`wc`) counts
+127
+@why
+By default a pipeline reports the exit code of its **last** stage. `wc -l` succeeded, so the pipeline looks fine while the data is incomplete. `set -o pipefail` makes the pipeline fail if **any** stage fails.
+:::
+
 Caveat: `-e` is not triggered inside `if` conditions, in `&&`/`||` chains, or in a command whose failure you test yourself. It is a safety net, not a substitute for thinking.
+
+:::ask `file="my report.csv"` and the script runs `wc -l $file` (no quotes). What does `wc` receive?
+@options
+one argument: `my report.csv`
+* two arguments: `my` and `report.csv`, so it looks for two files that do not exist
+nothing, the shell stops
+@why
+Unquoted, the shell splits the value at the space. Always write `"$file"`. `shellcheck` flags exactly this mistake.
+:::
 
 Habits that keep scripts reliable:
 
@@ -164,6 +194,15 @@ The first line runs at 02:00 every day. Know these surprises before they cost yo
 - **Overlapping runs.** If a run takes longer than the interval, a second copy starts and they collide. Guard with a lock: `flock -n /tmp/report.lock /opt/kopiku/run_report.sh`.
 - **Time zones.** cron uses the server's time zone, and daylight saving shifts can skip or repeat an hour. Servers should run in UTC, and schedules be written with that in mind.
 - **No dependencies, no retries, no history.** cron does not know that job B must wait for job A, will not retry, and keeps no record of runs.
+
+:::ask Your script works in your terminal but fails under cron with `python: command not found`. What is the most likely cause?
+@options
+cron does not support Python
+* cron runs with a bare environment: a short `PATH` and no activated virtual environment
+the schedule is wrong
+@why
+cron does not load your shell profile. Use absolute paths (`/opt/kopiku/venv/bin/python`), set variables inside the script, and redirect output to a log (`>> log 2>&1`) so you can see what happened.
+:::
 
 That last point is why real pipelines move to an **orchestrator** such as Airflow or Dagster (Module 2.4), which add dependencies, retries, backfills and a UI. cron is still the right tool for a simple, independent job on a single machine.
 
@@ -228,6 +267,15 @@ Other things you will use: **volumes and bind mounts** keep data outside the con
 
 ## @lesson Resource limits and the job that dies with code 137
 Containers can be given limits: `docker run --memory 512m --cpus 1 ...`, or in an orchestrator's configuration. If a process in a container uses more memory than its limit, the Linux kernel's **OOM killer** terminates it with SIGKILL. You see exit code **137** and, in `docker inspect`, `"OOMKilled": true`. There is no Python traceback, because the process never got a chance to print one: from the inside it simply vanishes, which is why this failure confuses beginners.
+
+:::ask A container job ends with exit code **137** and `OOMKilled: true`. What happened?
+@options
+the script raised a normal error and returned 137
+* the kernel killed it (SIGKILL, 128 + 9) because it used more memory than its limit
+it was stopped politely with `docker stop`
+@why
+137 = 128 + 9: the process received SIGKILL. In a container with a memory limit this is the OOM killer. A polite stop (`docker stop`) gives 143 (128 + 15, SIGTERM). The cure is to process in a stream or bounded chunks, not to load everything at once.
+:::
 
 The usual causes in data work:
 

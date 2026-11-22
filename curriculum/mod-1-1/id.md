@@ -28,6 +28,18 @@ grep -q "paid" data/orders.csv ; echo $?     # 0 bila ditemukan, 1 bila tidak, 2
 
 Exit code adalah cara scheduler, sistem CI, dan container memutuskan apakah job Anda berhasil. Skrip yang mencetak "ERROR" tetapi tetap keluar dengan 0 berbohong kepada semua sistem di sekitarnya. Dua operator memakai exit code secara langsung: `a && b` menjalankan `b` hanya jika `a` sukses, dan `a || b` menjalankan `b` hanya jika `a` gagal.
 
+:::ask Apa yang dicetak ini jika `data/orders.csv` TIDAK mengandung kata `zzzz`?
+```bash
+grep -q zzzz data/orders.csv && echo FOUND || echo MISSING
+```
+@options
+FOUND
+* MISSING
+kedua baris
+@why
+`grep -q` berhasil (exit code 0) hanya ketika menemukan kecocokan. Ia tidak menemukan apa pun, jadi keluar dengan 1: `&&` melewati `echo FOUND`, dan `||` menjalankan `echo MISSING`. Beginilah skrip bercabang berdasarkan berhasil dan gagal.
+:::
+
 Beberapa kode yang akan Anda temui:
 
 | Kode | Arti |
@@ -126,7 +138,25 @@ set -euo pipefail
 - `-u`: perlakukan pemakaian variabel yang belum diset sebagai error (menangkap salah ketik seperti `$DATAA_DIR`).
 - `-o pipefail`: pipeline gagal bila *tahap mana pun* gagal, bukan hanya yang terakhir. Tanpanya, `zcat rusak.gz | wc -l` keluar dengan 0 meski `zcat` gagal di tengah jalan.
 
+:::ask Sebuah pipeline adalah `zcat broken.gz | wc -l`. `zcat` gagal di tengah karena file rusak, `wc` tetap menghitung apa yang diterimanya. Tanpa `-o pipefail`, exit code apa yang dilaporkan pipeline?
+@options
+bukan nol, karena `zcat` gagal
+* 0, karena hanya tahap terakhir (`wc`) yang dihitung
+127
+@why
+Secara default pipeline melaporkan exit code **tahap terakhirnya**. `wc -l` berhasil, jadi pipeline tampak baik-baik saja padahal datanya tidak lengkap. `set -o pipefail` membuat pipeline gagal jika **tahap mana pun** gagal.
+:::
+
 Catatan: `-e` tidak terpicu di dalam kondisi `if`, di rantai `&&`/`||`, atau pada perintah yang kegagalannya Anda uji sendiri. Ia jaring pengaman, bukan pengganti berpikir.
+
+:::ask `file="my report.csv"` dan skrip menjalankan `wc -l $file` (tanpa tanda kutip). Apa yang diterima `wc`?
+@options
+satu argumen: `my report.csv`
+* dua argumen: `my` dan `report.csv`, sehingga ia mencari dua file yang tidak ada
+tidak ada, shell berhenti
+@why
+Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `shellcheck` menandai persis kesalahan ini.
+:::
 
 Kebiasaan yang menjaga skrip tetap andal:
 
@@ -164,6 +194,15 @@ Baris pertama berjalan pukul 02.00 setiap hari. Ketahui kejutan-kejutan ini sebe
 - **Eksekusi tumpang tindih.** Jika satu putaran lebih lama dari interval, salinan kedua mulai dan keduanya bertabrakan. Jaga dengan kunci: `flock -n /tmp/report.lock /opt/kopiku/run_report.sh`.
 - **Zona waktu.** cron memakai zona waktu server, dan pergeseran jam musim panas bisa melewati atau mengulang satu jam. Server sebaiknya berjalan di UTC, dan jadwal ditulis dengan itu dalam benak.
 - **Tanpa dependensi, tanpa retry, tanpa riwayat.** cron tidak tahu bahwa job B harus menunggu job A, tidak akan mencoba ulang, dan tidak menyimpan catatan eksekusi.
+
+:::ask Skrip Anda berjalan di terminal tetapi gagal di bawah cron dengan `python: command not found`. Apa penyebab yang paling mungkin?
+@options
+cron tidak mendukung Python
+* cron berjalan dengan environment kosong: `PATH` pendek dan tanpa virtual environment aktif
+jadwalnya salah
+@why
+cron tidak memuat profil shell Anda. Pakai path absolut (`/opt/kopiku/venv/bin/python`), atur variabel di dalam skrip, dan alihkan output ke log (`>> log 2>&1`) supaya Anda bisa melihat apa yang terjadi.
+:::
 
 Poin terakhir itulah alasan pipeline sungguhan pindah ke **orchestrator** seperti Airflow atau Dagster (Modul 2.4), yang menambah dependensi, retry, backfill, dan UI. cron tetap alat yang tepat untuk job sederhana yang mandiri di satu mesin.
 
@@ -228,6 +267,15 @@ Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar 
 
 ## @lesson Batas sumber daya dan job yang mati dengan kode 137
 Container bisa diberi batas: `docker run --memory 512m --cpus 1 ...`, atau di konfigurasi orchestrator. Jika sebuah proses di container memakai memori melebihi batasnya, **OOM killer** kernel Linux mematikannya dengan SIGKILL. Anda melihat exit code **137** dan, di `docker inspect`, `"OOMKilled": true`. Tidak ada traceback Python, karena proses tidak sempat mencetaknya: dari dalam ia hanya lenyap, itulah sebabnya kegagalan ini membingungkan pemula.
+
+:::ask Job container berakhir dengan exit code **137** dan `OOMKilled: true`. Apa yang terjadi?
+@options
+skrip memunculkan error biasa dan mengembalikan 137
+* kernel membunuhnya (SIGKILL, 128 + 9) karena ia memakai memori melebihi batasnya
+ia dihentikan dengan sopan oleh `docker stop`
+@why
+137 = 128 + 9: proses menerima SIGKILL. Dalam container dengan batas memori ini adalah OOM killer. Penghentian sopan (`docker stop`) memberi 143 (128 + 15, SIGTERM). Obatnya adalah memproses sebagai stream atau potongan terbatas, bukan memuat semuanya sekaligus.
+:::
 
 Penyebab yang lazim dalam kerja data:
 

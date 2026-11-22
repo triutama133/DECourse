@@ -52,6 +52,71 @@ Two features define how key-value stores are used:
 
 A data engineer meets key-value stores as the *serving layer* of pipelines (feature stores, real-time lookups) and as caches that make a pipeline's data appear stale. Remember that a cache is a **copy**: when the source changes, the copy is wrong until it expires or is invalidated.
 
+### See it: LRU eviction with an OrderedDict
+
+Capacity 2. Watch which key is thrown out when the cache is full:
+
+:::trace The least recently used key goes first
+@code
+from collections import OrderedDict
+
+cache = OrderedDict()
+capacity = 2
+
+for key in ["a", "b", "a", "c"]:
+    if key in cache:
+        cache.move_to_end(key)
+    else:
+        cache[key] = key.upper()
+        if len(cache) > capacity:
+            cache.popitem(last=False)
+
+print(list(cache))
+@notes
+8 | `"a"` is used again, so it moves to the **most recent** end. Now `"b"` is the one untouched the longest.
+10 | A new key is added at the most recent end.
+12 | Over capacity: `popitem(last=False)` evicts from the **front**, the least recently used key. This time that is `"b"`, not `"a"`.
+14 | What remains: `a` (used recently) and `c` (newest).
+:::
+
+:::ask Capacity 2. You set `a`, set `b`, read `a`, then set `c`. Which key is evicted?
+@options
+`a`, because it was set first
+* `b`, because `a` was touched more recently
+`c`, because it is new
+@why
+LRU removes the key that has been **untouched the longest**. Reading `a` counted as a use, so `b` is now the oldest. Insertion order alone (FIFO) would have evicted `a`.
+:::
+
+:::drill python A tiny LRU cache
+Write `put(cache, key, value, capacity)`: store the value, mark the key as the **most recently used**, and when the cache holds more than `capacity` keys, evict the **least recently used** one. `cache` is an `OrderedDict`.
+@starter
+from collections import OrderedDict
+
+# write your function below this line
+
+@check
+defines("put") ## Define put(cache, key, value, capacity).
+(lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "c", 3, 2), list(c))[-1] == ["b", "c"])(OrderedDict()) ## After a, b, c with capacity 2, the oldest key (a) is evicted: ["b", "c"].
+(lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "a", 9, 2), put(c, "c", 3, 2), list(c), c["a"])[-2:] == (["a", "c"], 9))(OrderedDict()) ## Writing "a" again makes it recent: after a, b, a(9), c the keys are ["a", "c"] and a holds 9.
+@hint
+```python
+def put(cache, key, value, capacity):
+    cache[key] = value
+    cache.move_to_end(key)
+    if len(cache) > capacity:
+        cache.popitem(last=False)
+```
+@solution
+from collections import OrderedDict
+
+def put(cache, key, value, capacity):
+    cache[key] = value
+    cache.move_to_end(key)
+    if len(cache) > capacity:
+        cache.popitem(last=False)
+:::
+
 > 💡 **Practice Pause: Building Key-Value Store & LRU Eviction**
 > 1. Open `labs/mod-1-7/nosql_lab.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
 > 2. Locate class `KeyValueStore` (Section 1). Implement methods `__init__`, `set`, `get`, `delete`, `ttl`, and `keys`. Use `collections.OrderedDict` with `move_to_end()` to maintain access recency (LRU) and check if keys have expired (`clock() >= expires_at`).
@@ -95,6 +160,33 @@ The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders o
 
 **How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. In Python, `zlib.crc32(text.encode())` turns any string deterministically into a 32-bit integer (`0` to `2**32 - 1`), and Python's built-in `bisect.bisect_left(positions, target)` finds the first position `>= target` in a sorted list using binary search in O(log n) — wrapping back to index `0` if `target` is past the largest position. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.
 
+### See it: why modulo placement is a trap
+
+Six keys on 3 nodes. We add a fourth node and see where each key goes (the index stands in for the key's hash):
+
+:::trace Adding one node with hash modulo
+@code
+keys = ["a", "b", "c", "d", "e", "f"]
+before = {k: i % 3 for i, k in enumerate(keys)}
+after = {k: i % 4 for i, k in enumerate(keys)}
+moved = [k for k in keys if before[k] != after[k]]
+print(len(moved), "of", len(keys), "keys moved")
+@notes
+2 | Placement with 3 nodes: the node number is `hash % 3`.
+3 | The same keys with 4 nodes: `hash % 4`. Compare the two dictionaries on the right.
+4 | Only the keys whose node number stayed the same do not move. Most of them did.
+5 | Moving that many keys means copying that much data between machines. Consistent hashing moves only about 1/N of them.
+:::
+
+:::ask A consistent-hash ring has 4 nodes and gets a 5th. Roughly what share of the keys moves?
+@options
+about 80%, almost all of them
+* about 1/5 (20%): only the keys the new node takes over
+none
+@why
+On the ring each key belongs to the next node clockwise. A new node takes over only the keys between itself and its predecessor, about 1/N of the total. The lab measures modulo hashing moving 79.5% of the keys on the same change.
+:::
+
 > 💡 **Practice Pause: Testing the Consistent Hashing Ring**
 > 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to class `HashRing` (Section 3).
 > 2. Implement `add_node`, `remove_node`, and `node_for(key)`. Use `zlib.crc32` to map node names and `vnodes` virtual positions onto a sorted ring, and use `bisect` to find the nearest node clockwise.
@@ -107,6 +199,38 @@ The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders o
 **Writes are cheap** because of the log-structured design: a write is appended to a commit log and a memory table, then flushed to immutable sorted files (SSTables) that are merged later (**compaction**). A delete does not erase: it writes a **tombstone**, which is removed only after a safe period; many tombstones slow reads.
 
 **What goes wrong:** a **hot partition** (one partition key receiving most of the traffic, such as the current date) overloads one machine while the others sleep; a partition that grows without bound; and queries that need a full scan. **DynamoDB** adds managed operation and a hard limit of 400 KB per item, and you pay by capacity or by request.
+
+### Quorum in one line
+
+With `N` replicas, a write acknowledged by `W` of them, and a read that asks `R` of them, a read is **guaranteed** to see the latest acknowledged write when the read set and the write set must overlap: `R + W > N`.
+
+:::ask With N = 3 replicas, is W = 1 and R = 1 safe (a read always sees the latest acknowledged write)?
+@options
+yes, one replica is enough
+* no: 1 + 1 is not greater than 3, so a read can hit a replica the write never reached
+only if the clock is accurate
+@why
+The write may have reached replica A; the read may ask replica B, which has not heard of it yet. With W = 2 and R = 2 any two replicas overlap in at least one, so a read always meets a replica holding the latest write.
+:::
+
+:::drill python Do the sets overlap?
+Write `quorum_ok(n, w, r)` that returns `True` when a read of `r` replicas is guaranteed to overlap a write of `w` replicas among `n`, and `False` otherwise.
+@starter
+# write your function below this line
+
+@check
+defines("quorum_ok") ## Define quorum_ok(n, w, r).
+quorum_ok(3, 2, 2) is True ## N=3, W=2, R=2 overlap: True.
+quorum_ok(3, 1, 1) is False ## N=3, W=1, R=1 can miss each other: False.
+quorum_ok(5, 3, 3) is True ## N=5, W=3, R=3: True.
+quorum_ok(3, 3, 1) is True ## Writing to all 3 means even a single read sees it: True.
+quorum_ok(5, 2, 3) is False ## 2 + 3 is not greater than 5: False.
+@hint
+`return r + w > n`
+@solution
+def quorum_ok(n, w, r):
+    return r + w > n
+:::
 
 > 💡 **Practice Pause: Quorum Replication & Wide-Column Table**
 > 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to Section 4 (`quorum_overlaps`, `ReplicaSet`) and Section 5 (`WideColumnTable`).

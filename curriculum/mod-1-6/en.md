@@ -158,6 +158,109 @@ Edge cases to design for. **Updates**: a changed old record has a new `updated_a
 
 The checkpoint is itself state. Store it somewhere durable that survives the machine (a file in cloud storage, a table), and make it easy to inspect and to reset for a **backfill** (reloading a period on purpose).
 
+### See it: why the order of "write" and "checkpoint" matters
+
+The checkpoint says how far you got. Watch what a crash does when the checkpoint is saved **first**:
+
+:::trace Checkpoint first: rows lost forever
+@code
+store = []
+checkpoint = 0
+batch = [{"id": 1, "updated_at": 5}, {"id": 2, "updated_at": 9}]
+
+checkpoint = max(r["updated_at"] for r in batch)
+try:
+    raise ConnectionError("the write failed")
+except ConnectionError:
+    pass
+print(store, checkpoint)
+@notes
+5 | The checkpoint moves forward **before** anything is stored. It now claims that everything up to 9 is loaded.
+7 | The write fails.
+10 | The store is empty, but the checkpoint says 9. The next run asks for rows "updated since 9", so these two rows are never fetched again: lost, silently, forever.
+:::
+
+Now the same crash, with the right order: write first, checkpoint second.
+
+:::trace Write first, then the checkpoint
+@code
+store = []
+checkpoint = 0
+batch = [{"id": 1, "updated_at": 5}, {"id": 2, "updated_at": 9}]
+
+store.extend(batch)
+try:
+    raise ConnectionError("crash before the checkpoint is saved")
+except ConnectionError:
+    pass
+print(store, checkpoint)
+@notes
+5 | The data is stored first.
+7 | The crash happens now, before the checkpoint moved.
+10 | The checkpoint is still 0, so the next run fetches the same two rows again. That costs a retry, not data, **if the load is idempotent** (deduplicated by id).
+:::
+
+:::ask Which order makes a crash safe?
+@options
+save the checkpoint, then write the data
+* write the data, then save the checkpoint
+the order does not matter
+@why
+A checkpoint may only ever describe data that is safely stored. With the right order, a crash only means the next run repeats some work, which an idempotent load absorbs.
+:::
+
+:::drill python The next checkpoint
+Write `next_checkpoint(rows, old)`: the greatest `"updated_at"` among the fetched `rows` (a list of dicts). When `rows` is empty, nothing new arrived: return `old` unchanged (the checkpoint must never move backwards or reset).
+@starter
+# write your function below this line
+
+@check
+defines("next_checkpoint") ## Define next_checkpoint(rows, old).
+next_checkpoint([{"updated_at": 5}, {"updated_at": 9}, {"updated_at": 7}], 3) == 9 ## The greatest updated_at is 9.
+next_checkpoint([], 42) == 42 ## With no new rows the checkpoint stays 42.
+next_checkpoint([{"updated_at": 2}], 10) == 10 ## It must never move backwards: old rows (2) must not lower the checkpoint of 10.
+@hint
+```python
+def next_checkpoint(rows, old):
+    newest = [r["updated_at"] for r in rows]
+    return max(newest + [old])
+```
+@solution
+def next_checkpoint(rows, old):
+    newest = [r["updated_at"] for r in rows]
+    return max(newest + [old])
+:::
+
+:::drill python Keep the newest version of each record
+The same record can arrive twice (an update arrived between pages). Write `latest(rows)`: one row per `"id"`, the one with the greatest `"updated_at"`, returned as a list sorted by id.
+@starter
+# write your function below this line
+
+@check
+defines("latest") ## Define latest(rows).
+latest([{"id": 1, "updated_at": 5, "s": "paid"}, {"id": 1, "updated_at": 8, "s": "refunded"}, {"id": 2, "updated_at": 6, "s": "paid"}]) == [{"id": 1, "updated_at": 8, "s": "refunded"}, {"id": 2, "updated_at": 6, "s": "paid"}] ## Id 1 appears twice: keep the version with updated_at 8.
+latest([]) == [] ## An empty input gives an empty list.
+[r["id"] for r in latest([{"id": 3, "updated_at": 1}, {"id": 1, "updated_at": 1}])] == [1, 3] ## The result is sorted by id.
+@hint
+```python
+def latest(rows):
+    best = {}
+    for row in rows:
+        known = best.get(row["id"])
+        if known is None or row["updated_at"] > known["updated_at"]:
+            best[row["id"]] = row
+    return [best[i] for i in sorted(best)]
+```
+@solution
+def latest(rows):
+    best = {}
+    for row in rows:
+        known = best.get(row["id"])
+        if known is None or row["updated_at"] > known["updated_at"]:
+            best[row["id"]] = row
+    return [best[i] for i in sorted(best)]
+:::
+
 > 💡 **Practice Pause 3 (Atomic Checkpoint State Storage):**
 > Guard your high-water mark against sudden system crashes:
 > 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement the `Checkpoint(path)` class (in `__init__(self, path)`, store `self.path = Path(path)` so `load()` and `save()` use the same location):

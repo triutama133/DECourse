@@ -52,6 +52,71 @@ Dua fitur menentukan bagaimana key-value store dipakai:
 
 Data engineer bertemu key-value store sebagai *lapisan penyajian* pipeline (feature store, pencarian real-time) dan sebagai cache yang membuat data pipeline tampak basi. Ingat bahwa cache adalah **salinan**: ketika sumber berubah, salinan itu salah sampai ia kedaluwarsa atau di-invalidasi.
 
+### Lihat sendiri: eviction LRU dengan OrderedDict
+
+Kapasitas 2. Perhatikan key mana yang dibuang ketika cache penuh:
+
+:::trace Key yang paling lama tidak dipakai dibuang lebih dulu
+@code
+from collections import OrderedDict
+
+cache = OrderedDict()
+capacity = 2
+
+for key in ["a", "b", "a", "c"]:
+    if key in cache:
+        cache.move_to_end(key)
+    else:
+        cache[key] = key.upper()
+        if len(cache) > capacity:
+            cache.popitem(last=False)
+
+print(list(cache))
+@notes
+8 | `"a"` dipakai lagi, jadi ia pindah ke ujung **paling baru**. Sekarang `"b"` yang paling lama tidak tersentuh.
+10 | Key baru ditambahkan di ujung paling baru.
+12 | Melebihi kapasitas: `popitem(last=False)` membuang dari **depan**, key yang paling lama tidak dipakai. Kali ini itu `"b"`, bukan `"a"`.
+14 | Yang tersisa: `a` (baru dipakai) dan `c` (terbaru).
+:::
+
+:::ask Kapasitas 2. Anda menyimpan `a`, menyimpan `b`, membaca `a`, lalu menyimpan `c`. Key mana yang dibuang?
+@options
+`a`, karena ia disimpan pertama
+* `b`, karena `a` lebih baru disentuh
+`c`, karena ia baru
+@why
+LRU membuang key yang **paling lama tidak tersentuh**. Membaca `a` dihitung sebagai pemakaian, jadi `b` sekarang yang tertua. Urutan penyisipan saja (FIFO) akan membuang `a`.
+:::
+
+:::drill python Cache LRU kecil
+Tulis `put(cache, key, value, capacity)`: simpan nilainya, tandai key sebagai **paling baru dipakai**, dan ketika cache menyimpan lebih dari `capacity` key, buang yang **paling lama tidak dipakai**. `cache` adalah `OrderedDict`.
+@starter
+from collections import OrderedDict
+
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("put") ## Definisikan put(cache, key, value, capacity).
+(lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "c", 3, 2), list(c))[-1] == ["b", "c"])(OrderedDict()) ## Setelah a, b, c dengan kapasitas 2, key tertua (a) dibuang: ["b", "c"].
+(lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "a", 9, 2), put(c, "c", 3, 2), list(c), c["a"])[-2:] == (["a", "c"], 9))(OrderedDict()) ## Menulis "a" lagi membuatnya baru: setelah a, b, a(9), c, key-nya ["a", "c"] dan a berisi 9.
+@hint
+```python
+def put(cache, key, value, capacity):
+    cache[key] = value
+    cache.move_to_end(key)
+    if len(cache) > capacity:
+        cache.popitem(last=False)
+```
+@solution
+from collections import OrderedDict
+
+def put(cache, key, value, capacity):
+    cache[key] = value
+    cache.move_to_end(key)
+    if len(cache) > capacity:
+        cache.popitem(last=False)
+:::
+
 > 💡 **Jeda Praktik: Membangun Key-Value Store & Eviction LRU**
 > 1. Buka file `labs/mod-1-7/nosql_lab.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
 > 2. Temukan kelas `KeyValueStore` (Bagian 1). Implementasikan method `__init__`, `set`, `get`, `delete`, `ttl`, dan `keys`. Gunakan `collections.OrderedDict` bersama method `move_to_end()` untuk menjaga urutan kebaruan (LRU) serta periksa apakah key telah kedaluwarsa (`clock() >= expires_at`).
@@ -95,6 +160,33 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 
 **Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Di Python, `zlib.crc32(text.encode())` mengubah string apa pun secara deterministik menjadi integer 32-bit (`0` sampai `2**32 - 1`), dan modul bawaan `bisect.bisect_left(positions, target)` menemukan posisi pertama `>= target` di list terurut menggunakan binary search O(log n) — memutar kembali ke indeks `0` bila `target` melampaui posisi terbesar. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
 
+### Lihat sendiri: mengapa penempatan modulo adalah jebakan
+
+Enam key di 3 node. Kita menambah node keempat dan melihat ke mana setiap key pergi (indeks mewakili hash key):
+
+:::trace Menambah satu node dengan hash modulo
+@code
+keys = ["a", "b", "c", "d", "e", "f"]
+before = {k: i % 3 for i, k in enumerate(keys)}
+after = {k: i % 4 for i, k in enumerate(keys)}
+moved = [k for k in keys if before[k] != after[k]]
+print(len(moved), "of", len(keys), "keys moved")
+@notes
+2 | Penempatan dengan 3 node: nomor node adalah `hash % 3`.
+3 | Key yang sama dengan 4 node: `hash % 4`. Bandingkan kedua dictionary di kanan.
+4 | Hanya key yang nomor node-nya tetap yang tidak pindah. Sebagian besar pindah.
+5 | Memindahkan sebanyak itu berarti menyalin data sebanyak itu antar mesin. Consistent hashing hanya memindahkan sekitar 1/N di antaranya.
+:::
+
+:::ask Cincin consistent-hash punya 4 node dan mendapat node ke-5. Kira-kira berapa bagian key yang pindah?
+@options
+sekitar 80%, hampir semuanya
+* sekitar 1/5 (20%): hanya key yang diambil alih node baru
+tidak ada
+@why
+Di cincin, setiap key milik node berikutnya searah jarum jam. Node baru hanya mengambil alih key di antara dirinya dan pendahulunya, sekitar 1/N dari total. Lab mengukur modulo hashing memindahkan 79,5% key pada perubahan yang sama.
+:::
+
 > 💡 **Jeda Praktik: Menguji Cincin Consistent Hashing**
 > 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka kelas `HashRing` (Bagian 3).
 > 2. Implementasikan `add_node`, `remove_node`, dan `node_for(key)`. Gunakan `zlib.crc32` untuk memetakan nama node dan `vnodes` posisi virtual ke dalam cincin lingkaran terurut, serta `bisect` untuk menemukan node terdekat searah jarum jam.
@@ -107,6 +199,38 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 **Penulisan murah** karena desain log-structured: penulisan ditambahkan ke commit log dan tabel memori, lalu di-flush ke file terurut yang tidak bisa diubah (SSTable) yang digabung kemudian (**compaction**). Penghapusan tidak benar-benar menghapus: ia menulis **tombstone**, yang baru dibuang setelah masa aman; banyak tombstone memperlambat pembacaan.
 
 **Apa yang salah:** **hot partition** (satu partition key menerima sebagian besar lalu lintas, seperti tanggal hari ini) membebani satu mesin sementara yang lain tidur; partisi yang tumbuh tanpa batas; dan query yang butuh pemindaian penuh. **DynamoDB** menambah operasi terkelola dan batas keras 400 KB per item, dan Anda membayar menurut kapasitas atau per permintaan.
+
+### Quorum dalam satu baris
+
+Dengan `N` replika, penulisan yang diakui oleh `W` di antaranya, dan pembacaan yang bertanya ke `R` di antaranya, pembacaan **dijamin** melihat penulisan terakhir yang diakui ketika himpunan baca dan himpunan tulis harus beririsan: `R + W > N`.
+
+:::ask Dengan N = 3 replika, apakah W = 1 dan R = 1 aman (pembacaan selalu melihat penulisan terakhir yang diakui)?
+@options
+ya, satu replika sudah cukup
+* tidak: 1 + 1 tidak lebih besar dari 3, jadi pembacaan bisa mengenai replika yang tidak pernah dicapai penulisan
+hanya jika jamnya akurat
+@why
+Penulisan mungkin mencapai replika A; pembacaan mungkin bertanya ke replika B, yang belum mendengarnya. Dengan W = 2 dan R = 2 dua replika mana pun beririsan di setidaknya satu, jadi pembacaan selalu bertemu replika yang memegang penulisan terakhir.
+:::
+
+:::drill python Apakah himpunannya beririsan?
+Tulis `quorum_ok(n, w, r)` yang mengembalikan `True` ketika pembacaan `r` replika dijamin beririsan dengan penulisan `w` replika di antara `n`, dan `False` kalau tidak.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("quorum_ok") ## Definisikan quorum_ok(n, w, r).
+quorum_ok(3, 2, 2) is True ## N=3, W=2, R=2 beririsan: True.
+quorum_ok(3, 1, 1) is False ## N=3, W=1, R=1 bisa saling meleset: False.
+quorum_ok(5, 3, 3) is True ## N=5, W=3, R=3: True.
+quorum_ok(3, 3, 1) is True ## Menulis ke ketiganya berarti satu pembacaan pun melihatnya: True.
+quorum_ok(5, 2, 3) is False ## 2 + 3 tidak lebih besar dari 5: False.
+@hint
+`return r + w > n`
+@solution
+def quorum_ok(n, w, r):
+    return r + w > n
+:::
 
 > 💡 **Jeda Praktik: Quorum Replication & Wide-Column Table**
 > 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka Bagian 4 (`quorum_overlaps`, `ReplicaSet`) dan Bagian 5 (`WideColumnTable`).

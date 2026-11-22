@@ -186,6 +186,108 @@ So the lesson is not "pandas is bad" but "know what your data structure costs". 
 
 One thing a stream cannot do for free is **de-duplication**: remembering which ids you saw needs memory proportional to the number of distinct ids. A set of integers is cheap (millions fit comfortably), but know that this is where memory grows, and use the right tool (a database, or a sorted merge) when the id space is huge.
 
+### See it: a generator runs only when asked
+
+Calling a generator function does **not** run its body. Each `next()` runs it up to the next `yield`, then pauses. Watch where the prints appear:
+
+:::trace A generator pauses at each yield
+@code
+def read_numbers():
+    for n in [10, 20, 30]:
+        print("producing", n)
+        yield n
+
+stream = read_numbers()
+print("created, nothing has run yet")
+first = next(stream)
+print("got", first)
+second = next(stream)
+print("got", second)
+@notes
+6 | Calling the function only **creates** the generator (look at `stream` on the right). Nothing inside has run.
+7 | So this prints before any "producing" line.
+8 | `next()` starts the function body. It runs until the first `yield`.
+3 | The first "producing 10" appears only now.
+4 | `yield` hands `10` back and **pauses** here. The function's own variables are kept for later.
+10 | The second `next()` resumes right after the `yield`: the loop moves on to 20.
+:::
+
+:::ask What do the two prints show?
+```python
+rows = (n * 2 for n in [1, 2, 3])
+print(list(rows))
+print(list(rows))
+```
+@options
+`[2, 4, 6]` then `[2, 4, 6]`
+* `[2, 4, 6]` then `[]`
+`[2, 4, 6]` then an error
+@why
+A generator is **used up** after one pass: the second `list(rows)` finds nothing left. If you need another pass, create a new generator (call the function again).
+:::
+
+:::ask `rows = read_orders("missing.csv")` is a generator function. On which line does the `FileNotFoundError` appear?
+@options
+on the line that calls `read_orders(...)`
+* later, when something first asks for a row (`next(rows)` or a `for` loop)
+never, generators hide errors
+@why
+Laziness hides errors: calling the function runs nothing, so the file is only opened when the first row is requested. A bug in a generator shows up later and somewhere else than where you created it.
+:::
+
+:::drill python Write a lazy generator
+Write `doubled(numbers)` as a **generator** (use `yield`, not `return`) that gives each number times two, one at a time.
+@starter
+# write your generator below this line
+
+@check
+defines("doubled") ## Define a function named doubled with one parameter.
+has_node("Yield") ## Use yield: a generator hands items out one at a time.
+list(doubled([1, 2, 3])) == [2, 4, 6] ## list(doubled([1, 2, 3])) should be [2, 4, 6].
+next(doubled([5, 6])) == 10 ## next(doubled([5, 6])) should be 10: the first item only.
+not isinstance(doubled([1]), list) ## It must return a generator, not a finished list.
+@hint
+```python
+def doubled(numbers):
+    for n in numbers:
+        yield n * 2
+```
+@solution
+def doubled(numbers):
+    for n in numbers:
+        yield n * 2
+:::
+
+:::drill python Keep only the good rows
+Write a generator `good_totals(rows)`: for each row (a dict with a `"total"` text) yield the total **as a number**, but skip rows whose total is not a whole number (use `try` / `except ValueError`, never a bare `except`).
+@starter
+# write your generator below this line
+
+@check
+defines("good_totals") ## Define a function named good_totals with one parameter.
+has_node("Yield") ## Use yield.
+list(good_totals([{"total": "100"}, {"total": "x"}, {"total": "250"}])) == [100, 250] ## With totals "100", "x", "250" it should give [100, 250]: the bad one is skipped.
+list(good_totals([])) == [] ## An empty input gives nothing.
+has_node("Try") ## Use try / except ValueError.
+@hint
+```python
+def good_totals(rows):
+    for row in rows:
+        try:
+            yield int(row["total"])
+        except ValueError:
+            pass
+```
+(Skipping is fine **here** because this is a drill; in a real pipeline the bad row goes to quarantine, as the next lesson shows.)
+@solution
+def good_totals(rows):
+    for row in rows:
+        try:
+            yield int(row["total"])
+        except ValueError:
+            pass
+:::
+
 > 💡 **Practice Pause 2 (Data Streaming with read_orders Generator):**
 > Create a memory-efficient data reader that never loads whole files into RAM:
 > 1. In `labs/mod-1-2/etl.py` in your text editor, locate the `read_orders(path)` function.
@@ -226,6 +328,101 @@ That brings us to **idempotency**, introduced in Module 0.2: running the job twi
 - **Replace, don't append.** Write a day's output to a path that contains the date and overwrite it, instead of appending to one growing file.
 
 These three are exactly what Lab 1.2 tests.
+
+### See it: quarantine, do not drop
+
+Bad data is not retried and not thrown away: it is **set aside with a reason**. Watch three rows go through:
+
+:::trace Clean rows continue, bad rows are quarantined
+@code
+rows = [{"id": 1, "total": "100"}, {"id": 2, "total": "-5"}, {"id": 3, "total": "x"}]
+clean = []
+quarantine = []
+for row in rows:
+    try:
+        total = int(row["total"])
+        if total <= 0:
+            raise ValueError("total must be positive")
+        clean.append(row["id"])
+    except ValueError as exc:
+        quarantine.append({"id": row["id"], "reason": str(exc)})
+print(clean, quarantine)
+@notes
+6 | `int("x")` fails right here for row 3. Rows 1 and 2 pass this line.
+8 | Row 2 converts fine but breaks a business rule, so the code raises on purpose.
+9 | Only a row that got through both checks reaches `clean`.
+11 | A rejected row is **kept**, together with the reason. Nothing disappears silently.
+:::
+
+:::ask Which of these failures is worth retrying?
+@options
+a negative order total
+* a connection timeout while calling an API
+a missing column in the CSV header
+@why
+**Transient** failures (a timeout, a rate limit, a dropped connection) will probably succeed after a pause. **Bad data** (a negative total, a missing column) will fail the same way every time: retrying wastes time, so quarantine it or fail loudly.
+:::
+
+:::ask The job crashes halfway through writing `output.tmp`, and the last step `os.replace("output.tmp", "output")` never runs. What does a reader of `output` see?
+@options
+half of the new file
+nothing, the file is deleted
+* the old, complete file
+@why
+That is the point of the atomic write: the new data is built beside the real file and swapped in with one step at the end. A crash leaves the old complete file intact, so a reader never sees a half-written one.
+:::
+
+:::drill python Retry, then give up
+`make_flaky` is given: it makes a function that raises `ConnectionError` a few times and then works. Write `retry(fn, attempts=3)`: call `fn()` and return its result; when it raises `ConnectionError`, try again, up to `attempts` calls in total; after the last failed attempt, **raise** the error again. Any other kind of error must not be retried.
+@starter
+def make_flaky(failures):
+    """A function that raises ConnectionError `failures` times, then returns "ok"."""
+    def flaky():
+        flaky.calls += 1
+        if flaky.calls <= failures:
+            raise ConnectionError("network blip")
+        return "ok"
+    flaky.calls = 0
+    return flaky
+
+# write retry(fn, attempts=3) below this line
+
+@check
+defines("retry") ## Define retry(fn, attempts=3).
+retry(make_flaky(0)) == "ok" ## A function that works the first time gives its result.
+retry(make_flaky(2), 4) == "ok" ## A function that fails twice and then works should succeed with 4 attempts.
+(lambda f: (raises_error(ConnectionError, retry, f, 3), f.calls)[1] == 3)(make_flaky(10)) ## When it always fails, retry must call it exactly 3 times and then raise the ConnectionError again.
+raises_error(ValueError, retry, lambda: int("x"), 3) ## A ValueError is bad data, not a network blip: it must be raised at once, not retried.
+@hint
+```python
+def retry(fn, attempts=3):
+    for n in range(1, attempts + 1):
+        try:
+            return fn()
+        except ConnectionError:
+            if n == attempts:
+                raise
+```
+@solution
+def make_flaky(failures):
+    """A function that raises ConnectionError `failures` times, then returns "ok"."""
+    def flaky():
+        flaky.calls += 1
+        if flaky.calls <= failures:
+            raise ConnectionError("network blip")
+        return "ok"
+    flaky.calls = 0
+    return flaky
+
+
+def retry(fn, attempts=3):
+    for n in range(1, attempts + 1):
+        try:
+            return fn()
+        except ConnectionError:
+            if n == attempts:
+                raise
+:::
 
 > 💡 **Practice Pause 3 (Idempotent Pipeline & Quarantine run):**
 > Assemble the complete ETL workflow that is safe to re-run:

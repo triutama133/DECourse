@@ -153,6 +153,44 @@ There is a sixth category worth naming: **infrastructure failures** (a server re
 
 > **Warning:** The most dangerous failures are the *silent* ones. A crash is visible and gets fixed in an hour. A pipeline that runs "successfully" and writes wrong numbers can mislead decisions for weeks. When you design anything in this course, ask: "if this went wrong, how would I find out?"
 
+:::ask Revenue doubled overnight. The cause: a job was retried after a timeout and loaded the same file twice. Which fix solves this kind of problem for good?
+@options
+delete the second copy by hand each morning
+* give every record a stable key and make the load idempotent: running twice leaves the same result
+run the job less often
+@why
+Duplicates come from retries, "at least once" delivery and overlapping sources, so they will keep coming. A stable key plus an idempotent load makes a repeat harmless instead of something you must remember to clean.
+:::
+
+:::ask A source team renames `total` to `total_amount` without telling you. Your job keeps running and fills the `total` column with nulls. Which defence catches this at the door?
+@options
+more memory for the job
+* validate the shape of the data when it arrives, and agree a data contract with the producer
+a bigger dashboard
+@why
+This is **schema drift**, and it is dangerous because nothing crashes. Checking the columns and types on arrival turns a silent corruption into a loud, early failure.
+:::
+
+:::drill python Find the repeated ids
+Write `repeated_ids(rows)`: the order ids that appear **more than once** in `rows` (a list of dicts with `"order_id"`), each once, sorted.
+@starter
+# write your function below this line
+
+@check
+defines("repeated_ids") ## Define repeated_ids(rows).
+repeated_ids([{"order_id": "1"}, {"order_id": "2"}, {"order_id": "1"}, {"order_id": "3"}, {"order_id": "1"}, {"order_id": "2"}]) == ["1", "2"] ## Ids 1 and 2 appear more than once: ["1", "2"].
+repeated_ids([{"order_id": "7"}, {"order_id": "8"}]) == [] ## No repeats gives an empty list.
+repeated_ids([]) == [] ## An empty input gives an empty list.
+@hint
+Count each id with a dictionary (`counts[id] = counts.get(id, 0) + 1`), then keep the ids whose count is above 1 and sort them.
+@solution
+def repeated_ids(rows):
+    counts = {}
+    for row in rows:
+        counts[row["order_id"]] = counts.get(row["order_id"], 0) + 1
+    return sorted(i for i, n in counts.items() if n > 1)
+:::
+
 > 💡 **Practice Pause 1 (Explore Dirty Data):**
 > Before reading about data formats, prove these five problems on your computer! Open a terminal in the course folder, generate the dataset, and inspect the order file:
 > `python3 labs/shared/shopgen.py --out data`
@@ -176,6 +214,60 @@ Data arrives in a handful of file formats. Knowing their traps saves hours.
 A rule of thumb: CSV and JSON are for *exchange* (humans and other systems send them to you); Parquet and database tables are for *storage and analysis*. A common first step in a pipeline is turning the former into the latter, with types enforced.
 
 **Parsing two date formats in Python (`datetime.strptime`).** Dates from CSV files often mix styles like `"2026-01-31T14:03:00"` and `"31/01/2026 14:03"`. Python's standard library includes `from datetime import datetime`, whose `datetime.strptime(text, fmt)` tries parsing text against a format template (`"%Y-%m-%dT%H:%M:%S"` for ISO or `"%d/%m/%Y %H:%M"` for day/month/year) and raises `ValueError` if it does not match. Catch `ValueError` to try the next format, then format the valid result cleanly back to standard ISO text with `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
+
+:::drill python Read a percentage
+Write `parse_percent(raw)`: `"12%"` or `" 12 % "` gives the number `12`; text that is not a whole number with an optional `%` (for example `"abc"`, `""`) gives `None`, never an error.
+@starter
+# write your function below this line
+
+@check
+defines("parse_percent") ## Define parse_percent(raw).
+parse_percent("12%") == 12 ## "12%" should give 12.
+parse_percent(" 7 % ") == 7 ## Spaces around the number and the % must be ignored: 7.
+parse_percent("abc") is None ## Unreadable text gives None, not an error.
+parse_percent("") is None ## An empty cell gives None.
+@hint
+Remove the spaces and the `%`, then `int(...)` inside `try` / `except ValueError` that returns `None`.
+@solution
+def parse_percent(raw):
+    text = raw.replace("%", "").strip()
+    try:
+        return int(text)
+    except ValueError:
+        return None
+:::
+
+:::drill python One date format
+Write `parse_day(raw)`: a day-first date such as `"31/01/2026"` gives the ISO text `"2026-01-31"`; anything that is not a valid date in that format (`"2026-01-31"`, `"31/02/2026"`, `""`) gives `None`. Use `datetime.strptime`.
+@starter
+from datetime import datetime
+
+# write your function below this line
+
+@check
+defines("parse_day") ## Define parse_day(raw).
+parse_day("31/01/2026") == "2026-01-31" ## "31/01/2026" should give "2026-01-31".
+parse_day("05/03/2026") == "2026-03-05" ## Day first: "05/03/2026" is 5 March: "2026-03-05".
+parse_day("31/02/2026") is None ## 31 February does not exist: None.
+parse_day("2026-01-31") is None ## A different format is not accepted here: None.
+parse_day("") is None ## An empty cell gives None.
+@hint
+```python
+def parse_day(raw):
+    try:
+        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+```
+@solution
+from datetime import datetime
+
+def parse_day(raw):
+    try:
+        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+:::
 
 > 💡 **Practice Pause 2 (Number & Timestamp Parsers):**
 > Do not read the next section yet! Open `labs/mod-0-2/pipeline.py` in your text editor (click it in the sidebar or type `code labs/mod-0-2/pipeline.py`).

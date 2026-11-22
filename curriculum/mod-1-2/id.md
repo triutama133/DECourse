@@ -186,6 +186,108 @@ Jadi pelajarannya bukan "pandas itu buruk" melainkan "ketahui biaya struktur dat
 
 Satu hal yang tidak bisa dilakukan stream secara gratis adalah **deduplikasi**: mengingat id mana yang sudah terlihat butuh memori sebanding dengan jumlah id berbeda. Set berisi integer murah (jutaan masih muat dengan nyaman), tetapi ketahuilah di sinilah memori bertambah, dan pakai alat yang tepat (database, atau merge terurut) bila ruang id-nya sangat besar.
 
+### Lihat sendiri: generator hanya berjalan ketika diminta
+
+Memanggil fungsi generator **tidak** menjalankan badannya. Setiap `next()` menjalankannya sampai `yield` berikutnya, lalu berhenti sejenak. Perhatikan di mana print muncul:
+
+:::trace Generator berhenti di setiap yield
+@code
+def read_numbers():
+    for n in [10, 20, 30]:
+        print("producing", n)
+        yield n
+
+stream = read_numbers()
+print("created, nothing has run yet")
+first = next(stream)
+print("got", first)
+second = next(stream)
+print("got", second)
+@notes
+6 | Memanggil fungsinya hanya **membuat** generator (lihat `stream` di kanan). Belum ada yang berjalan di dalamnya.
+7 | Jadi ini tercetak sebelum baris "producing" mana pun.
+8 | `next()` memulai badan fungsi. Ia berjalan sampai `yield` pertama.
+3 | "producing 10" yang pertama baru muncul sekarang.
+4 | `yield` menyerahkan `10` dan **berhenti sejenak** di sini. Variabel milik fungsi disimpan untuk nanti.
+10 | `next()` kedua melanjutkan tepat setelah `yield`: loop maju ke 20.
+:::
+
+:::ask Apa yang ditunjukkan kedua print?
+```python
+rows = (n * 2 for n in [1, 2, 3])
+print(list(rows))
+print(list(rows))
+```
+@options
+`[2, 4, 6]` lalu `[2, 4, 6]`
+* `[2, 4, 6]` lalu `[]`
+`[2, 4, 6]` lalu error
+@why
+Generator **habis dipakai** setelah satu putaran: `list(rows)` kedua tidak menemukan apa-apa lagi. Kalau butuh putaran lagi, buat generator baru (panggil fungsinya lagi).
+:::
+
+:::ask `rows = read_orders("missing.csv")` adalah fungsi generator. Di baris mana `FileNotFoundError` muncul?
+@options
+di baris yang memanggil `read_orders(...)`
+* nanti, ketika sesuatu pertama kali meminta baris (`next(rows)` atau loop `for`)
+tidak pernah, generator menyembunyikan error
+@why
+Kemalasan menyembunyikan error: memanggil fungsi tidak menjalankan apa-apa, jadi file baru dibuka ketika baris pertama diminta. Bug di generator muncul lebih lambat dan di tempat lain daripada tempat Anda membuatnya.
+:::
+
+:::drill python Tulis generator yang malas
+Tulis `doubled(numbers)` sebagai **generator** (pakai `yield`, bukan `return`) yang memberi setiap angka dikali dua, satu per satu.
+@starter
+# tulis generator Anda di bawah baris ini
+
+@check
+defines("doubled") ## Definisikan fungsi bernama doubled dengan satu parameter.
+has_node("Yield") ## Pakai yield: generator menyerahkan item satu per satu.
+list(doubled([1, 2, 3])) == [2, 4, 6] ## list(doubled([1, 2, 3])) harus [2, 4, 6].
+next(doubled([5, 6])) == 10 ## next(doubled([5, 6])) harus 10: hanya item pertama.
+not isinstance(doubled([1]), list) ## Ia harus mengembalikan generator, bukan list yang sudah jadi.
+@hint
+```python
+def doubled(numbers):
+    for n in numbers:
+        yield n * 2
+```
+@solution
+def doubled(numbers):
+    for n in numbers:
+        yield n * 2
+:::
+
+:::drill python Simpan hanya baris yang baik
+Tulis generator `good_totals(rows)`: untuk setiap baris (dict dengan `"total"` berupa teks) berikan total **sebagai angka**, tetapi lewati baris yang totalnya bukan bilangan bulat (pakai `try` / `except ValueError`, jangan pernah `except` kosong).
+@starter
+# tulis generator Anda di bawah baris ini
+
+@check
+defines("good_totals") ## Definisikan fungsi bernama good_totals dengan satu parameter.
+has_node("Yield") ## Pakai yield.
+list(good_totals([{"total": "100"}, {"total": "x"}, {"total": "250"}])) == [100, 250] ## Dengan total "100", "x", "250" harus memberi [100, 250]: yang buruk dilewati.
+list(good_totals([])) == [] ## Input kosong tidak memberi apa-apa.
+has_node("Try") ## Pakai try / except ValueError.
+@hint
+```python
+def good_totals(rows):
+    for row in rows:
+        try:
+            yield int(row["total"])
+        except ValueError:
+            pass
+```
+(Melewati itu boleh **di sini** karena ini latihan; di pipeline sungguhan baris buruk masuk karantina, seperti yang ditunjukkan materi berikutnya.)
+@solution
+def good_totals(rows):
+    for row in rows:
+        try:
+            yield int(row["total"])
+        except ValueError:
+            pass
+:::
+
 > 💡 **Jeda Praktik 2 (Streaming Data dengan Generator read_orders):**
 > Buat pembaca data hemat memori yang tidak memuat seluruh file ke RAM:
 > 1. Di file `labs/mod-1-2/etl.py` pada text editor, temukan fungsi `read_orders(path)`.
@@ -226,6 +328,101 @@ Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalanka
 - **Ganti, jangan tambah.** Tulis keluaran sehari ke path yang memuat tanggalnya dan timpa, alih-alih menambahkan ke satu file yang terus membesar.
 
 Ketiganya persis yang diuji Lab 1.2.
+
+### Lihat sendiri: karantina, jangan dibuang
+
+Data buruk tidak diulang dan tidak dibuang: ia **disisihkan beserta alasannya**. Perhatikan tiga baris melaluinya:
+
+:::trace Baris bersih lanjut, baris buruk dikarantina
+@code
+rows = [{"id": 1, "total": "100"}, {"id": 2, "total": "-5"}, {"id": 3, "total": "x"}]
+clean = []
+quarantine = []
+for row in rows:
+    try:
+        total = int(row["total"])
+        if total <= 0:
+            raise ValueError("total must be positive")
+        clean.append(row["id"])
+    except ValueError as exc:
+        quarantine.append({"id": row["id"], "reason": str(exc)})
+print(clean, quarantine)
+@notes
+6 | `int("x")` gagal tepat di sini untuk baris 3. Baris 1 dan 2 lolos baris ini.
+8 | Baris 2 berhasil diubah tetapi melanggar aturan bisnis, jadi kode memunculkan error dengan sengaja.
+9 | Hanya baris yang lolos kedua pemeriksaan yang sampai ke `clean`.
+11 | Baris yang ditolak **disimpan**, beserta alasannya. Tidak ada yang hilang diam-diam.
+:::
+
+:::ask Kegagalan mana di antara ini yang layak diulang?
+@options
+total pesanan negatif
+* timeout koneksi saat memanggil API
+kolom yang hilang di header CSV
+@why
+Kegagalan **sementara** (timeout, batas laju, koneksi putus) kemungkinan berhasil setelah jeda. **Data buruk** (total negatif, kolom hilang) akan gagal dengan cara yang sama setiap kali: mengulang membuang waktu, jadi karantina atau gagal dengan keras.
+:::
+
+:::ask Job crash di tengah penulisan `output.tmp`, dan langkah terakhir `os.replace("output.tmp", "output")` tidak pernah berjalan. Apa yang dilihat pembaca `output`?
+@options
+setengah file baru
+tidak ada, file-nya terhapus
+* file lama yang lengkap
+@why
+Itulah gunanya penulisan atomik: data baru dibangun di samping file sebenarnya dan ditukar dengan satu langkah di akhir. Crash meninggalkan file lama yang lengkap utuh, sehingga pembaca tidak pernah melihat file yang setengah tertulis.
+:::
+
+:::drill python Ulangi, lalu menyerah
+`make_flaky` sudah diberikan: ia membuat fungsi yang memunculkan `ConnectionError` beberapa kali lalu berhasil. Tulis `retry(fn, attempts=3)`: panggil `fn()` dan kembalikan hasilnya; ketika ia memunculkan `ConnectionError`, coba lagi, sampai `attempts` panggilan seluruhnya; setelah percobaan terakhir gagal, **munculkan** error itu lagi. Jenis error lain tidak boleh diulang.
+@starter
+def make_flaky(failures):
+    """Fungsi yang memunculkan ConnectionError sebanyak `failures` kali, lalu mengembalikan "ok"."""
+    def flaky():
+        flaky.calls += 1
+        if flaky.calls <= failures:
+            raise ConnectionError("network blip")
+        return "ok"
+    flaky.calls = 0
+    return flaky
+
+# tulis retry(fn, attempts=3) di bawah baris ini
+
+@check
+defines("retry") ## Definisikan retry(fn, attempts=3).
+retry(make_flaky(0)) == "ok" ## Fungsi yang berhasil pada percobaan pertama memberi hasilnya.
+retry(make_flaky(2), 4) == "ok" ## Fungsi yang gagal dua kali lalu berhasil harus sukses dengan 4 percobaan.
+(lambda f: (raises_error(ConnectionError, retry, f, 3), f.calls)[1] == 3)(make_flaky(10)) ## Ketika selalu gagal, retry harus memanggilnya tepat 3 kali lalu memunculkan ConnectionError lagi.
+raises_error(ValueError, retry, lambda: int("x"), 3) ## ValueError adalah data buruk, bukan gangguan jaringan: ia harus dimunculkan seketika, tidak diulang.
+@hint
+```python
+def retry(fn, attempts=3):
+    for n in range(1, attempts + 1):
+        try:
+            return fn()
+        except ConnectionError:
+            if n == attempts:
+                raise
+```
+@solution
+def make_flaky(failures):
+    """Fungsi yang memunculkan ConnectionError sebanyak `failures` kali, lalu mengembalikan "ok"."""
+    def flaky():
+        flaky.calls += 1
+        if flaky.calls <= failures:
+            raise ConnectionError("network blip")
+        return "ok"
+    flaky.calls = 0
+    return flaky
+
+
+def retry(fn, attempts=3):
+    for n in range(1, attempts + 1):
+        try:
+            return fn()
+        except ConnectionError:
+            if n == attempts:
+                raise
+:::
 
 > 💡 **Jeda Praktik 3 (Pipeline Idempoten & Karantina run):**
 > Rangkai alur kerja ETL lengkap yang aman dijalankan ulang:

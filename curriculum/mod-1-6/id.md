@@ -154,6 +154,109 @@ Kasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `
 
 Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih lama dari mesin (file di penyimpanan cloud, sebuah tabel), dan buat mudah diperiksa dan di-reset untuk **backfill** (memuat ulang suatu periode dengan sengaja).
 
+### Lihat sendiri: mengapa urutan "tulis" dan "checkpoint" penting
+
+Checkpoint menyatakan sejauh mana Anda sudah sampai. Perhatikan apa yang dilakukan crash ketika checkpoint disimpan **lebih dulu**:
+
+:::trace Checkpoint dulu: baris hilang selamanya
+@code
+store = []
+checkpoint = 0
+batch = [{"id": 1, "updated_at": 5}, {"id": 2, "updated_at": 9}]
+
+checkpoint = max(r["updated_at"] for r in batch)
+try:
+    raise ConnectionError("the write failed")
+except ConnectionError:
+    pass
+print(store, checkpoint)
+@notes
+5 | Checkpoint maju **sebelum** ada yang tersimpan. Sekarang ia mengklaim semua sampai 9 sudah dimuat.
+7 | Penulisan gagal.
+10 | Penyimpanan kosong, tetapi checkpoint berkata 9. Run berikutnya meminta baris "diperbarui sejak 9", jadi kedua baris ini tidak pernah diambil lagi: hilang, diam-diam, selamanya.
+:::
+
+Sekarang crash yang sama, dengan urutan yang benar: tulis dulu, checkpoint kemudian.
+
+:::trace Tulis dulu, lalu checkpoint
+@code
+store = []
+checkpoint = 0
+batch = [{"id": 1, "updated_at": 5}, {"id": 2, "updated_at": 9}]
+
+store.extend(batch)
+try:
+    raise ConnectionError("crash before the checkpoint is saved")
+except ConnectionError:
+    pass
+print(store, checkpoint)
+@notes
+5 | Data disimpan lebih dulu.
+7 | Crash terjadi sekarang, sebelum checkpoint maju.
+10 | Checkpoint masih 0, jadi run berikutnya mengambil kedua baris yang sama lagi. Itu hanya memakan satu percobaan ulang, bukan data, **jika load-nya idempoten** (dideduplikasi berdasarkan id).
+:::
+
+:::ask Urutan mana yang membuat crash aman?
+@options
+simpan checkpoint, lalu tulis data
+* tulis data, lalu simpan checkpoint
+urutannya tidak penting
+@why
+Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Dengan urutan yang benar, crash hanya berarti run berikutnya mengulang sebagian pekerjaan, yang diserap oleh load yang idempoten.
+:::
+
+:::drill python Checkpoint berikutnya
+Tulis `next_checkpoint(rows, old)`: `"updated_at"` terbesar di antara `rows` yang diambil (list berisi dict). Ketika `rows` kosong, tidak ada yang baru: kembalikan `old` tanpa perubahan (checkpoint tidak boleh mundur atau direset).
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("next_checkpoint") ## Definisikan next_checkpoint(rows, old).
+next_checkpoint([{"updated_at": 5}, {"updated_at": 9}, {"updated_at": 7}], 3) == 9 ## updated_at terbesar adalah 9.
+next_checkpoint([], 42) == 42 ## Tanpa baris baru, checkpoint tetap 42.
+next_checkpoint([{"updated_at": 2}], 10) == 10 ## Ia tidak boleh mundur: baris lama (2) tidak boleh menurunkan checkpoint 10.
+@hint
+```python
+def next_checkpoint(rows, old):
+    newest = [r["updated_at"] for r in rows]
+    return max(newest + [old])
+```
+@solution
+def next_checkpoint(rows, old):
+    newest = [r["updated_at"] for r in rows]
+    return max(newest + [old])
+:::
+
+:::drill python Simpan versi terbaru setiap record
+Record yang sama bisa tiba dua kali (pembaruan tiba di antara halaman). Tulis `latest(rows)`: satu baris per `"id"`, yang `"updated_at"`-nya terbesar, dikembalikan sebagai list terurut menurut id.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("latest") ## Definisikan latest(rows).
+latest([{"id": 1, "updated_at": 5, "s": "paid"}, {"id": 1, "updated_at": 8, "s": "refunded"}, {"id": 2, "updated_at": 6, "s": "paid"}]) == [{"id": 1, "updated_at": 8, "s": "refunded"}, {"id": 2, "updated_at": 6, "s": "paid"}] ## Id 1 muncul dua kali: simpan versi dengan updated_at 8.
+latest([]) == [] ## Input kosong menghasilkan list kosong.
+[r["id"] for r in latest([{"id": 3, "updated_at": 1}, {"id": 1, "updated_at": 1}])] == [1, 3] ## Hasilnya terurut menurut id.
+@hint
+```python
+def latest(rows):
+    best = {}
+    for row in rows:
+        known = best.get(row["id"])
+        if known is None or row["updated_at"] > known["updated_at"]:
+            best[row["id"]] = row
+    return [best[i] for i in sorted(best)]
+```
+@solution
+def latest(rows):
+    best = {}
+    for row in rows:
+        known = best.get(row["id"])
+        if known is None or row["updated_at"] > known["updated_at"]:
+            best[row["id"]] = row
+    return [best[i] for i in sorted(best)]
+:::
+
 > 💡 **Jeda Praktik 3 (Penyimpanan State Checkpoint Atomik):**
 > Amankan penanda high-water mark dari kegagalan crash sistem:
 > 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan kelas `Checkpoint(path)` (di `__init__(self, path)`, simpan `self.path = Path(path)` agar `load()` dan `save()` memakai lokasi yang sama):

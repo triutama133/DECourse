@@ -60,6 +60,24 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 
 `NaN` deserves a moment. In pandas a missing number is `NaN` (and a missing date `NaT`), and most aggregations **skip** it: `pd.Series([1, None, 3]).sum()` is 4.0 and `.mean()` is 2.0, not 1.33. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many are missing when you quote a number.
 
+:::ask A customer id is `00042` in the customer table. You read the orders file with the default `pd.read_csv` (no `dtype`). What does the id look like in `orders`?
+@options
+`"00042"`, pandas keeps it as it is
+* `42`: pandas guessed a number and the leading zeros are gone, so a merge on it fails or mismatches
+`NaN`
+@why
+A file has no types and pandas **guesses**. An id is a label, not a quantity: read it as text with `dtype={"customer_id": "string"}` (or `str`).
+:::
+
+:::ask What does `pd.Series([1, None, 3]).mean()` return?
+@options
+1.33, because the missing value counts as 0
+* 2.0, because the missing value is skipped
+an error
+@why
+Most pandas aggregations **skip** `NaN`: the mean is (1 + 3) / 2 = 2.0. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many values are missing when you quote a number.
+:::
+
 > 💡 **Practice Pause 1 (Loading Data & Data Quality Report):**
 > Start building your analytics module with precise type specification:
 > 1. Open `labs/mod-1-5/orders_lab.py` in your text editor (remember: do not execute directly in bash!).
@@ -85,6 +103,24 @@ Cleaning is a short list of repeated moves. Each has a vectorised form:
 **Do not chain assignments.** `df[df["a"] > 1]["b"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df["b"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).
 
 A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure function from one frame to another, can be tested with a five-row frame, run again on tomorrow's file, and read by a colleague. A notebook with forty cells that must run in the right order cannot.
+
+:::ask What happens to `df[df["a"] > 1]["b"] = 9`?
+@options
+it sets `b` to 9 for the rows where `a > 1`
+* the assignment goes to a temporary copy and is lost; pandas warns
+it raises an error
+@why
+The first part (`df[df["a"] > 1]`) returns a possibly temporary copy, so the assignment never reaches `df`. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`.
+:::
+
+:::ask You need `quantity * unit_price` for 1,000,000 rows. Which is the right tool?
+@options
+`df.apply(lambda row: row["quantity"] * row["unit_price"], axis=1)`
+* `df["quantity"] * df["unit_price"]`, a whole-column operation
+a `for` loop over `df.iterrows()`
+@why
+Whole-column (vectorised) operations run in compiled code. The course measured the column multiplication at 1.8 milliseconds against 5.7 seconds for the row-by-row `apply`: about 3,100 times slower.
+:::
 
 > 💡 **Practice Pause 2 (Vectorised Cleaning Without Apply):**
 > Clean data efficiently without python loops or apply methods:
@@ -156,6 +192,15 @@ Other join habits:
 - **`concat`** stacks tables with the same columns (several daily files into one). Check the columns line up and reset the index.
 
 A last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it compares two frames and tells you exactly what differs. It is how the lab tests, and how you should test your own transformations.
+
+:::ask The customer table lists 30 customers twice by mistake. You run `orders.merge(customers, on="customer_id", how="left")` on 1,911 orders. What do you get?
+@options
+1,911 rows, a left join keeps the left size
+* more than 1,911 rows: every order of a duplicated customer is repeated, and revenue is overstated, with no error
+an error, because the keys repeat
+@why
+This is the fan-out trap from SQL. The course measured 2,187 rows and revenue 14.1% too high. The defence is one argument, `validate="m:1"`, which raises `MergeError` the moment a key repeats on the right-hand side.
+:::
 
 > 💡 **Practice Pause 4 (Defensive Joins & Orphan Anti-Join):**
 > Merge datasets safely without fan-out revenue doubling risks:

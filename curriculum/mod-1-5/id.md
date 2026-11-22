@@ -60,6 +60,24 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 
 `NaN` perlu dibahas sebentar. Di pandas angka kosong adalah `NaN` (dan tanggal kosong `NaT`), dan sebagian besar agregasi **melewatinya**: `pd.Series([1, None, 3]).sum()` adalah 4.0 dan `.mean()` adalah 2.0, bukan 1.33. Biasanya itu yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% kosong menggambarkan 70% sisanya. Selalu tahu berapa banyak yang kosong ketika Anda menyebut sebuah angka.
 
+:::ask Sebuah id pelanggan adalah `00042` di tabel pelanggan. Anda membaca file pesanan dengan `pd.read_csv` bawaan (tanpa `dtype`). Seperti apa id itu di `orders`?
+@options
+`"00042"`, pandas membiarkannya apa adanya
+* `42`: pandas menebak angka dan nol di depannya hilang, sehingga merge padanya gagal atau salah cocok
+`NaN`
+@why
+Sebuah file tidak punya tipe dan pandas **menebak**. Id adalah label, bukan kuantitas: baca sebagai teks dengan `dtype={"customer_id": "string"}` (atau `str`).
+:::
+
+:::ask Apa yang dikembalikan `pd.Series([1, None, 3]).mean()`?
+@options
+1.33, karena nilai yang hilang dihitung sebagai 0
+* 2.0, karena nilai yang hilang dilewati
+sebuah error
+@why
+Sebagian besar agregasi pandas **melewati** `NaN`: rata-ratanya (1 + 3) / 2 = 2.0. Itu biasanya yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% hilang menggambarkan 70% lainnya. Selalu tahu berapa nilai yang hilang saat Anda menyebut sebuah angka.
+:::
+
 > 💡 **Jeda Praktik 1 (Memuat Data & Laporan Kualitas Data):**
 > Mulai bangun modul analitik data dengan pemuatan tipe yang presisi:
 > 1. Buka file `labs/mod-1-5/orders_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
@@ -85,6 +103,24 @@ Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bent
 **Jangan merantai assignment.** `df[df["a"] > 1]["b"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df["b"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).
 
 Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> clean`, fungsi murni dari satu frame ke frame lain, bisa diuji dengan frame lima baris, dijalankan lagi pada file besok, dan dibaca rekan kerja. Notebook dengan empat puluh sel yang harus dijalankan dalam urutan yang benar tidak bisa.
+
+:::ask Apa yang terjadi pada `df[df["a"] > 1]["b"] = 9`?
+@options
+ia mengisi `b` dengan 9 untuk baris yang `a > 1`
+* penugasan masuk ke salinan sementara dan hilang; pandas memberi peringatan
+ia memunculkan error
+@why
+Bagian pertama (`df[df["a"] > 1]`) mengembalikan salinan yang mungkin sementara, sehingga penugasan tidak pernah sampai ke `df`. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`.
+:::
+
+:::ask Anda butuh `quantity * unit_price` untuk 1.000.000 baris. Mana alat yang tepat?
+@options
+`df.apply(lambda row: row["quantity"] * row["unit_price"], axis=1)`
+* `df["quantity"] * df["unit_price"]`, operasi seluruh kolom
+loop `for` pada `df.iterrows()`
+@why
+Operasi seluruh kolom (vectorised) berjalan di kode yang dikompilasi. Kursus mengukur perkalian kolom 1,8 milidetik melawan 5,7 detik untuk `apply` baris demi baris: sekitar 3.100 kali lebih lambat.
+:::
 
 > 💡 **Jeda Praktik 2 (Pembersihan Vektor Tanpa Apply):**
 > Bersihkan data secara efisien tanpa loop python atau method apply:
@@ -156,6 +192,15 @@ Kebiasaan join lain:
 - **`concat`** menumpuk tabel dengan kolom sama (beberapa file harian menjadi satu). Pastikan kolomnya sejajar dan reset index.
 
 Alat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: ia membandingkan dua frame dan memberi tahu persis apa yang berbeda. Begitulah tes di lab bekerja, dan begitulah seharusnya Anda menguji transformasi Anda sendiri.
+
+:::ask Tabel pelanggan mencantumkan 30 pelanggan dua kali karena kesalahan. Anda menjalankan `orders.merge(customers, on="customer_id", how="left")` pada 1.911 pesanan. Apa yang Anda dapat?
+@options
+1.911 baris, left join mempertahankan ukuran kiri
+* lebih dari 1.911 baris: setiap pesanan pelanggan yang terduplikasi diulang, dan pendapatan terlalu tinggi, tanpa error
+error, karena key berulang
+@why
+Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% terlalu tinggi. Pertahanannya satu argumen, `validate="m:1"`, yang memunculkan `MergeError` begitu sebuah key berulang di sisi kanan.
+:::
 
 > 💡 **Jeda Praktik 4 (Join Defensif & Anti-Join Deteksi Yatim):**
 > Gabungkan dataset secara aman tanpa risiko fan-out pengganda omset:

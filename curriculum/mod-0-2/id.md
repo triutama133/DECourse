@@ -153,6 +153,44 @@ Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server rest
 
 > **Peringatan:** Kegagalan paling berbahaya adalah yang *diam-diam*. Crash terlihat dan beres dalam sejam. Pipeline yang berjalan "sukses" dan menulis angka salah bisa menyesatkan keputusan berminggu-minggu. Setiap kali merancang sesuatu di kursus ini, tanyakan: "kalau ini salah, bagaimana saya akan mengetahuinya?"
 
+:::ask Pendapatan berlipat dua semalam. Penyebabnya: sebuah job diulang setelah timeout dan memuat file yang sama dua kali. Perbaikan mana yang menyelesaikan masalah semacam ini untuk selamanya?
+@options
+menghapus salinan kedua dengan tangan setiap pagi
+* beri setiap record key yang stabil dan buat load-nya idempoten: menjalankan dua kali menghasilkan hasil yang sama
+menjalankan job lebih jarang
+@why
+Duplikat datang dari retry, pengiriman "at least once", dan sumber yang tumpang tindih, jadi mereka akan terus datang. Key yang stabil ditambah load yang idempoten membuat pengulangan tidak berbahaya alih-alih sesuatu yang harus Anda ingat untuk dibersihkan.
+:::
+
+:::ask Sebuah tim sumber mengganti nama `total` menjadi `total_amount` tanpa memberi tahu Anda. Job Anda tetap berjalan dan mengisi kolom `total` dengan null. Pertahanan mana yang menangkap ini di pintu?
+@options
+memori lebih besar untuk job
+* memvalidasi bentuk data saat tiba, dan menyepakati data contract dengan produsen
+dashboard yang lebih besar
+@why
+Ini **schema drift**, dan berbahaya karena tidak ada yang crash. Memeriksa kolom dan tipe saat data tiba mengubah kerusakan diam-diam menjadi kegagalan yang keras dan awal.
+:::
+
+:::drill python Temukan id yang berulang
+Tulis `repeated_ids(rows)`: id pesanan yang muncul **lebih dari sekali** di `rows` (list berisi dict dengan `"order_id"`), masing-masing sekali, terurut.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("repeated_ids") ## Definisikan repeated_ids(rows).
+repeated_ids([{"order_id": "1"}, {"order_id": "2"}, {"order_id": "1"}, {"order_id": "3"}, {"order_id": "1"}, {"order_id": "2"}]) == ["1", "2"] ## Id 1 dan 2 muncul lebih dari sekali: ["1", "2"].
+repeated_ids([{"order_id": "7"}, {"order_id": "8"}]) == [] ## Tanpa pengulangan menghasilkan list kosong.
+repeated_ids([]) == [] ## Input kosong menghasilkan list kosong.
+@hint
+Hitung setiap id dengan dictionary (`counts[id] = counts.get(id, 0) + 1`), lalu simpan id yang hitungannya di atas 1 dan urutkan.
+@solution
+def repeated_ids(rows):
+    counts = {}
+    for row in rows:
+        counts[row["order_id"]] = counts.get(row["order_id"], 0) + 1
+    return sorted(i for i, n in counts.items() if n > 1)
+:::
+
 > 💡 **Jeda Praktik 1 (Eksplorasi Data Kotor):**
 > Sebelum lanjut membaca teori format, buktikan kelima masalah ini di komputer Anda! Buka terminal di folder kursus, buat datanya, lalu intip file pesanan:
 > `python3 labs/shared/shopgen.py --out data`
@@ -176,6 +214,60 @@ Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-j
 Aturan praktis: CSV dan JSON untuk *pertukaran* (manusia dan sistem lain mengirimkannya kepada Anda); Parquet dan tabel database untuk *penyimpanan dan analisis*. Langkah pertama pipeline yang umum adalah mengubah yang pertama menjadi yang kedua, dengan tipe yang dipaksakan.
 
 **Membaca dua format tanggal di Python (`datetime.strptime`).** Tanggal dari file CSV sering mencampur gaya seperti `"2026-01-31T14:03:00"` dan `"31/01/2026 14:03"`. Pustaka standar Python punya `from datetime import datetime`, yang menyediakan `datetime.strptime(text, fmt)` untuk mencocokkan teks dengan pola format (`"%Y-%m-%dT%H:%M:%S"` untuk ISO atau `"%d/%m/%Y %H:%M"` untuk hari/bulan/tahun) dan memunculkan `ValueError` jika tidak cocok. Tangkap `ValueError` untuk mencoba pola berikutnya, lalu ubah hasil yang sah kembali ke teks ISO standar dengan `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
+
+:::drill python Baca sebuah persentase
+Tulis `parse_percent(raw)`: `"12%"` atau `" 12 % "` menghasilkan angka `12`; teks yang bukan bilangan bulat dengan `%` opsional (misalnya `"abc"`, `""`) menghasilkan `None`, tidak pernah error.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("parse_percent") ## Definisikan parse_percent(raw).
+parse_percent("12%") == 12 ## "12%" harus menghasilkan 12.
+parse_percent(" 7 % ") == 7 ## Spasi di sekitar angka dan % harus diabaikan: 7.
+parse_percent("abc") is None ## Teks yang tidak terbaca menghasilkan None, bukan error.
+parse_percent("") is None ## Sel kosong menghasilkan None.
+@hint
+Hapus spasi dan `%`, lalu `int(...)` di dalam `try` / `except ValueError` yang mengembalikan `None`.
+@solution
+def parse_percent(raw):
+    text = raw.replace("%", "").strip()
+    try:
+        return int(text)
+    except ValueError:
+        return None
+:::
+
+:::drill python Satu format tanggal
+Tulis `parse_day(raw)`: tanggal dengan hari lebih dulu seperti `"31/01/2026"` menghasilkan teks ISO `"2026-01-31"`; apa pun yang bukan tanggal valid dalam format itu (`"2026-01-31"`, `"31/02/2026"`, `""`) menghasilkan `None`. Pakai `datetime.strptime`.
+@starter
+from datetime import datetime
+
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("parse_day") ## Definisikan parse_day(raw).
+parse_day("31/01/2026") == "2026-01-31" ## "31/01/2026" harus menghasilkan "2026-01-31".
+parse_day("05/03/2026") == "2026-03-05" ## Hari dulu: "05/03/2026" adalah 5 Maret: "2026-03-05".
+parse_day("31/02/2026") is None ## 31 Februari tidak ada: None.
+parse_day("2026-01-31") is None ## Format yang berbeda tidak diterima di sini: None.
+parse_day("") is None ## Sel kosong menghasilkan None.
+@hint
+```python
+def parse_day(raw):
+    try:
+        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+```
+@solution
+from datetime import datetime
+
+def parse_day(raw):
+    try:
+        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+:::
 
 > 💡 **Jeda Praktik 2 (Parser Angka & Timestamp):**
 > Jangan baca materi berikutnya dulu! Buka `labs/mod-0-2/pipeline.py` di Text Editor Anda (klik di sidebar atau ketik `code labs/mod-0-2/pipeline.py`).
