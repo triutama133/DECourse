@@ -49,7 +49,32 @@ Setiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakuka
 | `bool` | `True`, `False` | ya atau tidak |
 | `None` | `None` | "tidak ada nilai" |
 
-**Mengapa tipe penting, dengan masalah data engineering yang nyata.** File CSV hanya berisi teks. Total `150000` tiba sebagai *teks* `"150000"`, dan `"150000" + 1` gagal karena Python tidak mau menebak apakah Anda ingin menyambung teks atau berhitung. Anda mengonversi dengan sengaja: `int("150000") + 1` menghasilkan `150001`. Teks seperti `"Rp 1.250.000"` sama sekali tidak bisa dikonversi (Python memunculkan error), dan begitulah data kotor muncul di pipeline sungguhan. Periksa tipe dengan `type(total)`.
+**Mengapa tipe penting: bug pertama di setiap pekerjaan data.** Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, masuk sebagai **teks**. Ini dua pesanan KopiKu persis seperti yang dibaca Python dari file CSV:
+
+```python
+row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
+row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+```
+
+Perhatikan tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang atasan Anda bertanya tiga hal sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
+
+| Pertanyaannya | Yang Anda tulis | Jawaban Python | Mengapa |
+|---|---|---|---|
+| Total dua pesanan? | `row1["total_idr"] + row2["total_idr"]` | `'15000090000'` | `+` pada teks menyambung karakternya |
+| Apakah 90.000 lebih besar dari 150.000? | `"90000" > "150000"` | `True` | teks dibandingkan karakter demi karakter, seperti kata di kamus, dan `"9"` datang setelah `"1"` |
+| Total dari kecil ke besar? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | urutan karakter demi karakter yang sama |
+
+Tidak ada yang crash. Programnya berjalan, laporannya terkirim, dan setiap angka di dalamnya salah. Karena itulah tugas pertama data engineer dengan data baru apa pun adalah **memberi setiap nilai tipe yang benar, dengan sengaja**: `int("150000")` adalah angka `150000`. Dengan angka, tiga pertanyaan yang sama menjawab `240000`, `False`, dan `[25000, 90000, 150000]`. Periksa apa yang Anda pegang dengan `type(x)`: `type(row1["total_idr"])` menampilkan `<class 'str'>`.
+
+Tipe melindungi Anda dengan dua cara lagi:
+- **Teks kotor gagal dengan keras, dan itu bagus.** `int("Rp 1.250.000")` memunculkan `ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`. Error yang menghentikan Anda lebih baik daripada angka salah yang tidak disadari siapa pun. Pelajaran 6 menunjukkan cara menangkapnya dan menyisihkan baris yang rusak.
+- **`None` bukan `0`.** Total yang hilang (`None`) berarti "kita tidak tahu"; `0` berarti "pesanannya gratis". `None == 0` adalah `False`. Kalau tertukar, rata-rata dan total jadi salah diam-diam.
+
+**Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi setiap kolom sebuah tipe (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet menyimpan tipe di samping datanya sehingga tidak ada yang perlu menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga yang diketik sebagai teks, diubah menjadi angka.
+
+> 🛠 **Coba sendiri (5 menit, Python di prompt `>>>`).** Di terminal ketik `python3`, lalu ketik dua baris `row1` dan `row2` di atas. Sebelum setiap pertanyaan di tabel, **tebak** jawabannya, lalu ketik kodenya dan bandingkan. Kemudian jawab tiga pertanyaan yang sama lagi dengan `int(...)` di sekitar setiap total.
+>
+> **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 
 Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f"Order {1001}: Rp {total}"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`. Fungsi angka bawaan yang sangat berguna adalah `abs(n)`, yang mengembalikan jarak positif dari nol: `abs(-45000)` menghasilkan `45000`. Ini sangat membantu saat memformat mata uang negatif di mana tanda minus harus berada di depan awalan rupiah (`"-Rp 45.000"`, bukan `"Rp -45.000"`).
 
@@ -282,21 +307,60 @@ Anda tidak akan mengingat semuanya setelah sekali membaca, dan memang tidak diha
 >
 > **Seharusnya Anda melihat:** tiga baris FAIL di awal (satu `TypeError`, dua jawaban salah) dan `all three fixed` di akhir. Lalu tulis satu kalimat per bug: petunjuk apa yang membawa Anda ke sana? Kalimat itulah keahliannya.
 
+**Di mana gagasan ini muncul dalam keseharian data engineer.** Wajar bertanya apa hubungan sebelas fungsi kecil dengan pekerjaan ini. Hampir setiap tugas yang akan Anda terima adalah gagasan yang sama, hanya lebih besar:
+- **Tipe:** data tiba sebagai teks; Anda memberi setiap nilai tipe yang benar sebelum apa pun, atau total jadi salah tanpa error.
+- **List dan dict:** sebuah file atau tabel adalah list berisi baris; setiap baris adalah dict dari kolom ke nilai.
+- **Menghitung dengan dict:** "berapa per kota, per status, per hari" adalah pertanyaan paling umum dalam data; `GROUP BY` di SQL (Modul 0.3) adalah gagasan yang sama.
+- **Set:** membuang duplikat, dan bertanya "apakah ini sudah pernah dimuat?".
+- **if dan try/except:** memutuskan baris mana yang valid, dan menyisihkan yang rusak alih-alih crash atau membuangnya diam-diam.
+- **Fungsi dengan tes:** setiap langkah pipeline adalah fungsi, dan tesnya adalah cara Anda tahu ia masih berjalan setelah perubahan besok.
+
+Lab akan tumbuh dari sini: di Modul 1.2 gagasan yang sama menjadi pipeline sungguhan yang membaca file, mengonversi tipe, mengarantina baris rusak, dan aman dijalankan ulang. Jika sesuatu di modul ini masih terasa belum jelas, itu wajar setelah sekali baca: baca ulang pelajaran yang Jeda Praktiknya paling sulit, dan kerjakan lagi Coba sendiri-nya.
+
 ## @lab Lab: sebelas fungsi kecil pada pesanan KopiKu
-Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran: memformat angka, mengonversi teks dengan aman, mengulang dan menjumlahkan, menghitung dengan dictionary, membuang duplikat dengan set, memisahkan yang valid dari yang tidak, merata-rata tanpa membagi dengan nol, membuat peringkat, memotong list menjadi batch, menghindari jebakan nilai bawaan mutable, dan membaca file CSV. Tesnya (31) memberi tahu apa yang harus dilakukan setiap fungsi.
+Tulis sebelas fungsi pendek, masing-masing melatih satu gagasan dari pelajaran, pada data pesanan KopiKu.
+
+**Apa itu lab.** File `basics.py` berisi sebelas fungsi yang isinya kosong: masing-masing hanya berisi `raise NotImplementedError`. Anda yang menulis isinya. File kedua, `test_lab.py`, berisi 31 **tes**: program kecil yang memanggil fungsi Anda dengan sebuah contoh dan memeriksa jawabannya, misalnya "`format_rupiah(1250000)` harus menghasilkan `"Rp 1.250.000"`". Sebuah tes ✓ jika fungsi Anda memberi jawaban yang diharapkan, dan ✗ jika memberi jawaban lain atau crash. Anda selesai ketika ke-31 tes ✓.
+
+**Di mana mengerjakannya di modul ini.** Di **Pratinjau browser** di bawah pada halaman ini, tanpa memasang apa pun: file ada di kotak editor, **Jalankan tes** menjalankan ke-31 tes, dan daftar di bawah tombol menampilkan setiap kelompok tes (satu kelompok per fungsi) sebagai ✓ atau ✗. Setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fungsi mana yang ditulis berikutnya, jadi bergantianlah: pelajaran, fungsi, pelajaran, fungsi. Setelah Modul 0.2 Anda menulis lab ini lagi di komputer sendiri, dan run itulah yang dihitung.
+
+**Putarannya, untuk setiap fungsi.**
+1. Baca deskripsi fungsi di file: teks di antara baris `"""` menyebutkan apa yang masuk dan apa yang harus keluar, dengan contoh.
+2. Tulis percobaan Anda, menggantikan baris `raise NotImplementedError`.
+3. Klik **Jalankan tes** dan cari kelompok fungsi itu. Di awal, kelompok lain juga ✗; itu wajar, abaikan.
+4. Jika kelompok Anda ✗, klik dan baca pesannya. Baris seperti `AssertionError: assert 'Rp 1,250,000' == 'Rp 1.250.000'` berarti: fungsi Anda mengembalikan `'Rp 1,250,000'` (kiri), tes mengharapkan `'Rp 1.250.000'` (kanan). Perbedaannya, koma alih-alih titik, memberi tahu persis apa yang harus diubah.
+5. Ubah satu hal, jalankan lagi. Memutar lima kali untuk satu fungsi itu normal: begitulah programmer bekerja, bukan tanda Anda tidak bisa.
+
+**Sebelas fungsinya, urut sesuai pelajaran, dan mengapa data engineer membutuhkan masing-masing:**
+
+| Pelajaran | Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
+|---|---|---|---|
+| 1 | `format_rupiah` | `1250000` menjadi `"Rp 1.250.000"` | laporan, dashboard, dan e-mail menampilkan uang yang bisa dibaca orang |
+| 2 | `count_by_status` | berapa pesanan per status | pertanyaan paling umum tentang data apa pun: berapa per kategori (SQL menyebutnya `GROUP BY`, Modul 0.3) |
+| 2 | `unique_customer_ids` | setiap pelanggan sekali, terurut | file dikirim ulang dan baris berulang; menghitung pelanggan dua kali menggelembungkan semua angka |
+| 3 | `average_total` | rata-rata, atau `None` jika tidak ada pesanan | metrik harus tetap jalan di hari kosong tanpa membuat seluruh job crash |
+| 4 | `total_revenue` | jumlah total yang tidak dibatalkan | omzet adalah angka yang dicocokkan Keuangan dengan Anda: teks ke angka, dan filter yang benar |
+| 4 | `batches` | potong list menjadi bagian berukuran `size` | kirim data ke API atau database per bagian, bukan satu permintaan raksasa (Modul 1.6) |
+| 4 | `top_customers` | `n` pelanggan dengan belanja terbesar | setiap laporan "10 teratas" |
+| 6 | `safe_int` | teks ke angka, atau nilai bawaan jika tidak mungkin | mengonversi nilai kotor tanpa membuat run crash |
+| 5 | `add_to_batch` | menambah ke list tanpa jebakan "nilai bawaan mutable" | bug persis ini membuat data kemarin bocor ke run hari ini (lihat tab Chaos) |
+| 6 | `split_valid` | memisahkan baris baik dari yang rusak | baris rusak disisihkan dan dilaporkan, tidak pernah dibuang diam-diam (Modul 1.2) |
+| 7 | `read_orders` | membaca file CSV menjadi list berisi dict | setiap pipeline dimulai dengan membaca file |
 
 ### @steps
-1. Buka file kerja `labs/mod-0-0/basics.py` di Text Editor Anda (misal: klik file di sidebar VS Code/Cursor atau ketik `code labs/mod-0-0/basics.py`; *JANGAN dieksekusi langsung di bash!*). Baca isinya dari atas ke bawah. Setiap fungsi memiliki docstring dengan contoh dan nomor pelajaran yang bersangkutan.
-2. Kerjakan berurutan mengikuti panduan **Jeda Praktik** di setiap akhir pelajaran, dan jalankan tes setelah SETIAP fungsi: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, `top_customers`, `safe_int`, `add_to_batch`, `split_valid`, `read_orders`.
+1. Buka **Pratinjau browser** di bawah. Baca seluruh file dari atas ke bawah sekali, tanpa menulis apa pun: sebelas fungsi, masing-masing dengan deskripsinya.
+2. Ikuti Jeda Praktik: setelah Pelajaran 1 tulis `format_rupiah`; setelah Pelajaran 2 `count_by_status` dan `unique_customer_ids`; setelah Pelajaran 3 `average_total` (dan selesaikan `format_rupiah`); setelah Pelajaran 4 `total_revenue`, `batches`, dan `top_customers`; setelah Pelajaran 6 `safe_int`, `add_to_batch`, dan `split_valid`; setelah Pelajaran 7 `read_orders`. Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya.
+3. Ragu nilai apa yang ada di dalam fungsi Anda? Tambahkan `print(type(x), x)` di atas baris yang Anda ragukan lalu jalankan lagi; cetakannya muncul di output. Hapus setelah selesai.
+4. Sebelum setiap run, **tebak** kelompok mana yang akan ✓. Ketika hasilnya mengejutkan, cari tahu mengapa: kejutan itulah tempat belajar terjadi.
+5. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis lab ini lagi di komputer Anda sendiri, di venv Anda sendiri, **tanpa menyalin** dari pratinjau. Dari folder kursus:
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # semuanya
-pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # hanya satu kelompok saat Anda bekerja
+pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # satu kelompok saat Anda bekerja
+python3 scripts/prove.py mod-0-0                      # setelah ke-31 lulus: kode bukti Anda
 ```
 
-3. Saat tes gagal, bacalah seperti spesifikasi: nama tes menyatakan apa yang Anda rusak, baris terakhir menunjukkan nilai yang diharapkan dan yang sebenarnya. Cetak nilai di dalam fungsi Anda (`print(type(x), x)`) jika Anda ragu apa yang sedang Anda tangani.
-4. Sebelum menjalankan, **tebak**: tulis tes mana yang Anda harapkan lulus. Ketika hasilnya mengejutkan, cari tahu mengapa. Kejutan itulah tempat belajar terjadi.
-5. **Kerjakan yang sesungguhnya.** Kotak di browser di atas hanya pratinjau. Setelah Modul 0.2, ulangi lab ini di komputer Anda sendiri dalam venv Anda sendiri, tulis kodenya lagi **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-0-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+   Buka `labs/mod-0-0/basics.py` di editor Anda (VS Code: File, Open Folder, lalu klik file-nya); itu file yang Anda edit, bukan perintah yang Anda ketik. Tempel kode buktinya ke kotak **Bukti** di halaman ini.
 
 ### @files
 - labs/mod-0-0/basics.py :: File kerja Anda: implementasikan sebelas fungsi TODO :: starter

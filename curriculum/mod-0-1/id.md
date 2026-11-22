@@ -210,35 +210,39 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 > Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!
 
 ## @lab Lab: bersihkan file pesanan KopiKu
-Anda punya file berisi baris pesanan dengan masalah-masalah di atas. Tulis empat fungsi kecil yang mengubahnya menjadi data yang bisa dipercaya dan menghitung omset harian. Ini versi mini dari apa yang dilakukan setiap pipeline: baca, validasi, seragamkan, karantina apa yang tidak bisa dipercaya, lalu hitung.
+Anda punya file baris pesanan KopiKu dengan masalah dari materi: total ditulis sebagai teks, dua format tanggal, duplikat, nilai mustahil. Tulis empat fungsi kecil yang mengubahnya menjadi data yang bisa dipercaya, lalu hitung omzet per hari. Ini miniatur dari yang dilakukan setiap pipeline: baca, periksa, bersihkan, sisihkan yang tidak bisa dipercaya, lalu hitung.
+
+| Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
+|---|---|---|
+| `parse_total` | `"Rp 1.250.000"` atau `"150000"` menjadi angka rupiah, atau `None` jika tidak bisa dipahami | setiap sumber menulis uang dengan caranya sendiri; laporan butuh satu tipe angka |
+| `parse_ts` | dua format tanggal (`"2026-01-31T14:03:00"`, `"31/01/2026 14:03"`) menjadi satu format standar | omzet per hari, pengiriman terlambat, "7 hari terakhir": semua butuh tanggal yang bisa dibandingkan |
+| `clean_orders` | menyimpan baris yang baik dengan tipe yang benar, dan memasukkan setiap baris rusak ke `rejected` beserta alasannya | inti pipeline: tidak ada yang salah masuk ke laporan, dan tidak ada yang dibuang tanpa jejak |
+| `daily_revenue` | omzet per hari, tanpa pesanan yang dibatalkan dan dikembalikan | angka yang ditanyakan pendiri setiap pagi |
+
+Fungsi-fungsinya saling membangun: `clean_orders` memakai `parse_total` dan `parse_ts`, dan `daily_revenue` memakai hasil `clean_orders`. Karena itu urutannya penting.
 
 ### @steps
-1. Pastikan Python 3 berjalan (`python3 --version`). Jika Anda belum punya file kursus, ikuti dulu halaman **Mulai di sini** di aplikasi (di sana dijelaskan cara mengunduhnya dan di folder mana terminal dibuka; Modul 0.2 mengajarkan terminal dan Git dengan benar). Dari root repositori, buat datanya:
+1. Buka **Pratinjau browser** di bawah dan baca `pipeline.py` dari atas ke bawah sekali: empat fungsi kosong, masing-masing dengan deskripsi dan contoh nyata dari file.
+2. Tulis sesuai urutan ini, jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya: `parse_total`, lalu `parse_ts`, lalu `clean_orders`, lalu `daily_revenue`.
+3. Aturan untuk baris yang tidak bisa dipercaya: **jangan pernah menebak dan jangan pernah membuang diam-diam.** Setiap baris yang Anda tinggalkan masuk ke `rejected` dengan alasan singkat.
+4. Opsional, jika Anda sudah mengikuti Mulai di sini: lihat file aslinya dengan mata sendiri. Di terminal, dari folder kursus:
 
 ```bash
 python3 labs/shared/shopgen.py --out data
+head -20 data/orders.csv           # 20 baris pertama
+grep -c "Rp " data/orders.csv      # berapa total yang ditulis sebagai teks
+cat data/manifest.json             # apa yang ditanam di file, dan berapa banyak
 ```
 
-2. Lihat dulu sebelum menulis kode. Baca file dan temukan masalahnya dengan mata Anda sendiri:
+5. **Kerjakan yang sesungguhnya**, setelah Modul 0.2. Di komputer Anda sendiri, dengan venv kursus aktif, tulis lagi keempat fungsi di editor **tanpa menyalin** dari pratinjau, lalu dari folder kursus:
 
 ```bash
-head -20 data/orders.csv
-grep -c "Rp " data/orders.csv     # total yang ditulis sebagai teks
-grep -c ",-" data/orders.csv      # total negatif
-cat data/manifest.json            # apa yang ditanam, dan berapa banyak
+pytest labs/mod-0-1/test_lab.py -v                  # sampai semua tes lulus
+python3 labs/mod-0-1/pipeline.py data/orders.csv    # jalankan pada file asli: baris masuk, bersih, ditolak
+python3 scripts/prove.py mod-0-1                    # kode bukti untuk kotak Bukti di halaman ini
 ```
 
-3. Buka `labs/mod-0-1/pipeline.py` di Text Editor Anda (misal: klik di sidebar editor atau ketik `code labs/mod-0-1/pipeline.py`; jangan jalankan langsung di bash!). Empat fungsi melempar `NotImplementedError`. Implementasikan dengan urutan ini, jalankan tes setelah masing-masing:
-   `parse_total`, lalu `parse_ts`, lalu `clean_orders`, lalu `daily_revenue`.
-4. Putuskan apa yang dilakukan pada baris yang tidak bisa dipercaya. Aturan lab ini: **jangan menebak dan jangan membuang diam-diam.** Setiap baris yang dibuang masuk ke `rejected` dengan alasan singkat.
-5. Jalankan program pada file asli dan bandingkan jumlah baris masuk dan keluar:
-
-```bash
-python3 labs/mod-0-1/pipeline.py data/orders.csv
-```
-
-6. Opsional: tulis tiga kalimat di `NOTES.md` yang menjelaskan masalah yang Anda temukan dan mana yang paling mengejutkan.
-7. **Kerjakan yang sesungguhnya.** Kotak di browser di atas hanya pratinjau. Setelah Modul 0.2 (terminal, venv, Git), ulangi lab ini di komputer Anda sendiri: buat venv, `pip install pytest`, tulis ulang keempat fungsi di editor Anda **tanpa menyalin**, lalu jalankan `pytest labs/mod-0-1/test_lab.py -v` sampai hijau. Penyiapan itu bagian dari keterampilannya. Setelah itu jalankan `python3 scripts/prove.py mod-0-1` di dalam venv Anda: perintah itu mencetak kode bukti yang Anda tempel ke kotak **Bukti** di halaman lab ini.
+6. Opsional: tulis tiga kalimat di `NOTES.md` tentang masalah yang Anda temukan dan mana yang paling mengejutkan.
 
 ### @files
 - labs/mod-0-1/pipeline.py :: File kerja Anda: implementasikan empat fungsi TODO :: starter

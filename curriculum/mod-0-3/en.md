@@ -424,7 +424,7 @@ python3 labs/mod-0-3/check.py
 
 4. Do the questions in order; they get harder. Questions 4, 6 and 8 are the traps from the lessons (NULL, NULL-to-Unknown with a join, and fan-out). When a question fails, read the checker's message: it tells you whether the column count, row count, or values differ.
 5. After each answer, run `SELECT COUNT(*)` on the intermediate join and make sure you can explain the number. This is the habit that protects you in real work.
-6. Optional: open the database yourself with `sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql` if you have the `sqlite3` command-line tool, and explore with `.tables` and `.schema`.
+6. Optional: build the database yourself and explore it at a `sqlite>` prompt, with nothing to install (Python 3.12 or newer): `python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql`, then `python3 -m sqlite3 kopiku.db`. At `sqlite>` list the tables with `select name from sqlite_master where type = 'table';`, see how `orders` was created with `select sql from sqlite_master where name = 'orders';`, then try any query, ending each with `;`. Leave with `.quit`.
 
 ### @files
 - labs/mod-0-3/answers.sql :: Your working file: one query under each marker :: starter

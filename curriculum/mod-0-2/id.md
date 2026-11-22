@@ -221,7 +221,7 @@ Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, l
 
 > 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
 > Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
-> 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/Documents/Projects/dataengineeringCourse`
+> 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/projects/DECourse` (folder dari Mulai di sini, langkah 3; `export` hanya berlaku di jendela terminal ini)
 > 1. Masih di `~/kopiku`, salin generator dan buat datanya:
 > `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
 > 2. Salin starter skrip: `cp $COURSE/labs/mod-0-2/starter/summarize.py .`
@@ -253,14 +253,15 @@ git add .gitignore
 git commit -m "Start project with a .gitignore"
 ```
 
-3. Salin generator data dari repositori kursus ke proyek Anda dan buat datanya. Ganti `<course-repo>` dengan lokasi tempat Anda meng-clone kursus ini:
+3. Beri tahu shell di mana kursusnya (folder dari Mulai di sini, langkah 3; ubah jika Anda meng-clone di tempat lain, dan ulangi baris ini di setiap terminal baru), salin generator data ke proyek Anda, lalu buat datanya:
 
 ```bash
-cp <course-repo>/labs/shared/shopgen.py .
+export COURSE=~/projects/DECourse
+cp $COURSE/labs/shared/shopgen.py .
 python3 shopgen.py --out data
 ```
 
-4. Salin `starter/summarize.py` (ditampilkan di bawah) dari repositori kursus ke proyek Anda dan implementasikan. Ia harus menghitung setiap `order_id` sekali dan mengelompokkan menurut status huruf kecil. Coba jalankan, dan bandingkan dengan one-liner terminal dari materi (ingat one-liner itu menghitung ganda duplikat, jadi angkanya akan sedikit berbeda: itulah intinya):
+4. Salin skrip starter ke proyek Anda dengan `cp $COURSE/labs/mod-0-2/starter/summarize.py .`, buka di editor, lalu implementasikan. Ia harus menghitung setiap `order_id` sekali dan mengelompokkan menurut status huruf kecil. Coba jalankan, dan bandingkan dengan one-liner terminal dari materi (ingat one-liner itu menghitung ganda duplikat, jadi angkanya akan sedikit berbeda: itulah intinya):
 
 ```bash
 python3 summarize.py data/orders.csv
@@ -279,7 +280,7 @@ git commit -m "Record dependencies in requirements.txt"
 6. Jalankan pemeriksa dan perbaiki apa pun yang dilaporkan:
 
 ```bash
-python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
+python3 $COURSE/labs/mod-0-2/check.py ~/kopiku
 ```
 
 7. **Sekarang kerjakan Lab 0.1 yang sesungguhnya.** Jika Anda baru mencobanya di pratinjau browser, kembali ke Modul 0.1 dan kerjakan di komputer Anda sendiri dengan apa yang baru Anda bangun: aktifkan venv, pasang pytest, lalu jalankan tes dari terminal Anda sendiri.

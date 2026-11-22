@@ -221,7 +221,7 @@ Finally, **practise the loop** until it is automatic: make a small change, run i
 
 > 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
 > Prove that your entire workbench functions as intended:
-> 0. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/Documents/Projects/dataengineeringCourse`
+> 0. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/projects/DECourse` (the folder from Start here, step 3; `export` lasts only in this terminal window)
 > 1. Inside `~/kopiku`, copy the generator and generate data:
 > `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
 > 2. Copy the starter script: `cp $COURSE/labs/mod-0-2/starter/summarize.py .`
@@ -253,14 +253,15 @@ git add .gitignore
 git commit -m "Start project with a .gitignore"
 ```
 
-3. Copy the data generator from the course repository into your project and generate the data. Replace `<course-repo>` with the path where you cloned this course:
+3. Tell the shell where the course is (the folder from Start here, step 3; change it if you cloned elsewhere, and repeat this line in every new terminal), copy the data generator into your project, and generate the data:
 
 ```bash
-cp <course-repo>/labs/shared/shopgen.py .
+export COURSE=~/projects/DECourse
+cp $COURSE/labs/shared/shopgen.py .
 python3 shopgen.py --out data
 ```
 
-4. Copy `starter/summarize.py` (shown below) from the course repository into your project and implement it. It must count each `order_id` once and group by lower-case status. Try it, and compare with the terminal one-liner from the lessons (remember the one-liner double-counts duplicates, so the numbers will differ slightly: that is the point):
+4. Copy the starter script into your project with `cp $COURSE/labs/mod-0-2/starter/summarize.py .`, open it in your editor and implement it. It must count each `order_id` once and group by lower-case status. Try it, and compare with the terminal one-liner from the lessons (remember the one-liner double-counts duplicates, so the numbers will differ slightly: that is the point):
 
 ```bash
 python3 summarize.py data/orders.csv
@@ -279,7 +280,7 @@ git commit -m "Record dependencies in requirements.txt"
 6. Run the checker and fix anything it reports:
 
 ```bash
-python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
+python3 $COURSE/labs/mod-0-2/check.py ~/kopiku
 ```
 
 7. **Now do Lab 0.1 for real.** If you only tried it in the browser preview, go back to Module 0.1 and do it on your own computer, using what you just built: activate a venv, install pytest, then run the tests from your own terminal.

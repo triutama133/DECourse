@@ -297,6 +297,51 @@ class DataForgeApp {
     return `<div class="callout ${kind}">${this.renderQuoteBody(q)}</div>`;
   }
 
+  // "How a lab works" on every Lab tab: what tests and checkers are, how to read a failure, and the loop.
+  // A beginner said the Module 0.0 lab was unclear; most labs assumed the learner already knew this.
+  labHowItWorks(mod) {
+    const mm = mod.id.match(/mod-(\d)-(\d)/);
+    const level0 = mm && mm[1] === "0";
+    const kind = /^mod-4-/.test(mod.id) ? "capstone" : ["mod-0-3", "mod-1-3", "mod-1-4"].includes(mod.id) ? "sql" : mod.id === "mod-0-2" ? "workspace" : mod.id === "mod-2-3" ? "dbt" : "pytest";
+    const alsoPytest = ["mod-1-3", "mod-1-4"].includes(mod.id);
+    const C = (t) => `<code>${this.esc(t)}</code>`;
+    const how = {
+      pytest: this.l(
+        `Lab ini memberi Anda file dengan fungsi yang isinya kosong (${C("raise NotImplementedError")}), dan file ${C("test_*.py")} berisi <strong>tes</strong>: program kecil yang memanggil fungsi Anda dengan contoh dan memeriksa jawabannya. ${C("pytest")} menjalankan semuanya dan mencetak ${C("PASSED")} atau ${C("FAILED")} per tes, lalu ringkasan seperti ${C("3 failed, 5 passed")}. Anda selesai ketika semuanya lulus.`,
+        `This lab gives you a file whose functions are empty (${C("raise NotImplementedError")}), and a ${C("test_*.py")} file of <strong>tests</strong>: small programs that call your function with an example and check the answer. ${C("pytest")} runs them all and prints ${C("PASSED")} or ${C("FAILED")} per test, then a summary such as ${C("3 failed, 5 passed")}. You are done when all of them pass.`),
+      sql: this.l(
+        `Lab ini adalah daftar pertanyaan. Anda menulis satu query di bawah setiap penanda di ${C("answers.sql")} (atau mengerjakannya di SQL Sandbox). Pemeriksa menjalankan query Anda dan membandingkan hasilnya dengan hasil yang benar: ${C("PASS")} jika sama, ${C("TODO")} jika belum ditulis, ${C("FAIL")} dengan alasannya (error SQL, jumlah kolom atau baris yang berbeda, atau nilai yang berbeda), lalu ${C("3/10 answers correct")}.`,
+        `This lab is a list of questions. You write one query under each marker in ${C("answers.sql")} (or solve it in the SQL Sandbox). The checker runs your query and compares its result with the correct one: ${C("PASS")} when they match, ${C("TODO")} when not written yet, ${C("FAIL")} with the reason (an SQL error, a different number of columns or rows, or different values), then ${C("3/10 answers correct")}.`),
+      dbt: this.l(
+        `Lab ini memberi Anda proyek dbt dengan model SQL yang belum diisi: setiap file model hanya berisi ${C("select 1 as todo")} dan komentar yang menjadi spesifikasinya. Anda menulis query-nya. ${C("test_lab.py")} menjalankan ${C("dbt build")}, lalu memeriksa tabel hasilnya; ${C("pytest")} mencetak ${C("PASSED")} atau ${C("FAILED")} per tes.`,
+        `This lab gives you a dbt project whose SQL models are not filled in: each model file only says ${C("select 1 as todo")}, plus a comment that is its specification. You write the queries. ${C("test_lab.py")} runs ${C("dbt build")} and then checks the tables it made; ${C("pytest")} prints ${C("PASSED")} or ${C("FAILED")} per test.`),
+      workspace: this.l(
+        `Lab ini membangun folder kerja, bukan menulis fungsi. Pemeriksa ${C("check.py")} melihat folder Anda dan mencetak satu baris per syarat (venv, Git, ${C(".gitignore")}, skrip), masing-masing lulus atau gagal dengan petunjuk.`,
+        `This lab builds a workspace folder rather than functions. The ${C("check.py")} checker looks at your folder and prints one line per requirement (venv, Git, ${C(".gitignore")}, script), each passed or failed with a hint.`),
+      capstone: this.l(
+        `Capstone ini dibangun per langkah. ${C("check.py <folder> --step N")} memeriksa langkah N dan mencetak ${C("PASS")}/${C("FAIL")} per pemeriksaan, plus ringkasan. ${C("--hint 1")} sampai ${C("--hint 3")} memberi petunjuk bertingkat; coba sendiri minimal 30 menit sebelum memintanya.`,
+        `This capstone is built step by step. ${C("check.py <folder> --step N")} checks step N and prints ${C("PASS")}/${C("FAIL")} per check, plus a summary. ${C("--hint 1")} to ${C("--hint 3")} give hints of increasing detail; try for at least 30 minutes before you ask.`)
+    }[kind];
+    const extra = alsoPytest ? `<p>${this.l(`Modul ini juga punya bagian Python dengan tes ${C("pytest")}; langkah lab di bawah menyebutkan keduanya.`, `This module also has a Python part checked with ${C("pytest")}; the lab steps below cover both.`)}</p>` : "";
+    const read = kind === "pytest" || kind === "dbt" ? this.l(
+      `<strong>Membaca tes yang gagal.</strong> Lihat baris yang diawali ${C("E")}. ${C("assert 'Rp 1,250,000' == 'Rp 1.250.000'")} berarti: fungsi Anda mengembalikan nilai kiri, tes mengharapkan nilai kanan. Perbedaannya memberi tahu apa yang harus diubah. ${C("NotImplementedError")} berarti fungsinya belum Anda tulis. Jalankan satu kelompok saja agar pesannya pendek: ${C("pytest <file tes> -k NamaKelompok -v")}.`,
+      `<strong>Reading a failed test.</strong> Look at the lines that start with ${C("E")}. ${C("assert 'Rp 1,250,000' == 'Rp 1.250.000'")} means: your function returned the left value, the test expected the right one. The difference tells you what to change. ${C("NotImplementedError")} means you have not written that function yet. Run one group only to keep the output short: ${C("pytest <test file> -k GroupName -v")}.`) : this.l(
+      `<strong>Membaca kegagalan.</strong> Baca pesan pertama yang gagal saja, perbaiki satu hal, jalankan lagi. Pesannya menyebutkan apa yang diharapkan.`,
+      `<strong>Reading a failure.</strong> Read only the first failing message, fix one thing, run again. The message says what was expected.`);
+    return `<details class="callout neutral lab-how" ${level0 ? "open" : ""}>
+        <summary><strong>🧭 ${this.l("Cara kerja lab (baca sekali)", "How a lab works (read once)")}</strong></summary>
+        <div class="stack-sm small" style="margin-top:6px">
+          <p>${how}</p>
+          ${extra}
+          <p>${read}</p>
+          <p><strong>${this.l("Putarannya", "The loop")}:</strong> ${this.l(
+            "baca deskripsinya, tulis percobaan, jalankan pemeriksaan, baca pesan pertama yang gagal, ubah satu hal, ulangi. Memutar berkali-kali untuk satu bagian itu normal: begitulah programmer bekerja, bukan tanda Anda tidak bisa.",
+            "read the description, write an attempt, run the check, read the first failing message, change one thing, repeat. Going round many times for one part is normal: it is how programmers work, not a sign that you cannot do it.")}</p>
+          <p class="muted">${this.l("Kerjakan sendiri. Solusi referensi terbuka setelah kode bukti Anda diterima; membandingkan setelahnya adalah cara belajar yang bagus.", "Do it yourself. The reference solution opens after your proof code is accepted; comparing afterwards is a good way to learn.")}</p>
+        </div>
+      </details>`;
+  }
+
   // "Where do I do this?" under every Try it, chosen from its label: "(10 min, Python)", "(SQL Sandbox)",
   // "(terminal)", "(paper)"... Beginners could not tell whether to type the code at the terminal, at >>> or in a file.
   tryItWhere(lines, ctx) {
@@ -311,6 +356,7 @@ class DataForgeApp {
     const writes = /\b(write|tulis|save|simpan|buat)\b[^.]{0,40}`[\w./-]+\.py`/i.test(text) || /file `[\w./-]+\.py`/i.test(label);
     let kind;
     if (/sandbox/.test(label)) kind = "sandbox";
+    else if (/>>>/.test(label)) kind = "repl";
     else if (/(paper|kertas)/.test(label) && !/(python|terminal)/.test(label)) kind = "paper";
     else if (/terminal|docker|sqlcmd|dbt|\bbq\b/.test(label)) kind = "terminal";   // the label wins over a file the Try it also writes
     else if (/python|pyspark|\.py/.test(label) || writes) kind = "python";
@@ -322,6 +368,12 @@ class DataForgeApp {
     if (kind === "sandbox") {
       body = `<p>${this.l("Di browser ini, tanpa instalasi: buka <strong>SQL Sandbox</strong> di menu atas, pilih dataset yang disebut, ketik query di kotak editor, lalu tekan Run.", "In this browser, nothing to install: open the <strong>SQL Sandbox</strong> in the top menu, pick the dataset it names, type the query in the editor box and press Run.")}</p>
         <button class="btn btn-sm" onclick="app.go('playground')">${this.l("Buka SQL Sandbox", "Open the SQL Sandbox")} →</button>`;
+    } else if (kind === "repl") {
+      body = `<ol>
+          <li>${this.l(`Buka terminal dan ketik ${C("python3")}, lalu Enter. Prompt berubah menjadi ${C(">>>")}.`, `Open the terminal and type ${C("python3")}, then Enter. The prompt changes to ${C(">>>")}.`)}</li>
+          <li>${this.l(`Ketik setiap baris di ${C(">>>")} dan tekan Enter. Di sini Anda tidak perlu ${C("print")}: ketik nama atau ekspresinya saja dan Python menampilkan nilainya.`, `Type each line at ${C(">>>")} and press Enter. Here you do not need ${C("print")}: type a name or an expression and Python shows its value.`)}</li>
+          <li>${this.l(`Selesai? Keluar dengan ${C("exit()")} atau ${C("Ctrl+D")}; prompt kembali menjadi ${C("$")}.`, `Done? Leave with ${C("exit()")} or ${C("Ctrl+D")}; the prompt goes back to ${C("$")}.`)}</li>
+        </ol>`;
     } else if (kind === "paper") {
       body = `<p>${this.l("Tidak perlu komputer: pakai kertas dan pena, atau file teks biasa. Lalu buka hasil yang diharapkan di bawah untuk membandingkan.", "No computer needed: use pen and paper, or a plain text file. Then open the expected result below to compare.")}</p>`;
     } else if (kind === "python") {
@@ -345,7 +397,7 @@ class DataForgeApp {
           ${pkgs.length ? `<li>${this.l(`Paket: ${C("python -m pip install " + pkgs.join(" "))} dengan venv aktif.`, `Packages: ${C("python -m pip install " + pkgs.join(" "))} with the venv active.`)}</li>` : ""}
         </ul>`;
     }
-    const kindLabel = { sandbox: "SQL Sandbox", paper: this.l("kertas", "paper"), python: this.l("file Python + terminal", "Python file + terminal"), terminal: "terminal" }[kind];
+    const kindLabel = { repl: this.l("Python di >>>", "Python at >>>"), sandbox: "SQL Sandbox", paper: this.l("kertas", "paper"), python: this.l("file Python + terminal", "Python file + terminal"), terminal: "terminal" }[kind];
     return `<details class="tryit-where"><summary>📍 ${this.l("Di mana saya mengerjakan ini?", "Where do I do this?")} <span class="muted">· ${kindLabel}</span></summary><div class="small">${body}<p class="muted">${this.l("Belum paham bedanya terminal, >>> dan file? Lihat", "Unsure about the terminal, >>> and files? See")} <a href="#/start">${this.l("Mulai di sini, langkah 4", "Start here, step 4")}</a>.</p></div></details>`;
   }
 
@@ -3022,6 +3074,7 @@ Hello from KopiKu</code></pre>
         ${hasSandbox ? `<div class="callout success"><p>${this.l("Sebagian lab ini bisa dikerjakan langsung di browser dengan pengecekan otomatis:", "Part of this lab can be done in your browser with automatic checking:")} <a href="#/playground">${this.l("buka SQL Sandbox", "open the SQL Sandbox")} →</a></p></div>` : ""}
         <div class="callout"><p><strong>⚖️ ${this.l("Aturan main: kerjakan sendiri, di komputer Anda.", "The rule: do it yourself, on your own computer.")}</strong> ${this.l("Tulis kodenya di komputer Anda dan jalankan tesnya di terminal. Solusi referensi di halaman ini tetap terkunci sampai Anda menempel kode bukti DF1 yang dicetak terminal Anda.", "Write the code on your own computer and run the tests in your terminal. The reference solution on this page stays locked until you paste the DF1 proof code your terminal prints.")}</p></div>
         ${this.browserLabCard(mod.id)}
+        ${this.labHowItWorks(mod)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
         ${(() => {
           // where every lab command is typed; from Module 0.2 on, with the course venv active

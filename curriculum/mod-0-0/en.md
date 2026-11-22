@@ -49,7 +49,32 @@ Every value has a **type**, which tells Python what you are allowed to do with i
 | `bool` | `True`, `False` | yes or no |
 | `None` | `None` | "there is no value" |
 
-**Why types matter, with a real data engineering problem.** A CSV file contains only text. The total `150000` arrives as the *text* `"150000"`, and `"150000" + 1` fails because Python will not guess whether you mean text joining or arithmetic. You convert on purpose: `int("150000") + 1` gives `150001`. Text such as `"Rp 1.250.000"` cannot be converted at all (Python raises an error), which is exactly how dirty data shows up in real pipelines. Check a type with `type(total)`.
+**Why types matter: the first bug of every data job.** Everything that comes into your program from outside, a CSV file, a web API, a form, comes in as **text**. Here are two KopiKu orders exactly as Python reads them from a CSV file:
+
+```python
+row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
+row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+```
+
+Look at the quotes: `"150000"` is text (`str`), not a number. Now your manager asks three simple questions, and the text gives three wrong answers **without any error**:
+
+| The question | What you write | What Python answers | Why |
+|---|---|---|---|
+| Total of the two orders? | `row1["total_idr"] + row2["total_idr"]` | `'15000090000'` | `+` on text glues the characters together |
+| Is 90,000 more than 150,000? | `"90000" > "150000"` | `True` | text is compared character by character, like words in a dictionary, and `"9"` comes after `"1"` |
+| Totals from small to large? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | the same character-by-character order |
+
+Nothing crashed. The program ran, the report went out, and every number in it was wrong. That is why a data engineer's first job with any new data is to **give each value its right type, on purpose**: `int("150000")` is the number `150000`. With numbers the same three questions give `240000`, `False` and `[25000, 90000, 150000]`. Check what you have with `type(x)`: `type(row1["total_idr"])` shows `<class 'str'>`.
+
+Types protect you in two more ways:
+- **Dirty text fails loudly, and that is good.** `int("Rp 1.250.000")` raises `ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`. An error that stops you is better than a wrong number that nobody notices. Lesson 6 shows how to catch it and set the bad row aside.
+- **`None` is not `0`.** A missing total (`None`) means "we do not know"; `0` means "the order was free". `None == 0` is `False`. Mix them up and averages and totals become quietly wrong.
+
+**Where you will meet this again.** Everywhere: a database gives every column a type (Module 0.3); a pipeline converts and checks types before it loads anything (Module 1.2); file formats such as Parquet store the type next to the data so nobody has to guess (Module 2.1). The first warm-up task in the job simulator is exactly this: prices typed as text, turned into numbers.
+
+> 🛠 **Try it (5 min, Python at the `>>>` prompt).** In the terminal type `python3`, then type the two `row1` and `row2` lines above. Before each of the three questions in the table, **predict** the answer, then type the code and compare. Then answer the same three questions again with `int(...)` around each total.
+>
+> **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
 Two traps to learn now. First, money must be an `int` in the smallest unit, because decimals are stored in binary and cannot always be exact: `0.1 + 0.2` is `0.30000000000000004`. Second, build text with an **f-string**: `f"Order {1001}: Rp {total}"` puts the values inside the text, and it is easier to read than gluing pieces with `+`. A useful number helper is `abs(n)`, which returns the positive distance from zero: `abs(-45000)` is `45000`. It is handy when formatting negative currency where the minus sign must go before the currency prefix (`"-Rp 45.000"` instead of `"Rp -45.000"`).
 
@@ -282,21 +307,60 @@ You will not remember everything after one reading, and you are not supposed to.
 >
 > **You should see:** three FAIL lines at first (one `TypeError`, two wrong answers) and `all three fixed` at the end. Then write one sentence per bug: what was the clue that led you to it? That sentence is the skill.
 
+**Where these ideas show up in a data engineer's day.** It is fair to ask what eleven small functions have to do with the job. Almost every task you will be given is these same ideas, only bigger:
+- **Types:** data arrives as text; you give each value its right type before anything else, or totals come out wrong without an error.
+- **Lists and dicts:** a file or a table is a list of rows; each row is a dict of column to value.
+- **Counting with a dict:** "how many per city, per status, per day" is the most common question in data; SQL's `GROUP BY` (Module 0.3) is the same idea.
+- **Sets:** removing duplicates, and asking "have we already loaded this?".
+- **if and try/except:** deciding which rows are valid, and setting the bad ones aside instead of crashing or silently dropping them.
+- **Functions with tests:** every step of a pipeline is a function, and its tests are how you know it still works after tomorrow's change.
+
+The labs grow from here: in Module 1.2 the same ideas become a real pipeline that reads files, converts types, quarantines bad rows and can be re-run safely. If something in this module still feels unclear, that is normal after one reading: re-read the lesson whose Practice Pause was hardest, and do its Try it again.
+
 ## @lab Lab: eleven small functions on KopiKu orders
-Write eleven short functions, each practising one idea from the lessons: formatting numbers, converting text safely, looping and summing, counting with dictionaries, removing duplicates with a set, splitting valid from invalid, averaging without dividing by zero, ranking, cutting a list into batches, avoiding the mutable default trap, and reading a CSV file. The tests (31) tell you what each function must do.
+Write eleven short functions, each practising one idea from the lessons, on KopiKu order data.
+
+**What a lab is.** The file `basics.py` holds eleven functions whose inside is empty: each one only says `raise NotImplementedError`. You write the inside. A second file, `test_lab.py`, holds 31 **tests**: small programs that call your function with an example and check the answer, for example "`format_rupiah(1250000)` must give `"Rp 1.250.000"`". A test is ✓ when your function gives the expected answer, and ✗ when it gives something else or crashes. You are done when all 31 are ✓.
+
+**Where to do it in this module.** In the **Browser preview** below on this page, with nothing to install: the file is in the editor box, **Run tests** runs all 31, and the list under the button shows each group of tests (one group per function) as ✓ or ✗. Every lesson ends with a **Practice Pause** that tells you which function to write next, so go back and forth: lesson, function, lesson, function. After Module 0.2 you write the lab again on your own computer, and that run is the one that counts.
+
+**The loop, for every function.**
+1. Read the function's description in the file: the text between the `"""` lines says what goes in and what must come out, with examples.
+2. Write your attempt, replacing the `raise NotImplementedError` line.
+3. Click **Run tests** and find that function's group. At first the other groups are ✗ too; that is expected, ignore them.
+4. If your group is ✗, click it and read the message. A line such as `AssertionError: assert 'Rp 1,250,000' == 'Rp 1.250.000'` means: your function returned `'Rp 1,250,000'` (left), the test expected `'Rp 1.250.000'` (right). The difference, commas instead of dots, tells you exactly what to change.
+5. Change one thing, run again. Going round this loop five times for one function is normal: it is how programmers work, not a sign that you are bad at it.
+
+**The eleven functions, in the order of the lessons, and why a data engineer needs each one:**
+
+| Lesson | Function | What it does | Where you will need it at work |
+|---|---|---|---|
+| 1 | `format_rupiah` | `1250000` becomes `"Rp 1.250.000"` | reports, dashboards and e-mails show money people can read |
+| 2 | `count_by_status` | how many orders per status | the most common question about any data: how many per category (SQL calls it `GROUP BY`, Module 0.3) |
+| 2 | `unique_customer_ids` | each customer once, sorted | files are re-sent and rows repeat; counting a customer twice inflates every number |
+| 3 | `average_total` | the average, or `None` for no orders | a metric must survive an empty day without crashing the whole job |
+| 4 | `total_revenue` | sum of the totals that are not cancelled | revenue is the number Finance checks you against: text to number, and the right filter |
+| 4 | `batches` | cut a list into chunks of `size` | send data to an API or a database in pieces, not one huge request (Module 1.6) |
+| 4 | `top_customers` | the `n` customers who spent most | every "top 10" report |
+| 6 | `safe_int` | text to number, or a default when impossible | convert dirty values without crashing the run |
+| 5 | `add_to_batch` | add to a list without the "mutable default" trap | this exact bug makes yesterday's data leak into today's run (see the Chaos tab) |
+| 6 | `split_valid` | separate good rows from bad ones | bad rows are set aside and reported, never silently dropped (Module 1.2) |
+| 7 | `read_orders` | read a CSV file into a list of dicts | every pipeline starts by reading a file |
 
 ### @steps
-1. Open your working file `labs/mod-0-0/basics.py` in your text editor (e.g. click the file in your VS Code/Cursor sidebar or type `code labs/mod-0-0/basics.py`; *DO NOT execute directly in bash!*). Read through it from top to bottom first. Every function has a docstring with examples and the corresponding lesson number.
-2. Work in order following the **Practice Pause** prompts after each lesson, and run tests after EACH function: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, `top_customers`, `safe_int`, `add_to_batch`, `split_valid`, `read_orders`.
+1. Open the **Browser preview** below. Read the whole file from top to bottom once, without writing anything: eleven functions, each with its description.
+2. Follow the Practice Pauses: after Lesson 1 write `format_rupiah`; after Lesson 2 `count_by_status` and `unique_customer_ids`; after Lesson 3 `average_total` (and finish `format_rupiah`); after Lesson 4 `total_revenue`, `batches` and `top_customers`; after Lesson 6 `safe_int`, `add_to_batch` and `split_valid`; after Lesson 7 `read_orders`. Run the tests after each function and look only at its group.
+3. Unsure what a value is inside your function? Add `print(type(x), x)` above the line you doubt and run again; the printout appears in the output. Remove it when you are done.
+4. Before each run, **predict** which groups will be ✓. When the result surprises you, find out why: that surprise is where the learning is.
+5. **Do it for real.** After Module 0.2, write the lab again on your own computer, in your own venv, **without copying** from the preview. From the course folder:
 
 ```bash
 pytest labs/mod-0-0/test_lab.py -v                    # all of them
-pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # only one group while you work
+pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # one group while you work
+python3 scripts/prove.py mod-0-0                      # when all 31 pass: your proof code
 ```
 
-3. When a test fails, read it like a specification: the test name says what you broke, the last lines show the expected and the actual value. Print the values inside your function (`print(type(x), x)`) if you are unsure what you are working with.
-4. Before you run, **predict**: write down which tests you expect to pass. When the result surprises you, find out why. That surprise is where the learning is.
-5. **Do it for real.** The in-browser box above is only a preview. After Module 0.2, repeat this lab on your own computer in your own venv, writing the code again **without copying**, and run `python3 scripts/prove.py mod-0-0` to get the proof code for the **Proof** box on this lab page.
+   Open `labs/mod-0-0/basics.py` in your editor (VS Code: File, Open Folder, then click the file); it is a file you edit, not a command you type. Paste the proof code into the **Proof** box on this page.
 
 ### @files
 - labs/mod-0-0/basics.py :: Your working file: implement the eleven TODO functions :: starter

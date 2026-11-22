@@ -424,7 +424,7 @@ python3 labs/mod-0-3/check.py
 
 4. Kerjakan pertanyaan berurutan; makin lama makin sulit. Pertanyaan 4, 6, dan 8 adalah jebakan dari materi (NULL, NULL-menjadi-Unknown dengan join, dan fan-out). Ketika sebuah pertanyaan gagal, baca pesan pemeriksa: ia memberi tahu apakah jumlah kolom, jumlah baris, atau nilainya yang berbeda.
 5. Setelah tiap jawaban, jalankan `SELECT COUNT(*)` pada join perantara dan pastikan Anda bisa menjelaskan angkanya. Inilah kebiasaan yang melindungi Anda di pekerjaan nyata.
-6. Opsional: buka database sendiri dengan `sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql` bila Anda punya alat baris perintah `sqlite3`, dan jelajahi dengan `.tables` dan `.schema`.
+6. Opsional: bangun database sendiri dan jelajahi di prompt `sqlite>`, tanpa memasang apa pun (Python 3.12 atau lebih baru): `python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql`, lalu `python3 -m sqlite3 kopiku.db`. Di `sqlite>` tampilkan tabelnya dengan `select name from sqlite_master where type = 'table';`, lihat cara `orders` dibuat dengan `select sql from sqlite_master where name = 'orders';`, lalu coba query apa pun, masing-masing diakhiri `;`. Keluar dengan `.quit`.
 
 ### @files
 - labs/mod-0-3/answers.sql :: File kerja Anda: satu query di bawah tiap penanda :: starter

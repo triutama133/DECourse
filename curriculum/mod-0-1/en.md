@@ -210,35 +210,39 @@ Two habits will help more than any tool:
 > Congratulations! You have built your first defensive data cleaning pipeline!
 
 ## @lab Lab: clean the KopiKu orders file
-You have a file of order rows with the problems described above. Write four small functions that turn it into trustworthy data and compute daily revenue. This is a miniature version of what every pipeline does: read, validate, normalise, quarantine what you cannot trust, then compute.
+You have a file of KopiKu order rows with the problems from the lessons: totals written as text, two date formats, duplicates, impossible values. Write four small functions that turn it into data you can trust, then compute revenue per day. This is a miniature of what every pipeline does: read, check, clean, set aside what you cannot trust, then compute.
+
+| Function | What it does | Where you will need it at work |
+|---|---|---|
+| `parse_total` | `"Rp 1.250.000"` or `"150000"` becomes the number of rupiah, or `None` when it cannot be understood | every source writes money its own way; reports need one number type |
+| `parse_ts` | two date formats (`"2026-01-31T14:03:00"`, `"31/01/2026 14:03"`) become one standard format | revenue per day, late deliveries, "last 7 days": all need dates you can compare |
+| `clean_orders` | keeps the good rows with the right types, and puts every bad row in `rejected` with a reason | the core of a pipeline: nothing wrong goes into reports, and nothing is thrown away without a trace |
+| `daily_revenue` | revenue per day, without cancelled and refunded orders | the number the founder asks for every morning |
+
+The functions build on each other: `clean_orders` uses `parse_total` and `parse_ts`, and `daily_revenue` uses the result of `clean_orders`. That is why the order matters.
 
 ### @steps
-1. Make sure you can run Python 3 (`python3 --version`). If you do not have the course files yet, follow the **Start here** page of the app first (it shows how to download them and where to open a terminal; Module 0.2 teaches the terminal and Git properly). From the repository root, generate the data:
+1. Open the **Browser preview** below and read `pipeline.py` from top to bottom once: four empty functions, each with its description and real examples from the file.
+2. Write them in this order, running the tests after each and looking only at its group: `parse_total`, then `parse_ts`, then `clean_orders`, then `daily_revenue`.
+3. The rule for a row you cannot trust: **never guess and never drop silently.** Every row you leave out goes into `rejected` with a short reason.
+4. Optional, if you did Start here: look at the real file with your own eyes. In the terminal, from the course folder:
 
 ```bash
 python3 labs/shared/shopgen.py --out data
+head -20 data/orders.csv           # the first 20 lines
+grep -c "Rp " data/orders.csv      # how many totals are written as text
+cat data/manifest.json             # what was planted in the file, and how much
 ```
 
-2. Look before you code. Read the file and find the problems with your own eyes:
+5. **Do it for real**, after Module 0.2. On your own computer, with the course venv active, write the four functions again in your editor **without copying** from the preview, then from the course folder:
 
 ```bash
-head -20 data/orders.csv
-grep -c "Rp " data/orders.csv     # totals written as text
-grep -c ",-" data/orders.csv      # negative totals
-cat data/manifest.json            # what was planted, and how much
+pytest labs/mod-0-1/test_lab.py -v                  # until all tests pass
+python3 labs/mod-0-1/pipeline.py data/orders.csv    # run it on the real file: rows in, clean, rejected
+python3 scripts/prove.py mod-0-1                    # your proof code for the Proof box on this page
 ```
 
-3. Open `labs/mod-0-1/pipeline.py` in your text editor (e.g. click it in your editor sidebar or type `code labs/mod-0-1/pipeline.py`; do not execute directly in bash!). Four functions raise `NotImplementedError`. Implement them in this order, running the tests after each one:
-   `parse_total`, then `parse_ts`, then `clean_orders`, then `daily_revenue`.
-4. Decide what to do with a row you cannot trust. The rule for this lab: **never guess and never drop silently.** Every dropped row goes into `rejected` with a short reason.
-5. Run the program on the real file and compare the count of rows in and out:
-
-```bash
-python3 labs/mod-0-1/pipeline.py data/orders.csv
-```
-
-6. Optional: write three sentences in a `NOTES.md` describing the problems you found and which one surprised you.
-7. **Do it for real.** The in-browser box above is only a preview. After Module 0.2 (terminal, venv, Git), repeat this lab on your own computer: create a venv, `pip install pytest`, write the four functions again in your own editor **without copying**, and run `pytest labs/mod-0-1/test_lab.py -v` until it is green. That setup is part of the skill. Then run `python3 scripts/prove.py mod-0-1` inside your venv: it prints a proof code that you paste into the **Proof** box on this lab page.
+6. Optional: write three sentences in a `NOTES.md` about the problems you found and which one surprised you.
 
 ### @files
 - labs/mod-0-1/pipeline.py :: Your working file: implement the four TODO functions :: starter
