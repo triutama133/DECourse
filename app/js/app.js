@@ -61,6 +61,9 @@ class DataForgeApp {
     this.resumeEdited = readStore("df_resume_edited", false);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
     this.lessonsDone = readStore("df_lessons_done", {}) || {};
+    this.stepMode = readStore("df_step_mode", null);      // "steps" | "page" | null (null: steps for the beginner levels)
+    this.stepPos = readStore("df_step_pos", {}) || {};    // "mod:lesson" -> the step the learner stopped at
+    this.stepCache = {};
     this.tryitDone = readStore("df_tryit_done", {}) || {};
     this.chaosDone = readStore("df_chaos_done", {}) || {};
     this.moduleNotes = readStore("df_module_notes", {}) || {};
@@ -422,7 +425,7 @@ class DataForgeApp {
     const isOrdered = (l) => /^\s*\d+\. /.test(l);
     const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
     let i = 0;
-    let tryitIdx = 0;
+    let tryitIdx = (ctx && ctx.tryitStart) || 0;   // step mode renders a lesson in pieces: the Try-it keys must stay the same as on one page
     while (i < lines.length) {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
@@ -1188,6 +1191,10 @@ class DataForgeApp {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); this.openSearch(); }
     else if (e.key === "/" && !typing && overlay.hidden) { e.preventDefault(); this.openSearch(); }
     else if (e.key === "Escape" && !overlay.hidden) this.closeSearch();
+    else if (!typing && overlay && overlay.hidden && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft") && this.stepKeyTarget()) {
+      const t = this.stepKeyTarget();
+      this.stepGo(t.modId, t.i, t.k + (e.key === "ArrowRight" ? 1 : -1));
+    }
     else if (!typing && overlay && overlay.hidden && this.currentView === "curriculum" && this.activeModuleTab === "quiz" && this.quizMode === "uxcel") {
       if (["1", "2", "3", "4"].includes(e.key)) {
         e.preventDefault();
@@ -2950,11 +2957,58 @@ Hello from KopiKu</code></pre>
   }
   partOf(mod, i) { return this.moduleParts(mod).find((pt) => i >= pt.start && i <= pt.end) || null; }
   // One lesson per screen: the address carries the lesson number, so Back, links and search results work.
+  // ---------- step mode: one small idea per screen ----------
+  levelIdOfModule(modId) {
+    const lvl = CURRICULUM_DATA.find((l) => l.modules.some((m) => m.id === modId));
+    return lvl ? lvl.levelId : "";
+  }
+  usesSteps(modId) {
+    if (!window.LessonSteps) return false;
+    if (this.stepMode === "steps") return true;
+    if (this.stepMode === "page") return false;
+    return ["zero", "beginner"].includes(this.levelIdOfModule(modId));   // a beginner starts with steps; anyone can switch, and the choice is remembered
+  }
+  lessonSteps(mod, i, ls) {
+    const key = `${mod.id}:${i}:${this.lang}`;
+    if (!this.stepCache[key]) this.stepCache[key] = window.LessonSteps.split(this.lessonBody(ls));
+    return this.stepCache[key];
+  }
+  stepIndex(modId, i, n) {
+    const k = Number(this.stepPos[`${modId}:${i}`]) || 0;
+    return Math.min(Math.max(0, k), n - 1);
+  }
+  stepKeyTarget() {
+    const c = this._stepCtx;
+    if (!c || this.currentView !== "curriculum" || this.activeModuleTab !== "concepts") return null;
+    if (c.modId !== this.activeModuleId || c.i !== this.activeLessonIdx) return null;
+    return c;
+  }
+  stepGo(modId, i, k) {
+    const c = this._stepCtx;
+    const n = c && c.modId === modId && c.i === i ? c.n : 0;
+    if (!n) return;
+    const next = Math.min(Math.max(0, k), n - 1);
+    if (next === c.k) return;
+    this.stepPos[`${modId}:${i}`] = next;
+    writeStore("df_step_pos", this.stepPos);
+    this.renderView();
+    const card = document.getElementById(`lesson-${i}`);
+    if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" });
+  }
+  setStepMode(mode) {
+    this.stepMode = mode;
+    writeStore("df_step_mode", mode);
+    this.renderView();
+    const card = document.querySelector(".lesson-card");
+    if (card) card.scrollIntoView({ block: "start" });
+  }
+
   openLesson(modId, i) { this.go("curriculum", modId, "concepts", String(i + 1)); }
   openModuleOverview(modId) { this.go("curriculum", modId, "concepts"); }
   scrollToLesson(i) { this.openLesson(this.activeModuleId, i); }
   // Mark a lesson done (never un-mark it) and move on: to the next lesson, or to the given tab after the last one.
   finishLesson(modId, i, nextTab) {
+    if (this.stepPos[`${modId}:${i}`] != null) { delete this.stepPos[`${modId}:${i}`]; writeStore("df_step_pos", this.stepPos); }
     if (!this.isLessonDone(modId, i)) this.toggleLessonDone(modId, i, false);
     if (nextTab) this.go("curriculum", modId, nextTab);
     else this.openLesson(modId, i + 1);
@@ -2994,6 +3048,39 @@ Hello from KopiKu</code></pre>
           ? this.l("Selesai, lanjut ke Lab", "Done, continue to the Lab")
           : isRead ? `${this.l("Materi", "Lesson")} ${i + 2}` : this.l(`Selesai, lanjut ke materi ${i + 2}`, `Done, next: lesson ${i + 2}`);
         const nextAction = isLast ? `app.finishLesson('${mod.id}', ${i}, 'lab')` : `app.finishLesson('${mod.id}', ${i})`;
+        // step mode: the lesson body is shown one small step at a time (a lesson with one step stays a page)
+        const allSteps = this.usesSteps(mod.id) ? this.lessonSteps(mod, i, ls) : null;
+        const steps = allSteps && allSteps.length > 1 ? allSteps : null;
+        const stepK = steps ? this.stepIndex(mod.id, i, steps.length) : 0;
+        this._stepCtx = steps ? { modId: mod.id, i, k: stepK, n: steps.length } : null;
+        const stepLast = steps ? stepK === steps.length - 1 : true;
+        const stepBody = steps ? (() => {
+          const st = steps[stepK], n = steps.length;
+          const turn = st.kind === "turn";
+          const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
+          const back = stepK > 0
+            ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK - 1})">← ${this.l("Kembali", "Back")}</button>`
+            : i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← ${this.l("Materi", "Lesson")} ${i}</button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`;
+          const forward = stepLast
+            ? `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`
+            : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : this.l("Lanjut", "Next")} →</button>`;
+          return `
+          <div class="step-progress" role="group" aria-label="${this.l("Langkah dalam materi ini", "Steps in this lesson")}">
+            <span class="step-count">${this.l("Langkah", "Step")} <strong>${stepK + 1}</strong> ${this.l("dari", "of")} ${n}</span>
+            ${dotsHtml}
+            <span class="step-bar" aria-hidden="true"><span style="width:${Math.round(((stepK + 1) / n) * 100)}%"></span></span>
+          </div>
+          <div class="step-card ${turn ? "step-turn" : ""}" key="step-${i}-${stepK}">
+            ${turn ? `<div class="step-turn-tag">✋ ${this.l("Giliranmu: berhenti dan coba", "Your turn: stop and try it")}</div>` : ""}
+            ${this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart })}
+          </div>
+          <div class="step-nav">${back}${forward}</div>`;
+        })() : "";
+        const modeToggle = steps
+          ? `<button class="btn btn-sm btn-quiet" onclick="app.setStepMode('page')" title="${this.l("Tampilkan seluruh materi dalam satu halaman", "Show the whole lesson on one page")}">📖 ${this.l("Baca satu halaman", "Read as one page")}</button>`
+          : allSteps === null && window.LessonSteps && this.lessonSteps(mod, i, ls).length > 1
+            ? `<button class="btn btn-sm btn-quiet" onclick="app.setStepMode('steps')" title="${this.l("Satu ide kecil per layar", "One small idea per screen")}">🪜 ${this.l("Langkah demi langkah", "Step by step")}</button>`
+            : "";
         return `
         <nav class="lesson-bar" aria-label="${this.l("Navigasi materi", "Lesson navigation")}">
           <button class="btn btn-sm btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>
@@ -3007,19 +3094,20 @@ Hello from KopiKu</code></pre>
               <span>${this.esc(this.t(ls.title))}</span>
             </h2>
             <div class="row" style="flex-shrink:0">
+              ${modeToggle}
               <button class="btn btn-sm ${isRead ? "btn-done" : "btn-quiet"}" onclick="app.toggleLessonDone('${mod.id}', ${i}, false)">
                 ${isRead ? "✓ " + this.l("Dipahami", "Understood") : "○ " + this.l("Tandai Paham", "Mark Read")}
               </button>
             </div>
           </div>
           ${ls.optional ? `<div class="callout optional-note"><strong>${this.l("Opsional pada putaran pertama.", "Optional on the first pass.")}</strong> ${this.l("Materi ini berguna untuk persiapan kerja dan wawancara, tetapi lab dan modul berikutnya tidak membutuhkannya. Jika Anda baru mulai, boleh lewati sekarang dan kembali sebelum mencari kerja.", "This lesson helps with job preparation and interviews, but the labs and later modules do not need it. If you are just starting, you may skip it now and come back before you look for a job.")}</div>` : ""}
-          ${lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("")}
-          ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
+          ${!steps || stepK === 0 ? lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("") : ""}
+          ${steps ? stepBody : this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
         </section>
-        <div class="lesson-pager">
+        ${steps ? "" : `<div class="lesson-pager">
           ${i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← <span class="pager-label">${this.l("Materi", "Lesson")} ${i}</span></button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`}
           <button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>
-        </div>`;
+        </div>`}`;
       }
 
       // ---------- module overview: what you will learn, and the lesson map ----------

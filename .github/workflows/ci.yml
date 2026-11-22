@@ -23,6 +23,9 @@ jobs:
         run: |
           node scripts/build-curriculum.js --check
 
+      - name: Step mode keeps every lesson whole
+        run: node scripts/test_steps.js
+
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js
