@@ -1304,3 +1304,9 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
   .step-nav .btn { flex: 1 1 0; justify-content: center; padding-left: 8px; padding-right: 8px; font-size: 13px; }
   .step-nav .btn-primary { order: -1; flex: 1 1 100%; margin-left: 0; }   /* the main action on its own row, Back and Skip below it */
 }
+
+/* Try it: paste what your own terminal printed */
+.tryit-paste { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--card); }
+.tryit-paste label { font-size: 13px; }
+.tryit-paste textarea { width: 100%; min-height: 72px; font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--card-subtle); color: var(--text); resize: vertical; }
+.tryit-paste .ok-text { color: var(--green); font-weight: 600; }

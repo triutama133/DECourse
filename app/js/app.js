@@ -66,6 +66,8 @@ class DataForgeApp {
     this.stepCache = {};
     try { this.labReturn = JSON.parse(sessionStorage.getItem("df_lab_return") || "null"); } catch (e) { this.labReturn = null; }   // {modId, from}: the lesson the learner left for its lab step (kept over a page reload)
     this.tryitDone = readStore("df_tryit_done", {}) || {};
+    this.tryitPaste = readStore("df_tryit_paste", {}) || {};   // what the learner pasted from their own terminal, per Try it
+    this._tryitExpect = {};
     this.chaosDone = readStore("df_chaos_done", {}) || {};
     this.moduleNotes = readStore("df_module_notes", {}) || {};
     this.sqlAttempts = readStore("df_sql_attempts", {}) || {};
@@ -262,6 +264,9 @@ class DataForgeApp {
         : (tryitKey ? `<button class="btn btn-sm ${isDone ? "btn-done" : "btn-quiet"}" onclick="app.toggleTryIt('${tryitKey}')">${isDone ? "✓ " + this.l("Sudah Dicoba", "Tried & Checked") : "○ " + this.l("Tandai Sudah Dicoba", "Mark as Tried")}</button>` : "");
 
       const whereHtml = this.tryItWhere(mainLines, ctx);
+      const expected = !checkIdent && tryitKey ? this.tryitExpected(revealLines) : [];
+      if (expected.length) this._tryitExpect[tryitKey] = expected;
+      const pasteHtml = expected.length ? this.tryitPasteBox(tryitKey) : "";
       return `
         <div class="callout-tryit ${isDone ? "is-done" : ""}">
           <div class="callout-head">
@@ -271,6 +276,7 @@ class DataForgeApp {
           <div class="stack-sm">
             ${this.renderQuoteBody(mainLines)}
             ${whereHtml}
+            ${pasteHtml}
             ${revealLines.length ? `
               <details class="tryit-reveal">
                 <summary>👁️ ${this.l("Buka Hasil yang Diharapkan & Kunci Pemeriksaan Mandiri", "Reveal Expected Output & Self-Check Answer")}</summary>
@@ -1508,6 +1514,57 @@ class DataForgeApp {
     if (!mod) return;
     const nextIdx = this.nextLessonIdx(mod);
     if (nextIdx >= 0) this.openLesson(modId, nextIdx);
+  }
+  // The pieces of output a Try it promises ("You should see: `True`, `240000`..."), so what the learner pastes from their
+  // own terminal can be checked. Only pieces that look like program output: a quoted text, a number, a list, True/False/None, an error name.
+  tryitExpected(revealLines) {
+    const text = revealLines.join(" ").replace(/^\s*>?\s*\*\*[^*]+\*\*:?/, "");
+    const out = [];
+    for (const m of text.matchAll(/`([^`\n]{1,80})`/g)) {
+      const t = m[1].trim();
+      if (/^(['"\[{(\-]|\d|True\b|False\b|None\b)/.test(t) || /(Error|Exception)\b/.test(t)) {
+        if (!/^\w+\(/.test(t) && !out.includes(t)) out.push(t);
+      }
+    }
+    return out.slice(0, 8);
+  }
+  tryitPasteBox(key) {
+    const saved = this.tryitPaste[key] || "";
+    return `<div class="tryit-paste">
+      <label for="tryit-paste-${key}"><strong>${this.l("Sudah dijalankan di terminal Anda? Tempel hasilnya di sini:", "Ran it in your own terminal? Paste what it printed here:")}</strong></label>
+      <textarea id="tryit-paste-${key}" rows="4" spellcheck="false" placeholder="${this.l("Salin hasil dari terminal lalu tempel di sini", "Copy the output from your terminal and paste it here")}">${this.esc(saved)}</textarea>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-sm btn-primary" onclick="app.checkTryItPaste('${key}')">${this.l("Periksa hasil saya", "Check my output")}</button><span id="tryit-paste-msg-${key}" class="small" role="status">${saved ? this.tryitPasteResult(key, saved) : ""}</span></div>
+    </div>`;
+  }
+  tryitPasteResult(key, text) {
+    const expected = this._tryitExpect[key] || [];
+    const norm = (t) => String(t).replace(/[‘’“”]/g, "'").replace(/"/g, "'").replace(/\s+/g, " ").trim();
+    const hay = norm(text);
+    if (!hay) return "";
+    const found = expected.filter((e) => hay.includes(norm(e)));
+    const missing = expected.filter((e) => !hay.includes(norm(e)));
+    const code = (e) => `<code>${this.esc(e)}</code>`;
+    if (!missing.length) return `<span class="ok-text">✓ ${this.l("Cocok! Hasil Anda memuat semua yang diharapkan:", "It matches! Your output has everything expected:")} ${found.map(code).join(" ")}</span>`;
+    if (found.length) return `${this.l("Sebagian cocok.", "Partly there.")} ✓ ${found.map(code).join(" ")} · ✗ ${this.l("belum terlihat:", "not seen yet:")} ${missing.map(code).join(" ")}. ${this.l("Beberapa latihan punya dua versi hasil; jika Anda hanya menjalankan satu, tidak apa-apa. Jika tidak, periksa baris yang Anda ketik.", "Some exercises show two versions of the output; if you ran only one, that is fine. If not, check the line you typed.")}`;
+    return `${this.l("Belum ada yang cocok.", "Nothing matches yet.")} ${this.l("Periksa baris yang Anda ketik (huruf besar/kecil, tanda kutip), lalu jalankan lagi dan tempel hasilnya. Buka 'Hasil yang Diharapkan' jika perlu.", "Check the line you typed (capital letters, quotes), run it again and paste the new output. Open 'Reveal Expected Output' if you need it.")}`;
+  }
+  checkTryItPaste(key) {
+    const box = document.getElementById(`tryit-paste-${key}`), msg = document.getElementById(`tryit-paste-msg-${key}`);
+    if (!box || !msg) return;
+    this.tryitPaste[key] = box.value;
+    writeStore("df_tryit_paste", this.tryitPaste);
+    const expected = this._tryitExpect[key] || [];
+    const norm = (t) => String(t).replace(/[‘’“”]/g, "'").replace(/"/g, "'").replace(/\s+/g, " ").trim();
+    const matched = expected.filter((e) => norm(box.value).includes(norm(e))).length;
+    msg.innerHTML = box.value.trim() ? this.tryitPasteResult(key, box.value) : this.l("Tempel dulu hasil dari terminal Anda.", "Paste the output from your terminal first.");
+    if (matched === expected.length && matched > 0 && !this.tryitDone[key]) {   // everything expected is there: count the Try it as done
+      this.tryitDone[key] = new Date().toISOString();
+      writeStore("df_tryit_done", this.tryitDone);
+      const head = msg.closest(".callout-tryit");
+      if (head) head.classList.add("is-done");
+      const btn = head && head.querySelector(".callout-head .btn");
+      if (btn) { btn.className = "btn btn-sm btn-done"; btn.textContent = "✓ " + this.l("Sudah Dicoba", "Tried & Checked"); }
+    }
   }
   toggleTryIt(key) {
     if (!key) return;
