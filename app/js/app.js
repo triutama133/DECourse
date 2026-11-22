@@ -1075,7 +1075,9 @@ class DataForgeApp {
         }
         const raw = String(m.output).replace(/\/lab\//g, "");
         const groups = this.blGroups(bl, raw);
-        const first = groups.find((g) => g.pass < g.total);
+        this.blLockGroups(modId, groups);
+        const first = groups.find((g) => g.pass < g.total && !g.locked);
+        if (groups.some((g) => g.locked)) summary = this.blLockedSummary(modId, groups);
         this._blRun = this._blRun || {};
         this._blRun[modId] = { raw, groups, head: summary };
         const passedGroups = groups.filter((g) => g.pass === g.total).length;
@@ -1101,6 +1103,36 @@ class DataForgeApp {
     const files = Object.assign({}, bl.files, { [bl.editable]: area.value });
     // -rA lists every test as PASSED/FAILED at the end, so the result can show one line per test group.
     w.postMessage({ type: "run", id, files, args: [...bl.tests, "-rA"] });
+  }
+  // A lab with one step per lesson (Lab 0.0, Part A): a step whose lesson the learner has not reached yet is locked,
+  // so its failing checks do not show up before the lesson that teaches them.
+  blStepLessons(modId) {
+    return { "mod-0-0a": { TestStep1Types: 1, TestStep2Collections: 2, TestStep3Decisions: 3, TestStep4Loops: 4 } }[modId] || null;
+  }
+  blLockGroups(modId, groups) {
+    const map = this.blStepLessons(modId);
+    if (!map) return;
+    const base = modId.replace(/[a-z]$/, "");
+    for (const g of groups) {
+      const n = map[g.name];
+      if (!n) continue;
+      g.lesson = n;
+      // reached = its lesson is read, or the learner came to the lab from that lesson (the Practice Pause button) or a later one
+      const came = this.labReturn && this.labReturn.modId === base && this.labReturn.from >= n - 1;
+      g.locked = g.pass < g.total && n > 1 && !this.isLessonDone(base, n - 1) && !came;
+    }
+  }
+  blLockedSummary(modId, groups) {
+    const base = modId.replace(/[a-z]$/, "");
+    const open = groups.filter((g) => !g.locked);
+    const pass = open.reduce((n, g) => n + g.pass, 0), total = open.reduce((n, g) => n + g.total, 0);
+    const next = groups.filter((g) => g.locked).map((g) => g.lesson).sort((a, b) => a - b)[0];
+    const allDone = open.every((g) => g.pass === g.total);
+    const nextLesson = next - 1;   // the lesson to read first (0-based index of the lesson before the step's lesson)
+    const btn = `<button class="btn btn-sm btn-primary" onclick="app.openLesson('${base}', ${Math.max(0, nextLesson)})">${this.l(`Buka Materi ${next}`, `Open Lesson ${next}`)} →</button>`;
+    return allDone
+      ? `<div class="feedback ok">✓ ${this.l(`Langkah yang sudah Anda capai lulus (${pass} dari ${total} tes). Langkah berikutnya datang setelah Materi ${next}: baca materinya dulu, lalu kembali ke sini. Tanda 🔒 di bawah bukan masalah.`, `The steps you have reached all pass (${pass} of ${total} tests). The next step comes after Lesson ${next}: read that lesson first, then come back here. The 🔒 marks below are not a problem.`)} ${btn}</div>`
+      : `<div class="feedback info">${this.l(`${pass} dari ${total} tes lulus pada langkah yang sudah Anda capai. Perbaiki yang ✗ di bawah; langkah 🔒 menunggu materinya.`, `${pass} of ${total} tests pass in the steps you have reached. Fix the ✗ below; the 🔒 steps wait for their lesson.`)}</div>`;
   }
   // Per test class (TestFormatRupiah 4/4), in the order the test file defines them, read from pytest -rA.
   blGroups(bl, output) {
@@ -1136,6 +1168,7 @@ class DataForgeApp {
     if (!run) return;
     const chips = run.groups.length ? `<ul class="bl-groups" aria-label="${this.l("Hasil per grup tes", "Results per test group")}">${run.groups.map((g) => {
       const ok = g.pass === g.total;
+      if (g.locked) return `<li class="locked"><span aria-hidden="true">🔒</span> <code>${g.name}</code> <span class="muted">${this.l(`setelah Materi ${g.lesson}`, `after Lesson ${g.lesson}`)}</span></li>`;
       const inner = `<span aria-hidden="true">${ok ? "✓" : "✗"}</span> <code>${g.name}</code> <span class="muted">${g.pass}/${g.total}</span><span class="sr-only">${ok ? this.l(" lulus", " passing") : this.l(" belum lulus", " not passing yet")}</span>`;
       return ok ? `<li class="ok">${inner}</li>`
         : `<li class="bad"><button type="button" class="bl-group-btn${g.name === group ? " selected" : ""}" aria-pressed="${g.name === group}" onclick="app.blShowGroup('${modId}', '${g.name}')">${inner}</button></li>`;
@@ -1149,6 +1182,8 @@ class DataForgeApp {
       // (site-packages, <frozen importlib>) mean nothing to a beginner: keep only its "E" lines.
       out = run.raw.split("\n").filter((l) => /^E {2,}/.test(l)).join("\n");
       note = `<p class="small muted">${this.l("Python tidak bisa membaca file Anda, jadi belum ada tes yang berjalan. Pesan di bawah menyebut nomor baris dan menandai tempatnya dengan <code>^</code>. Kotak kode tidak punya nomor baris: cari baris yang dikutip, dan periksa juga baris tepat di atasnya, karena tanda kurung atau kutip yang belum ditutup sering baru ketahuan di baris berikutnya.", "Python could not read your file, so no test ran yet. The message below names a line number and marks the spot with <code>^</code>. The code box has no line numbers: find the quoted line, and check the line just above it too, because an unclosed bracket or quote is often only noticed on the next line.")}</p>`;
+    } else if (!group && run.groups.some((g) => g.locked)) {
+      out = "";   // everything reached passes and the rest is locked: there is nothing to read
     } else {
       // no per-test blocks and no "E" lines: show the end of the full output
       out = run.raw.length > 8000 ? "…\n" + run.raw.slice(-8000).slice(run.raw.slice(-8000).indexOf("\n") + 1) : run.raw;

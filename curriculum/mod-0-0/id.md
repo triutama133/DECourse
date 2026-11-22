@@ -127,6 +127,24 @@ Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adala
 
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
 
+### Membaca list berisi baris: hitung, pertama, terakhir
+
+Pada hari-hari awal Anda belum mengulang (loop) isi list; Anda cukup **bertanya** kepadanya. Empat alat kecil menjawab pertanyaan pertama. Ini list berisi tiga produk (list berisi dictionary, seperti file CSV), lengkap dengan setiap pertanyaan dan jawabannya:
+
+```python
+products = [
+    {"sku": "K1", "name": "Kopi Susu", "price_idr": "25000"},
+    {"sku": "K2", "name": "Americano", "price_idr": "22000"},
+    {"sku": "K3", "name": "Teh Tarik", "price_idr": "18000"},
+]
+product_count = len(products)                  # 3: len() menghitung isi list
+first_name = products[0]["name"]               # "Kopi Susu": [0] adalah item PERTAMA, lalu ["name"] mengambil satu fakta dari dictionary itu
+last_price = int(products[-1]["price_idr"])    # 18000: [-1] adalah item TERAKHIR; int() karena harganya teks, seperti di file CSV
+print(product_count, first_name, last_price)   # 3 Kopi Susu 18000
+```
+
+Baca setiap baris dari dalam ke luar: `products[0]` adalah satu dictionary, dan `["name"]` membaca satu nilai darinya. `product_count`, `first_name`, dan `last_price` hanyalah **nama yang Anda pilih** untuk jawabannya, sama seperti `total` memberi nama pada sebuah nilai di Materi 1; lab akan memberi tahu nama mana yang diminta. Untuk mendapatkan nilai berbeda dari sebuah list masing-masing sekali, pakai set dan `sorted`, seperti di atas: `sorted(set([7, 3, 7, 5]))` menghasilkan `[3, 5, 7]`.
+
 > 💡 **Jeda Praktik 2 (Bagian A, Langkah 2):**
 > Di `practice.py` (atau tab **Bagian A**), kerjakan **Langkah 2** dengan list `orders` (list berisi dict, persis seperti yang diberikan file CSV) dan list `ids_seen`:
 > 1. `order_count`: berapa pesanan di list itu (`len`).

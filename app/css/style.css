@@ -1322,3 +1322,4 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .pad-out { margin: 0; padding: 8px 10px; border-radius: var(--radius-sm, 6px); background: #18181b; color: #e4e4e7; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-x: auto; }
 .pad-out.pad-err { background: #2a1517; color: #fecaca; }
 .pad-out.pad-info { background: var(--card-subtle); color: var(--text-muted); }
+.bl-groups li.locked { color: var(--text-muted); border-style: dashed; background: transparent; }

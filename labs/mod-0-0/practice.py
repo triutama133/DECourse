@@ -40,16 +40,16 @@ two_totals = None
 
 
 # ---------------------------------------------------------------- Step 2 (after Lesson 2): lists, dicts, sets
-# 2a. How many orders are in the list `orders`?
+# 2a. How many orders are in the list `orders`? (Lesson 2: `len`.) Name it `order_count`: that is the name the checker looks for.
 order_count = None
 
-# 2b. The status of the FIRST order.
+# 2b. The status of the FIRST order. (Lesson 2: position `[0]`, then the key `"status"`.)
 first_status = None
 
-# 2c. The total of the LAST order, as a number.
+# 2c. The total of the LAST order, as a number. (Lesson 2: position `[-1]`; the total is text, so convert it as in Lesson 1.)
 last_total = None
 
-# 2d. `ids_seen` has repeats. Make a list of the different ids, each once, smallest first.
+# 2d. `ids_seen` has repeats. Make a list of the different ids, each once, smallest first. (Lesson 2: a set, then `sorted`.)
 unique_ids = None
 
 

@@ -127,6 +127,24 @@ A real data file is therefore usually **a list of dictionaries**: the list is th
 
 One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
+### Reading a list of rows: count, first, last
+
+Most days you do not loop over a list yet; you just **ask it a question**. Four small tools answer the first questions. Here is a list of three products (a list of dictionaries, like a CSV file), and each question with its answer:
+
+```python
+products = [
+    {"sku": "K1", "name": "Kopi Susu", "price_idr": "25000"},
+    {"sku": "K2", "name": "Americano", "price_idr": "22000"},
+    {"sku": "K3", "name": "Teh Tarik", "price_idr": "18000"},
+]
+product_count = len(products)                  # 3: len() counts the items in a list
+first_name = products[0]["name"]               # "Kopi Susu": [0] is the FIRST item, then ["name"] picks one fact from that dictionary
+last_price = int(products[-1]["price_idr"])    # 18000: [-1] is the LAST item; int() because the price is text, as in a CSV file
+print(product_count, first_name, last_price)   # 3 Kopi Susu 18000
+```
+
+Read each line from the inside out: `products[0]` is one dictionary, and `["name"]` reads one value from it. `product_count`, `first_name` and `last_price` are just **names you choose** for the answers, the same way `total` named a value in Lesson 1; the lab will tell you which names it wants. To get the different values of a list once each, use a set and `sorted`, as above: `sorted(set([7, 3, 7, 5]))` gives `[3, 5, 7]`.
+
 > 💡 **Practice Pause 2 (Part A, Step 2):**
 > In `practice.py` (or the **Part A** tab), do **Step 2** with the list `orders` (a list of dicts, exactly what a CSV file gives you) and the list `ids_seen`:
 > 1. `order_count`: how many orders are in the list (`len`).

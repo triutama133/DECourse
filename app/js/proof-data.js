@@ -18,8 +18,8 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-0-0",
   "argExample": null,
   "tests": "9fba5f82",
-  "starter": "69a9d2bc",
-  "reference": "a980e9bf"
+  "starter": "f4ecfd16",
+  "reference": "4a52686d"
  },
  "mod-0-2": {
   "arg": null,
