@@ -64,7 +64,7 @@ class DataForgeApp {
     this.stepMode = readStore("df_step_mode", null);      // "steps" | "page" | null (null: steps for the beginner levels)
     this.stepPos = readStore("df_step_pos", {}) || {};    // "mod:lesson" -> the step the learner stopped at
     this.stepCache = {};
-    this.labReturn = null;                                // {modId, from}: the lesson the learner left for its lab step
+    try { this.labReturn = JSON.parse(sessionStorage.getItem("df_lab_return") || "null"); } catch (e) { this.labReturn = null; }   // {modId, from}: the lesson the learner left for its lab step (kept over a page reload)
     this.tryitDone = readStore("df_tryit_done", {}) || {};
     this.chaosDone = readStore("df_chaos_done", {}) || {};
     this.moduleNotes = readStore("df_module_notes", {}) || {};
@@ -529,7 +529,7 @@ class DataForgeApp {
   // From a lesson to its lab step; the lab page then offers "Continue to the next lesson".
   lessonToLab(modId, i, part, finish) {
     if (i != null && i >= 0) {
-      this.labReturn = { modId, from: i };
+      this.setLabReturn({ modId, from: i });
       if (finish) {
         if (this.stepPos[`${modId}:${i}`] != null) { delete this.stepPos[`${modId}:${i}`]; writeStore("df_step_pos", this.stepPos); }
         if (!this.isLessonDone(modId, i)) this.toggleLessonDone(modId, i, false);
@@ -538,22 +538,63 @@ class DataForgeApp {
     if (window.BROWSER_LABS && window.BROWSER_LABS[modId]) this.openLabPreview(modId, part || "");
     else this.go("curriculum", modId, "lab");
   }
+  setLabReturn(v) {
+    this.labReturn = v;
+    try { if (v) sessionStorage.setItem("df_lab_return", JSON.stringify(v)); else sessionStorage.removeItem("df_lab_return"); } catch (e) { /* storage blocked: the banner just does not survive a reload */ }
+  }
   labContinue(modId) {
     const r = this.labReturn;
-    this.labReturn = null;
+    this.setLabReturn(null);
     if (r && r.modId === modId) this.openLesson(modId, r.from + 1);
   }
   labBack(modId) {
     const r = this.labReturn;
-    this.labReturn = null;
+    this.setLabReturn(null);
     if (r && r.modId === modId) this.openLesson(modId, r.from);
+  }
+  // Which test groups prove each lesson's lab checkpoint (only where the browser lab can check it).
+  lessonChecks(modId) {
+    return {
+      "mod-0-0": [
+        { part: "a", groups: ["TestStep1Types"] },
+        { part: "a", groups: ["TestStep2Collections"] },
+        { part: "a", groups: ["TestStep3Decisions"] },
+        { part: "a", groups: ["TestStep4Loops"] },
+        { part: "b", groups: ["TestFormatRupiah", "TestCountByStatus", "TestUniqueCustomerIds", "TestAverageTotal", "TestTotalRevenue", "TestBatches", "TestTopCustomers"] },
+        { part: "b", groups: ["TestSafeInt", "TestAddToBatch", "TestSplitValid"] },
+        { part: "b", groups: ["TestReadOrders"] },
+      ],
+    }[modId] || null;
+  }
+  labCheckOf(modId, i) {
+    const c = (this.lessonChecks(modId) || [])[i];
+    if (!c) return null;
+    const have = new Set(((readStore("df_bl_groups", {}) || {})[c.part === "a" ? modId + "a" : modId]) || []);
+    const missing = c.groups.filter((g) => !have.has(g));
+    return { part: c.part, total: c.groups.length, missing, done: missing.length === 0 };
+  }
+  refreshLabBanner() {
+    const r = this.labReturn, el = document.querySelector(".lab-return");
+    if (!r || !el) return;
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === r.modId);
+    if (mod) el.outerHTML = this.labReturnBanner(mod);
   }
   labReturnBanner(mod) {
     const r = this.labReturn;
     if (!r || r.modId !== mod.id || !mod.lessons[r.from]) return "";
     const more = r.from + 1 < mod.lessons.length;
-    return `<div class="callout success lab-return" role="status"><p><strong>${this.l(`Anda datang dari Materi ${r.from + 1}.`, `You came here from Lesson ${r.from + 1}.`)}</strong> ${this.l("Kerjakan langkah lab-nya di bawah, jalankan pengecekan sampai lulus, lalu kembali ke materi.", "Do its lab step below, run the checks until they pass, then go back to the lessons.")}</p>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-quiet" onclick="app.labBack('${mod.id}')">← ${this.l("Kembali ke Materi", "Back to Lesson")} ${r.from + 1}</button>${more ? `<button class="btn btn-sm btn-primary" onclick="app.labContinue('${mod.id}')">${this.l("Sudah lulus, lanjut ke Materi", "Passed, continue to Lesson")} ${r.from + 2} →</button>` : ""}</div></div>`;
+    const chk = this.labCheckOf(mod.id, r.from);
+    const partName = chk ? (chk.part === "a" ? this.l("Bagian A", "Part A") : this.l("Bagian B", "Part B")) : "";
+    const say = chk
+      ? (chk.done
+        ? this.l(`✓ Pengecekan untuk materi ini lulus (${partName}). Anda boleh lanjut.`, `✓ The checks for this lesson pass (${partName}). You can continue.`)
+        : this.l(`Kerjakan langkahnya di ${partName} di bawah, tekan Run tests sampai lulus. Belum lulus: ${chk.missing.length} dari ${chk.total} kelompok tes.`, `Do its step in ${partName} below and press Run tests until it passes. Not passing yet: ${chk.missing.length} of ${chk.total} test groups.`))
+      : this.l("Kerjakan langkah lab-nya di bawah, lalu kembali ke materi.", "Do its lab step below, then go back to the lessons.");
+    const unlocked = !chk || chk.done;
+    return `<div class="callout success lab-return" role="status"><p><strong>${this.l(`Anda datang dari Materi ${r.from + 1}.`, `You came here from Lesson ${r.from + 1}.`)}</strong> ${say}</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-quiet" onclick="app.labBack('${mod.id}')">← ${this.l("Kembali ke Materi", "Back to Lesson")} ${r.from + 1}</button>${more ? (unlocked
+        ? `<button class="btn btn-sm btn-primary" onclick="app.labContinue('${mod.id}')">${chk ? this.l("Lulus, lanjut ke Materi", "Passed, continue to Lesson") : this.l("Lanjut ke Materi", "Continue to Lesson")} ${r.from + 2} →</button>`
+        : `<button class="btn btn-sm btn-primary" disabled title="${this.l("Terbuka setelah tesnya lulus", "Unlocks when the tests pass")}">🔒 ${this.l("Lanjut ke Materi", "Continue to Lesson")} ${r.from + 2}</button><button class="btn btn-sm btn-quiet" onclick="app.labContinue('${mod.id}')">${this.l("Lewati dulu", "Skip for now")}</button>`) : ""}</div></div>`;
   }
 
   openLabPreview(modId, part) {
@@ -1028,6 +1069,10 @@ class DataForgeApp {
           bestAll[modId] = { groups: passedGroups };
           writeStore("df_bl_best", bestAll);
         }
+        const seen = readStore("df_bl_groups", {}) || {};   // test groups that have passed at least once, per lab part
+        seen[modId] = [...new Set([...(seen[modId] || []), ...groups.filter((g) => g.pass === g.total).map((g) => g.name)])];
+        writeStore("df_bl_groups", seen);
+        this.refreshLabBanner();
         const refBox = document.getElementById("bl-ref");
         if (refBox) refBox.innerHTML = this.blReferenceHtml(modId);
         this.blShowGroup(modId, first ? first.name : null);
@@ -1330,7 +1375,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d[a-z]?$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1381,6 +1426,7 @@ class DataForgeApp {
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
+        if (d.df_bl_groups && typeof d.df_bl_groups === "object" && !Array.isArray(d.df_bl_groups)) writeStore("df_bl_groups", d.df_bl_groups);
         const objOf = (v) => v && typeof v === "object" && !Array.isArray(v);
         if (objOf(d.df_job_sim_proofs)) { this.jobSimProofs = d.df_job_sim_proofs; writeStore("df_job_sim_proofs", this.jobSimProofs); }
         if (objOf(d.df_job_sim_gates)) { this.jobSimGates = d.df_job_sim_gates; writeStore("df_job_sim_gates", this.jobSimGates); }
