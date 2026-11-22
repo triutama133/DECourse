@@ -41,8 +41,9 @@ Aturan main capstone:
 
 Siapkan workspace Anda:
 ```bash
-mkdir -p ~/seismic && cd ~/seismic
-python3 -m venv venv && source venv/bin/activate
+cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana
+mkdir -p ~/seismic
+python3 -m venv ~/seismic/venv && source ~/seismic/venv/bin/activate
 pip install -r labs/mod-4-2/requirements.txt
 python3 labs/mod-4-2/fetch_data.py
 cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py

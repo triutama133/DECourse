@@ -41,8 +41,9 @@ The rules of engagement:
 
 Setup your workspace:
 ```bash
-mkdir -p ~/seismic && cd ~/seismic
-python3 -m venv venv && source venv/bin/activate
+cd ~/projects/DECourse          # run the setup from the course folder: the labs/ paths below live there
+mkdir -p ~/seismic
+python3 -m venv ~/seismic/venv && source ~/seismic/venv/bin/activate
 pip install -r labs/mod-4-2/requirements.txt
 python3 labs/mod-4-2/fetch_data.py
 cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py

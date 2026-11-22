@@ -17,8 +17,13 @@ The site opens on a **Start here** page that walks you from zero to your first r
 ```bash
 git clone https://github.com/triutama133/DECourse.git && cd DECourse
 python3 labs/shared/shopgen.py --out data     # creates the KopiKu sample data; proves Python works
+python3 scripts/doctor.py                     # checks folder, Python, Git, venv and data; prints the fix for anything missing
 python3 server.py                             # then open http://localhost:3000
 ```
+
+**Stuck on setup?** `python3 scripts/doctor.py mod-2-3` (any module) also checks that module's packages, tools (Java, Docker, Terraform) and environment variables (`DATABASE_URL`, `KOPIKU_DB`), and that your venv still works after a Python upgrade. It only looks; it changes nothing.
+
+**Labs are verified, starters included:** `python3 scripts/verify_labs.py` proves that every reference solution passes and that every starter fails *because it is unfinished*, not because it is broken (a syntax error, an import that cannot work, a dbt compile error). Its `--self-test` checks those rules in CI.
 
 No Git? Download the ZIP of this repository instead. Prefer not to install anything? Open the repository in **GitHub Codespaces** (the `.devcontainer/` folder sets up Python, Java, Terraform and every lab's dependencies). Press **Ctrl+K** inside the site to search every lesson.
 

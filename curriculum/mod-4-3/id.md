@@ -41,8 +41,9 @@ Aturan pengerjaan:
 
 Langkah persiapan workspace Anda:
 ```bash
-mkdir -p ~/fleet && cd ~/fleet
-python3 -m venv venv && source venv/bin/activate
+cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana
+mkdir -p ~/fleet
+python3 -m venv ~/fleet/venv && source ~/fleet/venv/bin/activate
 pip install -r labs/mod-4-3/requirements.txt
 python3 labs/mod-4-3/fetch_data.py
 cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py

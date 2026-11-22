@@ -41,8 +41,9 @@ The rules of engagement:
 
 Setup your workspace:
 ```bash
-mkdir -p ~/fleet && cd ~/fleet
-python3 -m venv venv && source venv/bin/activate
+cd ~/projects/DECourse          # run the setup from the course folder: the labs/ paths below live there
+mkdir -p ~/fleet
+python3 -m venv ~/fleet/venv && source ~/fleet/venv/bin/activate
 pip install -r labs/mod-4-3/requirements.txt
 python3 labs/mod-4-3/fetch_data.py
 cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py
