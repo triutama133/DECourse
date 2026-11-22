@@ -305,7 +305,7 @@ pytest labs/mod-3-5 -v        # fails at first
 pytest labs/mod-3-5 -v
 ```
 
-Known-good run: `LAB_DIR=reference pytest labs/mod-3-5 -v`. To use your own PostgreSQL (with the pgvector extension, for example the `pgvector/pgvector` Docker image), set `DATABASE_URL` to an empty scratch database.
+Known-good run: `LAB_DIR=reference pytest labs/mod-3-5 -v`. To use your own PostgreSQL (with the pgvector extension, for example the `pgvector/pgvector` Docker image), set `DATABASE_URL` to an empty scratch database. On Python 3.14 `pip` skips `pgserver` (it has no build for 3.14 yet), so start PostgreSQL in Docker instead: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, then `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab35"` and `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab35`. That one container serves Modules 1.3, 3.2 and 3.5 (it has pgvector and logical decoding); measured on Python 3.14, the reference passes all 43 tests this way.
 
 ## @chaos The silent model upgrade
 ### @scenario

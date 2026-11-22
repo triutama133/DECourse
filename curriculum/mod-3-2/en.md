@@ -15,7 +15,7 @@ why: Tutorials push random messages into Kafka and print them. Real systems must
 - Evolve a schema safely with a schema registry (compatibility modes, defaults, upgrade order) and read the registry's wire format
 
 ## @prereq
-Modules 1.2 (idempotency), 2.2 (table formats) and 2.4 (orchestration). Part A of the lab needs no installation. Part B needs a Kafka-compatible broker (`docker compose up -d redpanda`, or any Kafka). Part C needs PostgreSQL with logical decoding (an embedded one is installed by `pip`).
+Modules 1.2 (idempotency), 2.2 (table formats) and 2.4 (orchestration). Part A of the lab needs no installation. Part B needs a Kafka-compatible broker (`docker compose up -d redpanda`, or any Kafka). Part C needs PostgreSQL with logical decoding (an embedded one is installed by `pip`). On Python 3.14 `pip` skips `pgserver` (it has no build for 3.14 yet), so start PostgreSQL in Docker instead: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, then `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab32"` and `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab32`. That one container serves Modules 1.3, 3.2 and 3.5 (it has pgvector and logical decoding); measured on Python 3.14, the reference passes all 23 Part A and C tests this way.
 
 ## @part Kafka fundamentals
 

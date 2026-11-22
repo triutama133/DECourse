@@ -15,7 +15,7 @@ why: Banyak tutorial pemula hanya mengirim pesan teks acak ke Kafka lalu menampi
 - Mengubah skema dengan aman memakai schema registry (mode kompatibilitas, default, urutan upgrade) dan membaca wire format registry
 
 ## @prereq
-Modul 1.2 (idempotensi), Modul 2.2 (open table formats), dan Modul 2.4 (orkestrasi). Bagian A dari lab praktikum tidak membutuhkan instalasi eksternal apa pun. Bagian B membutuhkan Kafka-compatible broker (`docker compose up -d redpanda`, atau Kafka standar). Bagian C membutuhkan PostgreSQL dengan logical decoding (embedded PostgreSQL otomatis diinstal via `pip`).
+Modul 1.2 (idempotensi), Modul 2.2 (open table formats), dan Modul 2.4 (orkestrasi). Bagian A dari lab praktikum tidak membutuhkan instalasi eksternal apa pun. Bagian B membutuhkan Kafka-compatible broker (`docker compose up -d redpanda`, atau Kafka standar). Bagian C membutuhkan PostgreSQL dengan logical decoding (embedded PostgreSQL otomatis diinstal via `pip`). Di Python 3.14 `pip` melewati `pgserver` (belum ada build untuk 3.14), jadi jalankan PostgreSQL di Docker: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, lalu `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab32"` dan `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab32`. Satu container itu melayani Modul 1.3, 3.2, dan 3.5 (ada pgvector dan logical decoding); diukur di Python 3.14, referensinya lulus 23 tes Bagian A dan C dengan cara ini.
 
 ## @part Dasar Kafka
 

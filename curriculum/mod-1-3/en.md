@@ -546,7 +546,7 @@ python -m pip install -r labs/mod-1-3/explain/requirements.txt
 pytest labs/mod-1-3/explain -v
 ```
 
-   All tests fail at first. That is the starting point. (To use your own PostgreSQL, for example the one from Docker, set `DATABASE_URL` to an empty scratch database.)
+   Most tests fail at first (6 of the 10 with the starter). That is the starting point. (To use your own PostgreSQL, for example the one from Docker, set `DATABASE_URL` to an empty scratch database. On Python 3.14 `pip` skips `pgserver` (it has no build for 3.14 yet), so start PostgreSQL in Docker instead: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, then `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab13"` and `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab13`. That one container serves Modules 1.3, 3.2 and 3.5 (it has pgvector and logical decoding); measured on Python 3.14, the reference passes all 10 tests this way.)
 5. **Part B, tune.** Open `labs/mod-1-3/explain/queries.sql` and `indexes.sql`. Look at the four queries and decide which columns each filters and sorts on. Write the **fewest** `CREATE INDEX` statements in `indexes.sql` so that no query does a Seq Scan, and Q3 needs no Sort. Rewrite Q4 in `queries.sql` so that it returns the same answer but can use an index.
 6. To see what the tests see, load the table into any PostgreSQL and run `EXPLAIN (ANALYZE, BUFFERS)` on each query before and after your change; compare estimated and actual rows, pages read and time.
 7. Re-run the tests until they all pass. If one fails, its message says which rule you broke.

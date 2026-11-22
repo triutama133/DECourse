@@ -305,7 +305,7 @@ pytest labs/mod-3-5 -v        # seluruh pengujian akan gagal pada awalnya
 pytest labs/mod-3-5 -v
 ```
 
-Verifikasi terhadap kode referensi: jalankan dengan prefix `LAB_DIR=reference pytest labs/mod-3-5 -v`. Jika ingin menggunakan instance PostgreSQL mandiri (dengan ekstensi pgvector aktif), arahkan variabel `DATABASE_URL` ke database pengujian Anda.
+Verifikasi terhadap kode referensi: jalankan dengan prefix `LAB_DIR=reference pytest labs/mod-3-5 -v`. Jika ingin menggunakan instance PostgreSQL mandiri (dengan ekstensi pgvector aktif), arahkan variabel `DATABASE_URL` ke database pengujian Anda. Di Python 3.14 `pip` melewati `pgserver` (belum ada build untuk 3.14), jadi jalankan PostgreSQL di Docker: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, lalu `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab35"` dan `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab35`. Satu container itu melayani Modul 1.3, 3.2, dan 3.5 (ada pgvector dan logical decoding); diukur di Python 3.14, referensinya lulus 43 tes dengan cara ini.
 
 ## @chaos Upgrade model embedding yang merusak sistem secara diam-diam
 ### @scenario
