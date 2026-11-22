@@ -1,5 +1,6 @@
 // Module Web Worker (new Worker(url, { type: "module" })): runs a lab's pytest suite in Pyodide (Python in WebAssembly) off the main thread.
 // Messages in:  { type: "run", id, files: {path: text}, args: [pytest args] }
+//               { type: "exec", id, session, code, reset }   (the Python pad in the lessons: run a snippet, keep variables per session)
 // Messages out: { type: "status", text } while loading, then { type: "result", id, output, code } or { type: "error", id, message }
 import { loadPyodide } from "../vendor/pyodide/pyodide.mjs";
 
@@ -26,6 +27,21 @@ async function boot() {
 
 self.onmessage = async (ev) => {
   const m = ev.data;
+  if (m.type === "exec") {
+    try {
+      booting = booting || boot();
+      const py = await booting;
+      self.postMessage({ type: "status", text: "running" });
+      const result = py.globals.get("exec_pad")(m.session, m.code, Boolean(m.reset));
+      const [output, ok] = result.toJs();
+      result.destroy();
+      self.postMessage({ type: "padresult", id: m.id, output, ok });
+    } catch (e) {
+      booting = null;
+      self.postMessage({ type: "error", id: m.id, message: String(e && e.message ? e.message : e) });
+    }
+    return;
+  }
   if (m.type !== "run") return;
   try {
     booting = booting || boot();

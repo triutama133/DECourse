@@ -267,6 +267,10 @@ class DataForgeApp {
       const expected = !checkIdent && tryitKey ? this.tryitExpected(revealLines) : [];
       if (expected.length) this._tryitExpect[tryitKey] = expected;
       const pasteHtml = expected.length ? this.tryitPasteBox(tryitKey) : "";
+      const padKind = /^(repl|python)$/.test(this._whereKind || "");   // set by tryItWhere just above
+      const tryPad = padKind && ctx && ctx.modId && ctx.lessonIdx != null
+        ? this.padHtml(`${ctx.modId}:${ctx.lessonIdx}`, `# ${this.l("Ketik baris dari latihan di sini. Variabel tetap ada antar-eksekusi (seperti di prompt >>>).", "Type the lines from the exercise here. Variables stay between runs (like at the >>> prompt).")}\n`, this.l("▶ Atau coba di browser (tanpa instalasi)", "▶ Or try it in the browser (nothing to install)"))
+        : "";
       return `
         <div class="callout-tryit ${isDone ? "is-done" : ""}">
           <div class="callout-head">
@@ -276,6 +280,7 @@ class DataForgeApp {
           <div class="stack-sm">
             ${this.renderQuoteBody(mainLines)}
             ${whereHtml}
+            ${tryPad}
             ${pasteHtml}
             ${revealLines.length ? `
               <details class="tryit-reveal">
@@ -364,6 +369,7 @@ class DataForgeApp {
   // "Where do I do this?" under every Try it, chosen from its label: "(10 min, Python)", "(SQL Sandbox)",
   // "(terminal)", "(paper)"... Beginners could not tell whether to type the code at the terminal, at >>> or in a file.
   tryItWhere(lines, ctx) {
+    this._whereKind = "";
     const text = lines.join(" ");
     const head = (lines[0] || "").match(/\(([^)]*)\)/);
     const label = (head ? head[1] : "").replace(/^\s*\d+(-\d+)?\s*(min|minutes|menit)\b,?\s*/i, "").toLowerCase();
@@ -381,6 +387,7 @@ class DataForgeApp {
     else if (/python|pyspark|\.py/.test(label) || writes) kind = "python";
     else if (label || /`[^`]+`/.test(text)) kind = "terminal";
     else return "";
+    this._whereKind = kind;
     const C = (t) => `<code>${this.esc(t)}</code>`;
     const go = `${C("cd ~/projects/DECourse")}${afterVenv ? ` ${this.l("lalu", "then")} ${C("source venv/bin/activate")} (${this.l("prompt diawali", "the prompt starts with")} ${C("(venv)")})` : ""}`;
     let body;
@@ -447,6 +454,7 @@ class DataForgeApp {
         while (i < lines.length && !/^```\s*$/.test(lines[i])) body.push(lines[i++]);
         i++;
         out.push(`<div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)" aria-label="${this.l("Salin kode", "Copy code")}">${this.l("Salin", "Copy")}</button><pre${m[1] ? ` data-lang="${this.esc(m[1])}"` : ""}><code>${this.esc(body.join("\n"))}</code></pre></div>`);
+        if (ctx && ctx.modId && ctx.lessonIdx != null && /^python$/i.test(m[1]) && this.padRunnable(body.join("\n"))) out.push(this.padHtml(`${ctx.modId}:${ctx.lessonIdx}`, body.join("\n"), this.l("▶ Jalankan di browser (tanpa instalasi)", "▶ Run it in the browser (nothing to install)")));
       } else if ((m = line.match(/^\[\[diagram:([a-z0-9-]+)\]\]\s*$/))) {
         const fn = window.DIAGRAMS && window.DIAGRAMS[m[1]];
         const num = (n) => n.toLocaleString(this.lang === "id" ? "id-ID" : "en-US");
@@ -1042,6 +1050,7 @@ class DataForgeApp {
     this._blTimer = setTimeout(() => kill(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
     w.onmessage = (ev) => {
       const m = ev.data;
+      if (this._padBusy) return;   // a lesson's Python pad is using the worker: its messages are not ours
       if (m.type === "status") {
         this.blStatus(modId, loadingTxt[m.text] || "", "", "");
         if (m.text === "running") { clearTimeout(this._blTimer); this._blTimer = setTimeout(() => kill(this.l("Tes berjalan lebih dari 60 detik, jadi dihentikan. Kode Anda mungkin berulang tanpa henti (infinite loop). Periksa perulangan <code>while</code>, lalu jalankan lagi.", "The tests ran for over 60 seconds, so they were stopped. Your code may loop forever (an infinite loop). Check your <code>while</code> loops, then run again.")), 60000); }
@@ -1515,6 +1524,77 @@ class DataForgeApp {
     const nextIdx = this.nextLessonIdx(mod);
     if (nextIdx >= 0) this.openLesson(modId, nextIdx);
   }
+  // ---------- the Python pad: run a snippet in the browser, next to the terminal route ----------
+  padRunnable(code) {
+    if (/^\s*>>>/m.test(code) || /\binput\s*\(|\bopen\s*\(|sys\.argv|os\.environ|getenv|argparse|__file__|\.\.\.|…|<[a-z_ -]+>/.test(code)) return false;
+    const ok = new Set(["csv", "json", "math", "re", "datetime", "collections", "itertools", "functools", "statistics", "random", "string", "textwrap", "decimal", "fractions", "typing", "dataclasses", "enum", "pathlib", "io", "time", "hashlib", "uuid", "copy", "operator", "heapq", "bisect", "abc", "contextlib", "sys", "os", "logging", "__future__"]);
+    for (const m of code.matchAll(/^\s*(?:from|import)\s+([A-Za-z_][\w]*)/gm)) if (!ok.has(m[1])) return false;
+    return code.trim().length > 0;
+  }
+  padHtml(session, code, label) {
+    return `<div class="pad-box" data-session="${this.esc(session)}">
+      <div class="pad-launch"><button class="btn btn-sm btn-quiet" onclick="app.padOpen(this)">${label}</button></div>
+      <div class="pad" hidden>
+        <p class="small pad-note">${this.l("Ini Python di browser Anda; terminal Anda tetap cara utama. Ubah kodenya sesuka Anda lalu tekan Jalankan (Ctrl+Enter). Variabel tetap ada antar-eksekusi di materi ini.", "This is Python in your browser; your own terminal is still the main way. Change the code as you like and press Run (Ctrl+Enter). Variables stay between runs in this lesson.")}</p>
+        <textarea class="pad-code" rows="${Math.min(14, Math.max(4, code.split("\n").length + 1))}" spellcheck="false" aria-label="${this.l("Kode Python", "Python code")}" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.padRun(this)}">${this.esc(code)}</textarea>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-primary" onclick="app.padRun(this)">${this.l("Jalankan", "Run")}</button><button class="btn btn-sm btn-quiet" onclick="app.padReset(this)" title="${this.l("Hapus semua variabel di materi ini", "Forget every variable in this lesson")}">${this.l("Mulai ulang sesi", "Reset session")}</button></div>
+        <pre class="pad-out" aria-live="polite" hidden></pre>
+      </div></div>`;
+  }
+  padOpen(btn) {
+    const pad = btn.closest(".pad-box").querySelector(".pad");
+    pad.hidden = !pad.hidden;
+    if (!pad.hidden) pad.querySelector("textarea").focus();
+  }
+  padShow(box, text, kind) {
+    const out = box.querySelector(".pad-out");
+    out.hidden = false;
+    out.className = "pad-out" + (kind ? " " + kind : "");
+    out.textContent = text;
+  }
+  padRun(el) {
+    const box = el.closest(".pad-box");
+    this.padExec(box.dataset.session, box.querySelector("textarea").value, false, box);
+  }
+  padReset(el) {
+    const box = el.closest(".pad-box");
+    this.padExec(box.dataset.session, "", true, box, this.l("Sesi dimulai ulang: semua variabel dihapus.", "Session reset: every variable is forgotten."));
+  }
+  padExec(session, code, reset, box, doneText) {
+    if (this._padBusy || this._blBusy) { this.padShow(box, this.l("Python masih sibuk. Tunggu sebentar lalu coba lagi.", "Python is busy. Wait a moment and try again."), "pad-info"); return; }
+    if (!window.Worker || location.protocol === "file:") { this.padShow(box, this.l("Browser ini tidak bisa menjalankan Python di halaman yang dibuka dari file. Jalankan situs dengan python3 server.py, atau pakai terminal Anda.", "This browser cannot run Python on a page opened from a file. Run the site with python3 server.py, or use your terminal."), "pad-err"); return; }
+    if (!this._blWorker) {
+      try { this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" }); }
+      catch (e) { this.padShow(box, this.l("Tidak bisa memulai Python di browser ini. Pakai terminal Anda.", "Could not start Python in this browser. Use your terminal."), "pad-err"); return; }
+    }
+    const w = this._blWorker;
+    const id = (this._padId = (this._padId || 0) + 1);
+    this._padBusy = true;
+    const buttons = box.querySelectorAll("button");
+    buttons.forEach((b) => { b.disabled = true; });
+    let timer;
+    const finish = () => { this._padBusy = false; clearTimeout(timer); w.removeEventListener("message", onMsg); buttons.forEach((b) => { b.disabled = false; }); };
+    const stop = (msg) => { if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; } finish(); this.padShow(box, msg, "pad-err"); };
+    const onMsg = (ev) => {
+      const m = ev.data;
+      if (m.type === "status") {
+        const txt = { "loading-python": this.l("Memuat Python (sekitar 12 MB, hanya sekali)…", "Loading Python (about 12 MB, only once)…"), "loading-pytest": this.l("Hampir siap…", "Almost ready…"), running: "" }[m.text];
+        if (txt) this.padShow(box, txt, "pad-info");
+        if (m.text === "running") { clearTimeout(timer); timer = setTimeout(() => stop(this.l("Kode berjalan lebih dari 15 detik, jadi dihentikan (mungkin berulang tanpa henti). Sesi dimulai ulang.", "The code ran for more than 15 seconds, so it was stopped (it may loop forever). The session was reset.")), 15000); }
+      } else if (m.type === "padresult" && m.id === id) {
+        finish();
+        const text = String(m.output).replace(/\s+$/, "");
+        this.padShow(box, text || doneText || (m.ok ? this.l("(selesai, tidak ada yang dicetak)", "(done, nothing was printed)") : ""), m.ok ? "" : "pad-err");
+      } else if (m.type === "error" && m.id === id) {
+        stop(this.l("Python gagal dimulai:", "Python failed to start:") + " " + m.message);
+      }
+    };
+    w.addEventListener("message", onMsg);
+    timer = setTimeout(() => stop(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
+    this.padShow(box, this.l("Memuat Python…", "Loading Python…"), "pad-info");
+    w.postMessage({ type: "exec", id, session, code, reset: Boolean(reset) });
+  }
+
   // The pieces of output a Try it promises ("You should see: `True`, `240000`..."), so what the learner pastes from their
   // own terminal can be checked. Only pieces that look like program output: a quoted text, a number, a list, True/False/None, an error name.
   tryitExpected(revealLines) {
@@ -3131,15 +3211,20 @@ Hello from KopiKu</code></pre>
     this.stepPos[`${modId}:${i}`] = next;
     writeStore("df_step_pos", this.stepPos);
     this.renderView();
-    const card = document.getElementById(`lesson-${i}`);
-    if (card && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start" });
+    this.stepAnchor(i);
+  }
+  // Every step starts at the same place on screen (the top of the lesson card), whatever its height, so the page does not jump
+  // when a short step follows a long one, and Back/Next stay where the thumb or the mouse already is.
+  stepAnchor(i) {
+    const put = () => { const card = document.getElementById(`lesson-${i}`) || document.querySelector(".lesson-card"); if (card) card.scrollIntoView({ block: "start", behavior: "instant" }); };
+    put();
+    requestAnimationFrame(put);   // once more after layout settles (fonts, folded sections)
   }
   setStepMode(mode) {
     this.stepMode = mode;
     writeStore("df_step_mode", mode);
     this.renderView();
-    const card = document.querySelector(".lesson-card");
-    if (card) card.scrollIntoView({ block: "start" });
+    this.stepAnchor(this.activeLessonIdx);
   }
 
   openLesson(modId, i) { this.go("curriculum", modId, "concepts", String(i + 1)); }

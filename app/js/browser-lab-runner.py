@@ -31,3 +31,48 @@ def run_lab(args):
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         code = pytest.main(list(args))
     return buf.getvalue(), int(code)
+
+
+# ---- the Python pad in the lessons: run a snippet like the >>> prompt does, and keep the variables between runs ----
+_PADS = {}
+
+
+def exec_pad(session, code, reset=False):
+    """Run `code` in the namespace of `session`. A bare expression prints its value (as at the >>> prompt). Returns (output, ok)."""
+    import ast
+    import traceback
+
+    if reset:
+        _PADS.pop(session, None)
+        return "", True
+    ns = _PADS.setdefault(session, {"__name__": "__main__"})
+
+    def no_input(*args, **kwargs):
+        raise EOFError("input() cannot ask for typing in the browser pad: put the value in the code (name = ...) or run this one in your terminal.")
+
+    ns["input"] = no_input
+    buf = io.StringIO()
+    ok = True
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            tree = ast.parse(code, "<pad>")
+            for node in tree.body:
+                if isinstance(node, ast.Expr):
+                    value = eval(compile(ast.Expression(node.value), "<pad>", "eval"), ns)
+                    if value is not None:
+                        print(repr(value))
+                else:
+                    exec(compile(ast.Module([node], []), "<pad>", "exec"), ns)
+        except BaseException as error:  # noqa: BLE001 - show whatever the learner's code raised, like the terminal does
+            ok = False
+            frames = [f for f in traceback.extract_tb(error.__traceback__) if f.filename == "<pad>"]
+            if isinstance(error, SyntaxError):
+                print("".join(traceback.format_exception_only(type(error), error)).rstrip())
+            else:
+                print("Traceback (most recent call last):")
+                print("".join(traceback.format_list(frames)).rstrip())
+                print("".join(traceback.format_exception_only(type(error), error)).rstrip())
+                if isinstance(error, NameError):
+                    print("\nHint: Python does not know that name yet. Run the lines that create it first (the earlier examples of this lesson, "
+                          "in order), or this example is only a piece of a bigger program: then run the complete program in your terminal.")
+    return buf.getvalue(), ok

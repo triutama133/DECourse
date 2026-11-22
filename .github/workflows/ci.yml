@@ -23,6 +23,9 @@ jobs:
         run: |
           node scripts/build-curriculum.js --check
 
+      - name: Python pad examples run in the real Pyodide
+        run: node scripts/verify_lesson_pads.js
+
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 
