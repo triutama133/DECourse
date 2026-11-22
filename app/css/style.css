@@ -1323,3 +1323,11 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .pad-out.pad-err { background: #2a1517; color: #fecaca; }
 .pad-out.pad-info { background: var(--card-subtle); color: var(--text-muted); }
 .bl-groups li.locked { color: var(--text-muted); border-style: dashed; background: transparent; }
+
+/* The lab step inside a lesson */
+.lesson-lab { display: grid; gap: 8px; margin: 10px 0 4px; padding: 14px 16px; border: 1px solid var(--primary); border-radius: var(--radius); background: var(--card); }
+.lesson-lab .ll-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lesson-lab .ll-inputs summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.lesson-lab .ll-inputs pre { margin: 6px 0 0; padding: 8px 10px; background: var(--card-subtle); border-radius: var(--radius-sm, 6px); font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; overflow-x: auto; }
+.lesson-lab .ll-out { display: grid; gap: 8px; }
+.lesson-lab .ll-out:empty { display: none; }

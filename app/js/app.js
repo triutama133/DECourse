@@ -566,6 +566,133 @@ class DataForgeApp {
     this.setLabReturn(null);
     if (r && r.modId === modId) this.openLesson(modId, r.from);
   }
+  // ---------- the lab step inside the lesson (Module 0.0): the piece of the lab file this lesson is about ----------
+  lessonLabFor(modId, i) {
+    if (!window.LessonLab || !window.BROWSER_LABS) return null;
+    const chk = (this.lessonChecks(modId) || [])[i];
+    if (!chk) return null;
+    const lab = chk.part === "a" ? modId + "a" : modId;
+    if (!window.BROWSER_LABS[lab]) return null;
+    const plan = { "mod-0-0": [{ step: 1 }, { step: 2 }, { step: 3 }, { step: 4 }, { funcs: ["format_rupiah", "count_by_status", "unique_customer_ids", "average_total", "total_revenue", "batches", "top_customers"] }, { funcs: ["safe_int", "add_to_batch", "split_valid"] }, { funcs: ["read_orders"] }] }[modId];
+    const p = plan && plan[i];
+    return p ? Object.assign({ lab, groups: chk.groups }, p) : null;
+  }
+  lessonLabDraft(lab) {
+    const bl = window.BROWSER_LABS[lab.lab];
+    const saved = readStore("df_bl_" + lab.lab, null);
+    return typeof saved === "string" ? saved : bl.starter;
+  }
+  lessonLabPiece(lab, draft) {
+    return lab.step ? window.LessonLab.getStep(draft, lab.step) : window.LessonLab.getFuncs(draft, lab.funcs);
+  }
+  lessonLabHtml(modId, i) {
+    const lab = this.lessonLabFor(modId, i);
+    if (!lab) return "";
+    const piece = this.lessonLabPiece(lab, this.lessonLabDraft(lab));
+    const key = `${modId}:${i}`;
+    const out = (this._llOut && this._llOut[key]) || "";
+    const body = piece === null
+      ? `<p class="small">${this.l("File lab Anda berubah dan bagian ini tidak ditemukan. Buka lab lengkap di tab Lab dan pakai Reset.", "Your lab file changed and this piece cannot be found. Open the full lab on the Lab tab and use Reset.")}</p>`
+      : `${lab.step ? `<details class="ll-inputs"><summary>${this.l("Data yang diberikan (hanya baca)", "The data you are given (read only)")}</summary><pre>${this.esc(window.LessonLab.inputs(this.lessonLabDraft(lab)))}</pre></details>` : ""}
+        <label class="small" for="ll-code-${i}">${lab.step
+          ? this.l(`Ganti setiap <code>None</code> dengan kode Anda (Langkah ${lab.step} di <code>practice.py</code>):`, `Replace each <code>None</code> with your code (Step ${lab.step} of <code>practice.py</code>):`)
+          : this.l("Tulis isi fungsi-fungsi ini (hapus baris <code>raise NotImplementedError</code>). Jangan ubah baris <code>def</code>:", "Write the bodies of these functions (delete the <code>raise NotImplementedError</code> line). Do not change the <code>def</code> lines:")}</label>
+        <textarea id="ll-code-${i}" class="pad-code" rows="${Math.min(26, Math.max(8, piece.split("\n").length + 1))}" spellcheck="false" onkeydown="app.blKey(event, '${lab.lab}');if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.runLessonLab('${modId}', ${i})}">${this.esc(piece)}</textarea>
+        <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" id="ll-run-${i}" onclick="app.runLessonLab('${modId}', ${i})">${this.l("Jalankan tes langkah ini", "Run this step's tests")}</button><button class="btn btn-sm btn-quiet" onclick="app.resetLessonLab('${modId}', ${i})">${this.l("Reset langkah ini", "Reset this step")}</button><span class="small muted">Ctrl+Enter</span></div>
+        <div id="ll-out-${i}" class="ll-out" role="status" aria-live="polite">${out}</div>`;
+    return `<div class="lesson-lab">
+      <div class="ll-head"><strong>🧪 ${this.l("Lab untuk materi ini", "The lab for this lesson")}</strong> <span class="chip">${this.l("Pratinjau browser; terminal tetap cara utama", "Browser preview; your terminal is still the main way")}</span></div>
+      <p class="small muted">${this.l("Ini potongan kecil dari file lab modul ini. Yang Anda tulis di sini tersimpan di file yang sama dengan tab Lab, dan tes-tes berikut hanya memeriksa potongan ini.", "This is one small piece of the module's lab file. What you write here is saved in the same file as the Lab tab, and these tests check only this piece.")}</p>
+      ${body}</div>`;
+  }
+  resetLessonLab(modId, i) {
+    const lab = this.lessonLabFor(modId, i);
+    if (!lab) return;
+    const bl = window.BROWSER_LABS[lab.lab];
+    const starter = this.lessonLabPiece(lab, bl.starter);
+    const ta = document.getElementById(`ll-code-${i}`);
+    if (ta && starter !== null) { ta.value = starter; this.lessonLabMerge(modId, i, false); }
+  }
+  // Put the edited piece back into the whole lab file (saved for the Lab tab too). Returns the whole file, or null with a message shown.
+  lessonLabMerge(modId, i, show) {
+    const lab = this.lessonLabFor(modId, i), ta = document.getElementById(`ll-code-${i}`), box = document.getElementById(`ll-out-${i}`);
+    if (!lab || !ta) return null;
+    const draft = this.lessonLabDraft(lab);
+    const merged = lab.step ? window.LessonLab.setStep(draft, lab.step, ta.value) : window.LessonLab.setFuncs(draft, lab.funcs, ta.value);
+    if (merged.error) {
+      if (show && box) box.innerHTML = `<div class="feedback bad">${merged.error === "defs"
+        ? this.l(`Setiap fungsi harus tetap punya baris <code>def</code>-nya, tepat satu kali: ${lab.funcs.map((n) => `<code>${n}</code>`).join(", ")}.`, `Every function must keep its own <code>def</code> line, exactly once: ${lab.funcs.map((n) => `<code>${n}</code>`).join(", ")}.`)
+        : this.l("Bagian ini tidak ditemukan di file lab Anda. Buka tab Lab dan pakai Reset.", "This piece cannot be found in your lab file. Open the Lab tab and use Reset.")}</div>`;
+      return null;
+    }
+    writeStore("df_bl_" + lab.lab, merged.draft);
+    return merged.draft;
+  }
+  runLessonLab(modId, i) {
+    const lab = this.lessonLabFor(modId, i), box = document.getElementById(`ll-out-${i}`), btn = document.getElementById(`ll-run-${i}`);
+    if (!lab || !box) return;
+    const key = `${modId}:${i}`;
+    this._llOut = this._llOut || {};
+    const say = (html) => { box.innerHTML = html; this._llOut[key] = html; };
+    if (this._padBusy || this._blBusy) { say(`<div class="feedback info">${this.l("Python masih sibuk. Tunggu sebentar lalu coba lagi.", "Python is busy. Wait a moment and try again.")}</div>`); return; }
+    if (!window.Worker || location.protocol === "file:") { say(`<div class="feedback bad">${this.l("Browser ini tidak bisa menjalankan Python di halaman yang dibuka dari file. Jalankan situs dengan python3 server.py, atau pakai terminal Anda.", "This browser cannot run Python on a page opened from a file. Run the site with python3 server.py, or use your terminal.")}</div>`); return; }
+    const draft = this.lessonLabMerge(modId, i, true);
+    if (draft === null) { this._llOut[key] = box.innerHTML; return; }
+    const bl = window.BROWSER_LABS[lab.lab];
+    if (!this._blWorker) {
+      try { this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" }); }
+      catch (e) { say(`<div class="feedback bad">${this.l("Tidak bisa memulai Python di browser ini. Pakai terminal Anda.", "Could not start Python in this browser. Use your terminal.")}</div>`); return; }
+    }
+    const w = this._blWorker;
+    const id = (this._padId = (this._padId || 0) + 1);
+    this._padBusy = true;
+    if (btn) btn.disabled = true;
+    let timer;
+    const finish = () => { this._padBusy = false; clearTimeout(timer); w.removeEventListener("message", onMsg); const b = document.getElementById(`ll-run-${i}`); if (b) b.disabled = false; };
+    const stop = (msg) => { if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; } finish(); say(`<div class="feedback bad">${msg}</div>`); };
+    const loading = { "loading-python": this.l("Memuat Python (sekitar 12 MB, hanya sekali)…", "Loading Python (about 12 MB, only once)…"), "loading-pytest": this.l("Memuat pytest…", "Loading pytest…"), running: this.l("Menjalankan tes…", "Running the tests…") };
+    const onMsg = (ev) => {
+      const m = ev.data;
+      if (m.type === "status") {
+        if (loading[m.text]) box.innerHTML = `<div class="feedback info">${loading[m.text]}</div>`;
+        if (m.text === "running") { clearTimeout(timer); timer = setTimeout(() => stop(this.l("Tes berjalan lebih dari 60 detik, jadi dihentikan. Kode Anda mungkin berulang tanpa henti.", "The tests ran for more than 60 seconds, so they were stopped. Your code may loop forever.")), 60000); }
+      } else if (m.type === "result" && m.id === id) {
+        finish();
+        this.lessonLabResult(modId, i, lab, bl, String(m.output).replace(/\/lab\//g, ""), say);
+      } else if (m.type === "error" && m.id === id) {
+        stop(this.l("Python gagal dimulai:", "Python failed to start:") + " " + this.esc(m.message));
+      }
+    };
+    w.addEventListener("message", onMsg);
+    timer = setTimeout(() => stop(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
+    box.innerHTML = `<div class="feedback info">${loading["loading-python"]}</div>`;
+    const expr = lab.groups.join(" or ");
+    w.postMessage({ type: "run", id, files: Object.assign({}, bl.files, { [bl.editable]: draft }), args: [...bl.tests, "-k", expr, "-rA"] });
+  }
+  lessonLabResult(modId, i, lab, bl, raw, say) {
+    const groups = this.blGroups(bl, raw).filter((g) => lab.groups.includes(g.name));
+    const seen = readStore("df_bl_groups", {}) || {};
+    seen[lab.lab] = [...new Set([...(seen[lab.lab] || []), ...groups.filter((g) => g.pass === g.total).map((g) => g.name)])];
+    writeStore("df_bl_groups", seen);
+    const chips = groups.map((g) => `<li class="${g.pass === g.total ? "ok" : "bad"}"><span aria-hidden="true">${g.pass === g.total ? "✓" : "✗"}</span> <code>${g.name}</code> <span class="muted">${g.pass}/${g.total}</span></li>`).join("");
+    const allGood = groups.length === lab.groups.length && groups.every((g) => g.pass === g.total);
+    if (allGood) {
+      say(`<div class="feedback ok">✓ ${this.l("Semua tes untuk materi ini lulus. Anda boleh lanjut.", "All the tests for this lesson pass. You can continue.")}</div><ul class="bl-groups">${chips}</ul>`);
+      const y = window.scrollY;
+      this.renderView();
+      window.scrollTo(0, y);
+      return;
+    }
+    const firstBad = groups.find((g) => g.pass < g.total);
+    let detail = firstBad ? this.blGroupOutput(raw, firstBad.name) : "";
+    if (!detail && /ERROR collecting|SyntaxError|IndentationError/.test(raw)) detail = raw.split("\n").filter((l) => /^E {2,}/.test(l)).join("\n");
+    if (!detail) detail = raw.length > 3000 ? "…\n" + raw.slice(-3000) : raw;
+    const head = groups.length
+      ? this.l(`${groups.filter((g) => g.pass === g.total).length} dari ${lab.groups.length} kelompok tes lulus. Baca pesan dari baris paling bawah: baris berawalan <code>E</code> atau pesan pendek menyebut apa yang salah.`, `${groups.filter((g) => g.pass === g.total).length} of ${lab.groups.length} test groups pass. Read the message from the bottom line; it says what went wrong.`)
+      : this.l("Tes belum berjalan. Biasanya ada kesalahan penulisan (syntax). Baca pesan di bawah.", "The tests did not run. Usually there is a typing slip (syntax). Read the message below.");
+    say(`<div class="feedback info">${head}</div>${chips ? `<ul class="bl-groups">${chips}</ul>` : ""}<pre class="pad-out pad-err">${this.esc(detail.trimEnd())}</pre>`);
+  }
+
   // Which test groups prove each lesson's lab checkpoint (only where the browser lab can check it).
   lessonChecks(modId) {
     return {
@@ -3309,20 +3436,29 @@ Hello from KopiKu</code></pre>
         const nextAction = isLast ? `app.finishLesson('${mod.id}', ${i}, 'lab')` : `app.finishLesson('${mod.id}', ${i})`;
         // step mode: the lesson body is shown one small step at a time (a lesson with one step stays a page)
         const allSteps = this.usesSteps(mod.id) ? this.lessonSteps(mod, i, ls) : null;
-        const steps = allSteps && allSteps.length > 1 ? allSteps : null;
+        const hasLab = Boolean(this.lessonLabFor(mod.id, i));
+        // the lesson's lab step is the last step: it is where the learner writes the code and runs its tests
+        const steps = allSteps && allSteps.length > 1 ? (hasLab ? [...allSteps, { kind: "lab", text: "", tryitStart: 0 }] : allSteps) : null;
         const stepK = steps ? this.stepIndex(mod.id, i, steps.length) : 0;
         this._stepCtx = steps ? { modId: mod.id, i, k: stepK, n: steps.length } : null;
         const stepLast = steps ? stepK === steps.length - 1 : true;
         // a lesson with a lab checkpoint sends the learner to the lab first; skipping to the next lesson stays possible
         const pause = !isLast ? this.pauseOf(mod, i) : null;
-        const endButtons = pause
+        const inlineLab = !isLast ? this.lessonLabFor(mod.id, i) : null;
+        const labState = inlineLab ? this.labCheckOf(mod.id, i) : null;
+        const endButtons = inlineLab
+          ? (labState && labState.done
+            ? `<button class="btn btn-primary" onclick="${nextAction}">✓ ${this.l(`Lab lulus, lanjut ke materi ${i + 2}`, `Lab step passed, next: lesson ${i + 2}`)} →</button>`
+            : `<button class="btn btn-quiet" onclick="${nextAction}">${this.l("Lewati lab, ke materi", "Skip the lab, next lesson")} ${i + 2}</button>
+               <button class="btn btn-primary" disabled title="${this.l("Terbuka setelah tes lab langkah ini lulus", "Unlocks when this lab step's tests pass")}">🔒 ${this.l("Lulus lab di atas untuk lanjut", "Pass the lab step above to continue")}</button>`)
+          : pause
           ? `<button class="btn btn-quiet" onclick="${nextAction}">${this.l("Lewati lab, ke materi", "Skip the lab, next lesson")} ${i + 2}</button>
              <button class="btn btn-primary" onclick="app.lessonToLab('${mod.id}', ${i}${pause.part ? `, '${pause.part}'` : ", ''"}, true)">🧪 ${this.l("Latihan di lab dulu", "Practise in the lab now")} →</button>`
           : `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`;
         const stepBody = steps ? (() => {
           const st = steps[stepK], n = steps.length;
-          const turn = st.kind === "turn";
-          const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
+          const turn = st.kind === "turn" || st.kind === "lab";
+          const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" || sx.kind === "lab" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" || sx.kind === "lab" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
           const back = stepK > 0
             ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK - 1})">← ${this.l("Kembali", "Back")}</button>`
             : i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← ${this.l("Materi", "Lesson")} ${i}</button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`;
@@ -3336,8 +3472,8 @@ Hello from KopiKu</code></pre>
             <span class="step-bar" aria-hidden="true"><span style="width:${Math.round(((stepK + 1) / n) * 100)}%"></span></span>
           </div>
           <div class="step-card ${turn ? "step-turn" : ""}" key="step-${i}-${stepK}">
-            ${turn ? `<div class="step-turn-tag">✋ ${this.l("Giliranmu: berhenti dan coba", "Your turn: stop and try it")}</div>` : ""}
-            ${this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart })}
+            ${turn ? `<div class="step-turn-tag">${st.kind === "lab" ? "🧪 " + this.l("Lab: tulis kodenya, jalankan tesnya", "Lab: write the code, run its tests") : "✋ " + this.l("Giliranmu: berhenti dan coba", "Your turn: stop and try it")}</div>` : ""}
+            ${st.kind === "lab" ? this.lessonLabHtml(mod.id, i) : this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart })}
           </div>
           <div class="step-nav">${back}${forward}</div>`;
         })() : "";
@@ -3367,7 +3503,7 @@ Hello from KopiKu</code></pre>
           </div>
           ${ls.optional ? `<div class="callout optional-note"><strong>${this.l("Opsional pada putaran pertama.", "Optional on the first pass.")}</strong> ${this.l("Materi ini berguna untuk persiapan kerja dan wawancara, tetapi lab dan modul berikutnya tidak membutuhkannya. Jika Anda baru mulai, boleh lewati sekarang dan kembali sebelum mencari kerja.", "This lesson helps with job preparation and interviews, but the labs and later modules do not need it. If you are just starting, you may skip it now and come back before you look for a job.")}</div>` : ""}
           ${!steps || stepK === 0 ? lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("") : ""}
-          ${steps ? stepBody : this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
+          ${steps ? stepBody : this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i }) + (hasLab ? this.lessonLabHtml(mod.id, i) : "")}
         </section>
         ${steps ? "" : `<div class="lesson-pager">
           ${i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← <span class="pager-label">${this.l("Materi", "Lesson")} ${i}</span></button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`}

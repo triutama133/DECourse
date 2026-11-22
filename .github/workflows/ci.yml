@@ -26,6 +26,9 @@ jobs:
       - name: Python pad examples run in the real Pyodide
         run: node scripts/verify_lesson_pads.js
 
+      - name: Per-lesson lab pieces lose nothing
+        run: node scripts/test_lesson_lab.js
+
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 
