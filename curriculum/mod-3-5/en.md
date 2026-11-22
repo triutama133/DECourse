@@ -181,6 +181,63 @@ Use the evaluation as a **regression test**, in CI and after every change to chu
 - **Reproducibility**: record the model, chunking version and index settings alongside the data, so an answer can be explained and rebuilt.
 - **Cost control**: embed only what changed (above), batch calls, cache embeddings by content hash, and set budgets and alerts as in Module 3.4.
 
+### See it: the permission filter must run before the top-k
+
+Three chunks, two tenants. The query is closest to the chunk of tenant B, which user A must never see:
+
+:::trace Rank first, filter later leaks; filter first is safe
+@code
+chunks = [
+    {"id": "b1", "tenant": "B", "score": 0.95},
+    {"id": "a1", "tenant": "A", "score": 0.80},
+    {"id": "a2", "tenant": "A", "score": 0.70},
+]
+k = 1
+rank_first = sorted(chunks, key=lambda c: -c["score"])[:k]
+visible_late = [c["id"] for c in rank_first if c["tenant"] == "A"]
+allowed = [c for c in chunks if c["tenant"] == "A"]
+filter_first = [c["id"] for c in sorted(allowed, key=lambda c: -c["score"])[:k]]
+print(visible_late, filter_first)
+@notes
+7 | Ranking first takes the top 1 of **everyone's** chunks: it is `b1`, the other tenant's chunk.
+8 | Filtering afterwards removes it, and nothing is left: the user gets **no result** (and the chunk had already been retrieved).
+9 | Filtering first keeps only what the user may read...
+10 | ...and then the top 1 of those is `a1`: a real answer, and a forbidden chunk never reached the pipeline.
+:::
+
+:::ask Why must permissions be applied as a filter at retrieval time, before the chunks reach the prompt?
+@options
+the model will hide the forbidden text if we ask it politely
+* a chunk the user may not read must never reach the prompt: a model cannot be trusted to hide it afterwards
+filters make the search faster, nothing else
+@why
+Once text is in the prompt the model can repeat it. The only safe place to enforce access is **before** retrieval results leave the data layer, with metadata filters applied inside the search so the top-k is chosen among allowed chunks.
+:::
+
+:::drill python Filter first, then rank
+Write `search(chunks, user_groups, k)`: `chunks` are dicts with `"id"`, `"group"` and `"score"`. Keep only chunks whose `"group"` is in `user_groups`, **then** return the ids of the `k` highest scores, best first.
+@starter
+# write your function below this line
+
+@check
+defines("search") ## Define search(chunks, user_groups, k).
+search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A"], 1) == ["a1"] ## The best chunk overall (b1) is forbidden for group A: the answer is a1.
+search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A", "B"], 2) == ["b1", "a1"] ## With both groups allowed the top 2 are b1 and a1.
+search([{"id": "b1", "group": "B", "score": 0.95}], ["A"], 3) == [] ## Nothing allowed: an empty result, never a forbidden chunk.
+@hint
+```python
+def search(chunks, user_groups, k):
+    allowed = [c for c in chunks if c["group"] in user_groups]
+    best = sorted(allowed, key=lambda c: -c["score"])[:k]
+    return [c["id"] for c in best]
+```
+@solution
+def search(chunks, user_groups, k):
+    allowed = [c for c in chunks if c["group"] in user_groups]
+    best = sorted(allowed, key=lambda c: -c["score"])[:k]
+    return [c["id"] for c in best]
+:::
+
 > 💡 **Practice Pause 5 (Vector Similarity Search & Hit Rate / MRR Evaluation):**
 > 1. Open `labs/mod-3-5/rag.py` in your text editor.
 > 2. Implement `search(conn, query, k=5, category=None, model="v1", embed_fn=embed)` using pgvector cosine distance `<=>` with strict model filtering, and `evaluate(conn, eval_set, k=5, **search_kwargs)` computing Hit Rate @ k and Mean Reciprocal Rank (MRR).

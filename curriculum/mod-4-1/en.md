@@ -157,6 +157,15 @@ On the real file this rejects about 1.2% of the rows, and the checker compares y
 
 **Quality gates** (the pipeline refuses the delivery and exits with 2 if any is true): one of the 19 required columns is missing; the delivery has zero rows; the reject rate is **above 5%**. On refusal, print one JSON line on stderr that says why (for example `{"status": "failed", "failure": "missing_columns"}`).
 
+:::ask A taxi trip has a drop-off time before its pick-up time. Per the contract, what do you do?
+@options
+* quarantine it with a reason, and count it in the quality report
+drop it silently
+fix it by swapping the two times
+@why
+The contract says what is valid. A row you cannot trust is set aside **with a reason**, not guessed at and not hidden, so the quality report can show exactly what was rejected and why.
+:::
+
 > 💡 **Practice Pause 2 (Step 2: Cleaning, Quarantine & Quality Report):**
 > 1. Open `pipeline.py` in your workspace (`~/taxi/pipeline.py`) using your text editor.
 > 2. Implement 19-column deduplication, evaluation of the 5 sequential cleaning rules (first rule wins), and output files `clean/trips.parquet` (exactly 2,927,800 rows with 16 columns), `rejected/trips_rejected.parquet`, and `quality_report.json`.

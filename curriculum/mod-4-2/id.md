@@ -151,6 +151,15 @@ Atau kebalikannya:
 4. **Penulisan Idempoten di Tujuan (Upsert):** Saat pulih dari crash, pipeline pasti akan memproses kembali sebagian rekaman yang sudah sempat tersimpan. Tabel tujuan wajib menggunakan operasi `UPSERT` atau query deduplikasi berdasarkan `event_id` dengan mempertahankan baris yang memiliki nilai `updated_epoch_ms` terbesar.
 5. **Semantik Rename POSIX:** Di Linux dan sistem operasi turunan POSIX, fungsi `os.replace` memetakan langsung ke pemanggilan sistem `rename(2)`. Jika berkas `state.json` sudah ada sebelumnya, berkas tersebut diganti secara atomik dalam satu siklus filesystem tunggal. Klien pembaca yang berjalan bersamaan akan selalu membaca versi JSON valid sebelumnya atau versi JSON valid terbaru, tidak pernah membaca potongan buffer yang rusak setengah jadi.
 
+:::ask Run ingesti Anda mengambil 500 record, menulisnya, dan baru kemudian memajukan checkpoint. Ia crash tepat setelah menulis. Apa yang terjadi pada run berikutnya?
+@options
+500 record itu hilang
+* ia mengambil record yang sama lagi; load yang idempoten menyerap pengulangan itu, jadi tidak ada data yang hilang atau berlipat
+ia menolak mulai
+@why
+Checkpoint hanya boleh menggambarkan data yang tersimpan dengan aman. Crash di antara penulisan dan checkpoint hanya memakan pengambilan ulang, yang dibuat tidak berbahaya oleh load yang melakukan deduplikasi.
+:::
+
 > 💡 **Jeda Praktik 3 (Langkah 3: Watermarking Stateful & Atomic Crash Recovery):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
 > 2. Implementasikan pelacakan `high_watermark_epoch_ms` berbasis timestamp `updated` terbesar yang telah di-commit, kirim filter `updatedafter` pada pemanggilan berikutnya, dan amankan penulisan `state.json` via atomic rename (`.tmp` + `os.replace`).
@@ -190,6 +199,15 @@ Tidak semua error boleh di-retry. Jika server mengembalikan `HTTP 400 Bad Reques
 
 ### 4. Batas Waktu Soket dan Higienitas Koneksi:
 Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas waktu eksplisit (misalnya `urllib.request.urlopen(url)`). Jika middlebox jaringan memutus paket diam-diam, thread dapat menggantung selamanya tanpa batas, mengunci cron job dan menghentikan pipeline. Selalu terapkan timeout eksplisit (misalnya 15-30 detik). Selain itu, gunakan context manager Python (`with ... as resp:`) guna menjamin soket ditutup seketika dan mencegah kebocoran file descriptor pada pemrosesan batch bervolume tinggi.
+
+:::ask API menjawab HTTP 429 dengan header `Retry-After: 30`. Apa yang Anda lakukan?
+@options
+mengulang seketika, secepat mungkin
+menyerah dan langsung menandai run gagal
+* menunggu setidaknya 30 detik (tambahkan sedikit jitter), lalu mengulang, dengan batas jumlah percobaan
+@why
+429 berarti "Anda meminta terlalu cepat", kegagalan sementara. Hormati `Retry-After`, tambahkan jitter agar banyak klien tidak kembali pada saat yang sama, dan batasi percobaan. Error seri-400 seperti 404 tidak sementara: mengulang tidak pernah memperbaikinya.
+:::
 
 > 💡 **Jeda Praktik 4 (Langkah 4: Ketahanan Jaringan: HTTP 429 Rate-Limits & 5xx Backoff):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.

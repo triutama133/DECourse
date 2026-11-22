@@ -190,8 +190,8 @@ Jendelanya bergeser. Dua hari pertama dirata-ratakan atas lebih sedikit baris, k
 
 :::ask Tiga pesanan seri di 85.000 dan diurutkan hanya berdasarkan total. Dengan frame BAWAAN (tanpa ROWS), berapa total berjalan yang ditampilkan yang pertama dari ketiganya?
 @options
-85.000
 * 255.000
+85.000
 170.000
 @why
 Dengan `ORDER BY` dan tanpa frame, bawaannya `RANGE ...`, yang memperlakukan baris seri sebagai **peer**: setiap baris seri menyertakan semua peer-nya, jadi ketiganya menampilkan 85.000 x 3 = 255.000. Tulis `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` (dan ORDER BY yang unik) untuk total berjalan baris demi baris yang sebenarnya.

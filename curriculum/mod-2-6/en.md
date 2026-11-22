@@ -99,6 +99,15 @@ COMPOUND SORTKEY (order_date, status);
 The second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away.
 :::
 
+:::ask A table has 3 micro-partitions. The zone maps for `order_date` say: P1 is Jan 1 to Jan 10, P2 is Jan 11 to Jan 20, P3 is Jan 21 to Jan 31. You query `WHERE order_date = '2026-01-15'`. How many partitions are scanned?
+@options
+* one: only P2 can contain Jan 15; the others are pruned without being read
+all three
+none
+@why
+A zone map is the min/max of each column in each partition. The engine compares the filter with it and skips partitions that cannot match. The less your data's ranges overlap (good clustering), the more it can prune, and scan-priced warehouses charge less.
+:::
+
 > 💡 **Practice Pause 1 (Micro-Partitions, Zone Maps & Partition Pruning):**
 > 1. In your text editor (VS Code / Cursor), open `labs/mod-2-6/warehouse_lab.py` (do not run `.py` files directly in bash).
 > 2. Implement `build_micro_partitions(rows, target_rows, cluster_key=None)` to split rows and compute min/max statistics for every column.
@@ -349,6 +358,15 @@ Embedded analytics is the hardest. It is **multi-tenant**: one set of tables ser
 > 🛠 **Try it (15 min, Python).** With DuckDB and `SET threads = 1`, create 5,000,000 orders for 2,000 tenants: `SELECT range AS order_id, range % 2000 AS customer_id, DATE '2025-01-01' + CAST((range // 2000) % 700 AS INTEGER) AS order_date, 10000 + (range * 37) % 500000 AS total_idr FROM range(5000000)`. Build a table `monthly` with revenue per customer and month. Then time a tenant's dashboard query, "revenue per month for customer ?", 100 times for random customers, once on the raw orders and once on `monthly`, and compare the median. Check that both give the same rows. Finally, drop the `WHERE customer_id = ?` and count the distinct `customer_id` values the query would then read.
 >
 > **You should see:** `monthly` has `48000` rows (24 months for each of 2,000 customers) and takes about a tenth of a second to build. On a laptop CPU (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) the median was about `13` ms on the raw orders and about `0.9` ms on `monthly`, around 14 times faster, with identical results: roughly 75 versus 1,100 queries per second per core. If 1,000 cafés open a five-chart dashboard in the same minute, that is 5,000 queries, about 83 per second: more than one core can serve from raw orders, a small fraction of one core from `monthly`. Without the `WHERE`, the dashboard silently adds up the orders of all `2000` tenants and shows them to one café. Your times will differ; the ratio should not by much.
+
+:::ask You inherit a 3,000-line stored procedure that feeds the dashboards. What is the safest way to replace it?
+@options
+rewrite everything in one go and switch over on a Friday
+* the strangler fig: build the new pipeline beside it, move one output at a time, compare the numbers, and retire the old piece only when the new one matches
+never touch it
+@why
+A big-bang rewrite has no way back and no proof. The strangler fig replaces the old system **piece by piece**, with both running side by side so the numbers can be compared, until the old code has nothing left to do.
+:::
 
 ## @lesson Deep dive: Google BigQuery architecture, ARRAY<STRUCT> modeling, FinOps & Free Sandbox {optional}
 **Google BigQuery** appears in **12.7%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), behind Databricks (34.8%) and Snowflake (25.8%) and just ahead of Redshift (11.7%). It is still the easiest *real* warehouse to practise on, because its sandbox needs no payment card, and its design explains a lot about the others. You need to understand how its internal architecture shapes how you model tables, ingest streams, and control costs on GCP.

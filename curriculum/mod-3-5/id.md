@@ -181,6 +181,63 @@ Gunakan evaluasi sebagai **regression test**, di CI dan setiap kali chunking, mo
 - **Keterlacakan dan Reproduktibilitas**: catat versi model embedding, konfigurasi chunking, dan snapshot indeks bersama dengan data jawaban agar setiap output AI dapat diaudit dan direproduksi kembali saat investigasi.
 - **Kontrol biaya**: embed hanya yang berubah (lihat di atas), kirim panggilan secara batch, cache embedding berdasarkan content hash, dan pasang anggaran serta alert seperti di Modul 3.4.
 
+### Lihat sendiri: filter izin harus berjalan sebelum top-k
+
+Tiga chunk, dua tenant. Query paling dekat dengan chunk tenant B, yang tidak boleh pernah dilihat pengguna A:
+
+:::trace Ranking dulu lalu filter bocor; filter dulu aman
+@code
+chunks = [
+    {"id": "b1", "tenant": "B", "score": 0.95},
+    {"id": "a1", "tenant": "A", "score": 0.80},
+    {"id": "a2", "tenant": "A", "score": 0.70},
+]
+k = 1
+rank_first = sorted(chunks, key=lambda c: -c["score"])[:k]
+visible_late = [c["id"] for c in rank_first if c["tenant"] == "A"]
+allowed = [c for c in chunks if c["tenant"] == "A"]
+filter_first = [c["id"] for c in sorted(allowed, key=lambda c: -c["score"])[:k]]
+print(visible_late, filter_first)
+@notes
+7 | Ranking dulu mengambil top 1 dari chunk **semua orang**: itu `b1`, chunk tenant lain.
+8 | Menyaring sesudahnya membuangnya, dan tidak ada yang tersisa: pengguna mendapat **tanpa hasil** (dan chunk itu sudah terlanjur diambil).
+9 | Menyaring dulu hanya menyimpan yang boleh dibaca pengguna...
+10 | ...lalu top 1 di antaranya adalah `a1`: jawaban nyata, dan chunk terlarang tidak pernah sampai ke pipeline.
+:::
+
+:::ask Mengapa izin harus diterapkan sebagai filter saat retrieval, sebelum chunk sampai ke prompt?
+@options
+model akan menyembunyikan teks terlarang jika kita memintanya dengan sopan
+* chunk yang tidak boleh dibaca pengguna tidak boleh pernah sampai ke prompt: model tidak bisa dipercaya menyembunyikannya sesudahnya
+filter hanya membuat pencarian lebih cepat, tidak lebih
+@why
+Begitu teks ada di prompt, model bisa mengulanginya. Satu-satunya tempat aman menegakkan akses adalah **sebelum** hasil retrieval meninggalkan lapisan data, dengan metadata filter diterapkan di dalam pencarian sehingga top-k dipilih di antara chunk yang diizinkan.
+:::
+
+:::drill python Filter dulu, lalu ranking
+Tulis `search(chunks, user_groups, k)`: `chunks` adalah dict dengan `"id"`, `"group"`, dan `"score"`. Simpan hanya chunk yang `"group"`-nya ada di `user_groups`, **lalu** kembalikan id dari `k` skor tertinggi, yang terbaik dulu.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("search") ## Definisikan search(chunks, user_groups, k).
+search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A"], 1) == ["a1"] ## Chunk terbaik secara keseluruhan (b1) terlarang untuk grup A: jawabannya a1.
+search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A", "B"], 2) == ["b1", "a1"] ## Dengan kedua grup diizinkan, top 2 adalah b1 dan a1.
+search([{"id": "b1", "group": "B", "score": 0.95}], ["A"], 3) == [] ## Tidak ada yang diizinkan: hasil kosong, tidak pernah chunk terlarang.
+@hint
+```python
+def search(chunks, user_groups, k):
+    allowed = [c for c in chunks if c["group"] in user_groups]
+    best = sorted(allowed, key=lambda c: -c["score"])[:k]
+    return [c["id"] for c in best]
+```
+@solution
+def search(chunks, user_groups, k):
+    allowed = [c for c in chunks if c["group"] in user_groups]
+    best = sorted(allowed, key=lambda c: -c["score"])[:k]
+    return [c["id"] for c in best]
+:::
+
 > 💡 **Jeda Praktik 5 (Pencarian Kemiripan Vektor & Evaluasi Hit Rate / MRR):**
 > 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
 > 2. Implementasikan fungsi `search(conn, query, k=5, category=None, model="v1", embed_fn=embed)` menggunakan operator cosine distance `<=>` dengan filter model yang ketat, serta fungsi `evaluate(conn, eval_set, k=5, **search_kwargs)` yang menghitung skor Hit Rate @ k dan Mean Reciprocal Rank (MRR).

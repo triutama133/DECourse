@@ -72,8 +72,8 @@ A file has no types and pandas **guesses**. An id is a label, not a quantity: re
 :::ask What does `pd.Series([1, None, 3]).mean()` return?
 @options
 1.33, because the missing value counts as 0
-* 2.0, because the missing value is skipped
 an error
+* 2.0, because the missing value is skipped
 @why
 Most pandas aggregations **skip** `NaN`: the mean is (1 + 3) / 2 = 2.0. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many values are missing when you quote a number.
 :::
@@ -106,8 +106,8 @@ A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure f
 
 :::ask What happens to `df[df["a"] > 1]["b"] = 9`?
 @options
-it sets `b` to 9 for the rows where `a > 1`
 * the assignment goes to a temporary copy and is lost; pandas warns
+it sets `b` to 9 for the rows where `a > 1`
 it raises an error
 @why
 The first part (`df[df["a"] > 1]`) returns a possibly temporary copy, so the assignment never reaches `df`. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`.
@@ -116,8 +116,8 @@ The first part (`df[df["a"] > 1]`) returns a possibly temporary copy, so the ass
 :::ask You need `quantity * unit_price` for 1,000,000 rows. Which is the right tool?
 @options
 `df.apply(lambda row: row["quantity"] * row["unit_price"], axis=1)`
-* `df["quantity"] * df["unit_price"]`, a whole-column operation
 a `for` loop over `df.iterrows()`
+* `df["quantity"] * df["unit_price"]`, a whole-column operation
 @why
 Whole-column (vectorised) operations run in compiled code. The course measured the column multiplication at 1.8 milliseconds against 5.7 seconds for the row-by-row `apply`: about 3,100 times slower.
 :::
@@ -195,8 +195,8 @@ A last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it comp
 
 :::ask The customer table lists 30 customers twice by mistake. You run `orders.merge(customers, on="customer_id", how="left")` on 1,911 orders. What do you get?
 @options
-1,911 rows, a left join keeps the left size
 * more than 1,911 rows: every order of a duplicated customer is repeated, and revenue is overstated, with no error
+1,911 rows, a left join keeps the left size
 an error, because the keys repeat
 @why
 This is the fan-out trap from SQL. The course measured 2,187 rows and revenue 14.1% too high. The defence is one argument, `validate="m:1"`, which raises `MergeError` the moment a key repeats on the right-hand side.

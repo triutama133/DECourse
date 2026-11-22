@@ -86,6 +86,15 @@ Pelajaran praktis untuk perancangan pipeline:
 - **Ukuran row group dan file yang ideal.** Ukuran row group sekitar 100.000 hingga 1.000.000 baris memberikan keseimbangan terbaik antara efektivitas skipping dan overhead metadata. Target ukuran satu file Parquet adalah 100 MB hingga 1 GB. Ribuan file berukuran kecil (beberapa kilobyte) akan memperlambat query (dikenal sebagai **small files problem**), yang harus diperbaiki melalui proses pemadatan (compaction).
 - **File Parquet bersifat immutable.** Anda tidak dapat memperbarui satu baris di tempat; modifikasi data berarti menulis file Parquet baru.
 
+:::ask Satu file Parquet punya 3 row group. Footer menyatakan `total` 0 sampai 100 di group 0, 100 sampai 200 di group 1, dan 200 sampai 300 di group 2. Anda menjalankan query `WHERE total > 250`. Berapa row group yang harus dibaca engine?
+@options
+ketiganya, untuk memastikan
+* satu: hanya group 2 yang bisa berisi nilai di atas 250
+tidak ada, footer tidak bisa dipercaya
+@why
+Setiap row group menyimpan statistik min/max di footer. Group 0 dan 1 punya maksimum di bawah 250, jadi engine **melewatinya** tanpa membaca datanya. Inilah predicate pushdown, dan mengapa data yang terurut (rentang sempit) lebih banyak dilewati.
+:::
+
 > 💡 **Jeda Praktik: Implementasi Predicate Pushdown Mandiri**
 > 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, arahkan ke fungsi `row_groups_to_read(parquet_path, column, lo, hi)`.
 > 2. Buka metadata file menggunakan `pq.ParquetFile(parquet_path).metadata`. Temukan indeks kolom target, lalu lakukan iterasi pada tiap row group. Baca `statistics`: jika statistik tidak ada atau tidak memiliki min/max, row group wajib dibaca (tambahkan ke daftar); jika ada, periksa apakah rentang `[stats.min, stats.max]` beririsan dengan `[lo, hi]` (`stats.max >= lo and stats.min <= hi`).

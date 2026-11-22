@@ -78,6 +78,15 @@ Dengan fondasi idempotensi yang kokoh, operasi **backfill** menjadi sangat elega
 
 Dalam lab praktikum modul ini, Anda tidak sekadar mempercayai teori ini di atas kertas, melainkan mengujinya melalui rangkaian pengujian otomatis: mematerialisasi partisi dua kali dan membandingkan byte outputnya; melakukan backfill 7 hari sebanyak dua kali dan memverifikasi laporan pendapatan tidak berlipat ganda; serta mengarahkan resource ke direktori yang hilang dan memastikan pipeline **gagal secara eksplisit (fail loudly)**, bukan pura-pura sukses menghasilkan data kosong.
 
+:::ask Sebuah backfill menjalankan ulang hari `2026-01-05`. Rancangan output mana yang aman dijalankan dua kali?
+@options
+* menimpa file untuk hari itu, `out/date=2026-01-05/part.csv`, ditulis secara atomik
+menambahkan baris hari itu ke satu `all.csv` yang terus bertambah
+menulis ke nama file acak setiap run
+@why
+Job yang idempoten meninggalkan hasil yang sama baik dijalankan sekali maupun lima kali. Menambahkan menduplikasi hari itu pada run kedua; path deterministik per partisi yang **diganti** tidak. Inilah aturan yang membuat backfill dan retry aman.
+:::
+
 > 💡 **Jeda Praktik 2 (Asset Terpartisi & Operasi Atomic Write):**
 > 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
 > 2. Implementasikan fungsi `@asset(partitions_def=daily, ...)` untuk `daily_orders(context: AssetExecutionContext, paths: Paths)`: baca file `orders.csv`, saring baris yang tanggalnya cocok dengan `context.partition_key`, bersihkan total Rupiah dan status transaksi, serta tulis baris yang diurutkan ke file output JSON (`date=<day>/orders.ndjson`).

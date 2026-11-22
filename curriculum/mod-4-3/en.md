@@ -250,6 +250,15 @@ Any concurrent reader or recovering process always sees either the complete prio
 ### 4. Idempotent Storage Emission in DuckDB:
 When an engine crashes and recovers, it may replay events from the last committed checkpoint. If your database write is a naive `INSERT`, duplicate rows will pollute analytical metrics. Using the `windowed_metrics` primary key `(window_start, window_end, zone_id)` above, emit new aggregates via a temporary staging table, delete matching keys, and insert the refreshed rows cleanly.
 
+:::ask A stream consumer processes a batch and must save its offset. Which order survives a crash best?
+@options
+save the offset first, then process the batch
+* process and write the results, then save the offset
+the order does not matter
+@why
+If you save the offset first and crash while processing, the batch is skipped forever. Saving it after the results are written means a crash only replays the batch, which an idempotent write absorbs. Same rule as checkpoints in the ingestion capstone.
+:::
+
 > 💡 **Practice Pause 4 (Step 4: Consumer Offset Checkpointing & Crash Recovery):**
 > 1. Open `stream_processor.py` in your workspace using your text editor.
 > 2. Persist `last_offset` and in-flight `open_windows` accumulators atomically (`.tmp` + `os.replace`), and read the offset upon startup to skip previously committed events.

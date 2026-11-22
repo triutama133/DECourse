@@ -190,8 +190,8 @@ The window slides. The first two days average over fewer rows, because there are
 
 :::ask Three orders are tied at 85,000 and are ordered by total only. With the DEFAULT frame (no ROWS written), what running total does the first of the three show?
 @options
-85,000
 * 255,000
+85,000
 170,000
 @why
 With `ORDER BY` and no frame, the default is `RANGE ...`, which treats tied rows as **peers**: each tied row includes all of its peers, so all three show 85,000 x 3 = 255,000. Write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` (and a unique ORDER BY) for a true row-by-row running total.

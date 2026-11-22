@@ -250,6 +250,15 @@ Proses lain atau prosedur pemulihan crash akan selalu membaca file JSON lama yan
 ### 4. Idempotensi Penyimpanan di DuckDB:
 Ketika engine pulih dari kegagalan, sistem biasanya membaca ulang beberapa event dari titik checkpoint terakhir. Jika operasi penulisan database adalah `INSERT` biasa, baris ganda akan merusak metrik analitik. Memakai primary key komposit `windowed_metrics` `(window_start, window_end, zone_id)` di atas, pancarkan agregat baru lewat tabel staging sementara, hapus key yang cocok, lalu sisipkan baris terbaru secara bersih.
 
+:::ask Consumer stream memproses sebuah batch dan harus menyimpan offset-nya. Urutan mana yang paling selamat dari crash?
+@options
+simpan offset dulu, lalu proses batch
+* proses dan tulis hasilnya, lalu simpan offset
+urutannya tidak penting
+@why
+Jika Anda menyimpan offset dulu dan crash saat memproses, batch itu terlewat selamanya. Menyimpannya setelah hasil ditulis berarti crash hanya memutar ulang batch, yang diserap oleh penulisan yang idempoten. Aturan yang sama dengan checkpoint di capstone ingesti.
+:::
+
 > 💡 **Jeda Praktik 4 (Langkah 4: Checkpointing Consumer Offset & Crash Recovery):**
 > 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
 > 2. Simpan `last_offset` dan akumulator in-flight `open_windows` secara atomik (`.tmp` + `os.replace`), serta baca offset pada awal eksekusi untuk melewati event yang sudah terproses.

@@ -86,6 +86,15 @@ Practical consequences:
 - **Row group and file size.** Row groups of roughly 100,000 to a few million rows balance skipping granularity against metadata overhead. Files of roughly 100 MB to 1 GB are a good target. Thousands of tiny files are slow (each needs an open, a footer read, and bookkeeping); this is the **small files problem**, fixed by compaction (Module 2.2).
 - **Parquet files are immutable.** You cannot change one row in place; you rewrite the file. Table formats (Module 2.2) build safe updates on top of this.
 
+:::ask A Parquet file has 3 row groups. The footer says `total` is 0 to 100 in group 0, 100 to 200 in group 1 and 200 to 300 in group 2. You query `WHERE total > 250`. How many row groups must the engine read?
+@options
+all three, to be sure
+* one: only group 2 can contain a value above 250
+none, the footer cannot be trusted
+@why
+Each row group stores min/max statistics in the footer. Groups 0 and 1 have a maximum below 250, so the engine **skips** them without reading their data. This is predicate pushdown, and why sorted data (tight ranges) skips more.
+:::
+
 > 💡 **Practice Pause: Implementing Predicate Pushdown by Hand**
 > 1. In your text editor in `labs/mod-2-1/analytics.py`, locate function `row_groups_to_read(parquet_path, column, lo, hi)`.
 > 2. Inspect the file metadata using `pq.ParquetFile(parquet_path).metadata`. Find the target column index, then iterate over each row group. Check `statistics`: if statistics are missing or lack min/max bounds, the row group must be read (add it to your list); if present, check whether the range `[stats.min, stats.max]` overlaps `[lo, hi]` (`stats.max >= lo and stats.min <= hi`).

@@ -131,6 +131,15 @@ Design decisions of a gate:
 - **Order matters, and stopping early is fine.** If the schema has drifted (a column renamed), row-level checks are meaningless: fail immediately with a clear reason.
 - **Keep the evidence**: write the quarantine file and a report (counts by reason) for each run so trends are visible.
 
+:::ask A row arrives with a negative order total. The contract says totals must be positive. What should the ingestion gate do?
+@options
+drop it silently so the report stays clean
+* quarantine the row with a reason, let the valid rows through, and count what was set aside
+reject the whole file because of one row
+@why
+Strict at the door does not mean throwing the batch away or hiding the problem. A quarantine keeps the bad row with its reason, the pipeline continues, and a quality report says how many rows were set aside, so nothing disappears without a trace.
+:::
+
 > 💡 **Practice Pause 2 (Building the Ingestion Gate & Quarantine):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
 > 2. Implement `load_contract(path)` and `validate_rows(rows, contract)`: enforce field constraints strictly (missing, wrong type, minimum, allowed, duplicate) and route invalid rows to `quarantined` with detailed error messages.

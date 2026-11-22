@@ -156,6 +156,60 @@ Satu partisi menampung **73%** dari total data! Task yang menangani partisi ters
 
 **Cara mendiagnosis di Spark UI.** Buka stage yang lambat dan amati tabel **Task Metrics Summary**: jika metrik *Max* durasi task atau *Shuffle Read Size* bernilai puluhan kali lipat lebih tinggi daripada nilai *Median*, itu adalah bukti mutlak terjadinya data skew. Munculnya indikator "Spill (Memory)" dan "Spill (Disk)" pada task tersebut semakin mengonfirmasinya. Di level kode, hitung nilai **skew ratio** (ukuran partisi terbesar dibagi ukuran partisi median) seperti yang Anda bangun di lab; rasio di atas 5 menandakan masalah serius.
 
+### Lihat sendiri: satu key panas, satu task kelebihan beban
+
+Delapan baris disebar ke 3 partisi menurut key-nya. Enam baris berbagi key yang sama:
+
+:::trace Semua baris satu key mendarat di satu partisi
+@code
+keys = ["a", "a", "a", "a", "a", "a", "b", "c"]
+partitions = {0: [], 1: [], 2: []}
+for k in keys:
+    partitions[ord(k) % 3].append(k)
+print({p: len(rows) for p, rows in partitions.items()})
+@notes
+4 | Key yang sama selalu memberi nomor partisi yang sama. Perhatikan partisi 1 terisi dengan setiap `"a"`.
+5 | Satu partisi memegang 6 dari 8 baris. Di Spark itu berarti satu task berjalan lama sementara yang lain menganggur: stage selesai hanya ketika task paling lambat selesai.
+:::
+
+:::ask Sebuah key join bernilai NULL pada 60% baris. Setelah shuffle, ke mana semua baris itu pergi?
+@options
+tersebar merata ke semua partisi
+dibuang oleh join
+* ke satu partisi yang sama, karena setiap NULL di-hash ke nilai yang sama: satu task mengerjakan sebagian besar pekerjaan
+@why
+Hash partitioning bersifat deterministik: key yang sama (termasuk NULL) selalu pergi ke tempat yang sama. Key panas karena itu membuat satu task kelebihan beban, sementara executor lain menganggur. Perbaikan: tangani NULL secara terpisah, broadcast sisi yang kecil, atau **salt** key panasnya.
+:::
+
+:::drill python Beri salt pada key panas
+Tulis `salted_counts(keys, buckets)`: beri baris-baris nomor 0, 1, 2, ... secara berurutan, ganti nama setiap key menjadi `key#` ditambah nomor baris modulo `buckets` (jadi `"a"` menjadi `"a#0"`, `"a#1"`, ...), dan kembalikan dictionary yang menghitung baris per key bersalt. Key panas sekarang terpecah menjadi `buckets` kelompok yang lebih kecil.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("salted_counts") ## Definisikan salted_counts(keys, buckets).
+salted_counts(["a"] * 6, 3) == {"a#0": 2, "a#1": 2, "a#2": 2} ## Enam baris "a" dengan 3 bucket: dua baris di setiap a#0, a#1, a#2.
+salted_counts(["a", "a", "b"], 2) == {"a#0": 1, "a#1": 1, "b#0": 1} ## Nomor baris 0, 1, 2: a#0, a#1, b#0 (2 % 2 adalah 0).
+salted_counts([], 4) == {} ## Tanpa baris, tanpa hitungan.
+max(salted_counts(["x"] * 100, 4).values()) == 25 ## 100 baris satu key di 4 bucket: masing-masing 25, kelompok terbesar 25 (bukan 100).
+@hint
+```python
+def salted_counts(keys, buckets):
+    counts = {}
+    for i, key in enumerate(keys):
+        salted = key + "#" + str(i % buckets)
+        counts[salted] = counts.get(salted, 0) + 1
+    return counts
+```
+@solution
+def salted_counts(keys, buckets):
+    counts = {}
+    for i, key in enumerate(keys):
+        salted = key + "#" + str(i % buckets)
+        counts[salted] = counts.get(salted, 0) + 1
+    return counts
+:::
+
 > 💡 **Jeda Praktik 3 (Diagnostik Data Skew & Ukuran Partisi):**
 > 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda.
 > 2. Implementasikan fungsi `partition_sizes(df, cols, n)` untuk mempartisi DataFrame berdasarkan kolom kunci dan menghitung jumlah baris di setiap partisi.

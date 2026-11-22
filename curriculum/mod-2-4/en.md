@@ -78,6 +78,15 @@ A **backfill** is then simple and safe: run the same step for each past interval
 
 The lab has you test these properties instead of trusting them: materialise a partition twice and compare the bytes; backfill seven days twice and check the report does not double-count; point the resource at a missing directory and check that the run **fails**, not "succeeds" with nothing.
 
+:::ask A backfill reruns the day `2026-01-05`. Which output design is safe to run twice?
+@options
+* overwrite the file for that day, `out/date=2026-01-05/part.csv`, written atomically
+append the day's rows to one growing `all.csv`
+write to a random filename each run
+@why
+An idempotent job leaves the same result whether it runs once or five times. Appending duplicates the day on the second run; a deterministic per-partition path that is **replaced** does not. This is the rule that makes backfills and retries safe.
+:::
+
 > 💡 **Practice Pause 2 (Partitioned Assets & Atomic Writes):**
 > 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
 > 2. Implement `@asset(partitions_def=daily, ...)` for `daily_orders(context: AssetExecutionContext, paths: Paths)`: read `orders.csv`, filter rows matching `context.partition_key`, clean totals and status, and write sorted rows to `date=<day>/orders.ndjson`.

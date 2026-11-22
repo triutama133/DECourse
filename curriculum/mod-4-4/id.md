@@ -145,6 +145,15 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 
 **Lakukan pengujian dini menggunakan `dag.test()`.** Setelah selesai menulis sebuah fungsi task, jalankan DAG untuk satu tanggal tertentu secara lokal dan periksa isi tabel database DuckDB Anda. Skrip pemeriksa otomatis menggunakan mekanisme pengujian yang persis sama, sehingga apa yang Anda amati di terminal lokal adalah apa yang dinilai oleh sistem penguji.
 
+:::ask DAG untuk logical date `2026-01-05` berjalan dua kali (rerun manual). Apa yang harus benar sesudahnya?
+@options
+ada dua salinan hasil hari itu
+run kedua gagal
+* hasilnya persis sama seperti setelah satu run: setiap task menggantikan outputnya untuk tanggal itu
+@why
+Orchestrator menjalankan ulang sesuatu: retry, backfill, clear manual. Setiap task harus **idempoten per logical date**, menulis ke path atau partisi untuk tanggal itu dan menggantinya, sehingga rerun tidak pernah menggandakan apa pun.
+:::
+
 > 💡 **Jeda Praktik 4 (Langkah 4: Idempotensi Rerun & Out-of-Order Backfill):**
 > 1. Buka file `jobs_pipeline.py` di workspace Anda menggunakan teks editor.
 > 2. Pastikan operasi pemuatan di `load` menggunakan prinsip replace (DELETE baris tanggal `ds` sebelum INSERT di dalam satu transaksi DuckDB) dan `publish_mart` selalu membangun ulang mart dari awal.

@@ -272,8 +272,8 @@ Tanggal 25 sekarang 2 pesanan dan Rp 250.000, bukan 3 dan Rp 400.000. Model incr
 :::ask Kolom mana yang harus dipakai watermark incremental: `order_date` (waktu bisnis) atau `_loaded_at` (waktu masuk)?
 @options
 `order_date`: itu tanggal pesanan terjadi
-* `_loaded_at`: ia menunjukkan apa yang baru bagi Anda, dan baris yang terlambat atau diperbarui punya tanggal bisnis lama tetapi waktu masuk baru
 keduanya memberi hasil yang sama
+* `_loaded_at`: ia menunjukkan apa yang baru bagi Anda, dan baris yang terlambat atau diperbarui punya tanggal bisnis lama tetapi waktu masuk baru
 @why
 Waktu bisnis menyatakan kapan sesuatu terjadi; waktu masuk menyatakan apa yang *tiba*. Refund untuk pesanan lama datang terlambat: `order_date`-nya lama, `_loaded_at`-nya baru, sehingga hanya watermark waktu masuk yang melihatnya.
 :::

@@ -156,8 +156,8 @@ Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server rest
 :::ask Pendapatan berlipat dua semalam. Penyebabnya: sebuah job diulang setelah timeout dan memuat file yang sama dua kali. Perbaikan mana yang menyelesaikan masalah semacam ini untuk selamanya?
 @options
 menghapus salinan kedua dengan tangan setiap pagi
-* beri setiap record key yang stabil dan buat load-nya idempoten: menjalankan dua kali menghasilkan hasil yang sama
 menjalankan job lebih jarang
+* beri setiap record key yang stabil dan buat load-nya idempoten: menjalankan dua kali menghasilkan hasil yang sama
 @why
 Duplikat datang dari retry, pengiriman "at least once", dan sumber yang tumpang tindih, jadi mereka akan terus datang. Key yang stabil ditambah load yang idempoten membuat pengulangan tidak berbahaya alih-alih sesuatu yang harus Anda ingat untuk dibersihkan.
 :::

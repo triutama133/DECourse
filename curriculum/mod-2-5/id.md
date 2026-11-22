@@ -131,6 +131,15 @@ Prinsip perancangan ingestion gate produksi:
 - **Urutan evaluasi berjenjang (Fail-Fast).** Jika skema struktural sudah menyimpang (seperti nama kolom utama hilang), pengecekan level baris tidak ada gunanya: segera hentikan proses dengan pesan kegagalan skema yang jelas.
 - **Simpan bukti historis**: tulis file karantina dan laporan ringkasan evaluasi di setiap siklus run agar tren anomali kualitas data dapat dipantau dari waktu ke waktu.
 
+:::ask Sebuah baris tiba dengan total pesanan negatif. Kontrak menyatakan total harus positif. Apa yang harus dilakukan gerbang ingesti?
+@options
+membuangnya diam-diam supaya laporan tetap bersih
+* mengkarantina baris itu beserta alasannya, meloloskan baris yang valid, dan menghitung apa yang disisihkan
+menolak seluruh file karena satu baris
+@why
+Ketat di pintu tidak berarti membuang seluruh batch atau menyembunyikan masalah. Karantina menyimpan baris buruk beserta alasannya, pipeline berlanjut, dan laporan kualitas menyebutkan berapa baris yang disisihkan, sehingga tidak ada yang hilang tanpa jejak.
+:::
+
 > 💡 **Jeda Praktik 2 (Membangun Ingestion Gate & Karantina):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
 > 2. Implementasikan fungsi `load_contract(path)` dan `validate_rows(rows, contract)`: periksa secara ketat aturan field (missing, wrong type, minimum, allowed, duplicate) dan masukkan baris bermasalah ke list `quarantined` beserta daftar errornya.

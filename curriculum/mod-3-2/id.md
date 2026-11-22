@@ -58,6 +58,99 @@ Jaminan urutan adalah konsep yang paling sering disalahpahami. Kafka menjamin ke
 
 Pada Bagian A lab praktikum modul ini, Anda akan membangun konsep-konsep ini dari nol ke dalam implementasi mini Kafka in-memory, sehingga Anda menguasai aturan internalnya secara mendalam: pemetaan key-to-partition yang deterministik, pelacakan offset per partisi, perhitungan lag, algoritma range assignment, serta mekanisme log compaction lengkap dengan penanganan tombstone. (Di `minilog.py`, `Record` memakai `@dataclass(frozen=True)` untuk membuat objek immutable `Record(partition, offset, key, value)` yang field-nya tidak bisa diubah setelah dibuat.)
 
+### Lihat sendiri: partisi, offset, dan kompaksi
+
+Setiap partisi adalah lognya sendiri yang berurutan, dan setiap record punya **offset** (posisinya di partisi itu). Perhatikan record mendapat `(partition, offset)`:
+
+:::trace Setiap record mendapat partisi dan offset
+@code
+topic = {0: [], 1: []}
+
+def produce(key, value):
+    p = len(key) % 2
+    topic[p].append(value)
+    return p, len(topic[p]) - 1
+
+print(produce("ab", "order-1"))
+print(produce("abc", "order-2"))
+print(produce("cd", "order-3"))
+@notes
+4 | Key menentukan partisi (di sini pengganti hash). Key yang sama selalu mendarat di partisi yang sama, yang menjaga urutan event key itu.
+5 | Record ditambahkan di akhir log partisinya.
+6 | Offset adalah posisi di dalam partisi **itu**: 0 untuk record pertama, 1 untuk kedua...
+9 | `"cd"` sepanjang `"ab"`, jadi ia bergabung ke partisi yang sama, di offset berikutnya.
+:::
+
+Sekarang aturan kompaksi log: simpan **record terbaru per key**, dan perlakukan nilai `None` (sebuah **tombstone**) sebagai "key ini dihapus".
+
+:::trace Kompaksi menyimpan nilai terbaru, tombstone menghapus
+@code
+log = [("c1", "Jakarta"), ("c2", "Medan"), ("c1", "Bandung"), ("c2", None)]
+latest = {}
+for key, value in log:
+    latest[key] = value
+compacted = {k: v for k, v in latest.items() if v is not None}
+print(compacted)
+@notes
+4 | Record yang lebih baru untuk key yang sama **menggantikan** yang lebih lama: `c1` pindah dari Jakarta ke Bandung.
+4 | Record terakhir untuk `c2` bernilai `None`: sebuah tombstone.
+5 | Tombstone menghapus key dari hasil kompaksi: `c2` hilang, `c1` adalah Bandung.
+:::
+
+:::ask Sebuah topic punya 3 partisi dan consumer group berisi 4 consumer. Berapa consumer yang menganggur?
+@options
+tidak ada, Kafka membuat partisi keempat
+* satu: sebuah partisi dibaca paling banyak oleh satu consumer dalam group
+keempatnya berbagi setiap partisi
+@why
+Dalam sebuah consumer group setiap partisi ditugaskan ke tepat satu consumer, jadi paralelisme group dibatasi jumlah partisi. Consumer keempat tidak punya apa pun untuk dibaca sampai sebuah consumer pergi atau partisi ditambah.
+:::
+
+:::drill python Padatkan sebuah log
+Tulis `compact(log)`: `log` adalah list record `(key, value)` berurutan. Kembalikan dictionary dengan nilai **terbaru** setiap key, dan **hapus** key yang nilai terbarunya `None` (tombstone).
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("compact") ## Definisikan compact(log).
+compact([("c1", "Jakarta"), ("c2", "Medan"), ("c1", "Bandung")]) == {"c1": "Bandung", "c2": "Medan"} ## Record yang lebih baru untuk c1 menang.
+compact([("c1", "Jakarta"), ("c1", None)]) == {} ## Tombstone menghapus key.
+compact([("c1", None), ("c1", "Medan")]) == {"c1": "Medan"} ## Nilai setelah tombstone mengembalikan key.
+compact([]) == {} ## Log kosong dipadatkan menjadi kosong.
+@hint
+Ulangi recordnya dan simpan `latest[key] = value`; di akhir simpan hanya entri yang nilainya bukan `None`.
+@solution
+def compact(log):
+    latest = {}
+    for key, value in log:
+        latest[key] = value
+    return {k: v for k, v in latest.items() if v is not None}
+:::
+
+:::drill python Lewati yang sudah diproses
+Consumer tidak boleh menerapkan record dua kali (pengiriman bisa berulang). Tulis `fresh(events)`: `events` adalah list dict dengan `"partition"` dan `"offset"`; kembalikan event dengan urutan sama, **membuang yang pasangan `(partition, offset)`-nya sudah terlihat sebelumnya** dalam list.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("fresh") ## Definisikan fresh(events).
+fresh([{"partition": 0, "offset": 5, "v": "a"}, {"partition": 0, "offset": 5, "v": "a"}, {"partition": 1, "offset": 5, "v": "b"}]) == [{"partition": 0, "offset": 5, "v": "a"}, {"partition": 1, "offset": 5, "v": "b"}] ## (partition, offset) yang sama dua kali: simpan yang pertama. Offset 5 di partisi lain adalah record berbeda.
+fresh([]) == [] ## List kosong menghasilkan list kosong.
+len(fresh([{"partition": 0, "offset": i % 2, "v": i} for i in range(6)])) == 2 ## Enam event tetapi hanya dua pasangan (partition, offset) yang berbeda: 2.
+@hint
+Simpan set `seen` berisi tuple `(partition, offset)`: tambahkan event hanya ketika pasangannya tidak ada di `seen`, lalu masukkan pasangannya.
+@solution
+def fresh(events):
+    seen = set()
+    out = []
+    for event in events:
+        pair = (event["partition"], event["offset"])
+        if pair not in seen:
+            seen.add(pair)
+            out.append(event)
+    return out
+:::
+
 > 💡 **Jeda Praktik 1 (MiniLog Topic, Partisi CRC32 & Log Compaction):**
 > 1. Buka file `labs/mod-3-2/minilog.py` di teks editor Anda. Jangan eksekusi file ini langsung di terminal tanpa pytest.
 > 2. Implementasikan class `Topic`: method `__init__`, `partition_for(key)` menggunakan `zlib.crc32(str(key).encode()) % partitions` (atau round-robin jika key `None`), `produce(key, value)`, `end_offsets()`, dan `compact()`.

@@ -72,8 +72,8 @@ Sebuah file tidak punya tipe dan pandas **menebak**. Id adalah label, bukan kuan
 :::ask Apa yang dikembalikan `pd.Series([1, None, 3]).mean()`?
 @options
 1.33, karena nilai yang hilang dihitung sebagai 0
-* 2.0, karena nilai yang hilang dilewati
 sebuah error
+* 2.0, karena nilai yang hilang dilewati
 @why
 Sebagian besar agregasi pandas **melewati** `NaN`: rata-ratanya (1 + 3) / 2 = 2.0. Itu biasanya yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% hilang menggambarkan 70% lainnya. Selalu tahu berapa nilai yang hilang saat Anda menyebut sebuah angka.
 :::
@@ -106,8 +106,8 @@ Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> cle
 
 :::ask Apa yang terjadi pada `df[df["a"] > 1]["b"] = 9`?
 @options
-ia mengisi `b` dengan 9 untuk baris yang `a > 1`
 * penugasan masuk ke salinan sementara dan hilang; pandas memberi peringatan
+ia mengisi `b` dengan 9 untuk baris yang `a > 1`
 ia memunculkan error
 @why
 Bagian pertama (`df[df["a"] > 1]`) mengembalikan salinan yang mungkin sementara, sehingga penugasan tidak pernah sampai ke `df`. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`.
@@ -116,8 +116,8 @@ Bagian pertama (`df[df["a"] > 1]`) mengembalikan salinan yang mungkin sementara,
 :::ask Anda butuh `quantity * unit_price` untuk 1.000.000 baris. Mana alat yang tepat?
 @options
 `df.apply(lambda row: row["quantity"] * row["unit_price"], axis=1)`
-* `df["quantity"] * df["unit_price"]`, operasi seluruh kolom
 loop `for` pada `df.iterrows()`
+* `df["quantity"] * df["unit_price"]`, operasi seluruh kolom
 @why
 Operasi seluruh kolom (vectorised) berjalan di kode yang dikompilasi. Kursus mengukur perkalian kolom 1,8 milidetik melawan 5,7 detik untuk `apply` baris demi baris: sekitar 3.100 kali lebih lambat.
 :::
@@ -195,8 +195,8 @@ Alat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: 
 
 :::ask Tabel pelanggan mencantumkan 30 pelanggan dua kali karena kesalahan. Anda menjalankan `orders.merge(customers, on="customer_id", how="left")` pada 1.911 pesanan. Apa yang Anda dapat?
 @options
-1.911 baris, left join mempertahankan ukuran kiri
 * lebih dari 1.911 baris: setiap pesanan pelanggan yang terduplikasi diulang, dan pendapatan terlalu tinggi, tanpa error
+1.911 baris, left join mempertahankan ukuran kiri
 error, karena key berulang
 @why
 Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% terlalu tinggi. Pertahanannya satu argumen, `validate="m:1"`, yang memunculkan `MergeError` begitu sebuah key berulang di sisi kanan.

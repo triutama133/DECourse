@@ -125,6 +125,24 @@ Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsu
 
 **Tagging Resources.** Konfigurasikan blok `default_tags` pada provider AWS agar setiap resource otomatis disematkan tag `Project`, `Environment`, `Owner`, dan `CostCenter`. Tagging inilah yang menjadi kunci transparansi biaya pada materi FinOps berikutnya.
 
+:::ask VPC Anda adalah `10.0.0.0/16`. Anda membaginya menjadi subnet `/20`. Berapa subnet yang Anda dapat?
+@options
+* 16: setiap langkah dari /16 ke /20 menggandakan jumlahnya (2 x 2 x 2 x 2)
+4
+256
+@why
+`/20` punya 4 bit jaringan lebih banyak daripada `/16`, jadi ada 2^4 = 16 subnet, masing-masing 4.096 alamat (4.091 dapat dipakai di AWS, yang menyimpan 5). Ukuran sulit diubah kemudian, jadi rencanakan sebelum membangun.
+:::
+
+:::ask Sebuah job hanya perlu membaca file di bawah `s3://lake/raw/`. Kebijakan IAM mana yang mengikuti least privilege?
+@options
+`"Action": "s3:*"` pada `"Resource": "*"`
+kebijakan terkelola `AdministratorAccess`
+* `"Action": "s3:GetObject"` pada `arn:aws:s3:::lake/raw/*`
+@why
+Least privilege hanya memberikan **aksi** dan **resource** yang dibutuhkan job: membaca objek, di bawah satu prefix. Wildcard mengubah satu kredensial yang bocor menjadi akses ke segalanya.
+:::
+
 > 💡 **Jeda Praktik 2 (Keamanan Bucket S3 & Kebijakan IAM Least-Privilege):**
 > 1. Buka file `labs/mod-3-4/terraform/main.tf` dan `labs/mod-3-4/terraform/outputs.tf` di teks editor Anda.
 > 2. Lengkapi resource S3 bucket, blokir akses publik (`aws_s3_bucket_public_access_block` keempat flag bernilai `true`), kunci KMS terkelola mandiri dengan rotasi aktif, enkripsi SSE default, aturan lifecycle penyimpanan raw, dan kebijakan IAM policy yang membatasi aksi hanya pada layer silver dan gold.
@@ -209,6 +227,15 @@ Beban kerja riil hanya 33 jam. Satu parameter konfigurasi yang sering diabaikan 
 Faktur tagihan bulanan yang hanya mencantumkan "Total Biaya Compute: $4.200" akan memicu perdebatan kusir antar divisi. Namun laporan FinOps yang merinci: "Marketing $1.900, Finance $600, Data Engineering $1.700, Unallocated $0" membuka ruang pengambilan keputusan strategis. Kunci transparansi ini terletak pada **penyematan tag wajib pada setiap resource dan query**: tag Terraform di level cloud, serta query tag atau service account terisolasi per tim di level warehouse. Jadikan kelengkapan tagging sebagai syarat kelulusan PR review. Pengeluaran yang tidak bertuan (unallocated spend) adalah pengeluaran yang tidak akan pernah dihemat oleh siapa pun.
 
 Kuasai terminologi standar **FinOps**: *Showback* (menampilkan transparansi biaya kepada setiap divisi tanpa memotong anggaran mereka), *Chargeback* (menagihkan biaya komputasi langsung ke pos anggaran departemen terkait), *Unit Economics* (menghitung biaya komputasi per unit bisnis, misalnya biaya cloud per 1.000 pesanan yang diproses), serta *Commitments* (pembelian komitmen kapasitas jangka panjang dengan diskon besar yang hanya menguntungkan untuk baseline beban kerja konstan).
+
+:::ask Pipeline di subnet privat membaca S3 sepanjang hari lewat NAT gateway, yang menagih per GB yang diproses. Jalur apa yang lebih murah dan lebih privat?
+@options
+* **gateway endpoint** S3: rute di tabel rute subnet yang menjaga lalu lintas S3 tetap di jaringan AWS
+NAT gateway yang lebih besar
+memindahkan data ke internet publik
+@why
+Gateway endpoint menambahkan rute ke S3 tanpa mengirim lalu lintas lewat NAT gateway, jadi tidak ada biaya pemrosesan NAT per GB dan lalu lintas tidak pernah meninggalkan jaringan AWS. Jalur jaringan adalah satu baris tagihan, bukan renungan belakangan.
+:::
 
 > 💡 **Jeda Praktik 3 (Pemodelan Biaya Warehouse & Alokasi Tag FinOps):**
 > 1. Buka file `labs/mod-3-4/finops.py` di teks editor Anda.

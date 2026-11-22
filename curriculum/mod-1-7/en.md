@@ -81,8 +81,8 @@ print(list(cache))
 
 :::ask Capacity 2. You set `a`, set `b`, read `a`, then set `c`. Which key is evicted?
 @options
-`a`, because it was set first
 * `b`, because `a` was touched more recently
+`a`, because it was set first
 `c`, because it is new
 @why
 LRU removes the key that has been **untouched the longest**. Reading `a` counted as a use, so `b` is now the oldest. Insertion order alone (FIFO) would have evicted `a`.
@@ -207,8 +207,8 @@ With `N` replicas, a write acknowledged by `W` of them, and a read that asks `R`
 :::ask With N = 3 replicas, is W = 1 and R = 1 safe (a read always sees the latest acknowledged write)?
 @options
 yes, one replica is enough
-* no: 1 + 1 is not greater than 3, so a read can hit a replica the write never reached
 only if the clock is accurate
+* no: 1 + 1 is not greater than 3, so a read can hit a replica the write never reached
 @why
 The write may have reached replica A; the read may ask replica B, which has not heard of it yet. With W = 2 and R = 2 any two replicas overlap in at least one, so a read always meets a replica holding the latest write.
 :::

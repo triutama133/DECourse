@@ -156,8 +156,8 @@ There is a sixth category worth naming: **infrastructure failures** (a server re
 :::ask Revenue doubled overnight. The cause: a job was retried after a timeout and loaded the same file twice. Which fix solves this kind of problem for good?
 @options
 delete the second copy by hand each morning
-* give every record a stable key and make the load idempotent: running twice leaves the same result
 run the job less often
+* give every record a stable key and make the load idempotent: running twice leaves the same result
 @why
 Duplicates come from retries, "at least once" delivery and overlapping sources, so they will keep coming. A stable key plus an idempotent load makes a repeat harmless instead of something you must remember to clean.
 :::

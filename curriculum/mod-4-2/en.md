@@ -151,6 +151,15 @@ Or the inverse:
 4. **Idempotent Destination Writes (Upsert):** When resuming from a crash, the pipeline will inevitably re-process records that were already partially written. The destination table must use an idempotent `UPSERT` or deduplication query on `event_id`, keeping the row with the greatest `updated_epoch_ms`.
 5. **POSIX Rename Semantics:** In Linux and POSIX systems, `os.replace` maps directly to the `rename(2)` system call. If `state.json` already exists, it is atomically unlinked and replaced in a single filesystem operation. Any concurrent reader opens either the previous valid JSON or the new valid JSON, never a half-flushed buffer.
 
+:::ask Your ingestion run fetches 500 records, writes them, and only then moves the checkpoint. It crashes right after writing. What happens on the next run?
+@options
+the 500 records are lost
+* it fetches the same records again; the idempotent load absorbs the repeat, so no data is lost or doubled
+it refuses to start
+@why
+A checkpoint may only describe data that is safely stored. Crashing between the write and the checkpoint costs a repeated fetch, which a deduplicating load makes harmless.
+:::
+
 > 💡 **Practice Pause 3 (Step 3: Stateful Watermarking & Atomic Crash Recovery):**
 > 1. Open `pipeline.py` in your workspace using your text editor.
 > 2. Implement `high_watermark_epoch_ms` tracking on the largest committed `updated` timestamp, query with `updatedafter` on subsequent runs, and protect `state.json` writes via atomic rename (`.tmp` + `os.replace`).
@@ -190,6 +199,15 @@ Not all errors should be retried. If the upstream server returns `HTTP 400 Bad R
 
 ### 4. Socket Timeouts and Connection Hygiene:
 A common rookie mistake is issuing HTTP requests without an explicit timeout (e.g. `urllib.request.urlopen(url)`). If a network middlebox drops packets silently, the thread can hang indefinitely, locking cron jobs and stalling pipelines. Always enforce an explicit timeout (e.g. 15-30 seconds). Furthermore, use Python context managers (`with ... as resp:`) to guarantee sockets are closed immediately, preventing file descriptor leaks in high-frequency batch runs.
+
+:::ask The API answers HTTP 429 with a `Retry-After: 30` header. What do you do?
+@options
+retry immediately, as fast as possible
+give up and mark the run failed at once
+* wait at least 30 seconds (add a little jitter), then retry, with a cap on attempts
+@why
+429 means "you are asking too fast", a transient failure. Respect `Retry-After`, add jitter so many clients do not return at the same instant, and cap the attempts. A 400-level error such as 404 is not transient: retrying never fixes it.
+:::
 
 > 💡 **Practice Pause 4 (Step 4: Network Resilience: HTTP 429 Rate-Limits & 5xx Backoff):**
 > 1. Open `pipeline.py` in your workspace using your text editor.

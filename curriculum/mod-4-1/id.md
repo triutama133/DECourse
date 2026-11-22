@@ -156,6 +156,15 @@ Pada file data nyata, aturan ini menolak sekitar 1,2% baris, dan pemeriksa memba
 
 **Gerbang Kualitas (Quality Gates)** (Pipeline wajib menolak pengiriman data dan keluar dengan kode 2 jika kondisi ini terjadi): Salah satu dari 19 kolom wajib tidak ditemukan; file pengiriman berisi 0 baris; atau rasio baris ditolak melebihi **5% (reject_rate > 0.05)**. Saat penolakan terjadi, cetak satu baris JSON ke stderr yang menjelaskan alasannya (contohnya `{"status": "failed", "failure": "missing_columns"}`).
 
+:::ask Sebuah perjalanan taksi punya waktu turun sebelum waktu naik. Menurut kontrak, apa yang Anda lakukan?
+@options
+* mengkarantinanya beserta alasan, dan menghitungnya di laporan kualitas
+membuangnya diam-diam
+memperbaikinya dengan menukar kedua waktu
+@why
+Kontrak menyatakan apa yang valid. Baris yang tidak bisa dipercaya disisihkan **beserta alasannya**, tidak ditebak dan tidak disembunyikan, sehingga laporan kualitas bisa menunjukkan persis apa yang ditolak dan mengapa.
+:::
+
 > 💡 **Jeda Praktik 2 (Langkah 2: Pembersihan, Karantina, & Laporan Kualitas):**
 > 1. Buka file `pipeline.py` di workspace Anda (`~/taxi/pipeline.py`) menggunakan teks editor.
 > 2. Implementasikan logika deduplikasi 19 kolom, evaluasi 5 aturan pembersihan berurutan (aturan pertama menang), serta penulisan file `clean/trips.parquet` (tepat 2.927.800 baris dengan 16 kolom), `rejected/trips_rejected.parquet`, dan `quality_report.json`.

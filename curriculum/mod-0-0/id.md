@@ -130,8 +130,8 @@ print(count)
 ```
 @options
 count
-count + 5
 * 15
+count + 5
 @why
 Python mengerjakan **sisi kanan dulu**: nilai lama `count` (10) ditambah 5 adalah 15, baru kemudian nama `count` menunjuk ke 15. `print` menampilkan nilainya, bukan namanya.
 :::
@@ -216,8 +216,8 @@ print("2" + "3")
 ```
 @options
 5
-* 23
 sebuah error
+* 23
 @why
 Tanda kutip membuat `"2"` dan `"3"` menjadi **teks**, dan `+` pada teks menempelkan karakternya: `23`. Python tidak menebak bahwa Anda bermaksud angka. Beginilah total harga berupa teks bisa salah tanpa error apa pun.
 :::
@@ -397,8 +397,8 @@ letters = ["a", "b", "c", "d"]
 print(letters[1], letters[-1])
 ```
 @options
-a d
 * b d
+a d
 b c
 @why
 Posisi dimulai dari 0, jadi `letters[1]` adalah item **kedua**, `"b"`. Posisi `-1` adalah item **terakhir**, `"d"`. `print` dengan dua nilai menaruh spasi di antaranya: `b d`.
@@ -482,8 +482,8 @@ print(len(statuses), statuses.count("paid"))
 ```
 @options
 3 3
-* 3 2
 2 3
+* 3 2
 @why
 `len(statuses)` menghitung **setiap** item: 3. `statuses.count("paid")` hanya menghitung item yang sama dengan `"paid"`: 2. Angka pertama adalah "berapa semuanya", angka kedua adalah "berapa dari satu jenis".
 :::
@@ -735,8 +735,8 @@ Hati-hati: satu `=` **menugaskan** (`stock = 12` menaruh 12 ke dalam nama), dua 
 print(5 == 5.0, "5" == 5)
 ```
 @options
-True True
 * True False
+True True
 False False
 @why
 `5` dan `5.0` adalah angka yang sama, jadi perbandingan pertama `True`. Tetapi `"5"` adalah **teks** dan `5` adalah angka, dan Python tidak pernah menganggap teks dan angka sama: `False`.
@@ -1034,8 +1034,8 @@ for n in [1, 2, 3]:
 print(total)
 ```
 @options
-6
 * 3
+6
 0
 @why
 `total = n` **menggantikan** `total` di setiap putaran, jadi setelah putaran terakhir ia hanya berisi angka terakhir, 3. Untuk menjumlahkan Anda butuh `total = total + n`: nilai baru dibangun dari nilai lama.
@@ -1491,8 +1491,8 @@ print(x)
 ```
 @options
 8
-8 lalu 8
 * 8 lalu None
+8 lalu 8
 @why
 Versi ini **mencetak** 8 di dalam fungsi (itu baris pertama), tetapi tidak me-`return` apa pun. Fungsi tanpa `return` memberi `None`, jadi `x` adalah `None` dan baris terakhir mencetak `None`. Mencetak untuk manusia; `return` untuk program.
 :::
@@ -1644,8 +1644,8 @@ print(add(1))
 print(add(2))
 ```
 @options
-[2]
 * [1, 2]
+[2]
 [1]
 @why
 List default dibuat sekali dan **disimpan**. Panggilan pertama memasukkan 1; panggilan kedua mulai dengan list yang sama itu, yang sudah berisi 1, lalu menambahkan 2. Lihat di animasi berikutnya: list-nya tetap berlabel sama, `list#1`.
@@ -1756,8 +1756,8 @@ number = int("Rp 1.250.000")
 ```
 @options
 TypeError
-* ValueError
 KeyError
+* ValueError
 @why
 `int` adalah alat yang tepat untuk teks, tetapi teks ini bukan bilangan bulat: **tipenya** baik dan **nilainya** mustahil. Itu `ValueError`. `TypeError` misalnya menjumlahkan teks dan angka.
 :::
@@ -1768,8 +1768,8 @@ statuses = ["paid", "cancelled", "paid"]
 print(statuses[3])
 ```
 @options
-KeyError
 * IndexError
+KeyError
 ValueError
 @why
 List punya tiga item, di posisi 0, 1, dan 2. Posisi 3 tidak ada: `IndexError: list index out of range`. `KeyError` adalah gagasan yang sama untuk key dictionary.
@@ -2125,8 +2125,8 @@ if __name__ == "__main__":
     main()
 ```
 @options
-running
 * tidak ada
+running
 sebuah error
 @why
 Saat di-import, `__name__` adalah `"shop"`, bukan `"__main__"`, jadi `main()` **tidak** dipanggil: import hanya membuat fungsinya tersedia. Karena itulah sebuah tes bisa meng-import file Anda tanpa memulai programnya.
@@ -2142,8 +2142,8 @@ with open("missing.csv", encoding="utf-8") as f:
     data = f.read()
 ```
 @options
-* FileNotFoundError
 ValueError
+* FileNotFoundError
 `data` yang kosong
 @why
 Python berhenti dengan `FileNotFoundError: No such file or directory`. Ketika Anda melihatnya, periksa dulu **folder tempat Anda memulai Python** dan ejaan path-nya, sebelum hal lain.

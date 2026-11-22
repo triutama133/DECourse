@@ -145,6 +145,15 @@ This lesson is the specification. The checker follows it to the letter.
 
 **Test with `dag.test()` early and often.** After each task you write, run the DAG for one date yourself and look at the warehouse. The checker uses exactly this, so what you see is what it sees.
 
+:::ask The DAG for logical date `2026-01-05` runs twice (a manual rerun). What must be true afterwards?
+@options
+there are two copies of the day's results
+the second run fails
+* the results are exactly the same as after one run: each task replaces its output for that date
+@why
+Orchestrators rerun things: retries, backfills, manual clears. Every task must be **idempotent per logical date**, writing to a path or partition for that date and replacing it, so a rerun can never double anything.
+:::
+
 > 💡 **Practice Pause 4 (Step 4: Rerun Idempotence & Out-of-Order Backfill):**
 > 1. Open `jobs_pipeline.py` in your workspace using your text editor.
 > 2. Ensure task `load` follows the replace pattern (DELETE rows matching `ds` before INSERT inside one DuckDB transaction) and `publish_mart` fully rebuilds the mart from base tables.

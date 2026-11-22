@@ -96,8 +96,8 @@ SELECT COUNT(*) AS lines FROM order_items;
 :::ask SATU baris order_items mewakili apa?
 @options
 satu pesanan
-* satu baris produk di dalam pesanan
 satu produk di katalog
+* satu baris produk di dalam pesanan
 @why
 `order_items` punya satu baris per **baris produk** dalam sebuah pesanan: pesanan dengan tiga produk berbeda punya tiga baris. Karena itu barisnya lebih banyak (24) daripada `orders` (18).
 :::
@@ -111,9 +111,9 @@ Dua jenis key membuat tabel-tabel bekerja bersama:
 
 :::ask Kolom mana yang cukup untuk mengidentifikasi SATU baris order_items?
 @options
+* `order_id` dan `line_no` bersama-sama
 `order_id` saja
 `line_no` saja
-* `order_id` dan `line_no` bersama-sama
 @why
 Sebuah pesanan bisa punya beberapa baris (jadi `order_id` berulang), dan nomor baris 1 ada di setiap pesanan (jadi `line_no` berulang). Hanya **pasangan** `(order_id, line_no)` yang unik: primary key komposit.
 :::
@@ -335,8 +335,8 @@ Sekarang kedua baris NULL ikut. Untuk menyertakannya Anda harus memintanya.
 SELECT COUNT(*) FROM customers WHERE city <> 'Jakarta';
 ```
 @options
-7
 * 5
+7
 3
 @why
 Tiga pelanggan tinggal di Jakarta, lima tinggal di tempat lain, dan dua tidak punya kota. `NULL <> 'Jakarta'` adalah UNKNOWN, jadi kedua yang tidak diketahui ikut terbuang: 5, bukan 7.
@@ -422,8 +422,8 @@ WHERE city NOT IN (SELECT city FROM customers WHERE tier = 'Silver');
 ```
 @options
 pelanggan yang kotanya bukan kota pelanggan Silver
-3 baris
 * tidak ada baris sama sekali
+3 baris
 @why
 Satu pelanggan Silver tidak punya kota, jadi daftar di `NOT IN` berisi NULL, dan `city NOT IN (..., NULL)` tidak pernah benar. Query ini mengembalikan **tidak ada**. Cara yang lebih aman untuk mengatakan "tidak ada di": `NOT EXISTS`, `EXCEPT`, atau anti-join LEFT JOIN di materi join.
 :::
@@ -497,9 +497,9 @@ Sambung teks dengan `||`. Satu jebakan: `'a' || NULL` adalah **NULL**, jadi satu
 SELECT name || ' from ' || city FROM customers;
 ```
 @options
+* NULL
 `Rina Pratama from `
 `Rina Pratama from NULL`
-* NULL
 @why
 Menyambung dengan `||` dan sebuah NULL menghasilkan NULL: seluruh teks lenyap. Pakai `COALESCE(city, 'somewhere')` lebih dulu.
 :::
@@ -914,8 +914,8 @@ Kebiasaan yang perlu dipakai: selalu tahu grain setiap tabel; setelah join, band
 :::ask Dua tabel digabung dan jumlah barisnya lebih besar dari yang bisa Anda jelaskan. Apa yang Anda lakukan?
 @options
 lanjut saja: lebih banyak baris berarti lebih banyak data
-tambahkan DISTINCT untuk menyembunyikan pengulangan
 * berhenti dan cari tahu mengapa sebelum melanjutkan: join pada key yang tidak unik mengulang baris
+tambahkan DISTINCT untuk menyembunyikan pengulangan
 @why
 Join pada key yang tidak unik di **kedua** sisi melipatgandakan baris (many-to-many lebih parah lagi). `DISTINCT` menyembunyikan gejalanya dan bisa menyembunyikan baris berulang yang nyata. Cari dulu ketidakcocokan grain-nya.
 :::
@@ -1026,8 +1026,8 @@ Operasi himpunan menumpuk hasil dua query. Kedua query harus mengembalikan jumla
 :::ask Jakarta punya tier Gold, Bronze, dan Silver; Bandung punya Silver dan Gold. Operator mana yang hanya menyimpan baris yang ada di KEDUA hasil?
 @options
 UNION
-* INTERSECT
 EXCEPT
+* INTERSECT
 @why
 `INTERSECT` hanya menyimpan baris yang ada di kedua hasil (Gold dan Silver). `UNION` menyimpan semuanya dari keduanya (tanpa pengulangan), dan `EXCEPT` menyimpan baris hasil pertama yang tidak ada di yang kedua.
 :::
@@ -1229,8 +1229,8 @@ INSERT INTO customers (customer_id, name, city, tier, signup_date) VALUES (11, '
 UPDATE customers SET tier = 'Gold';
 ```
 @options
-mengubah tier pelanggan pertama
 * mengubah tier SETIAP pelanggan, karena tidak ada WHERE
+mengubah tier pelanggan pertama
 gagal dengan error
 @why
 Tanpa `WHERE`, sebuah `UPDATE` menyentuh setiap baris. Ini salah satu kesalahan ketik termahal dalam pekerjaan data. Selalu tulis `WHERE` lebih dulu, periksa dengan `SELECT`, baru ubah datanya.
@@ -1290,8 +1290,8 @@ Jika server crash di antara dua update, tidak ada yang berlaku; uang tidak perna
 :::ask Anda menjalankan BEGIN, lalu DELETE FROM orders WHERE status = 'cancelled', lalu ROLLBACK. Berapa pesanan di tabel sekarang?
 @options
 16
-* 18, seperti semula: ROLLBACK membatalkan penghapusan
 0
+* 18, seperti semula: ROLLBACK membatalkan penghapusan
 @why
 `ROLLBACK` membatalkan semuanya sejak `BEGIN`. Penghapusan akan menyisakan 16 pesanan; rollback mengembalikan 18 yang semula. `COMMIT` akan membuat penghapusan permanen.
 :::
@@ -1405,9 +1405,9 @@ CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 
 :::ask Sebuah view dan tabel snapshot (CREATE TABLE snap AS SELECT ...) dibuat ketika tabel sumber punya 5 baris. Lalu satu baris lagi dimasukkan ke sumber. Apa yang ditampilkan keduanya?
 @options
+* view menampilkan 6 baris; snapshot masih menampilkan 5
 keduanya menampilkan 6 baris
 keduanya menampilkan 5 baris
-* view menampilkan 6 baris; snapshot masih menampilkan 5
 @why
 View menyimpan **query-nya**, jadi ia selalu membaca data terkini. Tabel yang dibuat dengan `CREATE TABLE ... AS SELECT` (CTAS) menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (dan ia kehilangan constraint aslinya). PostgreSQL dan warehouse juga menawarkan **materialized view**: hasil tersimpan yang **basi sampai di-refresh**.
 :::

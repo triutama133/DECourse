@@ -156,6 +156,60 @@ One partition holds **73%** of the rows. That task must process 18 times more th
 
 **Diagnosing it.** In the Spark UI, open the slow stage and look at the **task summary**: if the *max* task duration or shuffle-read size is many times the *median*, it is skew. A single task with a huge "Shuffle Read Size" and "Spill" confirms it. In code, compute the **skew ratio** (largest partition divided by median) as the lab does; above about 5 deserves attention.
 
+### See it: one hot key, one overloaded task
+
+Eight rows are spread over 3 partitions by their key. Six of the rows share the same key:
+
+:::trace All rows of one key land in one partition
+@code
+keys = ["a", "a", "a", "a", "a", "a", "b", "c"]
+partitions = {0: [], 1: [], 2: []}
+for k in keys:
+    partitions[ord(k) % 3].append(k)
+print({p: len(rows) for p, rows in partitions.items()})
+@notes
+4 | The same key always gives the same partition number. Watch partition 1 fill up with every `"a"`.
+5 | One partition holds 6 of the 8 rows. In Spark that is one task running long while the others sit idle: the stage ends only when the slowest task ends.
+:::
+
+:::ask A join key is NULL on 60% of the rows. After the shuffle, where do all those rows go?
+@options
+they are spread evenly over all partitions
+they are dropped by the join
+* to the same single partition, because every NULL hashes to the same value: one task does most of the work
+@why
+Hash partitioning is deterministic: equal keys (including NULL) always go to the same place. A hot key therefore creates one overloaded task, while the other executors idle. Fixes: filter or handle the NULLs separately, broadcast the small side, or **salt** the hot key.
+:::
+
+:::drill python Salt a hot key
+Write `salted_counts(keys, buckets)`: give the rows numbers 0, 1, 2, ... in order, rename each key to `key#` plus the row number modulo `buckets` (so `"a"` becomes `"a#0"`, `"a#1"`, ...), and return a dictionary that counts the rows per salted key. A hot key is now split into `buckets` smaller groups.
+@starter
+# write your function below this line
+
+@check
+defines("salted_counts") ## Define salted_counts(keys, buckets).
+salted_counts(["a"] * 6, 3) == {"a#0": 2, "a#1": 2, "a#2": 2} ## Six rows of "a" with 3 buckets: two rows in each of a#0, a#1, a#2.
+salted_counts(["a", "a", "b"], 2) == {"a#0": 1, "a#1": 1, "b#0": 1} ## Row numbers 0, 1, 2: a#0, a#1, b#0 (2 % 2 is 0).
+salted_counts([], 4) == {} ## No rows, no counts.
+max(salted_counts(["x"] * 100, 4).values()) == 25 ## 100 rows of one key over 4 buckets: 25 each, the largest group is 25 (not 100).
+@hint
+```python
+def salted_counts(keys, buckets):
+    counts = {}
+    for i, key in enumerate(keys):
+        salted = key + "#" + str(i % buckets)
+        counts[salted] = counts.get(salted, 0) + 1
+    return counts
+```
+@solution
+def salted_counts(keys, buckets):
+    counts = {}
+    for i, key in enumerate(keys):
+        salted = key + "#" + str(i % buckets)
+        counts[salted] = counts.get(salted, 0) + 1
+    return counts
+:::
+
 > 💡 **Practice Pause 3 (Diagnosing Data Skew & Partition Sizing):**
 > 1. Open `labs/mod-3-1/spark_lab.py` in your text editor.
 > 2. Implement `partition_sizes(df, cols, n)` to partition the DataFrame by key columns and return the row count per partition.

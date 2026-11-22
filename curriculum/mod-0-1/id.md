@@ -44,8 +44,8 @@ Sebelum yang lain Anda perlu tahu **di folder mana Anda berdiri** dan **apa isin
 :::ask Anda berada di `~/kopiku/scripts`. Folder datanya `~/kopiku/data`. Anda menjalankan `head -5 data/orders.csv`. Apa yang terjadi?
 @options
 menampilkan lima baris pertama file pesanan
-* error: `No such file or directory`, karena `data/` tidak ada di dalam `scripts/`
 menghapus lima baris pertama
+* error: `No such file or directory`, karena `data/` tidak ada di dalam `scripts/`
 @why
 `data/orders.csv` adalah **path relatif**: shell mencarinya mulai dari folder tempat Anda berada, `scripts/`, dan di dalamnya tidak ada `data/`. File itu satu tingkat di atas. Jalankan `pwd` dan `ls` dulu, atau tulis path dari tempat Anda berdiri: `../data/orders.csv`.
 :::
@@ -89,8 +89,8 @@ Jangan pernah membuka file sejuta baris di editor untuk "melihat isinya": `head`
 :::ask Perintah mana yang tepat sebagai pandangan pertama pada file yang sangat besar?
 @options
 `cat huge.csv`
-* `head -5 huge.csv`
 `rm huge.csv`
+* `head -5 huge.csv`
 @why
 `cat` akan mencetak setiap baris dan membanjiri layar Anda. `head -5` menampilkan hanya lima baris pertama (header dan beberapa baris), yang biasanya sudah cukup untuk memahami bentuk datanya.
 :::
@@ -114,8 +114,8 @@ Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka f
 
 :::ask Anda ingin menghapus folder `old_data/`. Apa kebiasaan paling aman?
 @options
-langsung jalankan `rm -rf old_data`
 * jalankan `ls old_data` dulu, pastikan isinya seperti dugaan Anda, baru hapus
+langsung jalankan `rm -rf old_data`
 pindahkan ke tempat sampah dengan `rm`
 @why
 Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` lebih dulu hanya butuh dua detik dan sudah menyelamatkan banyak orang dari hari yang buruk.
@@ -170,8 +170,8 @@ File yang namanya diawali titik (`.gitignore`, `.env`) **tersembunyi**; `ls -a` 
 :::ask Anda mengetik `pytest` dan shell menjawab `command not found`. Apa yang dikatakan itu?
 @options
 program pytest rusak
-* tidak ada folder di `PATH` Anda yang berisi program bernama `pytest`
 Anda salah mengetik password
+* tidak ada folder di `PATH` Anda yang berisi program bernama `pytest`
 @why
 Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" berarti tidak satu pun punya: belum terpasang, atau terpasang di tempat yang tidak ada di `PATH`. Mengaktifkan virtual environment Python (dua materi berikutnya) bekerja dengan menaruh foldernya di **depan** `PATH`.
 :::
@@ -186,8 +186,8 @@ Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" b
 
 :::ask Anda mendapat `Permission denied` saat menjalankan skrip yang baru diunduh. Langkah pertama yang benar?
 @options
-taruh `sudo` di depannya, supaya selalu berhasil
 * lihat permission dengan `ls -l`, dan beri izin eksekusi dengan `chmod +x` bila skripnya milik Anda dan tepercaya
+taruh `sudo` di depannya, supaya selalu berhasil
 hapus file lalu unduh lagi
 @why
 `sudo` menjalankan perintah dengan kekuatan penuh dan membuat file yang kemudian hanya bisa diubah administrator: jangan "memperbaiki" error permission dengan itu secara membabi buta. Baca dulu flag permission-nya, lalu ubah hanya yang perlu, pada file yang Anda percayai.
@@ -239,8 +239,8 @@ hanya angkanya
 
 :::ask Mengapa `sort` harus datang SEBELUM `uniq -c` dalam pipe?
 @options
-`uniq` hanya bekerja pada angka yang terurut
 * `uniq -c` menghitung rangkaian baris sama yang **bersebelahan**, jadi nilai yang sama harus berdekatan dulu
+`uniq` hanya bekerja pada angka yang terurut
 supaya keluarannya lebih rapi
 @why
 `uniq -c` hanya membandingkan sebuah baris dengan baris tepat sebelumnya. Untuk `paid, cancelled, paid` ia menghitung tiga kelompok berisi 1. Setelah `sort` ia melihat `cancelled, paid, paid` dan menghitung `1 cancelled` dan `2 paid`.
@@ -331,8 +331,8 @@ print(which("pytest"))
 :::ask Proyek A butuh `pandas 1.5` dan proyek B butuh `pandas 2.2`. Keduanya dipasang ke satu Python global. Apa yang terjadi?
 @options
 kedua versi bekerja berdampingan
-* memasang satu versi menggantikan yang lain, sehingga salah satu proyek rusak
 pip menolak dan tidak memasang apa pun
+* memasang satu versi menggantikan yang lain, sehingga salah satu proyek rusak
 @why
 Satu instalasi Python menyimpan **satu** versi untuk setiap paket. Virtual environment memberi setiap proyek folder paket pribadinya sendiri, sehingga A dan B berhenti berebut.
 :::
@@ -369,8 +369,8 @@ Sebelum membaca bagian berikutnya, jawab:
 :::ask Mana di antara ini yang harus Anda commit ke Git?
 @options
 folder `venv/`
-* `requirements.txt`
 keduanya
+* `requirements.txt`
 @why
 `venv/` besar, spesifik untuk mesin Anda, dan dibuat ulang dengan satu perintah dari `requirements.txt` (`python -m pip install -r requirements.txt`). Commit resepnya, bukan hasilnya.
 :::
@@ -411,8 +411,8 @@ Tebak dulu sebelum membaca bagian berikutnya:
 
 :::ask Anda mengedit `a.py` dan `b.py`. Anda menjalankan `git add a.py` lalu `git commit -m "fix"`. Apa isi commit itu?
 @options
-kedua file
 * hanya `a.py`: hanya perubahan yang di-stage yang masuk ke commit
+kedua file
 tidak ada, Anda juga harus menjalankan `git push`
 @why
 Commit mengambil snapshot dari **staging area**, dan hanya `a.py` yang di-stage. `b.py` tetap file yang dimodifikasi di working tree. Itulah mengapa `git status` sebelum setiap commit berguna.
@@ -432,8 +432,8 @@ Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah 
 :::ask Pilih perintah yang tepat.
 @options
 `git revert`
-* `git restore summarize.py`
 `git commit --amend`
+* `git restore summarize.py`
 @why
 `git restore file` membuang suntingan yang belum di-commit pada sebuah file. `git revert` membatalkan sebuah **commit** dengan menambah commit baru, dan `git commit --amend` menulis ulang pesan commit terakhir. Hati-hati: `git restore` tidak bisa dibatalkan, suntingan itu hilang.
 :::
@@ -446,8 +446,8 @@ Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah 
 
 :::ask Anda meng-commit `.env` berisi password, menyadarinya, dan menghapus file itu di commit berikutnya. Apakah password itu sudah aman?
 @options
-ya, file-nya sudah hilang
 * tidak: ia masih ada di commit sebelumnya, dan siapa pun yang punya salinan repositori bisa membacanya
+ya, file-nya sudah hilang
 ya, karena commit tidak bisa dibaca
 @why
 Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Commit lama masih berisinya. Anggap setiap secret yang ter-commit sudah terbuka: cabut dan ganti dulu (materi berikutnya).
@@ -495,8 +495,8 @@ Tebak urutan langkah daruratnya:
 
 :::ask Sebuah API key di-push ke repositori publik. Apa hal PERTAMA yang dilakukan?
 @options
-menghapus file di commit baru
 * mencabut key di providernya dan membuat yang baru
+menghapus file di commit baru
 menunggu dan melihat apakah ada yang memakainya
 @why
 Bot memindai repositori publik dalam hitungan menit, jadi anggap key itu sudah disalin. Cabut dan ganti dulu. Membersihkan riwayat dan menambah `.gitignore` menyusul, dan menghapus file saja bukan perbaikan.

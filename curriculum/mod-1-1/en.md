@@ -140,8 +140,8 @@ set -euo pipefail
 
 :::ask A pipeline is `zcat broken.gz | wc -l`. `zcat` fails halfway because the file is corrupt, `wc` still counts what it got. Without `-o pipefail`, what exit code does the pipeline report?
 @options
-non-zero, because `zcat` failed
 * 0, because only the last stage (`wc`) counts
+non-zero, because `zcat` failed
 127
 @why
 By default a pipeline reports the exit code of its **last** stage. `wc -l` succeeded, so the pipeline looks fine while the data is incomplete. `set -o pipefail` makes the pipeline fail if **any** stage fails.
@@ -198,8 +198,8 @@ The first line runs at 02:00 every day. Know these surprises before they cost yo
 :::ask Your script works in your terminal but fails under cron with `python: command not found`. What is the most likely cause?
 @options
 cron does not support Python
-* cron runs with a bare environment: a short `PATH` and no activated virtual environment
 the schedule is wrong
+* cron runs with a bare environment: a short `PATH` and no activated virtual environment
 @why
 cron does not load your shell profile. Use absolute paths (`/opt/kopiku/venv/bin/python`), set variables inside the script, and redirect output to a log (`>> log 2>&1`) so you can see what happened.
 :::

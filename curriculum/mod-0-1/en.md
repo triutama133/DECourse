@@ -44,8 +44,8 @@ Before anything else you need to know **which folder you are standing in** and *
 :::ask You are in `~/kopiku/scripts`. The data folder is `~/kopiku/data`. You run `head -5 data/orders.csv`. What happens?
 @options
 it shows the first five lines of the orders file
-* an error: `No such file or directory`, because `data/` is not inside `scripts/`
 it deletes the first five lines
+* an error: `No such file or directory`, because `data/` is not inside `scripts/`
 @why
 `data/orders.csv` is a **relative path**: the shell looks for it starting from the folder you are in, `scripts/`, and there is no `data/` inside it. The file is one level up. Run `pwd` and `ls` first, or write the path from where you are: `../data/orders.csv`.
 :::
@@ -89,8 +89,8 @@ Never open a million-line file in an editor to "see what is in it": `head` shows
 :::ask Which command is the right first look at a huge file?
 @options
 `cat huge.csv`
-* `head -5 huge.csv`
 `rm huge.csv`
+* `head -5 huge.csv`
 @why
 `cat` would print every line and flood your screen. `head -5` shows just the first five lines (the header and a few rows), which is usually all you need to understand the shape of the data.
 :::
@@ -114,8 +114,8 @@ Together they answer "how many orders were cancelled?" without opening the file:
 
 :::ask You want to delete the folder `old_data/`. What is the safest habit?
 @options
-run `rm -rf old_data` straight away
 * run `ls old_data` first, check it is what you think, then delete it
+run `rm -rf old_data` straight away
 move it to the recycle bin with `rm`
 @why
 There is no recycle bin in the shell. Looking at **exactly the same path** with `ls` first costs two seconds and has saved many people a bad day.
@@ -170,8 +170,8 @@ Files whose names start with a dot (`.gitignore`, `.env`) are **hidden**; `ls -a
 :::ask You type `pytest` and the shell answers `command not found`. What does that tell you?
 @options
 the pytest program is broken
-* no folder on your `PATH` contains a program named `pytest`
 you typed the wrong password
+* no folder on your `PATH` contains a program named `pytest`
 @why
 The shell looks for the name in every folder of `PATH`, in order. "command not found" means none of them has it: not installed, or installed somewhere that is not on `PATH`. Activating a Python virtual environment (the lesson after next) works by putting its folder at the **front** of `PATH`.
 :::
@@ -186,8 +186,8 @@ The shell looks for the name in every folder of `PATH`, in order. "command not f
 
 :::ask You get `Permission denied` running a script you just downloaded. What is the right first move?
 @options
-put `sudo` in front, so it always works
 * look at the permissions with `ls -l`, and give execute permission with `chmod +x` if the script is yours and trusted
+put `sudo` in front, so it always works
 delete the file and download it again
 @why
 `sudo` runs the command with full power and creates files only the administrator can later change: do not "fix" permission errors with it blindly. Read the permission flags first, then change only what is needed, on a file you trust.
@@ -239,8 +239,8 @@ only the numbers
 
 :::ask Why must `sort` come BEFORE `uniq -c` in the pipe?
 @options
-`uniq` only works on sorted numbers
 * `uniq -c` counts runs of **neighbouring** equal lines, so equal values must be next to each other first
+`uniq` only works on sorted numbers
 it makes the output prettier
 @why
 `uniq -c` only compares a line with the one just before it. For `paid, cancelled, paid` it would count three groups of 1. After `sort` it sees `cancelled, paid, paid` and counts `1 cancelled` and `2 paid`.
@@ -331,8 +331,8 @@ print(which("pytest"))
 :::ask Project A needs `pandas 1.5` and project B needs `pandas 2.2`. Both are installed into the one global Python. What happens?
 @options
 both versions work side by side
-* installing one version replaces the other, so one of the projects breaks
 pip refuses and installs nothing
+* installing one version replaces the other, so one of the projects breaks
 @why
 A Python installation holds **one** version of each package. A virtual environment gives every project its own private folder of packages, so A and B stop fighting.
 :::
@@ -367,8 +367,8 @@ Newer tools (`uv`, `poetry`) do the same job faster and add lock files; the conc
 :::ask Which of these should you commit to Git?
 @options
 the `venv/` folder
-* `requirements.txt`
 both
+* `requirements.txt`
 @why
 `venv/` is large, specific to your machine, and recreated in one command from `requirements.txt` (`python -m pip install -r requirements.txt`). Commit the recipe, not the result.
 :::
@@ -409,8 +409,8 @@ Predict before you read the next part:
 
 :::ask You edit `a.py` and `b.py`. You run `git add a.py` and then `git commit -m "fix"`. What is in the commit?
 @options
-both files
 * only `a.py`: only staged changes go into a commit
+both files
 nothing, you must also run `git push`
 @why
 A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `b.py` stays a modified file in the working tree. This is why `git status` before every commit pays off.
@@ -428,8 +428,8 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 :::ask You edited `summarize.py` and broke it. Nothing is committed yet. Which command throws the edits away and brings the last committed version back?
 @options
 `git revert`
-* `git restore summarize.py`
 `git commit --amend`
+* `git restore summarize.py`
 @why
 `git restore file` discards uncommitted edits to a file. `git revert` undoes a **commit** by adding a new commit, and `git commit --amend` rewrites the last commit message. Careful: `git restore` cannot be undone, the edits are gone.
 :::
@@ -442,8 +442,8 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 
 :::ask You committed `.env` with a password, noticed, and deleted the file in your next commit. Is the password safe now?
 @options
-yes, the file is gone
 * no: it still lives in the earlier commit, and anyone with a copy of the repository can read it
+yes, the file is gone
 yes, because commits can not be read
 @why
 Deleting a file in a later commit only removes it from the latest snapshot. The old commit still contains it. Treat any committed secret as exposed: revoke and replace it first (next lesson).
@@ -489,8 +489,8 @@ Predict the order of the emergency steps:
 
 :::ask An API key was pushed to a public repository. What is the FIRST thing to do?
 @options
-delete the file in a new commit
 * revoke the key at its provider and create a new one
+delete the file in a new commit
 wait to see whether anyone uses it
 @why
 Bots scan public repositories within minutes, so assume the key is already copied. Revoke and replace it first. Cleaning the history and adding `.gitignore` come after, and deleting the file alone is not a fix.

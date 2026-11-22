@@ -140,8 +140,8 @@ set -euo pipefail
 
 :::ask Sebuah pipeline adalah `zcat broken.gz | wc -l`. `zcat` gagal di tengah karena file rusak, `wc` tetap menghitung apa yang diterimanya. Tanpa `-o pipefail`, exit code apa yang dilaporkan pipeline?
 @options
-bukan nol, karena `zcat` gagal
 * 0, karena hanya tahap terakhir (`wc`) yang dihitung
+bukan nol, karena `zcat` gagal
 127
 @why
 Secara default pipeline melaporkan exit code **tahap terakhirnya**. `wc -l` berhasil, jadi pipeline tampak baik-baik saja padahal datanya tidak lengkap. `set -o pipefail` membuat pipeline gagal jika **tahap mana pun** gagal.
@@ -198,8 +198,8 @@ Baris pertama berjalan pukul 02.00 setiap hari. Ketahui kejutan-kejutan ini sebe
 :::ask Skrip Anda berjalan di terminal tetapi gagal di bawah cron dengan `python: command not found`. Apa penyebab yang paling mungkin?
 @options
 cron tidak mendukung Python
-* cron berjalan dengan environment kosong: `PATH` pendek dan tanpa virtual environment aktif
 jadwalnya salah
+* cron berjalan dengan environment kosong: `PATH` pendek dan tanpa virtual environment aktif
 @why
 cron tidak memuat profil shell Anda. Pakai path absolut (`/opt/kopiku/venv/bin/python`), atur variabel di dalam skrip, dan alihkan output ke log (`>> log 2>&1`) supaya Anda bisa melihat apa yang terjadi.
 :::

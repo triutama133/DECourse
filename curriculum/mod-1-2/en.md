@@ -220,16 +220,16 @@ print(list(rows))
 ```
 @options
 `[2, 4, 6]` then `[2, 4, 6]`
-* `[2, 4, 6]` then `[]`
 `[2, 4, 6]` then an error
+* `[2, 4, 6]` then `[]`
 @why
 A generator is **used up** after one pass: the second `list(rows)` finds nothing left. If you need another pass, create a new generator (call the function again).
 :::
 
 :::ask `rows = read_orders("missing.csv")` is a generator function. On which line does the `FileNotFoundError` appear?
 @options
-on the line that calls `read_orders(...)`
 * later, when something first asks for a row (`next(rows)` or a `for` loop)
+on the line that calls `read_orders(...)`
 never, generators hide errors
 @why
 Laziness hides errors: calling the function runs nothing, so the file is only opened when the first row is requested. A bug in a generator shows up later and somewhere else than where you created it.
@@ -357,17 +357,17 @@ print(clean, quarantine)
 :::ask Which of these failures is worth retrying?
 @options
 a negative order total
-* a connection timeout while calling an API
 a missing column in the CSV header
+* a connection timeout while calling an API
 @why
 **Transient** failures (a timeout, a rate limit, a dropped connection) will probably succeed after a pause. **Bad data** (a negative total, a missing column) will fail the same way every time: retrying wastes time, so quarantine it or fail loudly.
 :::
 
 :::ask The job crashes halfway through writing `output.tmp`, and the last step `os.replace("output.tmp", "output")` never runs. What does a reader of `output` see?
 @options
+* the old, complete file
 half of the new file
 nothing, the file is deleted
-* the old, complete file
 @why
 That is the point of the atomic write: the new data is built beside the real file and swapped in with one step at the end. A crash leaves the old complete file intact, so a reader never sees a half-written one.
 :::

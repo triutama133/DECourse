@@ -130,8 +130,8 @@ print(count)
 ```
 @options
 count
-count + 5
 * 15
+count + 5
 @why
 Python works out the **right side first**: the old value of `count` (10) plus 5 is 15, and only then does the name `count` point at 15. `print` shows the value, not the name.
 :::
@@ -216,8 +216,8 @@ print("2" + "3")
 ```
 @options
 5
-* 23
 an error
+* 23
 @why
 The quotes make `"2"` and `"3"` **text**, and `+` on text glues the characters together: `23`. Python does not guess that you meant numbers. This is exactly how a total of text prices goes wrong without any error.
 :::
@@ -397,8 +397,8 @@ letters = ["a", "b", "c", "d"]
 print(letters[1], letters[-1])
 ```
 @options
-a d
 * b d
+a d
 b c
 @why
 Positions start at 0, so `letters[1]` is the **second** item, `"b"`. Position `-1` is the **last** item, `"d"`. `print` with two values puts a space between them: `b d`.
@@ -482,8 +482,8 @@ print(len(statuses), statuses.count("paid"))
 ```
 @options
 3 3
-* 3 2
 2 3
+* 3 2
 @why
 `len(statuses)` counts **every** item: 3. `statuses.count("paid")` counts only the items equal to `"paid"`: 2. The first number is "how many in total", the second is "how many of one kind".
 :::
@@ -735,8 +735,8 @@ Be careful: one `=` **assigns** (`stock = 12` puts 12 in the name), two `==` **c
 print(5 == 5.0, "5" == 5)
 ```
 @options
-True True
 * True False
+True True
 False False
 @why
 `5` and `5.0` are the same number, so the first comparison is `True`. But `"5"` is **text** and `5` is a number, and Python never treats text and numbers as equal: `False`.
@@ -1034,8 +1034,8 @@ for n in [1, 2, 3]:
 print(total)
 ```
 @options
-6
 * 3
+6
 0
 @why
 `total = n` **replaces** `total` in every round, so after the last round it holds only the last number, 3. To add up you need `total = total + n`: the new value is built from the old one.
@@ -1491,8 +1491,8 @@ print(x)
 ```
 @options
 8
-8 and then 8
 * 8 and then None
+8 and then 8
 @why
 This version **prints** 8 inside the function (that is the first line), but it does not `return` anything. A function without `return` gives back `None`, so `x` is `None` and the last line prints `None`. Printing is for people; `return` is for the program.
 :::
@@ -1644,8 +1644,8 @@ print(add(1))
 print(add(2))
 ```
 @options
-[2]
 * [1, 2]
+[2]
 [1]
 @why
 The default list is created once and **kept**. The first call puts 1 in it; the second call starts with that same list, which already holds 1, and adds 2. Watch it in the next animation: the list keeps the same label, `list#1`.
@@ -1756,8 +1756,8 @@ number = int("Rp 1.250.000")
 ```
 @options
 TypeError
-* ValueError
 KeyError
+* ValueError
 @why
 `int` is the right tool for text, but this text is not a whole number: the **type** is fine and the **value** is impossible. That is a `ValueError`. A `TypeError` would be, for example, adding text and a number.
 :::
@@ -1768,8 +1768,8 @@ statuses = ["paid", "cancelled", "paid"]
 print(statuses[3])
 ```
 @options
-KeyError
 * IndexError
+KeyError
 ValueError
 @why
 The list has three items, at positions 0, 1 and 2. Position 3 does not exist: `IndexError: list index out of range`. A `KeyError` is the same idea for a dictionary key.
@@ -2125,8 +2125,8 @@ if __name__ == "__main__":
     main()
 ```
 @options
-running
 * nothing
+running
 an error
 @why
 On import, `__name__` is `"shop"`, not `"__main__"`, so `main()` is **not** called: the import only makes the functions available. That is why a test can import your file without starting the program.
@@ -2142,8 +2142,8 @@ with open("missing.csv", encoding="utf-8") as f:
     data = f.read()
 ```
 @options
-* FileNotFoundError
 ValueError
+* FileNotFoundError
 an empty `data`
 @why
 Python stops with `FileNotFoundError: No such file or directory`. When you see it, check the **folder you started Python in** and the spelling of the path, before anything else.

@@ -104,6 +104,15 @@ Practical points:
 - The catalog is the single point of coordination: it must support atomic pointer updates (a database, a REST catalog service, the Hive Metastore, AWS Glue, Nessie and others). That is why the catalog is also where **access control** and table discovery live.
 - Retries are bounded (PyIceberg retries a few times with backoff). Your job should still treat a final commit failure as an error to alert on, not ignore.
 
+:::ask Two writers commit to the same Iceberg table at the same moment. What keeps the table consistent?
+@options
+a lock held by the first writer for the whole job
+the data files are merged automatically
+* each commit is one atomic swap of the metadata pointer; the second writer sees the pointer moved, re-checks and retries
+@why
+Iceberg uses **optimistic concurrency**: writers build their files without locking, then try to swap the table's pointer in one atomic step. If another commit won, the second writer validates against the new snapshot and retries. Readers always see one complete snapshot.
+:::
+
 > 💡 **Practice Pause: Snapshot Operations & Optimistic Concurrency Control**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate function `snapshot_ops(table)`.
 > 2. Retrieve the table's snapshot history (`table.snapshots()`) and return the list of operation names that created each snapshot (`s.summary.operation.value`, e.g. `['append', 'append', ...]`).
@@ -124,6 +133,15 @@ Because every commit creates a snapshot and old snapshots are kept, you get **ti
 Copy-on-write suits read-heavy tables with infrequent changes. Merge-on-read suits frequent small updates (change data capture, Module 3.2). In the lab, `table.delete(EqualTo("status", "cancelled"))` created a new snapshot with operation `delete`; the table then returned 5 rows, but **snapshot 2, taken before the delete, still returned 7**.
 
 That last fact has a serious consequence. **A delete in a table format hides rows from the current version; it does not erase them from storage.** The old data files that still contain the rows remain referenced by older snapshots, so they stay in the bucket and can still be read via time travel. For ordinary corrections that is a feature. For a **privacy deletion request** it is a compliance trap: the user's data is still there. To physically remove it you must **expire the old snapshots** (so nothing references the old files) and then **remove the orphaned files** from storage, and also deal with backups and any derived tables built from the original data. Plan data retention and deletion deliberately, per table.
+
+:::ask You run a `DELETE` on an Iceberg table. Are the old rows gone from storage immediately?
+@options
+* no: the delete creates a new snapshot; the old files stay until the old snapshots are expired and cleaned up
+yes, the data files are erased at once
+only if the table is small
+@why
+Time travel works because old snapshots still point to old files. A delete writes a new snapshot (and delete files or rewritten files); space is reclaimed only when snapshots **expire**. This is also why "deleted" personal data needs a real expiry and cleanup step.
+:::
 
 > 💡 **Practice Pause: Time Travel & Row-Level Deletes**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate functions `count_as_of(table, snapshot_index)` and `delete_status(table, status)`.

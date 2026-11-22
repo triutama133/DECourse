@@ -58,6 +58,99 @@ Ordering is the property people misunderstand. Kafka guarantees order **only wit
 
 The lab's Part A has you build these ideas in a miniature in-memory Kafka, so the rules become concrete: stable key-to-partition mapping, per-partition offsets, lag, range assignment, and compaction with tombstones. (It uses a CRC hash for determinism; real Kafka uses murmur2. Notice `minilog.py` uses `@dataclass(frozen=True)` for `Record(partition, offset, key, value)`: a compact immutable Python class whose fields cannot be edited after creation.)
 
+### See it: partitions, offsets and compaction
+
+Each partition is its own ordered log, and each record has an **offset** (its position in that partition). Watch records get their `(partition, offset)`:
+
+:::trace Every record gets a partition and an offset
+@code
+topic = {0: [], 1: []}
+
+def produce(key, value):
+    p = len(key) % 2
+    topic[p].append(value)
+    return p, len(topic[p]) - 1
+
+print(produce("ab", "order-1"))
+print(produce("abc", "order-2"))
+print(produce("cd", "order-3"))
+@notes
+4 | The key decides the partition (here a stand-in for the hash). The same key always lands in the same partition, which keeps the order of that key's events.
+5 | The record is appended at the end of its partition's log.
+6 | The offset is the position inside **that** partition: 0 for the first record, 1 for the second...
+9 | `"cd"` has the same length as `"ab"`, so it joins the same partition, at the next offset.
+:::
+
+Now the log compaction rule: keep **the latest record per key**, and treat a `None` value (a **tombstone**) as "this key was deleted".
+
+:::trace Compaction keeps the latest value, a tombstone deletes
+@code
+log = [("c1", "Jakarta"), ("c2", "Medan"), ("c1", "Bandung"), ("c2", None)]
+latest = {}
+for key, value in log:
+    latest[key] = value
+compacted = {k: v for k, v in latest.items() if v is not None}
+print(compacted)
+@notes
+4 | A later record for the same key **replaces** the earlier one: `c1` moves from Jakarta to Bandung.
+4 | The last record for `c2` has the value `None`: a tombstone.
+5 | The tombstone removes the key from the compacted result: `c2` is gone, `c1` is Bandung.
+:::
+
+:::ask A topic has 3 partitions and a consumer group of 4 consumers. How many consumers are idle?
+@options
+none, Kafka creates a fourth partition
+* one: a partition is read by at most one consumer of the group
+all four share every partition
+@why
+Within a consumer group each partition is assigned to exactly one consumer, so the group's parallelism is capped by the number of partitions. A fourth consumer has nothing to read until a consumer leaves or partitions are added.
+:::
+
+:::drill python Compact a log
+Write `compact(log)`: `log` is a list of `(key, value)` records in order. Return a dictionary with the **latest** value of every key, and **remove** keys whose latest value is `None` (a tombstone).
+@starter
+# write your function below this line
+
+@check
+defines("compact") ## Define compact(log).
+compact([("c1", "Jakarta"), ("c2", "Medan"), ("c1", "Bandung")]) == {"c1": "Bandung", "c2": "Medan"} ## The later record for c1 wins.
+compact([("c1", "Jakarta"), ("c1", None)]) == {} ## A tombstone deletes the key.
+compact([("c1", None), ("c1", "Medan")]) == {"c1": "Medan"} ## A value after a tombstone brings the key back.
+compact([]) == {} ## An empty log compacts to nothing.
+@hint
+Loop over the records and store `latest[key] = value`; at the end keep only the entries whose value is not `None`.
+@solution
+def compact(log):
+    latest = {}
+    for key, value in log:
+        latest[key] = value
+    return {k: v for k, v in latest.items() if v is not None}
+:::
+
+:::drill python Skip what you already processed
+A consumer must not apply a record twice (delivery can repeat). Write `fresh(events)`: `events` is a list of dicts with `"partition"` and `"offset"`; return the events in the same order, **dropping any whose `(partition, offset)` pair was already seen earlier** in the list.
+@starter
+# write your function below this line
+
+@check
+defines("fresh") ## Define fresh(events).
+fresh([{"partition": 0, "offset": 5, "v": "a"}, {"partition": 0, "offset": 5, "v": "a"}, {"partition": 1, "offset": 5, "v": "b"}]) == [{"partition": 0, "offset": 5, "v": "a"}, {"partition": 1, "offset": 5, "v": "b"}] ## The same (partition, offset) twice: keep the first. Offset 5 in another partition is a different record.
+fresh([]) == [] ## An empty list gives an empty list.
+len(fresh([{"partition": 0, "offset": i % 2, "v": i} for i in range(6)])) == 2 ## Six events but only two distinct (partition, offset) pairs: 2.
+@hint
+Keep a `seen` set of `(partition, offset)` tuples: append the event only when its pair is not in `seen`, then add the pair.
+@solution
+def fresh(events):
+    seen = set()
+    out = []
+    for event in events:
+        pair = (event["partition"], event["offset"])
+        if pair not in seen:
+            seen.add(pair)
+            out.append(event)
+    return out
+:::
+
 > 💡 **Practice Pause 1 (MiniLog Topic, CRC32 Partitioning & Log Compaction):**
 > 1. Open `labs/mod-3-2/minilog.py` in your text editor. Do not execute this file directly in terminal without pytest.
 > 2. Implement class `Topic`: methods `__init__`, `partition_for(key)` using `zlib.crc32(str(key).encode()) % partitions` (or round-robin if key is `None`), `produce(key, value)`, `end_offsets()`, and `compact()`.

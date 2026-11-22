@@ -81,8 +81,8 @@ print(list(cache))
 
 :::ask Kapasitas 2. Anda menyimpan `a`, menyimpan `b`, membaca `a`, lalu menyimpan `c`. Key mana yang dibuang?
 @options
-`a`, karena ia disimpan pertama
 * `b`, karena `a` lebih baru disentuh
+`a`, karena ia disimpan pertama
 `c`, karena ia baru
 @why
 LRU membuang key yang **paling lama tidak tersentuh**. Membaca `a` dihitung sebagai pemakaian, jadi `b` sekarang yang tertua. Urutan penyisipan saja (FIFO) akan membuang `a`.
@@ -207,8 +207,8 @@ Dengan `N` replika, penulisan yang diakui oleh `W` di antaranya, dan pembacaan y
 :::ask Dengan N = 3 replika, apakah W = 1 dan R = 1 aman (pembacaan selalu melihat penulisan terakhir yang diakui)?
 @options
 ya, satu replika sudah cukup
-* tidak: 1 + 1 tidak lebih besar dari 3, jadi pembacaan bisa mengenai replika yang tidak pernah dicapai penulisan
 hanya jika jamnya akurat
+* tidak: 1 + 1 tidak lebih besar dari 3, jadi pembacaan bisa mengenai replika yang tidak pernah dicapai penulisan
 @why
 Penulisan mungkin mencapai replika A; pembacaan mungkin bertanya ke replika B, yang belum mendengarnya. Dengan W = 2 dan R = 2 dua replika mana pun beririsan di setidaknya satu, jadi pembacaan selalu bertemu replika yang memegang penulisan terakhir.
 :::

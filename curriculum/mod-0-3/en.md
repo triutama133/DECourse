@@ -96,8 +96,8 @@ SELECT COUNT(*) AS lines FROM order_items;
 :::ask What does ONE row of order_items represent?
 @options
 one order
-* one product line inside an order
 one product in the catalogue
+* one product line inside an order
 @why
 `order_items` has one row per **line** of an order: an order with three different products has three rows. That is why it has more rows (24) than `orders` (18).
 :::
@@ -111,9 +111,9 @@ Two kinds of key make the tables work together:
 
 :::ask Which column is enough to identify ONE row of order_items?
 @options
+* `order_id` and `line_no` together
 `order_id` alone
 `line_no` alone
-* `order_id` and `line_no` together
 @why
 An order can have several lines (so `order_id` repeats), and line number 1 exists in every order (so `line_no` repeats). Only the **pair** `(order_id, line_no)` is unique: a composite primary key.
 :::
@@ -335,8 +335,8 @@ Now the two NULL rows are included. To include them you must ask for them.
 SELECT COUNT(*) FROM customers WHERE city <> 'Jakarta';
 ```
 @options
-7
 * 5
+7
 3
 @why
 Three customers live in Jakarta, five live elsewhere, and two have no city. `NULL <> 'Jakarta'` is UNKNOWN, so the two unknown ones are left out: 5, not 7.
@@ -422,8 +422,8 @@ WHERE city NOT IN (SELECT city FROM customers WHERE tier = 'Silver');
 ```
 @options
 the customers whose city is not a Silver customer's city
-3 rows
 * no rows at all
+3 rows
 @why
 One Silver customer has no city, so the list in `NOT IN` contains a NULL, and `city NOT IN (..., NULL)` is never true. The query returns **nothing**. Safer ways to say "not in": `NOT EXISTS`, `EXCEPT`, or the LEFT JOIN anti-join of the join lesson.
 :::
@@ -497,9 +497,9 @@ Join text with `||`. One trap: `'a' || NULL` is **NULL**, so one missing part em
 SELECT name || ' from ' || city FROM customers;
 ```
 @options
+* NULL
 `Rina Pratama from `
 `Rina Pratama from NULL`
-* NULL
 @why
 Joining with `||` and a NULL gives NULL: the whole text disappears. Use `COALESCE(city, 'somewhere')` first.
 :::
@@ -914,8 +914,8 @@ Habits to adopt: always know the grain of each table; after a join, check `COUNT
 :::ask Two tables are joined and the row count is larger than you can explain. What do you do?
 @options
 carry on: more rows means more data
-add DISTINCT to hide the repeats
 * stop and find out why before continuing: a join on a key that is not unique repeats rows
+add DISTINCT to hide the repeats
 @why
 A join on a key that is not unique on **both** sides multiplies rows (a many-to-many join even more). `DISTINCT` hides the symptom and can hide real repeated rows. Find the grain mismatch first.
 :::
@@ -1026,8 +1026,8 @@ Set operations stack the results of two queries. Both queries must return the sa
 :::ask Jakarta has the tiers Gold, Bronze and Silver; Bandung has Silver and Gold. Which operator keeps only the rows that exist in BOTH results?
 @options
 UNION
-* INTERSECT
 EXCEPT
+* INTERSECT
 @why
 `INTERSECT` keeps only the rows present in both results (Gold and Silver). `UNION` keeps everything from both (without repeats), and `EXCEPT` keeps the rows of the first result that are missing from the second.
 :::
@@ -1229,8 +1229,8 @@ INSERT INTO customers (customer_id, name, city, tier, signup_date) VALUES (11, '
 UPDATE customers SET tier = 'Gold';
 ```
 @options
-sets the tier of the first customer
 * sets the tier of EVERY customer, because there is no WHERE
+sets the tier of the first customer
 fails with an error
 @why
 Without a `WHERE`, an `UPDATE` touches every row. This is one of the most expensive typing mistakes in data work. Always write the `WHERE` first, check it with a `SELECT`, then change the data.
@@ -1290,8 +1290,8 @@ If the server crashes between the two updates, neither takes effect; money is ne
 :::ask You run BEGIN, then DELETE FROM orders WHERE status = 'cancelled', then ROLLBACK. How many orders are in the table now?
 @options
 16
-* 18, as before: ROLLBACK undid the delete
 0
+* 18, as before: ROLLBACK undid the delete
 @why
 `ROLLBACK` undoes everything since `BEGIN`. The delete would have left 16 orders; the rollback brings back the original 18. `COMMIT` would have made the delete permanent.
 :::
@@ -1405,9 +1405,9 @@ CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 
 :::ask A view and a snapshot table (CREATE TABLE snap AS SELECT ...) were both made when a source table had 5 rows. Then one more row is inserted into the source. What do they show?
 @options
+* the view shows 6 rows; the snapshot still shows 5
 both show 6 rows
 both show 5 rows
-* the view shows 6 rows; the snapshot still shows 5
 @why
 A view stores the **query**, so it always reads the current data. A table created with `CREATE TABLE ... AS SELECT` (CTAS) stores a **snapshot** that does not change when the source does (and it loses the constraints of the original). PostgreSQL and warehouses also offer **materialized views**: stored results that are **stale until refreshed**.
 :::

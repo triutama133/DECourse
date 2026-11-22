@@ -99,6 +99,15 @@ COMPOUND SORTKEY (order_date, status);
 Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.
 :::
 
+:::ask Sebuah tabel punya 3 micro-partisi. Zone map `order_date` menyatakan: P1 1 sampai 10 Jan, P2 11 sampai 20 Jan, P3 21 sampai 31 Jan. Anda menjalankan query `WHERE order_date = '2026-01-15'`. Berapa partisi yang dipindai?
+@options
+* satu: hanya P2 yang bisa berisi 15 Jan; yang lain dilewati tanpa dibaca
+ketiganya
+tidak ada
+@why
+Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan filter dengannya dan melewati partisi yang tidak mungkin cocok. Semakin sedikit rentang data Anda yang tumpang tindih (clustering yang baik), semakin banyak yang bisa dilewati, dan warehouse berbayar-per-pindai menagih lebih sedikit.
+:::
+
 > 💡 **Jeda Praktik 1 (Micro-Partisi, Zone Map & Partition Pruning):**
 > 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-6/warehouse_lab.py` (ingat: jangan mengeksekusi file `.py` langsung di bash terminal tanpa interpreter atau argumen).
 > 2. Implementasikan fungsi `build_micro_partitions(rows, target_rows, cluster_key=None)` untuk memotong baris data dan mencatat nilai min/max tiap kolom.
@@ -349,6 +358,15 @@ Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu s
 > 🛠 **Coba sendiri (15 menit, Python).** Dengan DuckDB dan `SET threads = 1`, buat 5.000.000 pesanan untuk 2.000 tenant: `SELECT range AS order_id, range % 2000 AS customer_id, DATE '2025-01-01' + CAST((range // 2000) % 700 AS INTEGER) AS order_date, 10000 + (range * 37) % 500000 AS total_idr FROM range(5000000)`. Bangun tabel `monthly` berisi pendapatan per pelanggan dan bulan. Lalu ukur waktu query dashboard sebuah tenant, "pendapatan per bulan untuk pelanggan ?", sebanyak 100 kali untuk pelanggan acak, sekali pada pesanan mentah dan sekali pada `monthly`, lalu bandingkan mediannya. Pastikan keduanya memberi baris yang sama. Terakhir, buang `WHERE customer_id = ?` dan hitung berapa nilai `customer_id` berbeda yang kemudian dibaca query itu.
 >
 > **Seharusnya Anda melihat:** `monthly` berisi `48000` baris (24 bulan untuk masing-masing 2.000 pelanggan) dan dibangun dalam sekitar sepersepuluh detik. Pada CPU laptop (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) mediannya sekitar `13` ms pada pesanan mentah dan sekitar `0.9` ms pada `monthly`, sekitar 14 kali lebih cepat, dengan hasil yang identik: kira-kira 75 berbanding 1.100 query per detik per core. Jika 1.000 kafe membuka dashboard lima grafik di menit yang sama, itu 5.000 query, sekitar 83 per detik: lebih dari yang bisa dilayani satu core dari pesanan mentah, dan hanya sebagian kecil satu core dari `monthly`. Tanpa `WHERE`, dashboard itu diam-diam menjumlahkan pesanan kesemua `2000` tenant dan menampilkannya kepada satu kafe. Waktu Anda akan berbeda; rasionya seharusnya tidak jauh berbeda.
+
+:::ask Anda mewarisi stored procedure 3.000 baris yang memberi makan dashboard. Cara paling aman menggantinya?
+@options
+menulis ulang semuanya sekaligus dan beralih pada hari Jumat
+* strangler fig: bangun pipeline baru di sampingnya, pindahkan satu output demi satu, bandingkan angkanya, dan pensiunkan yang lama hanya ketika yang baru cocok
+jangan pernah menyentuhnya
+@why
+Penulisan ulang besar-besaran tidak punya jalan kembali dan tidak punya bukti. Strangler fig mengganti sistem lama **sepotong demi sepotong**, dengan keduanya berjalan berdampingan agar angkanya bisa dibandingkan, sampai kode lama tidak punya pekerjaan lagi.
+:::
 
 ## @lesson Bedah mendalam: Arsitektur Google BigQuery, pemodelan ARRAY<STRUCT>, FinOps & Sandbox Gratis {optional}
 **Google BigQuery** muncul di **12,7%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), di belakang Databricks (34,8%) dan Snowflake (25,8%), dan sedikit di atas Redshift (11,7%). Ia tetap warehouse *sungguhan* yang paling mudah untuk berlatih, karena sandbox-nya tidak butuh kartu pembayaran, dan desainnya menjelaskan banyak hal tentang yang lain. Anda perlu memahami bagaimana arsitektur internalnya menentukan cara Anda memodelkan tabel, memasukkan stream, dan mengendalikan biaya di GCP.

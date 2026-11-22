@@ -92,6 +92,74 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 - **Update**: hanya menulis baris-baris agregasi yang mengalami perubahan nilai sejak batch terakhir (cocok untuk dashboard yang membutuhkan estimasi awal yang terus direvisi).
 - **Complete**: menulis ulang keseluruhan tabel hasil agregasi di setiap batch (hanya aman untuk hasil agregasi berukuran kecil).
 
+### Lihat sendiri: watermark menentukan apa yang terlalu terlambat
+
+`watermark = waktu event terbaru yang sudah terlihat, dikurangi keterlambatan yang diizinkan`. Event yang lebih lama dari watermark terlambat. Perhatikan ia bergerak (keterlambatan yang diizinkan 5):
+
+:::trace Watermark bergerak, event terlambat dialihkan
+@code
+allowed_lateness = 5
+watermark = 0
+accepted = []
+late = []
+events = [10, 12, 9, 20, 11, 21]
+for ts in events:
+    if ts < watermark:
+        late.append(ts)
+    else:
+        accepted.append(ts)
+    watermark = max(watermark, ts - allowed_lateness)
+print(accepted, late)
+@notes
+7 | Setiap event pertama-tama dibandingkan dengan watermark **seperti sebelum event ini**.
+8 | `ts < watermark`: terlalu terlambat. Event dialihkan, tidak dibuang diam-diam.
+10 | Event yang tidak berada di belakang watermark diterima: `9` tidak berurutan, tetapi masih dalam keterlambatan yang diizinkan.
+11 | Watermark hanya pernah bergerak **maju**: `max(...)`. Setelah 20 ia 15, jadi event lama 11 (yang datang berikutnya) terlambat.
+:::
+
+:::ask Watermark bernilai 15 dan event dengan waktu 11 tiba. Apa yang harus dilakukan sistem?
+@options
+menerimanya dan memundurkan watermark ke 11
+menghentikan stream
+* memperlakukannya sebagai terlambat: alihkan (side output) atau hitung, jangan pernah dibuang diam-diam
+@why
+Watermark tidak pernah mundur, dan event di belakangnya **terlambat**. Window miliknya mungkin sudah dikeluarkan, jadi sistem memperbaruinya dengan sengaja (allowed lateness) atau mengirim event ke side output untuk diperiksa.
+:::
+
+:::drill python Apakah terlambat?
+Tulis `is_late(event_time, watermark)`: `True` ketika event **lebih lama** dari watermark, `False` kalau tidak (event tepat di watermark tidak terlambat).
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("is_late") ## Definisikan is_late(event_time, watermark).
+is_late(11, 15) is True ## 11 lebih lama dari 15: terlambat.
+is_late(15, 15) is False ## Tepat di watermark tidak terlambat.
+is_late(20, 15) is False ## Lebih baru dari watermark: tidak terlambat.
+@hint
+`return event_time < watermark`
+@solution
+def is_late(event_time, watermark):
+    return event_time < watermark
+:::
+
+:::drill python Gerakkan watermark
+Tulis `advance(watermark, event_time, allowed_lateness)`: watermark baru adalah yang lebih besar antara yang sekarang dan `event_time - allowed_lateness`. Ia tidak boleh mundur.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("advance") ## Definisikan advance(watermark, event_time, allowed_lateness).
+advance(0, 20, 5) == 15 ## 20 - 5 = 15 lebih besar dari 0.
+advance(15, 11, 5) == 15 ## Event lama (11 - 5 = 6) tidak boleh memundurkan watermark.
+advance(10, 10, 0) == 10 ## Tanpa keterlambatan yang diizinkan watermark mengikuti event terbaru.
+@hint
+`return max(watermark, event_time - allowed_lateness)`
+@solution
+def advance(watermark, event_time, allowed_lateness):
+    return max(watermark, event_time - allowed_lateness)
+:::
+
 > 💡 **Jeda Praktik 2 (Simulasi Watermark & Agregasi Jendela Waktu):**
 > 1. Buka file `labs/mod-3-3/windows.py` di teks editor Anda.
 > 2. Implementasikan class `WindowedAggregator`: method `__init__`, `add_batch(events)`, dan `advance()`.

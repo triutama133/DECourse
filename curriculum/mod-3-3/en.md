@@ -89,6 +89,74 @@ The late-event test in the lab shows the other side: after the `[10:00, 10:05)` 
 
 **Output modes** decide what is written each batch: **append** (each result row once, only when final; needs a watermark for windowed aggregates), **update** (only the rows that changed since the last batch, which gives early, revised results), and **complete** (the whole result table every time; only for small results).
 
+### See it: the watermark decides what is too late
+
+`watermark = the newest event time seen so far, minus the allowed lateness`. An event older than the watermark is late. Watch it move (allowed lateness 5):
+
+:::trace The watermark moves, late events are routed aside
+@code
+allowed_lateness = 5
+watermark = 0
+accepted = []
+late = []
+events = [10, 12, 9, 20, 11, 21]
+for ts in events:
+    if ts < watermark:
+        late.append(ts)
+    else:
+        accepted.append(ts)
+    watermark = max(watermark, ts - allowed_lateness)
+print(accepted, late)
+@notes
+7 | Each event is first compared with the watermark **as it was before this event**.
+8 | `ts < watermark`: too late. The event is routed aside, not silently dropped.
+10 | An event that is not behind the watermark is accepted: `9` was out of order, but still within the allowed lateness.
+11 | The watermark only ever moves **forward**: `max(...)`. After 20 it is 15, so the old event 11 (which comes next) is late.
+:::
+
+:::ask The watermark is 15 and an event with time 11 arrives. What should the system do?
+@options
+accept it and move the watermark back to 11
+stop the stream
+* treat it as late: route it aside (a side output) or count it, never silently drop it
+@why
+A watermark never moves backwards, and an event behind it is **late**. The window it belongs to may already have been emitted, so the system either updates it deliberately (allowed lateness) or sends the event to a side output for inspection.
+:::
+
+:::drill python Is it late?
+Write `is_late(event_time, watermark)`: `True` when the event is **older** than the watermark, `False` otherwise (an event exactly at the watermark is not late).
+@starter
+# write your function below this line
+
+@check
+defines("is_late") ## Define is_late(event_time, watermark).
+is_late(11, 15) is True ## 11 is older than 15: late.
+is_late(15, 15) is False ## Exactly at the watermark is not late.
+is_late(20, 15) is False ## Newer than the watermark: not late.
+@hint
+`return event_time < watermark`
+@solution
+def is_late(event_time, watermark):
+    return event_time < watermark
+:::
+
+:::drill python Move the watermark
+Write `advance(watermark, event_time, allowed_lateness)`: the new watermark is the greater of the current one and `event_time - allowed_lateness`. It must never go backwards.
+@starter
+# write your function below this line
+
+@check
+defines("advance") ## Define advance(watermark, event_time, allowed_lateness).
+advance(0, 20, 5) == 15 ## 20 - 5 = 15 is greater than 0.
+advance(15, 11, 5) == 15 ## An old event (11 - 5 = 6) must not move the watermark back.
+advance(10, 10, 0) == 10 ## With no allowed lateness the watermark follows the newest event.
+@hint
+`return max(watermark, event_time - allowed_lateness)`
+@solution
+def advance(watermark, event_time, allowed_lateness):
+    return max(watermark, event_time - allowed_lateness)
+:::
+
 > 💡 **Practice Pause 2 (Watermark Simulation & Windowed Aggregation):**
 > 1. Open `labs/mod-3-3/windows.py` in your text editor.
 > 2. Implement class `WindowedAggregator`: methods `__init__`, `add_batch(events)`, and `advance()`.

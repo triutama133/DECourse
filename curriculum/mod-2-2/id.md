@@ -104,6 +104,15 @@ Panduan implementasi praktis:
 - Katalog metadata adalah koordinator pusat tunggal: katalog wajib mendukung pembaruan pointer secara atomik (misalnya PostgreSQL, layanan REST Catalog, AWS Glue, Nessie, atau Unity Catalog). Katalog juga menjadi tempat penegakan aturan hak akses (**access control**).
 - Percobaan ulang komit memiliki batas (PyIceberg melakukan retry beberapa kali dengan backoff). Pipeline produksi Anda wajib memicu alert monitoring jika sebuah commit akhirnya gagal permanen.
 
+:::ask Dua writer melakukan commit ke tabel Iceberg yang sama pada saat yang sama. Apa yang menjaga tabel tetap konsisten?
+@options
+lock yang dipegang writer pertama selama seluruh job
+file data digabung otomatis
+* setiap commit adalah satu pertukaran atomik pointer metadata; writer kedua melihat pointer sudah bergeser, memeriksa ulang, dan mencoba lagi
+@why
+Iceberg memakai **optimistic concurrency**: writer membangun file mereka tanpa lock, lalu mencoba menukar pointer tabel dalam satu langkah atomik. Jika commit lain menang, writer kedua memvalidasi terhadap snapshot baru dan mencoba lagi. Pembaca selalu melihat satu snapshot yang lengkap.
+:::
+
 > 💡 **Jeda Praktik: Operasi Snapshot & Optimistic Concurrency Control**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, buka fungsi `snapshot_ops(table)`.
 > 2. Ambil riwayat snapshot tabel (`table.snapshots()`) dan kembalikan daftar jenis operasi pembuatannya (`s.summary.operation.value`, misalnya `['append', 'append', ...]`).
@@ -124,6 +133,15 @@ Operasi manipulasi baris individual (**Row-Level Changes** seperti `DELETE`, `UP
 Copy-on-write ideal untuk tabel analitik yang jarang diperbarui namun rutin dibaca dalam volume besar. Merge-on-read ideal untuk pipeline yang menerima pembaruan baris berfrekuensi tinggi (seperti Change Data Capture, Modul 3.2). Di lab praktis, perintah `table.delete(EqualTo("status", "cancelled"))` menghasilkan snapshot baru dengan operasi `delete`; tabel kemudian menampilkan 5 baris aktif, namun **snapshot 2 yang diambil sebelum delete tetap mengembalikan 7 baris**.
 
 Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DELETE pada format tabel terbuka hanya menyembunyikan baris dari snapshot aktif; operasi tersebut sama sekali tidak memusnahkan data dari media penyimpanan fisik.** File data Parquet lama yang memuat baris tersebut masih tersimpan di bucket storage dan masih dirujuk oleh snapshot-snapshot lama, sehingga data tersebut masih bisa dibaca melalui query time travel. Untuk koreksi bisnis biasa, ini adalah fitur proteksi data yang luar biasa. Namun untuk **permintaan penghapusan data privasi (GDPR / Hak untuk Dilupakan)**, ini adalah jebakan kepatuhan hukum: data pribadi pengguna sebenarnya masih tersimpan di storage Anda. Untuk menghapusnya secara fisik, Anda wajib **mengusangkan snapshot lama (expire snapshots)** sehingga tidak ada lagi metadata yang merujuk file tersebut, kemudian **menghapus file yatim (remove orphan files)** dari bucket penyimpanan fisik, serta menangani cadangan backup dan tabel turunan. Rancang kebijakan retensi dan penghapusan data secara sadar untuk setiap tabel.
+
+:::ask Anda menjalankan `DELETE` pada tabel Iceberg. Apakah baris lama langsung hilang dari penyimpanan?
+@options
+* tidak: delete membuat snapshot baru; file lama tetap ada sampai snapshot lama kedaluwarsa dan dibersihkan
+ya, file data langsung dihapus
+hanya jika tabelnya kecil
+@why
+Time travel bekerja karena snapshot lama masih menunjuk ke file lama. Delete menulis snapshot baru (dan file delete atau file yang ditulis ulang); ruang baru dikembalikan ketika snapshot **kedaluwarsa**. Karena itu data pribadi yang "dihapus" butuh langkah kedaluwarsa dan pembersihan yang nyata.
+:::
 
 > 💡 **Jeda Praktik: Time Travel & Row-Level Delete**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, buka fungsi `count_as_of(table, snapshot_index)` dan `delete_status(table, status)`.

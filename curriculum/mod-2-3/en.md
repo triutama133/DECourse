@@ -272,8 +272,8 @@ The 25th is now 2 orders and Rp 250,000 instead of 3 and Rp 400,000. An incremen
 :::ask Which column should the incremental watermark use: `order_date` (business time) or `_loaded_at` (ingestion time)?
 @options
 `order_date`: it is the date the order happened
-* `_loaded_at`: it says what is new to you, and late or updated rows have an old business date but a new ingestion time
 either one gives the same result
+* `_loaded_at`: it says what is new to you, and late or updated rows have an old business date but a new ingestion time
 @why
 Business time says when something happened; ingestion time says what *arrived*. A refund for an old order arrives late: its `order_date` is old, its `_loaded_at` is new, so only the ingestion watermark sees it.
 :::

@@ -125,6 +125,24 @@ One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Ama
 
 **Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
 
+:::ask Your VPC is `10.0.0.0/16`. You split it into `/20` subnets. How many subnets do you get?
+@options
+* 16: each step from /16 to /20 doubles the count (2 x 2 x 2 x 2)
+4
+256
+@why
+A `/20` has 4 more network bits than a `/16`, so there are 2^4 = 16 subnets, each with 4,096 addresses (4,091 usable on AWS, which reserves 5). Sizing is hard to change later, so plan it before you build.
+:::
+
+:::ask A job only needs to read files under `s3://lake/raw/`. Which IAM policy follows least privilege?
+@options
+`"Action": "s3:*"` on `"Resource": "*"`
+the `AdministratorAccess` managed policy
+* `"Action": "s3:GetObject"` on `arn:aws:s3:::lake/raw/*`
+@why
+Least privilege grants only the **actions** and **resources** the job needs: read objects, under one prefix. Wildcards turn one leaked credential into access to everything.
+:::
+
 > 💡 **Practice Pause 2 (Lakehouse S3 Security & Least-Privilege IAM Policy):**
 > 1. Open `labs/mod-3-4/terraform/main.tf` and `labs/mod-3-4/terraform/outputs.tf` in your text editor.
 > 2. Complete the S3 bucket resource, block public access (`aws_s3_bucket_public_access_block` with all four flags set to `true`), customer-managed KMS key with rotation enabled, default SSE encryption, raw storage lifecycle rules, and least-privilege IAM policy restricting actions to silver and gold prefixes.
@@ -210,6 +228,15 @@ Real work: 33 hours. A setting nobody looked at made the bill range from $158 to
 An invoice that says "compute: $4,200" starts an argument. A report that says "marketing $1,900, finance $600, data-engineering $1,700, unowned $0" starts a decision. This needs a **tag on every resource and query** (the Terraform tags above; query tags or a service account per team on the warehouse). Make the tags mandatory in code review, and treat untagged spend as a bug: unowned spend is the spend nobody ever reduces.
 
 Learn the vocabulary of the field, known as **FinOps**: *showback* (show each team what it spent), *chargeback* (bill it internally), *unit economics* (dollars per thousand orders processed, or per dashboard user), and *commitments* (reserved capacity at a discount in exchange for a promise of usage, which only pay off for a steady base load).
+
+:::ask Pipelines in a private subnet read S3 all day through a NAT gateway, which charges per GB processed. What is the cheaper, more private path?
+@options
+* an S3 **gateway endpoint**: a route in the subnet's route table that keeps S3 traffic on the AWS network
+a bigger NAT gateway
+move the data to the public internet
+@why
+A gateway endpoint adds a route to S3 without sending the traffic through the NAT gateway, so there is no per-GB NAT processing charge and the traffic never leaves the AWS network. Network paths are a bill line, not an afterthought.
+:::
 
 > 💡 **Practice Pause 3 (FinOps Warehouse Cost Modeling & Tag Allocation):**
 > 1. Open `labs/mod-3-4/finops.py` in your text editor.

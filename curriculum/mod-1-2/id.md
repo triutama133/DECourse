@@ -220,16 +220,16 @@ print(list(rows))
 ```
 @options
 `[2, 4, 6]` lalu `[2, 4, 6]`
-* `[2, 4, 6]` lalu `[]`
 `[2, 4, 6]` lalu error
+* `[2, 4, 6]` lalu `[]`
 @why
 Generator **habis dipakai** setelah satu putaran: `list(rows)` kedua tidak menemukan apa-apa lagi. Kalau butuh putaran lagi, buat generator baru (panggil fungsinya lagi).
 :::
 
 :::ask `rows = read_orders("missing.csv")` adalah fungsi generator. Di baris mana `FileNotFoundError` muncul?
 @options
-di baris yang memanggil `read_orders(...)`
 * nanti, ketika sesuatu pertama kali meminta baris (`next(rows)` atau loop `for`)
+di baris yang memanggil `read_orders(...)`
 tidak pernah, generator menyembunyikan error
 @why
 Kemalasan menyembunyikan error: memanggil fungsi tidak menjalankan apa-apa, jadi file baru dibuka ketika baris pertama diminta. Bug di generator muncul lebih lambat dan di tempat lain daripada tempat Anda membuatnya.
@@ -357,17 +357,17 @@ print(clean, quarantine)
 :::ask Kegagalan mana di antara ini yang layak diulang?
 @options
 total pesanan negatif
-* timeout koneksi saat memanggil API
 kolom yang hilang di header CSV
+* timeout koneksi saat memanggil API
 @why
 Kegagalan **sementara** (timeout, batas laju, koneksi putus) kemungkinan berhasil setelah jeda. **Data buruk** (total negatif, kolom hilang) akan gagal dengan cara yang sama setiap kali: mengulang membuang waktu, jadi karantina atau gagal dengan keras.
 :::
 
 :::ask Job crash di tengah penulisan `output.tmp`, dan langkah terakhir `os.replace("output.tmp", "output")` tidak pernah berjalan. Apa yang dilihat pembaca `output`?
 @options
+* file lama yang lengkap
 setengah file baru
 tidak ada, file-nya terhapus
-* file lama yang lengkap
 @why
 Itulah gunanya penulisan atomik: data baru dibangun di samping file sebenarnya dan ditukar dengan satu langkah di akhir. Crash meninggalkan file lama yang lengkap utuh, sehingga pembaca tidak pernah melihat file yang setengah tertulis.
 :::
