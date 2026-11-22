@@ -149,7 +149,7 @@ Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per sa
 4. **Distribusi (Distribution Shift)**: apakah *konten proporsional* di dalam kolom mengalami pergeseran drastis? Misalnya proporsi status pesanan, rasio nilai NULL pada kolom tertentu, atau rentang nilai numerik. Mendeteksi bug halus di mana nilai fallback darurat membanjiri sebuah kolom.
 5. **Data Lineage**: memetakan asal-usul tabel dan job hulu yang memberi makan tabel ini, serta laporan hilir apa saja yang bergantung padanya. Lineage menjadi fondasi agar 4 pilar di atas dapat ditindaklanjuti secara efektif.
 
-**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation)**:
+**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation: median dari `|x - median|`)**. Contoh kecil pada `[10, 12, 14]`: median adalah `12`, jarak masing-masing ke `12` adalah `[2, 0, 2]`, jadi `MAD = 2` — bahkan jika satu hari melonjak menjadi `1000`, median dan MAD dari `[10, 12, 14, 1000]` hampir tidak bergeser (`13` dan `1`), sedangkan standar deviasinya meledak!
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 membuat skala MAD setara dengan standar deviasi normal
@@ -161,12 +161,12 @@ Pada dataset lab modul ini, data historis 14 hari sebelum hari terakhir memiliki
 Panduan praktis lapangan:
 
 - **Perhatikan Pola Musiman (Seasonality).** Volume transaksi hari Sabtu tentu berbeda dengan hari Selasa. Bandingkan volume data dengan hari yang sama di minggu-minggu sebelumnya, atau gunakan model baseline harian agar tim on-call Anda tidak terbangun oleh alarm palsu setiap akhir pekan.
-- **Deteksi Pergeseran Distribusi (Distribution Shift)** dapat dihitung dengan mudah menggunakan rumus **Total Variation Distance** antara dua distribusi kategori: setengah dari jumlah selisih absolut persentase proporsi. Nilainya bergerak dari 0 (identik sempurna) hingga 1 (berbeda total). Sebagai contoh, perbandingan `{paid: 0.8, cancelled: 0.2}` terhadap `{paid: 0.6, cancelled: 0.4}` menghasilkan nilai TVD sebesar 0,2: menandakan 20% distribusi status mengalami pergeseran yang layak untuk diinvestigasi.
+- **Deteksi Pergeseran Distribusi (Distribution Shift)** dapat dihitung dengan mudah menggunakan rumus **Total Variation Distance** antara dua distribusi kategori: `0.5 * sum(|share_after - share_before|)` (setengah dari jumlah selisih absolut proporsi). Nilainya bergerak dari 0 (identik sempurna) hingga 1 (berbeda total). Sebagai contoh, perbandingan `{paid: 0.8, cancelled: 0.2}` terhadap `{paid: 0.6, cancelled: 0.4}` menghasilkan `0.5 * (|0.8 - 0.6| + |0.2 - 0.4|) = 0.2`: menandakan 20% distribusi status bergeser dan layak diinvestigasi.
 - **Kelelahan Notifikasi (Alert Fatigue) adalah musuh utama.** Banjir peringatan yang terlalu berisik akan melatih manusia untuk mengabaikannya, hingga akhirnya insiden bencana nyata luput dari perhatian. Mulailah dengan sedikit assertions bernilai tinggi, tetapkan level keparahan yang jelas (`block` vs `warn`), sertakan pesan kontekstual yang dapat ditindaklanjuti ("volume pada 2026-01-30 adalah 69, batas ekspektasi 96 hingga 130"), dan evaluasi ambang batas setiap kali terjadi false alarm.
 
 > 💡 **Jeda Praktik 3 (Pemeriksaan Statistik Monitoring Dataset):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
-> 2. Implementasikan empat fungsi monitoring: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` menggunakan Median dan MAD dengan ambang batas bawah, serta `distribution_shift(before, after)` menggunakan rumus Total Variation Distance.
+> 2. Implementasikan fungsi pembantu monitoring: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `daily_counts(rows)` (hitung jumlah baris per awalan tanggal `YYYY-MM-DD`, terurut tanggal), `volume_anomaly(history, today, k=3.0)` menggunakan Median dan MAD dengan ambang batas bawah, serta `distribution_shift(before, after)` menggunakan rumus Total Variation Distance.
 > 3. Uji seluruh fungsi monitoring di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Indikator Sukses:** Seluruh 6 tes `TestSmallChecks` berstatus `PASSED` mengonfirmasi keandalan deteksi statistik terhadap drift dan anomali.
@@ -205,7 +205,7 @@ Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** u
 
 > 💡 **Jeda Praktik 4 (Orkestrasi Quality Gate & Penanganan Insiden):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
-> 2. Implementasikan fungsi `run_gate(orders_csv, contract_yaml, out_dir, now=None)`: jalankan evaluasi berjenjang (periksa skema, validasi baris, kesegaran data, dan volume), tulis `orders_valid.ndjson` serta `quarantine.ndjson`, dan kembalikan ringkasan status (`pass`, `warn`, atau `fail`).
+> 2. Implementasikan fungsi `run_gate(data_dir, contract_path, now, out_dir)`: baca `<data_dir>/orders.csv`, jalankan evaluasi berjenjang (skema, validasi baris, kesegaran data, dan volume), tulis `orders_valid.ndjson` serta `quarantine.ndjson` ke `out_dir`, dan kembalikan ringkasan status (`pass`, `warn`, atau `fail`).
 > 3. Uji perilaku orkestrasi di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.

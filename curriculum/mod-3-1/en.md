@@ -54,7 +54,7 @@ Work is divided in layers, and the vocabulary matters when you read the UI:
 
 A DataFrame with 200 partitions and an executor fleet with 50 cores runs 50 tasks at a time, in four "waves". The **number and size of partitions** is therefore a central knob: too few leaves cores idle, too many wastes time on scheduling overhead, and a few giant ones (skew) make everything wait for the stragglers. A healthy partition holds on the order of 100 to 200 MB of data.
 
-Your code runs as follows. You write DataFrame or SQL operations in Python; they are translated into JVM plans; tasks execute on executors in the JVM. **PySpark** is a thin layer: DataFrame operations never run Python on the data, which is why they are fast. Python code *does* run on the executors when you use a Python **UDF**, covered below, with a heavy price.
+Your code runs as follows. You write DataFrame or SQL operations in Python; they are translated into JVM plans; tasks execute on executors in the JVM. **PySpark** is a thin layer: DataFrame operations never run Python on the data, which is why they are fast. Python code *does* run on the executors only when you register a custom Python **UDF** (User-Defined Function — covered in Lesson 8), with a heavy serialization price.
 
 > 🛠 **Try it (15 min, Python).** Model a two-stage job by hand: total `total_idr` per `payment_method` from `data/orders.csv` (keep only rows whose total is all digits, 3,580 of them). **Stage 1:** split the rows into 8 partitions with `rows[i::8]`; each task computes partial sums per payment method for its own partition. **Shuffle:** send each partial sum to one of 4 reduce partitions chosen by `zlib.crc32(key.encode()) % 4`. **Stage 2:** each of the 4 reduce tasks adds up the partial sums it received. Count the tasks in each stage and the records that crossed the shuffle, and compare the result with a pandas `groupby`.
 >
@@ -97,7 +97,7 @@ Two more rules from this view: (1) an expensive action on an uncached DataFrame 
 ## @lesson The optimiser: Catalyst, Tungsten and adaptive execution
 Whatever API you use (DataFrame, SQL), your query goes through the same engine, in stages:
 
-1. **Catalyst**, the query optimiser. It turns your query into a *logical plan*, applies rule-based rewrites (**predicate pushdown**, **column pruning**, constant folding, join reordering, choosing a join strategy using statistics), and produces a *physical plan*. This is the reason DataFrames beat hand-written RDD code: the engine can see and rewrite what you meant.
+1. **Catalyst**, the query optimiser. It turns your query into a *logical plan*, applies rule-based rewrites (**predicate pushdown**, **column pruning**, constant folding, join reordering, choosing a join strategy using statistics), and produces a *physical plan*. This is the reason DataFrames beat hand-written **RDD** code (Spark's legacy low-level distributed collection API from before DataFrames, which treated rows as opaque Python/JVM objects): Catalyst can see column types and filters and rewrite what you meant.
 2. **Tungsten**, the execution engine. It stores data in a compact binary format (often off the JVM heap), avoids creating Java objects per row, and uses **whole-stage code generation**: the operators of a stage are fused into one generated function, with no virtual call per row. In the plan, the `*` before an operator means it is part of a code-generated stage.
 3. **Adaptive Query Execution (AQE)**, on by default in current Spark versions. Statistics before the query runs are often guesses; AQE re-optimises *at runtime*, using the real sizes observed after each shuffle. It can **coalesce** many tiny shuffle partitions into fewer, **switch a sort-merge join to a broadcast join** when one side turns out small, and **split skewed partitions** (below).
 
@@ -169,7 +169,7 @@ One partition holds **73%** of the rows. That task must process 18 times more th
 1. **Remove or isolate the hot key.** If the hot value is junk (NULL, a placeholder), filter it out before the shuffle. If it is real, process it separately: handle `customer_id = 0` with its own query (no join is needed if the guest has no attributes), then union with the rest.
 2. **Broadcast the small side.** If one side is small, no shuffle of the big side happens, so there is no skew problem at all. In the lab, this was also the fastest option (0.85 s).
 3. **Let AQE split the skewed partitions.** With `spark.sql.adaptive.skewJoin.enabled`, Spark detects shuffle partitions much larger than the median (by a factor and a minimum size), splits them into smaller sub-partitions, and replicates the matching rows of the other side. The final plan then shows `SortMergeJoin(skew=true)`. In the lab, the same join took **0.93 s** instead of 2.58 s, with identical results. This needs no code change, which makes it the first tool to try on Spark 3 and later.
-4. **Salting.** Add a random **salt** column (0 to N-1) to the large side, so one hot key becomes N keys `(key, salt)`; replicate every row of the small side N times, once per salt value; join on `(key, salt)`. The hot key is now spread across N partitions:
+4. **Salting.** Suppose 1,000,000 `orders` have `customer_id = 0`. Simply hashing `customer_id` sends every one of them to one overloaded task. With `salt = 2`, tag each order randomly with `0` or `1` (`(0, 0)`, `(0, 1)`), and duplicate the small `customers` row for `0` into two rows (`(0, 0)` and `(0, 1)`): now each composite key gets half the orders on different partitions and matches cleanly! In general, add a random **salt** column (0 to N-1) to the large side, so one hot key becomes N keys `(key, salt)`; replicate every row of the small side N times, once per salt value; join on `(key, salt)`. The hot key is now spread across N partitions:
 
 ```python
 SALT = 8
@@ -257,7 +257,7 @@ GRANT SELECT ON TABLE kopiku_prod.analytics.fct_orders TO `bi_analysts`;
 
 ### 2. Medallion Architecture (`Bronze → Silver → Gold`) & Auto Loader (`cloudFiles`)
 On Databricks, pipelines follow the **Medallion Architecture** (the same raw → staging → mart layers you built in Modules 1.6 and 2.3):
-- **Bronze (Raw Ingestion):** Append-only raw payloads from S3/ADLS/Kafka, preserving exact source fidelity plus metadata (`_metadata.file_path`, `_ ingest_ts`).
+- **Bronze (Raw Ingestion):** Append-only raw payloads from S3/ADLS/Kafka, preserving exact source fidelity plus metadata (`_metadata.file_path`, `_ingested_at`).
 - **Silver (Validated, Deduplicated & Conformed):** Enforces schema contracts, deduplicates retries by primary key, masks/tokenizes PII, and handles SCD2/CDF merges.
 - **Gold (Business Aggregates & Semantic Marts):** Star schemas (`dim_*`, `fct_*`) and pre-aggregated metrics served via **Databricks Serverless SQL Warehouses** to BI tools.
 

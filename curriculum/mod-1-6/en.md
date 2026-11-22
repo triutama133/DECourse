@@ -160,12 +160,12 @@ The checkpoint is itself state. Store it somewhere durable that survives the mac
 
 > 💡 **Practice Pause 3 (Atomic Checkpoint State Storage):**
 > Guard your high-water mark against sudden system crashes:
-> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement the `Checkpoint(path)` class:
+> 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement the `Checkpoint(path)` class (in `__init__(self, path)`, store `self.path = Path(path)` so `load()` and `save()` use the same location):
 >    - `load()`: parse the JSON file and return the saved checkpoint value, or None if the file does not exist yet.
 >    - `save(value)`: atomically write `{"value": value}` via a temp file swapped with `os.replace()` so crashes never leave corrupt state.
 > 2. Test in the terminal:
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
-> When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening!
+> When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening and schema drift!
 
 > 🛠 **Try it (15 min, hands on).** Write `load.py` against the practice API: read the orders with a cursor (`limit=5`) and append them to `out.jsonl`; **after** each page is written, save `{"cursor": ...}` to `checkpoint.json` (write a temporary file, then `os.replace`). When the script starts it resumes from `checkpoint.json` if there is one. Put `time.sleep(1)` after writing each page, so that you have time to interrupt.
 > 1. Run `curl localhost:8765/reset`, then start `load.py` and press Ctrl+C after about two pages. Compare `wc -l out.jsonl` with the cursor in `checkpoint.json`: why can the file hold more rows than the checkpoint says?
@@ -255,7 +255,9 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (your script reads `data/orders.csv` relative to the folder it runs in).
 
-## @lesson Webhook HMAC-SHA256 verification, differential extraction, S3 streaming, and declarative dlt
+## @lesson Webhook HMAC-SHA256 verification, differential extraction, S3 streaming, and declarative dlt {optional}
+
+*(Optional modern engineering bridge — Module 2.1 introduces S3-compatible object storage in depth, while this lesson extends your core `ingest_lab.py` skills to webhooks, snapshot deltas, and `dlt`.)*
 
 In Chapter 7 (*Ingestion*) of *Fundamentals of Data Engineering* and modern cloud pipelines (such as the *DataTalksClub Data Engineering Zoomcamp* `dlt` workshops), four production ingestion patterns bridge raw HTTP mechanics and enterprise data platforms:
 
@@ -334,7 +336,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # one group a
 4. **Pagination.** Implement the cursor loop first, then the offset loop. Run `fetch_all_offset` against a data set whose size is an exact multiple of the page size and count the requests.
 5. **Checkpoint, flatten, drift.** These are small and pure. For `Checkpoint.save`, explain in one sentence what could go wrong if you wrote the file directly.
 6. **The incremental load.** Write it last. Before you run `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, explain why your order of steps makes it pass. Then deliberately swap steps 5 and 6 and watch which test fails.
-7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-1-6` to get the proof code for the **Proof** box on this lab page.
+7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-1-6` to get the proof code for the **Proof** box on this lab page.
 
 ### @files
 - labs/mod-1-6/ingest_lab.py :: Your working file: implement the TODO functions and the Checkpoint class :: starter

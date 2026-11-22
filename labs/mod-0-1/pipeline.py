@@ -1,7 +1,7 @@
 """Lab 0.1: clean the KopiKu orders file.
 
-Run the tests:   python labs/mod-0-1/test_lab.py -v
-Generate data:   python labs/shared/shopgen.py --out data
+Run the tests:   pytest labs/mod-0-1/test_lab.py -v
+Generate data:   python3 labs/shared/shopgen.py --out data
 """
 import csv
 

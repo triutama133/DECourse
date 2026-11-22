@@ -134,7 +134,7 @@ FROM customers;       -- Budi Santoso | Budi | 12
 **Tanggal.** SQLite tidak punya tipe tanggal sungguhan: tanggal adalah teks berformat ISO `YYYY-MM-DD`, yang terurut benar sebagai teks (`'2026-01-03' < '2026-01-10'`). Format seperti `10/1/2026` tidak: sebagai teks, `'10/1/2026' < '3/1/2026'` bernilai benar. Simpan tanggal selalu dalam bentuk ISO. Fungsi SQLite-nya adalah `date(x, '+7 days')`, `strftime(format, x)`, dan `julianday(x)`:
 
 ```sql
-SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- 0 = Minggu ... 6 = Sabtu
+SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- GROUP BY mengelompokkan per hari (Pelajaran 5 menjelaskan); 0 = Minggu .. 6 = Sabtu
 SELECT date(order_date, '+7 days') FROM orders;                                   -- 2026-01-03 menjadi 2026-01-10
 SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...                 -- selisih hari antar tanggal (Budi: 61)
 ```
@@ -143,7 +143,7 @@ Dua kebiasaan lagi. **Pakai rentang setengah terbuka**: `order_date >= '2026-01-
 
 Satu aturan performa yang dijelaskan Modul 1.3 dengan EXPLAIN: jangan membungkus kolom ber-index dengan fungsi di dalam `WHERE`. Pada tabel dengan index di `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` membuat SQLite **memindai seluruh tabel**, sedangkan rentang setara `ts >= '2026-01-01' AND ts < '2026-02-01'` **mencari lewat index**.
 
-> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama), **k-17** (kota yang tidak diketahui), dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini. Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama), **k-17** (kota yang tidak diketahui), dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini. Catatan: SQLite menganggap perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan salah bernilai `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
 >
 > **Seharusnya Anda melihat:** sandbox menyatakan Benar untuk setiap tantangan; percobaan k-18 yang salah menampilkan `0`, yang benar `11.1`.
 
@@ -409,6 +409,8 @@ Mengapa ini penting bagi data engineer: view adalah cara tim mendefinisikan sebu
 > 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Buat tabel `reviews` dari pelajaran ini, lalu rusak dengan sengaja, satu aturan demi satu aturan: ulasan dengan 9 bintang; pelanggan yang sama mengulas produk yang sama dua kali; ulasan tanpa pelanggan. Baca setiap error-nya. Lalu buat view `v_delivered` (`SELECT * FROM orders WHERE status = 'delivered'`), hitung barisnya, masukkan satu pesanan delivered lagi ke `orders`, dan hitung lagi.
 >
 > **Seharusnya Anda melihat:** `CHECK constraint failed: stars BETWEEN 1 AND 5`, lalu `UNIQUE constraint failed: reviews.customer_id, reviews.product_id`, lalu `NOT NULL constraint failed: reviews.customer_id`; dan view yang jumlahnya berubah dari `12` menjadi `13` tanpa Anda menyentuh view itu.
+
+Dengan selesainya Level 0, Anda kini menguasai dasar Python, terminal, Git, pembersihan data, dan SQL inti. Level 1 mengubah semua alat itu menjadi kerja rekayasa otomatis: skrip shell dan container (`Module 1.1`), job Python defensif (`Module 1.2`), serta window function analitik (`Module 1.3`).
 
 ## @lab Lab: sepuluh pertanyaan tentang KopiKu
 Anda data engineer baru dan pendiri toko punya sepuluh pertanyaan. Jawab dengan SQL pada dataset mini KopiKu: tabel pelanggan dengan kota NULL, pesanan dengan pembatalan dan refund, dan biaya kirim yang menggoda Anda membuat bug fan-out.

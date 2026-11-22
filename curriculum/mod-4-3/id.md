@@ -16,6 +16,8 @@ why: Dalam rekayasa data produksi modern, data tidak datang dalam file CSV bulan
 Modul 0.2 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 2.1 (DuckDB dan penyimpanan analitis), 3.2 (Kafka, Redpanda, dan log event), serta 3.3 (Stream processing, windowing, dan watermark). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan DuckDB terpasang.
 
 ## @lesson Cara kerja capstone ini
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.2** (terminal & venv), **Modul 1.2** (tukar file atomik & idempotensi), **Modul 2.1** (upsert tabel DuckDB), **Modul 3.2** (consumer offset & partisi), dan **Modul 3.3** (tumbling/sliding window & watermark monotonik). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+
 Setiap lab di modul-modul sebelumnya memberi Anda fungsi bawaan, file pengujian unit yang terstruktur, dan kode kerangka yang terarah. Pada capstone ini, pendekatannya sengaja berbeda: **Anda menerima kontrak arsitektur teknis, data streaming telemetri realistis, dan suite pengujian otomatis yang menguji ketahanan kode Anda secara mendalam.**
 
 Pemeriksa otomatis tidak menilai keindahan gaya penulisan kode Anda; sistem memeriksa **perilaku nyata, kontrak state, dan hasil yang dapat diobservasi**:
@@ -102,7 +104,44 @@ Karena perangkat seluler mengalami fluktuasi latensi jaringan (network jitter), 
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
 > 4. **Indikator Sukses:** Seluruh 7 metrik berstatus `PASS`, memvalidasi ekstraksi profiling event stream Anda cocok 100% dengan data acuan.
 
-## @lesson Watermark, toleransi keterlambatan & mekanisme penggusuran window
+## @lesson Tumbling event-time window & penyimpanan analitik DuckDB
+Saat aliran event masuk secara kontinu, langkah struktural pertama adalah mengelompokkan timestamp ke dalam interval berbatas dan mendefinisikan tabel target di warehouse.
+
+```
+Tumbling Window (Size = 300s, Slide = 300s): Blok tetap, berdampingan, tanpa tumpang-tindih
+[00:00 - 05:00)        [05:00 - 10:00)        [10:00 - 15:00)
+```
+
+### 1. Perataan Tumbling Window:
+Tumbling window mempartisi aliran waktu menjadi blok-blok tetap yang tidak saling tumpang-tindih. Untuk ukuran window `L`, sebuah event pada timestamp `t` dimasukkan tepat ke **satu** window yang dimulai pada:
+`t_start = floor(t / L) * L`
+`t_end = t_start + L`
+Tumbling window sangat ideal untuk penyelesaian transaksi finansial periodik (misalnya rekonsiliasi pendapatan per jam, rekap komisi harian pengemudi).
+
+### 2. Skema Target Idempoten di DuckDB:
+Setiap baris `(window_start, window_end, zone_id)` yang dipancarkan wajib memiliki primary key komposit agar pengulangan atau pemancaran ulang menimpa lewat staging sementara secara bersih tanpa menciptakan metrik ganda:
+```sql
+CREATE TABLE IF NOT EXISTS windowed_metrics (
+    window_start TIMESTAMP,
+    window_end TIMESTAMP,
+    zone_id INTEGER,
+    total_trips BIGINT,
+    total_passengers BIGINT,
+    total_fare DOUBLE,
+    avg_fare DOUBLE,
+    emitted_at TIMESTAMP,
+    PRIMARY KEY (window_start, window_end, zone_id)
+);
+```
+
+> 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Tumbling Event-Time Window & Penyimpanan DuckDB):**
+> 1. Buka file `stream_processor.py` di workspace Anda (`~/fleet/stream_processor.py`) menggunakan teks editor.
+> 2. Implementasikan argumen CLI (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), kalkulasi tumbling window (`start = floor(ts / size) * size`), dan buat tabel `windowed_metrics` di DuckDB secara idempoten.
+> 3. Jalankan pemeriksaan langkah 2 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema DuckDB, pengelompokan tumbling window, dan pemancaran metrik agregasi.
+
+## @lesson Watermark, toleransi keterlambatan & DLQ Late Data
 Jika kita mengelompokkan data berdasarkan event time, muncul dilema arsitektur kritis: **berapa lama engine streaming harus menunggu sebelum menyatakan sebuah window selesai dan memancarkan hasilnya?**
 Jika modem kendaraan baru terhubung kembali tiga hari kemudian, apakah kita harus membiarkan seluruh window masa lalu tetap terbuka di memori? Tentu tidak. Mempertahankan jutaan window terbuka di memori RAM akan memicu crash Out Of Memory (OOM).
 
@@ -131,18 +170,28 @@ Sebuah window didefinisikan oleh interval setengah terbuka `[t_start, t_end)`.
 - **Window Terbuka:** Selama `t_end > W`, window berstatus terbuka di memori RAM. Setiap event yang berada di rentang waktu tersebut ditambahkan ke akumulator window.
 - **Penggusuran / Penutupan Window:** Begitu watermark bergerak maju hingga `t_end <= W`, window dinyatakan ditutup. Hasil agregasi final dipancarkan ke database analitik (DuckDB), dan akumulator di memori dihapus untuk menghemat RAM.
 
-### 3. Out-of-Order vs. Late Data:
+### 3. Out-of-Order vs. Late Data & Karantina Dead-Letter Queue (DLQ):
 Sangat penting membedakan **event yang out of order** dengan **event yang late (terlambat)**:
 - **Out-of-order event:** Event yang memiliki `t_event < t_terbaru_dilihat`, namun window tempatnya berada masih berstatus terbuka (`t_end > W`). Event ini **valid dan diterima**; metriknya langsung diakumulasikan ke window yang bersangkutan.
-- **Late event:** Event yang window tujuannya sudah ditutup dan digusur dari memori (`t_end <= W`). Agregasi window tersebut sudah terlanjur dipancarkan ke konsumen hilir. Memasukkannya kembali akan merusak keabsahan laporan keuangan yang sudah terbit, sehingga event ini **ditolak dan dikarantina**.
-- **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
+- **Late event:** Event yang window tujuannya sudah ditutup dan digusur dari memori (`t_end <= W`). Agregasi window tersebut sudah terlanjur dipancarkan ke konsumen hilir. Membuang data secara diam-diam menghilangkan jejak audit keuangan; memasukkannya ke window tertutup merusak integritas laporan historis. Solusi standar industri adalah mencatat event terlambat ke dalam **Dead-Letter Queue (DLQ)** (`<output-dir>/dlq/late_events.jsonl`) beserta metadata audit (`error_code: "LATE_EVENT"`, `event_id`, `event_time`, `current_watermark`, `dropped_at`, `raw_payload`):
+```json
+{
+  "error_code": "LATE_EVENT",
+  "event_id": "evt_0842",
+  "event_time": 1704067280,
+  "current_watermark": 1704067830,
+  "dropped_at": "2024-01-08T12:00:00Z",
+  "raw_payload": { ... }
+}
+```
+Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu peringatan jika menara seluler tertentu mengalami keterlambatan paket parah, dan memproses ulang data tersebut di pipeline rekonsiliasi batch offline.
 
-> 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Tumbling Event-Time Window & Penyimpanan DuckDB):**
-> 1. Buka file `stream_processor.py` di workspace Anda (`~/fleet/stream_processor.py`) menggunakan teks editor.
-> 2. Implementasikan argumen CLI (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), kalkulasi tumbling window (`start = floor(ts / size) * size`), dan buat tabel `windowed_metrics` di DuckDB secara idempoten.
-> 3. Jalankan pemeriksaan langkah 2 di terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
-> 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema DuckDB, pengelompokan tumbling window, dan pemancaran metrik agregasi.
+> 💡 **Jeda Praktik 3 (Langkah 3: Watermark Monotonik & Karantina DLQ Late Data):**
+> 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
+> 2. Terapkan bounded watermark monotonik (`W = max(W, ts - delay)`), gusur dan pancarkan window saat `window_end <= W`, dan salurkan event terlambat ke `<output-dir>/dlq/late_events.jsonl` dengan `error_code: "LATE_EVENT"`.
+> 3. Jalankan pemeriksaan langkah 3 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi penanganan event out-of-order berjalan benar dan event late dikarantina tanpa merusak metrik window.
 
 ## @lesson Consumer offset, checkpointing & idempotensi analitik
 Engine streaming beroperasi terus-menerus tanpa henti. Gangguan perangkat keras, restart kontainer, dan pembaruan sistem operasi adalah keniscayaan di lingkungan produksi. Engine yang tangguh harus mampu bertahan dari crash dengan semantik **exactly-once processing** di lapisan database.
@@ -199,37 +248,19 @@ tmp_file.replace(state_path)  # Atomik pada filesystem POSIX via syscall rename(
 Proses lain atau prosedur pemulihan crash akan selalu membaca file JSON lama yang valid atau file JSON baru yang lengkap, tidak akan pernah menemukan file dengan isi terpotong separuh.
 
 ### 4. Idempotensi Penyimpanan di DuckDB:
-Ketika engine pulih dari kegagalan, sistem biasanya membaca ulang beberapa event dari titik checkpoint terakhir. Jika operasi penulisan database adalah `INSERT` biasa, baris ganda akan merusak metrik analitik.
-Kita menegakkan idempotensi di DuckDB menggunakan primary key komposit dan mekanisme staging:
-```sql
-CREATE TABLE IF NOT EXISTS windowed_metrics (
-    window_start TIMESTAMP,
-    window_end TIMESTAMP,
-    zone_id INTEGER,
-    total_trips BIGINT,
-    total_passengers BIGINT,
-    total_fare DOUBLE,
-    avg_fare DOUBLE,
-    emitted_at TIMESTAMP,
-    PRIMARY KEY (window_start, window_end, zone_id)
-);
-```
-Saat pemancaran window, baris dimasukkan ke tabel sementara, baris lama di tabel utama yang memiliki kecocokan `(window_start, window_end, zone_id)` dihapus, dan metrik terbaru disisipkan secara bersih.
+Ketika engine pulih dari kegagalan, sistem biasanya membaca ulang beberapa event dari titik checkpoint terakhir. Jika operasi penulisan database adalah `INSERT` biasa, baris ganda akan merusak metrik analitik. Memakai primary key komposit `windowed_metrics` `(window_start, window_end, zone_id)` di atas, pancarkan agregat baru lewat tabel staging sementara, hapus key yang cocok, lalu sisipkan baris terbaru secara bersih.
 
-> 💡 **Jeda Praktik 3 (Langkah 3: Watermark Monotonik & Karantina DLQ Late Data):**
+> 💡 **Jeda Praktik 4 (Langkah 4: Checkpointing Consumer Offset & Crash Recovery):**
 > 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
-> 2. Terapkan bounded watermark monotonik (`W = max(W, ts - delay)`), gusur dan pancarkan window saat `window_end <= W`, dan salurkan event terlambat ke `<output-dir>/dlq/late_events.jsonl` dengan `error_code: "LATE_EVENT"`.
-> 3. Jalankan pemeriksaan langkah 3 di terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
-> 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, membuktikan penanganan event out-of-order berjalan benar dan event late dikarantina tanpa merusak metrik window.
+> 2. Simpan `last_offset` dan akumulator in-flight `open_windows` secara atomik (`.tmp` + `os.replace`), serta baca offset pada awal eksekusi untuk melewati event yang sudah terproses.
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa crash mendadak di tengah pemrosesan dapat dipulihkan tanpa duplikasi dan tanpa kehilangan event.
 
-## @lesson Tumbling vs. sliding window dan Dead-Letter Queue (DLQ)
-Arsitektur streaming real-time menggunakan beberapa pola windowing bergantung pada kebutuhan analitik bisnis.
+## @lesson Sliding window (`k_min .. k_max`) & penggusuran parsial
+Arsitektur streaming real-time juga membutuhkan metrik yang diperhalus secara kontinu seiring berjalannya waktu (misalnya rata-rata tarif 5 menit terakhir yang diperbarui setiap 60 detik):
 
 ```
-Tumbling Window (Size = 300s, Slide = 300s): Blok tetap, berdampingan, tanpa tumpang-tindih
-[00:00 - 05:00)        [05:00 - 10:00)        [10:00 - 15:00)
-
 Sliding Window (Size = 300s, Slide = 60s): Blok bergerak, saling tumpang-tindih
 [00:00 - 05:00)
    [01:00 - 06:00)
@@ -238,17 +269,7 @@ Sliding Window (Size = 300s, Slide = 60s): Blok bergerak, saling tumpang-tindih
             [04:00 - 09:00)
 ```
 
-### 1. Tumbling Window:
-Tumbling window mempartisi aliran waktu menjadi blok-blok tetap yang tidak saling tumpang-tindih.
-Untuk ukuran window `L`, sebuah event pada timestamp `t` dimasukkan tepat ke **satu** window yang dimulai pada:
-`t_start = floor(t / L) * L`
-`t_end = t_start + L`
-Tumbling window sangat ideal untuk penyelesaian transaksi finansial periodik (misalnya rekonsiliasi pendapatan per jam, rekap komisi harian pengemudi).
-
-### 2. Sliding Window:
-Sliding window menghasilkan metrik yang diperhalus secara kontinu seiring berjalannya waktu (misalnya rata-rata kecepatan armada 5 menit terakhir yang diperbarui setiap 60 detik).
-Dengan durasi window `L` dan interval pergeseran `S` (di mana `S < L`):
-Sebuah event pada timestamp `t` berada di beberapa window tumpang-tindih yang dimulai pada kelipatan bulat `k * S`:
+Dengan durasi window `L` dan interval pergeseran `S` (di mana `S < L`), sebuah event pada timestamp `t` berada di beberapa window tumpang-tindih yang dimulai pada kelipatan bulat `k * S` sehingga:
 `k * S <= t < k * S + L`
 Maka batas indeks bilangan bulat `k` adalah:
 `t - L < k * S <= t`, sehingga `(t - L) / S < k <= t / S`
@@ -256,28 +277,7 @@ Rentang nilai integer `k` bergerak dari:
 `k_min = floor((t - L + S) / S)` hingga `k_max = floor(t / S)`
 Untuk `L = 300 detik` dan `S = 60 detik`, setiap event masuk ke tepat `(300 / 60) = 5` window yang saling tumpang-tindih! Logika akumulator Anda harus memperbarui kelima bucket tersebut secara simultan.
 
-### 3. Karantina Dead-Letter Queue (DLQ):
-Ketika event tiba di mana seluruh window kandidatnya sudah digusur (`t_end <= W`), apa yang harus dilakukan?
-Membuang data secara diam-diam menghilangkan jejak audit keuangan; memasukkannya ke window tertutup merusak integritas laporan analitik yang sudah diterbitkan.
-Solusi standar industri adalah **Dead-Letter Queue (DLQ)**. Event yang terlambat dicatat ke dalam `<output-dir>/dlq/late_events.jsonl` beserta metadata audit:
-```json
-{
-  "error_code": "LATE_EVENT",
-  "event_id": "evt_0842",
-  "event_time": 1704067280,
-  "current_watermark": 1704067830,
-  "dropped_at": "2024-01-08T12:00:00Z",
-  "raw_payload": { ... }
-}
-```
-Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu peringatan jika menara seluler tertentu mengalami keterlambatan paket parah, dan memproses ulang data tersebut di pipeline rekonsiliasi batch offline.
-
-> 💡 **Jeda Praktik 4 (Langkah 4: Checkpointing Consumer Offset & Crash Recovery):**
-> 1. Buka file `stream_processor.py` di workspace Anda menggunakan teks editor.
-> 2. Simpan `last_offset` dan akumulator in-flight `open_windows` secara atomik (`.tmp` + `os.replace`), serta baca offset pada awal eksekusi untuk melewati event yang sudah terproses.
-> 3. Jalankan pemeriksaan langkah 4 di terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
-> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa crash mendadak di tengah pemrosesan dapat dipulihkan tanpa duplikasi dan tanpa kehilangan event.
+- **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
 
 ## @lab Lab: lima langkah membangun engine streaming produksi
 Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat pelajaran pertama) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.

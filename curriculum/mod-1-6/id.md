@@ -156,12 +156,12 @@ Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih
 
 > 💡 **Jeda Praktik 3 (Penyimpanan State Checkpoint Atomik):**
 > Amankan penanda high-water mark dari kegagalan crash sistem:
-> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan kelas `Checkpoint(path)`:
+> 1. Di `labs/mod-1-6/ingest_lab.py` pada text editor, implementasikan kelas `Checkpoint(path)` (di `__init__(self, path)`, simpan `self.path = Path(path)` agar `load()` dan `save()` memakai lokasi yang sama):
 >    - `load()`: baca file JSON dan kembalikan nilai checkpoint tersimpan, atau None jika file belum ada.
 >    - `save(value)`: tulis `{"value": value}` ke file temporary di folder yang sama lalu tukar atomik dengan `os.replace()` agar crash tidak pernah merusak state.
 > 2. Uji di terminal:
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
-> Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah!
+> Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah dan schema drift!
 
 > 🛠 **Coba sendiri (15 menit, praktik langsung).** Tulis `load.py` untuk API latihan: baca pesanan dengan cursor (`limit=5`) dan tambahkan ke `out.jsonl`; **setelah** setiap halaman ditulis, simpan `{"cursor": ...}` ke `checkpoint.json` (tulis file sementara, lalu `os.replace`). Saat skrip mulai, ia melanjutkan dari `checkpoint.json` jika file itu ada. Taruh `time.sleep(1)` setelah menulis setiap halaman, agar Anda sempat menghentikannya.
 > 1. Jalankan `curl localhost:8765/reset`, lalu mulai `load.py` dan tekan Ctrl+C setelah kira-kira dua halaman. Bandingkan `wc -l out.jsonl` dengan cursor di `checkpoint.json`: mengapa file bisa berisi lebih banyak baris daripada yang dikatakan checkpoint?
@@ -249,7 +249,9 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (skrip Anda membaca `data/orders.csv` relatif terhadap folder tempat ia dijalankan).
 
-## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif
+## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif {optional}
+
+*(Jembatan rekayasa modern opsional — Modul 2.1 membahas object storage kompatibel S3 secara mendalam, sementara pelajaran ini memperluas kemampuan dasar `ingest_lab.py` Anda ke webhook, snapshot delta, dan `dlt`.)*
 
 Dalam Bab 7 (*Ingestion*) buku *Fundamentals of Data Engineering* dan pipeline cloud modern (seperti workshop `dlt` pada *DataTalksClub Data Engineering Zoomcamp*), terdapat empat pola ingestion produksi yang menjembatani mekanika HTTP mentah dengan platform data enterprise:
 
@@ -328,7 +330,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # satu kelomp
 4. **Pagination.** Implementasikan loop cursor lebih dulu, lalu loop offset. Jalankan `fetch_all_offset` terhadap data yang ukurannya kelipatan pas dari ukuran halaman dan hitung permintaannya.
 5. **Checkpoint, flatten, drift.** Ini kecil dan murni. Untuk `Checkpoint.save`, jelaskan dalam satu kalimat apa yang bisa salah jika Anda menulis file langsung.
 6. **Pemuatan inkremental.** Tulis paling akhir. Sebelum menjalankan `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, jelaskan mengapa urutan langkah Anda membuatnya lulus. Lalu tukar langkah 5 dan 6 dengan sengaja dan lihat tes mana yang gagal.
-7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 ### @files
 - labs/mod-1-6/ingest_lab.py :: File kerja Anda: implementasikan fungsi TODO dan class Checkpoint :: starter

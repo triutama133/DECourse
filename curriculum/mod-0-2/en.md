@@ -13,7 +13,7 @@ why: Tutorials assume your computer is already set up. Then you meet "command no
 - Keep passwords and API keys out of your code and out of Git
 
 ## @prereq
-Module 0.1 helps but is not required. You need a computer where you can install software: Linux, macOS, or Windows 10/11 with WSL2 (recommended on Windows because almost every data tool assumes a Linux-style shell).
+Module 0.0 (basic Python loops, dictionaries, sets and reading CSV files) is expected for the final counting script. You need a computer where you can install software: Linux, macOS, or Windows 10/11 with WSL2 (recommended on Windows because almost every data tool assumes a Linux-style shell).
 
 ## @part The terminal
 
@@ -82,7 +82,7 @@ The most powerful idea in the terminal is that commands do one small job, and yo
 - `|` (pipe) sends the output of one command into the next.
 - `>` writes output to a file (replacing it), and `>>` appends to a file.
 
-Try this on the KopiKu data after Lab 0.1. How many orders per status?
+Try this on the KopiKu order file you generated in Start here (`python3 labs/shared/shopgen.py --out data`). How many orders per status?
 
 ```bash
 cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
@@ -90,7 +90,7 @@ cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
 
 Read it left to right: `cut` takes the 4th comma-separated column (the status), `tail -n +2` skips the header line, `sort` groups equal values together, `uniq -c` counts runs of equal values, and the last `sort -rn` puts the biggest count first. Five tiny tools replaced a program, and nothing was loaded into memory at once, so it works on a file far bigger than your RAM. Module 1.1 develops this skill in depth.
 
-Notice the output also reveals the data problem from Module 0.1: you will see `paid`, `PAID` and `Paid` as separate groups. The terminal is a good place to *look at data before you write code for it*.
+Notice the output also reveals messy real-world data: you will see `paid`, `PAID` and `Paid` counted as separate groups. The terminal is a good place to *look at data before you write code for it* — Module 0.1 tackles cleaning these statuses properly.
 
 > **Warning:** `>` replaces the target file immediately and silently. `sort data.csv > data.csv` destroys the file (the shell empties it before `sort` reads it). Write to a new file, then rename.
 
@@ -219,6 +219,10 @@ A few small disciplines separate people who ship from people who struggle with t
 
 Finally, **practise the loop** until it is automatic: make a small change, run it, look at the result, commit. Everything later in the course (tests, containers, orchestrators) is that same loop with better tools.
 
+**Reading `summarize.py` before you edit it.** The starter imports two standard-library helpers already wired up for you:
+- **`argparse`**: reads the filename you type after `python3 summarize.py` (for example `data/orders.csv`) and puts it in `args.path`.
+- **`collections.Counter`**: a dictionary built specifically for counting — writing `counts[status] += 1` starts at `0` automatically without needing `counts.get(status, 0)`.
+
 > 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
 > Prove that your entire workbench functions as intended:
 > 0. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/projects/DECourse` (the folder from Start here, step 3; `export` lasts only in this terminal window)
@@ -283,18 +287,16 @@ git commit -m "Record dependencies in requirements.txt"
 python3 $COURSE/labs/mod-0-2/check.py ~/kopiku
 ```
 
-7. **Now do Lab 0.1 for real.** If you only tried it in the browser preview, go back to Module 0.1 and do it on your own computer, using what you just built: activate a venv, install pytest, then run the tests from your own terminal.
+7. **Get ready for Module 0.1 and prove your workspace.** Create the shared course virtual environment once inside your course folder, install `pytest` (Module 0.1 uses it right next; if you tried `Lab 0.0` only in the browser preview earlier, run `pytest labs/mod-0-0/test_lab.py -v` here too), and generate your Module 0.2 proof code:
 
 ```bash
 cd ~/projects/DECourse
 python3 -m venv venv && source venv/bin/activate
-pip install pytest
-pytest labs/mod-0-1/test_lab.py -v
-python3 scripts/prove.py mod-0-1
+python -m pip install pytest
 python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
 
-The last two commands print proof codes. Paste each into the **Proof** box on the lab page of Module 0.1 and Module 0.2.
+The last command prints a proof code. Paste it into the **Proof** box on the Module 0.2 lab page.
 
    This second venv belongs to the **course folder** (`~/projects/DECourse`, or wherever you cloned it in Start here, step 3), not to `~/kopiku`: one venv per project is the normal habit. It is the one you use for every later module. Create it once; at the start of each study session run `cd ~/projects/DECourse` and `source venv/bin/activate`, and check that the prompt starts with `(venv)`.
 

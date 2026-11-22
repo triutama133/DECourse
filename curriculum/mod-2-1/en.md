@@ -27,12 +27,12 @@ A table is a grid. To store it in a file or in memory you must flatten it into a
 Three benefits stack up:
 
 1. **Less I/O.** Reading 2 of 50 columns is roughly 4% of the data. In the lab you will see the engine report `PROJECT 3/7 COLUMNS`: only three of seven columns are read.
-2. **Better compression.** Values of one column are the same type and often similar (`'mobile'`, `'mobile'`, `'desktop'`, ...), which compresses far better than a row mixing text, numbers and dates. Techniques such as **dictionary encoding** (store each distinct string once, then small integer codes), **run-length encoding** (store `'mobile' x 1000`), **delta encoding** (store differences between sorted timestamps) and **bit-packing** (use only as many bits as the values need) shrink columns dramatically.
-3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute very efficiently.
+2. **Better compression.** Values of one column are the same type and often similar (`'mobile'`, `'mobile'`, `'desktop'`, ...), which compresses far better than a row mixing text, numbers and dates. Techniques such as **dictionary encoding** (store each distinct string once, then small integer codes), **run-length encoding (RLE)** (store `'mobile' x 1000` once instead of repeating `'mobile'` 1,000 times), **delta encoding** (store differences between sorted timestamps) and **bit-packing** (use only as many bits as the values need) shrink columns dramatically.
+3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute with **SIMD** instructions (Single Instruction, Multiple Data — adding 4 to 16 numbers in one CPU tick instead of one row at a time).
 
 The trade-off is the mirror image: updating or fetching **one whole record** touches every column's data, so columnar files suit analytics and bulk loads, not frequent single-row writes. That is why you keep an OLTP database for the application (Module 0.1) and a columnar format for analysis.
 
-Real numbers from a 5,000,000-row event table with seven columns (ids, timestamps, a few categories and an amount), written by the lab's tools:
+Real numbers from a 5,000,000-row event table with seven columns (ids, timestamps, a few categories and an amount), written by the lab's tools (where **Snappy** prioritises fast decompression speed and **Zstd / Zstandard** achieves smaller files at similar speed):
 
 | Format | Size on disk |
 |---|---|
@@ -247,6 +247,8 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 > 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
 
 ## @lesson Serialization & compression matrix (Appendix A) and NoSQL storage internals (LSM-Tree vs. B-Tree) {optional}
+
+*(Optional synthesis: this reference bridges file formats you use here with the `B+Tree` database indexes from Modules 0.3/1.3 and the write-optimized `LSM-Tree` storage engines behind Module 1.7's wide-column stores.)*
 
 Two storage questions appear repeatedly in both production architecture reviews (Reis & Housley Chapter 6 & Appendix A) and senior data engineering interviews: **(1) Which file format and compression codec should we pick for each stage of the pipeline?** and **(2) How do NoSQL storage engines (`LSM-Tree`) differ from relational databases (`B+Tree`) when we ingest from or serve to them?**
 

@@ -14,7 +14,7 @@ why: Bootcamp bilang "pakai MongoDB untuk data fleksibel dan Cassandra untuk ska
 - Meratakan dokumen menjadi tabel dan menangani schema drift saat ingestion
 
 ## @prereq
-Modul 0.3 (dasar SQL) dan 1.3 (index) membantu. Lab ini memakai Python murni (Modul 0.0 sudah cukup); tidak ada database yang perlu dipasang.
+Modul 0.3 (dasar SQL), 1.2 (kelas Python dengan `__init__`, `self`, dan pytest), dan 1.3 (index) membantu. Tidak ada database yang perlu dipasang.
 
 ## @part Keluarga database utama
 
@@ -46,7 +46,7 @@ Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah se
 Dua fitur menentukan bagaimana key-value store dipakai:
 
 - **TTL (time to live).** Sebuah key bisa kedaluwarsa otomatis setelah sejumlah detik. Sesi, one-time password, dan hasil cache memakainya. `KeyValueStore` di lab mengedaluwarsakan key ketika `clock() >= waktu_set + ttl`; jam disuntikkan sehingga tes tidak perlu tidur.
-- **Eviction.** Memori terbatas. Ketika penuh, store harus membuang sesuatu; **LRU** (least recently used) membuang key yang paling lama tidak disentuh. Lab mengimplementasikannya dengan dictionary terurut, tempat setiap `get` atau `set` memindahkan key ke ujung "terbaru".
+- **Eviction.** Memori terbatas. Ketika penuh, store harus membuang sesuatu; **LRU** (least recently used) membuang key yang paling lama tidak disentuh. `collections.OrderedDict` di Python mengingat urutan penyisipan: `od.move_to_end(key)` memindahkan key yang diakses ke ujung "terbaru" dalam O(1), dan `od.popitem(last=False)` membuang key paling lama dari ujung depan (`del` menghapus key apa pun).
 
 **Untuk apa:** meng-cache hasil query mahal, sesi, rate limiting (hitung permintaan per pengguna per menit), penghitung, papan peringkat, feature flag, antrean job kecil. **Bukan untuk:** menanyakan "semua pelanggan di Jakarta yang belanja di atas 1 juta", karena satu-satunya pintu masuk adalah key. Jika Anda perlu menemukan data lewat hal selain key, Anda harus memelihara key tambahan sendiri, dan pada titik itu keluarga lain mungkin lebih cocok.
 
@@ -93,7 +93,7 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 
 `WideColumnTable("customer_id", "order_ts")` di lab memodelkan ini: semua pesanan seorang pelanggan membentuk satu partisi, diurutkan menurut waktu, sehingga "10 pesanan terakhir pelanggan 7" atau "pesanan pelanggan 7 pada Januari" adalah pembacaan cepat atas **satu** irisan terurut. Menanyakan "semua pesanan Januari untuk setiap pelanggan" tidak punya jawaban efisien, dan lab menolak query tanpa partition key. Inilah **pemodelan berbasis query**: di database relasional Anda merancang tabel dari data dan menulis query apa pun kemudian; di sini Anda **mendaftar query lebih dulu**, lalu merancang satu tabel per query, mengulang (denormalisasi) data seperlunya. Ini pergeseran mental terbesar.
 
-**Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
+**Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Di Python, `zlib.crc32(text.encode())` mengubah string apa pun secara deterministik menjadi integer 32-bit (`0` sampai `2**32 - 1`), dan modul bawaan `bisect.bisect_left(positions, target)` menemukan posisi pertama `>= target` di list terurut menggunakan binary search O(log n) — memutar kembali ke indeks `0` bila `target` melampaui posisi terbesar. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
 
 > 💡 **Jeda Praktik: Menguji Cincin Consistent Hashing**
 > 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka kelas `HashRing` (Bagian 3).
@@ -184,7 +184,7 @@ pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # satu kelompok pa
 4. **Dokumen.** Bangun `insert` dan `find` biasa; lalu operator; lalu index. Cetak `last_scanned` sebelum dan sesudah `create_index` dan catat selisihnya.
 5. **Cincin dan quorum.** Setelah `HashRing` lulus, ukur sendiri berapa dari 10.000 key yang pindah dengan `zlib.crc32(key) % n` ketika n naik dari 4 ke 5, dan bandingkan dengan cincin Anda. Untuk `ReplicaSet`, isi tabel pasangan (R, W) untuk N = 3 dan tandai mana yang bisa mengembalikan data basi; periksa dengan kode Anda.
 6. **Wide-column.** Tebak apa yang dilakukan `query` dengan partition key yang hilang dan mengapa sistem sungguhan menolaknya.
-7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-7` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-7` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 ### @files
 - labs/mod-1-7/nosql_lab.py :: File kerja Anda: implementasikan lima class TODO :: starter

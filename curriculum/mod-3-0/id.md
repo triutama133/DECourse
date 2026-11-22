@@ -77,7 +77,7 @@ Contoh klasiknya menghitung kata. Masukan dipecah menjadi potongan (satu per blo
 potongan input --> MAP --> pasangan (key,value) --> SHUFFLE (kelompokkan per key, kirim ke reducer) --> REDUCE --> keluaran
 ```
 
-Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah_reducer`. Ia harus memberi jawaban yang sama di setiap mesin, jadi dipakai hash yang stabil (lab memakai CRC32; `hash()` bawaan Python berubah antar eksekusi dan akan salah). Semua soal **skew** dari Modul 3.1 bermula di sini: satu key yang sangat umum mengirim semua pasangannya ke satu reducer.
+Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah_reducer`. Ia harus memberi jawaban yang sama di setiap mesin, jadi dipakai hash yang stabil (lab memakai **CRC32**, Cyclic Redundancy Check 32-bit, lewat `zlib.crc32` — algoritma deterministik cepat yang mengubah string byte apa pun menjadi integer tetap `0..2**32 - 1` di komputer mana pun; `hash()` bawaan Python mengacak seed antar-eksekusi dan akan mengirim key yang sama ke reducer berbeda). Semua soal ketimpangan partisi (**skew**, dibahas tuntas di Modul 3.1) bermula di sini: satu key yang sangat umum mengirim semua pasangannya ke satu reducer.
 
 **Combiner** adalah reducer mini yang berjalan di sisi map, sebelum shuffle, untuk memperkecil apa yang harus melewati jaringan. Pada word count di lab, 13 kata menghasilkan 13 pasangan; dengan combiner hanya **7 pasangan** (satu per kata berbeda) yang di-shuffle, dan jawabannya identik. Jaringan adalah sumber daya yang mahal, jadi ini penting.
 
@@ -179,7 +179,7 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # satu kelompok p
 4. **MapReduce berikutnya.** Tulis `partition` dan `shuffle`, lalu cetak `lab.shuffle(pairs, 3)` untuk masukan kecil dan baca hasilnya: inilah yang diterima setiap reducer di klaster sungguhan. Lalu bangun `run_job` dan combiner. Bandingkan `shuffled_pairs` dengan dan tanpa combiner.
 5. **Join-nya.** Tulis `revenue_per_city` sebagai reduce-side join. Sebelum menjalankan, tebak apa yang dilihat reducer untuk satu pelanggan.
 6. Eksperimen: ubah jumlah reducer, ukuran blok, atau combiner dan tebak setiap hasilnya lebih dulu. Lalu pakai `metadata_objects` untuk menghitung berapa memori NameNode yang dibutuhkan 50 juta file kecil.
-7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 > 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
 > 1. Di terminal, jalankan seluruh rangkaian pengujian:

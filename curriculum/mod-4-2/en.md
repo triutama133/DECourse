@@ -16,6 +16,8 @@ why: In production data engineering, data rarely arrives in tidy monthly CSV fil
 Modules 0.2 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 1.6 (API ingestion, pagination, and watermarks), and 2.1 (DuckDB and Parquet). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (terminal & venv), **Module 1.2** (exponential backoff, retries & idempotency), **Module 1.6** (cursor/offset API pagination & atomic checkpoints), and **Module 2.1** (DuckDB table storage & CDC upserts). Each lesson aligns 1-to-1 with `check.py --step 1` through `--step 5`.
+
 Every lab earlier in the course gave you predefined function signatures, unit test files, and guided scaffolding. A capstone is intentionally different: **you receive a technical contract, real public data, and an automated verification suite that attacks your pipeline.**
 
 Nobody grades your coding aesthetics or style. The verification suite checks **observable behaviors and outcomes**:
@@ -97,38 +99,12 @@ GeoJSON Feature Collection
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
 > 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw seismic profiling matches reference truth.
 
-## @lesson Network resilience: Backoff, Jitter & Rate Limits
-In distributed systems, networks are fundamentally unreliable (Fallacies of Distributed Computing #1: *The network is reliable*). A production data pipeline must survive transient disruptions without human intervention.
+## @lesson Baseline ingestion contract: pagination, coordinates & DuckDB storage
+Before adding retries or dead-letter routing, get the **core ingestion contract** right cleanly from API page to analytical table:
 
-```
-Request ───────> [API Server]
-                   │
-                   ├──> HTTP 429 (Too Many Requests) ──> Inspect `Retry-After` header ──> Sleep & Retry
-                   ├──> HTTP 500 / 503 (Server Error)  ──> Exponential Backoff + Jitter  ──> Sleep & Retry
-                   └──> HTTP 400 (Bad Request)         ──> Fatal Non-retryable Error     ──> Exit code 2
-```
-
-### 1. HTTP 429 Too Many Requests & `Retry-After`:
-When an API throttles your client, standard REST APIs return an HTTP 429 response accompanied by a `Retry-After` HTTP response header indicating how many seconds to pause:
-```python
-if response.status_code == 429:
-    retry_after = response.headers.get("Retry-After")
-    delay = float(retry_after) if retry_after else base_backoff
-    time.sleep(delay)
-```
-
-### 2. Truncated Exponential Backoff with Jitter:
-For transient server errors (HTTP 500, 502, 503, 504) or network timeouts, retrying immediately (*thundering herd problem*) only overwhelms an already struggling server. Instead, increase wait time exponentially:
-```text
-wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; with base = 1 s: about 1 s, 2 s, 4 s, 8 s)
-```
-Where jitter is a small randomized offset (about plus or minus 10%) preventing multiple concurrent extraction workers from retrying in lockstep synchronization.
-
-### 3. Non-Retryable Fatal Errors (HTTP 4xx):
-Not all errors should be retried. If the upstream server returns `HTTP 400 Bad Request`, `401 Unauthorized`, or `404 Not Found`, retrying 5 times will simply fail 5 times and waste time. Fatal client errors must log clear diagnostic details and exit immediately with exit code `2` without altering checkpoint state.
-
-### 4. Socket Timeouts and Connection Hygiene:
-A common rookie mistake is issuing HTTP requests without an explicit timeout (e.g. `urllib.request.urlopen(url)`). If a network middlebox drops packets silently, the thread can hang indefinitely, locking cron jobs and stalling pipelines. Always enforce an explicit timeout (e.g. 15-30 seconds). Furthermore, use Python context managers (`with ... as resp:`) to guarantee sockets are closed immediately, preventing file descriptor leaks in high-frequency batch runs.
+1. **Paginate with `limit` and 1-based `offset`:** Loop page by page (`offset = 1`, advancing by page length) until the returned `features` list is empty.
+2. **Enforce coordinate ordering:** Always map `longitude = coords[0]`, `latitude = coords[1]`, and `depth_km = coords[2]`, converting timestamps to UTC consistently.
+3. **Create the target DuckDB `events` table idempotently:** Use `event_id` as the primary key and store `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, and `status`, updating existing rows cleanly if an event is revised rather than appending duplicates.
 
 > 💡 **Practice Pause 2 (Step 2: Baseline Ingestion Contract & DuckDB Storage):**
 > 1. Open `pipeline.py` in your workspace (`~/seismic/pipeline.py`) using your text editor.
@@ -182,6 +158,46 @@ Or the inverse:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, proving mid-flight socket drops do not advance checkpoints prematurely and subsequent runs produce zero loss and zero duplicates.
 
+## @lesson Network resilience: Backoff, Jitter & Rate Limits
+In distributed systems, networks are fundamentally unreliable (Fallacies of Distributed Computing #1: *The network is reliable*). A production data pipeline must survive transient disruptions without human intervention.
+
+```
+Request ───────> [API Server]
+                   │
+                   ├──> HTTP 429 (Too Many Requests) ──> Inspect `Retry-After` header ──> Sleep & Retry
+                   ├──> HTTP 500 / 503 (Server Error)  ──> Exponential Backoff + Jitter  ──> Sleep & Retry
+                   └──> HTTP 400 (Bad Request)         ──> Fatal Non-retryable Error     ──> Exit code 2
+```
+
+### 1. HTTP 429 Too Many Requests & `Retry-After`:
+When an API throttles your client, standard REST APIs return an HTTP 429 response accompanied by a `Retry-After` HTTP response header indicating how many seconds to pause:
+```python
+if response.status_code == 429:
+    retry_after = response.headers.get("Retry-After")
+    delay = float(retry_after) if retry_after else base_backoff
+    time.sleep(delay)
+```
+
+### 2. Truncated Exponential Backoff with Jitter:
+For transient server errors (HTTP 500, 502, 503, 504) or network timeouts, retrying immediately (*thundering herd problem*) only overwhelms an already struggling server. Instead, increase wait time exponentially:
+```text
+wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; with base = 1 s: about 1 s, 2 s, 4 s, 8 s)
+```
+Where jitter is a small randomized offset (about plus or minus 10%) preventing multiple concurrent extraction workers from retrying in lockstep synchronization.
+
+### 3. Non-Retryable Fatal Errors (HTTP 4xx):
+Not all errors should be retried. If the upstream server returns `HTTP 400 Bad Request`, `401 Unauthorized`, or `404 Not Found`, retrying 5 times will simply fail 5 times and waste time. Fatal client errors must log clear diagnostic details and exit immediately with exit code `2` without altering checkpoint state.
+
+### 4. Socket Timeouts and Connection Hygiene:
+A common rookie mistake is issuing HTTP requests without an explicit timeout (e.g. `urllib.request.urlopen(url)`). If a network middlebox drops packets silently, the thread can hang indefinitely, locking cron jobs and stalling pipelines. Always enforce an explicit timeout (e.g. 15-30 seconds). Furthermore, use Python context managers (`with ... as resp:`) to guarantee sockets are closed immediately, preventing file descriptor leaks in high-frequency batch runs.
+
+> 💡 **Practice Pause 4 (Step 4: Network Resilience: HTTP 429 Rate-Limits & 5xx Backoff):**
+> 1. Open `pipeline.py` in your workspace using your text editor.
+> 2. Enhance your HTTP fetching logic with a retry loop: parse `Retry-After` on HTTP 429, apply exponential backoff with jitter on 5xx server errors, and immediately exit with code 2 on fatal 4xx client errors without retrying.
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming orderly backoff during rate limits and upstream outages.
+
 ## @lesson The Dead-Letter Queue (DLQ) & Historical Backfills
 In production, upstream schemas mutate and sensor data gets corrupted. If 1 record out of 10,000 contains `latitude = 999.0` or missing event IDs, what should your pipeline do?
 - **Option A (Fail the entire batch):** The pipeline crashes. Business dashboards go stale for 48 hours until an on-call engineer wakes up. (Unacceptable).
@@ -206,13 +222,6 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 **The Cardinal Rule of Backfills:** A backfill must load historical records into the analytical warehouse using the same upsert rules, **BUT IT MUST NEVER MODIFY OR REGRESS THE INCREMENTAL WATERMARK IN `state.json`!** If a December 2023 backfill rewrote `state.json`, your next hourly production run would think the current high-watermark is December 2023 and re-fetch an entire month of data redundantly.
 
 Finally, always implement strict **reconciliation counters**: at the conclusion of every sync session, verify the invariant that `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. If the numbers do not reconcile, a row was silently leaked in memory.
-
-> 💡 **Practice Pause 4 (Step 4: Network Resilience: HTTP 429 Rate-Limits & 5xx Backoff):**
-> 1. Open `pipeline.py` in your workspace using your text editor.
-> 2. Enhance your HTTP fetching logic with a retry loop: parse `Retry-After` on HTTP 429, apply exponential backoff with jitter on 5xx server errors, and immediately exit with code 2 on fatal 4xx client errors without retrying.
-> 3. Run the step 4 check in terminal:
->    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
-> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming orderly backoff during rate limits and upstream outages.
 
 ## @lab Lab: five steps to a resilient incremental ingestion pipeline
 Build `pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your pipeline on real USGS seismic events, simulates connection drops, triggers HTTP 429 throttles, injects toxic payloads, and tests historical backfill isolation.

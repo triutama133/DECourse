@@ -82,15 +82,15 @@ Types protect you in two more ways:
 >
 > **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
-### Two traps
+### Formatting text and numbers (`abs`, f-strings, `.replace`)
 
-Two traps to learn now. First, money must be an `int` in the smallest unit, because decimals are stored in binary and cannot always be exact: `0.1 + 0.2` is `0.30000000000000004`. Second, build text with an **f-string**: `f"Order {1001}: Rp {total}"` puts the values inside the text, and it is easier to read than gluing pieces with `+`. A useful number helper is `abs(n)`, which returns the positive distance from zero: `abs(-45000)` is `45000`. It is handy when formatting negative currency where the minus sign must go before the currency prefix (`"-Rp 45.000"` instead of `"Rp -45.000"`).
+A few small built-in helpers save you time right away:
 
-Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
-
-### Two tools for the practice below
-
-A format code inside an f-string changes how a number is written: `f"{1250000:,}"` gives the text `"1,250,000"`. A text's `.replace(old, new)` swaps characters: `"a-b-c".replace("-", "+")` gives `"a+b+c"`. Together they turn `1250000` into the way Indonesians write it.
+- **Decimals trap:** store money as an `int` in the smallest unit (rupiah or cents), because decimals are stored in binary and `0.1 + 0.2` produces `0.30000000000000004`.
+- **`abs(n)`** gives the distance from zero (always non-negative): `abs(-45000)` is `45000`. That helps in Lesson 3 when formatting negative money (`"-Rp 45.000"` instead of `"Rp -45.000"`).
+- **Assignment order:** trace `a = 2`, `b = a * 3`, `a = 10`, `print(b)` on paper before running it. It prints `6`, not `30`, because `b` received `6` when assigned and changing `a` later does not recalculate `b`.
+- **f-strings & format specifiers:** putting `f"..."` before quotes lets Python insert values inside `{...}` (e.g. `f"Order {1001}: Rp {total}"`), and adding `:,` inside `{amount:,}` inserts thousand commas: `f"{1250000:,}"` gives `"1,250,000"`.
+- **String `.replace(old, new)`:** strings have attached helper actions called *methods*. Calling `"1,250,000".replace(",", ".")` swaps every comma for a dot, giving `"1.250.000"`. Together they format numbers the Indonesian way.
 
 > 🛠 **Try it (10 min, Python in a practice file): Practice Pause 1, the simple way.** No functions yet: just variables, an f-string and `.replace`. Once, in the terminal, make a folder for your practice files: `mkdir -p ~/practice`. In VS Code choose File, New File, type these three lines, and save it (File, Save As) as `pause1.py` inside that `practice` folder in your home folder. Then run it from the terminal with `python3 ~/practice/pause1.py`:
 >
@@ -162,7 +162,7 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 
 **Why decisions are everywhere in pipelines.** The rule of Module 0.1 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
 
-Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. `if not values: return None` handles it before the error can happen. Prefer to check the dangerous case first and leave early.
+Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. Use built-in `sum(values)` (adds up all numbers in a list) and `len(values)` (counts the items), guarded by an `if`: `if not values: avg = None` handles the empty list before the error can happen, and `else: avg = sum(values) / len(values)` runs safely when there is data. Prefer checking the dangerous case first.
 
 > 🛠 **Try it (10 min, Python in a practice file): Practice Pause 3, the simple way.** In `~/practice/pause3.py`: (1) set `amount = -45000` and use `if` with `abs()` so that a negative amount is written `-Rp 45.000` while a positive one still gives `Rp 45.000`; (2) set `totals = []` and print the average with `sum(totals) / len(totals)` (`sum` adds up a list of numbers, `len` counts its items), but only when the list is not empty, and print `None` otherwise; run it, then change `totals` to `[150000, 25000]` and run again.
 >
@@ -250,7 +250,7 @@ Prefer functions that depend only on their inputs and return a result without ch
 > ```
 >
 > `amount` no longer gets its value from you: the test gives it, by calling for example `format_rupiah(1250000)`. Then add the `if` from Pause 3 for negative amounts.
-> Do it for `format_rupiah` (Pauses 1 and 3), `count_by_status` and `unique_customer_ids` (Pause 4), `average_total` (Pause 3, but over the orders' totals), `total_revenue` and `batches` (Pause 4), and `top_customers` (Lesson 4's `sorted` with a `key`). Run the tests after each one and look only at its group (terminal route):
+> Do it for `format_rupiah` (Pauses 1 and 3), `count_by_status` and `unique_customer_ids` (Pause 4), `average_total` (Pause 3, but over the orders' totals), `total_revenue` and `batches` (Pause 4), and `top_customers` (Lesson 4's `sorted` with a `key`). On the Browser preview click **Run tests**; on the terminal route, `pytest` runs all the automated checks (adding `-k TestFormatRupiah` runs just that one group while `-v` prints each test name):
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
 > Then go on to Lesson 6.
 

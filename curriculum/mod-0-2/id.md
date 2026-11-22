@@ -13,7 +13,7 @@ why: Tutorial mengira komputer Anda sudah siap. Lalu Anda bertemu "command not f
 - Menjaga password dan API key tetap di luar kode dan di luar Git
 
 ## @prereq
-Modul 0.1 membantu tetapi tidak wajib. Anda butuh komputer yang boleh Anda pasangi perangkat lunak: Linux, macOS, atau Windows 10/11 dengan WSL2 (disarankan di Windows karena hampir semua alat data mengasumsikan shell bergaya Linux).
+Modul 0.0 (dasar perulangan Python, dictionary, set, dan membaca file CSV) diharapkan untuk skrip penghitung terakhir. Anda butuh komputer yang boleh Anda pasangi perangkat lunak: Linux, macOS, atau Windows 10/11 dengan WSL2 (disarankan di Windows karena hampir semua alat data mengasumsikan shell bergaya Linux).
 
 ## @part Terminal
 
@@ -82,7 +82,7 @@ Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, da
 - `|` (pipe) mengirim keluaran satu perintah ke perintah berikutnya.
 - `>` menulis keluaran ke file (menggantikan isinya), dan `>>` menambahkannya di akhir file.
 
-Coba ini pada data KopiKu setelah Lab 0.1. Berapa pesanan per status?
+Coba ini pada file pesanan KopiKu yang Anda buat di Mulai di sini (`python3 labs/shared/shopgen.py --out data`). Berapa pesanan per status?
 
 ```bash
 cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
@@ -90,7 +90,7 @@ cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
 
 Baca dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (status), `tail -n +2` melewati baris judul, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung deretan nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di atas. Lima alat kecil menggantikan sebuah program, dan tidak ada yang dimuat ke memori sekaligus, jadi cara ini berjalan pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini lebih dalam.
 
-Perhatikan keluarannya juga memperlihatkan masalah data dari Modul 0.1: Anda akan melihat `paid`, `PAID`, dan `Paid` sebagai kelompok terpisah. Terminal adalah tempat yang bagus untuk *melihat data sebelum menulis kode untuknya*.
+Perhatikan keluarannya juga memperlihatkan masalah data dunia nyata: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang bagus untuk *melihat data sebelum menulis kode untuknya* — Modul 0.1 melatih cara membersihkannya dengan benar.
 
 > **Peringatan:** `>` mengganti file tujuan seketika dan tanpa suara. `sort data.csv > data.csv` menghancurkan file itu (shell mengosongkannya sebelum `sort` membaca). Tulis ke file baru, lalu ganti namanya.
 
@@ -219,6 +219,10 @@ Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang
 
 Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, lihat hasilnya, commit. Semua yang datang kemudian di kursus ini (tes, container, orchestrator) adalah siklus yang sama dengan alat yang lebih baik.
 
+**Membaca `summarize.py` sebelum mengeditnya.** Starter sudah menyiapkan dua alat standar Python untuk Anda:
+- **`argparse`**: membaca nama file yang Anda ketik setelah `python3 summarize.py` (misalnya `data/orders.csv`) dan menyimpannya ke `args.path`.
+- **`collections.Counter`**: dictionary khusus untuk menghitung — menulis `counts[status] += 1` otomatis dimulai dari `0` tanpa perlu menulis `counts.get(status, 0)`.
+
 > 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
 > Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
 > 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/projects/DECourse` (folder dari Mulai di sini, langkah 3; `export` hanya berlaku di jendela terminal ini)
@@ -283,18 +287,16 @@ git commit -m "Record dependencies in requirements.txt"
 python3 $COURSE/labs/mod-0-2/check.py ~/kopiku
 ```
 
-7. **Sekarang kerjakan Lab 0.1 yang sesungguhnya.** Jika Anda baru mencobanya di pratinjau browser, kembali ke Modul 0.1 dan kerjakan di komputer Anda sendiri dengan apa yang baru Anda bangun: aktifkan venv, pasang pytest, lalu jalankan tes dari terminal Anda sendiri.
+7. **Siapkan untuk Modul 0.1 dan buktikan workspace Anda.** Buat virtual environment bersama untuk folder kursus satu kali saja, pasang `pytest` (Modul 0.1 langsung memakainya setelah ini; jika tadi Anda baru mencoba `Lab 0.0` di pratinjau browser, jalankan juga `pytest labs/mod-0-0/test_lab.py -v` di sini), lalu buat kode bukti Modul 0.2 Anda:
 
 ```bash
 cd ~/projects/DECourse
 python3 -m venv venv && source venv/bin/activate
-pip install pytest
-pytest labs/mod-0-1/test_lab.py -v
-python3 scripts/prove.py mod-0-1
+python -m pip install pytest
 python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
 
-Dua perintah terakhir mencetak kode bukti. Tempel masing-masing ke kotak **Bukti** di halaman lab Modul 0.1 dan Modul 0.2.
+Perintah terakhir mencetak kode bukti. Tempel ke kotak **Bukti** di halaman lab Modul 0.2.
 
    Venv kedua ini milik **folder kursus** (`~/projects/DECourse`, atau tempat Anda meng-clone-nya di Mulai di sini, langkah 3), bukan milik `~/kopiku`: satu venv per proyek adalah kebiasaan yang normal. Inilah venv yang Anda pakai untuk semua modul berikutnya. Buat sekali saja; di awal setiap sesi belajar jalankan `cd ~/projects/DECourse` dan `source venv/bin/activate`, lalu pastikan prompt diawali `(venv)`.
 

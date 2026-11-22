@@ -16,6 +16,7 @@ why: Sebagian besar lab mengajarkan satu keahlian terisolasi pada data yang suda
 Modul 0.2 (terminal, virtual environment), 1.2 (idempotensi, retries), 1.4 (pemodelan dimensional), 1.5 (kebiasaan pandas) dan 2.1 (Parquet dan DuckDB) adalah perkakas yang akan Anda gunakan; 2.5 (data quality gates) adalah pola pikirnya. Anda membutuhkan Python 3.10 atau yang lebih baru, ruang disk kosong sekitar 1,5 GB, serta koneksi internet stabil satu kali untuk mengunduh dataset sebesar 50 MB.
 
 ## @lesson Cara kerja capstone ini
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.2** (virtual environment & runner CLI), **Modul 1.2** (karantina & idempotensi), **Modul 1.4** (star schema, grain & surrogate key), **Modul 1.5/2.1** (Parquet & analitik DuckDB), serta **Modul 2.5** (data contract & gerbang kualitas).
 Setiap lab sejauh ini memberitahu Anda fungsi mana yang harus ditulis dan menjalankan pengujian otomatis terhadapnya. Capstone ini sengaja dirancang berbeda. **Anda menerima kontrak kerja, data nyata, dan sebuah skrip pemeriksa (checker).** Anda bebas menentukan cara membangunnya: DuckDB atau pandas, satu skrip atau modular, SQL atau Python murni. Tidak ada yang memeriksa gaya penulisan kode Anda. Pemeriksa hanya menilai **hasil akhir**: berkas-berkas yang dihasilkan pipeline Anda, keakuratan angka di dalamnya, dan bagaimana perilaku pipeline saat menghadapi anomali data.
 
 Aturan main capstone:

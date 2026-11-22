@@ -49,7 +49,11 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 **Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah ditulis keras di kode; **rahasia** hanya dari environment (Modul 0.2).
 
-Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berjalan, tetapi mendokumentasikan maksud, membantu editor menangkap kesalahan, dan memungkinkan pemeriksa seperti `mypy` atau `pyright` menemukan bug sebelum kode dijalankan. Tambahkan ke signature fungsi sejak awal.
+Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berjalan, tetapi mendokumentasikan maksud, membantu editor menangkap kesalahan, dan memungkinkan pemeriksa seperti `mypy` atau `pyright` menemukan bug sebelum kode dijalankan. Perhatikan bahwa `-> int | None` di atas memakai sintaks union Python 3.10+ ("mengembalikan integer atau `None`").
+
+**Jembatan Python Level 1 (sintaks baru yang akan Anda temui di Modul 1.2–1.7):**
+- **Kelas (`class Name:`)**: membundel data dan fungsi menjadi satu. Di dalam kelas, `def __init__(self, ...):` menyiapkan atribut awal objek baru, dan `self` merujuk ke instance objek tersebut (`self.path = ...`).
+- **Dekorator (`@name`)**: baris singkat tepat di atas `def` yang membungkus atau mendaftarkan fungsi/method dengan perilaku tambahan — misalnya `@field_validator` di Pydantic atau `@pytest.fixture` di tes.
 
 > 🛠 **Coba sendiri (12 menit, di `etl_try.py`).** Tulis fungsi **murni** `parse_total(raw)` yang mengembalikan int, atau `None` jika teksnya bukan bilangan bulat yang tidak negatif (ia juga harus mengerti gaya `Rp 150.000`). Fungsi itu harus lulus:
 > `assert parse_total("150000") == 150000`
@@ -86,7 +90,7 @@ Gagasan yang perlu dipahami:
 
 - **Koersi.** Secara bawaan Pydantic bersifat *lax*: teks `"150000"` menjadi integer `150000`, sempurna untuk CSV di mana semuanya teks. Dalam mode **strict** (`ConfigDict(strict=True)`) ia menolak mengonversi; pakai untuk sumber bertipe seperti API JSON di mana string di field angka berarti ada yang salah.
 - **Constraint** (`gt=0`, `min_length=5`, `Literal[...]`) menyatakan aturan bisnis secara deklaratif.
-- **Validator** (`field_validator`) menangani masukan berantakan tetapi bisa dipulihkan. `mode="before"` berjalan *sebelum* parsing Pydantic sendiri, di situlah Anda memangkas `"Rp 1.250.000"` menjadi `"1250000"` dan membiarkan Pydantic menyelesaikan konversinya.
+- **Validator** (`field_validator`) menangani masukan berantakan tetapi bisa dipulihkan. `@classmethod` menandai method yang menerima kelas (`cls`) alih-alih instance karena Pydantic menjalankan `mode="before"` *sebelum* membangun objek `OrderRow` — di situlah Anda memangkas `"Rp 1.250.000"` menjadi `"1250000"`, atau mencoba `datetime.strptime(v.strip(), "%d/%m/%Y %H:%M")` untuk format seperti `"31/01/2026 14:03"` sebelum membiarkan Pydantic mengurai stempel waktu ISO.
 - **Error adalah data.** `OrderRow.model_validate(row)` mengembalikan objek atau melempar `ValidationError`; `.errors()`-nya mendaftar setiap masalah beserta lokasi field dan jenis error:
 
 ```python
@@ -112,7 +116,7 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
 
-Alat Python untuk ini adalah **iterator**, dan cara termudah menulisnya adalah **generator**: fungsi yang memakai `yield` alih-alih `return`.
+Alat Python untuk ini adalah **iterator**, dan cara termudah menulisnya adalah **generator**: fungsi yang memakai `yield` (atau `yield from` untuk meneruskan tiap item dari iterable lain) alih-alih `return` sekali dengan list penuh.
 
 ```python
 def read_orders(path):
@@ -192,7 +196,7 @@ Ketiganya persis yang diuji Lab 1.2.
 > 2. Gunakan penulisan atomik (tulis ke file sementara `.tmp` lalu tukar dengan `os.replace`), lacak duplikat `order_id` menggunakan set, kirim data bersih ke `output_path` (format NDJSON dengan kunci terurut), dan kirim baris gagal ke `quarantine_path` mencatat alasan penolakannya.
 > 3. Uji pipeline di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
-> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 5 & 6 untuk logging dan testing.
+> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 5 & 6 untuk logging (`TestLogging`) dan testing.
 
 ## @lesson Logging dan ringkasan eksekusi
 `print` untuk skrip; **`logging`** untuk job. Ia menambah stempel waktu, tingkat keparahan, dan perutean (ke file, ke konsol, ke pengumpul), dan membiarkan siapa pun yang menjalankan job memilih seberapa banyak yang ingin dilihat tanpa mengubah kode.
@@ -213,7 +217,7 @@ Baris log tunggal yang paling berguna di pipeline mana pun adalah **ringkasan ek
 
 > 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri sebelumnya: panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
 >
-> **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan.
+> **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan. Di lab Anda, periksa baris log ringkasan dengan `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
 ## @lesson Menguji kode data dengan pytest
 Tes adalah cara Anda mengubah kode tanpa takut. Untuk job data, tes juga mendokumentasikan, dalam bentuk yang bisa dijalankan, apa arti "benar". **pytest** adalah alat standar: taruh fungsi bernama `test_*` di file bernama `test_*.py` dan jalankan `pytest`.
@@ -222,6 +226,8 @@ Tes adalah cara Anda mengubah kode tanpa takut. Untuk job data, tes juga mendoku
 def test_status_is_normalised():
     assert validate({**GOOD, "status": " PAID "}).status == "paid"
 ```
+
+Perhatikan bahwa `{**GOOD, "status": " PAID "}` membuat salinan dictionary dasar `GOOD` dengan kunci `"status"` diganti, sehingga tiap tes tidak pernah merusak data patokan bersama.
 
 Fitur yang layak dipelajari lebih awal:
 

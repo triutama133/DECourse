@@ -77,7 +77,7 @@ The classic example is counting words. The input is split into pieces (one per b
 input splits --> MAP --> (key,value) pairs --> SHUFFLE (group by key, send to reducers) --> REDUCE --> output
 ```
 
-Which reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers`. It must give the same answer on every machine, so a stable hash is used (the lab uses CRC32; Python's built-in `hash()` changes between runs and would be wrong). Everything about **skew** from Module 3.1 starts here: one very common key sends all its pairs to a single reducer.
+Which reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers`. It must give the same answer on every machine, so a stable hash is used (the lab uses **CRC32**, Cyclic Redundancy Check 32-bit, via `zlib.crc32` — a fast deterministic algorithm that turns any byte string into the same integer `0..2**32 - 1` on every computer; Python's built-in `hash()` randomises its seed between runs and would send the same key to different reducers). Everything about partition imbalance (**skew**, studied in depth in Module 3.1) starts here: one very common key sends all its pairs to a single reducer.
 
 A **combiner** is a mini-reducer that runs on the map side, before the shuffle, to shrink what must cross the network. In the lab's word count, 13 words produce 13 pairs; with a combiner only **7 pairs** (one per distinct word) are shuffled, and the answer is identical. Network is the expensive resource, so this matters.
 
@@ -179,7 +179,7 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # one group at a 
 4. **MapReduce next.** Write `partition` and `shuffle`, then print `lab.shuffle(pairs, 3)` for a small input and read it: this is what every reducer in a real cluster receives. Then build `run_job` and the combiner. Compare `shuffled_pairs` with and without the combiner.
 5. **The join.** Write `revenue_per_city` as a reduce-side join. Predict, before you run it, what the reducer sees for one customer.
 6. Experiment: change the number of reducers, the block size, or the combiner and predict each result first. Then use `metadata_objects` to work out how much NameNode memory 50 million small files would need.
-7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page.
+7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page.
 
 > 💡 **Practice Pause 6 (Full Verification & Proof Token):**
 > 1. In terminal, run the complete test suite:

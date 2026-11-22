@@ -198,6 +198,8 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 
 ## @lesson Modern single-node vectorized engines: Polars lazy execution and Apache Arrow zero-copy {optional}
 
+*(Optional preview: this lesson gives an early glimpse of Apache Arrow and Polars so you recognize how single-node engines evolved beyond pandas; Module 2.1 teaches columnar engines, DuckDB, and Arrow internals systematically from first principles.)*
+
 While `pandas` remains ubiquitous across existing codebases, two architectural limits show up when a single-machine dataset grows from 100 MB to 20 GB:
 1. **Single-Core Execution & Eager Materialization:** Standard pandas runs operations on a single CPU thread and allocates a brand-new intermediate DataFrame in RAM at every step of a method chain (`df[df.status == 'paid'].groupby('city')...`), which is why Wes McKinney, who created pandas, advised having **5 to 10 times as much RAM as the dataset**.
 2. **Serialization Overhead Between Tools:** Historically, moving a table from a SQL engine into pandas meant copying and re-parsing every value in memory.

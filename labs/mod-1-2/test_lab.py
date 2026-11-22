@@ -121,6 +121,8 @@ class TestRun:
         assert out.read_bytes() == good
         assert not list(tmp_path.glob("*.tmp")), "temporary files must be cleaned up"
 
+
+class TestLogging:
     def test_logs_a_summary_line(self, tmp_path, caplog):
         with caplog.at_level(logging.INFO, logger="kopiku_etl"):
             stats = etl.run(ORDERS, tmp_path / "o.ndjson", tmp_path / "q.ndjson")

@@ -121,7 +121,7 @@ Mesin database kolumnar modern (seperti DuckDB, BigQuery, Snowflake) mengompresi
 > 2. Selesaikan tantangan `d-4`: Bangkitkan 7 hari kalender tanpa celah mulai `2026-01-01` menggunakan `WITH RECURSIVE`. Hitung `date_key` integer (YYYYMMDD), `full_date`, `day_name`, dan flag `is_weekend` (1 untuk Sabtu dan Minggu).
 > 3. Uji di terminal:
 > `python3 labs/mod-1-4/check.py`
-> Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Pelajaran 4 & 5 tentang kunci dan dimensi SCD.
+> Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Pelajaran 4 & 5 tentang kunci dan dimensi Slowly Changing Dimensions (SCD).
 
 ## @lesson Pengelolaan kunci: surrogate key dan anggota unknown
 **Natural key (business key)** berasal langsung dari sistem sumber (`customer_id`, `product_id`). **Surrogate key** adalah bilangan bulat (integer) tanpa makna bisnis yang diterbitkan sendiri oleh gudang data (`customer_sk`). Tabel fakta wajib melakukan join ke dimensi menggunakan surrogate key. Alasannya sangat mendasar:
@@ -308,7 +308,7 @@ python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'ta
 3. Buka file `labs/mod-1-4/warehouse.sql`. Komentar di bagian atas file adalah spesifikasi teknis: terdapat panduan kolom dan grain untuk keempat tabel yang harus Anda bangun. Tulis query DDL dan DML SQL secara bertahap, dimulai dari `dim_date` dan `dim_product`.
 4. Bangun `dim_customer`. Buat versi awal pelanggan dari `stg_customers` (berlaku sejak signup) dan versi mutasi untuk setiap baris `stg_customer_changes`, kemudian hitung `valid_to` menggunakan fungsi window LEAD. Tambahkan baris khusus unknown member dengan surrogate key -1. Isi kota yang NULL dengan `'Unknown'`.
 5. Bangun `fact_order_items` pada tahap akhir. Hubungkan setiap baris item ke pesanan induk dan ke versi pelanggan yang valid pada saat `order_ts` menggunakan teknik range join. Gunakan fungsi `COALESCE(..., -1)` untuk pesanan milik pelanggan tanpa profil agar tidak ada kunci bernilai NULL.
-6. Jalankan pengujian otomatis dan cermati pesan kegagalan jika ada; pengujian akan menunjukkan aturan data mana yang dilanggar:
+6. Jalankan pengujian otomatis (`test_lab.py` memakai pustaka bawaan Python `unittest`, jadi `python3 ...` berjalan tanpa instalasi tambahan) dan cermati pesan kegagalan jika ada; pengujian akan menunjukkan aturan data mana yang dilanggar:
 
 ```bash
 python3 labs/mod-1-4/test_lab.py -v

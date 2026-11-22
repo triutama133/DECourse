@@ -14,7 +14,7 @@ why: Every job post says Snowflake, BigQuery or Redshift, and every bootcamp sho
 - Compare Snowflake, BigQuery and Redshift accurately, and choose between a warehouse and a lakehouse
 
 ## @prereq
-Modules 1.4 (dimensional modeling), 2.1 (columnar storage and Parquet) and 3.4 (FinOps basics) help. The lab is plain Python and needs no cloud account.
+Modules 1.4 (dimensional modeling) and 2.1 (columnar storage and Parquet) help (Module 3.4 covers cloud billing and FinOps later). The lab is plain Python and needs no cloud account.
 
 ## @part How a warehouse works
 
@@ -51,10 +51,10 @@ Now run `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`. For each parti
 
 That sorting is what **clustering** means. In Snowflake you define a **clustering key** and the service keeps the table roughly sorted as data arrives. In BigQuery you **partition** a table by a date or integer column (a partition is a unit that can be skipped completely) and **cluster** it by up to four more columns that are sorted within each partition. In Redshift a **sort key** orders rows on disk so that zone maps work. The principle is shared: **pick the columns you filter by most often, and keep data ordered by them**.
 
-Rules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN` (dates first for event data); a column with extremely high cardinality (a unique id) clusters poorly for range filters; and too many tiny partitions, as in the small-files problem of Module 3.0, add overhead. Clustering costs maintenance, so it pays off on **large** tables that are filtered repeatedly.
+Rules of thumb that follow: cluster on columns that appear in `WHERE` and `JOIN` (dates first for event data); a column with extremely high cardinality (a unique id) clusters poorly for range filters; and too many tiny partitions (a classic small-files problem, quantified in Module 3.0) add overhead. Clustering costs maintenance, so it pays off on **large** tables that are filtered repeatedly.
 
 :::advanced Production DDL for BigQuery, Snowflake and Redshift
-**Production DDL side-by-side: declaring partitions, clustering, and sort keys in real warehouses.** In your job, you declare these physical layouts in DDL (or inside your `dbt_project.yml` / model `config(...)` block). Compare how the exact same `fct_orders` table is laid out across the three major cloud warehouses:
+**Production DDL side-by-side: declaring partitions and clustering keys in real warehouses.** In your job, you declare these physical layouts in DDL (or inside your `dbt_project.yml` / model `config(...)` block). Compare how the exact same `fct_orders` table is laid out across the three major cloud warehouses:
 
 ```sql
 -- 1. Google BigQuery: Partition by date (1 column) + Cluster by up to 4 columns
@@ -84,10 +84,8 @@ CREATE TABLE analytics.fct_orders (
 )
 CLUSTER BY (order_date, status);
 
--- Inspect Snowflake clustering overlap depth (just like average_overlap in our lab!):
-SELECT SYSTEM$CLUSTERING_INFORMATION('analytics.fct_orders', '(order_date, status)');
-
--- 3. Amazon Redshift: DISTKEY co-locates joins across nodes; SORTKEY orders zone maps on disk
+-- 3. Amazon Redshift: SORTKEY orders rows on disk so zone maps prune ranges
+--    (Lesson 3 adds distribution styles so joins stay co-located across nodes)
 CREATE TABLE analytics.fct_orders (
   order_id      VARCHAR(64)   ENCODE zstd,
   customer_id   VARCHAR(64)   ENCODE zstd,
@@ -95,7 +93,6 @@ CREATE TABLE analytics.fct_orders (
   status        VARCHAR(32)   ENCODE bytedict,
   net_total_idr BIGINT        ENCODE az64
 )
-DISTSTYLE KEY DISTKEY (customer_id)
 COMPOUND SORTKEY (order_date, status);
 ```
 
@@ -113,7 +110,7 @@ The second saving comes from **columns**. In the lab, selecting only `total` fro
 ## @lesson Compute: parallel work, distribution and joins
 **MPP.** A warehouse spreads a table over many compute nodes (Redshift calls the per-node worker units **slices**), and every node scans its own part in parallel; the results are combined on a coordinator (Redshift's leader node). More nodes mean more parallelism, until something must be moved between them.
 
-**Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle**, as in Module 3.0). Redshift lets you choose a **distribution style** per table:
+**Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle** — exchanging rows by key across the cluster, which Modules 3.0 and 3.1 inspect inside MapReduce and Spark). Redshift lets you choose a **distribution style** (`DISTSTYLE KEY DISTKEY (customer_id)` in DDL) per table:
 
 - **KEY**: rows with the same value of a chosen column go to the same node (like the lab's `distribute(..., style="key")`).
 - **EVEN**: rows are dealt out round-robin; balanced, but joins need data movement.
@@ -148,7 +145,7 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 ## @part Cost, loading and governance
 
 ## @lesson Cost: scan-based and time-based pricing
-Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 introduced both).
+Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 models full cloud budgets and FinOps guardrails later).
 
 **Scan-based** (BigQuery on-demand): you pay per **byte processed** by each query, a few dollars per terabyte (check current prices). The lab's `query_cost(bytes_billed, price_per_tb)` is that formula. Everything in lesson 2 is therefore money: partition pruning and column selection cut the bytes directly. A query can be **estimated before it runs** (BigQuery's dry run reports the bytes), and a hard limit can be set on a query's maximum bytes billed so a mistake fails instead of billing.
 
@@ -201,7 +198,7 @@ FROM FILES (
   uris = ['gs://kopiku-raw/orders/dt=2026-10-19/*.parquet']
 );
 
--- Redshift (parallel COPY from S3 using an attached IAM Role — zero hardcoded keys!)
+-- Redshift (parallel COPY from S3 using an attached AWS Identity and Access Management / IAM Role — zero hardcoded keys!)
 TRUNCATE TABLE analytics.stg_orders;
 COPY analytics.stg_orders
 FROM 's3://kopiku-raw/orders/dt=2026-10-19/'
@@ -232,7 +229,7 @@ WHEN NOT MATCHED THEN
 
 > 💡 **Practice Pause 4 (Planning Parallel Bulk Load Files):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
-> 2. Implement `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` to balance ideal file size and slice multiples.
+> 2. Implement `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` to balance ideal file size (`<= max_bytes`, noting `min_bytes` as the lower sizing guideline) and slice multiples.
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Success Indicator:** All 4 tests in `TestLoadPlanning` report `PASSED`, confirming balanced file sizing without small-file overhead.
@@ -639,7 +636,7 @@ pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # one group at a 
 4. **Scan and cost.** After `scan` passes, run it on both layouts with a one-week filter and with one column and five columns. Write the four numbers (partitions scanned, bytes billed) in a table, and compute the dollar cost with `query_cost`.
 5. **Distribution.** Predict `join_rows_moved` for five combinations of distribution before you implement it, then compare with the tests.
 6. **Loading, caching and queueing.** Plan the files for a 10 GiB load on 16 slices, then change the number of slices to 12 and 20 and predict the file count.
-7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-2-6` to get the proof code for the **Proof** box on this lab page.
+7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-2-6` to get the proof code for the **Proof** box on this lab page.
 
 > 💡 **Practice Pause 6 (Full Verification & Proof Token):**
 > 1. In terminal, run the complete test suite:

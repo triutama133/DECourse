@@ -14,7 +14,7 @@ why: Bootcamps say "use MongoDB for flexible data and Cassandra for scale" and s
 - Flatten documents into tables and handle schema drift during ingestion
 
 ## @prereq
-Modules 0.3 (SQL basics) and 1.3 (indexes) help. The lab is plain Python (Module 0.0 is enough); no database needs to be installed.
+Modules 0.3 (SQL basics), 1.2 (Python classes with `__init__`, `self`, and pytest), and 1.3 (indexes) help. No database needs to be installed.
 
 ## @part The main database families
 
@@ -46,7 +46,7 @@ A key-value store is a giant dictionary: you **set** a value under a **key** and
 Two features define how key-value stores are used:
 
 - **TTL (time to live).** A key can expire automatically after a number of seconds. Sessions, one-time passwords and cached results use this. The lab's `KeyValueStore` expires a key when `clock() >= set_time + ttl`; the clock is injected so tests do not need to sleep.
-- **Eviction.** Memory is finite. When the store is full it must remove something; **LRU** (least recently used) removes the key that has been untouched the longest. The lab implements this with an ordered dictionary, where every `get` or `set` moves the key to the "recent" end.
+- **Eviction.** Memory is finite. When the store is full it must remove something; **LRU** (least recently used) removes the key that has been untouched the longest. Python's `collections.OrderedDict` remembers insertion order in a doubly linked list: `od.move_to_end(key)` moves a touched key to the "most recent" end in O(1), and `od.popitem(last=False)` evicts the oldest key from the front (`del` removes any key).
 
 **What it is for:** caching the result of an expensive query, sessions, rate limiting (count requests per user per minute), counters, leaderboards, feature flags, queues of small jobs. **What it is not for:** asking "all customers in Jakarta who spent over 1 million", because the only way in is the key. If you need to find data by something other than its key, you must maintain extra keys yourself, and at that point another family is probably a better fit.
 
@@ -93,7 +93,7 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable and HBase are built to spread data over 
 
 The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders of one customer form one partition, sorted by time, so "the last 10 orders of customer 7" or "orders of customer 7 in January" is a fast read of **one** sorted slice. Asking for "all orders in January for every customer" has no efficient answer, and the lab refuses a query without the partition key. This is **query-first modelling**: in a relational database you design tables from the data and write any query later; here you **list the queries first**, then design one table per query, repeating (denormalising) data as needed. It is the biggest mental shift.
 
-**How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.
+**How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. In Python, `zlib.crc32(text.encode())` turns any string deterministically into a 32-bit integer (`0` to `2**32 - 1`), and Python's built-in `bisect.bisect_left(positions, target)` finds the first position `>= target` in a sorted list using binary search in O(log n) — wrapping back to index `0` if `target` is past the largest position. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.
 
 > 💡 **Practice Pause: Testing the Consistent Hashing Ring**
 > 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to class `HashRing` (Section 3).
@@ -184,7 +184,7 @@ pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # one group at a t
 4. **Documents.** Build `insert` and a plain `find`; then operators; then the index. Print `last_scanned` before and after `create_index` and write down the difference.
 5. **The ring and the quorum.** After `HashRing` passes, measure for yourself how many of 10,000 keys move with `zlib.crc32(key) % n` when n goes from 4 to 5, and compare with your ring. For `ReplicaSet`, fill in a table of (R, W) pairs for N = 3 and mark which can return stale data; check it with your code.
 6. **Wide-column.** Predict what `query` does with a missing partition key and why a real system refuses it.
-7. **Do it for real.** After Module 0.2, write the code again in your own venv **without copying**, and run `python3 scripts/prove.py mod-1-7` to get the proof code for the **Proof** box on this lab page.
+7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-1-7` to get the proof code for the **Proof** box on this lab page.
 
 ### @files
 - labs/mod-1-7/nosql_lab.py :: Your working file: implement the five TODO classes :: starter

@@ -147,16 +147,10 @@ def daily_revenue(): ...
 
 Many teams run Airflow as a managed service (Amazon MWAA, Google Cloud Composer, Astronomer) rather than operating it themselves.
 
-> 💡 **Practice Pause 3 (Retry Policies & Failing Loudly):**
-> 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
-> 2. Add retry behavior to `daily_orders` using `retry_policy=RetryPolicy(max_retries=2, delay=1)` to absorb transient failures.
-> 3. Ensure your asset raises an explicit error when input data is missing (do not return an empty list or pretend to succeed): verify directory/file existence and let `FileNotFoundError` propagate.
-> 4. Test failure behavior in terminal:
->    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
-> 5. **Success Indicator:** Tests report `PASSED`, verifying explicit failures on missing inputs and automated retries on transient errors.
+> 🛠 **Try it (5 min, pen and paper — DAG design check).** Look at the Airflow `@dag` above. Why should `read_csv` or database queries stay *inside* `@task def extract()`, never at the top of the file outside `@task`? And if you backfill `2026-01-01` through `2026-01-07`, what value must `extract()` and `load()` use instead of `datetime.now()`?
 
 ## @lesson Dagster: pipelines as assets
-**Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it. Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
+**Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it (`@asset` is a Python decorator from `dagster` that registers your function in the dependency graph, and subclassing `ConfigurableResource` defines typed settings — such as `Paths` — passed automatically into asset functions for clean dependency injection). Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
 
 The lab's pipeline, in essence:
 
@@ -191,6 +185,14 @@ Concepts you will use in the lab:
 - **Lineage and observability** come for free, because the dependency graph is explicit: you can answer "which dashboards does this table feed?" and "what is stale?".
 
 Dagster integrates with dbt (every dbt model becomes an asset in the same graph), so staging, marts and Python assets sit in one lineage.
+
+> 💡 **Practice Pause 3 (Retry Policies & Failing Loudly):**
+> 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
+> 2. Add retry behavior to `daily_orders` using `retry_policy=RetryPolicy(max_retries=2, delay=1)` to absorb transient failures.
+> 3. Ensure your asset raises an explicit error when input data is missing (do not return an empty list or pretend to succeed): verify directory/file existence and let `FileNotFoundError` propagate.
+> 4. Test failure behavior in terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
+> 5. **Success Indicator:** Tests report `PASSED`, verifying explicit failures on missing inputs and automated retries on transient errors.
 
 > 💡 **Practice Pause 4 (Asset Checks & Timezone-Aware Schedules):**
 > 1. Open `labs/mod-2-4/orchestration.py` in your text editor.

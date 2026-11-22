@@ -70,7 +70,7 @@ class DocumentStore:
         raise NotImplementedError("TODO: implement DocumentStore.find")
 
 
-# ------------------------------------------------------------ 3. consistent hashing (Cassandra / Dynamo-like; lesson 5)
+# ------------------------------------------------------------ 3. consistent hashing (Cassandra / Dynamo-like; lesson 4)
 class HashRing:
     """Decide which node stores a key, so that adding or removing a node moves only a small share of the keys.
 
@@ -94,7 +94,7 @@ class HashRing:
         raise NotImplementedError("TODO: implement HashRing.node_for")
 
 
-# ------------------------------------------------------------ 4. quorum replication (lesson 5)
+# ------------------------------------------------------------ 4. quorum replication (lesson 4)
 class Unavailable(Exception):
     """Raised when too few replicas are up to satisfy a read or a write."""
 

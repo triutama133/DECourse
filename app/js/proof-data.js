@@ -27,8 +27,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-1",
   "argExample": null,
-  "tests": "6f8a8745",
-  "starter": "b6a8fadc",
+  "tests": "28acaa42",
+  "starter": "ceb3a800",
   "reference": "660c89a8"
  },
  "mod-0-2": {
@@ -67,7 +67,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-2",
   "argExample": null,
-  "tests": "bc629f29",
+  "tests": "3ec76c11",
   "starter": "7899ee00",
   "reference": "c648b682"
  },
@@ -200,7 +200,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-1-7",
   "argExample": null,
   "tests": "bd0049e7",
-  "starter": "5494068f",
+  "starter": "065f00c5",
   "reference": "1a96bf18"
  },
  "mod-2-6": {
@@ -210,7 +210,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-2-6",
   "argExample": null,
   "tests": "1ac1ee5c",
-  "starter": "42aef1e4",
+  "starter": "179ee3fd",
   "reference": "ab0717ef"
  },
  "mod-1-5": {

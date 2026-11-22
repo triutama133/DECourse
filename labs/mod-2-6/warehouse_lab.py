@@ -89,7 +89,7 @@ def plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * Mi
 
 
 class ResultCache:
-    """A warehouse result cache (lesson 5): identical query + unchanged data = no recomputation.
+    """A warehouse result cache (lesson 4): identical query + unchanged data = no recomputation.
 
     run(sql, table_versions, compute): `table_versions` is a dict {table: version} (a version changes when the table changes).
     The cache key is the SQL with whitespace collapsed and lower-cased, plus the table versions.

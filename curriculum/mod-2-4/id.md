@@ -147,16 +147,10 @@ def daily_revenue(): ...
 
 Banyak organisasi memilih menggunakan managed service Airflow di cloud (seperti Amazon MWAA, Google Cloud Composer, atau Astronomer) untuk mengeliminasi beban perawatan infrastruktur scheduler dan worker database sendiri.
 
-> 💡 **Jeda Praktik 3 (Retry Policy & Prinsip Fail Loudly):**
-> 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
-> 2. Pasang kebijakan retry pada asset `daily_orders` menggunakan `retry_policy=RetryPolicy(max_retries=2, delay=1)` untuk menangani gangguan sementara secara terencana.
-> 3. Pastikan kode Anda melempar error eksplisit jika path input data tidak ditemukan (jangan mengembalikan list kosong atau pura-pura sukses): periksa keberadaan direktori/file dan biarkan `FileNotFoundError` terangkat.
-> 4. Uji perilaku penanganan kegagalan di terminal:
->    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
-> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi pipeline gagal secara eksplisit saat input hilang dan otomatis mencoba ulang saat terjadi kegagalan sementara.
+> 🛠 **Coba sendiri (5 menit, pena dan kertas — pemeriksaan desain DAG).** Perhatikan `@dag` Airflow di atas. Mengapa pembacaan file atau query database harus berada *di dalam* `@task def extract()`, bukan di tingkat atas file di luar `@task`? Dan jika Anda menjalankan backfill `2026-01-01` sampai `2026-01-07`, nilai tanggal apa yang wajib dipakai `extract()` dan `load()` alih-alih `datetime.now()`?
 
 ## @lesson Dagster: pipeline sebagai asset
-**Dagster** bertolak dari paradigma yang sangat berbeda. Alih-alih bertanya "task mana yang harus berjalan dalam urutan apa?", Dagster bertanya: "**data asset apa yang seharusnya ada di sistem kita, dan apa dependensinya?**". Sebuah **asset** merepresentasikan tabel database, file data lake, atau model machine learning nyata; fungsi berdekorator `@asset` mendefinisikan komputasi logis untuk memproduksi asset tersebut. Relasi dependensi terbentuk langsung antar asset, sehingga orkestrator memahami secara tepat kapan suatu data usang (stale), asset hilir mana yang terdampak oleh perubahan hulu, dan partisi mana yang perlu dihitung ulang.
+**Dagster** bertolak dari paradigma yang sangat berbeda. Alih-alih bertanya "task mana yang harus berjalan dalam urutan apa?", Dagster bertanya: "**data asset apa yang seharusnya ada di sistem kita, dan apa dependensinya?**". Sebuah **asset** merepresentasikan tabel database, file data lake, atau model machine learning nyata; fungsi berdekorator `@asset` mendefinisikan komputasi logis untuk memproduksi asset tersebut (`@asset` adalah decorator Python dari `dagster` yang mendaftarkan fungsi ke dalam graf dependensi, sedangkan pewarisan `ConfigurableResource` mendefinisikan konfigurasi bertipe — seperti `Paths` — yang diinjeksikan otomatis sebagai argumen fungsi asset untuk dependency injection yang bersih). Relasi dependensi terbentuk langsung antar asset, sehingga orkestrator memahami secara tepat kapan suatu data usang (stale), asset hilir mana yang terdampak oleh perubahan hulu, dan partisi mana yang perlu dihitung ulang.
 
 Inti arsitektur pipeline pada lab praktikum modul ini dirancang sebagai berikut:
 
@@ -191,6 +185,14 @@ Konsep esensial yang akan Anda terapkan dalam pengerjaan lab:
 - **Data Lineage dan Observabilitas Bawaan.** Karena graf dependensi didefinisikan secara eksplisit di level data, orkestrator dapat langsung menjawab pertanyaan krusial: "tabel ini memberi makan dashboard analitik mana saja?" dan "jika skema data ini berubah, siapa saja downstream consumers yang terdampak?".
 
 Dagster juga memiliki integrasi native yang luar biasa dengan dbt (setiap model dbt otomatis diidentifikasi sebagai asset dalam graf lineage Dagster), menyatukan transformasi SQL dan proses Python ke dalam satu peta arsitektur data terpadu.
+
+> 💡 **Jeda Praktik 3 (Retry Policy & Prinsip Fail Loudly):**
+> 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
+> 2. Pasang kebijakan retry pada asset `daily_orders` menggunakan `retry_policy=RetryPolicy(max_retries=2, delay=1)` untuk menangani gangguan sementara secara terencana.
+> 3. Pastikan kode Anda melempar error eksplisit jika path input data tidak ditemukan (jangan mengembalikan list kosong atau pura-pura sukses): periksa keberadaan direktori/file dan biarkan `FileNotFoundError` terangkat.
+> 4. Uji perilaku penanganan kegagalan di terminal:
+>    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
+> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi pipeline gagal secara eksplisit saat input hilang dan otomatis mencoba ulang saat terjadi kegagalan sementara.
 
 > 💡 **Jeda Praktik 4 (Asset Checks & Schedule Berbasis Zona Waktu):**
 > 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.

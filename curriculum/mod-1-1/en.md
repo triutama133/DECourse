@@ -259,7 +259,7 @@ wc -l data/events.ndjson
 
 2. Part A. Open `labs/mod-1-1/report.sh`. Implement it so it prints the lines described in its header comment. Build the pipeline stage by stage in your terminal first; when each part prints the right number, move it into the script. Use `jq -R 'fromjson? ...'` for robust parsing and `sort -u` to remove duplicate event ids.
 3. Make the script professional: strict mode, a required argument with a usage message, `mktemp` for any temporary file, and `trap` to remove it. Run `shellcheck` on it if you have it.
-4. Run the tests for part A as you go:
+4. Run the tests for part A as you go (`test_lab.py` uses Python's built-in `unittest` module, so class names like `TestReportScript` work directly without `pytest`):
 
 ```bash
 python3 labs/mod-1-1/test_lab.py TestReportScript -v

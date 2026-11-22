@@ -42,7 +42,7 @@ select
 from {{ ref('stg_customers') }}
 ```
 
-The `{{ ... }}` is **Jinja**, a templating language dbt evaluates before running the SQL. `ref('stg_customers')` does two things: it resolves to the correct table name for the current environment (`dev_alice.stg_customers` or `analytics.stg_customers`), and it records a dependency, so dbt builds `stg_customers` first.
+The `{{ ... }}` is **Jinja**, a templating language dbt evaluates before running the SQL. Two Jinja brackets appear in dbt models: `{{ ... }}` evaluates and prints an expression into SQL (such as `{{ ref('stg_customers') }}` or `{{ source(...) }}`), while `{% ... %}` runs template control flow such as `{% if is_incremental() %}` (Lesson 3). `ref('stg_customers')` does two things: it resolves to the correct table name for the current environment (`dev_alice.stg_customers` or `analytics.stg_customers`), and it records a dependency, so dbt builds `stg_customers` first.
 
 > 🛠 **Try it (10 min, Python).** Write four "models" as SQL strings in a Python dict: `stg_orders` (`select * from raw.orders`), `stg_customers` (`select * from raw.customers`), `fct_orders` (a join of `{{ ref('stg_orders') }}` and `{{ ref('stg_customers') }}`) and `mart_daily` (a `group by` over `{{ ref('fct_orders') }}`). Extract each model's dependencies with `re.findall(r"ref\('(\w+)'\)", sql)`, print the dependency dict, and print a build order with `graphlib.TopologicalSorter(graph).static_order()`. Then add `{{ ref('mart_daily') }}` inside `stg_customers` and run it again.
 >

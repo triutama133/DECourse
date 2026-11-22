@@ -14,7 +14,7 @@ why: Setiap lowongan menyebut Snowflake, BigQuery, atau Redshift, dan setiap boo
 - Membandingkan Snowflake, BigQuery, dan Redshift secara akurat, dan memilih antara warehouse dan lakehouse
 
 ## @prereq
-Modul 1.4 (pemodelan dimensional), 2.1 (penyimpanan kolumnar dan Parquet), dan 3.4 (dasar FinOps) membantu. Lab ini memakai Python murni dan tidak butuh akun cloud.
+Modul 1.4 (pemodelan dimensional) dan 2.1 (penyimpanan kolumnar dan Parquet) membantu (Modul 3.4 membahas penagihan cloud dan FinOps lebih lanjut nanti). Lab ini memakai Python murni dan tidak butuh akun cloud.
 
 ## @part Cara kerja warehouse
 
@@ -51,10 +51,10 @@ Sekarang jalankan `WHERE order_date BETWEEN '2026-03-01' AND '2026-03-07'`. Untu
 
 Pengurutan itulah yang dimaksud **clustering**. Di Snowflake Anda mendefinisikan **clustering key** dan layanan menjaga tabel tetap kira-kira terurut seiring data tiba. Di BigQuery Anda **mempartisi** tabel menurut kolom tanggal atau integer (partisi adalah satuan yang bisa dilewati sepenuhnya) dan **men-cluster**-nya menurut hingga empat kolom lain yang diurutkan di dalam tiap partisi. Di Redshift **sort key** mengurutkan baris di disk agar zone map bekerja. Prinsipnya sama: **pilih kolom yang paling sering Anda filter, dan jaga data terurut menurutnya**.
 
-Aturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JOIN` (tanggal lebih dulu untuk data event); kolom berkardinalitas sangat tinggi (id unik) kurang baik di-cluster untuk filter rentang; dan terlalu banyak partisi mungil, seperti pada masalah file kecil di Modul 3.0, menambah overhead. Clustering membutuhkan biaya pemeliharaan, jadi ia untung pada tabel **besar** yang difilter berulang kali.
+Aturan praktis yang mengikuti: cluster pada kolom yang muncul di `WHERE` dan `JOIN` (tanggal lebih dulu untuk data event); kolom berkardinalitas sangat tinggi (id unik) kurang baik di-cluster untuk filter rentang; dan terlalu banyak partisi mungil (masalah klasik file kecil, yang diukur di Modul 3.0) menambah overhead. Clustering membutuhkan biaya pemeliharaan, jadi ia untung pada tabel **besar** yang difilter berulang kali.
 
 :::advanced DDL produksi untuk BigQuery, Snowflake, dan Redshift
-**DDL Produksi Berdampingan: Mendeklarasikan Partisi, Clustering, dan Sort Key di Cloud Warehouse Nyata.** Dalam pekerjaan sehari-hari, Anda mendeklarasikan tata letak fisik ini melalui SQL DDL (atau di dalam blok `config(...)` model dbt Anda). Bandingkan bagaimana tabel `fct_orders` yang sama persis dideklarasikan di ketiga cloud data warehouse utama:
+**DDL Produksi Berdampingan: Mendeklarasikan Partisi dan Clustering Key di Cloud Warehouse Nyata.** Dalam pekerjaan sehari-hari, Anda mendeklarasikan tata letak fisik ini melalui SQL DDL (atau di dalam blok `config(...)` model dbt Anda). Bandingkan bagaimana tabel `fct_orders` yang sama persis dideklarasikan di ketiga cloud data warehouse utama:
 
 ```sql
 -- 1. Google BigQuery: Partisi per tanggal (1 kolom) + Cluster hingga 4 kolom
@@ -84,10 +84,8 @@ CREATE TABLE analytics.fct_orders (
 )
 CLUSTER BY (order_date, status);
 
--- Periksa kedalaman tumpang-tindih (overlap) clustering Snowflake (persis seperti average_overlap di lab kita!):
-SELECT SYSTEM$CLUSTERING_INFORMATION('analytics.fct_orders', '(order_date, status)');
-
--- 3. Amazon Redshift: DISTKEY menempatkan baris join di node yang sama; SORTKEY mengurutkan zone map di disk
+-- 3. Amazon Redshift: SORTKEY mengurutkan baris di disk agar zone map memangkas rentang
+--    (Pelajaran 3 menambahkan gaya distribusi agar join tetap co-located antar node)
 CREATE TABLE analytics.fct_orders (
   order_id      VARCHAR(64)   ENCODE zstd,
   customer_id   VARCHAR(64)   ENCODE zstd,
@@ -95,7 +93,6 @@ CREATE TABLE analytics.fct_orders (
   status        VARCHAR(32)   ENCODE bytedict,
   net_total_idr BIGINT        ENCODE az64
 )
-DISTSTYLE KEY DISTKEY (customer_id)
 COMPOUND SORTKEY (order_date, status);
 ```
 
@@ -113,7 +110,7 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 ## @lesson Komputasi: kerja paralel, distribusi, dan join
 **MPP.** Warehouse menyebar tabel ke banyak node komputasi (Redshift menyebut unit pekerja per node **slice**), dan setiap node memindai bagiannya sendiri secara paralel; hasilnya digabung di koordinator (leader node Redshift). Lebih banyak node berarti lebih banyak paralelisme, sampai ada sesuatu yang harus dipindahkan antar node.
 
-**Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle**, seperti di Modul 3.0). Redshift membiarkan Anda memilih **gaya distribusi** per tabel:
+**Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle** — pertukaran baris berdasarkan key antar-node klaster, yang dibahas mendalam di MapReduce dan Spark pada Modul 3.0 dan 3.1). Redshift membiarkan Anda memilih **gaya distribusi** (`DISTSTYLE KEY DISTKEY (customer_id)` di DDL) per tabel:
 
 - **KEY**: baris dengan nilai kolom pilihan yang sama masuk ke node yang sama (seperti `distribute(..., style="key")` di lab).
 - **EVEN**: baris dibagikan round-robin; seimbang, tetapi join butuh perpindahan data.
@@ -148,7 +145,7 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 ## @part Biaya, pemuatan, dan tata kelola
 
 ## @lesson Biaya: harga berbasis pemindaian dan berbasis waktu
-Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 memperkenalkan keduanya).
+Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 membahas model anggaran cloud dan guardrail FinOps secara lengkap nanti).
 
 **Berbasis pemindaian** (BigQuery on-demand): Anda membayar per **byte yang diproses** setiap query, beberapa dolar per terabyte (cek harga terkini). `query_cost(bytes_billed, price_per_tb)` di lab adalah rumus itu. Semua dalam pelajaran 2 karenanya adalah uang: partition pruning dan pemilihan kolom memangkas byte secara langsung. Sebuah query bisa **diperkirakan sebelum dijalankan** (dry run BigQuery melaporkan byte-nya), dan batas keras bisa dipasang pada byte maksimum yang ditagih sebuah query sehingga kesalahan gagal, bukan menagih.
 
@@ -201,7 +198,7 @@ FROM FILES (
   uris = ['gs://kopiku-raw/orders/dt=2026-10-19/*.parquet']
 );
 
--- Redshift (COPY paralel dari S3 memakai IAM Role terlampir — nol kunci rahasia di kode!)
+-- Redshift (COPY paralel dari S3 memakai AWS Identity and Access Management / IAM Role terlampir — nol kunci rahasia di kode!)
 TRUNCATE TABLE analytics.stg_orders;
 COPY analytics.stg_orders
 FROM 's3://kopiku-raw/orders/dt=2026-10-19/'
@@ -232,7 +229,7 @@ WHEN NOT MATCHED THEN
 
 > 💡 **Jeda Praktik 4 (Perencanaan File Bulk Load Paralel):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
-> 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, target_file_bytes=200 * MiB, max_file_bytes=250 * MiB)` yang menyeimbangkan ukuran file ideal dan kelipatan slice komputasi.
+> 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` yang menyeimbangkan ukuran file ideal (`<= max_bytes`, dengan `min_bytes` sebagai panduan ukuran minimum) dan kelipatan slice komputasi.
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Indikator Sukses:** Keempat pengujian `TestLoadPlanning` berstatus `PASSED` membuktikan pembagian irisan file pemuatan optimal tanpa menimbulkan overhead file kecil.
@@ -638,7 +635,7 @@ pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # satu kelompok p
 4. **Scan dan biaya.** Setelah `scan` lulus, jalankan pada kedua tata letak dengan filter satu minggu dan dengan satu kolom dan lima kolom. Tulis keempat angka (partisi dipindai, byte ditagih) dalam tabel, dan hitung biaya dolarnya dengan `query_cost`.
 5. **Distribusi.** Tebak `join_rows_moved` untuk lima kombinasi distribusi sebelum Anda mengimplementasikannya, lalu bandingkan dengan tes.
 6. **Pemuatan, caching, dan antrean.** Rencanakan file untuk pemuatan 10 GiB pada 16 slice, lalu ubah jumlah slice menjadi 12 dan 20 dan tebak jumlah file.
-7. **Kerjakan yang sesungguhnya.** Setelah Modul 0.2, tulis kodenya lagi di venv Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 > 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
 > 1. Di terminal, jalankan seluruh rangkaian uji otomatis:

@@ -259,7 +259,7 @@ wc -l data/events.ndjson
 
 2. Bagian A. Buka `labs/mod-1-1/report.sh`. Implementasikan sehingga mencetak baris yang dijelaskan di komentar header-nya. Bangun pipeline tahap demi tahap di terminal Anda dulu; ketika tiap bagian mencetak angka yang benar, pindahkan ke skrip. Pakai `jq -R 'fromjson? ...'` untuk parsing yang tangguh dan `sort -u` untuk membuang id event duplikat.
 3. Buat skrip profesional: mode ketat, argumen wajib dengan pesan penggunaan, `mktemp` untuk file sementara apa pun, dan `trap` untuk menghapusnya. Jalankan `shellcheck` bila Anda punya.
-4. Jalankan tes bagian A seiring Anda bekerja:
+4. Jalankan tes bagian A seiring Anda bekerja (`test_lab.py` memakai modul bawaan Python `unittest`, jadi nama kelas seperti `TestReportScript` berjalan langsung tanpa `pytest`):
 
 ```bash
 python3 labs/mod-1-1/test_lab.py TestReportScript -v

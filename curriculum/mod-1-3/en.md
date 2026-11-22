@@ -334,7 +334,7 @@ Read the third and fourth rows twice. A report that sorts by a nullable column p
 
 The sandbox practice challenges **k-16 to k-23** (text, number, date functions and DDL, Module 0.3) and **w-11 to w-14** (QUALIFY, FILTER, date bucketing, a median without `MEDIAN()`) use exactly these ideas.
 
-> 🛠 **Try it (10 min, Python).** Run `pip install duckdb`. Execute each statement on SQLite (`sqlite3`) and on DuckDB and print both results side by side: `SELECT 7/2`; `SELECT 'abc' LIKE 'ABC'`; `SELECT x FROM (SELECT 1 AS x UNION ALL SELECT NULL UNION ALL SELECT 2) ORDER BY x`; `SELECT x, y FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 1, 3) GROUP BY x` (catch the error).
+> 🛠 **Try it (10 min, optional DuckDB preview).** Want to see dialect differences live before Module 2.1 introduces DuckDB systematically? Run `pip install duckdb` and execute each statement on SQLite (`sqlite3`) and on DuckDB, printing both results side by side: `SELECT 7/2`; `SELECT 'abc' LIKE 'ABC'`; `SELECT x FROM (SELECT 1 AS x UNION ALL SELECT NULL UNION ALL SELECT 2) ORDER BY x`; `SELECT x, y FROM (SELECT 1 AS x, 2 AS y UNION ALL SELECT 1, 3) GROUP BY x` (catch the error).
 >
 > **You should see:** `3` against `3.5`; `1` against `False`; NULL first against NULL last; an arbitrary row `(1, 2)` against a `Binder Error`. Four silent differences in four lines: which one would have fooled you?
 
@@ -369,7 +369,7 @@ GROUP BY ROLLUP (tier, city);
 
 **Where it runs.** PostgreSQL and DuckDB run all three and returned identical rows for every query on this page. The warehouses support them as well (from their documentation, not run in this course). SQLite does not: `GROUP BY ROLLUP (...)` fails there with `no such function: rollup`. That is why the browser SQL Sandbox cannot practise it and the exercise below runs DuckDB on your computer. On an engine without them, fall back to several `GROUP BY` queries joined with `UNION ALL`.
 
-> 🛠 **Try it (25 min, Python and DuckDB).** Run `pip install duckdb`. The data is the KopiKu dataset in `labs/mod-1-3/datasets/kopiku.sql`: load it with `con = duckdb.connect(); con.execute(open("labs/mod-1-3/datasets/kopiku.sql").read())` to try your queries. In a file `rollup.py`, define three variables that hold SQL text:
+> 🛠 **Try it (25 min, optional local DuckDB preview before Module 2.1).** If you installed `duckdb` above (`pip install duckdb`), load `labs/mod-1-3/datasets/kopiku.sql` with `con = duckdb.connect(); con.execute(open("labs/mod-1-3/datasets/kopiku.sql").read())` to try these queries locally (Module 2.1 builds DuckDB and columnar engines from scratch). In a file `rollup.py`, define three variables that hold SQL text:
 > 1. `REVENUE_ROLLUP` returns `city`, `payment_method`, `revenue_idr` and `level`. Revenue is the sum of `qty * unit_price_idr` over the items of **delivered** orders. Give the detail rows per city and payment method, a subtotal per city and a grand total, using `ROLLUP`. `level` is 0 for a detail row, 1 for a city subtotal and 2 for the grand total (build it with `GROUPING`, not with `IS NULL`).
 > 2. `STATUS_CUBE` returns `status`, `payment_method` and `orders`: the number of orders for every status and payment method, for every status alone, for every method alone, and the total, using `CUBE`.
 > 3. `TIER_OR_METHOD` returns `tier`, `payment_method` and `orders`: the number of orders per customer tier and, in the same result, per payment method, and nothing else, using `GROUPING SETS`.

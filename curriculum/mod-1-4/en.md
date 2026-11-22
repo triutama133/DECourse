@@ -121,7 +121,7 @@ Modern columnar engines compress repeated values so well that wide tables are ch
 > 2. Solve challenge `d-4`: Generate 7 contiguous calendar days starting `2026-01-01` using `WITH RECURSIVE`. Compute integer `date_key` (YYYYMMDD), `full_date`, `day_name`, and `is_weekend` flag (1 for Saturday and Sunday).
 > 3. Test in the terminal:
 > `python3 labs/mod-1-4/check.py`
-> When challenge d-4 shows PASS, you understand analytical calendar generation! Proceed to Lessons 4 & 5 on keys and SCD dimensions.
+> When challenge d-4 shows PASS, you understand analytical calendar generation! Proceed to Lessons 4 & 5 on keys and Slowly Changing Dimensions (SCD).
 
 ## @lesson Keys: surrogate keys and the unknown member
 **Natural keys** come from the source (`customer_id`, `product_id`). **Surrogate keys** are meaningless integers the warehouse assigns (`customer_sk`). Fact tables should join to dimensions on surrogate keys. Reasons:
@@ -308,7 +308,7 @@ python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'ta
 3. Open `labs/mod-1-4/warehouse.sql`. The header comment is the specification: for each of the four tables it lists the grain and columns. Write the SQL, one table at a time, starting with `dim_date` and `dim_product`.
 4. Build `dim_customer`. Make a baseline version from `stg_customers` (starting at signup) and a version for each row of `stg_customer_changes`, then compute `valid_to` with LEAD. Add the unknown member row. Store a missing city as `'Unknown'`.
 5. Build `fact_order_items` last. Join each order line to its order and to the customer version valid at `order_ts`, using the range join. Use `COALESCE(..., -1)` for orphan customers so no key is NULL.
-6. Run the tests and read each failure message; they say which rule was broken:
+6. Run the tests (`test_lab.py` uses Python's built-in `unittest` library, so `python3 ...` works with zero extra installs) and read each failure message; they say which rule was broken:
 
 ```bash
 python3 labs/mod-1-4/test_lab.py -v

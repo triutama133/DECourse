@@ -13,11 +13,11 @@ why: Kebanyakan kursus langsung mengetik SELECT * di file yang sudah bersih. Di 
 - Membaca file CSV kecil secara defensif dan membersihkannya dengan Python biasa
 
 ## @prereq
-Modul 0.0 (Python dari nol) sangat disarankan: lab ini memakai fungsi, perulangan, dictionary, dan penanganan error yang dijelaskan Modul 0.0. Modul 0.2 menyiapkan komputer Anda dengan benar; untuk lab modul ini, Python 3.9+ apa pun cukup.
+Modul 0.0 (Python dari nol) dan Modul 0.2 (terminal, virtual environment, dan `pytest`) mempersiapkan Anda untuk modul ini: lab ini memakai fungsi, perulangan, dictionary, penanganan error, dan menjalankan `pytest` di dalam venv kursus Anda (`python -m pip install -r labs/mod-0-1/requirements.txt`). Python 3.10+ apa pun bisa dipakai, dan pratinjau browser juga tersedia jika Anda ingin mencoba cepat dulu.
 
 > [!IMPORTANT]
 > **Pengingat Editor vs Terminal:**
-> Buka dan edit file kode (seperti `labs/mod-0-1/pipeline.py`) menggunakan Text Editor Anda (VS Code / Cursor / tab Lab di aplikasi). Jangan menjalankan file kode langsung di terminal bash tanpa interpreter python (misal: jangan ketik `labs/mod-0-1/pipeline.py` di terminal). Perintah terminal hanya untuk pengujian, seperti `python3 labs/mod-0-1/test_lab.py -v`.
+> Buka dan edit file kode (seperti `labs/mod-0-1/pipeline.py`) menggunakan Text Editor Anda (VS Code / Cursor / tab Lab di aplikasi). Jangan menjalankan file kode langsung di terminal bash tanpa interpreter python (misal: jangan ketik `labs/mod-0-1/pipeline.py` di terminal). Perintah terminal hanya untuk pengujian, seperti `pytest labs/mod-0-1/test_lab.py -v`.
 
 ## @part Pekerjaannya dan orang-orangnya
 
@@ -41,11 +41,11 @@ Karena itu perusahaan menyalin data ke **sistem terpisah yang dibangun untuk ana
 
 > **Tip:** Ketika seseorang bilang "kita butuh data warehouse", kebutuhan sebenarnya hampir selalu: "kita butuh angka yang bisa dipercaya tanpa memperlambat produk." Ingat kalimat itu; ia menjelaskan sebagian besar keputusan desain di kursus ini.
 
-> 🛠 **Coba sendiri (10 menit, dengan Python).** Buat datanya (`python3 labs/shared/shopgen.py --out data`) dan muat `data/orders.csv` ke tabel SQLite dengan modul `sqlite3`: `order_id INTEGER PRIMARY KEY`, kolom lain TEXT.
-> 1. Masukkan barisnya dengan `INSERT` biasa. Error apa yang muncul, dan apa artinya tentang file itu? Lalu masukkan dengan `INSERT OR REPLACE` dan hitung barisnya.
-> 2. Tanyakan kepada SQLite bagaimana ia akan menjalankan satu pertanyaan gaya OLTP dan satu gaya OLAP: cetak `EXPLAIN QUERY PLAN SELECT * FROM orders WHERE order_id = 1001` dan `EXPLAIN QUERY PLAN SELECT substr(order_ts, 1, 10) AS day, count(*) FROM orders GROUP BY day` (teks rencananya ada di kolom terakhir setiap baris).
+> 🛠 **Coba sendiri (10 menit, dengan Python).** Buat datanya (`python3 labs/shared/shopgen.py --out data`) dan baca `data/orders.csv` dengan `csv.DictReader` dari Modul 0.0 untuk merasakan bedanya **pencarian satu titik OLTP** dan **pemindaian penuh OLAP**:
+> 1. Telusuri `3634` baris dan isi dict `by_id` dengan kunci `order_id` (`by_id[row["order_id"]] = row`). Berapa banyak kunci duplikat yang menimpa baris sebelumnya sehingga `len(by_id)` lebih pendek dari `3634`? Perhatikan mencari `by_id["1001"]` langsung menyentuh **satu** item seketika (OLTP).
+> 2. Sekarang pindai seluruh baris untuk menghitung berapa pesanan di setiap status huruf kecil (`counts[status] += 1`). Perhatikan ia harus membaca **semua** `3634` baris (OLAP).
 >
-> **Seharusnya Anda melihat:** `UNIQUE constraint failed: orders.order_id` (35 order id muncul dua kali di file), lalu `3599` baris; rencana pertama berbunyi `SEARCH orders USING INTEGER PRIMARY KEY` (langsung melompat ke satu baris), yang kedua `SCAN orders` (membaca setiap baris). Perbedaan itulah inti cerita OLTP versus OLAP.
+> **Seharusnya Anda melihat:** `len(by_id)` bernilai `3599` (artinya ada `35` ID pesanan duplikat di file!), sedangkan `counts` mengunjungi setiap baris untuk meringkas kategori. Modul 0.3 menunjukkan bagaimana database SQL melakukan keduanya lewat pencarian `PRIMARY KEY` dibanding pemindaian `GROUP BY`.
 
 ## @lesson Siapa mengerjakan apa: peran di sekitar data
 Nama jabatan saling tumpang tindih dan berbeda antar perusahaan, jadi pikirkan **pekerjaannya**, bukan namanya. Pembagian yang umum, masih dengan KopiKu:
@@ -84,7 +84,7 @@ Peta ini berasal dari buku *Fundamentals of Data Engineering* karya Joe Reis dan
 
 **Enam undercurrents** bukanlah tahap; mereka adalah kebiasaan yang Anda perlukan di setiap tahap. Security (siapa boleh melihat apa), data management (kualitas, definisi, privasi), DataOps (mengotomatiskan, menguji, dan mengawasi pipeline), data architecture (memilih bagaimana bagian-bagiannya tersusun), orchestration (menjalankan langkah dengan urutan yang benar), dan software engineering (kode yang bisa dibaca, diuji, dan diubah orang lain). Inilah sebabnya lowongan kerja meminta data engineer menguasai keahlian yang terdengar seperti DevOps atau software engineering: keahlian itu memang bagian dari pekerjaannya.
 
-### Sejauh mana perusahaannya?
+## @lesson Kematangan data, tipe engineer, dan bekerja dengan tim
 Buku ini menggambarkan tiga tahap *kematangan data* (data maturity). Desain yang baik untuk satu tahap bisa menjadi desain yang buruk untuk tahap lain.
 
 | Tahap | Seperti apa | Apa yang biasanya berhasil |
@@ -159,8 +159,8 @@ Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server rest
 > `head -20 data/orders.csv`
 > `grep -c "Rp " data/orders.csv` (total yang ditulis format teks)
 > `grep -c ",-" data/orders.csv` (total bernilai minus/rusak)
-> `cat data/manifest.json` (lihat daftar anomali yang sengaja ditanam generator)
-> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 5 di bawah.
+> `cat data/manifest.json` (JSON adalah teks kunci-nilai terstruktur yang dijelaskan di pelajaran berikut; `manifest.json` mencatat semua anomali yang ditanam generator)
+> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 6 di bawah.
 
 ## @lesson Format data yang akan Anda temui
 Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-jam.
@@ -175,14 +175,16 @@ Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-j
 
 Aturan praktis: CSV dan JSON untuk *pertukaran* (manusia dan sistem lain mengirimkannya kepada Anda); Parquet dan tabel database untuk *penyimpanan dan analisis*. Langkah pertama pipeline yang umum adalah mengubah yang pertama menjadi yang kedua, dengan tipe yang dipaksakan.
 
+**Membaca dua format tanggal di Python (`datetime.strptime`).** Tanggal dari file CSV sering mencampur gaya seperti `"2026-01-31T14:03:00"` dan `"31/01/2026 14:03"`. Pustaka standar Python punya `from datetime import datetime`, yang menyediakan `datetime.strptime(text, fmt)` untuk mencocokkan teks dengan pola format (`"%Y-%m-%dT%H:%M:%S"` untuk ISO atau `"%d/%m/%Y %H:%M"` untuk hari/bulan/tahun) dan memunculkan `ValueError` jika tidak cocok. Tangkap `ValueError` untuk mencoba pola berikutnya, lalu ubah hasil yang sah kembali ke teks ISO standar dengan `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
+
 > 💡 **Jeda Praktik 2 (Parser Angka & Timestamp):**
 > Jangan baca materi berikutnya dulu! Buka `labs/mod-0-1/pipeline.py` di Text Editor Anda (klik di sidebar atau ketik `code labs/mod-0-1/pipeline.py`).
 > Terapkan konversi tipe data yang baru Anda pelajari:
-> 1. Kerjakan `parse_total(raw)`: bersihkan "Rp" dan titik, ubah ke integer Rupiah, dan return `None` jika teks rusak/kosong.
-> 2. Kerjakan `parse_ts(raw)`: terima kedua format timestamp dan ubah menjadi teks ISO "YYYY-MM-DDTHH:MM:SS" atau `None`.
+> 1. Kerjakan `parse_total(raw)`: bersihkan `"Rp"` dan titik, ubah ke integer Rupiah, dan return `None` jika teks rusak/kosong.
+> 2. Kerjakan `parse_ts(raw)`: coba kedua pola `datetime.strptime` di atas dan kembalikan teks ISO `"YYYY-MM-DDTHH:MM:SS"` atau `None`.
 > Uji kedua parser di terminal:
-> `python3 labs/mod-0-1/test_lab.py -v -k TestParsers`
-> Jika 2 tes parser PASSED, Anda siap melangkah ke aturan pembersihan defensif di Pelajaran 6.
+> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> Jika kedua tes parser PASSED, Anda siap melangkah ke aturan pembersihan defensif di Pelajaran 7.
 
 ## @lesson Cara kerja kursus ini, dan data KopiKu
 Setiap modul punya empat bagian, dan sebaiknya dikerjakan berurutan:
@@ -204,7 +206,7 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 > 1. Kerjakan `clean_orders(rows)`: pisahkan data menjadi `clean` dan `rejected` (dengan mencatat `reason` untuk setiap baris yang dibuang). Tangani duplikat order_id dengan mempertahankan baris pertama.
 > 2. Kerjakan `daily_revenue(clean)`: hitung total omset per tanggal `YYYY-MM-DD` dengan mengabaikan status cancelled dan refunded.
 > Jalankan seluruh pengujian di terminal:
-> `python3 labs/mod-0-1/test_lab.py -v`
+> `pytest labs/mod-0-1/test_lab.py -v`
 > Setelah semua 8 tes HIJAU, jalankan pipeline pada data riil:
 > `python3 labs/mod-0-1/pipeline.py data/orders.csv`
 > Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!
@@ -234,7 +236,7 @@ grep -c "Rp " data/orders.csv      # berapa total yang ditulis sebagai teks
 cat data/manifest.json             # apa yang ditanam di file, dan berapa banyak
 ```
 
-5. **Kerjakan yang sesungguhnya**, setelah Modul 0.2. Di komputer Anda sendiri, dengan venv kursus aktif, tulis lagi keempat fungsi di editor **tanpa menyalin** dari pratinjau, lalu dari folder kursus:
+5. **Kerjakan yang sesungguhnya.** Di komputer Anda sendiri, dengan venv kursus dari Modul 0.2 aktif, tulis lagi keempat fungsi di editor **tanpa menyalin** dari pratinjau, lalu dari folder kursus:
 
 ```bash
 pytest labs/mod-0-1/test_lab.py -v                  # sampai semua tes lulus
@@ -259,10 +261,10 @@ python3 scripts/prove.py mod-0-1                    # kode bukti untuk kotak Buk
 Jalankan tes dari root repositori:
 
 ```bash
-python3 labs/mod-0-1/test_lab.py -v
+pytest labs/mod-0-1/test_lab.py -v
 ```
 
-Semua tes harus mencetak `ok`. Untuk melihat seperti apa hasil yang lulus sebelum Anda mulai, jalankan tes terhadap solusi referensi: `LAB_DIR=reference python3 labs/mod-0-1/test_lab.py`.
+Semua 8 tes harus lulus (`8 passed`). Untuk melihat seperti apa hasil yang lulus sebelum Anda mulai, jalankan tes terhadap solusi referensi: `LAB_DIR=reference pytest labs/mod-0-1/test_lab.py -v`.
 
 ## @chaos Omset hari Selasa yang berlipat dua
 ### @scenario

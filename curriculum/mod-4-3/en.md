@@ -16,6 +16,8 @@ why: In production data engineering, data arrives as a continuous, messy, and un
 Modules 0.2 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 2.1 (DuckDB and analytical storage), 3.2 (Kafka, Redpanda, and event logs), and 3.3 (Stream processing, windowing, and watermarks). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (terminal & venv), **Module 1.2** (atomic swaps & idempotency), **Module 2.1** (DuckDB table upserts), **Module 3.2** (consumer offsets & partitions), and **Module 3.3** (tumbling/sliding windows & monotonic watermarks). Every lesson now maps 1-to-1 to `check.py --step 1` through `--step 5`.
+
 Every lab earlier in the course provided predefined test files, unit assertions, and guided boilerplate code. In this capstone, **you receive an architectural contract, realistic streaming telemetry, and an automated verification suite that stress-tests your stream processor.**
 
 The verification harness does not evaluate stylistic choices; it verifies **observable stream processing outcomes and state contracts**:
@@ -102,7 +104,44 @@ Because mobile devices experience variable network jitter, **346 events in this 
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
 > 4. **Success Indicator:** All 7 metrics report `PASS`, confirming your raw stream profiling matches reference truth.
 
-## @lesson Watermarks, allowed lateness & window eviction mechanics
+## @lesson Tumbling event-time windows & DuckDB analytical storage
+When a continuous stream arrives, the first structural step is bucketing timestamps into bounded intervals and defining the destination warehouse table.
+
+```
+Tumbling Windows (Size = 300s, Slide = 300s): Non-overlapping, contiguous fixed blocks
+[00:00 - 05:00)        [05:00 - 10:00)        [10:00 - 15:00)
+```
+
+### 1. Tumbling Window Alignment:
+Tumbling windows partition time into non-overlapping, contiguous chunks. For window size `L`, an event at timestamp `t` belongs to exactly **one** window starting at:
+`t_start = floor(t / L) * L`
+`t_end = t_start + L`
+Tumbling windows are ideal for discrete periodic financial settlements (e.g., hourly revenue reconciliation, daily driver payouts).
+
+### 2. Idempotent Target Schema in DuckDB:
+Each emitted `(window_start, window_end, zone_id)` row must have a composite primary key so retries or re-emits overwrite cleanly via temporary staging swaps rather than creating duplicate metrics:
+```sql
+CREATE TABLE IF NOT EXISTS windowed_metrics (
+    window_start TIMESTAMP,
+    window_end TIMESTAMP,
+    zone_id INTEGER,
+    total_trips BIGINT,
+    total_passengers BIGINT,
+    total_fare DOUBLE,
+    avg_fare DOUBLE,
+    emitted_at TIMESTAMP,
+    PRIMARY KEY (window_start, window_end, zone_id)
+);
+```
+
+> 💡 **Practice Pause 2 (Step 2: Baseline Tumbling Event-Time Windows & DuckDB Storage):**
+> 1. Open `stream_processor.py` in your workspace (`~/fleet/stream_processor.py`) using your text editor.
+> 2. Implement CLI arguments (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), tumbling window calculation (`start = floor(ts / size) * size`), and create table `windowed_metrics` in DuckDB idempotently.
+> 3. Run the step 2 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
+> 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, tumbling window grouping, and aggregate metric emission.
+
+## @lesson Watermarks, allowed lateness & Late-Data DLQ
 If we aggregate by event time, a critical dilemma arises: **how long must the stream processor wait before declaring a window complete and emitting its metrics?**
 If a taxi's cellular modem reconnects three days late, can we keep all past windows open indefinitely? No. Keeping millions of historical windows open in memory would exhaust RAM (Out Of Memory crash).
 
@@ -131,18 +170,28 @@ A window is defined by a half-open temporal interval `[t_start, t_end)`.
 - **Open Window:** While `t_end > W`, the window remains open in memory. Any event falling into this interval is aggregated into the window accumulator.
 - **Eviction / Closure:** When watermark advances such that `t_end <= W`, the window is closed. Its final aggregates are emitted to analytical storage (DuckDB), and its in-memory accumulator is evicted to reclaim RAM.
 
-### 3. Out-of-Order vs. Late Data:
+### 3. Out-of-Order vs. Late Data & Dead-Letter Queue (DLQ):
 It is crucial to distinguish **out-of-order events** from **late events**:
 - **Out-of-order event:** An event whose `t_event < t_newest_seen`, but whose candidate window has not closed yet (`t_end > W`). This event is **valid and welcomed**; it is folded into the open window accumulator.
-- **Late event:** An event whose candidate window has already been closed and evicted (`t_end <= W`). The window aggregate was already emitted and published to downstream consumers. The event cannot be included without rewriting published history, so it is **dropped and quarantined**.
-- **Sliding windows (a known limitation):** an event is dead-lettered only when *all* of its windows are closed. If some are closed and some still open, the event updates the open ones and the closed windows silently miss it. Real engines count such partial drops in a metric; keep that in mind when you compare sliding results with a batch recount.
+- **Late event:** An event whose candidate window has already been closed and evicted (`t_end <= W`). The window aggregate was already emitted and published to downstream consumers. Silently discarding it destroys auditability; allowing it into closed windows corrupts historical reports. The production solution is appending the dropped event to a **Dead-Letter Queue (DLQ)** (`<output-dir>/dlq/late_events.jsonl`) with audit metadata (`error_code: "LATE_EVENT"`, `event_id`, `event_time`, `current_watermark`, `dropped_at`, `raw_payload`):
+```json
+{
+  "error_code": "LATE_EVENT",
+  "event_id": "evt_0842",
+  "event_time": 1704067280,
+  "current_watermark": 1704067830,
+  "dropped_at": "2024-01-08T12:00:00Z",
+  "raw_payload": { ... }
+}
+```
+Site reliability engineers can monitor DLQ arrival rates, alert when cellular towers cause excessive packet lag, and replay quarantined records into batch reconciliation pipelines.
 
-> 💡 **Practice Pause 2 (Step 2: Baseline Tumbling Event-Time Windows & DuckDB Storage):**
-> 1. Open `stream_processor.py` in your workspace (`~/fleet/stream_processor.py`) using your text editor.
-> 2. Implement CLI arguments (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), tumbling window calculation (`start = floor(ts / size) * size`), and create table `windowed_metrics` in DuckDB idempotently.
-> 3. Run the step 2 check in terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
-> 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, tumbling window grouping, and aggregate metric emission.
+> 💡 **Practice Pause 3 (Step 3: Monotonic Watermark & Late Data DLQ Quarantine):**
+> 1. Open `stream_processor.py` in your workspace using your text editor.
+> 2. Implement monotonic bounded watermark (`W = max(W, ts - delay)`), evict and emit windows when `window_end <= W`, and route late events to `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`.
+> 3. Run the step 3 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
+> 4. **Success Indicator:** All step 3 checks report `PASS`, proving out-of-order events are absorbed correctly and late events are quarantined cleanly.
 
 ## @lesson Consumer offsets, checkpointing & analytical idempotency
 Streaming engines run continuously for months. Hardware failures, operating system kernel updates, and container restarts are guaranteed occurrences. A robust engine must survive crashes with **exactly-once processing semantics** at the storage layer.
@@ -199,37 +248,19 @@ tmp_file.replace(state_path)  # Atomic on POSIX filesystems via rename(2)
 Any concurrent reader or recovering process always sees either the complete prior checkpoint or the complete new checkpoint, never a half-flushed buffer.
 
 ### 4. Idempotent Storage Emission in DuckDB:
-When an engine crashes and recovers, it may replay events from the last committed checkpoint. If your database write is a naive `INSERT`, duplicate rows will pollute analytical metrics.
-We enforce idempotency in DuckDB using composite primary keys and atomic staging swaps:
-```sql
-CREATE TABLE IF NOT EXISTS windowed_metrics (
-    window_start TIMESTAMP,
-    window_end TIMESTAMP,
-    zone_id INTEGER,
-    total_trips BIGINT,
-    total_passengers BIGINT,
-    total_fare DOUBLE,
-    avg_fare DOUBLE,
-    emitted_at TIMESTAMP,
-    PRIMARY KEY (window_start, window_end, zone_id)
-);
-```
-During emission, rows are inserted into a temporary staging table, existing rows matching `(window_start, window_end, zone_id)` are deleted in DuckDB, and the latest aggregated metrics are inserted cleanly.
+When an engine crashes and recovers, it may replay events from the last committed checkpoint. If your database write is a naive `INSERT`, duplicate rows will pollute analytical metrics. Using the `windowed_metrics` primary key `(window_start, window_end, zone_id)` above, emit new aggregates via a temporary staging table, delete matching keys, and insert the refreshed rows cleanly.
 
-> 💡 **Practice Pause 3 (Step 3: Monotonic Watermark & Late Data DLQ Quarantine):**
+> 💡 **Practice Pause 4 (Step 4: Consumer Offset Checkpointing & Crash Recovery):**
 > 1. Open `stream_processor.py` in your workspace using your text editor.
-> 2. Implement monotonic bounded watermark (`W = max(W, ts - delay)`), evict and emit windows when `window_end <= W`, and route late events to `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`.
-> 3. Run the step 3 check in terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
-> 4. **Success Indicator:** All step 3 checks report `PASS`, proving out-of-order events are absorbed correctly and late events are quarantined cleanly.
+> 2. Persist `last_offset` and in-flight `open_windows` accumulators atomically (`.tmp` + `os.replace`), and read the offset upon startup to skip previously committed events.
+> 3. Run the step 4 check in terminal:
+>    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
+> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming mid-stream crash recovery resumes without duplicate records or data loss.
 
-## @lesson Tumbling vs. sliding windows and Dead-Letter Queue (DLQ)
-Real-time streaming architectures employ multiple windowing patterns depending on business requirements.
+## @lesson Sliding windows (`k_min .. k_max`) & partial eviction
+Real-time streaming architectures also need continuous smoothed metrics over time (e.g., 5-minute moving average fare computed every 60 seconds):
 
 ```
-Tumbling Windows (Size = 300s, Slide = 300s): Non-overlapping, contiguous fixed blocks
-[00:00 - 05:00)        [05:00 - 10:00)        [10:00 - 15:00)
-
 Sliding Windows (Size = 300s, Slide = 60s): Overlapping moving blocks
 [00:00 - 05:00)
    [01:00 - 06:00)
@@ -238,17 +269,7 @@ Sliding Windows (Size = 300s, Slide = 60s): Overlapping moving blocks
             [04:00 - 09:00)
 ```
 
-### 1. Tumbling Windows:
-Tumbling windows partition time into non-overlapping, contiguous chunks.
-For window size `L`, an event at timestamp `t` belongs to exactly **one** window starting at:
-`t_start = floor(t / L) * L`
-`t_end = t_start + L`
-Tumbling windows are ideal for discrete periodic financial settlements (e.g., hourly revenue reconciliation, daily driver payouts).
-
-### 2. Sliding Windows:
-Sliding windows provide a continuous smoothed metric over time (e.g., 5-minute moving average speed computed every 60 seconds).
-Given window duration `L` and slide step `S` (where `S < L`):
-A single event at timestamp `t` falls into multiple overlapping windows starting at integer multiples `k * S` such that:
+Given window duration `L` and slide step `S` (where `S < L`), a single event at timestamp `t` falls into multiple overlapping windows starting at integer multiples `k * S` such that:
 `k * S <= t < k * S + L`
 Solving for integer `k`:
 `t - L < k * S <= t`, so `(t - L) / S < k <= t / S`
@@ -256,28 +277,7 @@ The discrete window indices `k` range from:
 `k_min = floor((t - L + S) / S)` to `k_max = floor(t / S)`
 For `L = 300s` and `S = 60s`, an event falls into exactly `(300 / 60) = 5` overlapping windows! Your accumulator logic must update all 5 buckets simultaneously.
 
-### 3. Dead-Letter Queue (DLQ) Quarantine:
-When an event arrives whose candidate windows have all been evicted (`t_end <= W`), what should happen?
-Silently discarding the event destroys financial traceability; allowing it into closed windows corrupts historical ledger reports.
-The production solution is a **Dead-Letter Queue (DLQ)**. The dropped event is appended to `<output-dir>/dlq/late_events.jsonl` with audit metadata:
-```json
-{
-  "error_code": "LATE_EVENT",
-  "event_id": "evt_0842",
-  "event_time": 1704067280,
-  "current_watermark": 1704067830,
-  "dropped_at": "2024-01-08T12:00:00Z",
-  "raw_payload": { ... }
-}
-```
-Site reliability engineers can monitor DLQ arrival rates, alert when cellular towers cause excessive packet lag, and replay quarantined records into batch reconciliation pipelines.
-
-> 💡 **Practice Pause 4 (Step 4: Consumer Offset Checkpointing & Crash Recovery):**
-> 1. Open `stream_processor.py` in your workspace using your text editor.
-> 2. Persist `last_offset` and in-flight `open_windows` accumulators atomically (`.tmp` + `os.replace`), and read the offset upon startup to skip previously committed events.
-> 3. Run the step 4 check in terminal:
->    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
-> 4. **Success Indicator:** All step 4 checks report `PASS`, confirming mid-stream crash recovery resumes without duplicate records or data loss.
+- **Sliding windows (a known limitation):** an event is dead-lettered only when *all* of its windows are closed. If some are closed and some still open, the event updates the open ones and the closed windows silently miss it. Real engines count such partial drops in a metric; keep that in mind when you compare sliding results with a batch recount.
 
 ## @lab Lab: five steps to a production streaming engine
 Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see the first lesson) and short streams it builds itself, with out-of-order and late events, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.

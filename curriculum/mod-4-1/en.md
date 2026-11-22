@@ -16,6 +16,8 @@ why: Labs teach one skill on tidy data. A job gives you a messy file, a vague re
 Modules 0.2 (terminal, virtual environment), 1.2 (idempotency, retries), 1.4 (dimensional modeling), 1.5 (pandas habits) and 2.1 (Parquet and DuckDB) are the tools you will use; 2.5 (data quality gates) is the mindset. You need Python 3.10 or newer, about 1.5 GB of free disk space and a stable connection once, to download 50 MB.
 
 ## @lesson How this capstone works
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (virtual environment & CLI runner), **Module 1.2** (quarantine & idempotency), **Module 1.4** (star schema, grain & surrogate keys), **Module 1.5/2.1** (Parquet & DuckDB analytics), and **Module 2.5** (data contracts & quality gates).
+
 Every lab so far told you which functions to write and ran tests against them. A capstone is different on purpose. **You get a contract, real data and a checker.** You decide how to build it: DuckDB or pandas, one script or many, SQL or Python. Nobody reviews your code. The checker looks only at **results**: the files your pipeline writes, the numbers inside them, and how the pipeline behaves when something goes wrong.
 
 The rules of the game:

@@ -198,6 +198,8 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 
 ## @lesson Engine vektorisasi satu-node modern: eksekusi lazy Polars dan zero-copy Apache Arrow {optional}
 
+*(Pratinjau opsional: pelajaran ini memberi gambaran awal Apache Arrow dan Polars agar Anda melihat bagaimana engine satu-node melampaui batas pandas; Modul 2.1 membahas engine kolumnar, DuckDB, dan cara kerja Arrow secara menyeluruh dari awal.)*
+
 Meskipun `pandas` tetap digunakan secara luas di banyak basis kode produksi, ada dua batas arsitektur yang muncul ketika ukuran dataset di satu mesin tumbuh dari 100 MB menjadi 20 GB:
 1. **Eksekusi Satu Inti CPU (Single-Core) & Materialisasi Eager:** `pandas` standar menjalankan operasi pada satu thread CPU dan mengalokasikan DataFrame perantara baru di RAM pada setiap langkah rangkaian method (`df[df.status == 'paid'].groupby('city')...`), sehingga itulah sebabnya Wes McKinney, pembuat pandas, menyarankan **RAM 5 sampai 10 kali ukuran dataset**.
 2. **Biaya Serialisasi Antar-Alat:** Dahulu, memindahkan tabel dari engine SQL ke pandas berarti menyalin dan mengurai ulang setiap nilai di memori.

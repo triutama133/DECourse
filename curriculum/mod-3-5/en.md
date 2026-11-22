@@ -37,7 +37,7 @@ The online part is application code. The offline part is a data pipeline like th
 
 Everything in the old checklist applies: idempotence, retries, backfills, data quality, lineage, cost. This module teaches the new parts and reuses the old ones. (The same skills also serve other AI work: assembling training and fine-tuning datasets, building evaluation sets, and feature pipelines for machine-learning models.)
 
-> 🛠 **Try it (20 min, Python).** Build the smallest retrieval pipeline. Three documents: `refund` ("Refunds are possible within 14 days of purchase."), `shipping` ("Standard shipping takes 3 to 5 working days.") and `warranty` ("Devices have a one year warranty."). Tokenise with `re.findall(r"[a-z0-9]+", text.lower())`, make a `Counter` of tokens per document as the "index", and score a question by cosine similarity between its `Counter` and each document's. Print the scores for "Within how many days are refunds possible?" and for "banana pudding recipe". Then change the refund text to say 30 days **without** rebuilding the index and ask again; finally rebuild the index.
+> 🛠 **Try it (20 min, Python).** Build the smallest retrieval pipeline. Three documents: `refund` ("Refunds are possible within 14 days of purchase."), `shipping` ("Standard shipping takes 3 to 5 working days.") and `warranty` ("Devices have a one year warranty."). Tokenise with `re.findall(r"[a-z0-9]+", text.lower())`, make a `Counter` of tokens per document as the "index", and score a question by cosine similarity (defined mathematically in Lesson 2: `dot(a, b) / (norm(a) * norm(b))`, measuring how closely two word-count vectors align from 0 to 1) between its `Counter` and each document's. Print the scores for "Within how many days are refunds possible?" and for "banana pudding recipe". Then change the refund text to say 30 days **without** rebuilding the index and ask again; finally rebuild the index.
 >
 > **You should see:** scores of `0.67` for `refund`, `0.13` for `shipping` and `0.0` for `warranty` on the first question; all `0.0` on the second (a retriever always returns *something* ranked first, so a minimum score is part of the pipeline). With the stale index the retrieved text still says `14` although the source now says 30: the answer is wrong and nothing failed. Only after the rebuild does it say `30`. Sync is the data engineer's job.
 
@@ -52,11 +52,11 @@ A real model needs an API key or a download of hundreds of megabytes, and return
 
 ### Sizes and costs
 
-A vector of 1,536 numbers stored as 4-byte floats is 6,144 bytes. Ten million chunks need about 61 GB for the vectors alone, plus the index, which for HNSW is usually kept in memory for speed. Cost has four parts: **embedding** (billed per input token by hosted models; as an illustration, at $0.10 per million tokens a billion tokens costs $100, but check real prices), **storage and memory**, **queries** (each one embeds the question), and **re-embedding** whenever you change the chunking or the model. Lower dimension, half-precision (`halfvec`) or quantization trade a little accuracy for large savings, and some models can produce shorter vectors on request. Measure on your own eval set before choosing.
+A vector of 1,536 numbers stored as 4-byte floats is 6,144 bytes. Ten million chunks need about 61 GB for the vectors alone, plus the vector index (such as the graph index in Lesson 4, usually kept in memory for speed). Cost has four parts: **embedding** (billed per input token by hosted models; as an illustration, at $0.10 per million tokens a billion tokens costs $100, but check real prices), **storage and memory**, **queries** (each one embeds the question), and **re-embedding** whenever you change the chunking or the model. Lower dimension, half-precision (`halfvec`) or quantization trade a little accuracy for large savings, and some models can produce shorter vectors on request. Measure on your own eval set before choosing.
 
 > 💡 **Practice Pause 1 (Deterministic Embedding & Content Hashing):**
 > 1. Open `labs/mod-3-5/rag.py` in your text editor. Do not run this file directly in the terminal.
-> 2. Implement `embed(text, dim, model)` using blake2b hashing and L2 unit-norm scaling, and `content_hash(text)` using sha256 after collapsing whitespace.
+> 2. Implement `embed(text, dim, model)` using `hashlib.blake2b(..., digest_size=8)` (a fast deterministic hash that stays identical across Python restarts) and L2 unit-norm scaling (dividing every coordinate by `math.sqrt(sum(v * v))` so the vector has length `1.0`), and `content_hash(text)` using `sha256` after collapsing whitespace (`" ".join(text.split())`).
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k "TestEmbed or TestContentHash" -v`
 > 4. **Success Indicator:** All 9 tests report `PASSED` in milliseconds in pure Python, validating deterministic L2 unit vectors and whitespace-invariant hashing.
@@ -77,7 +77,7 @@ Do not assume chunking always helps. In the lab's knowledge base, the 116 docume
 
 Every chunk is stored with metadata: the source document, its position, a category, a language, a date, the owner team, an access-control label and the model that produced its vector. Metadata supports **filtered search** ("only the *menu* category"), citations ("source: store-kemang-hours"), freshness checks and permission checks. It must travel with the chunk because it is very hard to rebuild later.
 
-Filtering has a trap. If a system runs the approximate vector search first and filters afterwards, a restrictive filter can discard most of the candidates and return *fewer than k results*, or none. The lab's filtered search puts the filter in the same SQL query as the ordering; with an HNSW index, PostgreSQL may still need a wider search for rare filters (pgvector has settings for iterative scans in recent versions). Always test filtered queries with rare filter values.
+Filtering has a trap. If a system runs the approximate vector search first and filters afterwards, a restrictive filter can discard most of the candidates and return *fewer than k results*, or none. The lab's filtered search puts the filter in the same SQL query as the ordering; with an approximate vector index (Lesson 4), PostgreSQL may still need a wider search for rare filters (pgvector has settings for iterative scans in recent versions). Always test filtered queries with rare filter values.
 
 > 💡 **Practice Pause 2 (Structure-Aware Chunking & Context Preservation):**
 > 1. Open `labs/mod-3-5/rag.py` in your text editor.
@@ -183,7 +183,7 @@ Use the evaluation as a **regression test**, in CI and after every change to chu
 
 > 💡 **Practice Pause 5 (Vector Similarity Search & Hit Rate / MRR Evaluation):**
 > 1. Open `labs/mod-3-5/rag.py` in your text editor.
-> 2. Implement `search(conn, query, k, category, model, embed_fn)` using pgvector cosine distance `<=>` with strict model filtering, and `evaluate(conn, eval_set, k)` computing Hit Rate @ k and Mean Reciprocal Rank (MRR).
+> 2. Implement `search(conn, query, k=5, category=None, model="v1", embed_fn=embed)` using pgvector cosine distance `<=>` with strict model filtering, and `evaluate(conn, eval_set, k=5, **search_kwargs)` computing Hit Rate @ k and Mean Reciprocal Rank (MRR).
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k "TestSearch or TestEvaluation" -v`
 > 4. **Success Indicator:** All 8 tests report `PASSED`, validating similarity ranking, model isolation enforcement, and retrieval evaluation metrics.
@@ -195,7 +195,7 @@ Machine learning or AI appears in **47.8%** of the 1,130 data engineering postin
 
 **What the data engineer owns.** A **training table** has one row per *prediction moment* ("customer 248 on 15 January"), the **features** known at that moment (orders in the last 14 days, tier, city), and the **label** that came after it (did the customer order again within 7 days?). Around it: keeping features fresh, computing them the same way for training and for live predictions, rebuilding the exact table a model was trained on (time travel and snapshots, Module 2.2), and watching for drift once the model is live.
 
-**Point-in-time correctness** is the rule that every feature may only use what was known at the prediction moment. A row for 15 January may count the orders *before* 15 January and must not count a single order after it, and it must use the customer's tier *as it was* on 15 January, not today's tier. This is the same idea as the Type 2 dimension of Module 1.4, applied to every feature. In SQL the tool is an **as-of join**: for each row on the left, take the latest row on the right whose time is not after it. DuckDB has it built in:
+**Point-in-time correctness** is the rule that every feature may only use what was known at the prediction moment. A row for 15 January may count the orders *before* 15 January and must not count a single order after it, and it must use the customer's tier *as it was* on 15 January, not today's tier. This is the exact same idea as the SCD Type 2 range join from Module 1.4 (`order_ts >= valid_from AND order_ts < valid_to`), applied to every feature. In SQL the shortcut is an **as-of join**: for each row on the left, take the latest row on the right whose time is not after it. DuckDB has it built in:
 
 ```sql
 SELECT s.customer_id, s.snapshot_ts, f.tier

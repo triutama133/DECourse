@@ -13,11 +13,11 @@ why: Most courses start by typing SELECT * on a clean file. On the job, nobody h
 - Read a small CSV file defensively and clean it with plain Python
 
 ## @prereq
-Module 0.0 (Python from zero) is strongly recommended: the lab uses functions, loops, dictionaries and error handling that Module 0.0 explains. Module 0.2 sets up your computer properly; for this module's lab, any Python 3.9+ works.
+Module 0.0 (Python from zero) and Module 0.2 (terminal, virtual environments and `pytest`) prepare you for this module: the lab uses functions, loops, dictionaries, error handling and running `pytest` inside your course venv (`python -m pip install -r labs/mod-0-1/requirements.txt`). Any Python 3.10+ works, and the browser preview works first if you just want to try quickly.
 
 > [!IMPORTANT]
 > **Editor vs Terminal Reminder:**
-> Open and edit code files (such as `labs/mod-0-1/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-1/pipeline.py` in your shell). Use the terminal only for test commands, such as `python3 labs/mod-0-1/test_lab.py -v`.
+> Open and edit code files (such as `labs/mod-0-1/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-1/pipeline.py` in your shell). Use the terminal only for test commands, such as `pytest labs/mod-0-1/test_lab.py -v`.
 
 ## @part The job and the people
 
@@ -41,11 +41,11 @@ So companies copy the data into a **separate system built for analysis** (a data
 
 > **Tip:** When someone says "we need a data warehouse", the real need is almost always: "we need trustworthy numbers without slowing down the product." Keep that sentence in mind; it explains most design decisions in this course.
 
-> 🛠 **Try it (10 min, in Python).** Generate the data (`python3 labs/shared/shopgen.py --out data`) and load `data/orders.csv` into a SQLite table with the `sqlite3` module: `order_id INTEGER PRIMARY KEY`, the other columns TEXT.
-> 1. Insert the rows with a plain `INSERT`. What error do you get, and what does it tell you about the file? Then insert with `INSERT OR REPLACE` and count the rows.
-> 2. Ask SQLite how it would run one OLTP-style and one OLAP-style question: print `EXPLAIN QUERY PLAN SELECT * FROM orders WHERE order_id = 1001` and `EXPLAIN QUERY PLAN SELECT substr(order_ts, 1, 10) AS day, count(*) FROM orders GROUP BY day` (the plan text is the last column of each row).
+> 🛠 **Try it (10 min, in Python).** Generate the data (`python3 labs/shared/shopgen.py --out data`) and read `data/orders.csv` with `csv.DictReader` from Module 0.0 to feel the difference between an **OLTP point lookup** and an **OLAP full scan**:
+> 1. Walk the `3634` rows and build a dict `by_id` keyed by `order_id` (`by_id[row["order_id"]] = row`). How many duplicate keys overwrite an earlier row, leaving `len(by_id)` shorter than `3634`? Notice looking up `by_id["1001"]` touches **one** item instantly (OLTP).
+> 2. Now run a full scan across every row to count how many orders belong to each lowercase status (`counts[status] += 1`). Notice it must touch **all** `3634` rows (OLAP).
 >
-> **You should see:** `UNIQUE constraint failed: orders.order_id` (35 order ids appear twice in the file), then `3599` rows; the first plan says `SEARCH orders USING INTEGER PRIMARY KEY` (it jumps straight to one row), the second says `SCAN orders` (it reads every row). That difference is the whole OLTP versus OLAP story.
+> **You should see:** `len(by_id)` is `3599` (so `35` duplicate order IDs appear in the file!), while `counts` visits every row to summarise categories. Module 0.3 shows how SQL databases do both with `PRIMARY KEY` lookups vs `GROUP BY` scans.
 
 ## @lesson Who does what: roles around data
 Job titles overlap and differ between companies, so think in terms of **work**, not titles. Here is the usual split, using KopiKu again.
@@ -84,7 +84,7 @@ This map comes from *Fundamentals of Data Engineering* by Joe Reis and Matt Hous
 
 **The six undercurrents** are not stages; they are habits you need in every stage. Security (who may see what), data management (quality, definitions, privacy), DataOps (automating, testing and watching pipelines), data architecture (choosing how the pieces fit), orchestration (running steps in the right order) and software engineering (code that others can read, test and change). This is why job postings ask a data engineer for skills that sound like DevOps or software engineering: they are part of the job.
 
-### How far along is the company?
+## @lesson Data maturity, engineer types, and working with people
 The book describes three stages of *data maturity*. A good design for one stage is a bad design for another.
 
 | Stage | What it looks like | What usually works |
@@ -159,8 +159,8 @@ There is a sixth category worth naming: **infrastructure failures** (a server re
 > `head -20 data/orders.csv`
 > `grep -c "Rp " data/orders.csv` (totals written as formatted text)
 > `grep -c ",-" data/orders.csv` (negative/corrupted totals)
-> `cat data/manifest.json` (inspect the anomalies planted by the generator)
-> You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 5 below.
+> `cat data/manifest.json` (JSON is structured key-value text explained in the next lesson; `manifest.json` lists every anomaly planted by the generator)
+> You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 6 below.
 
 ## @lesson The formats you will meet
 Data arrives in a handful of file formats. Knowing their traps saves hours.
@@ -175,14 +175,16 @@ Data arrives in a handful of file formats. Knowing their traps saves hours.
 
 A rule of thumb: CSV and JSON are for *exchange* (humans and other systems send them to you); Parquet and database tables are for *storage and analysis*. A common first step in a pipeline is turning the former into the latter, with types enforced.
 
+**Parsing two date formats in Python (`datetime.strptime`).** Dates from CSV files often mix styles like `"2026-01-31T14:03:00"` and `"31/01/2026 14:03"`. Python's standard library includes `from datetime import datetime`, whose `datetime.strptime(text, fmt)` tries parsing text against a format template (`"%Y-%m-%dT%H:%M:%S"` for ISO or `"%d/%m/%Y %H:%M"` for day/month/year) and raises `ValueError` if it does not match. Catch `ValueError` to try the next format, then format the valid result cleanly back to standard ISO text with `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
+
 > 💡 **Practice Pause 2 (Number & Timestamp Parsers):**
 > Do not read the next section yet! Open `labs/mod-0-1/pipeline.py` in your text editor (click it in the sidebar or type `code labs/mod-0-1/pipeline.py`).
 > Apply the type conversions you just learned:
-> 1. Implement `parse_total(raw)`: strip "Rp" and dots, convert to an integer, and return `None` if unreadable or empty.
-> 2. Implement `parse_ts(raw)`: accept both timestamp formats and return ISO text "YYYY-MM-DDTHH:MM:SS" or `None`.
+> 1. Implement `parse_total(raw)`: strip `"Rp"` and dots, convert to an integer, and return `None` if unreadable or empty.
+> 2. Implement `parse_ts(raw)`: try both `datetime.strptime` formats above and return ISO text `"YYYY-MM-DDTHH:MM:SS"` or `None`.
 > Test both parsers in your terminal:
-> `python3 labs/mod-0-1/test_lab.py -v -k TestParsers`
-> When both parser tests show PASSED, you are ready for defensive cleaning rules in Lesson 6.
+> `pytest labs/mod-0-1/test_lab.py -v -k TestParsers`
+> When both parser tests show PASSED, you are ready for defensive cleaning rules in Lesson 7.
 
 ## @lesson How this course works, and the KopiKu data
 Each module has four parts, and they are meant to be done in order:
@@ -204,7 +206,7 @@ Two habits will help more than any tool:
 > 1. Implement `clean_orders(rows)`: partition rows into `clean` and `rejected` (recording `reason` for each dropped row). Deduplicate order_ids by keeping the first occurrence.
 > 2. Implement `daily_revenue(clean)`: sum revenue per date `YYYY-MM-DD`, excluding cancelled and refunded orders.
 > Run the complete test suite in your terminal:
-> `python3 labs/mod-0-1/test_lab.py -v`
+> `pytest labs/mod-0-1/test_lab.py -v`
 > Once all 8 tests are GREEN, run the pipeline against the real dataset:
 > `python3 labs/mod-0-1/pipeline.py data/orders.csv`
 > Congratulations! You have built your first defensive data cleaning pipeline!
@@ -234,7 +236,7 @@ grep -c "Rp " data/orders.csv      # how many totals are written as text
 cat data/manifest.json             # what was planted in the file, and how much
 ```
 
-5. **Do it for real**, after Module 0.2. On your own computer, with the course venv active, write the four functions again in your editor **without copying** from the preview, then from the course folder:
+5. **Do it for real.** On your own computer, with the course venv from Module 0.2 active, write the four functions again in your editor **without copying** from the preview, then from the course folder:
 
 ```bash
 pytest labs/mod-0-1/test_lab.py -v                  # until all tests pass
@@ -259,10 +261,10 @@ python3 scripts/prove.py mod-0-1                    # your proof code for the Pr
 Run the tests from the repository root:
 
 ```bash
-python3 labs/mod-0-1/test_lab.py -v
+pytest labs/mod-0-1/test_lab.py -v
 ```
 
-All tests should print `ok`. To see what a passing run looks like before you start, run the tests against the reference solution: `LAB_DIR=reference python3 labs/mod-0-1/test_lab.py`.
+All 8 tests should pass (`8 passed`). To see what a passing run looks like before you start, run the tests against the reference solution: `LAB_DIR=reference pytest labs/mod-0-1/test_lab.py -v`.
 
 ## @chaos The Tuesday revenue that doubled
 ### @scenario

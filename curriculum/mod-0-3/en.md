@@ -134,7 +134,7 @@ FROM customers;       -- Budi Santoso | Budi | 12
 **Dates.** SQLite has no real date type: dates are text in the ISO format `YYYY-MM-DD`, which sorts correctly as text (`'2026-01-03' < '2026-01-10'`). A format such as `10/1/2026` does not: as text, `'10/1/2026' < '3/1/2026'` is true. Store dates in ISO form, always. The SQLite functions are `date(x, '+7 days')`, `strftime(format, x)` and `julianday(x)`:
 
 ```sql
-SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- 0 = Sunday ... 6 = Saturday
+SELECT strftime('%w', order_date) AS weekday, COUNT(*) FROM orders GROUP BY 1;   -- GROUP BY groups per weekday (Lesson 5 explains it); 0 = Sun .. 6 = Sat
 SELECT date(order_date, '+7 days') FROM orders;                                   -- 2026-01-03 becomes 2026-01-10
 SELECT julianday(MIN(o.order_date)) - julianday(c.signup_date) ...                 -- days between two dates (Budi: 61)
 ```
@@ -143,7 +143,7 @@ Two more habits. **Use half-open ranges**: `order_date >= '2026-01-10' AND order
 
 One performance rule that Module 1.3 explains with EXPLAIN: do not wrap an indexed column in a function inside `WHERE`. On a table with an index on `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` made SQLite **scan the whole table**, and the equivalent range `ts >= '2026-01-01' AND ts < '2026-02-01'` **searched the index**.
 
-> 🛠 **Try it (10 min, SQL Sandbox).** Solve the KopiKu challenges **k-16** (first name and name length), **k-17** (unknown cities) and **k-18** (cancellation rate) with the functions of this lesson. Before you run k-18, predict the answer by hand, then try `SUM(status = 'cancelled') / COUNT(*)` without the `100.0` and see what integer division does.
+> 🛠 **Try it (10 min, SQL Sandbox).** Solve the KopiKu challenges **k-16** (first name and name length), **k-17** (unknown cities) and **k-18** (cancellation rate) with the functions of this lesson. Note: SQLite treats a true comparison like `status = 'cancelled'` as `1` and false as `0`, so `SUM(status = 'cancelled')` counts cancelled rows (Lesson 8 shows portable `CASE WHEN`). Before you run k-18, predict the answer by hand, then try `SUM(status = 'cancelled') / COUNT(*)` without the `100.0` and see what integer division does.
 >
 > **You should see:** the sandbox says Correct for each challenge; the wrong attempt at k-18 shows `0`, the right one `11.1`.
 
@@ -409,6 +409,8 @@ Why this matters for data engineers: views are how a team defines a metric in on
 > 🛠 **Try it (10 min, SQL Sandbox).** Create the `reviews` table from this lesson, then break it on purpose, one rule at a time: a review with 9 stars; the same customer reviewing the same product twice; a review without a customer. Read each error. Then create a view `v_delivered` (`SELECT * FROM orders WHERE status = 'delivered'`), count its rows, insert one more delivered order into `orders`, and count again.
 >
 > **You should see:** `CHECK constraint failed: stars BETWEEN 1 AND 5`, then `UNIQUE constraint failed: reviews.customer_id, reviews.product_id`, then `NOT NULL constraint failed: reviews.customer_id`; and a view whose count goes from `12` to `13` without you touching the view.
+
+With Level 0 complete, you know Python basics, the terminal, Git, data cleaning and core SQL. Level 1 turns those tools into automated engineering work: shell pipelines and containers (`Module 1.1`), defensive Python jobs (`Module 1.2`), and analytical window functions (`Module 1.3`).
 
 ## @lab Lab: ten questions about KopiKu
 You are the new data engineer and the founder has ten questions. Answer them in SQL against the KopiKu miniature dataset: a customer table with NULL cities, orders with cancellations and refunds, and a shipping fee that tempts you into a fan-out bug.

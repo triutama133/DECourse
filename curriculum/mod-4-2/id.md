@@ -16,6 +16,8 @@ why: Di dunia kerja data engineering nyata, data jarang sekali tiba dalam berkas
 Modul 0.2 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 1.6 (ingesti API, paginasi, dan watermark), serta 2.1 (DuckDB dan Parquet). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan instalasi DuckDB.
 
 ## @lesson Cara kerja capstone ini
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.2** (terminal & venv), **Modul 1.2** (exponential backoff, retry & idempotensi), **Modul 1.6** (paginasi API cursor/offset & checkpoint atomik), serta **Modul 2.1** (penyimpanan tabel DuckDB & upsert CDC). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+
 Setiap lab pada modul-modul sebelumnya memberi Anda fungsi-fungsi yang telah ditentukan rangkanya, berkas pengujian otomatis, dan petunjuk langkah demi langkah. Capstone ini sengaja dirancang berbeda: **Anda menerima kontrak teknis, data publik nyata, dan sebuah suite pemeriksa otomatis yang menyerang pipeline Anda.**
 
 Tidak ada yang menilai keindahan penulisan kode Anda. Suite pemeriksa hanya menilai **perilaku dan hasil yang dapat diamati secara objektif**:
@@ -97,38 +99,12 @@ GeoJSON Feature Collection
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, memvalidasi ekstraksi profiling data seismik Anda cocok 100% dengan data acuan.
 
-## @lesson Ketahanan jaringan: Backoff, Jitter & Rate Limits
-Dalam sistem terdistribusi, jaringan pada dasarnya tidak pernah dapat dipercaya 100% (*Fallacies of Distributed Computing #1: Jaringan selalu andal*). Pipeline data produksi wajib bertahan dari gangguan jaringan tanpa perlu bantuan manusia.
+## @lesson Kontrak ingesti baseline: paginasi, koordinat & penyimpanan DuckDB
+Sebelum menambahkan logika retry atau dead-letter routing, pastikan **kontrak ingesti inti** berjalan rapi dari halaman API ke tabel analitik:
 
-```
-Request ───────> [Server API]
-                   │
-                   ├──> HTTP 429 (Too Many Requests) ──> Baca header `Retry-After` ──> Sleep & Retry
-                   ├──> HTTP 500 / 503 (Server Error)  ──> Exponential Backoff + Jitter ──> Sleep & Retry
-                   └──> HTTP 400 (Bad Request)         ──> Fatal Non-retryable Error    ──> Exit code 2
-```
-
-### 1. HTTP 429 Too Many Requests & `Retry-After`:
-Ketika API membatasi panggilan Anda, server REST standar mengembalikan status HTTP 429 disertai header `Retry-After` yang menyatakan berapa detik klien harus berhenti sejenak:
-```python
-if response.status_code == 429:
-    retry_after = response.headers.get("Retry-After")
-    delay = float(retry_after) if retry_after else base_backoff
-    time.sleep(delay)
-```
-
-### 2. Exponential Backoff dengan Jitter:
-Untuk kesalahan sementara di sisi server (HTTP 500, 502, 503, 504) atau batas waktu koneksi, melakukan retry seketika (*masalah thundering herd*) justru akan merobohkan server yang sedang pulih. Sebaliknya, naikkan waktu tunggu secara eksponensial:
-```text
-wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; dengan base = 1 detik: sekitar 1, 2, 4, 8 detik)
-```
-Jitter adalah penambahan nilai acak kecil (sekitar plus minus 10%) agar ribuan worker ekstraksi tidak menembak server secara bersamaan pada detik yang sama persis.
-
-### 3. Kesalahan Fatal Klien yang Tidak Boleh Di-retry (HTTP 4xx):
-Tidak semua error boleh di-retry. Jika server mengembalikan `HTTP 400 Bad Request`, `401 Unauthorized`, atau `404 Not Found`, mengulang 5 kali hanya akan menghasilkan kegagalan 5 kali dan membuang waktu. Kesalahan fatal klien harus mencatat pesan diagnostik yang jelas dan segera keluar dengan exit code `2` tanpa merusak state checkpoint.
-
-### 4. Batas Waktu Soket dan Higienitas Koneksi:
-Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas waktu eksplisit (misalnya `urllib.request.urlopen(url)`). Jika middlebox jaringan memutus paket diam-diam, thread dapat menggantung selamanya tanpa batas, mengunci cron job dan menghentikan pipeline. Selalu terapkan timeout eksplisit (misalnya 15-30 detik). Selain itu, gunakan context manager Python (`with ... as resp:`) guna menjamin soket ditutup seketika dan mencegah kebocoran file descriptor pada pemrosesan batch bervolume tinggi.
+1. **Lakukan paginasi dengan `limit` dan `offset` berbasis 1:** Iterasi halaman demi halaman (`offset = 1`, maju sesuai panjang halaman) hingga daftar `features` yang dikembalikan kosong.
+2. **Tegakkan urutan koordinat:** Selalu petakan `longitude = coords[0]`, `latitude = coords[1]`, dan `depth_km = coords[2]`, serta konversi stempel waktu ke UTC secara konsisten.
+3. **Buat tabel target DuckDB `events` secara idempoten:** Gunakan `event_id` sebagai primary key dan simpan kolom `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, serta `status`, sambil memperbarui baris yang ada dengan rapi jika event direvisi daripada menambahkan duplikat.
 
 > 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Ingesti Baseline & Penyimpanan DuckDB):**
 > 1. Buka file `pipeline.py` di workspace Anda (`~/seismic/pipeline.py`) menggunakan teks editor.
@@ -182,6 +158,46 @@ Atau kebalikannya:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi bahwa pemutusan koneksi soket di tengah jalan tidak merusak watermark dan eksekusi lanjutan menghasilkan nol data hilang serta nol duplikasi.
 
+## @lesson Ketahanan jaringan: Backoff, Jitter & Rate Limits
+Dalam sistem terdistribusi, jaringan pada dasarnya tidak pernah dapat dipercaya 100% (*Fallacies of Distributed Computing #1: Jaringan selalu andal*). Pipeline data produksi wajib bertahan dari gangguan jaringan tanpa perlu bantuan manusia.
+
+```
+Request ───────> [Server API]
+                   │
+                   ├──> HTTP 429 (Too Many Requests) ──> Baca header `Retry-After` ──> Sleep & Retry
+                   ├──> HTTP 500 / 503 (Server Error)  ──> Exponential Backoff + Jitter ──> Sleep & Retry
+                   └──> HTTP 400 (Bad Request)         ──> Fatal Non-retryable Error    ──> Exit code 2
+```
+
+### 1. HTTP 429 Too Many Requests & `Retry-After`:
+Ketika API membatasi panggilan Anda, server REST standar mengembalikan status HTTP 429 disertai header `Retry-After` yang menyatakan berapa detik klien harus berhenti sejenak:
+```python
+if response.status_code == 429:
+    retry_after = response.headers.get("Retry-After")
+    delay = float(retry_after) if retry_after else base_backoff
+    time.sleep(delay)
+```
+
+### 2. Exponential Backoff dengan Jitter:
+Untuk kesalahan sementara di sisi server (HTTP 500, 502, 503, 504) atau batas waktu koneksi, melakukan retry seketika (*masalah thundering herd*) justru akan merobohkan server yang sedang pulih. Sebaliknya, naikkan waktu tunggu secara eksponensial:
+```text
+wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; dengan base = 1 detik: sekitar 1, 2, 4, 8 detik)
+```
+Jitter adalah penambahan nilai acak kecil (sekitar plus minus 10%) agar ribuan worker ekstraksi tidak menembak server secara bersamaan pada detik yang sama persis.
+
+### 3. Kesalahan Fatal Klien yang Tidak Boleh Di-retry (HTTP 4xx):
+Tidak semua error boleh di-retry. Jika server mengembalikan `HTTP 400 Bad Request`, `401 Unauthorized`, atau `404 Not Found`, mengulang 5 kali hanya akan menghasilkan kegagalan 5 kali dan membuang waktu. Kesalahan fatal klien harus mencatat pesan diagnostik yang jelas dan segera keluar dengan exit code `2` tanpa merusak state checkpoint.
+
+### 4. Batas Waktu Soket dan Higienitas Koneksi:
+Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas waktu eksplisit (misalnya `urllib.request.urlopen(url)`). Jika middlebox jaringan memutus paket diam-diam, thread dapat menggantung selamanya tanpa batas, mengunci cron job dan menghentikan pipeline. Selalu terapkan timeout eksplisit (misalnya 15-30 detik). Selain itu, gunakan context manager Python (`with ... as resp:`) guna menjamin soket ditutup seketika dan mencegah kebocoran file descriptor pada pemrosesan batch bervolume tinggi.
+
+> 💡 **Jeda Praktik 4 (Langkah 4: Ketahanan Jaringan: HTTP 429 Rate-Limits & 5xx Backoff):**
+> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
+> 2. Lengkapi fungsi pemanggilan HTTP dengan retry loop: baca header `Retry-After` saat menerima HTTP 429, terapkan exponential backoff dengan jitter untuk status 5xx, dan langsung keluar dengan kode 2 untuk error fatal 4xx (misalnya 400 Bad Request).
+> 3. Jalankan pemeriksaan langkah 4 di terminal:
+>    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
+> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, membuktikan pipeline mundur secara tertib saat server mengalami throttling dan server outage.
+
 ## @lesson Dead-Letter Queue (DLQ) & Backfill Historis
 Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dapat rusak. Jika 1 rekaman dari 10.000 memuat `latitude = 999.0` atau kehilangan ID, apa yang harus dilakukan pipeline Anda?
 - **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama 48 jam sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
@@ -206,13 +222,6 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 **Aturan Emas Backfill:** Perintah backfill harus memuat data historis ke dalam warehouse menggunakan aturan upsert yang sama, **TETAPI SAMA SEKALI TIDAK BOLEH MENGUBAH ATAU MENGGESER WATERMARK DI `state.json`!** Jika proses backfill Desember 2023 mengubah `state.json`, eksekusi terjadwal berikutnya akan mengira watermark saat ini berada di bulan Desember 2023 dan menyedot ulang seluruh data berbulan-bulan secara mubazir.
 
 Terakhir, selalu terapkan perhitungan **rekonsiliasi** yang ketat: di akhir setiap sesi sinkronisasi, verifikasi hukum invariansi `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. Jika penjumlahan angka ini tidak cocok, berarti ada baris data yang bocor diam-diam di memori tanpa jejak audit.
-
-> 💡 **Jeda Praktik 4 (Langkah 4: Ketahanan Jaringan: HTTP 429 Rate-Limits & 5xx Backoff):**
-> 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
-> 2. Lengkapi fungsi pemanggilan HTTP dengan retry loop: baca header `Retry-After` saat menerima HTTP 429, terapkan exponential backoff dengan jitter untuk status 5xx, dan langsung keluar dengan kode 2 untuk error fatal 4xx (misalnya 400 Bad Request).
-> 3. Jalankan pemeriksaan langkah 4 di terminal:
->    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
-> 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, membuktikan pipeline mundur secara tertib saat server mengalami throttling dan server outage.
 
 ## @lab Lab: lima tahapan membangun pipeline yang dapat diandalkan
 Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi langkah, menggunakan alat pemeriksa setelah setiap tahap. Pemeriksa menjalankan pipeline Anda pada data nyata USGS, menyimulasikan pemutusan koneksi, memicu throttle HTTP 429, menyuntikkan data beracun, dan menguji isolasi backfill.

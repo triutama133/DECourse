@@ -49,7 +49,11 @@ For this module's lab everything is in one file to keep it readable, but the *se
 
 **Configuration** (paths, thresholds, hostnames) comes from arguments or environment variables, never hard-coded; **secrets** only from the environment (Module 0.2).
 
-Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, but they document intent, let editors catch mistakes, and let a checker such as `mypy` or `pyright` find bugs before you run the code. Add them to function signatures from the start.
+Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, but they document intent, let editors catch mistakes, and let a checker such as `mypy` or `pyright` find bugs before you run the code. Notice `-> int | None` above uses Python 3.10+ union syntax ("returns either an integer or `None`").
+
+**Level 1 Python bridge (new syntax you will meet across Modules 1.2–1.7):**
+- **Classes (`class Name:`)**: bundle data and functions together. Inside a class, `def __init__(self, ...):` sets up a new object's starting attributes, and `self` refers to that specific object instance (`self.path = ...`).
+- **Decorators (`@name`)**: a short line directly above a `def` that wraps or registers that function/method with extra behaviour — for example `@field_validator` in Pydantic or `@pytest.fixture` in tests.
 
 > 🛠 **Try it (12 min, in `etl_try.py`).** Write a **pure** function `parse_total(raw)` that returns an int, or `None` when the text is not a non-negative whole number (it should understand the `Rp 150.000` style too). It must pass:
 > `assert parse_total("150000") == 150000`
@@ -86,7 +90,7 @@ Ideas to understand:
 
 - **Coercion.** By default Pydantic is *lax*: the text `"150000"` becomes the integer `150000`, which is perfect for CSV where everything is text. In **strict** mode (`ConfigDict(strict=True)`) it refuses to convert; use that for typed sources such as JSON APIs where a string in a number field means something is wrong.
 - **Constraints** (`gt=0`, `min_length=5`, `Literal[...]`) express business rules declaratively.
-- **Validators** (`field_validator`) handle messy-but-recoverable input. `mode="before"` runs *before* Pydantic's own parsing, which is where you strip `"Rp 1.250.000"` down to `"1250000"` and let Pydantic finish the conversion.
+- **Validators** (`field_validator`) handle messy-but-recoverable input. `@classmethod` marks a method that receives the class (`cls`) instead of an instance because Pydantic runs `mode="before"` *before* constructing the `OrderRow` object — which is where you strip `"Rp 1.250.000"` down to `"1250000"`, or try `datetime.strptime(v.strip(), "%d/%m/%Y %H:%M")` for formats such as `"31/01/2026 14:03"` before letting Pydantic parse ISO timestamps.
 - **Errors are data.** `OrderRow.model_validate(row)` either returns an object or raises `ValidationError`; its `.errors()` lists every problem with the field location and an error type:
 
 ```python
@@ -112,7 +116,7 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
 
-Python's tool for this is the **iterator**, and the easiest way to write one is a **generator**: a function that uses `yield` instead of `return`.
+Python's tool for this is the **iterator**, and the easiest way to write one is a **generator**: a function that uses `yield` (or `yield from` to delegate each item from another iterable) instead of `return` once with a full list.
 
 ```python
 def read_orders(path):
@@ -192,7 +196,7 @@ These three are exactly what Lab 1.2 tests.
 > 2. Use atomic writes (write to temporary `.tmp` files then swap with `os.replace`), track duplicate `order_id` using a set, stream clean records to `output_path` (sorted-key NDJSON), and route failed rows to `quarantine_path` capturing the rejection reason.
 > 3. Test the pipeline in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
-> When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 5 & 6 on logging and testing.
+> When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 5 & 6 on logging (`TestLogging`) and testing.
 
 ## @lesson Logging and run summaries
 `print` is for scripts; **`logging`** is for jobs. It adds timestamps, severity levels and routing (to a file, to the console, to a collector), and lets whoever runs your job choose how much to see without editing code.
@@ -213,7 +217,7 @@ The most useful single log line in any pipeline is the **run summary**: how many
 
 > 🛠 **Try it (12 min, Python).** Extend `run` from the previous Try it: call `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` once, in the entry point, and log the run summary as one INFO line with `read`, `valid`, `duplicates` and `invalid`. Count a row as invalid when its `total_idr` is not plain digits (so `Rp 150.000` and negative numbers are invalid here), and as a duplicate when it is valid and its `order_id` was already seen. If the invalid share is above 1%, log an ERROR and exit with `sys.exit(1)`.
 >
-> **You should see:** a line like `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, then an ERROR (54 of 3,634 is about 1.5%) and `echo $?` printing `1`. The same run with `print` would have no time, no level and no way to be filtered or alerted on.
+> **You should see:** a line like `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, then an ERROR (54 of 3,634 is about 1.5%) and `echo $?` printing `1`. The same run with `print` would have no time, no level and no way to be filtered or alerted on. In your lab, check your summary log line with `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
 ## @lesson Testing data code with pytest
 Tests are how you change code without fear. For data jobs they also document, in executable form, what "correct" means. **pytest** is the standard tool: put functions named `test_*` in files named `test_*.py` and run `pytest`.
@@ -222,6 +226,8 @@ Tests are how you change code without fear. For data jobs they also document, in
 def test_status_is_normalised():
     assert validate({**GOOD, "status": " PAID "}).status == "paid"
 ```
+
+Notice `{**GOOD, "status": " PAID "}` creates a shallow copy of the baseline `GOOD` dictionary with `"status"` replaced, so tests never mutate shared fixtures.
 
 Features worth learning early:
 

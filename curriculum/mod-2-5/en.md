@@ -149,7 +149,7 @@ Row-level checks see one row at a time. **Dataset-level monitoring** looks at th
 4. **Distribution**: did the *content* shift? The share of each status, the null rate of a column, the range of a number. Catches subtle breakage such as a fallback value flooding a column.
 5. **Lineage**: which upstream tables and jobs feed this one, and what depends on it? Not a check but what makes the other four actionable (below).
 
-**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation), which ignore outliers:
+**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2` — even if a wild day had `1000`, the median and MAD of `[10, 12, 14, 1000]` stay almost unchanged (`13` and `1`), whereas the standard deviation explodes!
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 makes MAD comparable to a standard deviation
@@ -161,12 +161,12 @@ On the lab data, the 14 days before the last one had a median of 113.5 orders. T
 Practical tuning:
 
 - **Seasonality.** Orders on Saturdays differ from Tuesdays. Compare with the same weekday of past weeks, or with a model that includes day-of-week, or you will page people every weekend.
-- **Distribution shift** can be measured simply with the **total variation distance** between two category distributions: half the sum of absolute differences in shares. It runs from 0 (identical) to 1 (completely different). For example, `{paid: 80, cancelled: 20}` against `{paid: 60, cancelled: 40}` gives 0.2: a quarter of the orders changed status mix, worth a look.
+- **Distribution shift** can be measured simply with the **total variation distance** between two category distributions: `0.5 * sum(|share_after - share_before|)` (half the sum of absolute differences in shares). It runs from 0 (identical) to 1 (completely different). For example, `{paid: 0.8, cancelled: 0.2}` against `{paid: 0.6, cancelled: 0.4}` gives `0.5 * (|0.8 - 0.6| + |0.2 - 0.4|) = 0.2`: a fifth of the orders changed status mix, worth a look.
 - **Alert fatigue is the enemy.** Too many noisy alerts train people to ignore them, and then the real one is missed. Start with few, high-value checks; set severity (`block`, `warn`); require a human-actionable message ("volume on 2026-01-30 was 69, expected 96 to 130"); and review thresholds after every false alarm.
 
 > 💡 **Practice Pause 3 (Dataset Monitoring & Robust Statistics):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
-> 2. Implement the four monitoring functions: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` using Median and MAD with safety floors, and `distribution_shift(before, after)` using Total Variation Distance.
+> 2. Implement the dataset monitoring helpers: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `daily_counts(rows)` (count rows per ISO date prefix `YYYY-MM-DD`, sorted by date), `volume_anomaly(history, today, k=3.0)` using Median and MAD with safety floors, and `distribution_shift(before, after)` using Total Variation Distance.
 > 3. Run the statistical monitoring tests in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Success Indicator:** All 6 tests in `TestSmallChecks` report `PASSED`, proving detection resilience against outliers and drift.
@@ -205,7 +205,7 @@ A few habits make this easier: keep a **runbook** per critical dataset (how to c
 
 > 💡 **Practice Pause 4 (Quality Gate Orchestration & Incident Prevention):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
-> 2. Implement `run_gate(orders_csv, contract_yaml, out_dir, now=None)`: execute hierarchical checks (schema, row validation, freshness, volume), write `orders_valid.ndjson` and `quarantine.ndjson`, and return an evaluation dictionary with status `pass`, `warn`, or `fail`.
+> 2. Implement `run_gate(data_dir, contract_path, now, out_dir)`: read `<data_dir>/orders.csv`, execute hierarchical checks (schema, row validation, freshness, volume), write `orders_valid.ndjson` and `quarantine.ndjson` in `out_dir`, and return an evaluation dictionary with status `pass`, `warn`, or `fail`.
 > 3. Test gate orchestration in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.

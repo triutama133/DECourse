@@ -82,15 +82,15 @@ Tipe melindungi Anda dengan dua cara lagi:
 >
 > **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 
-### Dua jebakan
+### Memformat teks dan angka (`abs`, f-string, `.replace`)
 
-Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f"Order {1001}: Rp {total}"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`. Fungsi angka bawaan yang sangat berguna adalah `abs(n)`, yang mengembalikan jarak positif dari nol: `abs(-45000)` menghasilkan `45000`. Ini sangat membantu saat memformat mata uang negatif di mana tanda minus harus berada di depan awalan rupiah (`"-Rp 45.000"`, bukan `"Rp -45.000"`).
+Beberapa alat kecil bawaan ini langsung berguna sejak hari pertama:
 
-Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
-
-### Dua alat untuk latihan di bawah
-
-Kode format di dalam f-string mengubah cara sebuah angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`. `.replace(lama, baru)` pada sebuah teks menukar karakter: `"a-b-c".replace("-", "+")` menghasilkan `"a+b+c"`. Bersama-sama keduanya mengubah `1250000` menjadi cara orang Indonesia menulisnya.
+- **Jebakan desimal:** simpan uang sebagai `int` dalam satuan terkecil (rupiah atau sen), karena desimal disimpan secara biner dan `0.1 + 0.2` menghasilkan `0.30000000000000004`.
+- **`abs(n)`** mengembalikan jarak dari nol (selalu tidak negatif): `abs(-45000)` adalah `45000`. Berguna di Pelajaran 3 saat memformat uang negatif (`"-Rp 45.000"`, bukan `"Rp -45.000"`).
+- **Urutan penugasan:** telusuri `a = 2`, `b = a * 3`, `a = 10`, `print(b)` di kertas sebelum dijalankan. Hasilnya `6`, bukan `30`, karena `b` mendapat `6` saat ditugaskan dan mengubah `a` belakangan tidak menghitung ulang `b`.
+- **f-string & kode format:** menaruh `f"..."` sebelum tanda kutip membuat Python menyisipkan nilai di dalam `{...}` (misalnya `f"Order {1001}: Rp {total}"`), dan menambahkan `:,` di `{amount:,}` menyisipkan koma pemisah ribuan: `f"{1250000:,}"` menghasilkan `"1,250,000"`.
+- **`.replace(old, new)` pada teks:** string punya aksi bawaan bernama *method*. Memanggil `"1,250,000".replace(",", ".")` menukar setiap koma menjadi titik, menghasilkan `"1.250.000"`. Bersama-sama keduanya memformat angka gaya Indonesia.
 
 > 🛠 **Coba sendiri (10 menit, Python di file latihan): Jeda Praktik 1, cara sederhana.** Belum ada fungsi: hanya variabel, f-string, dan `.replace`. Sekali saja, di terminal, buat folder untuk file latihan Anda: `mkdir -p ~/practice`. Di VS Code pilih File, New File, ketik tiga baris ini, lalu simpan (File, Save As) sebagai `pause1.py` di dalam folder `practice` di folder rumah Anda. Lalu jalankan dari terminal dengan `python3 ~/practice/pause1.py`:
 >
@@ -162,7 +162,7 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 
 **Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.1 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.
 
-Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
+Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. Gunakan fungsi bawaan `sum(values)` (menjumlahkan semua angka dalam list) dan `len(values)` (menghitung jumlah item), lalu jaga dengan `if`: `if not values: avg = None` menangani list kosong sebelum error terjadi, sedangkan `else: avg = sum(values) / len(values)` berjalan aman saat ada data. Biasakan memeriksa kasus berbahaya lebih dulu.
 
 > 🛠 **Coba sendiri (10 menit, Python di file latihan): Jeda Praktik 3, cara sederhana.** Di `~/practice/pause3.py`: (1) isi `amount = -45000` dan pakai `if` dengan `abs()` agar angka negatif ditulis `-Rp 45.000` sementara angka positif tetap menghasilkan `Rp 45.000`; (2) isi `totals = []` dan cetak rata-ratanya dengan `sum(totals) / len(totals)` (`sum` menjumlahkan list berisi angka, `len` menghitung isinya), tetapi hanya jika list-nya tidak kosong, dan cetak `None` jika kosong; jalankan, lalu ubah `totals` menjadi `[150000, 25000]` dan jalankan lagi.
 >
@@ -250,7 +250,7 @@ Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa men
 > ```
 >
 > `amount` tidak lagi mendapat nilai dari Anda: tes yang memberinya, dengan memanggil misalnya `format_rupiah(1250000)`. Lalu tambahkan `if` dari Jeda 3 untuk angka negatif.
-> Lakukan untuk `format_rupiah` (Jeda 1 dan 3), `count_by_status` dan `unique_customer_ids` (Jeda 4), `average_total` (Jeda 3, tetapi atas total pesanan), `total_revenue` dan `batches` (Jeda 4), serta `top_customers` (`sorted` dengan `key` dari Pelajaran 4). Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya (jalur terminal):
+> Lakukan untuk `format_rupiah` (Jeda 1 dan 3), `count_by_status` dan `unique_customer_ids` (Jeda 4), `average_total` (Jeda 3, tetapi atas total pesanan), `total_revenue` dan `batches` (Jeda 4), serta `top_customers` (`sorted` dengan `key` dari Pelajaran 4). Di Pratinjau browser klik **Jalankan tes**; di jalur terminal, `pytest` menjalankan semua pemeriksaan otomatis (flag `-k TestFormatRupiah` memilih kelompok itu saja dan `-v` menampilkan nama tiap tes):
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
 > Lalu lanjut ke Pelajaran 6.
 

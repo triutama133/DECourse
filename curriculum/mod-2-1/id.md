@@ -27,12 +27,12 @@ Penyimpanan **berorientasi kolom (column-oriented)** menuliskan seluruh nilai da
 Tiga keunggulan utama format kolumnar:
 
 1. **Efisiensi I/O Disk yang Ekstrem.** Membaca 2 dari 50 kolom berarti membaca hanya sekitar 4% volume data. Pada lab praktis, Anda akan melihat laporan mesin analitik bertuliskan `PROJECT 3/7 COLUMNS`: hanya tiga dari tujuh kolom yang dimuat ke memori.
-2. **Rasio Kompresi Jauh Lebih Tinggi.** Nilai-nilai dalam satu kolom memiliki tipe data yang seragam dan pola yang berulang (`'mobile'`, `'mobile'`, `'desktop'`, ...). Karakteristik ini memungkinkan teknik kompresi tingkat tinggi seperti **dictionary encoding** (menyimpan setiap string unik satu kali lalu menggantinya dengan bilangan bulat kecil), **run-length encoding** (mencatat `'mobile' x 1000`), **delta encoding** (mencatat selisih angka pada timestamp terurut), dan **bit-packing** (hanya memakai jumlah bit yang benar-benar dibutuhkan oleh nilai maksimum).
-3. **Komputasi CPU Sangat Cepat.** Menjumlahkan sebuah kolom angka menjadi perulangan sederhana pada larik array angka yang bersambungan di RAM, yang dieksekusi oleh CPU modern dengan sangat optimal.
+2. **Rasio Kompresi Jauh Lebih Tinggi.** Nilai-nilai dalam satu kolom memiliki tipe data yang seragam dan pola yang berulang (`'mobile'`, `'mobile'`, `'desktop'`, ...). Karakteristik ini memungkinkan teknik kompresi tingkat tinggi seperti **dictionary encoding** (menyimpan setiap string unik satu kali lalu menggantinya dengan bilangan bulat kecil), **run-length encoding (RLE)** (mencatat `'mobile' x 1000` sekali alih-alih mengulang `'mobile'` 1.000 kali), **delta encoding** (mencatat selisih angka pada timestamp terurut), dan **bit-packing** (hanya memakai jumlah bit yang benar-benar dibutuhkan oleh nilai maksimum).
+3. **Komputasi CPU Sangat Cepat.** Menjumlahkan sebuah kolom angka menjadi perulangan sederhana pada larik array angka yang bersambungan di RAM, yang dieksekusi oleh CPU modern dengan instruksi **SIMD** (Single Instruction, Multiple Data — memproses beberapa angka sekaligus dalam satu siklus CPU).
 
 Konsekuensinya adalah kebalikannya: membaca atau memperbarui **satu baris utuh** mengharuskan mesin membuka setiap kolom terpisah. Oleh karena itu, format kolumnar sangat ideal untuk analitik dan pemuatan data batch masif, namun buruk untuk penulisan baris tunggal frekuensi tinggi. Itulah mengapa arsitektur produksi memisahkan database OLTP untuk aplikasi dan format kolumnar untuk analitik.
 
-Pengukuran nyata pada tabel event berisi 5.000.000 baris dengan tujuh kolom (id, timestamp, kategori, dan nominal) yang dihasilkan oleh skrip lab:
+Pengukuran nyata pada tabel event berisi 5.000.000 baris dengan tujuh kolom (id, timestamp, kategori, dan nominal) yang dihasilkan oleh skrip lab (di mana **Snappy** mengutamakan kecepatan dekompresi dan **Zstd / Zstandard** menghasilkan ukuran file lebih kecil dengan kecepatan sebanding):
 
 | Format File | Ukuran di Disk |
 |---|---|
@@ -247,6 +247,8 @@ Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena memat
 > 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
 
 ## @lesson Matriks serialisasi & kompresi (Lampiran A) serta arsitektur internal NoSQL (LSM-Tree vs. B-Tree) {optional}
+
+*(Sintesis opsional: referensi ini menjembatani format file yang Anda pakai di sini dengan indeks `B+Tree` database relasional dari Modul 0.3/1.3 dan mesin penyimpanan `LSM-Tree` berkecepatan tulis tinggi di balik database wide-column Modul 1.7.)*
 
 Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab 6 & Lampiran A *Fundamentals of Data Engineering* karya Reis & Housley) maupun wawancara senior data engineer: **(1) Format file dan codec kompresi apa yang paling tepat untuk tiap tahap pipeline?** dan **(2) Bagaimana mesin penyimpanan NoSQL (`LSM-Tree`) berbeda dari database relasional (`B+Tree`) saat kita menarik atau menyajikan data?**
 

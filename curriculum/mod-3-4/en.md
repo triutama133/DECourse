@@ -63,7 +63,7 @@ output "bucket_name" {                 # something other code can read
 ```
 
 - A **provider** is a plugin that knows one platform's API (`aws`, `google`, `snowflake`, `kubernetes`). It is downloaded by `terraform init`. The AWS provider is large (about 650 MB in the lab), which is why teams share a plugin cache.
-- A **resource** is an object Terraform creates, updates and destroys. A **data source** (`data "..."`) only reads or computes something. In the lab, the IAM policy document is a data source: it computes a JSON policy and creates nothing.
+- A **resource** is an object Terraform creates, updates and destroys. A **data source** (`data "..."`) only reads or computes something. In the lab, the **IAM** (Identity and Access Management) policy document is a data source: it computes a JSON permissions policy and creates nothing.
 - **Variables** make the same code serve several environments. Values come from `-var-file=prod.tfvars`, the command line, or the environment. A `validation` block rejects nonsense at the earliest possible moment (the lab's test proves that `env=staging` is refused).
 - **References** such as `aws_s3_bucket.lakehouse.id` create a dependency graph. Terraform builds the bucket before the public-access block that refers to it, and runs independent resources in parallel.
 
@@ -97,9 +97,9 @@ Dev and prod usually share the same code with different variable files; in the l
 ## @lesson Securing the lakehouse
 The lab builds the storage layer of the lakehouse from Module 2.2, with four protections that every company that holds customer data expects.
 
-**1. Block public access.** Breaches like "customer files found in an open bucket" are mostly configuration mistakes. `aws_s3_bucket_public_access_block` with all four flags `true` makes it impossible for a later policy or ACL to expose the bucket, whatever someone writes in a hurry.
+**1. Block public access.** Breaches like "customer files found in an open bucket" are mostly configuration mistakes. `aws_s3_bucket_public_access_block` with all four flags `true` makes it impossible for a later policy or **ACL** (Access Control List, legacy per-object/bucket permission rules) to expose the bucket, whatever someone writes in a hurry.
 
-**2. Encrypt, with a key you control.** S3 encrypts objects by default, but with a key AWS manages. A **KMS key** you own adds an access layer (the reader needs permission on the key as well as on the data), an audit trail of every use, and the ability to revoke access centrally. Turn on **key rotation** so that a leaked old key is limited in time.
+**2. Encrypt, with a key you control.** S3 provides **SSE** (Server-Side Encryption) by default, encrypting bytes on disk with a key AWS manages. Using **KMS** (AWS Key Management Service) with a customer-managed key you own adds an access layer (the reader needs permission on the key as well as on the data), an audit trail of every use, and the ability to revoke access centrally. Turn on **key rotation** so that a leaked old key is limited in time.
 
 **3. Least privilege.** An IAM policy lists who may do which *actions* on which *resources*, optionally under *conditions*. The mistake you will see in every real code base is `"Action": "s3:*", "Resource": "*"`, written once "to make it work" and never removed. A pipeline that only needs to read and write the curated layers should receive exactly that:
 
@@ -121,7 +121,7 @@ How do you test code that creates cloud resources, without creating them? In lay
 3. **Plan-based tests**: run `terraform plan -out=plan` then `terraform show -json plan` and assert on the JSON. This is what the lab does, and it works offline because the provider is configured with fake credentials and skip flags.
 4. Apply in a throwaway sandbox account, check with the real API, destroy. Slower and costs money, so reserve it for modules you share widely.
 
-One subtle point from the lab. The IAM policy mentions the bucket's ARN. If you write `aws_s3_bucket.lakehouse.arn`, that value is *known only after apply*, so the planned policy JSON is not visible and the reviewer sees "(known after apply)" instead of the permissions. Building the ARN from the bucket **name** (`arn:aws:s3:::${local.bucket_name}`) makes the entire policy readable at plan time. Design your configuration so that the security-relevant facts are visible in the plan.
+One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Amazon Resource Name: AWS's globally unique identifier format `arn:aws:service:region:account:resource`). If you write `aws_s3_bucket.lakehouse.arn`, that value is *known only after apply*, so the planned policy JSON is not visible and the reviewer sees "(known after apply)" instead of the permissions. Building the ARN from the bucket **name** (`arn:aws:s3:::${local.bucket_name}`) makes the entire policy readable at plan time. Design your configuration so that the security-relevant facts are visible in the plan.
 
 **Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
 
@@ -136,7 +136,7 @@ One subtle point from the lab. The IAM policy mentions the bucket's ARN. If you 
 
 **Shared responsibility.** AWS describes the split as security "of" the cloud versus security "in" the cloud. AWS protects the infrastructure: the hardware, software, networking and facilities that run its services. You are responsible for what you build on it, and how much that is depends on the service: on a virtual machine you also patch the operating system; on S3 you configure access, encryption and lifecycle. Every protection above is on your side of the line: the provider will not block public access, write least-privilege policies or rotate your keys for you.
 
-**The network.** A **VPC** is your private network inside one cloud region. You choose its address range in CIDR notation: `10.0.0.0/16` means the first 16 bits are fixed, which leaves 2¹⁶ = 65,536 addresses. You cut it into **subnets** (on AWS between `/16` and `/28`), and AWS reserves the first four and the last address of every subnet, so a subnet always holds 5 fewer usable addresses than its size. A **public** subnet has a route to the internet; a **private** one does not. Databases, warehouse compute and pipeline workers belong in private subnets: nothing on the internet can even try to reach them.
+**The network.** A **VPC** (Virtual Private Cloud) is your isolated private network inside one cloud region. You choose its address range in **CIDR** (Classless Inter-Domain Routing) notation: `10.0.0.0/16` means the first 16 bits are fixed, which leaves 2¹⁶ = 65,536 addresses. You cut it into **subnets** (on AWS between `/16` and `/28`), and AWS reserves the first four and the last address of every subnet, so a subnet always holds 5 fewer usable addresses than its size. A **public** subnet has a route to the internet; a **private** one does not. Databases, warehouse compute and pipeline workers belong in private subnets: nothing on the internet can even try to reach them.
 
 Two kinds of firewall rules control traffic, and they behave differently:
 
@@ -340,7 +340,7 @@ Inside one *availability zone* (AZ: one data centre within a region), traffic be
 
 - **Between zones in the same region:** $0.01 per GB charged on each side, so $0.02 for every GB that crosses. A cluster spread over three zones that shuffles 50 TB a day sends about two thirds of it to another zone: 33,000 GB × $0.02 ≈ **$667 a day, about $20,000 a month**, just for moving data.
 - **Between regions, or out to the internet:** about $0.02 to $0.09 per GB. Keep compute in the same region as its storage. This is called *data gravity*: data is expensive to move, so the work goes to the data.
-- **NAT gateway:** traffic from private machines to S3 through a NAT gateway pays a $0.045 per GB processing fee. An *S3 gateway endpoint* sends the same traffic for free.
+- **NAT gateway:** (Network Address Translation — lets servers in a private subnet open outbound requests without letting anyone on the internet initiate inbound connections) traffic from private machines to S3 through a NAT gateway pays a $0.045 per GB processing fee. An *S3 gateway endpoint* sends the same traffic for free.
 
 ### 3. Choosing technology
 - **Reversible and irreversible decisions.** Storing tables in an open format (Parquet, Iceberg) is easy to undo: you can switch from DuckDB to Trino or Spark without moving the data. Putting all business logic in one vendor's stored procedures is hard to undo. Spend your care on the hard-to-undo decisions.

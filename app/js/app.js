@@ -18,7 +18,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
+const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense", "df_interview_sim"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -495,7 +495,10 @@ class DataForgeApp {
       const n = parseInt(parts[3], 10);
       this.activeLessonIdx = this.activeModuleTab === "concepts" && n >= 1 ? n - 1 : null;
     }
-    if (view === "interview" && INTERVIEW_TABS.includes(parts[1])) this.activeInterviewTab = parts[1];
+    if (view === "interview") {
+      if (parts[1] === "loop") this.activeInterviewMode = "loop";
+      else if (INTERVIEW_TABS.includes(parts[1])) { this.activeInterviewMode = "arena"; this.activeInterviewTab = parts[1]; }
+    }
     if (view === "job-sim") {
       if (parts[1] && window.JOB_SIM_DATA && window.JOB_SIM_DATA.stories.some((s) => s.id === parts[1])) this.activeJobStoryId = parts[1];
       if (parts[2] && ["easy", "normal", "hard", "expert"].includes(parts[2])) this.activeJobLevel = parts[2];
@@ -820,12 +823,8 @@ class DataForgeApp {
     const code = typeof draft === "string" ? draft : bl.starter;
     const passed = (readStore("df_browser_labs", {}) || {})[modId];
     const last = (this._blOut && this._blOut[modId]) || {};
-    return `
-      <div class="card browser-lab stack-sm" id="browser-lab">
-        <div class="row between">
-          <h3>${this.l("Pratinjau di browser (tidak dihitung)", "Browser preview (does not count)")}</h3>
-          ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Pratinjau lulus", "Preview passed")}</span>` : `<span id="bl-passed"></span>`}
-        </div>
+    const needLesson5Intro = modId === "mod-0-0" && !this.isLessonDone("mod-0-0", 3) && !this.isLessonDone("mod-0-0", 4) && draft === null;
+    const editorBlock = `
         <p class="small muted">${this.esc(this.t(bl.note))}</p>
         <label class="label" for="bl-code"><code>${this.esc(bl.editable)}</code></label>
         <textarea id="bl-code" class="bl-code" rows="18" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="bl-hint"
@@ -838,7 +837,19 @@ class DataForgeApp {
         </div>
         <div id="bl-summary" aria-live="polite">${last.summary || ""}</div>
         <pre class="bl-out" id="bl-out"${last.out ? "" : " hidden"}>${this.esc(last.out || "")}</pre>
-        <div id="bl-ref">${this.blReferenceHtml(modId)}</div>
+        <div id="bl-ref">${this.blReferenceHtml(modId)}</div>`;
+    return `
+      <div class="card browser-lab stack-sm" id="browser-lab">
+        <div class="row between">
+          <h3>${this.l("Pratinjau di browser (tidak dihitung)", "Browser preview (does not count)")}</h3>
+          ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Pratinjau lulus", "Preview passed")}</span>` : `<span id="bl-passed"></span>`}
+        </div>
+        ${needLesson5Intro ? `
+          <div class="callout">
+            <p class="small"><strong>🪜 ${this.l("Masih di Pelajaran 1–4?", "Still on Lessons 1–4?")}</strong> ${this.l("Kerjakan Jeda Praktik 1–4 dengan Python baris-demi-baris di terminal Anda dulu (<code>python3 ~/practice/pause1.py</code>) sebelum menyentuh fungsi <code>def</code> di bawah. Kotak lab 11 fungsi ini mulai dipakai pada Pelajaran 5.", "Do Practice Pauses 1–4 using plain top-level lines in your terminal first (<code>python3 ~/practice/pause1.py</code>) before touching the <code>def</code> functions below. This 11-function lab box starts at Lesson 5.")}</p>
+          </div>
+          <details class="fold-callout"><summary class="label">${this.l("Buka pratinjau lab Pelajaran 5+ (berisi fungsi def)", "Open Lesson 5+ lab preview (contains def functions)")}</summary><div class="stack-sm" style="margin-top:8px">${editorBlock}</div></details>`
+        : editorBlock}
       </div>`;
   }
   // The reference opens on progress, not on clicks: once at least half of the test groups have passed in one
@@ -1249,7 +1260,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1305,6 +1316,7 @@ class DataForgeApp {
         if (objOf(d.df_job_sim_gates)) { this.jobSimGates = d.df_job_sim_gates; writeStore("df_job_sim_gates", this.jobSimGates); }
         if (objOf(d.df_pr_proofs)) { this.prProofs = d.df_pr_proofs; writeStore("df_pr_proofs", this.prProofs); }
         if (objOf(d.df_job_career)) { this._jc = d.df_job_career; writeStore("df_job_career", this._jc); }
+        if (objOf(d.df_interview_sim)) { this._is = d.df_interview_sim; writeStore("df_interview_sim", this._is); }
         if (d.df_explain && typeof d.df_explain === "object" && !Array.isArray(d.df_explain)) {
           const kept = {};
           for (const [id, t] of Object.entries(d.df_explain)) if (typeof t === "string" && t.length < 20000) kept[id] = t;
@@ -3965,32 +3977,49 @@ Hello from KopiKu</code></pre>
       const all = INTERVIEW_DATA.sqlArenaProblems;
       const p = all.find((x) => x.id === this.activeSqlId) || all[0];
       const draftKey = `sql:${p.id}`;
+      const passKey = `sql_pass:${p.id}`;
       const draft = this.interviewDrafts[draftKey] || "";
-      const unlocked = draft.trim().length >= 30 && /\bselect\b/i.test(draft);
+      const passedLive = Boolean(this.interviewDrafts[passKey]);
+      const unlocked = passedLive || (draft.trim().length >= 30 && /\bselect\b/i.test(draft));
+      const runState = (this.sqlArenaResult && this.sqlArenaResult[p.id]) || null;
       return `
         <div class="split">
           ${list(this.l("Soal SQL", "SQL problems"), all, p.id, "setActiveSql", (x) => `
-            <div class="item-title">${this.esc(this.t(x.title))}</div>
+            <div class="row between"><div class="item-title">${this.esc(this.t(x.title))}</div>${this.interviewDrafts[`sql_pass:${x.id}`] ? `<span class="state-done">✓</span>` : ""}</div>
             <div class="item-meta">${x.difficulty} · ${this.esc(x.category)}</div>`)}
           <section class="stack">
             <div class="card stack-sm">
               <div class="row between"><span class="chip">${this.esc(p.company)}</span><span class="muted small">${this.esc(p.category)}</span></div>
               <h2>${this.esc(this.t(p.title))}</h2>
               <div class="well">${this.md(p.problemStatement)}</div>
-              <div class="label">Schema</div>
+              <div class="row between">
+                <div class="label">Schema · SQLite 3.39 WASM</div>
+                ${p.sandboxSetup ? `<button class="btn btn-sm btn-quiet" onclick="app.previewArenaInput('${p.id}')">👀 ${this.l("Lihat Data Sampel", "Preview Sample Rows")}</button>` : ""}
+              </div>
               <pre><code>${this.esc(p.schema)}</code></pre>
             </div>
             <div class="card stack-sm">
-              <div class="row between"><h3>✍️ ${this.l("Tulis Query Anda Sendiri (Tanpa Bantuan)", "Write Your Own Query First")}</h3><span class="muted small">${this.esc(p.complexity)}</span></div>
-              <p class="muted small">${this.l("Dalam wawancara nyata Anda menulis SQL di papan tulis/editor kosong. Tulis draf query SELECT Anda di bawah ini untuk membuka solusi referensi.", "In a real interview you write SQL in a blank editor. Write your own SELECT query attempt below to unlock the reference solution.")}</p>
-              <textarea class="sql" rows="6" spellcheck="false" placeholder="WITH ... SELECT ..." oninput="app.saveInterviewDraft('${draftKey}', this.value, false)">${this.esc(draft)}</textarea>
               <div class="row between">
-                <span class="small muted">${unlocked ? "🔓 " + this.l("Solusi referensi terbuka di bawah.", "Reference solution unlocked below.") : "🔒 " + this.l("Tulis query SELECT Anda sendiri (min. 30 karakter) lalu klik tombol di kanan.", "Write your own SELECT query (min. 30 chars) then click the button on the right.")}</span>
-                <button class="btn btn-sm ${unlocked ? "btn-done" : "btn-primary"}" onclick="app.renderView()">${unlocked ? "✓ " + this.l("Solusi Terbuka", "Solution Unlocked") : "🔓 " + this.l("Bandingkan dengan Solusi Referensi", "Compare with Reference Solution")}</button>
+                <h3>⚡ ${this.l("Tulis & Uji Query Langsung di SQLite WASM", "Write & Execute Your SQL Live in SQLite WASM")}</h3>
+                ${passedLive ? `<span class="chip chip-green">✓ ${this.l("Terverifikasi Live", "Verified Live")}</span>` : `<span class="muted small">${this.esc(p.complexity)}</span>`}
               </div>
+              ${p.sqliteHint ? `<p class="muted small">💡 ${this.inline(this.t(p.sqliteHint))}</p>` : ""}
+              <textarea id="arena-sql-editor" class="sql" rows="7" spellcheck="false" placeholder="WITH ... SELECT ..." oninput="app.saveInterviewDraft('${draftKey}', this.value, false)" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.runArenaSql('${p.id}', false)}">${this.esc(draft)}</textarea>
+              <div class="row between" style="flex-wrap:wrap;gap:8px">
+                <div class="row" style="flex-wrap:wrap;gap:8px">
+                  <button class="btn btn-sm btn-primary" onclick="app.runArenaSql('${p.id}', false)">▶ ${this.l("Jalankan Query", "Run Query")}</button>
+                  <button class="btn btn-sm" onclick="app.runArenaSql('${p.id}', true)">✓ ${this.l("Uji & Nilai (+ Data Hostil)", "Grade (+ Hostile Data)")}</button>
+                </div>
+                <button class="btn btn-sm ${unlocked ? "btn-done" : "btn-quiet"}" onclick="app.renderView()">${unlocked ? "✓ " + this.l("Solusi Terbuka", "Solution Unlocked") : "🔓 " + this.l("Buka Solusi (min. 30 kar SELECT)", "Unlock Solution (30+ char SELECT)")}</button>
+              </div>
+              <div id="arena-sql-output">${runState ? runState.html : `<p class="small muted">${this.l("Tekan Ctrl/Cmd+Enter atau klik Jalankan Query untuk mengeksekusi SQL Anda pada tabel sampel di browser.", "Press Ctrl/Cmd+Enter or click Run Query to execute your SQL against live sample tables in the browser.")}</p>`}</div>
               ${unlocked ? `
-                <pre><code>${this.esc(this.t(p.solutionSql))}</code></pre>
-                <div class="callout"><div class="label">${this.l("Poin penilaian", "What interviewers look for")}</div>${this.md(p.explanation)}</div>` : ""}
+                <details ${passedLive ? "open" : ""}>
+                  <summary class="small" style="cursor:pointer;font-weight:600">📖 ${this.l("Solusi Referensi Warehouse & Poin Penilaian", "Reference Warehouse Solution & Grading Points")}</summary>
+                  <pre style="margin-top:8px"><code>${this.esc(this.t(p.solutionSql))}</code></pre>
+                  ${p.sqliteSolutionSql ? `<details style="margin-top:6px"><summary class="small muted" style="cursor:pointer">${this.l("Lihat varian SQLite 3.39 yang dieksekusi grader", "View SQLite 3.39 grader query")}</summary><pre style="margin-top:6px"><code>${this.esc(p.sqliteSolutionSql)}</code></pre></details>` : ""}
+                  <div class="callout" style="margin-top:8px"><div class="label">${this.l("Poin penilaian", "What interviewers look for")}</div>${this.md(p.explanation)}</div>
+                </details>` : ""}
             </div>
           </section>
         </div>`;
@@ -4036,6 +4065,130 @@ Hello from KopiKu</code></pre>
   setActiveSql(id) { this.activeSqlId = id; this.renderView(); }
   setActiveDrill(id) { this.activeDrillId = id; this.renderView(); }
   toggleStage(i) { const el = document.getElementById(`stage-content-${i}`); if (el) el.classList.toggle("hidden"); }
+
+  _arenaTableHtml(columns, rows, limit) {
+    const cap = limit && rows.length > limit;
+    const shown = cap ? rows.slice(0, limit) : rows;
+    return `
+      <div class="table-wrap"><table>
+        <thead><tr>${columns.map((c) => `<th>${this.esc(c)}</th>`).join("")}</tr></thead>
+        <tbody>${shown.map((row) => `<tr>${row.map((v) => v === null ? `<td class="null">NULL</td>` : `<td>${this.esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table></div>
+      ${cap ? `<p class="small muted">${this.l(`Menampilkan ${limit} dari ${rows.length} baris.`, `Showing ${limit} of ${rows.length} rows.`)}</p>` : ""}`;
+  }
+
+  async _execArenaSql(setupSql, querySql) {
+    await SQL_PLAYGROUND.init();
+    const db = new SQL_PLAYGROUND.SQL.Database();
+    const t0 = performance.now();
+    try {
+      db.exec(setupSql);
+      const res = db.exec(querySql);
+      const ms = performance.now() - t0;
+      if (!res.length) return { ok: true, columns: [], rows: [], ms, empty: true };
+      const last = res[res.length - 1];
+      return { ok: true, columns: last.columns, rows: last.values, ms, empty: false };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    } finally {
+      db.close();
+    }
+  }
+
+  _arenaCompare(mine, ref) {
+    if (!mine.ok) return { ok: false, reason: "error", detail: mine.error };
+    if (mine.empty) return { ok: false, reason: "empty" };
+    if (mine.columns.length !== ref.columns.length) return { ok: false, reason: "columns", expected: ref.columns.length, got: mine.columns.length };
+    const norm = (rows) => rows.map((r) => JSON.stringify(r.map((v) => typeof v === "number" ? Math.round(v * 100) / 100 : v))).sort();
+    const a = norm(mine.rows), b = norm(ref.rows);
+    if (a.length !== b.length) return { ok: false, reason: "rows", expected: b.length, got: a.length };
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return { ok: false, reason: "values" };
+    return { ok: true };
+  }
+
+  async previewArenaInput(id) {
+    const p = (INTERVIEW_DATA.sqlArenaProblems || []).find((x) => x.id === id);
+    if (!p || !p.sandboxSetup) return;
+    const out = document.getElementById("arena-sql-output");
+    if (out) out.innerHTML = `<p class="small muted">${this.l("Memuat tabel sampel SQLite...", "Loading sample SQLite tables...")}</p>`;
+    try {
+      await SQL_PLAYGROUND.init();
+      const db = new SQL_PLAYGROUND.SQL.Database();
+      db.exec(p.sandboxSetup);
+      const tbls = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+      const html = (tbls[0] ? tbls[0].values : []).map(([name]) => {
+        const q = db.exec(`SELECT * FROM "${name.replace(/"/g, '""')}" LIMIT 12`);
+        if (!q.length) return "";
+        return `<div class="stack-sm" style="margin-top:8px"><div class="label">${this.esc(name)}</div>${this._arenaTableHtml(q[0].columns, q[0].values, 12)}</div>`;
+      }).join("");
+      db.close();
+      this.sqlArenaResult = this.sqlArenaResult || {};
+      this.sqlArenaResult[id] = { html: html || `<p class="small muted">${this.l("Tabel kosong.", "Empty table.")}</p>` };
+      if (out) out.innerHTML = this.sqlArenaResult[id].html;
+    } catch (err) {
+      if (out) out.innerHTML = `<div class="callout danger"><code>${this.esc(err.message || err)}</code></div>`;
+    }
+  }
+
+  async runArenaSql(id, grade) {
+    const p = (INTERVIEW_DATA.sqlArenaProblems || []).find((x) => x.id === id);
+    if (!p || !p.sandboxSetup) return;
+    const ed = document.getElementById("arena-sql-editor");
+    const sql = ed ? ed.value : (this.interviewDrafts[`sql:${id}`] || "");
+    this.saveInterviewDraft(`sql:${id}`, sql, false);
+    const out = document.getElementById("arena-sql-output");
+    if (out) out.innerHTML = `<p class="small muted">${this.l("Menjalankan query di SQLite WASM...", "Executing query in SQLite WASM...")}</p>`;
+
+    let html = "";
+    try {
+      const mine = await this._execArenaSql(p.sandboxSetup, sql);
+      if (!mine.ok) {
+        this.playTone("err");
+        html = `<div class="callout danger"><div class="label">SQLite Error</div><code>${this.esc(mine.error)}</code></div>`;
+      } else {
+        let banner = `<div class="small muted" style="margin-bottom:6px">${mine.rows.length} ${this.l("baris", "rows")} · ${mine.ms.toFixed(1)} ms</div>`;
+        if (grade && p.sqliteSolutionSql) {
+          const ref = await this._execArenaSql(p.sandboxSetup, p.sqliteSolutionSql);
+          let check = this._arenaCompare(mine, ref);
+          if (check.ok && p.sandboxAdversarial) {
+            const setupAdv = p.sandboxSetup + "\n" + p.sandboxAdversarial;
+            const advMine = await this._execArenaSql(setupAdv, sql);
+            const advRef = await this._execArenaSql(setupAdv, p.sqliteSolutionSql);
+            const advCheck = this._arenaCompare(advMine, advRef);
+            if (!advCheck.ok) check = { ok: false, reason: "adversarial" };
+          }
+          if (check.ok) {
+            this.interviewDrafts[`sql_pass:${id}`] = true;
+            writeStore("df_interview_drafts", this.interviewDrafts);
+            this.playTone("win");
+            banner = `<div class="feedback ok" style="margin-bottom:8px">✓ ${this.l(`Lulus tes utama & tes data hostil (${mine.rows.length} baris · ${mine.ms.toFixed(1)} ms)! Solusi referensi terbuka di bawah.`, `Passed main & hostile edge-case tests (${mine.rows.length} rows · ${mine.ms.toFixed(1)} ms)! Reference solution unlocked below.`)}</div>`;
+          } else {
+            this.playTone("err");
+            const msg = {
+              empty: this.l("Query tidak mengembalikan baris. Pastikan ada SELECT.", "Query returned no rows. Make sure it runs a SELECT."),
+              columns: this.l(`Jumlah kolom berbeda: harapan ${check.expected}, hasil ${check.got}.`, `Column count mismatch: expected ${check.expected}, got ${check.got}.`),
+              rows: this.l(`Jumlah baris berbeda: harapan ${check.expected}, hasil ${check.got}.`, `Row count mismatch: expected ${check.expected}, got ${check.got}.`),
+              values: this.l("Nilai baris tidak sama dengan referensi. Periksa filter tanggal/join/deduplikasi Anda.", "Row values do not match the reference output. Check your date window, join type, or dedup logic."),
+              adversarial: this.l("Lolos data awal, tetapi gagal pada data hostil (kasus batas 30 hari, duplikat, atau order tanpa klik iklan).", "Passed initial sample, but failed hostile edge-case data (boundary dates, duplicates, or orphan orders).")
+            }[check.reason] || this.l("Belum cocok dengan output referensi.", "Output does not match reference.");
+            banner = `<div class="feedback err" style="margin-bottom:8px">✕ ${msg}</div>`;
+          }
+        } else {
+          this.playTone("ok");
+        }
+        html = banner + (mine.empty ? "" : this._arenaTableHtml(mine.columns, mine.rows, 25));
+      }
+      this.sqlArenaResult = this.sqlArenaResult || {};
+      this.sqlArenaResult[id] = { html };
+      if (grade && this.interviewDrafts[`sql_pass:${id}`]) {
+        this.renderView();
+      } else if (out) {
+        out.innerHTML = html;
+      }
+    } catch (err) {
+      if (out) out.innerHTML = `<div class="callout danger"><code>${this.esc(err.message || err)}</code></div>`;
+    }
+  }
 
   // ================= PORTFOLIO =================
   renderPortfolioView() {
