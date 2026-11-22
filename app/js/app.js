@@ -6,7 +6,7 @@ const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfo
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 // modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
 const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
-const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "active-recall", "stakeholder-defense"];
+const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "pr-review", "active-recall", "stakeholder-defense"];
 
 function readStore(key, fallback) {
   try {
@@ -18,7 +18,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
+const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -52,6 +52,8 @@ class DataForgeApp {
     this.activeJobLevel = "easy";
     this.jobSimProofs = readStore("df_job_sim_proofs", {}) || {};
     this.jobSimGates = readStore("df_job_sim_gates", {}) || {};
+    this.activePrId = "pr-1";
+    this.prProofs = readStore("df_pr_proofs", {}) || {};
 
     this.completedModules = readStore("df_completed_modules", []);
     this.quizScores = readStore("df_quiz_scores", {});
@@ -674,6 +676,13 @@ class DataForgeApp {
       "remote-playbook": () => this.renderRemotePlaybookView()
     };
     container.innerHTML = views[this.currentView]();
+    // entrance motion only when the learner arrives somewhere new: renderView also runs on every quiz answer,
+    // checkbox and toggle, and replaying the entrance there makes the whole page flicker
+    const mountKey = location.hash + "|" + this.currentView;
+    if (mountKey !== this._lastMountKey) {
+      this._lastMountKey = mountKey;
+      this.choreographViewMount(container);
+    }
     if (this.currentView === "playground") this.afterPlaygroundRender();
     if (this.currentView === "curriculum") {
       // keep the open lesson visible inside the sticky sidebar, without moving the page itself
@@ -1123,7 +1132,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1174,6 +1183,11 @@ class DataForgeApp {
         if (d.df_browser_labs && typeof d.df_browser_labs === "object" && !Array.isArray(d.df_browser_labs)) writeStore("df_browser_labs", d.df_browser_labs);
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
+        const objOf = (v) => v && typeof v === "object" && !Array.isArray(v);
+        if (objOf(d.df_job_sim_proofs)) { this.jobSimProofs = d.df_job_sim_proofs; writeStore("df_job_sim_proofs", this.jobSimProofs); }
+        if (objOf(d.df_job_sim_gates)) { this.jobSimGates = d.df_job_sim_gates; writeStore("df_job_sim_gates", this.jobSimGates); }
+        if (objOf(d.df_pr_proofs)) { this.prProofs = d.df_pr_proofs; writeStore("df_pr_proofs", this.prProofs); }
+        if (objOf(d.df_job_career)) { this._jc = d.df_job_career; writeStore("df_job_career", this._jc); }
         if (d.df_explain && typeof d.df_explain === "object" && !Array.isArray(d.df_explain)) {
           const kept = {};
           for (const [id, t] of Object.entries(d.df_explain)) if (typeof t === "string" && t.length < 20000) kept[id] = t;
@@ -1465,8 +1479,88 @@ class DataForgeApp {
     const anim = list.find((a) => a.id === animId);
     if (!anim) return;
     const box = document.getElementById(`anim-box-${animId}`);
-    if (box) box.innerHTML = this.renderLessonAnimationInner(anim);
-    else this.renderView();
+    if (box) {
+      box.innerHTML = this.renderLessonAnimationInner(anim);
+      this.choreographLessonAnim(box);
+    } else {
+      this.renderView();
+    }
+  }
+
+  // window.anime and window.Motion come from vendor/motion-anime.js, a small in-house helper with
+  // anime.js-style and Motion-style APIs (not the libraries themselves)
+  choreographLessonAnim(box) {
+    if (!box) return;
+    if (window.anime && typeof window.anime.timeline === "function") {
+      const tl = window.anime.timeline({ easing: "easeOutExpo" });
+      tl.add({
+        targets: "svg rect",
+        scope: box,
+        opacity: [0.35, 1],
+        scale: [0.97, 1],
+        delay: window.anime.stagger(28),
+        duration: 340
+      }).add({
+        targets: "svg line, svg path",
+        scope: box,
+        strokeDashoffset: [window.anime.setDashoffset, 0],
+        opacity: [0.4, 1],
+        delay: window.anime.stagger(35),
+        duration: 420
+      }, "-=220").add({
+        targets: "svg .anim-pulse, svg circle",
+        scope: box,
+        scale: [0.85, 1],
+        opacity: [0.3, 1],
+        duration: 360,
+        easing: "spring(1, 80, 12, 0)"
+      }, "-=260");
+    }
+    if (window.Motion && typeof window.Motion.animate === "function") {
+      window.Motion.animate(".anim-narrative", { opacity: [0.45, 1], y: [4, 0] }, { scope: box, type: "spring", stiffness: 300, damping: 26 });
+      window.Motion.animate(".anim-step-dot.active", { scale: [0.86, 1] }, { scope: box, type: "spring", stiffness: 360, damping: 18 });
+    }
+  }
+
+  choreographViewMount(container) {
+    if (!container) return;
+    // 1. Motion.dev (https://motion.dev/) — Spring & staggered entrance across all views, cards, nodes & quiz options
+    if (window.Motion && typeof window.Motion.animate === "function") {
+      window.Motion.animate(
+        ".stack > .card, .duo-section-card, .lesson-card, .uxcel-quiz-shell, .recall-card, .sim-card, .lesson-anim-card",
+        { opacity: [0.55, 1], y: [8, 0] },
+        { scope: container, duration: 0.26, delay: window.Motion.stagger(0.028) }
+      );
+      window.Motion.animate(
+        ".grid > .item, .duo-node-btn, .career-path-card, .pipeline-step, .uxcel-option-btn, .stat-strip > div",
+        { opacity: [0.6, 1], y: [5, 0] },
+        { scope: container, duration: 0.22, delay: window.Motion.stagger(0.018) }
+      );
+    }
+    // 2. Anime.js (https://animejs.com/) — SVG diagrams, progress rings and market bars
+    if (window.anime && typeof window.anime.timeline === "function") {
+      if (container.querySelectorAll) {
+        const allDiagrams = container.querySelectorAll(".lesson-anim-card, .diagram");
+        if (allDiagrams && allDiagrams.forEach) {
+          allDiagrams.forEach((box) => this.choreographLessonAnim(box));
+        }
+      }
+      window.anime({
+        targets: ".ring-fg",
+        scope: container,
+        opacity: [0.35, 1],
+        duration: 520,
+        easing: "easeOutExpo"
+      });
+      window.anime({
+        targets: ".market-bar > div, .progress > div, .uxcel-progress-fill",
+        scope: container,
+        opacity: [0.4, 1],
+        delay: window.anime.stagger(22),
+        duration: 460,
+        easing: "easeOutExpo"
+      });
+    }
   }
 
   stepAnim(animId, delta) {
@@ -3446,6 +3540,7 @@ class DataForgeApp {
       "sql-arena": t.tabSqlArena,
       "incidents": t.tabIncidents,
       "silent-bugs": this.l("Bug diam-diam", "Silent bugs"),
+      "pr-review": this.l("Review PR Git", "Git PR Review"),
       "active-recall": this.l("Mengingat aktif", "Active recall"),
       "stakeholder-defense": this.l("Stakeholder", "Stakeholders")
     };
@@ -3472,6 +3567,10 @@ class DataForgeApp {
         ${items.map((it) => `
           <button class="item ${it.id === activeId ? "active" : ""}" onclick="app.${handler}('${it.id}')">${body(it)}</button>`).join("")}
       </aside>`;
+
+    if (this.activeInterviewTab === "pr-review") {
+      return this.renderPrReviewClinic();
+    }
 
     if (this.activeInterviewTab === "silent-bugs") {
       const drills = (window.PRACTICE_LABS && window.PRACTICE_LABS.SILENT_BUG_DRILLS) || [];
@@ -3812,12 +3911,144 @@ class DataForgeApp {
                 <input type="text" id="port-proof-input-${proj.id}" autocomplete="off" spellcheck="false" placeholder="PORT1:${proj.id}:…" value="${pProof ? this.esc(pProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitPortfolioProof('${proj.id}')}" />
                 <button class="btn btn-sm btn-primary" onclick="app.submitPortfolioProof('${proj.id}')">${this.l("Verifikasi PORT1", "Verify PORT1")}</button>
               </div>
-              <div id="port-proof-msg-${proj.id}">${pProof ? `<div class="feedback ok">✓ ${this.l(`Repositori portofolio lokal terverifikasi (${pProof.passed} audit lulus, ${pProof.commits} commit Git, Python ${pProof.py} di ${pProof.os}).`, `Local portfolio repository verified (${pProof.passed} audits passed, ${pProof.commits} Git commits, Python ${pProof.py} on ${pProof.os}).`)}</div>` : ""}</div>
+              <div id="port-proof-msg-${proj.id}">${pProof ? `<div class="feedback ok row between"><span>✓ ${this.l(`Repositori portofolio lokal terverifikasi (${pProof.passed} audit lulus, ${pProof.commits} commit Git, Python ${pProof.py} di ${pProof.os}).`, `Local portfolio repository verified (${pProof.passed} audits passed, ${pProof.commits} Git commits, Python ${pProof.py} on ${pProof.os}).`)}</span><button class="btn btn-sm" onclick="app.pushPortfolioToCv('${proj.id}')">➕ ${this.l("Kirim Proyek ke CV", "Add Project to CV")}</button></div>` : ""}</div>
             </div>`;
         })()}
       </div>`;
   }
   setActivePortfolio(id) { this.activePortfolioId = id; this.renderView(); }
+  pushPortfolioToCv(projId) {
+    const proj = (PORTFOLIO_DATA.projects || []).find((p) => p.id === projId);
+    if (!proj) return;
+    this.resumeData = this.resumeData || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+    this.resumeData.projects = Array.isArray(this.resumeData.projects) ? this.resumeData.projects : [];
+    const name = this.t(proj.title);
+    if (this.resumeData.projects.some((p) => p && p.name === name)) {
+      this.showToast(this.esc(this.l("Proyek ini sudah ada di CV Anda.", "This project is already on your CV.")));
+      return;
+    }
+    this.resumeData.projects.unshift({ name, tech: this.t(proj.badge), description: this.t(proj.summary) });
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
+    writeStore("df_resume_data", this.resumeData);
+    this.playTone("ok");
+    this.showToast(this.esc(this.l(
+      "Ditambahkan ke ATS Resume. Tulis ulang deskripsinya dengan kata-kata Anda sendiri dan angka dari repositori Anda.",
+      "Added to ATS Resume. Rewrite the description in your own words, with the numbers from your own repository.")));
+  }
+
+  // ================= BROWNFIELD GIT PR CODE REVIEW CLINIC (PR1:) =================
+  setActivePrCase(id) { this.activePrId = id; this.renderView(); }
+  submitPrProof(prId) {
+    const inp = document.getElementById("pr-proof-input-" + prId);
+    const msg = document.getElementById("pr-proof-msg-" + prId);
+    if (!inp || !msg) return;
+    const raw = inp.value.trim();
+    const res = window.ProofCheck && window.ProofCheck.verifyPrReview
+      ? window.ProofCheck.verifyPrReview(prId, raw)
+      : { ok: false, reason: "format" };
+    if (!res.ok) {
+      this.playTone("err");
+      const why = res.reason === "pr"
+        ? this.l(`Token ini untuk ${res.prId}, bukan ${prId}.`, `This token is for ${res.prId}, not ${prId}.`)
+        : this.l("Token PR1 tidak valid. Salin seluruh baris yang dicetak `verify`.", "Invalid PR1 token. Copy the whole line that `verify` printed.");
+      msg.innerHTML = `<div class="feedback err">✗ ${this.inline(why)}</div>`;
+      return;
+    }
+    this.prProofs[prId] = { token: raw, ...res.info };
+    writeStore("df_pr_proofs", this.prProofs);
+    this.playTone("win");
+    this.renderChrome();
+    this.renderView();
+  }
+  renderPrReviewClinic() {
+    // The bugs are not listed here on purpose: finding them is the exercise. The ticket in TICKET.md says
+    // what the code must do; scripts/pr_review.py holds the checks.
+    const cases = [
+      {
+        id: "pr-1", badge: "dbt · incremental", after: "2.3", author: "junior-de",
+        title: { id: "PR #104: menggabungkan pesanan baru ke order mart", en: "PR #104: merge incoming orders into the order mart" },
+        about: { id: "Merge inkremental dengan jendela lookback, upsert berdasarkan `updated_at`, dan net revenue.", en: "An incremental merge with a lookback window, upserts by `updated_at`, and net revenue." }
+      },
+      {
+        id: "pr-2", badge: "Airflow · Dagster", after: "2.4", author: "data-intern",
+        title: { id: "PR #219: loader harian berpartisi dengan karantina", en: "PR #219: daily partitioned loader with quarantine" },
+        about: { id: "Loader yang dijalankan orkestrator per `logical_date`, harus aman dijalankan ulang, dan tidak boleh menelan baris rusak.", en: "A loader the orchestrator runs per `logical_date`; it must be safe to re-run and must not swallow bad rows." }
+      },
+      {
+        id: "pr-3", badge: "SQL · Spark skew", after: "3.1", author: "analytics-dev",
+        title: { id: "PR #308: filter blacklist dan salting hot key", en: "PR #308: blacklist filter and hot-key salting" },
+        about: { id: "Filter blacklist yang diporting dari SQL, dan salting untuk join yang skew pada `merchant_id`.", en: "A blacklist filter ported from SQL, and salting for a join that is skewed on `merchant_id`." }
+      },
+      {
+        id: "pr-4", badge: "ML features · PII", after: "3.5", author: "ml-intern",
+        title: { id: "PR #412: fitur point-in-time dan token email untuk model fraud", en: "PR #412: point-in-time features and email tokens for fraud training" },
+        about: { id: "Baris training untuk model fraud: skor risiko pada waktu transaksi, dan email yang diganti token.", en: "Training rows for a fraud model: the risk score as of the transaction, and the email replaced by a token." }
+      }
+    ];
+    const cur = cases.find((c) => c.id === this.activePrId) || cases[0];
+    const prProof = this.prProofs[cur.id];
+    const repoDir = `~/pr-review/${cur.id}`;
+    const cmdAll = [
+      `python3 scripts/pr_review.py init ${cur.id} ${repoDir}`,
+      `git -C ${repoDir} show HEAD          # ${this.l("tiket dan diff PR", "the ticket and the PR's diff")}`,
+      `python3 ${repoDir}/test_pr.py        # ${this.l("jalankan tes", "run the tests")}`,
+      `# ${this.l("perbaiki pr_pipeline.py di editor Anda sampai tes lulus, lalu:", "fix pr_pipeline.py in your editor until the tests pass, then:")}`,
+      `git -C ${repoDir} commit -am "fix: ..."`,
+      `python3 scripts/pr_review.py verify ${cur.id} ${repoDir}`
+    ].join("\n");
+    const openedBy = (c) => this.l(`Dibuka oleh <code>${this.esc(c.author)}</code>`, `Opened by <code>${this.esc(c.author)}</code>`);
+
+    return `
+      <div class="split">
+        <aside class="stack-sm">
+          <div class="label" style="padding:0 2px">${this.l("Antrean pull request tim", "Team pull request queue")} (${cases.length})</div>
+          ${cases.map((c) => `
+            <button class="item ${c.id === cur.id ? "active" : ""}" onclick="app.setActivePrCase('${c.id}')">
+              <div class="row between">
+                <span class="chip">${this.esc(c.badge)}</span>
+                ${this.prProofs[c.id] ? `<span class="state-done">✓ PR1</span>` : `<span class="muted small">${this.l("setelah", "after")} ${c.after}</span>`}
+              </div>
+              <div class="item-title" style="margin-top:6px">${this.esc(this.t(c.title))}</div>
+              <div class="item-meta">${openedBy(c)}</div>
+            </button>`).join("")}
+        </aside>
+        <section class="stack">
+          <div class="card stack-sm">
+            <div class="row between">
+              <span class="chip">${this.esc(cur.badge)}</span>
+              ${prProof ? `<span class="state-done">✓ PR1</span>` : `<span class="chip">${this.l(`Paling cocok setelah Modul ${cur.after}`, `Best after Module ${cur.after}`)}</span>`}
+            </div>
+            <h2>${this.esc(this.t(cur.title))}</h2>
+            <p class="small muted">${openedBy(cur)} · ${this.inline(this.t(cur.about))}</p>
+            <p>${this.l(
+              "Di tim data, sebagian besar pekerjaan minggu pertama adalah membaca kode orang lain. PR ini punya tiket yang menjelaskan apa yang harus dilakukan kodenya, dan kode yang belum sepenuhnya melakukannya. Bandingkan tiket dengan kode baris demi baris, temukan di mana keduanya berbeda, perbaiki, dan commit.",
+              "On a data team, much of the first weeks is reading other people's code. This PR has a ticket saying what the code must do, and code that does not quite do it. Compare the ticket with the code line by line, find where they differ, fix it, and commit."
+            )}</p>
+            <p class="small muted">${this.inline(this.l(
+              "Tes memakai data dari tiket dan satu dataset kedua yang tidak Anda lihat sebelumnya, jadi jawaban yang di-hardcode tidak lulus. Butuh Git dan Python saja; `pytest` opsional.",
+              "The tests use the ticket's data and a second dataset you do not see in advance, so hard-coded answers do not pass. You need only Git and Python; `pytest` is optional."
+            ))}</p>
+          </div>
+
+          <div class="card stack-sm" style="border-left:3px solid var(--green)">
+            <div class="row between">
+              <h3>${this.l("Review, perbaiki, commit, verifikasi", "Review, fix, commit, verify")}</h3>
+              ${prProof ? `<span class="state-done">✓ PR1</span>` : ""}
+            </div>
+            <p class="small muted">${this.inline(this.l("Jalankan dari folder kursus.", "Run from the course folder."))}</p>
+            <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdAll)}</code></pre></div>
+            <div class="row">
+              <input type="text" id="pr-proof-input-${cur.id}" autocomplete="off" spellcheck="false" placeholder="PR1:${cur.id}:…" value="${prProof ? this.esc(prProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitPrProof('${cur.id}')}" />
+              <button class="btn btn-sm btn-primary" onclick="app.submitPrProof('${cur.id}')">${this.l("Verifikasi PR1", "Verify PR1")}</button>
+            </div>
+            <div id="pr-proof-msg-${cur.id}">
+              ${prProof ? `<div class="feedback ok">✓ ${this.l(`Diperbaiki dan di-commit: ${prProof.passed} pemeriksaan lulus, ${prProof.commits} commit, Python ${this.esc(prProof.py)}.`, `Fixed and committed: ${prProof.passed} checks passed, ${prProof.commits} commits, Python ${this.esc(prProof.py)}.`)}</div>` : ""}
+            </div>
+          </div>
+        </section>
+      </div>`;
+  }
 
   // ================= RESUME =================
   renderCvBuilderView() {
@@ -4946,238 +5177,36 @@ class DataForgeApp {
       </div>`;
   }
 
-  // ================= 4-STORY REAL-LIFE DATA ENGINEER JOB SIMULATOR =================
-  setJobStory(storyId) {
-    this.activeJobStoryId = storyId;
-    this.go("job-sim", storyId, this.activeJobLevel);
-  }
-  setJobLevel(lvl) {
-    this.activeJobLevel = lvl;
-    this.go("job-sim", this.activeJobStoryId, lvl);
-  }
-  answerJobSimGate(missionId, optIdx) {
+  // ================= 4-STORY REAL-LIFE DATA ENGINEER JOB SIMULATOR (FOOTBALL MANAGER EDITION) =================
+  // The job simulator (story flow, missions, gates and JOB1 tokens) lives in js/job-career.js.
+
+  // A simulator mission is practice, not a job. The bullet goes in as a project clearly labelled as a simulation,
+  // never under Experience, where it would read as work done for an employer.
+  pushJobSimBulletToCv(storyId, bulletIdx) {
     const stories = (window.JOB_SIM_DATA && window.JOB_SIM_DATA.stories) || [];
-    let mission = null;
-    for (const s of stories) {
-      for (const lv of s.levels) {
-        if (lv.missionId === missionId) mission = lv;
-      }
+    const story = stories.find((s) => s.id === storyId);
+    if (!story || !story.starResumeBullets[bulletIdx]) return;
+    const bullet = story.starResumeBullets[bulletIdx];
+    this.resumeData = this.resumeData || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
+    this.resumeData.projects = Array.isArray(this.resumeData.projects) ? this.resumeData.projects : [];
+    const name = `${this.t(story.title)} (${this.l("simulasi kerja DataForge", "DataForge job simulation")})`;
+    let proj = this.resumeData.projects.find((p) => p && p.name === name);
+    if (!proj) {
+      proj = { name, tech: "Python", description: "" };
+      this.resumeData.projects.unshift(proj);
     }
-    if (!mission || !mission.padmGate) return;
-    const opt = mission.padmGate.options[optIdx];
-    if (!opt) return;
-    this.jobSimGates[missionId] = { selected: optIdx, passed: Boolean(opt.correct) };
-    writeStore("df_job_sim_gates", this.jobSimGates);
-    if (this.playTone) this.playTone(opt.correct ? "ok" : "err");
-    this.renderView();
-  }
-  submitJobSimProof(missionId) {
-    const inp = document.getElementById("jobsim-proof-input-" + missionId);
-    const msg = document.getElementById("jobsim-proof-msg-" + missionId);
-    if (!inp || !msg) return;
-    const raw = inp.value.trim();
-    const res = window.ProofCheck && window.ProofCheck.verifyJobSim
-      ? window.ProofCheck.verifyJobSim(missionId, raw)
-      : { ok: false, reason: "format" };
-    if (!res.ok) {
-      if (this.playTone) this.playTone("err");
-      const why = res.reason === "mission"
-        ? this.l(`Kode ini untuk misi ${res.mission}, bukan ${missionId}.`, `This token is for mission ${res.mission}, not ${missionId}.`)
-        : this.l("Token JOB1 tidak valid. Jalankan `python3 scripts/job_sim.py verify` di terminal dan tempel kode JOB1 yang dicetak.", "Invalid JOB1 token. Run `python3 scripts/job_sim.py verify` in your terminal and paste the printed JOB1 token.");
-      msg.innerHTML = `<div class="feedback err">✗ ${this.esc(why)}</div>`;
+    if (String(proj.description || "").includes(bullet)) {
+      this.showToast(this.esc(this.l("Poin ini sudah ada di CV Anda.", "This bullet is already on your CV.")));
       return;
     }
-    this.jobSimProofs[missionId] = { token: raw, ...res.info };
-    writeStore("df_job_sim_proofs", this.jobSimProofs);
-    if (this.playTone) this.playTone("win");
-    this.renderChrome();
-    this.renderView();
-  }
-  renderJobSimView() {
-    const data = window.JOB_SIM_DATA;
-    if (!data || !Array.isArray(data.stories)) return `<div class="card"><p>Job simulator data not loaded.</p></div>`;
-    const story = data.stories.find((s) => s.id === this.activeJobStoryId) || data.stories[0];
-    const mission = story.levels.find((l) => l.level === this.activeJobLevel) || story.levels[0];
-    const totalMissions = data.stories.reduce((acc, s) => acc + s.levels.length, 0);
-    const doneMissions = Object.keys(this.jobSimProofs || {}).length;
-    const storyDoneCount = story.levels.filter((lv) => Boolean(this.jobSimProofs[lv.missionId])).length;
-    const gateState = (this.jobSimGates && this.jobSimGates[mission.missionId]) || null;
-    const jProof = (this.jobSimProofs && this.jobSimProofs[mission.missionId]) || null;
-    const workDir = `~/job-sim/${mission.missionId}`;
-    const cmdInit = `python3 scripts/job_sim.py init ${mission.missionId} ${workDir}`;
-    const cmdVerify = `python3 scripts/job_sim.py verify ${mission.missionId} ${workDir}`;
-
-    return `
-      <div class="stack">
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <span class="label">${this.l("Simulasi Pekerjaan Data Engineer Dunia Nyata · Reis & Housley Lifecycle", "Real-Life Data Engineer Job Simulator · Reis & Housley Lifecycle")}</span>
-              <h1 style="margin-top:4px">${this.l("4 Cerita Industri: Bangun dari Nol hingga Live di Produksi", "4 Industry Stories: Build from Scratch to Live in Production")}</h1>
-            </div>
-            <span class="chip ${doneMissions > 0 ? "chip-green" : ""}">${doneMissions}/${totalMissions} ${this.l("Misi JOB1 Terverifikasi", "JOB1 Missions Verified")}</span>
-          </div>
-          <p class="sub">${this.l(
-            "Bukan sekadar teori atau kuis: pilih salah satu dari 4 perusahaan di bawah, mulai dari tiket hari pertama (Easy), naik ke pemodelan Cloud Warehouse & privasi (Normal), streaming CDC & Spark skew (Hard), hingga krisis FinOps, DR & AI/ML (Expert). Setiap misi dimulai dari penyelarasan dengan stakeholder, desain arsitektur, hingga verifikasi kode Python produksi dengan token JOB1.",
-            "Not a passive tutorial or quiz: step into 4 distinct companies, start with Day-1 ingestion & storage fires (Easy), advance to Cloud Warehouse modeling & privacy (Normal), Kafka CDC & Spark skew (Hard), and Staff-level FinOps, DR & AI/ML serving crises (Expert). Every mission walks through stakeholder alignment, architecture trade-offs, and local Python verification via JOB1 tokens."
-          )}</p>
-        </div>
-
-        <!-- 4 Story Selector Cards -->
-        <div class="grid cols-2">
-          ${data.stories.map((s) => {
-            const sDone = s.levels.filter((lv) => Boolean(this.jobSimProofs[lv.missionId])).length;
-            const isAct = s.id === story.id;
-            return `
-              <button class="item ${isAct ? "active" : ""}" onclick="app.setJobStory('${s.id}')">
-                <div class="row between">
-                  <span class="chip">${s.icon} ${this.esc(this.t(s.badge))}</span>
-                  <span class="small ${sDone === 4 ? "state-done" : "muted"}">${sDone}/4 ${this.l("selesai", "done")}</span>
-                </div>
-                <div class="item-title" style="margin-top:6px">${this.esc(this.t(s.title))}</div>
-                <div class="item-meta">${this.esc(this.t(s.companyProfile))}</div>
-              </button>`;
-          }).join("")}
-        </div>
-
-        <!-- Active Story Overview & 4 Difficulty Level Tabs -->
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <h2>${story.icon} ${this.esc(this.t(story.title))}</h2>
-              <p class="muted small">${this.esc(this.t(story.summary))}</p>
-            </div>
-            <span class="chip">${storyDoneCount}/4 ${this.l("Level Lulus", "Levels Passed")}</span>
-          </div>
-          <div class="grid cols-4" role="tablist" aria-label="Difficulty levels">
-            ${story.levels.map((lv) => {
-              const lvDone = Boolean(this.jobSimProofs[lv.missionId]);
-              const isCur = lv.level === mission.level;
-              return `
-                <button role="tab" aria-selected="${isCur}" class="item ${isCur ? "active" : ""}" onclick="app.setJobLevel('${lv.level}')">
-                  <div class="row between">
-                    <span class="small"><strong>${lv.level.toUpperCase()}</strong></span>
-                    ${lvDone ? `<span class="state-done">✓ JOB1</span>` : `<span class="muted small">○</span>`}
-                  </div>
-                  <div class="item-meta" style="margin-top:4px">${this.esc(this.t(lv.title))}</div>
-                </button>`;
-            }).join("")}
-          </div>
-        </div>
-
-        <!-- Step 0: Incident Ticket & Reis & Housley Lifecycle Context -->
-        <div class="card stack-sm" style="border-left:4px solid var(--accent)">
-          <div class="row between">
-            <span class="chip">${this.esc(this.t(mission.difficultyBadge))}</span>
-            <span class="chip">📐 ${this.esc(mission.lifecycle)}</span>
-          </div>
-          <h2>${this.esc(this.t(mission.title))}</h2>
-          <div class="well stack-sm">
-            <div class="row between">
-              <span class="label">📟 ${this.l("Tiket Insiden & Pager", "Incident Ticket & Pager")}: ${this.esc(mission.incidentTicket.from)}</span>
-              <span class="small muted"><strong>SLA:</strong> ${this.esc(this.t(mission.incidentTicket.sla))}</span>
-            </div>
-            <p>${this.esc(this.t(mission.incidentTicket.brief))}</p>
-            <div class="row" style="gap:6px;flex-wrap:wrap">
-              <span class="small muted">${this.l("Undercurrents (Reis & Housley):", "Undercurrents (Reis & Housley):")}</span>
-              ${mission.undercurrents.map((u) => `<span class="chip">${this.esc(u)}</span>`).join("")}
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 1: Requirements & Architecture Decision -->
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <span class="label">${this.l("Langkah 1 · Keputusan Kebutuhan & Arsitektur", "Step 1 · Requirements & Architecture Decision")}</span>
-              <h3 style="margin-top:4px">${this.esc(this.t(mission.padmGate.question))}</h3>
-            </div>
-            ${gateState && gateState.passed ? `<span class="state-done">✓ ${this.l("Arsitektur Disetujui", "Architecture Approved")}</span>` : ""}
-          </div>
-          <div class="stack-sm">
-            ${mission.padmGate.options.map((opt, idx) => {
-              const isSelected = gateState && gateState.selected === idx;
-              return `
-                <button class="item ${isSelected ? "active" : ""}" style="text-align:left;width:100%" onclick="app.answerJobSimGate('${mission.missionId}', ${idx})">
-                  <div>${this.esc(this.t(opt.text))}</div>
-                </button>
-                ${isSelected ? `<div class="callout ${opt.correct ? "success" : "danger"}"><p>${this.esc(this.t(opt.feedback))}</p></div>` : ""}`;
-            }).join("")}
-          </div>
-        </div>
-
-        <!-- Step 2: Engineering Contract & Reference Blueprint -->
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <span class="label">${this.l("Langkah 2 · Kontrak Spesifikasi Teknis & Implementasi Produksi", "Step 2 · Technical Specification Contract & Production Implementation")}</span>
-              <h3 style="margin-top:4px"><code>${this.esc(mission.spec.file)}</code> → <code>${this.esc(mission.spec.functionSig)}</code></h3>
-            </div>
-          </div>
-          <ul>
-            ${(mission.spec.rules[this.lang] || mission.spec.rules.en).map((r) => `<li>${this.inline(r)}</li>`).join("")}
-          </ul>
-          <details class="tryit-reveal">
-            <summary>📄 ${this.l("Lihat file awal yang ditulis perintah init (aturan di atas, fungsi masih kosong)", "See the starter file that init writes (the rules above, an empty function)")}</summary>
-            <div class="code-wrap" style="margin-top:8px">
-              <pre data-lang="python"><code>${this.esc(mission.spec.starterCode)}</code></pre>
-            </div>
-          </details>
-          ${jProof ? `<details class="tryit-reveal">
-            <summary>👁️ ${this.l("Bandingkan dengan solusi referensi (terbuka karena misi ini sudah Anda verifikasi)", "Compare with the reference solution (open because you verified this mission)")}</summary>
-            <div class="code-wrap" style="margin-top:8px">
-              <pre data-lang="python"><code>${this.esc(mission.spec.referenceCode)}</code></pre>
-            </div>
-          </details>` : `<p class="small muted">🔒 ${this.l("Solusi referensi terbuka setelah token JOB1 misi ini diterima. Pemeriksa juga menguji fungsi Anda pada data tersembunyi dan menolak salinan solusi referensi.", "The reference solution opens after this mission's JOB1 token is accepted. The checker also tests your function on hidden data and refuses a copy of the reference solution.")}</p>`}
-        </div>
-
-        <!-- Step 3: First-Law Local CLI Verification (JOB1 Token) -->
-        <div class="card stack-sm" style="border-left:4px solid var(--green)">
-          <div class="row between">
-            <div>
-              <span class="label">${this.l("Langkah 3 · Verifikasi Lokal Hukum Pertama (JOB1 Token)", "Step 3 · First-Law Local Terminal Verification (JOB1 Token)")}</span>
-              <h3 style="margin-top:4px">${this.l("Jalankan & Uji Misi Ini di Komputer Anda", "Initialize & Verify This Mission on Your Machine")}</h3>
-            </div>
-            ${jProof ? `<span class="state-done">✓ JOB1 (${jProof.passed} checks · Python ${jProof.py})</span>` : `<span class="muted small">${this.l("Belum diverifikasi", "Not verified yet")}</span>`}
-          </div>
-          <p class="small muted">${this.l(
-            "1. Buat file awal di terminal Anda, 2. tulis sendiri fungsinya berdasarkan aturan, lalu 3. jalankan verifier untuk mendapatkan token bukti JOB1:",
-            "1. Create the starter file in your terminal, 2. write the function yourself from the rules, and 3. run the verifier to earn your JOB1 proof token:"
-          )}</p>
-          <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(cmdInit + "\n" + cmdVerify)}</code></pre></div>
-          <div class="row">
-            <input type="text" id="jobsim-proof-input-${mission.missionId}" autocomplete="off" spellcheck="false" placeholder="JOB1:${mission.missionId}:…" value="${jProof ? this.esc(jProof.token) : ""}" style="flex:1;min-width:220px;font-family:ui-monospace,Menlo,Consolas,monospace" onkeydown="if(event.key==='Enter'){app.submitJobSimProof('${mission.missionId}')}" />
-            <button class="btn btn-sm btn-primary" onclick="app.submitJobSimProof('${mission.missionId}')">${this.l("Verifikasi JOB1", "Verify JOB1")}</button>
-          </div>
-          <div id="jobsim-proof-msg-${mission.missionId}">
-            ${jProof ? `<div class="feedback ok">✓ ${this.l(`Misi produksi ${mission.missionId} lulus verifikasi lokal (${jProof.passed} tes lulus, Python ${jProof.py} di ${jProof.os}).`, `Production mission ${mission.missionId} verified locally (${jProof.passed} checks passed, Python ${jProof.py} on ${jProof.os}).`)}</div>` : ""}
-          </div>
-        </div>
-
-        <!-- Step 4: STAR-Format Resume & Portfolio Impact Bullets for This Story -->
-        <div class="card stack-sm">
-          <div class="row between">
-            <div>
-              <span class="label">${this.l("Dampak Karir & CV (Metode STAR / Google XYZ)", "Career & Resume Impact (STAR / Google XYZ Method)")}</span>
-              <h3 style="margin-top:4px">${this.l(`Poin Resume Siap Pakai dari Cerita ${this.t(story.title)}`, `Quantified Resume Bullets Unlocked by ${this.t(story.title)}`)}</h3>
-            </div>
-            <span class="chip">${storyDoneCount}/4 ${this.l("Terbukti", "Proven")}</span>
-          </div>
-          <p class="small muted">${this.l(
-            "Setiap level yang Anda selesaikan di cerita ini membekali Anda dengan pencapaian teknis terukur yang dapat Anda jelaskan langkah demi langkah saat wawancara:",
-            "Each level you verify in this story equips you with a quantified engineering achievement you can defend step-by-step in interviews:"
-          )}</p>
-          <div class="stack-sm">
-            ${story.starResumeBullets.map((b, i) => {
-              const lvObj = story.levels[i];
-              const isLvDone = lvObj && Boolean(this.jobSimProofs[lvObj.missionId]);
-              return `<div class="well row between" style="gap:10px">
-                <span class="small">${isLvDone ? "✅" : "🔒"} <strong>${lvObj ? lvObj.level.toUpperCase() : ""}:</strong> ${this.inline(b)}</span>
-              </div>`;
-            }).join("")}
-          </div>
-        </div>
-      </div>`;
+    proj.description = [proj.description, bullet].filter(Boolean).join(" ");
+    this.resumeEdited = true;
+    writeStore("df_resume_edited", true);
+    writeStore("df_resume_data", this.resumeData);
+    this.playTone("ok");
+    this.showToast(this.esc(this.l(
+      "Ditambahkan sebagai proyek simulasi di ATS Resume. Sesuaikan angkanya dengan yang benar-benar Anda kerjakan dan bisa Anda jelaskan.",
+      "Added as a simulation project in ATS Resume. Change the numbers to what you actually built and can explain.")));
   }
 }
 
