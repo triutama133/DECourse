@@ -208,8 +208,8 @@ print(visible_late, filter_first)
 :::ask Mengapa izin harus diterapkan sebagai filter saat retrieval, sebelum chunk sampai ke prompt?
 @options
 model akan menyembunyikan teks terlarang jika kita memintanya dengan sopan
-* chunk yang tidak boleh dibaca pengguna tidak boleh pernah sampai ke prompt: model tidak bisa dipercaya menyembunyikannya sesudahnya
 filter hanya membuat pencarian lebih cepat, tidak lebih
+* chunk yang tidak boleh dibaca pengguna tidak boleh pernah sampai ke prompt: model tidak bisa dipercaya menyembunyikannya sesudahnya
 @why
 Begitu teks ada di prompt, model bisa mengulanginya. Satu-satunya tempat aman menegakkan akses adalah **sebelum** hasil retrieval meninggalkan lapisan data, dengan metadata filter diterapkan di dalam pencarian sehingga top-k dipilih di antara chunk yang diizinkan.
 :::

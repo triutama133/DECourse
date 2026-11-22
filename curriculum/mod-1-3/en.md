@@ -365,6 +365,88 @@ FROM flagged;
 
 The shape is always the same: **flag the boundary, then cumulative-sum the flags to get a group id.** It reappears in event processing (Module 3.3) and in slowly changing dimensions (Module 1.4).
 
+### See it: flag the boundary, then count the flags
+
+For user 1 (logins on March 1, 2, 3 and 5, 6, 7, 8) the island trick turns every streak into a constant:
+
+:::sqlsteps Gaps and islands: date minus row number
+@data logins
+@stage 1. The login days of user 1
+SELECT login_date FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+Seven days, with a gap on March 4.
+@stage 2. Number the rows 1, 2, 3...
+SELECT login_date, ROW_NUMBER() OVER (ORDER BY login_date) AS rn FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+The row number goes up by one every row.
+@stage 3. Subtract the row number from the date
+SELECT login_date, ROW_NUMBER() OVER (ORDER BY login_date) AS rn, julianday(login_date) - ROW_NUMBER() OVER (ORDER BY login_date) AS grp FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+Inside a streak both the date and the row number go up by one, so the difference stays **constant**. After the gap the date jumps by 2 while the row number goes up by 1, so the constant changes. Same constant = same island.
+@stage 4. Group by the constant: one row per island
+WITH g AS (SELECT login_date, julianday(login_date) - ROW_NUMBER() OVER (ORDER BY login_date) AS grp FROM logins WHERE user_id = 1) SELECT MIN(login_date) AS streak_start, MAX(login_date) AS streak_end, COUNT(*) AS days FROM g GROUP BY grp ORDER BY streak_start
+@say
+Two islands: 3 days and 4 days.
+:::
+
+There is a second way to get the same groups, the one the clickstream example uses: **flag** the row where a new group starts, then take a **running sum** of the flags.
+
+:::ask Why is `date - row_number` the same for every day of one streak?
+@options
+dates and row numbers are unrelated
+the database stores streaks internally
+* both go up by exactly one for each next day of a streak, so their difference does not change
+@why
+In a streak every row is exactly one day after the previous row, so the date and the row number grow in lockstep. A gap makes the date jump more than the row number, and the difference changes: a new island starts. If a date can repeat, de-duplicate first.
+:::
+
+:::drill sql Which days start a streak?
+For every login, show `user_id`, `login_date` and `starts`: `1` when this login **starts a new streak** (it is the user's first login, or more than 1 day after the user's previous login), otherwise `0`. Use `LAG` and `julianday`.
+@data logins
+@names
+@starter
+-- write your query below this line
+
+@check
+/lag\s*\(/ ## Use LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) to see the previous login.
+/case/ ## Use CASE WHEN ... THEN 1 ELSE 0 END.
+@hint
+`CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts`
+@solution
+SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins;
+:::
+
+:::drill sql How many streaks does each user have?
+Show `user_id` and the number of separate streaks, as `streaks`. Flag the streak starts in a CTE, then add the flags up per user.
+@data logins
+@names
+@starter
+-- write your query below this line
+
+@check
+/with\s/ ## Flag the starts in a CTE (WITH ...), then sum the flags.
+/sum\s*\(/ ## SUM the flags per user.
+@hint
+`WITH flagged AS (SELECT user_id, CASE WHEN ... THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, SUM(starts) AS streaks FROM flagged GROUP BY user_id;`
+@solution
+WITH flagged AS (SELECT user_id, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, SUM(starts) AS streaks FROM flagged GROUP BY user_id;
+:::
+
+:::drill sql Give every streak a number
+Show `user_id`, `login_date` and `streak_no`: the number of the streak the login belongs to (1 for the first streak of the user, 2 for the second...). Flag the starts in a CTE, then take a **running sum** of the flags with a window.
+@data logins
+@names
+@starter
+-- write your query below this line
+
+@check
+/over\s*\(/ ## Use a running SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date).
+@hint
+`SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streak_no`
+@solution
+WITH flagged AS (SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, login_date, SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streak_no FROM flagged;
+:::
+
 > 💡 **Practice Pause 4 (Gaps, Islands, & Sessionization):**
 > Combine window functions to solve advanced analytical patterns:
 > 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve the island and session challenges:
@@ -402,6 +484,68 @@ SELECT d FROM days;
 ```
 
 (PostgreSQL has `generate_series` for this; recursion is the portable fallback.)
+
+### See it: a recursive query runs in rounds
+
+:::sqlsteps The tree is walked one level per round
+@data categories
+@stage 1. Round 0, the anchor: the roots (no parent)
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 0
+@say
+The anchor query finds the root: Coffee.
+@stage 2. Round 1: the children of the previous round
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 1
+@say
+The recursive part is applied to the rows of the previous round: Beans and Gear appear.
+@stage 3. Round 2: their children
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 2
+@say
+Single Origin, Blends, Grinders and Brewers.
+@stage 4. Until a round returns nothing
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree
+@say
+The result is the union of all rounds: 12 rows. The query stops when a round finds no new children.
+:::
+
+:::ask In the data, category A's parent is B and B's parent is A. What does an unprotected `WITH RECURSIVE` do?
+@options
+returns the first two rows and stops
+* never ends: every round finds more rows, so protect it with a depth limit (`WHERE depth < 20`)
+raises an error at once
+@why
+A cycle means every round produces new rows forever. Always bound the recursion: a depth condition in the recursive part (and `CYCLE` detection in PostgreSQL).
+:::
+
+:::drill sql A date spine
+Generate every day from `'2026-02-01'` to `'2026-02-07'` (inclusive) with a recursive CTE: one column `d`, one row per day.
+@data categories
+@names
+@starter
+-- write your query below this line
+
+@check
+/with\s+recursive/ ## Use WITH RECURSIVE.
+/date\s*\(\s*d/ ## The step adds a day: date(d, '+1 day').
+@hint
+`WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;`
+@solution
+WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;
+:::
+
+:::drill sql Everything under Gear
+Show how many categories sit **below** `Gear` (id 3) at any depth, as `descendants` (do not count Gear itself). Start the recursion at Gear.
+@data categories
+@names
+@starter
+-- write your query below this line
+
+@check
+/with\s+recursive/ ## Use WITH RECURSIVE.
+@hint
+`WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;`
+@solution
+WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;
+:::
 
 > 💡 **Practice Pause 5 (Recursive CTE Hierarchy Tree - Part A Complete):**
 > Traverse nested relations of arbitrary depth:
@@ -452,6 +596,66 @@ Thirteen pages instead of 4,167, and 0.045 ms instead of 21 ms: nearly 500 times
 >
 > **You should see:** `SCAN orders` for (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` for (2); `SCAN orders` again for (3), because a function on the column defeats the index (sargability); and for (4) a `SCAN` that becomes `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
+### See it: scan, search, and the function that defeats the index
+
+The same idea in SQLite's own plan (`EXPLAIN QUERY PLAN`, last column): without an index the database scans the whole table; with one it searches.
+
+:::sqlsteps Scan, search, scan again
+@data kopiku
+@stage 1. No index: the plan scans the whole table
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
+@say
+`SCAN orders`: every row is read to find the few of customer 3.
+@stage 2. After CREATE INDEX: the plan searches
+CREATE INDEX ix_cust ON orders(customer_id); EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
+@say
+`SEARCH orders USING INDEX ix_cust (customer_id=?)`: it goes straight to the matching rows.
+@stage 3. A function on the column defeats the index
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id + 0 = 3
+@say
+The index is on `customer_id`, not on `customer_id + 0`, so the database scans again. A condition that cannot use an index is not **sargable**: keep the column bare and rewrite the rest.
+:::
+
+:::ask The table has an index on `order_date`. Which filter can use it?
+@options
+`WHERE strftime('%Y-%m', order_date) = '2026-01'`
+`WHERE substr(order_date, 1, 7) = '2026-01'`
+* `WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
+@why
+Wrapping the indexed column in a function (`strftime`, `substr`) hides it from the index, so the database scans every row. The half-open range on the bare column is sargable and searches the index.
+:::
+
+:::drill sql Make it sargable
+This question is correct but cannot use an index on `order_date`: it counts the orders of January 2026 with `strftime`. Rewrite it with a half-open range on the bare column (no function around `order_date`). One number, `orders`.
+@data kopiku
+@names
+@starter
+SELECT COUNT(*) AS orders FROM orders WHERE strftime('%Y-%m', order_date) = '2026-01';
+@check
+!/strftime|substr|date\s*\(/ ## Do not wrap order_date in a function.
+/>=/ ## Start the range: order_date >= '2026-01-01'.
+@hint
+`WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
+@solution
+SELECT COUNT(*) AS orders FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01';
+:::
+
+:::drill sql Add the index
+Create an index on `orders(customer_id)` so that looking up one customer's orders searches instead of scanning. (Name it anything.)
+@data kopiku
+@verify
+SELECT COUNT(*) AS indexes_on_customer_id FROM sqlite_master WHERE type = 'index' AND tbl_name = 'orders' AND sql LIKE '%customer_id%'
+@starter
+-- write your statement below this line
+
+@check
+/create\s+index/ ## Use CREATE INDEX name ON orders(customer_id).
+@hint
+`CREATE INDEX ix_orders_customer ON orders(customer_id);`
+@solution
+CREATE INDEX ix_orders_customer ON orders(customer_id);
+:::
+
 ## @lesson Indexes: what they are, which to build, what they cost
 An **index** is a separate sorted structure that maps column values to row locations, like the index of a book. The default is a **B-tree**: it supports equality (`=`), ranges (`<`, `BETWEEN`) and ordering (`ORDER BY`), because it keeps keys sorted. Choosing indexes is a design skill with a few rules.
 
@@ -473,6 +677,40 @@ An **index** is a separate sorted structure that maps column values to row locat
 **The cost side.** Every index must be updated on every INSERT, UPDATE and DELETE, takes disk space (the `(customer_id, event_time)` index was 15 MB on a 33 MB table) and slows bulk loads. So the goal is the **fewest** indexes that make your real queries fast. The lab enforces it: at most three, and every one must be used. Columnar warehouses and lakehouses (Module 2.1 onward) mostly replace indexes with sorting, partitioning and statistics; the thinking carries over.
 
 Finally, a few query habits that avoid problems before indexes are needed: select only the columns you need (not `*`), filter early, avoid `DISTINCT` as a band-aid for an accidental join fan-out (fix the join), prefer `EXISTS` to `IN (subquery)` for existence tests, be careful with `OR` across different columns, and avoid running a query per row from application code (the "N+1" pattern): one set-based query beats a thousand small ones.
+
+:::ask An index is on `(customer_id, order_date)`. Which query can use it AND get the rows already in date order, with no separate sort?
+@options
+* `WHERE customer_id = 3 ORDER BY order_date DESC LIMIT 10`
+`WHERE order_date = '2026-01-10' ORDER BY customer_id`
+`WHERE order_date > '2026-01-01'`
+@why
+A composite index is sorted by its **leftmost** column first, then the next. A filter on `customer_id` uses the leftmost prefix, and inside one customer the rows are already sorted by date. A filter on `order_date` alone cannot use the index efficiently: the date is only sorted within each customer.
+:::
+
+:::ask `status = 'done'` matches 99.8% of the rows. Will an index on `status` help that query?
+@options
+yes, any index always helps
+only if the index is a BRIN index
+* no: the planner correctly chooses a full scan, because the index would visit almost every row anyway; indexes pay off when the filter is selective
+@why
+Selectivity matters. An index on a column where one value covers almost the whole table saves nothing. A partial index on the rare value (`WHERE status = 'pending'`) is the useful one.
+:::
+
+:::drill sql A composite index
+Create an index named `ix_cust_date` on `orders` with the columns `customer_id` and then `order_date` (in that order).
+@data kopiku
+@verify
+SELECT name FROM pragma_index_info('ix_cust_date') ORDER BY seqno
+@starter
+-- write your statement below this line
+
+@check
+/ix_cust_date/ ## Name the index ix_cust_date.
+@hint
+`CREATE INDEX ix_cust_date ON orders(customer_id, order_date);`
+@solution
+CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
+:::
 
 > 💡 **Practice Pause 6 (Query Tuning & PostgreSQL Index Optimization - Part B):**
 > Apply the art of index tuning to a 500,000-row PostgreSQL table:

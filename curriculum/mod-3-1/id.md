@@ -174,9 +174,9 @@ print({p: len(rows) for p, rows in partitions.items()})
 
 :::ask Sebuah key join bernilai NULL pada 60% baris. Setelah shuffle, ke mana semua baris itu pergi?
 @options
+* ke satu partisi yang sama, karena setiap NULL di-hash ke nilai yang sama: satu task mengerjakan sebagian besar pekerjaan
 tersebar merata ke semua partisi
 dibuang oleh join
-* ke satu partisi yang sama, karena setiap NULL di-hash ke nilai yang sama: satu task mengerjakan sebagian besar pekerjaan
 @why
 Hash partitioning bersifat deterministik: key yang sama (termasuk NULL) selalu pergi ke tempat yang sama. Key panas karena itu membuat satu task kelebihan beban, sementara executor lain menganggur. Perbaikan: tangani NULL secara terpisah, broadcast sisi yang kecil, atau **salt** key panasnya.
 :::

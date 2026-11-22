@@ -147,9 +147,9 @@ This lesson is the specification. The checker follows it to the letter.
 
 :::ask The DAG for logical date `2026-01-05` runs twice (a manual rerun). What must be true afterwards?
 @options
+* the results are exactly the same as after one run: each task replaces its output for that date
 there are two copies of the day's results
 the second run fails
-* the results are exactly the same as after one run: each task replaces its output for that date
 @why
 Orchestrators rerun things: retries, backfills, manual clears. Every task must be **idempotent per logical date**, writing to a path or partition for that date and replacing it, so a rerun can never double anything.
 :::

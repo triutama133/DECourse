@@ -60,6 +60,15 @@ Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in m
 
 Other limits: files can be appended to but not edited in the middle, so HDFS suits "write once, read many" data; a single NameNode would be a single point of failure, so production clusters run a standby NameNode with shared journals (**HA**); and **erasure coding** (Hadoop 3) stores parity blocks instead of full copies, for example six data blocks plus three parity blocks, which costs 1.5 times the data instead of 3 times.
 
+:::ask One terabyte is stored as 10 million tiny files of about 100 KB. What is the real problem for HDFS?
+@options
+the DataNodes run out of disk space
+the files cannot be replicated
+* the NameNode keeps one in-memory object per file and per block, so tens of millions of objects pressure its memory (the small-files problem)
+@why
+The NameNode holds the whole namespace in memory (about 150 bytes per object as a rule of thumb). The size of the bytes does not matter to it; the **number of objects** does. The fix is fewer, larger files (compaction, columnar formats such as Parquet).
+:::
+
 > 💡 **Practice Pause 2 (The Small-Files Problem & NameNode Memory Overhead):**
 > 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.
 > 2. Implement `metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE)` to compute total in-memory metadata objects (1 per file + 1 per block).
@@ -80,6 +89,64 @@ input splits --> MAP --> (key,value) pairs --> SHUFFLE (group by key, send to re
 Which reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers`. It must give the same answer on every machine, so a stable hash is used (the lab uses **CRC32**, Cyclic Redundancy Check 32-bit, via `zlib.crc32` — a fast deterministic algorithm that turns any byte string into the same integer `0..2**32 - 1` on every computer; Python's built-in `hash()` randomises its seed between runs and would send the same key to different reducers). Everything about partition imbalance (**skew**, studied in depth in Module 3.1) starts here: one very common key sends all its pairs to a single reducer.
 
 A **combiner** is a mini-reducer that runs on the map side, before the shuffle, to shrink what must cross the network. In the lab's word count, 13 words produce 13 pairs; with a combiner only **7 pairs** (one per distinct word) are shuffled, and the answer is identical. Network is the expensive resource, so this matters.
+
+### See it: map, shuffle, reduce, on three lines of text
+
+MapReduce is three steps you already know how to write. Watch a word count:
+
+:::trace Word count in three steps
+@code
+lines = ["a b a", "b c"]
+mapped = []
+for line in lines:
+    for word in line.split():
+        mapped.append((word, 1))
+grouped = {}
+for word, one in mapped:
+    grouped.setdefault(word, []).append(one)
+reduced = {w: sum(ones) for w, ones in grouped.items()}
+print(reduced)
+@notes
+5 | **Map**: each word becomes a pair `(word, 1)`. Every line can be mapped on a different machine, with no coordination.
+8 | **Shuffle**: all pairs with the same key are brought together. This is the expensive step, because in a cluster it moves data between machines.
+9 | **Reduce**: each key's list is added up, independently of every other key.
+:::
+
+:::drill python The map step
+Write `map_words(line)`: it returns a list of `(word, 1)` pairs, one per word of the line, in lowercase. An empty line gives an empty list.
+@starter
+# write your function below this line
+
+@check
+defines("map_words") ## Define map_words(line).
+map_words("A b A") == [("a", 1), ("b", 1), ("a", 1)] ## "A b A" gives [("a", 1), ("b", 1), ("a", 1)]: lowercase, one pair per word.
+map_words("") == [] ## An empty line gives [].
+@hint
+`return [(word.lower(), 1) for word in line.split()]`
+@solution
+def map_words(line):
+    return [(word.lower(), 1) for word in line.split()]
+:::
+
+:::drill python The reduce step
+Write `reduce_counts(pairs)`: `pairs` is a list of `(word, number)`; return a dictionary with the **sum of the numbers per word**.
+@starter
+# write your function below this line
+
+@check
+defines("reduce_counts") ## Define reduce_counts(pairs).
+reduce_counts([("a", 1), ("b", 1), ("a", 1)]) == {"a": 2, "b": 1} ## a appears twice, b once.
+reduce_counts([("x", 5), ("x", 7)]) == {"x": 12} ## Numbers are added, not counted: 5 + 7 = 12.
+reduce_counts([]) == {} ## No pairs, no counts.
+@hint
+`counts[word] = counts.get(word, 0) + number` for each pair.
+@solution
+def reduce_counts(pairs):
+    counts = {}
+    for word, number in pairs:
+        counts[word] = counts.get(word, 0) + number
+    return counts
+:::
 
 > 💡 **Practice Pause 3 (Map, CRC32 Partitioning, Shuffle, and Combiner):**
 > 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor.

@@ -88,6 +88,15 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 
 Twenty-two items: seven models (four views, three tables, one of them incremental), one snapshot and fourteen tests. If a model fails, `dbt build` marks the models and tests downstream of it as `SKIP`, so bad data never flows on to the marts silently.
 
+:::ask What does `{{ ref('stg_orders') }}` give you that a hard-coded table name does not?
+@options
+* dbt learns the dependency (build order and lineage) and resolves the right schema for each environment
+nothing, it prints the same name
+it makes the query run faster
+@why
+`ref()` is how dbt builds its graph of models: it knows `fct_orders` needs `stg_orders` first, builds in the right order, skips children of a failed model, and points at the dev or prod schema automatically.
+:::
+
 > 💡 **Practice Pause 1 (CLI Discovery & Project Structure):**
 > 1. Activate your virtual environment (the one from Module 0.1, for example `source venv/bin/activate`).
 > 2. Prepare the raw KopiKu data and initialize DuckDB:
@@ -139,6 +148,15 @@ where rn = 1 and order_ts is not null and total_idr > 0
 
 `try_strptime` and `try_cast` return NULL instead of failing on bad input, which lets you filter or quarantine explicitly. (Dialects differ: Snowflake and BigQuery have `try_to_timestamp`, `safe_cast`. A **macro**, below, can hide such differences.)
 
+:::ask Which materialization stores no data and runs its SELECT again every time someone queries it?
+@options
+table
+* view
+incremental
+@why
+A **view** is just a saved query: cheap to build and always fresh, but each read pays the full cost. A **table** stores the result (fast to read, rebuilt on each run), and an **incremental** table only processes new or changed data.
+:::
+
 > 💡 **Practice Pause 2 (Building Staging Models):**
 > 1. In your text editor (VS Code / Cursor), open `labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql` and `labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql` (do not run `.sql` files directly in bash).
 > 2. Implement cleaning logic: use a `ranked` CTE with `row_number() over (partition by order_id order by _loaded_at desc)` to pick the latest version, standardize string formats, and cast Rupiah totals.
@@ -189,6 +207,15 @@ where line_total_idr <> qty * unit_price_idr
 More checks worth knowing: **source freshness** (`freshness: {warn_after: {count: 12, period: hour}}` with a `loaded_at_field` raises an alert when a raw table has not been updated), **unit tests** (since dbt 1.8: give a model small mock inputs and assert the output, testing your logic, not your data), and **model contracts** (`contract: {enforced: true}` with declared column names and types: the build fails if a model's output stops matching, which protects consumers from accidental schema changes; Module 2.5 covers contracts in depth).
 
 **Documentation** lives beside the code: `description:` fields in the YAML, and `dbt docs generate` produces a browsable site with a **lineage graph** showing which models feed which. A model without a description of its **grain** is unfinished.
+
+:::ask A dbt test is a query that looks for bad rows. When does the test pass?
+@options
+* when it returns zero rows
+when it returns at least one row
+when it finishes quickly
+@why
+A test is written to **find failures**: `unique` looks for duplicated values, `not_null` for nulls, a singular test for whatever rule you wrote. Zero rows found means nothing broke the rule; any row returned is a failure to investigate.
+:::
 
 > 💡 **Practice Pause 3 (Data Quality Testing & Singular Tests):**
 > 1. In your text editor, inspect the test definitions in `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` and `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`. Note the `unique`, `not_null`, and `relationships` rule with `config: { severity: warn }`.
@@ -272,8 +299,8 @@ The 25th is now 2 orders and Rp 250,000 instead of 3 and Rp 400,000. An incremen
 :::ask Which column should the incremental watermark use: `order_date` (business time) or `_loaded_at` (ingestion time)?
 @options
 `order_date`: it is the date the order happened
-either one gives the same result
 * `_loaded_at`: it says what is new to you, and late or updated rows have an old business date but a new ingestion time
+either one gives the same result
 @why
 Business time says when something happened; ingestion time says what *arrived*. A refund for an old order arrives late: its `order_date` is old, its `_loaded_at` is new, so only the ingestion watermark sees it.
 :::

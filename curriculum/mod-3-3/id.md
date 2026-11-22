@@ -119,9 +119,9 @@ print(accepted, late)
 
 :::ask Watermark bernilai 15 dan event dengan waktu 11 tiba. Apa yang harus dilakukan sistem?
 @options
+* memperlakukannya sebagai terlambat: alihkan (side output) atau hitung, jangan pernah dibuang diam-diam
 menerimanya dan memundurkan watermark ke 11
 menghentikan stream
-* memperlakukannya sebagai terlambat: alihkan (side output) atau hitung, jangan pernah dibuang diam-diam
 @why
 Watermark tidak pernah mundur, dan event di belakangnya **terlambat**. Window miliknya mungkin sudah dikeluarkan, jadi sistem memperbaruinya dengan sengaja (allowed lateness) atau mengirim event ke side output untuk diperiksa.
 :::

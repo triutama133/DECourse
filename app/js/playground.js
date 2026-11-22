@@ -1541,7 +1541,9 @@ GROUP BY customer_id;`
     kopiku: `
       INSERT INTO customers VALUES (11,'Surya Dharma',NULL,'Gold','2026-01-22'),(12,'Tari','Surabaya','Bronze','2026-01-25');
       INSERT INTO orders VALUES (119,11,'2026-01-26','delivered','card',20000),(120,11,'2026-01-27','cancelled','ewallet',15000);
-      INSERT INTO order_items VALUES (119,1,2,2,95000),(120,1,1,3,85000);`,
+      INSERT INTO order_items VALUES (119,1,2,2,95000),(120,1,1,3,85000);
+      INSERT INTO orders VALUES (121,99,'2026-01-28','delivered','card',10000);   -- an order whose customer is missing from the customer table (a late-arriving dimension)
+      INSERT INTO order_items VALUES (121,1,3,1,90000);`,
     daily_sales: `
       INSERT INTO daily_sales VALUES ('jakarta','2026-01-15',910000),('bandung','2026-01-15',620000);`,
     categories: `

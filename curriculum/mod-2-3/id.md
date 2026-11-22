@@ -88,6 +88,15 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 
 Dua puluh dua entitas dieksekusi: tujuh model (empat view, tiga tabel, salah satunya tabel inkremental), satu snapshot histori, dan empat belas pengujian data. Jika ada satu model yang gagal kompilasi atau tesnya bernilai error, perintah `dbt build` secara cerdas menandai model dan pengujian di hilirnya sebagai `SKIP`, sehingga data yang rusak tidak akan pernah mengalir mencemari lapisan data mart pelaporan.
 
+:::ask Apa yang diberikan `{{ ref('stg_orders') }}` yang tidak diberikan nama tabel yang ditulis langsung?
+@options
+* dbt mempelajari dependensinya (urutan build dan lineage) dan menentukan schema yang tepat untuk setiap environment
+tidak ada, ia mencetak nama yang sama
+ia membuat query berjalan lebih cepat
+@why
+`ref()` adalah cara dbt membangun graf model-nya: ia tahu `fct_orders` membutuhkan `stg_orders` lebih dulu, membangun dalam urutan yang benar, melewati anak dari model yang gagal, dan menunjuk ke schema dev atau prod secara otomatis.
+:::
+
 > 💡 **Jeda Praktik 1 (Eksplorasi CLI & Struktur Proyek):**
 > 1. Aktifkan virtual environment Anda (yang dibuat di Modul 0.1, misalnya `source venv/bin/activate`).
 > 2. Siapkan data mentah KopiKu dan buat database DuckDB:
@@ -139,6 +148,15 @@ where rn = 1 and order_ts is not null and total_idr > 0
 
 Fungsi `try_strptime` dan `try_cast` mengembalikan nilai NULL alih-alih melempar error saat menghadapi input string yang rusak, memungkinkan Anda memfilter atau mengisolasi data anomali secara terkendali. (Dialek SQL bervariasi: Snowflake menggunakan `try_to_timestamp`, BigQuery menggunakan `safe_cast`. Kita dapat menyatukannya melalui macro Jinja).
 
+:::ask Materialization mana yang tidak menyimpan data dan menjalankan SELECT-nya lagi setiap kali seseorang mengquery-nya?
+@options
+table
+* view
+incremental
+@why
+**View** hanyalah query tersimpan: murah dibangun dan selalu segar, tetapi setiap pembacaan membayar biaya penuh. **Table** menyimpan hasilnya (cepat dibaca, dibangun ulang di setiap run), dan tabel **incremental** hanya memproses data yang baru atau berubah.
+:::
+
 > 💡 **Jeda Praktik 2 (Membangun Model Staging):**
 > 1. Buka teks editor Anda (VS Code / Cursor), navigasikan ke file `labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql` dan `labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql` (jangan mengeksekusi file `.sql` langsung di bash terminal).
 > 2. Terapkan pembersihan data sesuai panduan materi: gunakan CTE `ranked` dengan `row_number() over (partition by order_id order by _loaded_at desc)` untuk mengambil baris versi terkini, serta standardisasi format string dan casting angka rupiah.
@@ -189,6 +207,15 @@ where line_total_idr <> qty * unit_price_idr
 Pengujian penting lainnya: **Source Freshness** (`freshness: {warn_after: {count: 12, period: hour}}` dengan kolom `loaded_at_field` memicu alarm jika data mentah tidak diperbarui melebihi batas waktu), **Unit Tests** (sejak dbt 1.8: menguji logika transformasi model menggunakan mock data kecil independen), dan **Model Contracts** (`contract: {enforced: true}` yang menjamin skema kolom output model tidak berubah, melindungi konsumen hilir dari schema drift; dibahas mendalam di Modul 2.5).
 
 **Dokumentasi Terintegrasi** hidup berdampingan dengan kode: atribut `description:` pada file YAML otomatis dirangkum oleh perintah `dbt docs generate` menjadi website dokumentasi interaktif lengkap dengan **lineage graph** yang memperlihatkan peta aliran data hulu ke hilir. Sebuah model yang tidak memiliki dokumentasi definisi grain dianggap belum selesai dikerjakan.
+
+:::ask Tes dbt adalah query yang mencari baris buruk. Kapan tes itu lulus?
+@options
+* ketika ia mengembalikan nol baris
+ketika ia mengembalikan setidaknya satu baris
+ketika ia selesai dengan cepat
+@why
+Tes ditulis untuk **menemukan kegagalan**: `unique` mencari nilai terduplikasi, `not_null` mencari null, tes singular mencari aturan apa pun yang Anda tulis. Nol baris ditemukan berarti tidak ada yang melanggar aturan; baris yang dikembalikan adalah kegagalan yang harus diselidiki.
+:::
 
 > 💡 **Jeda Praktik 3 (Pengujian Kualitas Data & Singular Tests):**
 > 1. Buka teks editor Anda, tinjau deklarasi tes di file `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` dan `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`. Perhatikan aturan `unique`, `not_null`, serta `relationships` dengan `config: { severity: warn }` pada customer.
@@ -272,8 +299,8 @@ Tanggal 25 sekarang 2 pesanan dan Rp 250.000, bukan 3 dan Rp 400.000. Model incr
 :::ask Kolom mana yang harus dipakai watermark incremental: `order_date` (waktu bisnis) atau `_loaded_at` (waktu masuk)?
 @options
 `order_date`: itu tanggal pesanan terjadi
-keduanya memberi hasil yang sama
 * `_loaded_at`: ia menunjukkan apa yang baru bagi Anda, dan baris yang terlambat atau diperbarui punya tanggal bisnis lama tetapi waktu masuk baru
+keduanya memberi hasil yang sama
 @why
 Waktu bisnis menyatakan kapan sesuatu terjadi; waktu masuk menyatakan apa yang *tiba*. Refund untuk pesanan lama datang terlambat: `order_date`-nya lama, `_loaded_at`-nya baru, sehingga hanya watermark waktu masuk yang melihatnya.
 :::

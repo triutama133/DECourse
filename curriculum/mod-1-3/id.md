@@ -365,6 +365,88 @@ FROM flagged;
 
 Bentuknya selalu sama: **tandai batasnya, lalu jumlahkan kumulatif tanda itu untuk mendapat id kelompok.** Ia muncul lagi dalam pemrosesan event (Modul 3.3) dan dalam slowly changing dimension (Modul 1.4).
 
+### Lihat sendiri: tandai batasnya, lalu hitung penandanya
+
+Untuk pengguna 1 (login 1, 2, 3 dan 5, 6, 7, 8 Maret) trik island mengubah setiap rangkaian menjadi sebuah konstanta:
+
+:::sqlsteps Gaps and islands: tanggal dikurangi nomor baris
+@data logins
+@stage 1. Hari login pengguna 1
+SELECT login_date FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+Tujuh hari, dengan celah pada 4 Maret.
+@stage 2. Beri nomor baris 1, 2, 3...
+SELECT login_date, ROW_NUMBER() OVER (ORDER BY login_date) AS rn FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+Nomor baris naik satu setiap baris.
+@stage 3. Kurangkan nomor baris dari tanggal
+SELECT login_date, ROW_NUMBER() OVER (ORDER BY login_date) AS rn, julianday(login_date) - ROW_NUMBER() OVER (ORDER BY login_date) AS grp FROM logins WHERE user_id = 1 ORDER BY login_date
+@say
+Dalam sebuah rangkaian, tanggal dan nomor baris sama-sama naik satu, sehingga selisihnya tetap **konstan**. Setelah celah, tanggal melompat 2 sementara nomor baris naik 1, sehingga konstanta berubah. Konstanta sama = island sama.
+@stage 4. Kelompokkan menurut konstanta: satu baris per island
+WITH g AS (SELECT login_date, julianday(login_date) - ROW_NUMBER() OVER (ORDER BY login_date) AS grp FROM logins WHERE user_id = 1) SELECT MIN(login_date) AS streak_start, MAX(login_date) AS streak_end, COUNT(*) AS days FROM g GROUP BY grp ORDER BY streak_start
+@say
+Dua island: 3 hari dan 4 hari.
+:::
+
+Ada cara kedua untuk mendapat kelompok yang sama, yang dipakai contoh clickstream: **tandai** baris tempat kelompok baru dimulai, lalu ambil **jumlah berjalan** dari penandanya.
+
+:::ask Mengapa `date - row_number` sama untuk setiap hari dalam satu rangkaian?
+@options
+tanggal dan nomor baris tidak berhubungan
+database menyimpan rangkaian secara internal
+* keduanya naik tepat satu untuk setiap hari berikutnya dalam rangkaian, sehingga selisihnya tidak berubah
+@why
+Dalam sebuah rangkaian setiap baris tepat satu hari setelah baris sebelumnya, jadi tanggal dan nomor baris tumbuh selaras. Celah membuat tanggal melompat lebih dari nomor baris, dan selisihnya berubah: island baru dimulai. Jika tanggal bisa berulang, deduplikasi dulu.
+:::
+
+:::drill sql Hari mana yang memulai rangkaian?
+Untuk setiap login, tampilkan `user_id`, `login_date`, dan `starts`: `1` ketika login ini **memulai rangkaian baru** (login pertama pengguna, atau lebih dari 1 hari setelah login sebelumnya), selain itu `0`. Pakai `LAG` dan `julianday`.
+@data logins
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/lag\s*\(/ ## Pakai LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) untuk melihat login sebelumnya.
+/case/ ## Pakai CASE WHEN ... THEN 1 ELSE 0 END.
+@hint
+`CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts`
+@solution
+SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins;
+:::
+
+:::drill sql Berapa rangkaian yang dimiliki setiap pengguna?
+Tampilkan `user_id` dan jumlah rangkaian terpisah, sebagai `streaks`. Tandai awal rangkaian dalam CTE, lalu jumlahkan penanda per pengguna.
+@data logins
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/with\s/ ## Tandai awal dalam CTE (WITH ...), lalu jumlahkan penandanya.
+/sum\s*\(/ ## SUM penanda per pengguna.
+@hint
+`WITH flagged AS (SELECT user_id, CASE WHEN ... THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, SUM(starts) AS streaks FROM flagged GROUP BY user_id;`
+@solution
+WITH flagged AS (SELECT user_id, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, SUM(starts) AS streaks FROM flagged GROUP BY user_id;
+:::
+
+:::drill sql Beri nomor setiap rangkaian
+Tampilkan `user_id`, `login_date`, dan `streak_no`: nomor rangkaian tempat login itu berada (1 untuk rangkaian pertama pengguna, 2 untuk yang kedua...). Tandai awal dalam CTE, lalu ambil **jumlah berjalan** penanda dengan window.
+@data logins
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/over\s*\(/ ## Pakai SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date) berjalan.
+@hint
+`SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streak_no`
+@solution
+WITH flagged AS (SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins) SELECT user_id, login_date, SUM(starts) OVER (PARTITION BY user_id ORDER BY login_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streak_no FROM flagged;
+:::
+
 > 💡 **Jeda Praktik 4 (Gaps, Islands, & Sessionization):**
 > Gabungkan window function untuk memecahkan pola analitik tingkat lanjut:
 > 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), selesaikan tantangan pulau dan sesi:
@@ -402,6 +484,68 @@ SELECT d FROM days;
 ```
 
 (PostgreSQL punya `generate_series` untuk ini; rekursi adalah cadangan yang portabel.)
+
+### Lihat sendiri: query rekursif berjalan dalam putaran
+
+:::sqlsteps Pohon ditelusuri satu tingkat per putaran
+@data categories
+@stage 1. Putaran 0, anchor: akar (tanpa parent)
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 0
+@say
+Query anchor menemukan akar: Coffee.
+@stage 2. Putaran 1: anak dari putaran sebelumnya
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 1
+@say
+Bagian rekursif diterapkan pada baris putaran sebelumnya: Beans dan Gear muncul.
+@stage 3. Putaran 2: anak-anak mereka
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree WHERE depth <= 2
+@say
+Single Origin, Blends, Grinders, dan Brewers.
+@stage 4. Sampai sebuah putaran tidak menghasilkan apa-apa
+WITH RECURSIVE tree AS (SELECT id, name, 0 AS depth FROM categories WHERE parent_id IS NULL UNION ALL SELECT c.id, c.name, tree.depth + 1 FROM categories c JOIN tree ON c.parent_id = tree.id) SELECT id, name, depth FROM tree
+@say
+Hasilnya adalah gabungan semua putaran: 12 baris. Query berhenti ketika sebuah putaran tidak menemukan anak baru.
+:::
+
+:::ask Di data, parent kategori A adalah B dan parent B adalah A. Apa yang dilakukan `WITH RECURSIVE` yang tidak dilindungi?
+@options
+mengembalikan dua baris pertama lalu berhenti
+* tidak pernah berakhir: setiap putaran menemukan baris baru, jadi lindungi dengan batas kedalaman (`WHERE depth < 20`)
+langsung memunculkan error
+@why
+Sebuah siklus berarti setiap putaran menghasilkan baris baru selamanya. Selalu batasi rekursinya: kondisi kedalaman di bagian rekursif (dan deteksi `CYCLE` di PostgreSQL).
+:::
+
+:::drill sql Tulang punggung tanggal
+Hasilkan setiap hari dari `'2026-02-01'` sampai `'2026-02-07'` (inklusif) dengan CTE rekursif: satu kolom `d`, satu baris per hari.
+@data categories
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/with\s+recursive/ ## Pakai WITH RECURSIVE.
+/date\s*\(\s*d/ ## Langkahnya menambah satu hari: date(d, '+1 day').
+@hint
+`WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;`
+@solution
+WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;
+:::
+
+:::drill sql Semua yang ada di bawah Gear
+Tampilkan berapa kategori yang berada **di bawah** `Gear` (id 3) pada kedalaman berapa pun, sebagai `descendants` (jangan hitung Gear sendiri). Mulai rekursi dari Gear.
+@data categories
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/with\s+recursive/ ## Pakai WITH RECURSIVE.
+@hint
+`WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;`
+@solution
+WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;
+:::
 
 > 💡 **Jeda Praktik 5 (CTE Rekursif Pohon Hierarki - Bagian A Tuntas):**
 > Telusuri relasi berjenjang tak terbatas tanpa batasan tingkat kedalaman:
@@ -452,6 +596,66 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 >
 > **Seharusnya Anda melihat:** `SCAN orders` untuk (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` untuk (2); `SCAN orders` lagi untuk (3), karena fungsi pada kolom membuat index tidak terpakai (sargability); dan untuk (4) sebuah `SCAN` yang berubah menjadi `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
+### Lihat sendiri: scan, search, dan fungsi yang mengalahkan indeks
+
+Gagasan yang sama dalam plan milik SQLite sendiri (`EXPLAIN QUERY PLAN`, kolom terakhir): tanpa indeks database memindai seluruh tabel; dengan indeks ia mencari.
+
+:::sqlsteps Scan, search, scan lagi
+@data kopiku
+@stage 1. Tanpa indeks: plan memindai seluruh tabel
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
+@say
+`SCAN orders`: setiap baris dibaca untuk menemukan beberapa baris milik pelanggan 3.
+@stage 2. Setelah CREATE INDEX: plan mencari
+CREATE INDEX ix_cust ON orders(customer_id); EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
+@say
+`SEARCH orders USING INDEX ix_cust (customer_id=?)`: ia langsung menuju baris yang cocok.
+@stage 3. Fungsi pada kolom mengalahkan indeks
+EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id + 0 = 3
+@say
+Indeksnya ada pada `customer_id`, bukan `customer_id + 0`, jadi database memindai lagi. Kondisi yang tidak bisa memakai indeks tidak **sargable**: biarkan kolom telanjang dan tulis ulang sisanya.
+:::
+
+:::ask Tabel punya indeks pada `order_date`. Filter mana yang bisa memakainya?
+@options
+`WHERE strftime('%Y-%m', order_date) = '2026-01'`
+`WHERE substr(order_date, 1, 7) = '2026-01'`
+* `WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
+@why
+Membungkus kolom berindeks dengan fungsi (`strftime`, `substr`) menyembunyikannya dari indeks, jadi database memindai setiap baris. Rentang setengah terbuka pada kolom telanjang itu sargable dan mencari lewat indeks.
+:::
+
+:::drill sql Jadikan sargable
+Query ini benar tetapi tidak bisa memakai indeks pada `order_date`: ia menghitung pesanan Januari 2026 dengan `strftime`. Tulis ulang dengan rentang setengah terbuka pada kolom telanjang (tanpa fungsi di sekitar `order_date`). Satu angka, `orders`.
+@data kopiku
+@names
+@starter
+SELECT COUNT(*) AS orders FROM orders WHERE strftime('%Y-%m', order_date) = '2026-01';
+@check
+!/strftime|substr|date\s*\(/ ## Jangan bungkus order_date dengan fungsi.
+/>=/ ## Mulai rentangnya: order_date >= '2026-01-01'.
+@hint
+`WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
+@solution
+SELECT COUNT(*) AS orders FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01';
+:::
+
+:::drill sql Tambahkan indeks
+Buat indeks pada `orders(customer_id)` sehingga pencarian pesanan satu pelanggan mencari alih-alih memindai. (Beri nama apa saja.)
+@data kopiku
+@verify
+SELECT COUNT(*) AS indexes_on_customer_id FROM sqlite_master WHERE type = 'index' AND tbl_name = 'orders' AND sql LIKE '%customer_id%'
+@starter
+-- tulis pernyataan Anda di bawah baris ini
+
+@check
+/create\s+index/ ## Pakai CREATE INDEX nama ON orders(customer_id).
+@hint
+`CREATE INDEX ix_orders_customer ON orders(customer_id);`
+@solution
+CREATE INDEX ix_orders_customer ON orders(customer_id);
+:::
+
 ## @lesson Index: apa itu, mana yang dibangun, apa biayanya
 **Index** adalah struktur terurut terpisah yang memetakan nilai kolom ke lokasi baris, seperti indeks di belakang buku. Bawaannya adalah **B-tree**: mendukung kesamaan (`=`), rentang (`<`, `BETWEEN`), dan pengurutan (`ORDER BY`), karena menjaga kunci tetap terurut. Memilih index adalah keterampilan desain dengan beberapa aturan.
 
@@ -473,6 +677,40 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 **Sisi biayanya.** Setiap index harus diperbarui pada setiap INSERT, UPDATE, dan DELETE, memakan ruang disk (index `(customer_id, event_time)` berukuran 15 MB pada tabel 33 MB) dan memperlambat bulk load. Jadi tujuannya adalah index **sesedikit mungkin** yang membuat query nyata Anda cepat. Lab menegakkannya: paling banyak tiga, dan masing-masing harus dipakai. Warehouse kolumnar dan lakehouse (Modul 2.1 dan seterusnya) sebagian besar menggantikan index dengan pengurutan, partisi, dan statistik; cara berpikirnya tetap berlaku.
 
 Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutuhkan: pilih hanya kolom yang Anda perlukan (bukan `*`), filter lebih awal, hindari `DISTINCT` sebagai tambalan untuk fan-out join yang tidak disengaja (perbaiki join-nya), pilih `EXISTS` daripada `IN (subquery)` untuk uji keberadaan, hati-hati dengan `OR` lintas kolom berbeda, dan hindari menjalankan query per baris dari kode aplikasi (pola "N+1"): satu query berbasis himpunan mengalahkan seribu query kecil.
+
+:::ask Indeks ada pada `(customer_id, order_date)`. Query mana yang bisa memakainya DAN mendapat baris yang sudah berurutan menurut tanggal, tanpa pengurutan terpisah?
+@options
+* `WHERE customer_id = 3 ORDER BY order_date DESC LIMIT 10`
+`WHERE order_date = '2026-01-10' ORDER BY customer_id`
+`WHERE order_date > '2026-01-01'`
+@why
+Indeks komposit diurutkan menurut kolom **paling kiri** dulu, lalu berikutnya. Filter pada `customer_id` memakai prefiks paling kiri, dan di dalam satu pelanggan baris sudah terurut menurut tanggal. Filter pada `order_date` saja tidak bisa memakai indeks dengan efisien: tanggal hanya terurut di dalam setiap pelanggan.
+:::
+
+:::ask `status = 'done'` cocok dengan 99,8% baris. Apakah indeks pada `status` membantu query itu?
+@options
+ya, indeks mana pun selalu membantu
+hanya jika indeksnya BRIN
+* tidak: planner dengan benar memilih pemindaian penuh, karena indeks akan mengunjungi hampir setiap baris juga; indeks berguna ketika filternya selektif
+@why
+Selektivitas penting. Indeks pada kolom yang satu nilainya mencakup hampir seluruh tabel tidak menghemat apa pun. Indeks parsial pada nilai yang jarang (`WHERE status = 'pending'`) adalah yang berguna.
+:::
+
+:::drill sql Indeks komposit
+Buat indeks bernama `ix_cust_date` pada `orders` dengan kolom `customer_id` lalu `order_date` (dalam urutan itu).
+@data kopiku
+@verify
+SELECT name FROM pragma_index_info('ix_cust_date') ORDER BY seqno
+@starter
+-- tulis pernyataan Anda di bawah baris ini
+
+@check
+/ix_cust_date/ ## Beri nama indeks ix_cust_date.
+@hint
+`CREATE INDEX ix_cust_date ON orders(customer_id, order_date);`
+@solution
+CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
+:::
 
 > 💡 **Jeda Praktik 6 (Tuning Query & Optimalisasi Index PostgreSQL - Bagian B):**
 > Terapkan seni tuning indeks pada PostgreSQL tabel 500.000 baris:

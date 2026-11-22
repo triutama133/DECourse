@@ -80,9 +80,9 @@ The lab has you test these properties instead of trusting them: materialise a pa
 
 :::ask A backfill reruns the day `2026-01-05`. Which output design is safe to run twice?
 @options
-* overwrite the file for that day, `out/date=2026-01-05/part.csv`, written atomically
 append the day's rows to one growing `all.csv`
 write to a random filename each run
+* overwrite the file for that day, `out/date=2026-01-05/part.csv`, written atomically
 @why
 An idempotent job leaves the same result whether it runs once or five times. Appending duplicates the day on the second run; a deterministic per-partition path that is **replaced** does not. This is the rule that makes backfills and retries safe.
 :::

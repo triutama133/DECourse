@@ -87,6 +87,40 @@ Types of fact tables, by how rows arrive:
 
 Measures also differ in **additivity**: *additive* (quantity, revenue) can be summed across every dimension; *semi-additive* (account balance, inventory) can be summed across customers but not across time; *non-additive* (ratios, percentages, averages) cannot be summed at all, so store the numerator and denominator and divide at the end.
 
+:::ask Which sentence is a good grain statement for a fact table?
+@options
+* "one row per order line: one product, in one order, at one price"
+"the sales table"
+"orders and customers and products"
+@why
+A grain says exactly **what one row means**. It decides which dimensions may sit on the row, what can be summed, and it can be tested: "no two rows share the same (order_id, line_no)". A table name or a list of subjects does not say what a row is.
+:::
+
+:::ask A `shipping_fee_idr` is stored once per order, but you copy it onto every order line. What goes wrong when you sum it?
+@options
+nothing, the total is the same
+* an order with three lines is counted three times: the fee belongs to the order grain, not the line grain
+the sum becomes NULL
+@why
+Measures sum correctly only at (or above) their own grain. Copying a per-order value onto finer rows is the fan-out trap again: store it at the order grain, or allocate it across lines explicitly.
+:::
+
+:::drill sql Test the grain
+Show how many `(order_id, line_no)` pairs appear **more than once** in `order_items`, as `violations`. A model with a clean grain returns 0. Group by the grain columns and keep the groups with more than one row.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/group\s+by/ ## Group by the grain columns: order_id, line_no.
+/having/ ## Keep only the groups with COUNT(*) > 1.
+@hint
+`SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);`
+@solution
+SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);
+:::
+
 > 🛠 **Try it (10 min, SQL Sandbox).** `orders` holds a `shipping_fee_idr` per order. Compute the total fee two ways: `SELECT SUM(shipping_fee_idr) FROM orders;` and the same sum after joining `orders` to `order_items` on `order_id`. Then state the grain of each table in one sentence, and at which grain a shipping fee may be summed.
 >
 > **You should see:** `355000` and then `470000`, which is 32% too high: an order with three lines is counted three times. The fee belongs to the order grain, not the order-line grain.
@@ -115,6 +149,30 @@ Three layouts for the same data:
 
 Modern columnar engines compress repeated values so well that wide tables are cheap to *store*, which is why people declared the star schema dead. The claim confuses storage with design. The trouble with an OBT as the *only* model is not size; it is that it hides the grain, makes updates (a customer changing city) touch billions of rows, and invites each team to build its own variant. Treat the star as the shared, tested model and derive an OBT from it if a tool wants one.
 
+:::ask A wide pre-joined "one big table" is the only model, and a customer changes city. What is the problem?
+@options
+* the update touches every row of that customer across the whole table, the grain is hidden, and each team builds its own version
+nothing, storage is cheap
+the table becomes a star schema
+@why
+The trouble with a one big table as the **only** model is not size: it hides the grain, makes updates expensive, and invites every team to define things differently. Build it **from** the star as a convenience layer, not instead of it.
+:::
+
+:::drill sql A product dimension with a surrogate key
+Build a tiny product dimension: `product_sk` (a surrogate key: 1, 2, 3... in the order of `product_id`), `product_id` (the natural key, kept as an ordinary column) and `name`.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/row_number/ ## Create the surrogate key with ROW_NUMBER() OVER (ORDER BY product_id).
+@hint
+`SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;`
+@solution
+SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;
+:::
+
 > 💡 **Practice Pause 1 (Gap-free Calendar Date Dimension):**
 > Practice generating a calendar date dimension table:
 > 1. Open `labs/mod-1-4/answers.sql` in your text editor (or open the SQL Sandbox in your browser).
@@ -135,6 +193,31 @@ Keep the natural key in the dimension as an ordinary column too, so you can trac
 **Every fact row must point at a real dimension row.** Real data does not cooperate: an order arrives for a customer who is not in the customer extract yet (a *late-arriving* dimension), a product is deleted at the source, a value is missing. A NULL foreign key is poison: in an inner join the fact row silently vanishes and totals go down. The standard fix is the **unknown member**: a special dimension row with a reserved key (here `customer_sk = -1`, `city = 'Unknown'`) that facts point to when the real row cannot be found. Totals stay correct, the unknowns are visible (and countable, so you can alert on them), and when the real dimension row arrives later you can repair the facts.
 
 In the lab's data, 32 order lines belong to customers who do not exist in the customer table. With an unknown member they appear as the "Unknown" tier with revenue of Rp 5,965,000; without it, that revenue would silently disappear from every report grouped by tier.
+
+:::ask An order arrives for a customer who is not in the customer extract yet. The fact table is joined to the dimension with an INNER JOIN. What happens to that order?
+@options
+it is kept and shown as Unknown
+* it silently vanishes from the report and the totals go down
+the join fails with an error
+@why
+A fact row whose key matches no dimension row disappears in an inner join, with no error. The standard fix is an **unknown member** (for example key -1, "Unknown") that every orphan fact points at, so its revenue stays visible and countable.
+:::
+
+:::drill sql Keep the orphans
+Show every order's `order_id` and the customer's `name`, but show `'Unknown'` when the customer does not exist in `customers`. Every order must stay in the result. Use a `LEFT JOIN` and `COALESCE`.
+@data kopiku
+@names
+@starter
+-- write your query below this line
+
+@check
+/left\s+join/ ## Use LEFT JOIN so orders without a customer stay.
+/coalesce/ ## Show 'Unknown' with COALESCE(c.name, 'Unknown').
+@hint
+`SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;`
+@solution
+SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;
+:::
 
 > 🛠 **Try it (10 min, Python).** With the generated KopiKu files, find the orders whose `customer_id` does not exist in `data/customers.csv`, and how many order lines belong to them. Then decide: if the fact table required a real customer key, what would happen to those lines, and how would an "Unknown" member save them?
 >

@@ -147,9 +147,9 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 
 :::ask DAG untuk logical date `2026-01-05` berjalan dua kali (rerun manual). Apa yang harus benar sesudahnya?
 @options
+* hasilnya persis sama seperti setelah satu run: setiap task menggantikan outputnya untuk tanggal itu
 ada dua salinan hasil hari itu
 run kedua gagal
-* hasilnya persis sama seperti setelah satu run: setiap task menggantikan outputnya untuk tanggal itu
 @why
 Orchestrator menjalankan ulang sesuatu: retry, backfill, clear manual. Setiap task harus **idempoten per logical date**, menulis ke path atau partisi untuk tanggal itu dan menggantinya, sehingga rerun tidak pernah menggandakan apa pun.
 :::

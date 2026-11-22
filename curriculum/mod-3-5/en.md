@@ -208,8 +208,8 @@ print(visible_late, filter_first)
 :::ask Why must permissions be applied as a filter at retrieval time, before the chunks reach the prompt?
 @options
 the model will hide the forbidden text if we ask it politely
-* a chunk the user may not read must never reach the prompt: a model cannot be trusted to hide it afterwards
 filters make the search faster, nothing else
+* a chunk the user may not read must never reach the prompt: a model cannot be trusted to hide it afterwards
 @why
 Once text is in the prompt the model can repeat it. The only safe place to enforce access is **before** retrieval results leave the data layer, with metadata filters applied inside the search so the top-k is chosen among allowed chunks.
 :::

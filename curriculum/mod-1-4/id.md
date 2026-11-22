@@ -87,6 +87,40 @@ Klasifikasi tabel fakta berdasarkan cara data mengalir:
 
 Ukuran numerik (measures) juga dibedakan berdasarkan **kemampuan penjumlahan (additivity)**: *aditif penuh* (kuantitas, omset) dapat dijumlahkan di seluruh dimensi apa pun; *semi-aditif* (saldo rekening, stok gudang) dapat dijumlahkan lintas pelanggan tetapi keliru jika dijumlahkan melintasi dimensi tanggal; *non-aditif* (rasio, margin persentase, harga rata-rata) tidak boleh dijumlahkan sama sekali, sehingga selalu simpan pembilang dan penyebutnya secara terpisah lalu lakukan pembagian di akhir query.
 
+:::ask Kalimat mana yang merupakan pernyataan grain yang baik untuk tabel fakta?
+@options
+* "satu baris per baris pesanan: satu produk, dalam satu pesanan, dengan satu harga"
+"tabel penjualan"
+"pesanan dan pelanggan dan produk"
+@why
+Grain menyatakan dengan tepat **apa arti satu baris**. Ia menentukan dimensi mana yang boleh ada di baris, apa yang bisa dijumlahkan, dan ia bisa diuji: "tidak ada dua baris yang berbagi (order_id, line_no) yang sama". Nama tabel atau daftar subjek tidak menyatakan apa itu satu baris.
+:::
+
+:::ask `shipping_fee_idr` disimpan sekali per pesanan, tetapi Anda menyalinnya ke setiap baris pesanan. Apa yang salah ketika Anda menjumlahkannya?
+@options
+tidak ada, totalnya sama
+* pesanan dengan tiga baris dihitung tiga kali: ongkos itu milik grain pesanan, bukan grain baris
+jumlahnya menjadi NULL
+@why
+Ukuran hanya dijumlahkan dengan benar pada (atau di atas) grain-nya sendiri. Menyalin nilai per pesanan ke baris yang lebih halus adalah jebakan fan-out lagi: simpan pada grain pesanan, atau alokasikan ke baris-baris secara eksplisit.
+:::
+
+:::drill sql Uji grain-nya
+Tampilkan berapa pasangan `(order_id, line_no)` yang muncul **lebih dari sekali** di `order_items`, sebagai `violations`. Model dengan grain yang bersih mengembalikan 0. Kelompokkan menurut kolom grain dan simpan kelompok yang punya lebih dari satu baris.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/group\s+by/ ## Kelompokkan menurut kolom grain: order_id, line_no.
+/having/ ## Simpan hanya kelompok dengan COUNT(*) > 1.
+@hint
+`SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);`
+@solution
+SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);
+:::
+
 > 🛠 **Coba sendiri (10 menit, SQL Sandbox).** `orders` menyimpan `shipping_fee_idr` per pesanan. Hitung total ongkir dengan dua cara: `SELECT SUM(shipping_fee_idr) FROM orders;` dan jumlah yang sama setelah join `orders` ke `order_items` pada `order_id`. Lalu nyatakan grain setiap tabel dalam satu kalimat, dan di grain mana ongkir boleh dijumlahkan.
 >
 > **Seharusnya Anda melihat:** `355000` lalu `470000`, yang 32% terlalu tinggi: pesanan dengan tiga baris dihitung tiga kali. Ongkir milik grain pesanan, bukan grain baris pesanan.
@@ -115,6 +149,30 @@ Perbandingan tiga pola tata letak penyimpanan data:
 
 Mesin database kolumnar modern (seperti DuckDB, BigQuery, Snowflake) mengompresi data berulang dengan sangat efisien, sehingga tabel lebar (OBT) murah untuk disimpan di disk. Hal ini membuat sebagian orang tergesa-gesa menyatakan star schema sudah usang. Pernyataan tersebut mencampuradukkan format penyimpanan fisik dengan perancangan logika bisnis. Masalah mendasar OBT jika dijadikan satu-satunya model data adalah hilangnya kepastian grain, pembaruan data (misal pelanggan pindah kota) terpaksa memodifikasi miliaran baris transaksi historis, dan setiap departemen akan tergoda membuat varian OBT versinya sendiri. Perlakukan star schema sebagai model kebenaran bersama yang teruji, lalu turunkan OBT di atasnya jika alat visualisasi tertentu membutuhkannya.
 
+:::ask "Satu tabel besar" yang sudah di-join sebelumnya adalah satu-satunya model, dan seorang pelanggan pindah kota. Apa masalahnya?
+@options
+* pembaruan menyentuh setiap baris pelanggan itu di seluruh tabel, grain-nya tersembunyi, dan setiap tim membangun versinya sendiri
+tidak ada, penyimpanan murah
+tabelnya menjadi star schema
+@why
+Masalah satu tabel besar sebagai **satu-satunya** model bukan ukurannya: ia menyembunyikan grain, membuat pembaruan mahal, dan mengundang setiap tim mendefinisikan sesuatu secara berbeda. Bangun ia **dari** star sebagai lapisan kemudahan, bukan sebagai penggantinya.
+:::
+
+:::drill sql Dimensi produk dengan surrogate key
+Bangun dimensi produk kecil: `product_sk` (surrogate key: 1, 2, 3... menurut urutan `product_id`), `product_id` (natural key, disimpan sebagai kolom biasa), dan `name`.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/row_number/ ## Buat surrogate key dengan ROW_NUMBER() OVER (ORDER BY product_id).
+@hint
+`SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;`
+@solution
+SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;
+:::
+
 > 💡 **Jeda Praktik 1 (Dimensi Tanggal Tanpa Celah Kalender):**
 > Latih pembuatan tabel dimensi tanggal kalender:
 > 1. Buka file `labs/mod-1-4/answers.sql` di Text Editor Anda (atau buka SQL Sandbox di browser).
@@ -135,6 +193,31 @@ Selalu pertahankan natural key asli di dalam tabel dimensi sebagai kolom biasa, 
 **Setiap baris fakta wajib merujuk ke baris dimensi yang nyata.** Namun data dunia nyata tidak pernah ideal: transaksi pesanan tiba untuk pelanggan yang belum terdaftar di snapshot pelanggan hari itu (*late-arriving dimension*), produk dihapus di sistem sumber, atau kolom bernilai NULL. Nilai foreign key NULL adalah racun: pada operasi INNER JOIN baris fakta akan hilang tanpa peringatan dan angka omset dashboard langsung menyusut. Solusi standar industri adalah **anggota unknown (unknown member)**: baris khusus di tabel dimensi dengan nomor kunci khusus (misalnya `customer_sk = -1`, `city = 'Unknown'`) tempat tabel fakta merujuk ketika entitas aslinya tidak ditemukan. Total omset tetap akurat 100%, data yang tidak dikenal terlihat jelas di laporan (dan dapat dihitung untuk memicu peringatan otomatis tim engineering), dan ketika data dimensi susulan tiba, kunci fakta dapat diperbaiki.
 
 Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terdaftar di tabel pelanggan sumber. Dengan anggota unknown, transaksi tersebut tercatat rapi di bawah kategori tier "Unknown" dengan nilai omset Rp 5.965.000; tanpa pola ini, omset tersebut akan lenyap diam-diam dari setiap query pelaporan per tier pelanggan.
+
+:::ask Sebuah pesanan tiba untuk pelanggan yang belum ada di ekstrak pelanggan. Tabel fakta digabung ke dimensi dengan INNER JOIN. Apa yang terjadi pada pesanan itu?
+@options
+ia disimpan dan ditampilkan sebagai Unknown
+* ia hilang diam-diam dari laporan dan totalnya turun
+join gagal dengan error
+@why
+Baris fakta yang key-nya tidak cocok dengan baris dimensi mana pun lenyap dalam inner join, tanpa error. Perbaikan standarnya adalah **unknown member** (misalnya key -1, "Unknown") yang ditunjuk setiap fakta yatim, sehingga pendapatannya tetap terlihat dan terhitung.
+:::
+
+:::drill sql Pertahankan yang yatim
+Tampilkan `order_id` setiap pesanan dan `name` pelanggannya, tetapi tampilkan `'Unknown'` ketika pelanggan tidak ada di `customers`. Setiap pesanan harus tetap ada di hasil. Pakai `LEFT JOIN` dan `COALESCE`.
+@data kopiku
+@names
+@starter
+-- tulis query Anda di bawah baris ini
+
+@check
+/left\s+join/ ## Pakai LEFT JOIN supaya pesanan tanpa pelanggan tetap ada.
+/coalesce/ ## Tampilkan 'Unknown' dengan COALESCE(c.name, 'Unknown').
+@hint
+`SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;`
+@solution
+SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;
+:::
 
 > 🛠 **Coba sendiri (10 menit, Python).** Dengan file KopiKu yang sudah dibuat, temukan pesanan yang `customer_id`-nya tidak ada di `data/customers.csv`, dan berapa baris pesanan milik mereka. Lalu putuskan: jika tabel fakta mewajibkan key pelanggan yang nyata, apa yang terjadi pada baris-baris itu, dan bagaimana anggota "Unknown" menyelamatkannya?
 >

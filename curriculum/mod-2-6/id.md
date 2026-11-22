@@ -101,9 +101,9 @@ Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabe
 
 :::ask Sebuah tabel punya 3 micro-partisi. Zone map `order_date` menyatakan: P1 1 sampai 10 Jan, P2 11 sampai 20 Jan, P3 21 sampai 31 Jan. Anda menjalankan query `WHERE order_date = '2026-01-15'`. Berapa partisi yang dipindai?
 @options
-* satu: hanya P2 yang bisa berisi 15 Jan; yang lain dilewati tanpa dibaca
 ketiganya
 tidak ada
+* satu: hanya P2 yang bisa berisi 15 Jan; yang lain dilewati tanpa dibaca
 @why
 Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan filter dengannya dan melewati partisi yang tidak mungkin cocok. Semakin sedikit rentang data Anda yang tumpang tindih (clustering yang baik), semakin banyak yang bisa dilewati, dan warehouse berbayar-per-pindai menagih lebih sedikit.
 :::
@@ -361,8 +361,8 @@ Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu s
 
 :::ask Anda mewarisi stored procedure 3.000 baris yang memberi makan dashboard. Cara paling aman menggantinya?
 @options
-menulis ulang semuanya sekaligus dan beralih pada hari Jumat
 * strangler fig: bangun pipeline baru di sampingnya, pindahkan satu output demi satu, bandingkan angkanya, dan pensiunkan yang lama hanya ketika yang baru cocok
+menulis ulang semuanya sekaligus dan beralih pada hari Jumat
 jangan pernah menyentuhnya
 @why
 Penulisan ulang besar-besaran tidak punya jalan kembali dan tidak punya bukti. Strangler fig mengganti sistem lama **sepotong demi sepotong**, dengan keduanya berjalan berdampingan agar angkanya bisa dibandingkan, sampai kode lama tidak punya pekerjaan lagi.

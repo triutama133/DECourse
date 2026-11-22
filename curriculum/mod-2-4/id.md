@@ -80,9 +80,9 @@ Dalam lab praktikum modul ini, Anda tidak sekadar mempercayai teori ini di atas 
 
 :::ask Sebuah backfill menjalankan ulang hari `2026-01-05`. Rancangan output mana yang aman dijalankan dua kali?
 @options
-* menimpa file untuk hari itu, `out/date=2026-01-05/part.csv`, ditulis secara atomik
 menambahkan baris hari itu ke satu `all.csv` yang terus bertambah
 menulis ke nama file acak setiap run
+* menimpa file untuk hari itu, `out/date=2026-01-05/part.csv`, ditulis secara atomik
 @why
 Job yang idempoten meninggalkan hasil yang sama baik dijalankan sekali maupun lima kali. Menambahkan menduplikasi hari itu pada run kedua; path deterministik per partisi yang **diganti** tidak. Inilah aturan yang membuat backfill dan retry aman.
 :::

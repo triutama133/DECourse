@@ -173,6 +173,15 @@ con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', RE
 >
 > **Seharusnya Anda melihat:** `6666` baris dari **3** request untuk satu hari: satu listing folder, file pertama (untuk mengetahui nama kolom), dan file hari itu. Semua hari menghasilkan `200000` baris dari **31** request: listing ditambah ke-30 file. Filter `total_idr` menghasilkan `41892` baris tetapi juga butuh **31**: hanya kolom partisi yang membuat DuckDB bisa melewati file tanpa membukanya. Di S3 setiap request ditagih dan menambah jeda, jadi kolom partisi sebuah tabel sebaiknya kolom yang paling sering difilter query-nya. Diukur dengan DuckDB 2.0.1 dan moto 5.2.5.
 
+:::ask File Parquet punya 50 kolom dan query Anda memakai 3 di antaranya. Apa yang dibaca engine?
+@options
+seluruh file
+hanya 3 baris pertama
+* terutama data ketiga kolom itu (ditambah footer), karena setiap kolom disimpan bersama
+@why
+Penyimpanan kolumnar menyimpan nilai setiap kolom bersama-sama, jadi membaca 3 dari 50 kolom membaca sekitar 3/50 data. Karena itu query analitik cepat di Parquet dan `SELECT *` adalah kebiasaan buruk pada tabel lebar.
+:::
+
 > 💡 **Jeda Praktik: Analisis SQL Kolumnar dengan DuckDB**
 > 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, buka fungsi `revenue_by_month_roast_duckdb(data_dir)`.
 > 2. Tulis query SQL DuckDB yang membaca `order_items.parquet`, `orders.parquet`, dan `products.parquet` menggunakan fungsi `read_parquet(...)`. Gabungkan ketiga tabel (JOIN), kelompokkan berdasarkan format bulan `strftime(o.order_ts, '%Y-%m')` dan `p.roast_level`, lalu hitung omset `SUM(i.qty * i.unit_price_idr)` dengan tipe `BIGINT` (integer). Urutkan hasil berdasarkan bulan dan tingkat sangrai (`ORDER BY 1, 2`).

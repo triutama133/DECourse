@@ -173,6 +173,15 @@ con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', RE
 >
 > **You should see:** `6666` rows from **3** requests for one day: one listing of the folder, the first file (to learn the column names) and that day's file. All days return `200000` rows from **31** requests: the listing plus all 30 files. The `total_idr` filter returns `41892` rows but also needs **31**: only the partition column lets DuckDB skip files without opening them. On S3 every request is billed and adds delay, so a table's partition column should be the one its queries filter on most. Measured with DuckDB 2.0.1 and moto 5.2.5.
 
+:::ask A Parquet file has 50 columns and your query uses 3 of them. What does the engine read?
+@options
+the whole file
+only the first 3 rows
+* mainly the data of those 3 columns (plus the footer), because each column is stored together
+@why
+Columnar storage keeps each column's values together, so reading 3 of 50 columns reads about 3/50 of the data. This is why analytical queries are fast on Parquet and why `SELECT *` is a bad habit on wide tables.
+:::
+
 > 💡 **Practice Pause: Columnar SQL Analysis with DuckDB**
 > 1. In your text editor in `labs/mod-2-1/analytics.py`, open function `revenue_by_month_roast_duckdb(data_dir)`.
 > 2. Write a DuckDB SQL query reading `order_items.parquet`, `orders.parquet`, and `products.parquet` via `read_parquet(...)`. Join all three tables, group by month `strftime(o.order_ts, '%Y-%m')` and `p.roast_level`, and sum revenue `SUM(i.qty * i.unit_price_idr)` cast to `BIGINT` (integer). Order the results by month and roast level (`ORDER BY 1, 2`).

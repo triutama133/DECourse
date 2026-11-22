@@ -127,8 +127,8 @@ One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Ama
 
 :::ask Your VPC is `10.0.0.0/16`. You split it into `/20` subnets. How many subnets do you get?
 @options
-* 16: each step from /16 to /20 doubles the count (2 x 2 x 2 x 2)
 4
+* 16: each step from /16 to /20 doubles the count (2 x 2 x 2 x 2)
 256
 @why
 A `/20` has 4 more network bits than a `/16`, so there are 2^4 = 16 subnets, each with 4,096 addresses (4,091 usable on AWS, which reserves 5). Sizing is hard to change later, so plan it before you build.
@@ -231,8 +231,8 @@ Learn the vocabulary of the field, known as **FinOps**: *showback* (show each te
 
 :::ask Pipelines in a private subnet read S3 all day through a NAT gateway, which charges per GB processed. What is the cheaper, more private path?
 @options
-* an S3 **gateway endpoint**: a route in the subnet's route table that keeps S3 traffic on the AWS network
 a bigger NAT gateway
+* an S3 **gateway endpoint**: a route in the subnet's route table that keeps S3 traffic on the AWS network
 move the data to the public internet
 @why
 A gateway endpoint adds a route to S3 without sending the traffic through the NAT gateway, so there is no per-GB NAT processing charge and the traffic never leaves the AWS network. Network paths are a bill line, not an afterthought.

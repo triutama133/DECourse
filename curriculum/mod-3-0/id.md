@@ -60,6 +60,15 @@ Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di 
 
 Batasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HDFS cocok untuk data "tulis sekali, baca berkali-kali"; satu NameNode tunggal akan menjadi titik kegagalan tunggal, sehingga klaster produksi menjalankan NameNode standby dengan journal bersama (**HA**); dan **erasure coding** (Hadoop 3) menyimpan blok paritas, bukan salinan penuh, misalnya enam blok data ditambah tiga blok paritas, yang berbiaya 1,5 kali data dan bukan 3 kali.
 
+:::ask Satu terabyte disimpan sebagai 10 juta file kecil sekitar 100 KB. Apa masalah sebenarnya bagi HDFS?
+@options
+DataNode kehabisan ruang disk
+file tidak bisa direplikasi
+* NameNode menyimpan satu objek di memori per file dan per block, sehingga puluhan juta objek menekan memorinya (masalah small-files)
+@why
+NameNode menyimpan seluruh namespace di memori (sekitar 150 byte per objek sebagai patokan). Ukuran byte tidak penting baginya; yang penting adalah **jumlah objek**. Perbaikannya adalah file yang lebih sedikit dan lebih besar (kompaksi, format kolumnar seperti Parquet).
+:::
+
 > 💡 **Jeda Praktik 2 (Masalah File Kecil & Estimasi Memori NameNode):**
 > 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.
 > 2. Implementasikan fungsi `metadata_objects(total_bytes, file_size, block_size=BLOCK_SIZE)` untuk menghitung total objek memori (1 objek per file + 1 objek per blok).
@@ -80,6 +89,64 @@ potongan input --> MAP --> pasangan (key,value) --> SHUFFLE (kelompokkan per key
 Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah_reducer`. Ia harus memberi jawaban yang sama di setiap mesin, jadi dipakai hash yang stabil (lab memakai **CRC32**, Cyclic Redundancy Check 32-bit, lewat `zlib.crc32` — algoritma deterministik cepat yang mengubah string byte apa pun menjadi integer tetap `0..2**32 - 1` di komputer mana pun; `hash()` bawaan Python mengacak seed antar-eksekusi dan akan mengirim key yang sama ke reducer berbeda). Semua soal ketimpangan partisi (**skew**, dibahas tuntas di Modul 3.1) bermula di sini: satu key yang sangat umum mengirim semua pasangannya ke satu reducer.
 
 **Combiner** adalah reducer mini yang berjalan di sisi map, sebelum shuffle, untuk memperkecil apa yang harus melewati jaringan. Pada word count di lab, 13 kata menghasilkan 13 pasangan; dengan combiner hanya **7 pasangan** (satu per kata berbeda) yang di-shuffle, dan jawabannya identik. Jaringan adalah sumber daya yang mahal, jadi ini penting.
+
+### Lihat sendiri: map, shuffle, reduce, pada tiga baris teks
+
+MapReduce adalah tiga langkah yang sudah Anda tahu cara menulisnya. Perhatikan penghitungan kata:
+
+:::trace Penghitungan kata dalam tiga langkah
+@code
+lines = ["a b a", "b c"]
+mapped = []
+for line in lines:
+    for word in line.split():
+        mapped.append((word, 1))
+grouped = {}
+for word, one in mapped:
+    grouped.setdefault(word, []).append(one)
+reduced = {w: sum(ones) for w, ones in grouped.items()}
+print(reduced)
+@notes
+5 | **Map**: setiap kata menjadi pasangan `(word, 1)`. Setiap baris bisa di-map di mesin yang berbeda, tanpa koordinasi.
+8 | **Shuffle**: semua pasangan dengan key yang sama dikumpulkan. Ini langkah yang mahal, karena di klaster ia memindahkan data antar mesin.
+9 | **Reduce**: daftar setiap key dijumlahkan, terlepas dari key lainnya.
+:::
+
+:::drill python Langkah map
+Tulis `map_words(line)`: ia mengembalikan list pasangan `(word, 1)`, satu per kata pada baris itu, dalam huruf kecil. Baris kosong menghasilkan list kosong.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("map_words") ## Definisikan map_words(line).
+map_words("A b A") == [("a", 1), ("b", 1), ("a", 1)] ## "A b A" menghasilkan [("a", 1), ("b", 1), ("a", 1)]: huruf kecil, satu pasangan per kata.
+map_words("") == [] ## Baris kosong menghasilkan [].
+@hint
+`return [(word.lower(), 1) for word in line.split()]`
+@solution
+def map_words(line):
+    return [(word.lower(), 1) for word in line.split()]
+:::
+
+:::drill python Langkah reduce
+Tulis `reduce_counts(pairs)`: `pairs` adalah list `(word, number)`; kembalikan dictionary berisi **jumlah angka per kata**.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("reduce_counts") ## Definisikan reduce_counts(pairs).
+reduce_counts([("a", 1), ("b", 1), ("a", 1)]) == {"a": 2, "b": 1} ## a muncul dua kali, b sekali.
+reduce_counts([("x", 5), ("x", 7)]) == {"x": 12} ## Angka dijumlahkan, bukan dihitung: 5 + 7 = 12.
+reduce_counts([]) == {} ## Tanpa pasangan, tanpa hitungan.
+@hint
+`counts[word] = counts.get(word, 0) + number` untuk setiap pasangan.
+@solution
+def reduce_counts(pairs):
+    counts = {}
+    for word, number in pairs:
+        counts[word] = counts.get(word, 0) + number
+    return counts
+:::
 
 > 💡 **Jeda Praktik 3 (Map, Partisi CRC32, Shuffle, dan Combiner):**
 > 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda.

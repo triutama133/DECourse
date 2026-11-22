@@ -116,9 +116,9 @@ print(accepted, late)
 
 :::ask The watermark is 15 and an event with time 11 arrives. What should the system do?
 @options
+* treat it as late: route it aside (a side output) or count it, never silently drop it
 accept it and move the watermark back to 11
 stop the stream
-* treat it as late: route it aside (a side output) or count it, never silently drop it
 @why
 A watermark never moves backwards, and an event behind it is **late**. The window it belongs to may already have been emitted, so the system either updates it deliberately (allowed lateness) or sends the event to a side output for inspection.
 :::
