@@ -300,7 +300,7 @@ Bangun data warehouse untuk KopiKu menggunakan SQL: dimensi tanggal, dimensi pro
 ```bash
 python3 labs/shared/shopgen.py --out data
 python3 labs/mod-1-4/stage.py data warehouse.db
-sqlite3 warehouse.db ".tables"        # opsional jika ada sqlite3; pengujian otomatis akan memverifikasinya
+python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'table'"   # Python 3.12+; atau lewati: tes melakukannya untuk Anda
 ```
 
    `stage.py` memuat file CSV bersih ke dalam lima tabel `stg_`. Baca docstring di dalam file tersebut untuk melihat struktur kolom yang disediakan.

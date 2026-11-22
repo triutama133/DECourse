@@ -249,6 +249,7 @@ class DataForgeApp {
         ? `<span class="chip ${verifiedToken ? "chip-blue" : ""}">${verifiedToken ? `✓ ${this.l("Terbukti di Sistem", "Verified on System")} (${savedVal.passed} checks)` : `🔒 ${this.l("Wajib Cek Lokal (TRY1)", "Requires Local Check (TRY1)")}`}</span>`
         : (tryitKey ? `<button class="btn btn-sm ${isDone ? "btn-done" : "btn-quiet"}" onclick="app.toggleTryIt('${tryitKey}')">${isDone ? "✓ " + this.l("Sudah Dicoba", "Tried & Checked") : "○ " + this.l("Tandai Sudah Dicoba", "Mark as Tried")}</button>` : "");
 
+      const whereHtml = this.tryItWhere(mainLines, ctx);
       return `
         <div class="callout-tryit ${isDone ? "is-done" : ""}">
           <div class="callout-head">
@@ -257,6 +258,7 @@ class DataForgeApp {
           </div>
           <div class="stack-sm">
             ${this.renderQuoteBody(mainLines)}
+            ${whereHtml}
             ${revealLines.length ? `
               <details class="tryit-reveal">
                 <summary>👁️ ${this.l("Buka Hasil yang Diharapkan & Kunci Pemeriksaan Mandiri", "Reveal Expected Output & Self-Check Answer")}</summary>
@@ -293,6 +295,58 @@ class DataForgeApp {
     // 4. Standard callout (Warning, Tip, or Note)
     const kind = /^\*\*(Warning|Peringatan|Pitfall|Jebakan)/i.test(first) ? "danger" : /^\*\*(Tip|Saran)/i.test(first) ? "success" : "";
     return `<div class="callout ${kind}">${this.renderQuoteBody(q)}</div>`;
+  }
+
+  // "Where do I do this?" under every Try it, chosen from its label: "(10 min, Python)", "(SQL Sandbox)",
+  // "(terminal)", "(paper)"... Beginners could not tell whether to type the code at the terminal, at >>> or in a file.
+  tryItWhere(lines, ctx) {
+    const text = lines.join(" ");
+    const head = (lines[0] || "").match(/\(([^)]*)\)/);
+    const label = (head ? head[1] : "").replace(/^\s*\d+(-\d+)?\s*(min|minutes|menit)\b,?\s*/i, "").toLowerCase();
+    const modId = (ctx && ctx.modId) || "";
+    const mm = modId.match(/mod-(\d)-(\d)/);
+    const afterVenv = mm ? Number(mm[1]) * 10 + Number(mm[2]) >= 2 : true;   // the course venv exists from Module 0.2 on
+    const pkgs = Array.from(new Set((text.match(/pip install ([^`]+)`/g) || []).map((x) => x.replace(/^pip install /, "").replace(/`$/, "").trim())));
+    const named = text.match(/`(~?[\w./-]+\.py)`/g) || [];
+    const writes = /\b(write|tulis|save|simpan|buat)\b[^.]{0,40}`[\w./-]+\.py`/i.test(text) || /file `[\w./-]+\.py`/i.test(label);
+    let kind;
+    if (/sandbox/.test(label)) kind = "sandbox";
+    else if (/(paper|kertas)/.test(label) && !/(python|terminal)/.test(label)) kind = "paper";
+    else if (/terminal|docker|sqlcmd|dbt|\bbq\b/.test(label)) kind = "terminal";   // the label wins over a file the Try it also writes
+    else if (/python|pyspark|\.py/.test(label) || writes) kind = "python";
+    else if (label || /`[^`]+`/.test(text)) kind = "terminal";
+    else return "";
+    const C = (t) => `<code>${this.esc(t)}</code>`;
+    const go = `${C("cd ~/projects/DECourse")}${afterVenv ? ` ${this.l("lalu", "then")} ${C("source venv/bin/activate")} (${this.l("prompt diawali", "the prompt starts with")} ${C("(venv)")})` : ""}`;
+    let body;
+    if (kind === "sandbox") {
+      body = `<p>${this.l("Di browser ini, tanpa instalasi: buka <strong>SQL Sandbox</strong> di menu atas, pilih dataset yang disebut, ketik query di kotak editor, lalu tekan Run.", "In this browser, nothing to install: open the <strong>SQL Sandbox</strong> in the top menu, pick the dataset it names, type the query in the editor box and press Run.")}</p>
+        <button class="btn btn-sm" onclick="app.go('playground')">${this.l("Buka SQL Sandbox", "Open the SQL Sandbox")} →</button>`;
+    } else if (kind === "paper") {
+      body = `<p>${this.l("Tidak perlu komputer: pakai kertas dan pena, atau file teks biasa. Lalu buka hasil yang diharapkan di bawah untuk membandingkan.", "No computer needed: use pen and paper, or a plain text file. Then open the expected result below to compare.")}</p>`;
+    } else if (kind === "python") {
+      const file = (named.find((f) => !/^labs\//.test(f.replace(/`/g, ""))) || "").replace(/`/g, "") || `${modId.replace("mod-", "") || "try"}-l${((ctx && ctx.lessonIdx) || 0) + 1}.py`;
+      const path = file.includes("/") ? file : `~/practice/${file}`;
+      body = `<ol>
+          <li>${this.l("Terminal: masuk ke folder kursus", "Terminal: go to the course folder")}: ${go}.</li>
+          <li>${this.l(`Editor (VS Code): buat file ${C(path)} (sekali saja: ${C("mkdir -p ~/practice")}), tulis kodenya, simpan. Folder latihan ini di luar folder kursus, jadi memperbarui kursus tidak pernah menyentuh pekerjaan Anda, dan perintah ${C("check.py")} mencarinya di sana.`, `Editor (VS Code): make the file ${C(path)} (once: ${C("mkdir -p ~/practice")}), write the code, save. This practice folder sits outside the course folder, so updating the course never touches your work, and the ${C("check.py")} commands look for your files there.`)}</li>
+          <li>${this.l(`Jalankan di terminal: ${C("python3 " + path)}. Path seperti ${C("data/orders.csv")} berjalan karena terminal Anda berada di folder kursus.`, `Run it in the terminal: ${C("python3 " + path)}. Paths such as ${C("data/orders.csv")} work because your terminal is in the course folder.`)}</li>
+          ${pkgs.length ? `<li>${this.l(`Paket: pasang sekali dengan venv aktif: ${C("python -m pip install " + pkgs.join(" "))}. Tanpa ${C("(venv)")}, pip berhenti dengan ${C("externally-managed-environment")}.`, `Packages: install once with the venv active: ${C("python -m pip install " + pkgs.join(" "))}. Without ${C("(venv)")}, pip stops with ${C("externally-managed-environment")}.`)}</li>` : ""}
+        </ol>
+        <p class="small muted">${this.l(`Untuk mencoba satu baris saja, ketik ${C("python3")} lalu baris itu di prompt ${C(">>>")}. Perintah seperti ${C("pip")} atau ${C("pytest")} selalu di prompt ${C("$")}, bukan ${C(">>>")}.`, `To try a single line, type ${C("python3")} and then that line at the ${C(">>>")} prompt. Commands such as ${C("pip")} or ${C("pytest")} always go at the ${C("$")} prompt, never at ${C(">>>")}.`)}</p>`;
+    } else {
+      body = `<ul>
+          <li>${this.l(`Ketik perintahnya di prompt ${C("$")} terminal, dari folder kursus: ${go}, kecuali Try it ini menyuruh ${C("cd")} ke tempat lain.`, `Type the commands at the terminal's ${C("$")} prompt, from the course folder: ${go}, unless this Try it says to ${C("cd")} somewhere else.`)}</li>
+          ${/second terminal|terminal kedua/i.test(text) ? `<li>${this.l(`"Terminal kedua" = tab terminal baru (${C("Ctrl+Shift+T")} di terminal Linux, atau tombol + di panel terminal VS Code). Di tab baru, ${C("cd")} dan aktifkan venv lagi.`, `"A second terminal" = a new terminal tab (${C("Ctrl+Shift+T")} in the Linux terminal, or the + button in VS Code's terminal panel). In the new tab, ${C("cd")} and activate the venv again.`)}</li>` : ""}
+          ${/docker/i.test(label + text) ? `<li>${this.l(`Butuh Docker yang sedang berjalan: ${C("docker ps")} harus tampil tanpa error.`, `Needs Docker running: ${C("docker ps")} must print without an error.`)}</li>` : ""}
+          <li>${this.l(`${C("export")} hanya berlaku di jendela terminal itu; di terminal baru, jalankan lagi. Program yang membuka prompt sendiri: ${C("python3")} → ${C(">>>")} (keluar ${C("exit()")}), ${C("sqlite3")} → ${C("sqlite>")} (keluar ${C(".quit")}), ${C("psql")} → ${C("=#")} (keluar ${C("\\q")}).`, `${C("export")} only lasts in that terminal window; in a new terminal, run it again. Programs that open their own prompt: ${C("python3")} → ${C(">>>")} (leave with ${C("exit()")}), ${C("sqlite3")} → ${C("sqlite>")} (leave with ${C(".quit")}), ${C("psql")} → ${C("=#")} (leave with ${C("\\q")}).`)}</li>
+          ${named.filter((f) => !/labs\//.test(f)).length ? `<li>${this.l(`File yang diminta (${named.filter((f) => !/labs\//.test(f)).slice(0, 2).map((f) => C(f.replace(/`/g, ""))).join(", ")}): buat dengan editor di folder ${C("~/practice/")}; file ${C(".py")} dijalankan dari folder kursus dengan ${C("python3 ~/practice/namafile.py")}.`, `Files it asks you to write (${named.filter((f) => !/labs\//.test(f)).slice(0, 2).map((f) => C(f.replace(/`/g, ""))).join(", ")}): make them with your editor in the ${C("~/practice/")} folder; a ${C(".py")} file runs from the course folder with ${C("python3 ~/practice/filename.py")}.`)}</li>` : ""}
+          ${/\.db\b|sqlite/i.test(label + text) ? `<li>${this.l(`SQL pada file ${C(".db")}: ${C("python3 -m sqlite3 warehouse.db")} membuka prompt ${C("sqlite>")} tanpa instalasi apa pun (Python 3.12 atau lebih baru); akhiri setiap query dengan ${C(";")}.`, `SQL on a ${C(".db")} file: ${C("python3 -m sqlite3 warehouse.db")} opens a ${C("sqlite>")} prompt with nothing to install (Python 3.12 or newer); end each query with ${C(";")}.`)}</li>` : ""}
+          ${pkgs.length ? `<li>${this.l(`Paket: ${C("python -m pip install " + pkgs.join(" "))} dengan venv aktif.`, `Packages: ${C("python -m pip install " + pkgs.join(" "))} with the venv active.`)}</li>` : ""}
+        </ul>`;
+    }
+    const kindLabel = { sandbox: "SQL Sandbox", paper: this.l("kertas", "paper"), python: this.l("file Python + terminal", "Python file + terminal"), terminal: "terminal" }[kind];
+    return `<details class="tryit-where"><summary>📍 ${this.l("Di mana saya mengerjakan ini?", "Where do I do this?")} <span class="muted">· ${kindLabel}</span></summary><div class="small">${body}<p class="muted">${this.l("Belum paham bedanya terminal, >>> dan file? Lihat", "Unsure about the terminal, >>> and files? See")} <a href="#/start">${this.l("Mulai di sini, langkah 4", "Start here, step 4")}</a>.</p></div></details>`;
   }
 
   md(val, ctx) {
@@ -2178,7 +2232,7 @@ class DataForgeApp {
               <strong>${this.l("B. Di cloud, hanya jika A tidak memungkinkan", "B. In the cloud, only if A is not possible")}</strong>
               <p class="small muted">${this.l("Misalnya komputer pinjaman atau tablet. GitHub Codespaces membuka editor lengkap di browser dengan semuanya sudah terpasang; Anda tetap bekerja di terminal sungguhan. Perlu akun GitHub gratis; ada kuota jam gratis per bulan. Anda tidak melatih penyiapan sendiri di sini, jadi usahakan A bila bisa.", "For example a borrowed computer or a tablet. GitHub Codespaces opens a full editor in your browser with everything installed; you still work in a real terminal. It needs a free GitHub account and has a free monthly hours quota. You do not practise the setup yourself here, so prefer A when you can.")}</p>
               <a class="btn" href="https://codespaces.new/${repo.replace("https://github.com/", "")}" target="_blank" rel="noopener">${this.l("Buka di Codespaces", "Open in Codespaces")}</a>
-              <p class="small muted">${this.l("Setelah terbuka, lompat ke langkah 3.", "Once it opens, skip to step 3.")}</p>
+              <p class="small muted">${this.l("Setelah terbuka, terminal ada di bagian bawah editor dan file kursus sudah ada: lompat ke langkah 4.", "Once it opens, the terminal is at the bottom of the editor and the course files are already there: skip to step 4.")}</p>
             </div>
           </div>
           <details class="callout neutral fold-callout" id="windows-setup">
@@ -2194,6 +2248,15 @@ class DataForgeApp {
             <p class="small">${this.l("Lalu lanjutkan langkah 2 di jendela Ubuntu yang sama, di folder Linux Anda sendiri (<code>cd ~</code>), bukan di drive C:. Untuk melihat folder itu di Windows Explorer, ketik <code>explorer.exe .</code> (dengan titik).", "Then continue with step 2 in the same Ubuntu window, in your own Linux folder (<code>cd ~</code>), not on drive C:. To see that folder in Windows Explorer, type <code>explorer.exe .</code> (with the dot).")}</p>
             <p class="small muted">${this.l("Linux Ubuntu atau Debian (bukan Windows)? Jalankan baris <code>sudo apt</code> di atas juga: tanpa <code>python3-venv</code>, perintah <code>python3 -m venv</code> di Modul 0.2 gagal. Error saat <code>wsl --install</code>? Biasanya virtualisasi mati di BIOS; cari pesan error-nya, atau pakai pilihan B.", "Ubuntu or Debian Linux (not Windows)? Run the <code>sudo apt</code> line above too: without <code>python3-venv</code>, the <code>python3 -m venv</code> command in Module 0.2 fails. An error during <code>wsl --install</code>? Usually virtualisation is switched off in the BIOS; search for the error message, or use option B.")}</p>
           </details>
+          <details class="callout neutral fold-callout" id="linux-setup">
+            <summary class="label">${this.l("Pakai Linux (Ubuntu, Mint, Debian)? Siapkan alatnya (sekitar 5 menit, sekali saja)", "On Linux (Ubuntu, Mint, Debian)? Set up the tools (about 5 minutes, once)")}</summary>
+            <ol class="small" style="margin-left:18px">
+              <li>${this.l("Buka <strong>Terminal</strong>: tekan <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>, atau buka menu aplikasi dan ketik Terminal.", "Open <strong>Terminal</strong>: press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>, or open the applications menu and type Terminal.")}</li>
+              <li>${this.l("Tempel baris ini (di terminal, menempel memakai <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>), lalu Enter. Ia meminta password login Anda; saat diketik, layar tidak menampilkan apa pun, itu normal.", "Paste this line (in a terminal, paste is <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>) and press Enter. It asks for your login password; nothing appears while you type it, that is normal.")}</li>
+            </ol>
+            ${cmd("sudo apt update && sudo apt install -y python3-venv python3-pip git")}
+            <p class="small">${this.l("Periksa dengan <code>python3 --version</code> (harus 3.10 atau lebih baru) dan <code>git --version</code>. Fedora memakai <code>sudo dnf install python3-pip git</code>.", "Check with <code>python3 --version</code> (3.10 or newer) and <code>git --version</code>. Fedora uses <code>sudo dnf install python3-pip git</code>.")}</p>
+          </details>
           <details class="callout neutral fold-callout" id="mac-setup">
             <summary class="label">${this.l("Pakai macOS? Siapkan Python (sekitar 15 menit, sekali saja)", "On macOS? Set up Python (about 15 minutes, once)")}</summary>
             <ol class="small" style="margin-left:18px">
@@ -2205,27 +2268,72 @@ class DataForgeApp {
           </details>
         `)}
 
-        ${step(2, this.l("Ambil file kursus (pilihan A)", "Get the course files (option A)"), `
-          <p>${this.l("File lab ada di folder <code>labs/</code> pada repositori kursus. Cara tercepat:", "The lab files live in the <code>labs/</code> folder of the course repository. Fastest way:")}</p>
-          <p><strong>${this.l("Dengan Git", "With Git")}</strong> (${this.l("jika sudah terpasang; Modul 0.2 mengajarkannya", "if installed; Module 0.2 teaches it")}):</p>
-          ${cmd(`git clone ${repo}.git\ncd DECourse`)}
-          <p><strong>${this.l("Tanpa Git", "Without Git")}</strong>: <a href="${repo}/archive/refs/heads/main.zip" target="_blank" rel="noopener">${this.l("unduh ZIP", "download the ZIP")}</a>, ${this.l("ekstrak, lalu buka terminal di folder hasil ekstrak.", "extract it, then open a terminal in the extracted folder.")}</p>
-          <p class="small muted">${this.l("Semua perintah di kursus ini dijalankan dari folder ini (disebut \"akar repositori\").", "Every command in this course is run from this folder (called the \"repository root\").")}</p>`)}
+        ${step(2, this.l("Buka terminal dan pilih folder kerja", "Open a terminal and choose a work folder"), `
+          <p>${this.l("<strong>Terminal</strong> adalah jendela tempat Anda mengetik perintah untuk komputer. Bukanya seperti di langkah 1 (Linux: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>; macOS: aplikasi Terminal; Windows: jendela Ubuntu). Isinya kira-kira seperti ini:", "The <strong>terminal</strong> is the window where you type commands for the computer. Open it as in step 1 (Linux: <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>; macOS: the Terminal app; Windows: the Ubuntu window). It looks roughly like this:")}</p>
+          <pre class="start-screen"><code>nama@laptop:~$ <span class="start-cursor">▌</span></code></pre>
+          <p>${this.l("Bagian sampai <code>$</code> disebut <strong>prompt</strong>: komputer menunggu perintah. <code>~</code> artinya Anda sedang di folder rumah (home) Anda. Ketik perintah <em>setelah</em> <code>$</code>, tekan Enter, dan hasilnya muncul di bawahnya. Di kursus ini, jangan ikut mengetik <code>$</code>-nya.", "Everything up to <code>$</code> is the <strong>prompt</strong>: the computer is waiting for a command. <code>~</code> means you are in your home folder. Type a command <em>after</em> the <code>$</code>, press Enter, and the result appears below it. Never type the <code>$</code> itself.")}</p>
+          <ul class="small" style="margin-left:18px">
+            <li>${this.l("<strong>Menempel:</strong> di terminal Linux <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (bukan <kbd>Ctrl</kbd>+<kbd>V</kbd>), di macOS <kbd>Cmd</kbd>+<kbd>V</kbd>, di jendela Ubuntu Windows klik kanan.", "<strong>Pasting:</strong> in a Linux terminal <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (not <kbd>Ctrl</kbd>+<kbd>V</kbd>), on macOS <kbd>Cmd</kbd>+<kbd>V</kbd>, in the Windows Ubuntu window right-click.")}</li>
+            <li>${this.l("<kbd>Ctrl</kbd>+<kbd>C</kbd> di terminal <strong>tidak menyalin</strong>: ia menghentikan program yang sedang berjalan. Berguna kalau sesuatu macet.", "<kbd>Ctrl</kbd>+<kbd>C</kbd> in a terminal <strong>does not copy</strong>: it stops the program that is running. Handy when something hangs.")}</li>
+          </ul>
+          <p>${this.l("Sekarang buat satu folder untuk semua proyek Anda dan masuk ke sana. Jalankan baris demi baris:", "Now make one folder for all your projects and go into it. Run these one line at a time:")}</p>
+          ${cmd("cd ~\nmkdir -p projects\ncd projects\npwd")}
+          <p class="small">${this.l("<code>cd</code> = pindah folder, <code>mkdir</code> = buat folder, <code>pwd</code> = tampilkan saya sedang di mana. <strong>Seharusnya Anda melihat</strong> baris seperti <code>/home/nama/projects</code> (di macOS <code>/Users/nama/projects</code>), dan prompt berubah menjadi <code>~/projects$</code>.", "<code>cd</code> = change folder, <code>mkdir</code> = make a folder, <code>pwd</code> = show where I am. <strong>You should see</strong> a line like <code>/home/name/projects</code> (on macOS <code>/Users/name/projects</code>), and the prompt changes to <code>~/projects$</code>.")}</p>`)}
 
-        ${step(3, this.l("Cek bahwa semuanya berjalan", "Check that everything works"), `
+        ${step(3, this.l("Ambil file kursus", "Get the course files"), `
+          <p>${this.l("Di terminal yang sama, masih di folder <code>~/projects</code>, jalankan:", "In the same terminal, still in the <code>~/projects</code> folder, run:")}</p>
+          ${cmd(`git clone ${repo}.git\ncd DECourse\nls`)}
+          <p class="small">${this.l("<code>git clone</code> mengunduh seluruh kursus ke folder baru bernama <code>DECourse</code> di dalam folder tempat Anda berada. <strong>Seharusnya Anda melihat</strong> <code>Cloning into 'DECourse'...</code>, lalu <code>ls</code> menampilkan antara lain <code>README.md</code>, <code>app</code>, <code>curriculum</code>, <code>labs</code>, dan <code>scripts</code>. Prompt Anda sekarang berakhir dengan <code>~/projects/DECourse$</code>.", "<code>git clone</code> downloads the whole course into a new folder called <code>DECourse</code> inside the folder you are in. <strong>You should see</strong> <code>Cloning into 'DECourse'...</code>, then <code>ls</code> lists, among others, <code>README.md</code>, <code>app</code>, <code>curriculum</code>, <code>labs</code> and <code>scripts</code>. Your prompt now ends with <code>~/projects/DECourse$</code>.")}</p>
+          <p class="small">${this.l("<strong>Clone hanya sekali.</strong> Setiap kali membuka terminal baru nanti, masuk dulu ke folder kursus dengan <code>cd ~/projects/DECourse</code>. Semua perintah di kursus ini (<code>python3 ...</code>, <code>pytest ...</code>) dijalankan dari folder ini, yang disebut <em>akar repositori</em>.", "<strong>Clone only once.</strong> Every time you open a new terminal later, first go to the course folder with <code>cd ~/projects/DECourse</code>. Every command in this course (<code>python3 ...</code>, <code>pytest ...</code>) is run from this folder, called the <em>repository root</em>.")}</p>
+          <p class="small muted">${this.l("<code>git: command not found</code>? Kembali ke langkah 1 untuk sistem Anda. Tanpa Git: <a href=\"" + repo + "/archive/refs/heads/main.zip\" target=\"_blank\" rel=\"noopener\">unduh ZIP</a>, ekstrak ke folder <code>projects</code>, lalu <code>cd</code> ke folder hasil ekstrak.", "<code>git: command not found</code>? Go back to step 1 for your system. Without Git: <a href=\"" + repo + "/archive/refs/heads/main.zip\" target=\"_blank\" rel=\"noopener\">download the ZIP</a>, extract it into the <code>projects</code> folder, then <code>cd</code> into the extracted folder.")}</p>`)}
+
+        ${step(4, this.l("Tiga tempat Anda mengetik, dan cara membedakannya", "Three places you type, and how to tell them apart"), `
+          <p>${this.l("Pemula paling sering bingung di sini: perintah terminal, kode Python, dan file Python diketik di tempat yang berbeda. Lihat <strong>prompt</strong>-nya untuk tahu Anda sedang di mana.", "This is where beginners get confused most: terminal commands, Python code and Python files are typed in different places. Look at the <strong>prompt</strong> to know where you are.")}</p>
+          <div class="grid cols-3 start-places">
+            <div class="well stack-sm">
+              <strong>1. ${this.l("Terminal", "The terminal")} <code>$</code></strong>
+              <p class="small">${this.l("Untuk <strong>perintah ke komputer</strong>: <code>cd</code>, <code>ls</code>, <code>git clone</code>, <code>python3 file.py</code>, <code>pytest</code>. Bukan kode Python.", "For <strong>commands to the computer</strong>: <code>cd</code>, <code>ls</code>, <code>git clone</code>, <code>python3 file.py</code>, <code>pytest</code>. Not Python code.")}</p>
+              <pre class="start-screen"><code>~/projects/DECourse$ ls</code></pre>
+            </div>
+            <div class="well stack-sm">
+              <strong>2. ${this.l("Python interaktif", "Interactive Python")} <code>&gt;&gt;&gt;</code></strong>
+              <p class="small">${this.l("Untuk <strong>mencoba satu-dua baris Python</strong>, seperti contoh di materi. Ketik <code>python3</code> di terminal; prompt berubah menjadi <code>&gt;&gt;&gt;</code>. Keluar dengan <code>exit()</code> atau <kbd>Ctrl</kbd>+<kbd>D</kbd>.", "To <strong>try a line or two of Python</strong>, like the examples in the lessons. Type <code>python3</code> in the terminal; the prompt becomes <code>&gt;&gt;&gt;</code>. Leave with <code>exit()</code> or <kbd>Ctrl</kbd>+<kbd>D</kbd>.")}</p>
+              <pre class="start-screen"><code>&gt;&gt;&gt; total = 150000
+&gt;&gt;&gt; print(total + 1000)
+151000</code></pre>
+            </div>
+            <div class="well stack-sm">
+              <strong>3. ${this.l("File .py di editor", "A .py file in an editor")}</strong>
+              <p class="small">${this.l("Untuk <strong>program yang disimpan</strong>, termasuk semua lab. Tulis di editor, simpan (<kbd>Ctrl</kbd>+<kbd>S</kbd>), lalu jalankan dari terminal dengan <code>python3 namafile.py</code>.", "For <strong>programs you keep</strong>, including every lab. Write it in an editor, save (<kbd>Ctrl</kbd>+<kbd>S</kbd>), then run it from the terminal with <code>python3 filename.py</code>.")}</p>
+              <pre class="start-screen"><code>~/projects/DECourse$ python3 hello.py
+Hello from KopiKu</code></pre>
+            </div>
+          </div>
+          <p class="small"><strong>${this.l("Tanda Anda salah tempat", "Signs you are in the wrong place")}:</strong></p>
+          <ul class="small" style="margin-left:18px">
+            <li>${this.l("Mengetik kode Python di <code>$</code>, misalnya <code>print(\"hi\")</code>, memberi <code>bash: syntax error near unexpected token</code>. Ketik <code>python3</code> dulu, atau taruh kodenya di file.", "Typing Python at the <code>$</code>, for example <code>print(\"hi\")</code>, gives <code>bash: syntax error near unexpected token</code>. Type <code>python3</code> first, or put the code in a file.")}</li>
+            <li>${this.l("Mengetik perintah terminal di <code>&gt;&gt;&gt;</code>, misalnya <code>cd labs</code>, memberi <code>SyntaxError: invalid syntax</code>. Keluar dulu dengan <code>exit()</code>.", "Typing a terminal command at <code>&gt;&gt;&gt;</code>, for example <code>cd labs</code>, gives <code>SyntaxError: invalid syntax</code>. Leave first with <code>exit()</code>.")}</li>
+            <li>${this.l("<code>python3 hello.py</code> memberi <code>can't open file ... No such file or directory</code>: terminal Anda tidak berada di folder file itu. Cek dengan <code>pwd</code> dan <code>ls</code>, lalu <code>cd</code> ke folder yang benar.", "<code>python3 hello.py</code> gives <code>can't open file ... No such file or directory</code>: your terminal is not in that file's folder. Check with <code>pwd</code> and <code>ls</code>, then <code>cd</code> to the right folder.")}</li>
+          </ul>
+          <p><strong>${this.l("Editor: VS Code (gratis, disarankan)", "Editor: VS Code (free, recommended)")}.</strong> ${this.l("Pasang dari <a href=\"https://code.visualstudio.com\" target=\"_blank\" rel=\"noopener\">code.visualstudio.com</a>. Lalu <strong>File → Open Folder</strong> dan pilih <code>projects/DECourse</code>. Daftar file kursus muncul di kiri. Buka <strong>Terminal → New Terminal</strong>: terminal muncul di bawah editor dan sudah berada di folder kursus. Jadi editor (tempat 3) dan terminal (tempat 1 dan 2) ada di satu jendela. Editor teks lain juga boleh.", "Install it from <a href=\"https://code.visualstudio.com\" target=\"_blank\" rel=\"noopener\">code.visualstudio.com</a>. Then <strong>File → Open Folder</strong> and choose <code>projects/DECourse</code>. The course files appear on the left. Open <strong>Terminal → New Terminal</strong>: a terminal appears under the editor, already in the course folder. So the editor (place 3) and the terminal (places 1 and 2) are in one window. Any other text editor works too.")}</p>
+          <div class="callout"><p class="small"><strong>🛠 ${this.l("Latihan 5 menit", "5-minute practice")}:</strong> ${this.l("(a) Di terminal, ketik <code>python3</code>, lalu di <code>&gt;&gt;&gt;</code> ketik <code>1 + 2</code> dan Enter; seharusnya muncul <code>3</code>. Keluar dengan <code>exit()</code>. (b) Di VS Code buat file baru <code>hello.py</code> di folder <code>DECourse</code> berisi dua baris <code>name = \"KopiKu\"</code> dan <code>print(\"Hello from\", name)</code>, lalu simpan. (c) Di terminal, di folder <code>DECourse</code>, jalankan <code>python3 hello.py</code>; seharusnya muncul <code>Hello from KopiKu</code>. Sekarang Anda tahu ketiga tempatnya.", "(a) In the terminal, type <code>python3</code>, then at <code>&gt;&gt;&gt;</code> type <code>1 + 2</code> and Enter; you should see <code>3</code>. Leave with <code>exit()</code>. (b) In VS Code make a new file <code>hello.py</code> in the <code>DECourse</code> folder with the two lines <code>name = \"KopiKu\"</code> and <code>print(\"Hello from\", name)</code>, and save it. (c) In the terminal, in the <code>DECourse</code> folder, run <code>python3 hello.py</code>; you should see <code>Hello from KopiKu</code>. Now you know all three places.")}</p></div>`)}
+
+        ${step(5, this.l("Cek bahwa semuanya berjalan", "Check that everything works"), `
+          <p class="small">${this.l("Di terminal, di folder <code>DECourse</code> (prompt berakhir dengan <code>DECourse$</code>):", "In the terminal, in the <code>DECourse</code> folder (the prompt ends with <code>DECourse$</code>):")}</p>
           ${cmd(`python3 --version\npython3 labs/shared/shopgen.py --out data\nls data`)}
           <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap: lab Python bisa berjalan di sini.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready: the Python labs can run here.")}</p>
-          <p class="small muted">${this.l("Pesan <code>command not found</code>? Di Linux/macOS coba <code>python</code> sebagai ganti <code>python3</code>. Di Windows pastikan Anda berada di terminal Ubuntu (WSL2), bukan PowerShell.", "<code>command not found</code>? On Linux/macOS try <code>python</code> instead of <code>python3</code>. On Windows make sure you are in the Ubuntu (WSL2) terminal, not PowerShell.")}</p>`)}
+          <p class="small muted">${this.l("Pesan <code>command not found</code>? Di Linux/macOS coba <code>python</code> sebagai ganti <code>python3</code>. Di Windows pastikan Anda berada di terminal Ubuntu (WSL2), bukan PowerShell. <code>can't open file 'labs/shared/shopgen.py'</code>? Anda belum di folder <code>DECourse</code>: jalankan <code>cd ~/projects/DECourse</code>.", "<code>command not found</code>? On Linux/macOS try <code>python</code> instead of <code>python3</code>. On Windows make sure you are in the Ubuntu (WSL2) terminal, not PowerShell. <code>can't open file 'labs/shared/shopgen.py'</code>? You are not in the <code>DECourse</code> folder yet: run <code>cd ~/projects/DECourse</code>.")}</p>`)}
 
-        ${step(4, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
+        ${step(6, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
           ${cmd("python3 server.py")}
           <p class="small muted">${this.l("Lalu buka http://localhost:3000. Progres Anda disimpan di browser; gunakan Ekspor progres di bawah halaman untuk membuat cadangan.", "Then open http://localhost:3000. Your progress is stored in the browser; use Export progress in the page footer to make a backup.")}</p>`)}
 
-        ${step(5, this.l("Mulai belajar", "Start learning"), `
+        ${step(7, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
           <ul style="margin-left:18px">
             <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 70 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 70 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
+            <li>${this.l("<strong>Setiap sesi belajar dimulai sama:</strong> buka terminal (atau VS Code dengan folder <code>DECourse</code>), lalu <code>cd ~/projects/DECourse</code>. Mulai Modul 0.2 Anda punya venv kursus di folder itu; aktifkan dengan <code>source venv/bin/activate</code> sampai prompt diawali <code>(venv)</code>. Setiap Try it punya tautan <em>📍 Di mana saya mengerjakan ini?</em>, dan tab Lab menyebutkan tempat menjalankan langkahnya.", "<strong>Every study session starts the same way:</strong> open the terminal (or VS Code on the <code>DECourse</code> folder), then <code>cd ~/projects/DECourse</code>. From Module 0.2 on you have a course venv in that folder; activate it with <code>source venv/bin/activate</code> until the prompt starts with <code>(venv)</code>. Every Try it has a <em>📍 Where do I do this?</em> link, and each Lab tab says where to run its steps.")}</li>
             <li>${this.l("Materi bertanda <strong>Opsional</strong> boleh dilewati pada putaran pertama: isinya persiapan kerja, wawancara, atau alat vendor tertentu, dan tidak ada lab yang membutuhkannya. Tombol Lanjutkan otomatis melewatinya; kembalilah sebelum mencari kerja.", "Lessons marked <strong>Optional</strong> can be skipped on your first pass: they cover job preparation, interviews or one vendor's tools, and no lab needs them. The Continue button skips them for you; come back to them before you look for a job.")}</li>
             <li>${this.l("Apa yang dibutuhkan kapan: Level 0 hanya butuh Python dan terminal. Docker opsional di Modul 1.1 dan 2.2, dan diperlukan di 3.2, 3.4, dan 3.5 (serta lab 1.3 jika Python Anda 3.14). Java 17 diperlukan mulai Modul 3.1 untuk Spark, Terraform di 3.4. Baris Prasyarat di setiap modul menyebutkannya persis.", "What you need when: Level 0 needs only Python and a terminal. Docker is optional in Modules 1.1 and 2.2, and needed in 3.2, 3.4 and 3.5 (and for lab 1.3 if your Python is 3.14). Java 17 is needed from Module 3.1 for Spark, Terraform in 3.4. Each module's Prerequisites line says exactly what it needs.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab, bersama penjelasan singkat (minimal 30 kata) dengan kata-kata Anda sendiri tentang bagian tersulit. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page, together with a short explanation (at least 30 words) in your own words of the hardest part. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
@@ -2912,6 +3020,16 @@ class DataForgeApp {
         <div class="callout"><p><strong>⚖️ ${this.l("Aturan main: kerjakan sendiri, di komputer Anda.", "The rule: do it yourself, on your own computer.")}</strong> ${this.l("Tulis kodenya di komputer Anda dan jalankan tesnya di terminal. Solusi referensi di halaman ini tetap terkunci sampai Anda menempel kode bukti DF1 yang dicetak terminal Anda.", "Write the code on your own computer and run the tests in your terminal. The reference solution on this page stays locked until you paste the DF1 proof code your terminal prints.")}</p></div>
         ${this.browserLabCard(mod.id)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
+        ${(() => {
+          // where every lab command is typed; from Module 0.2 on, with the course venv active
+          const mm = mod.id.match(/mod-(\d)-(\d)/);
+          const venv = mm && Number(mm[1]) * 10 + Number(mm[2]) >= 2;
+          return `<div class="callout neutral"><p class="small"><strong>📍 ${this.l("Di mana menjalankan langkah-langkah ini", "Where to run these steps")}:</strong> ${this.l(
+            `di terminal, dari folder kursus${venv ? " dengan venv aktif" : ""}, kecuali sebuah langkah menyuruh <code>cd</code> ke tempat lain. File kode dibuka dan diedit di editor (VS Code), lalu dijalankan dari terminal.`,
+            `in the terminal, from the course folder${venv ? " with the venv active" : ""}, unless a step says to <code>cd</code> somewhere else. Code files are opened and edited in your editor (VS Code), then run from the terminal.`)}</p>
+            <pre class="start-screen"><code>cd ~/projects/DECourse${venv ? "\nsource venv/bin/activate      # " + this.l("prompt diawali (venv)", "the prompt starts with (venv)") : ""}</code></pre>
+            <p class="small muted">${this.l("Terminal baru = ulangi dua baris itu (dan setiap <code>export</code> dari langkah lab). Bingung terminal, <code>&gt;&gt;&gt;</code> dan file?", "A new terminal = repeat those lines (and any <code>export</code> from the lab steps). Confused by the terminal, <code>&gt;&gt;&gt;</code> and files?")} <a href="#/start">${this.l("Mulai di sini, langkah 4", "Start here, step 4")}</a>.</p></div>`;
+        })()}
         ${this.md(lab.steps, { modId: mod.id })}
         ${lab.files.length ? `<h3>${this.l("File lab", "Lab files")}</h3>
           <p class="muted small">${this.l("File starter dan test dapat langsung Anda pelajari. File solusi referensi baru terbuka setelah Anda memverifikasi bukti lab lokal di bawah.", "Starter and test files are open for inspection. Reference solution files unlock only after you verify your local lab proof below.")}</p>

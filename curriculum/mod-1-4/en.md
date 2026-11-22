@@ -300,7 +300,7 @@ Build a data warehouse for KopiKu in SQL: a date dimension, a product dimension 
 ```bash
 python3 labs/shared/shopgen.py --out data
 python3 labs/mod-1-4/stage.py data warehouse.db
-sqlite3 warehouse.db ".tables"        # needs the sqlite3 tool; or skip: the tests do this for you
+python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'table'"   # Python 3.12+; or skip: the tests do this for you
 ```
 
    `stage.py` cleans the CSVs into five `stg_` tables. Read its docstring: it lists every column.

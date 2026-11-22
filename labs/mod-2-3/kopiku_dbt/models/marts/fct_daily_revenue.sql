@@ -5,5 +5,5 @@
 --   max_loaded_at = the latest loaded_at among the day's lines
 -- On an incremental run, recompute every date that had ANY order loaded after the table's max(max_loaded_at):
 -- orders change after they were first loaded (a refund arrives later), so 'only new dates' would be wrong.
--- Careful: put every ref() OUTSIDE the {% if is_incremental() %} block, or dbt cannot build its graph.
+-- Careful: put every ref() OUTSIDE the is_incremental() if-block, or dbt cannot build its graph.
 select 1 as todo

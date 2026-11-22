@@ -285,6 +285,7 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 7. **Sekarang kerjakan Lab 0.1 yang sesungguhnya.** Jika Anda baru mencobanya di pratinjau browser, kembali ke Modul 0.1 dan kerjakan di komputer Anda sendiri dengan apa yang baru Anda bangun: aktifkan venv, pasang pytest, lalu jalankan tes dari terminal Anda sendiri.
 
 ```bash
+cd ~/projects/DECourse
 python3 -m venv venv && source venv/bin/activate
 pip install pytest
 pytest labs/mod-0-1/test_lab.py -v
@@ -293,6 +294,8 @@ python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
 
 Dua perintah terakhir mencetak kode bukti. Tempel masing-masing ke kotak **Bukti** di halaman lab Modul 0.1 dan Modul 0.2.
+
+   Venv kedua ini milik **folder kursus** (`~/projects/DECourse`, atau tempat Anda meng-clone-nya di Mulai di sini, langkah 3), bukan milik `~/kopiku`: satu venv per proyek adalah kebiasaan yang normal. Inilah venv yang Anda pakai untuk semua modul berikutnya. Buat sekali saja; di awal setiap sesi belajar jalankan `cd ~/projects/DECourse` dan `source venv/bin/activate`, lalu pastikan prompt diawali `(venv)`.
 
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Kerangka skrip Anda: isi logika penghitungannya :: starter

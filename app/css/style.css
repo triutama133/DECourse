@@ -1256,3 +1256,17 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
   .toast { transition: none; }
   .diagram .anim-pulse { animation: none; }
 }
+
+/* Start here: what a terminal looks like, keys, and the three places you type */
+kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 4px; background: var(--card); color: var(--text); white-space: nowrap; }
+.start-screen { background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-border); border-radius: var(--radius-sm, 6px); padding: 8px 12px; font-size: 12.5px; line-height: 1.5; overflow-x: auto; margin: 0; }
+.start-screen code { background: none; color: inherit; padding: 0; }
+.start-cursor { animation: start-blink 1s steps(1) infinite; }
+@keyframes start-blink { 50% { opacity: 0; } }
+.start-places > .well { align-content: start; }
+@media (prefers-reduced-motion: reduce) { .start-cursor { animation: none; } }
+/* Try it: "Where do I do this?" (app.js tryItWhere) */
+.tryit-where { border: 1px dashed var(--border-strong); border-radius: var(--radius-sm, 6px); padding: 6px 10px; background: var(--card); }
+.tryit-where > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.tryit-where > div { margin-top: 6px; display: grid; gap: 6px; }
+.tryit-where ol, .tryit-where ul { margin-left: 18px; display: grid; gap: 4px; }

@@ -350,7 +350,7 @@ dbt build \
 Anda dibekali database DuckDB berisi tabel-tabel mentah KopiKu (append-only, tidak rapi, dengan duplikasi data) dan proyek dbt dengan konfigurasi sumber yang sudah disiapkan serta kerangka model awal. Tugas Anda adalah melengkapi lapisan staging, data marts, model inkremental, rangkaian tes data, dan dbt snapshot. Unit test lab akan menjalankan perintah `dbt build`, lalu mensimulasikan **muatan data kedua (second load)** yang membawa pesanan baru, pembatalan pesanan masa lalu, dan mutasi pelanggan, kemudian menjalankan build kembali untuk memverifikasi bahwa tabel inkremental Anda menghasilkan angka yang identik dengan kalkulasi ulang penuh.
 
 ### @steps
-1. Pasang dependensi yang diperlukan dan muat dataset mentah awal:
+1. Di terminal, masuk ke folder kursus dan aktifkan venv Anda (`cd ~/projects/DECourse`, lalu `source venv/bin/activate`; prompt diawali `(venv)`). Pasang dependensi yang diperlukan dan muat dataset mentah awal:
 
 ```bash
 python -m pip install -r labs/mod-2-3/requirements.txt
@@ -359,7 +359,14 @@ export KOPIKU_DB=$PWD/kopiku.duckdb
 python3 labs/mod-2-3/load_raw.py data $KOPIKU_DB
 ```
 
-2. Eksplorasi tabel-tabel mentah menggunakan CLI DuckDB (`duckdb kopiku.duckdb` atau Python). Temukan anomali yang ada: baris duplikat, dua format timestamp berbeda, nominal berawalan `Rp`, dan status dengan huruf besar-kecil tidak seragam. Jalankan `select count(*), count(distinct order_id) from raw.orders`.
+   `export` hanya berlaku di jendela terminal ini. **Di setiap terminal baru**, kembali ke folder kursus, aktifkan venv, dan jalankan lagi baris `export` itu sebelum perintah `dbt` apa pun. Tanpanya dbt tidak langsung mengeluh: ia diam-diam membuat `kopiku.duckdb` kosong di dalam `kopiku_dbt/`, dan begitu sebuah model membaca data mentah, ia gagal dengan `Catalog Error: Table with name "raw.orders" does not exist because schema "raw" does not exist.`
+2. Eksplorasi tabel-tabel mentah dengan DuckDB dari Python (`pip install duckdb` memasang library Python, bukan perintah `duckdb`, jadi mengetik `duckdb` di terminal menghasilkan `command not found`). Dari folder kursus:
+
+```bash
+python3 -c "import duckdb; duckdb.connect('kopiku.duckdb').sql('select count(*), count(distinct order_id) from raw.orders').show()"
+```
+
+   Dengan data bawaan Anda melihat `3634` baris tetapi hanya `3599` order yang berbeda. Lanjutkan eksplorasi dengan cara yang sama, atau di file dalam folder `~/practice/`. Temukan anomali yang ada: baris duplikat, dua format timestamp berbeda, nominal berawalan `Rp`, dan status dengan huruf besar-kecil tidak seragam.
 3. Buka folder kerja `labs/mod-2-3/kopiku_dbt/`. Setiap kerangka file model telah dilengkapi komentar spesifikasi teknis. Bangun **lapisan staging terlebih dahulu** (`stg_customers`, `stg_products`, `stg_orders`, `stg_order_items`) dan uji secara bertahap:
 
 ```bash

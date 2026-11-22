@@ -285,6 +285,7 @@ python3 <course-repo>/labs/mod-0-2/check.py ~/kopiku
 7. **Now do Lab 0.1 for real.** If you only tried it in the browser preview, go back to Module 0.1 and do it on your own computer, using what you just built: activate a venv, install pytest, then run the tests from your own terminal.
 
 ```bash
+cd ~/projects/DECourse
 python3 -m venv venv && source venv/bin/activate
 pip install pytest
 pytest labs/mod-0-1/test_lab.py -v
@@ -293,6 +294,8 @@ python3 scripts/prove.py mod-0-2 ~/kopiku
 ```
 
 The last two commands print proof codes. Paste each into the **Proof** box on the lab page of Module 0.1 and Module 0.2.
+
+   This second venv belongs to the **course folder** (`~/projects/DECourse`, or wherever you cloned it in Start here, step 3), not to `~/kopiku`: one venv per project is the normal habit. It is the one you use for every later module. Create it once; at the start of each study session run `cd ~/projects/DECourse` and `source venv/bin/activate`, and check that the prompt starts with `(venv)`.
 
 ### @files
 - labs/mod-0-2/starter/summarize.py :: Starter for your script: fill in the counting logic :: starter

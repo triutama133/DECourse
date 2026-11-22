@@ -20,6 +20,7 @@ None. You do not need to have written code before, and it does not matter if ear
 > **How to Work on Labs (Beginner Guide):**
 > - **Start in the browser:** each lesson ends with a **💡 Practice Pause**. It sends you to the **Browser preview** on the Lab tab: write the function there and click **Run tests**. Nothing needs to be installed. Do not read the whole chapter first; go back and forth between a lesson and its pause.
 > - **Later, on your own computer (after Module 0.2):** the same code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
+> - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
 
 ## @part The basics: values, collections, decisions and loops
 
@@ -33,6 +34,8 @@ total = 150000
 status = "paid"
 print(total)        # shows 150000
 ```
+
+> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type the three lines at the `>>>` prompt, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
 
 Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result. That is why `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
 

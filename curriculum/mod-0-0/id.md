@@ -20,6 +20,7 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 > **Cara Mengerjakan Lab (Panduan Pemula):**
 > - **Mulai di browser:** setiap pelajaran diakhiri **💡 Jeda Praktik**. Jeda itu mengarahkan Anda ke **Pratinjau di browser** pada tab Lab: tulis fungsinya di sana lalu klik **Jalankan tes**. Tidak ada yang perlu diinstal. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
 > - **Nanti, di komputer Anda sendiri (setelah Modul 0.2):** kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
+> - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
 
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
 
@@ -33,6 +34,8 @@ total = 150000
 status = "paid"
 print(total)        # menampilkan 150000
 ```
+
+> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik ketiga baris itu di prompt `>>>`, Enter setelah setiap baris. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan, tidak ada yang tampil kecuali Anda mem-`print`-nya. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file berdampingan.)
 
 Bacalah `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan "sama dengan" dalam matematika; ia adalah *penugasan* (assignment): hitung sisi kanan dulu, lalu tempelkan nama di kiri ke hasilnya. Karena itu `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama ke nilai baru) tetapi tidak masuk akal dalam matematika.
 

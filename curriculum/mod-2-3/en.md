@@ -350,7 +350,7 @@ dbt build \
 You get a DuckDB database of raw KopiKu tables (append-only, dirty, with duplicates) and a dbt project with sources configured and every model stubbed. Fill in the staging layer, the marts, the incremental model, the tests and a snapshot. The tests run `dbt build`, then simulate a **second load** (new orders, orders that changed status, customers who moved) and run it again, comparing your incremental table with a full recalculation.
 
 ### @steps
-1. Install and load the raw data:
+1. In the terminal, go to the course folder and activate your venv (`cd ~/projects/DECourse`, then `source venv/bin/activate`; the prompt starts with `(venv)`). Install and load the raw data:
 
 ```bash
 python -m pip install -r labs/mod-2-3/requirements.txt
@@ -359,7 +359,14 @@ export KOPIKU_DB=$PWD/kopiku.duckdb
 python3 labs/mod-2-3/load_raw.py data $KOPIKU_DB
 ```
 
-2. Explore the raw tables with DuckDB (`duckdb kopiku.duckdb` or Python). Find the problems: duplicate rows, two timestamp formats, `Rp` totals, mixed-case statuses. Check `select count(*), count(distinct order_id) from raw.orders`.
+   `export` lasts only in this terminal window. **In every new terminal**, go back to the course folder, activate the venv and run the `export` line again before any `dbt` command. Without it dbt does not complain at first: it quietly creates an empty `kopiku.duckdb` inside `kopiku_dbt/`, and as soon as a model reads the raw data it fails with `Catalog Error: Table with name "raw.orders" does not exist because schema "raw" does not exist.`
+2. Explore the raw tables with DuckDB from Python (`pip install duckdb` gives you the Python library, not a `duckdb` command, so typing `duckdb` in the terminal says `command not found`). From the course folder:
+
+```bash
+python3 -c "import duckdb; duckdb.connect('kopiku.duckdb').sql('select count(*), count(distinct order_id) from raw.orders').show()"
+```
+
+   With the default data you see `3634` rows but only `3599` distinct orders. Explore further the same way, or in a file in `~/practice/`. Find the problems: duplicate rows, two timestamp formats, `Rp` totals, mixed-case statuses.
 3. Work inside `labs/mod-2-3/kopiku_dbt/`. Each stub model has a comment that is its specification. Build **staging first** (`stg_customers`, `stg_products`, `stg_orders`, `stg_order_items`) and check as you go:
 
 ```bash
