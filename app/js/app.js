@@ -446,7 +446,7 @@ class DataForgeApp {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       let m;
-      if (/^:::trace\s+/.test(line)) {
+      if (/^:::(trace|sqlsteps)\s+/.test(line)) {
         // ":::trace Title" with @code: an animation, the program run line by line (see drill-parse.js)
         const blk = [line];
         i++;
@@ -1717,12 +1717,14 @@ class DataForgeApp {
     this.warmPython();
     const st = this.drillState(key);
     if (d.kind === "ask") return this.renderAsk(d, key, st);
+    if (d.lang === "sql") return this.renderSqlDrill(d, key, st);
     const code = typeof this.drillCode[key] === "string" ? this.drillCode[key] : d.starter;
     const rows = Math.min(16, Math.max(4, code.split("\n").length + 1));
     const badge = st && st.passed ? `<span class="chip chip-blue">✓ ${this.l("Benar", "Correct")}</span>` : st && st.revealed ? `<span class="chip">${this.l("Jawaban dilihat", "Solution seen")}</span>` : "";
     return `<div class="drill ${st && st.passed ? "is-done" : ""}" data-key="${this.esc(key)}">
       <div class="drill-head"><span class="drill-tag">🎯 ${this.l("Latihan", "Drill")}</span> <strong>${this.inline(d.title)}</strong> ${badge}</div>
       <div class="drill-task stack-sm">${this.md(d.task)}</div>
+      ${d.files && Object.keys(d.files).length ? `<details class="sql-tables"><summary>${this.l("Berkas contoh (ada di sebelah kode Anda)", "Sample files (next to your code)")}</summary>${Object.entries(d.files).map(([n, t]) => `<div><strong>${this.esc(n)}</strong><pre class="pad-out">${this.esc(t.trimEnd())}</pre></div>`).join("")}</details>` : ""}
       <textarea class="pad-code drill-code" rows="${rows}" spellcheck="false" aria-label="${this.l("Kode Anda", "Your code")}" oninput="app.drillSave(this)" onkeydown="app.blKey(event, 'drill');if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.drillRun(this)}">${this.esc(code)}</textarea>
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" onclick="app.drillRun(this)">${this.l("Jalankan & periksa", "Run & check")}</button>
@@ -1732,7 +1734,7 @@ class DataForgeApp {
         <span class="small muted">Ctrl+Enter</span>
       </div>
       <div class="drill-extra stack-sm" aria-live="polite"></div>
-      <div class="drill-out stack-sm" role="status" aria-live="polite">${st && st.passed ? `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>` : ""}</div>
+      <div class="drill-out stack-sm" role="status" aria-live="polite">${st && st.passed ? `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>${this.drillLocalBox(d)}` : ""}</div>
     </div>`;
   }
   // Load Python in the background as soon as a lesson with drills or animations is on screen, so the first Run answers quickly.
@@ -1752,6 +1754,7 @@ class DataForgeApp {
   }
   renderTrace(text, ctx) {
     const d = window.DrillParse && window.DrillParse.parse(text);
+    if (d && d.kind === "sqlsteps") return this.renderSqlSteps(d, ctx);
     if (!d || d.kind !== "trace") return "";
     const key = this.traceKey(d, ctx);
     this._traceDefs = this._traceDefs || {};
@@ -1846,6 +1849,160 @@ class DataForgeApp {
     w.postMessage({ type: "trace", id, code: d.code, files: d.files || {} });
   }
 
+  // ---------- SQL drills (sql.js): the learner's RESULT is compared with the model answer's result ----------
+  sqlCtx(dataKey) {
+    const P = window.SQL_PLAYGROUND, ds = P && P.datasets[dataKey];
+    return ds ? { setup: ds.setup, mutation: (P.adversarialMutations || {})[dataKey] || "" } : null;
+  }
+  sqlTable(columns, rows, opts) {
+    opts = opts || {};
+    const cell = (v) => (v === null ? `<span class="sql-null">NULL</span>` : this.esc(String(v)));
+    const more = rows.length > 12 ? `<div class="small muted">${this.l(`Menampilkan 12 dari ${rows.length} baris.`, `Showing 12 of ${rows.length} rows.`)}</div>` : "";
+    return `<div class="table-wrap"><table class="sql-result"><thead><tr>${columns.map((c) => `<th>${this.esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.slice(0, 12).map((r, i) => `<tr class="${(opts.cls && opts.cls[i]) || ""}">${r.map((v) => `<td>${cell(v)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${columns.length}" class="muted">${this.l("(tidak ada baris)", "(no rows)")}</td></tr>`}</tbody></table></div>${more}`;
+  }
+  renderSqlDrill(d, key, st) {
+    this.warmSql();
+    const code = typeof this.drillCode[key] === "string" ? this.drillCode[key] : d.starter;
+    const rows = Math.min(14, Math.max(4, code.split("\n").length + 1));
+    const badge = st && st.passed ? `<span class="chip chip-blue">✓ ${this.l("Benar", "Correct")}</span>` : st && st.revealed ? `<span class="chip">${this.l("Jawaban dilihat", "Solution seen")}</span>` : "";
+    return `<div class="drill drill-sql ${st && st.passed ? "is-done" : ""}" data-key="${this.esc(key)}">
+      <div class="drill-head"><span class="drill-tag">🗃️ ${this.l("Latihan SQL", "SQL drill")}</span> <strong>${this.inline(d.title)}</strong> ${badge}</div>
+      <div class="drill-task stack-sm">${this.md(d.task)}</div>
+      <details class="sql-tables" data-data="${this.esc(d.data)}" ontoggle="app.sqlTablesOpen(this)"><summary>${this.l("Lihat tabel-tabelnya", "See the tables")}</summary><div class="sql-tables-body small muted">${this.l("Memuat…", "Loading…")}</div></details>
+      <textarea class="pad-code drill-code" rows="${rows}" spellcheck="false" aria-label="${this.l("Query SQL Anda", "Your SQL query")}" oninput="app.drillSave(this)" onkeydown="app.blKey(event, 'drill');if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.drillRun(this)}">${this.esc(code)}</textarea>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="app.drillRun(this)">${this.l("Jalankan & periksa", "Run & check")}</button>
+        ${d.hint ? `<button class="btn btn-sm btn-quiet" onclick="app.drillHint(this)">💡 ${this.l("Petunjuk", "Hint")}</button>` : ""}
+        ${d.solution ? `<button class="btn btn-sm btn-quiet" onclick="app.drillSolution(this)">${this.l("Lihat jawaban", "Show the solution")}</button>` : ""}
+        <button class="btn btn-sm btn-quiet" onclick="app.drillReset(this)">${this.l("Ulangi dari awal", "Start over")}</button>
+        <span class="small muted">Ctrl+Enter</span>
+      </div>
+      <div class="drill-extra stack-sm" aria-live="polite"></div>
+      <div class="drill-out stack-sm" role="status" aria-live="polite">${st && st.passed ? `<div class="feedback ok">✓ ${this.l("Benar! Hasil query Anda sama dengan yang diharapkan.", "Correct! Your query gives the expected result.")}</div>${this.drillLocalBox(d)}` : ""}</div>
+    </div>`;
+  }
+  warmSql() { if (window.SQL_PLAYGROUND && !this._sqlWarm) { this._sqlWarm = true; window.SQL_PLAYGROUND.init(); } }
+  sqlTablesOpen(det) {
+    if (det.dataset.loaded || !det.open) return;
+    det.dataset.loaded = "1";
+    const body = det.querySelector(".sql-tables-body");
+    window.SQL_PLAYGROUND.init().then((SQL) => {
+      const ctx = this.sqlCtx(det.dataset.data);
+      if (!ctx) { body.textContent = "?"; return; }
+      const db = window.SqlDrill.fresh(SQL, ctx.setup, "");
+      const names = db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");
+      const out = (names.length ? names[0].values : []).map(([name]) => {
+        const r = window.SqlDrill.exec(db, `SELECT * FROM ${name} LIMIT 5`);
+        const n = db.exec(`SELECT COUNT(*) FROM ${name}`)[0].values[0][0];
+        return `<div><strong>${this.esc(name)}</strong> <span class="muted">(${r.columns.join(", ")}) · ${n} ${this.l("baris", "rows")}</span>${this.sqlTable(r.columns, r.rows)}</div>`;
+      }).join("");
+      db.close();
+      body.className = "sql-tables-body stack-sm";
+      body.innerHTML = out;
+    });
+  }
+  sqlFriendlyError(msg) {
+    let tip = "";
+    if (/no such column/i.test(msg)) tip = this.l(" Periksa ejaan kolom dengan membuka 'Lihat tabel-tabelnya'.", " Check the column's spelling: open 'See the tables'.");
+    else if (/no such table/i.test(msg)) tip = this.l(" Periksa ejaan nama tabel di 'Lihat tabel-tabelnya'.", " Check the table's spelling: open 'See the tables'.");
+    else if (/syntax error/i.test(msg)) tip = this.l(" SQLite berhenti membaca di titik yang disebut. Periksa koma, tanda kutip, kurung, dan ejaan kata kunci tepat sebelum titik itu.", " SQLite stopped reading at the point named. Check commas, quotes, brackets and keyword spelling just before it.");
+    else if (/ambiguous column/i.test(msg)) tip = this.l(" Kolom itu ada di dua tabel: tulis dengan alias tabel, misalnya o.customer_id.", " That column exists in two tables: write it with the table alias, for example o.customer_id.");
+    return `<div class="feedback bad">${this.l("SQL Anda berhenti dengan error:", "Your SQL stopped with an error:")} <code>${this.esc(msg)}</code>${tip}</div>`;
+  }
+  sqlDrillRun(box, key, d) {
+    const ta = box.querySelector(".drill-code"), out = box.querySelector(".drill-out");
+    this.drillCode[key] = ta.value;
+    writeStore("df_drill_code", this.drillCode);
+    const P = window.SQL_PLAYGROUND, ctx = this.sqlCtx(d.data);
+    if (!P || !window.SqlDrill || !ctx) { out.innerHTML = `<div class="feedback bad">${this.l("Mesin SQL tidak tersedia.", "The SQL engine is not available.")}</div>`; return; }
+    if (!ta.value.trim()) { out.innerHTML = `<div class="feedback info">${this.l("Tulis query Anda dulu.", "Write your query first.")}</div>`; return; }
+    out.innerHTML = `<div class="feedback info">${this.l("Memeriksa…", "Checking…")}</div>`;
+    P.init().then((SQL) => {
+      const g = window.SqlDrill.grade(SQL, ctx, d, ta.value);
+      const table = g.result ? `<div><div class="small muted">${this.l("Hasil query Anda:", "Your query's result:")}</div>${this.sqlTable(g.result.columns, g.result.rows)}</div>` : "";
+      if (g.kind === "error") { out.innerHTML = this.sqlFriendlyError(g.error); return; }
+      if (g.ok) {
+        const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
+        this.drillsDone[key] = { passed: new Date().toISOString() };
+        writeStore("df_drills", this.drillsDone);
+        out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar! Hasil query Anda sama dengan yang diharapkan.", "Correct! Your query gives the expected result.")}</div>${table}${this.drillLocalBox(d)}`;
+        if (first) this.drillRefreshNav();
+        return;
+      }
+      const msg = {
+        need: () => this.inline(g.msg),
+        empty: () => this.l("Query Anda berjalan tetapi tidak menghasilkan tabel. Sudah menulis SELECT?", "Your SQL ran but did not make a result table. Did you write a SELECT?"),
+        columns: () => this.l(`Hasil Anda punya ${g.got} kolom, yang diharapkan ${g.expected}. Baca lagi kolom apa yang diminta soal.`, `Your result has ${g.got} columns, but ${g.expected} are expected. Re-read which columns the task asks for.`),
+        names: () => this.l(`Nama kolom harus: ${g.expected.join(", ")}. Punya Anda: ${g.got.join(", ")}. Ganti nama dengan AS.`, `The column names should be: ${g.expected.join(", ")}. Yours: ${g.got.join(", ")}. Rename with AS.`),
+        rows: () => this.l(`Hasil Anda punya ${g.got} baris, yang diharapkan ${g.expected}. Periksa WHERE, JOIN, atau GROUP BY Anda.`, `Your result has ${g.got} rows, but ${g.expected} are expected. Check your WHERE, JOIN or GROUP BY.`),
+        values: () => this.l("Jumlah barisnya cocok, tetapi isinya belum. Bandingkan dengan pertanyaannya: apa yang dihitung atau disaring?", "The number of rows matches, but the values do not. Compare with the question: what is being counted or filtered?"),
+        order: () => this.l("Baris-barisnya benar tetapi urutannya salah. Periksa ORDER BY (dan ASC / DESC).", "The rows are right but in the wrong order. Check ORDER BY (and ASC / DESC)."),
+        "other-data": () => this.l("Query Anda benar untuk data ini, tetapi gagal untuk data yang sedikit berbeda (pelanggan tambahan, nilai NULL, status lain). Kemungkinan Anda menuliskan nilai secara tetap atau melewatkan kasus NULL.", "Your query is right for this data, but not for slightly different data (extra customers, NULL values, other statuses). It probably hard-codes something or misses a NULL case."),
+        "broken-drill": () => this.l("Latihan ini bermasalah. Mohon laporkan.", "This drill has a problem. Please report it."),
+      }[g.kind];
+      out.innerHTML = `<div class="feedback info">${msg ? msg() : this.l("Belum tepat.", "Not quite yet.")}</div>${table}`;
+    });
+  }
+
+  // ---------- "watch it run" for SQL: the same question, one clause at a time ----------
+  renderSqlSteps(d, ctx) {
+    let h = 5381;
+    for (const ch of d.title + d.stages.map((x) => x.sql).join("|")) h = ((h << 5) + h + ch.charCodeAt(0)) | 0;
+    const key = `${ctx && ctx.modId != null ? ctx.modId + ":" + (ctx.lessonIdx || 0) : "loose"}:q${(h >>> 0).toString(36)}`;
+    this._traceDefs = this._traceDefs || {};
+    this._traceDefs[key] = d;
+    this.warmSql();
+    return `<div class="trace sqlsteps" data-key="${this.esc(key)}">${this.sqlStepsInner(key)}</div>`;
+  }
+  sqlStepsInner(key) {
+    const d = this._traceDefs[key], st = (this._sqlSteps || {})[key];
+    const head = `<div class="trace-head"><span class="drill-tag">🎬 ${this.l("Lihat cara kerjanya", "Watch it run")}</span> <strong>${this.inline(d.title)}</strong></div>${d.task ? `<div class="stack-sm">${this.md(d.task)}</div>` : ""}`;
+    if (!st) return `${head}<div class="row"><button class="btn btn-primary" onclick="app.sqlStepsLoad(this)">▶ ${this.l("Tampilkan langkah demi langkah", "Show it step by step")}</button></div>`;
+    if (st.failed) return `${head}<div class="feedback bad">${this.esc(st.failed)}</div>`;
+    const i = st.at, g = st.stages[i], prev = st.stages[i - 1];
+    let rowsHtml = "";
+    if (g.error) rowsHtml = `<div class="feedback bad">${this.esc(g.error)}</div>`;
+    else {
+      const key2 = (r) => JSON.stringify(r);
+      let cls = [], rows = g.rows;
+      if (prev && prev.rows && !prev.error && g.columns.join() === prev.columns.join() && g.rows.length < prev.rows.length) {
+        const keep = new Set(g.rows.map(key2));
+        rows = prev.rows;                                   // a filter: show what was there, with the dropped rows struck through
+        cls = prev.rows.map((r) => (keep.has(key2(r)) ? "" : "dropped"));
+      } else if (prev && prev.rows) {
+        const had = new Set(prev.rows.map(key2));
+        cls = g.rows.map((r) => (had.has(key2(r)) ? "" : "fresh"));
+      }
+      rowsHtml = this.sqlTable(g.columns, rows, { cls });
+    }
+    return `${head}
+      <div class="sqlsteps-label"><strong>${this.l("Langkah", "Step")} ${i + 1} / ${st.stages.length}:</strong> ${this.inline(g.label)}</div>
+      <pre class="pad-out sqlsteps-sql">${this.esc(g.sql)}</pre>
+      ${rowsHtml}
+      ${g.say ? `<div class="trace-note">${this.inline(g.say)}</div>` : ""}
+      <div class="row trace-ctl" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm" onclick="app.sqlStepsGo(this, ${i - 1})" ${i === 0 ? "disabled" : ""}>← ${this.l("Mundur", "Back")}</button>
+        <span class="small">${this.l("Langkah", "Step")} ${i + 1} / ${st.stages.length}</span>
+        <button class="btn btn-sm btn-primary" onclick="app.sqlStepsGo(this, ${i + 1})" ${i >= st.stages.length - 1 ? "disabled" : ""}>${this.l("Maju", "Next")} →</button>
+      </div>`;
+  }
+  sqlStepsLoad(el) {
+    const box = el.closest(".trace"), key = box.dataset.key, d = this._traceDefs[key];
+    this._sqlSteps = this._sqlSteps || {};
+    const ctx = this.sqlCtx(d.data);
+    if (!ctx) { this._sqlSteps[key] = { failed: "dataset?" }; box.innerHTML = this.sqlStepsInner(key); return; }
+    window.SQL_PLAYGROUND.init().then((SQL) => {
+      this._sqlSteps[key] = { stages: window.SqlDrill.stages(SQL, ctx.setup, d.stages), at: 0 };
+      box.innerHTML = this.sqlStepsInner(key);
+    });
+  }
+  sqlStepsGo(el, n) {
+    const box = el.closest(".trace"), st = this._sqlSteps[box.dataset.key];
+    if (!st || !st.stages) return;
+    st.at = Math.min(Math.max(0, n), st.stages.length - 1);
+    box.innerHTML = this.sqlStepsInner(box.dataset.key);
+  }
+
   // "What will this print?": pick an answer; the explanation follows
   renderAsk(d, key, st) {
     const done = st && (st.passed || st.revealed);
@@ -1880,6 +2037,19 @@ class DataForgeApp {
       return;
     }
     out.innerHTML = `<div class="feedback info">${this.l("Belum tepat. Baca kodenya baris demi baris, seperti Python, lalu coba jawaban lain.", "Not this one. Read the code line by line, the way Python does, then try another answer.")}</div>`;
+  }
+  // The first law of the course: the learner does it on their OWN computer. A drill that passed points there, with the exact steps.
+  drillLocalBox(d) {
+    const C = (t) => `<code>${this.esc(t)}</code>`;
+    const files = d.files && Object.keys(d.files).length ? this.l(` Buat juga file contoh di sebelahnya: ${Object.keys(d.files).map(C).join(", ")} (isinya ada di "Berkas contoh" di atas).`, ` Also create the sample file next to it: ${Object.keys(d.files).map(C).join(", ")} (its content is under "Sample files" above).`) : "";
+    const body = d.lang === "sql"
+      ? this.l(`Dari folder kursus: ${C("python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql")} (sekali saja), lalu ${C("python3 -m sqlite3 kopiku.db")}. Tempel query Anda di prompt ${C("sqlite>")}, akhiri dengan ${C(";")} dan Enter. Samakah hasilnya dengan tabel di atas? Keluar dengan ${C(".quit")}.`, `From the course folder: ${C("python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql")} (once), then ${C("python3 -m sqlite3 kopiku.db")}. Paste your query at the ${C("sqlite>")} prompt, end it with ${C(";")} and press Enter. Is the result the same as the table above? Leave with ${C(".quit")}.`)
+      : this.l(`Buka terminal Anda, ketik ${C("python3")} dan Enter, lalu ketik atau tempel kode Anda di prompt ${C(">>>")} (atau simpan sebagai ${C("~/practice/drill.py")} dan jalankan ${C("python3 ~/practice/drill.py")}; tambahkan ${C("print(...)")} untuk melihat nilainya).${files} Berperilaku samakah dengan di sini?`, `Open your terminal, type ${C("python3")} and press Enter, then type or paste your code at the ${C(">>>")} prompt (or save it as ${C("~/practice/drill.py")} and run ${C("python3 ~/practice/drill.py")}; add ${C("print(...)")} to see a value).${files} Does it behave the same as here?`);
+    return `<div class="callout drill-local"><strong>🖥️ ${this.l("Sekarang kerjakan di komputer Anda sendiri", "Now do it on your own computer")}</strong><p>${body}</p><p class="small muted">${this.l("Inilah bagian yang membuat ilmunya menempel. Pratinjau di browser hanya pemanasan.", "This is the part that makes it stick. The browser is only the warm-up.")}</p><button class="btn btn-sm" onclick="app.drillCopy(this)">${this.l("Salin jawaban saya", "Copy my answer")}</button></div>`;
+  }
+  drillCopy(btn) {
+    const ta = this.drillBox(btn).querySelector(".drill-code");
+    this.copyText(ta ? ta.value : "", btn);
   }
   drillBox(el) { return el.closest(".drill"); }
   drillSave(ta) {
@@ -1916,6 +2086,7 @@ class DataForgeApp {
   }
   drillRun(el) {
     const box = this.drillBox(el), key = box.dataset.key, d = this._drills[key];
+    if (d.lang === "sql") return this.sqlDrillRun(box, key, d);
     const ta = box.querySelector(".drill-code"), out = box.querySelector(".drill-out");
     const say = (html) => { out.innerHTML = html; };
     this.drillCode[key] = ta.value;
@@ -1964,7 +2135,7 @@ class DataForgeApp {
       const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
       this.drillsDone[key] = { passed: new Date().toISOString() };
       writeStore("df_drills", this.drillsDone);
-      out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>${printed}`;
+      out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>${printed}${this.drillLocalBox(d)}`;
       if (first) this.drillRefreshNav();
       return;
     }

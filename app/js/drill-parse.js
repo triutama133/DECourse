@@ -24,6 +24,13 @@
  *   2 | y is worked out now, with x = 5
  *   :::
  *
+ *   SQL drills: ":::drill sql Title", "@data kopiku" (the dataset), @starter, @solution, @hint, "@check" lines of the form
+ *   /regex/ ## message (the query must contain it), "@ordered" (row order matters), "@names" (column names matter), and
+ *   "@verify" (a query run AFTER the learner's statements, for INSERT / UPDATE / CREATE drills). The learner's RESULT is compared
+ *   with the result of the @solution, on the dataset and again on a copy with extra rows.
+ *
+ *   :::sqlsteps Title     "@data kopiku", then "@stage Label", the SQL, "@say" and a sentence, once per stage
+ *
  *   :::ask What will this print?
  *   Question text (may hold a code fence).
  *   @options
@@ -45,12 +52,29 @@
   if (typeof module === "object" && module.exports) module.exports = factory();
   else root.DrillParse = factory();
 })(typeof self !== "undefined" ? self : this, function () {
-  const MARKERS = ["@starter", "@check", "@hint", "@solution", "@options", "@why", "@code", "@notes"];
+  const MARKERS = ["@starter", "@check", "@hint", "@solution", "@options", "@why", "@code", "@notes", "@verify", "@say"];
   const FILE = /^@file\s+(\S+)$/;
 
   /** `text` is the whole block, from the ":::drill ..." line to the closing ":::" line (the closing line may be missing). */
   function parse(text) {
     const lines = String(text).replace(/\r\n/g, "\n").split("\n");
+    const sqlsteps = (lines[0] || "").match(/^:::sqlsteps\s+(.+?)\s*$/);
+    if (sqlsteps) {   // a SQL animation: stages, each a query and a sentence ("@stage Label", the SQL, "@say" and the sentence)
+      let data = "kopiku", cur = "task";
+      const task = [], stages = [];
+      for (let i = 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (/^:::\s*$/.test(l)) break;
+        const dm = l.match(/^@data\s+(\S+)$/);
+        if (dm) { data = dm[1]; continue; }
+        const sm = l.match(/^@stage\s+(.+)$/);
+        if (sm) { stages.push({ label: sm[1].trim(), sqlLines: [], sayLines: [] }); cur = "sql"; continue; }
+        if (l === "@say") { cur = "say"; continue; }
+        const st = stages[stages.length - 1];
+        if (cur === "sql" && st) st.sqlLines.push(l); else if (cur === "say" && st) st.sayLines.push(l); else task.push(l);
+      }
+      return { kind: "sqlsteps", title: sqlsteps[1], data, task: task.join("\n").trim(), stages: stages.map((x) => ({ label: x.label, sql: x.sqlLines.join("\n").trim(), say: x.sayLines.join("\n").trim() })) };
+    }
     const trace = (lines[0] || "").match(/^:::trace\s+(.+?)\s*$/);
     if (trace) {   // "watch it run": the code, and optional notes for some lines ("3 | text")
       const code = [], notes = {}, files = {};
@@ -73,14 +97,18 @@
     const ask = (lines[0] || "").match(/^:::ask\s+(.+?)\s*$/);
     const head = ask ? null : (lines[0] || "").match(/^:::drill\s+(python|sql)\s+(.+?)\s*$/);
     if (!ask && !head) return null;
-    const sec = { task: [], "@starter": [], "@check": [], "@hint": [], "@solution": [], "@options": [], "@why": [] };
+    const sec = { task: [], "@starter": [], "@check": [], "@hint": [], "@solution": [], "@options": [], "@why": [], "@verify": [] };
     let cur = "task", fname = "";
-    const files = {}, fileLines = {};
+    const files = {}, fileLines = {}, opts = { data: "kopiku", ordered: false, names: false };
     for (let i = 1; i < lines.length; i++) {
       const l = lines[i];
       if (/^:::\s*$/.test(l)) break;
       const fm = l.match(FILE);
       if (fm) { fname = fm[1]; fileLines[fname] = []; cur = "file"; continue; }
+      const dm = l.match(/^@data\s+(\S+)$/);
+      if (dm) { opts.data = dm[1]; continue; }
+      if (l === "@ordered") { opts.ordered = true; continue; }
+      if (l === "@names") { opts.names = true; continue; }
       if (MARKERS.includes(l.trim()) && l === l.trim()) { cur = l.trim(); continue; }
       if (cur === "file") fileLines[fname].push(l); else sec[cur].push(l);
     }
@@ -94,7 +122,7 @@
       const options = sec["@options"].map((l) => l.trim()).filter(Boolean).map((l) => (l.startsWith("* ") ? { text: l.slice(2).trim(), correct: true } : { text: l, correct: false }));
       return { kind: "ask", title: ask[1], task: trim(sec.task), options, why: trim(sec["@why"]) };
     }
-    return { kind: "drill", lang: head[1], title: head[2], task: trim(sec.task), starter: trim(sec["@starter"]), checks, hint: trim(sec["@hint"]), solution: trim(sec["@solution"]), files };
+    return { kind: "drill", lang: head[1], title: head[2], task: trim(sec.task), starter: trim(sec["@starter"]), checks, hint: trim(sec["@hint"]), solution: trim(sec["@solution"]), files, data: opts.data, ordered: opts.ordered, names: opts.names, verify: trim(sec["@verify"]) };
   }
 
   return { parse };

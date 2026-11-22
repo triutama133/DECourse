@@ -31,7 +31,7 @@
   const isAdvancedStart = (l) => /^:::advanced\s+/.test(l);
   const isFoldEnd = (l) => /^:::\s*$/.test(l);
   const isDrillStart = (l) => /^:::(drill|ask)\b/.test(l);
-  const isTraceStart = (l) => /^:::trace\s+/.test(l);
+  const isTraceStart = (l) => /^:::(trace|sqlsteps)\s+/.test(l);
   const isDiagram = (l) => /^\[\[diagram:[a-z0-9-]+\]\]\s*$/.test(l);
   const isRule = (l) => /^---+\s*$/.test(l);
 

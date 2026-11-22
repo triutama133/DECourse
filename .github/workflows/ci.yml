@@ -26,6 +26,9 @@ jobs:
       - name: Every drill's solution passes and its starter fails (real Pyodide)
         run: node scripts/verify_drills.js
 
+      - name: Every SQL drill's solution passes and its starter fails (sql.js)
+        run: node scripts/verify_sql_drills.js
+
       - name: Python pad examples run in the real Pyodide
         run: node scripts/verify_lesson_pads.js
 

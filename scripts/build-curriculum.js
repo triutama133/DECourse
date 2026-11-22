@@ -184,24 +184,25 @@ function buildModule(dir) {
   if (fences(P.id.lab.verify) !== fences(P.en.lab.verify)) err(m, 'lab verify: code fence count differs between languages');
   for (const l of LANGS) for (const [i, ls] of P[l].lessons.entries()) if (fences(ls.body) % 2) err(m, `${l} lesson ${i + 1}: unbalanced code fence`);
   // ':::advanced Title', ':::drill python Title' and ':::ask Title' blocks all end with ':::': balanced in every lesson, and the same in both languages
-  const folds = (t) => [(t.match(/^:::advanced\s+\S/gm) || []).length, (t.match(/^:::\s*$/gm) || []).length, (t.match(/^:::(?:drill|ask|trace)\b/gm) || []).length];
+  const folds = (t) => [(t.match(/^:::advanced\s+\S/gm) || []).length, (t.match(/^:::\s*$/gm) || []).length, (t.match(/^:::(?:drill|ask|trace|sqlsteps)\b/gm) || []).length];
   for (const l of LANGS) for (const [i, ls] of P[l].lessons.entries()) { const [a, c, d] = folds(ls.body); if (a + d !== c) err(m, `${l} lesson ${i + 1}: ${a} ':::advanced' + ${d} drill/ask openers but ${c} ':::' closers`); }
   P.en.lessons.forEach((ls, i) => { const o = P.id.lessons[i]; if (o && folds(ls.body)[0] !== folds(o.body)[0]) err(m, `lesson ${i + 1}: advanced folds differ between languages`); });
   // drills: well-formed, and the same drills (kind, number of checks or options) in both languages
   const DrillParse = require('../app/js/drill-parse.js');
-  const drillsOf = (t) => (t.match(/^:::(?:drill|ask|trace)\b[\s\S]*?^:::\s*$/gm) || []).map((b) => DrillParse.parse(b));
+  const drillsOf = (t) => (t.match(/^:::(?:drill|ask|trace|sqlsteps)\b[\s\S]*?^:::\s*$/gm) || []).map((b) => DrillParse.parse(b));
   for (const l of LANGS) for (const [i, ls] of P[l].lessons.entries()) drillsOf(ls.body).forEach((d, k) => {
     const w = `${l} lesson ${i + 1} drill ${k + 1}`;
     if (!d) return err(m, `${w}: cannot be read`);
     if (d.kind === 'trace') { if (!d.code) err(m, `${w} (${d.title}): a trace needs @code`); }
+    else if (d.kind === 'sqlsteps') { if (d.stages.length < 2 || d.stages.some((x) => !x.sql)) err(m, `${w} (${d.title}): a sqlsteps animation needs 2+ stages, each with SQL`); }
     else if (d.kind === 'ask') { if (d.options.filter((o) => o.correct).length !== 1 || d.options.length < 2 || !d.why) err(m, `${w} (${d.title}): a question needs 2+ options, exactly one starting with '* ', and a @why`); }
-    else if (!d.checks.length || !d.solution || !d.starter || !d.hint) err(m, `${w} (${d.title}): a drill needs @starter, @check, @hint and @solution`);
+    else if ((d.lang === 'python' && !d.checks.length) || !d.solution || !d.starter || !d.hint) err(m, `${w} (${d.title}): a drill needs @starter, @check (Python), @hint and @solution`);
   });
   P.en.lessons.forEach((ls, i) => {
     const o = P.id.lessons[i]; if (!o) return;
     const a = drillsOf(ls.body), b = drillsOf(o.body);
     if (a.length !== b.length) return err(m, `lesson ${i + 1}: ${a.length} drills in en but ${b.length} in id`);
-    a.forEach((d, k) => { const e = b[k]; if (d && e && (d.kind !== e.kind || (d.kind === 'trace' ? d.code !== e.code : (d.checks || d.options).length !== (e.checks || e.options).length))) err(m, `lesson ${i + 1} drill ${k + 1}: en and id differ in kind or in the number of checks/options`); });
+    a.forEach((d, k) => { const e = b[k]; if (d && e && (d.kind !== e.kind || (d.kind === 'trace' ? d.code !== e.code : d.kind === 'sqlsteps' ? d.stages.map((x) => x.sql).join('|') !== e.stages.map((x) => x.sql).join('|') : d.lang === 'sql' ? d.solution !== e.solution : (d.checks || d.options).length !== (e.checks || e.options).length))) err(m, `lesson ${i + 1} drill ${k + 1}: en and id differ in kind or in the number of checks/options`); });
   });
 
   // ---- quality checks (warnings) ----

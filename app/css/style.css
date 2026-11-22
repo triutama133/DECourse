@@ -1366,3 +1366,18 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 @media (prefers-reduced-motion: no-preference) { .trace-frame tr.changed td { animation: trace-flash 0.7s ease-out; } @keyframes trace-flash { from { background: rgba(250, 204, 21, 0.6); } } }
 @media (max-width: 700px) { .trace-grid { grid-template-columns: 1fr; } }
 .trace-frame table { table-layout: fixed; }
+
+/* SQL drills and SQL animations */
+.sql-result { width: 100%; border-collapse: collapse; font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; }
+.sql-result th { text-align: left; padding: 4px 8px; background: var(--border); font-weight: 700; white-space: nowrap; }
+.sql-result td { padding: 3px 8px; border-top: 1px solid var(--border); white-space: nowrap; }
+.sql-null { color: var(--text-muted); font-style: italic; }
+.sql-result tr.dropped td { text-decoration: line-through; color: var(--text-muted); background: rgba(220, 38, 38, 0.07); }
+.sql-result tr.fresh td { background: rgba(22, 163, 74, 0.12); }
+@media (prefers-reduced-motion: no-preference) { .sql-result tr.fresh td { animation: sql-fresh 0.8s ease-out; } @keyframes sql-fresh { from { background: rgba(250, 204, 21, 0.6); } } }
+.sqlsteps-label { font-size: 14px; }
+.sqlsteps-sql { white-space: pre-wrap; }
+.sql-tables summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.sql-tables-body { margin-top: 6px; }
+.drill-local { border-left: 3px solid var(--primary); }
+.drill-local p { margin: 4px 0; }
