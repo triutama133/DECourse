@@ -72,7 +72,7 @@ Tipe melindungi Anda dengan dua cara lagi:
 
 **Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi setiap kolom sebuah tipe (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet menyimpan tipe di samping datanya sehingga tidak ada yang perlu menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga yang diketik sebagai teks, diubah menjadi angka.
 
-> 🛠 **Coba sendiri (5 menit, Python di prompt `>>>`).** Di terminal ketik `python3`, lalu ketik dua baris `row1` dan `row2` di atas. Sebelum setiap pertanyaan di tabel, **tebak** jawabannya, lalu ketik kodenya dan bandingkan. Kemudian jawab tiga pertanyaan yang sama lagi dengan `int(...)` di sekitar setiap total.
+> 🛠 **Coba sendiri (5 menit, Python di prompt `>>>`).** Di terminal ketik `python3`, lalu ketik (atau tempel) baris `row1` dan tekan Enter, kemudian baris `row2` dan tekan Enter: satu baris setiap kali. Jika Anda menempel keduanya sekaligus, prompt menampilkan `...`: Python menunggu akhir blok, jadi tekan Enter sekali lagi pada baris `...` yang kosong (bukan Ctrl+C, yang membatalkannya). Sebelum setiap pertanyaan di tabel, **tebak** jawabannya, lalu ketik kodenya dan bandingkan. Kemudian jawab tiga pertanyaan yang sama lagi dengan `int(...)` di sekitar setiap total.
 >
 > **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 

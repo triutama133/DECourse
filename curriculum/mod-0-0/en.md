@@ -72,7 +72,7 @@ Types protect you in two more ways:
 
 **Where you will meet this again.** Everywhere: a database gives every column a type (Module 0.3); a pipeline converts and checks types before it loads anything (Module 1.2); file formats such as Parquet store the type next to the data so nobody has to guess (Module 2.1). The first warm-up task in the job simulator is exactly this: prices typed as text, turned into numbers.
 
-> 🛠 **Try it (5 min, Python at the `>>>` prompt).** In the terminal type `python3`, then type the two `row1` and `row2` lines above. Before each of the three questions in the table, **predict** the answer, then type the code and compare. Then answer the same three questions again with `int(...)` around each total.
+> 🛠 **Try it (5 min, Python at the `>>>` prompt).** In the terminal type `python3`, then type (or paste) the `row1` line and press Enter, then the `row2` line and press Enter: one line at a time. If you paste both at once, the prompt shows `...`: Python is waiting for the end of the block, so press Enter once more on the empty `...` line (not Ctrl+C, which cancels them). Before each of the three questions in the table, **predict** the answer, then type the code and compare. Then answer the same three questions again with `int(...)` around each total.
 >
 > **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
