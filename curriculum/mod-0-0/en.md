@@ -18,8 +18,8 @@ None. You do not need to have written code before, and it does not matter if ear
 
 > [!IMPORTANT]
 > **How to Work on Labs (Beginner Guide):**
-> - **Start simple, then the lab:** Lessons 1 to 4 each end with a **Practice Pause** done the simple way: a few plain lines of Python, typed at the `>>>` prompt or in a practice file, with no functions yet. Lesson 5 teaches functions (`def`); from there the pauses send you to the lab, where you turn the code you already wrote into its functions. Do not read the whole chapter first; go back and forth between a lesson and its pause.
-> - **The lab, from Lesson 5:** in the **Browser preview** on the Lab tab, or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The lab's code lives in the file `labs/mod-0-0/basics.py`. It is a text file that you open in an editor (VS Code, or `code labs/mod-0-0/basics.py`), not a command: typing its name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause runs the tests there, and that run is the one that counts.
+> - **The lab has two parts.** **Part A** is plain Python, no functions: after each of Lessons 1 to 4 you fill in a few variables in the file `labs/mod-0-0/practice.py` (replace each `None` with your own code). **Part B** starts after Lesson 5, which teaches functions (`def`): the file `labs/mod-0-0/basics.py` holds eleven functions to write. Do not read the whole chapter first; go back and forth between a lesson and its Practice Pause.
+> - **Where:** in the **Browser preview** on the Lab tab (nothing to install; use the Part A / Part B switch), or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The files are text files that you open in an editor (VS Code, or `code labs/mod-0-0/practice.py`), not commands: typing a file's name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause checks your work, and that run is the one that counts.
 > - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
 
 ## @part The basics: values, collections, decisions and loops
@@ -41,6 +41,8 @@ print(total)        # shows 150000
 
 Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result. That is why `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
 
+Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
+
 ### Types
 
 Every value has a **type**, which tells Python what you are allowed to do with it. The five you will use daily:
@@ -52,6 +54,8 @@ Every value has a **type**, which tells Python what you are allowed to do with i
 | `str` | `"paid"` | text, always inside quotes |
 | `bool` | `True`, `False` | yes or no |
 | `None` | `None` | "there is no value" |
+
+**Money is a whole number.** Store money as an `int` in the smallest unit (rupiah), never as a `float`: decimals are stored in binary, so `0.1 + 0.2` is `0.30000000000000004`, and after a million rows such tiny errors become real money.
 
 ### Why types matter: the first bug of every data job
 
@@ -82,25 +86,22 @@ Types protect you in two more ways:
 >
 > **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
-### Formatting text and numbers (`abs`, f-strings, `.replace`)
+### Writing a number as text
 
-A few small built-in helpers save you time right away:
+Reports show `Rp 1.250.000`, not `1250000`. Two small tools do it:
 
-- **Decimals trap:** store money as an `int` in the smallest unit (rupiah or cents), because decimals are stored in binary and `0.1 + 0.2` produces `0.30000000000000004`.
-- **`abs(n)`** gives the distance from zero (always non-negative): `abs(-45000)` is `45000`. That helps in Lesson 3 when formatting negative money (`"-Rp 45.000"` instead of `"Rp -45.000"`).
-- **Assignment order:** trace `a = 2`, `b = a * 3`, `a = 10`, `print(b)` on paper before running it. It prints `6`, not `30`, because `b` received `6` when assigned and changing `a` later does not recalculate `b`.
-- **f-strings & format specifiers:** putting `f"..."` before quotes lets Python insert values inside `{...}` (e.g. `f"Order {1001}: Rp {total}"`), and adding `:,` inside `{amount:,}` inserts thousand commas: `f"{1250000:,}"` gives `"1,250,000"`.
-- **String `.replace(old, new)`:** strings have attached helper actions called *methods*. Calling `"1,250,000".replace(",", ".")` swaps every comma for a dot, giving `"1.250.000"`. Together they format numbers the Indonesian way.
+- An **f-string** puts values inside text: write `f` before the opening quote and put the value in braces. `f"Order {1001}: Rp {total}"` becomes `Order 1001: Rp 150000`. A format code after a colon changes how the number is written: `f"{1250000:,}"` gives the text `"1,250,000"`, with commas between the thousands.
+- A text's **`.replace(old, new)`** swaps characters. Text values have helper actions like this, called **methods**: `"1,250,000".replace(",", ".")` gives `"1.250.000"`. Indonesians write the thousands separator as a dot.
 
-> 🛠 **Try it (10 min, Python in a practice file): Practice Pause 1, the simple way.** No functions yet: just variables, an f-string and `.replace`. Once, in the terminal, make a folder for your practice files: `mkdir -p ~/practice`. In VS Code choose File, New File, type these three lines, and save it (File, Save As) as `pause1.py` inside that `practice` folder in your home folder. Then run it from the terminal with `python3 ~/practice/pause1.py`:
->
-> `amount = 1250000`
-> `text = f"Rp {amount:,}"`
-> `print(text)`
->
-> It prints `Rp 1,250,000`, with commas. Change the second line so the commas become dots, run again, then try `amount` as `0`, `999` and `1000`. Negative amounts need `if`, which comes in Lesson 3.
->
-> **You should see:** `Rp 1.250.000`, `Rp 0`, `Rp 999` and `Rp 1.000`. Keep the file: in Lesson 5 these exact lines become the lab's first function.
+Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000`.
+
+> 💡 **Practice Pause 1 (Part A, Step 1):**
+> Open Part A of the lab: the file `labs/mod-0-0/practice.py` in your editor, or the **Part A** tab of the Browser preview on the Lab tab. Read the top of the file once, then find **Step 1**. It gives you `amount`, `row1` and `row2`, and two variables to fill in: replace each `None` with your own code.
+> 1. `formatted`: the amount written as text with dots, `Rp 1.250.000` (the f-string and `.replace` above).
+> 2. `two_totals`: the two totals in `row1` and `row2` added as **numbers**. Look back at the three wrong answers in the table: these totals are text, so convert them first.
+> Run the file to see your values: `python3 labs/mod-0-0/practice.py`. Then check Step 1: press **Run tests** in the preview, or in the terminal (once the one-time setup on the lab page is done):
+> `pytest labs/mod-0-0/test_practice.py -k Step1 -v`
+> You should see `Rp 1.250.000` and `240000`, and three passed checks. A check that fails says which variable is wrong, what it should be and what it is: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` just means you have not replaced the `None` yet. Then go on to Lesson 2.
 
 ## @lesson Collections: one value is never enough
 One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
@@ -126,20 +127,15 @@ A real data file is therefore usually **a list of dictionaries**: the list is th
 
 One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
-> 🛠 **Try it (10 min, Python in a practice file): Practice Pause 2, the simple way.** Make `~/practice/pause2.py` that starts with this list of four orders (a list of dicts, exactly like a CSV file gives you):
->
-> ```python
-> orders = [
->     {"order_id": "1001", "customer_id": "7", "status": "paid", "total_idr": "150000"},
->     {"order_id": "1002", "customer_id": "3", "status": "cancelled", "total_idr": "90000"},
->     {"order_id": "1003", "customer_id": "7", "status": "paid", "total_idr": "25000"},
->     {"order_id": "1004", "customer_id": "5", "status": "delivered", "total_idr": "60000"},
-> ]
-> ```
->
-> Then, still without loops, print: how many orders there are (`len`); the status of the first order; the total of the last one. Count two statuses by hand with the counting line: `counts = {}`, then `counts["paid"] = counts.get("paid", 0) + 1`, print `counts`, do it again for `"paid"` and once for `"cancelled"`, print again. Finally put the four `customer_id` values in a set and print how many distinct customers there are, and compare `sorted([7, 3, 7, 5])` with `sorted(set([7, 3, 7, 5]))`.
->
-> **You should see:** `4`, `paid`, `60000`; `{'paid': 1}` and then `{'paid': 2, 'cancelled': 1}`; `3` distinct customers; `[3, 5, 7, 7]` against `[3, 5, 7]`. Doing the counting by hand is slow on purpose: Lesson 4's loop does exactly this for every order.
+> 💡 **Practice Pause 2 (Part A, Step 2):**
+> In `practice.py` (or the **Part A** tab), do **Step 2** with the list `orders` (a list of dicts, exactly what a CSV file gives you) and the list `ids_seen`:
+> 1. `order_count`: how many orders are in the list (`len`).
+> 2. `first_status`: the status of the first order (position `0`, then the key `"status"`).
+> 3. `last_total`: the total of the last order (position `-1`), as a **number**.
+> 4. `unique_ids`: the different ids in `ids_seen`, each once, smallest first (a set, then `sorted`).
+> Run the file to see your values, then check the step:
+> `pytest labs/mod-0-0/test_practice.py -k Step2 -v`
+> You should see `4`, `paid`, `60000` and `[3, 5, 7]`, and four passed checks.
 
 ## @lesson Decisions: if, elif, else
 A decision is how a program chooses between paths. In data engineering almost all **validation** is decisions: is this total a number? is the status one we know?
@@ -162,11 +158,17 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 
 **Why decisions are everywhere in pipelines.** The rule of Module 0.1 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
 
+**Negative money.** `abs(n)` gives the distance from zero, always positive: `abs(-45000)` is `45000`. To write a negative amount as `-Rp 45.000`, format `abs(amount)` and put the minus sign in front yourself, with an `if` that checks whether the amount is below zero.
+
 Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. Use built-in `sum(values)` (adds up all numbers in a list) and `len(values)` (counts the items), guarded by an `if`: `if not values: avg = None` handles the empty list before the error can happen, and `else: avg = sum(values) / len(values)` runs safely when there is data. Prefer checking the dangerous case first.
 
-> 🛠 **Try it (10 min, Python in a practice file): Practice Pause 3, the simple way.** In `~/practice/pause3.py`: (1) set `amount = -45000` and use `if` with `abs()` so that a negative amount is written `-Rp 45.000` while a positive one still gives `Rp 45.000`; (2) set `totals = []` and print the average with `sum(totals) / len(totals)` (`sum` adds up a list of numbers, `len` counts its items), but only when the list is not empty, and print `None` otherwise; run it, then change `totals` to `[150000, 25000]` and run again.
->
-> **You should see:** `-Rp 45.000`, then `None` for the empty list and `87500.0` for the two totals. Without the `if`, the empty list stops your program with `ZeroDivisionError`.
+> 💡 **Practice Pause 3 (Part A, Step 3):**
+> In `practice.py` (or the **Part A** tab), do **Step 3**:
+> 1. `signed_text`: `signed_amount` written like Step 1, but a negative amount has the minus sign first, `-Rp 45.000`, and a positive one has none, `Rp 500`. Use `if`, and `abs()` from above.
+> 2. `average`: the average of the numbers in `totals`, or `None` when `totals` is empty (`sum`, `len` and an `if`).
+> Run the file, then check the step:
+> `pytest labs/mod-0-0/test_practice.py -k Step3 -v`
+> You should see `-Rp 45.000` and `87500.0`, and four passed checks. The checker also tries an empty `totals`: without your `if`, the file would stop with `ZeroDivisionError`, and the message tells you at which line.
 
 ## @lesson Repetition: for, while and comprehensions
 A file has 100,000 rows. You cannot write 100,000 lines, so you write the instruction **once** and let the computer repeat it. That is a loop, and it is the engine of every data pipeline.
@@ -193,9 +195,15 @@ A **comprehension** is a loop written as one expression: `ids = [int(o["customer
 
 A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing in the loop ever makes the condition false, it runs forever. Always ask: "what changes inside the loop so that it ends?"
 
-> 🛠 **Try it (15 min, Python in a practice file): Practice Pause 4, the simple way.** Copy the `orders` list from Pause 2 into `~/practice/pause4.py`. With one `for order in orders:` loop, build three things at once: `counts` (orders per status, with the counting line from Lesson 2), `revenue` (the sum of `int(order["total_idr"])` for orders whose status is not `"cancelled"` or `"refunded"`), and `ids` (a set: `ids = set()` before the loop, `ids.add(int(order["customer_id"]))` inside, which puts one value into the set). Print them after the loop, with `sorted(ids)`. Then cut `items = [1, 2, 3, 4, 5]` into pieces of 2 with `for start in range(0, len(items), 2):` and the slice `items[start:start + 2]`, collecting the pieces in a list.
->
-> **You should see:** `{'paid': 2, 'cancelled': 1, 'delivered': 1}`, `235000`, `[3, 5, 7]` and `[[1, 2], [3, 4], [5]]`. You have now written, the simple way, the inside of five of the lab's eleven functions.
+> 💡 **Practice Pause 4 (Part A, Step 4):**
+> In `practice.py` (or the **Part A** tab), do **Step 4**. One `for order in orders:` loop can build several results at once. Before the loop, start `status_counts` as `{}`, `revenue` as `0`, and a set for the ids (`ids = set()`):
+> 1. `status_counts`: orders per status, `{"paid": 2, "cancelled": 1, "delivered": 1}` (the counting line from Lesson 2).
+> 2. `revenue`: the sum of the totals, as numbers, of the orders whose status is not `"cancelled"` and not `"refunded"`.
+> 3. `customer_ids`: the different `customer_id` values as whole numbers, smallest first (fill the set inside the loop with `.add(...)`, which puts one value into a set, then use `sorted`).
+> 4. `batches`: `items` cut into pieces of at most `batch_size`, in order, `[[1, 2], [3, 4], [5]]` (`range` with a step, and a slice).
+> Run the file, then check the step:
+> `pytest labs/mod-0-0/test_practice.py -k Step4 -v`
+> You should see `{'paid': 2, 'cancelled': 1, 'delivered': 1}`, `235000`, `[3, 5, 7]` and `[[1, 2], [3, 4], [5]]`. When all 15 Part A checks pass (`pytest labs/mod-0-0/test_practice.py -v`), you have written, with plain code, the inside of what Part B turns into functions.
 
 ## @part Functions, errors and files
 
@@ -231,26 +239,25 @@ Prefer functions that depend only on their inputs and return a result without ch
 >
 > **You should see:** `16` printed by step 1, then `None 16` (`print` shows, `return` hands back); the buggy `add` prints `[1]`, `[1, 2]`, `[1, 2, 3]` and your fixed one `[1]`, `[2]`, `[3]`; both checks of step 3 are `True`.
 
-> 💡 **Practice Pause 5 (Open the lab):**
-> Now open the lab: the **Browser preview** on the Lab tab, or `labs/mod-0-0/basics.py` in your editor on the terminal route (the lab page shows the one-time setup). Each function there starts like `def format_rupiah(amount):`, then its description between `"""`, then `raise NotImplementedError(...)`: a placeholder that means "not written yet". Delete that line and put your own code from Pauses 1 to 4 in its place, with two changes: the value comes in as the parameter (`amount`, `orders`) instead of a variable you typed, and the answer leaves with `return` instead of `print`.
-> Before, in Pause 1:
+> 💡 **Practice Pause 5 (Part B: open the functions):**
+> Part B is the second half of the lab: the **Part B** tab of the Browser preview, or `labs/mod-0-0/basics.py` in your editor. Each function there starts like `def format_rupiah(amount):`, then its description between `"""`, then `raise NotImplementedError(...)`: a placeholder that means "not written yet". Delete that line and put the code you wrote in Part A in its place, with two changes: the value comes in as the parameter (`amount`, `orders`) instead of a variable at the top of the file, and the answer leaves with `return` instead of being stored in a variable.
+> Before, in Part A (Step 1):
 >
 > ```python
-> amount = 1250000
-> text = ...                 # your line from Pause 1
-> print(text)
+> amount = 1250000                 # given to you
+> formatted = ...                  # your line from Step 1
 > ```
 >
-> After, in the lab:
+> After, in Part B:
 >
 > ```python
-> def format_rupiah(amount):
->     text = ...             # the same line, indented
+> def format_rupiah(amount):       # the test gives `amount`
+>     text = ...                   # the same line, indented
 >     return text
 > ```
 >
-> `amount` no longer gets its value from you: the test gives it, by calling for example `format_rupiah(1250000)`. Then add the `if` from Pause 3 for negative amounts.
-> Do it for `format_rupiah` (Pauses 1 and 3), `count_by_status` and `unique_customer_ids` (Pause 4), `average_total` (Pause 3, but over the orders' totals), `total_revenue` and `batches` (Pause 4), and `top_customers` (Lesson 4's `sorted` with a `key`). On the Browser preview click **Run tests**; on the terminal route, `pytest` runs all the automated checks (adding `-k TestFormatRupiah` runs just that one group while `-v` prints each test name):
+> A test calls `format_rupiah(1250000)` and compares what you `return` with `"Rp 1.250.000"`. Then add the `if` from Step 3 for negative amounts.
+> Do it for `format_rupiah` (Steps 1 and 3), `count_by_status` (Step 4), `unique_customer_ids` (Steps 2 and 4), `average_total` (the average of Step 3, over the orders' totals), `total_revenue` and `batches` (Step 4), and `top_customers` (Lesson 4's `sorted` with a `key`). On the Browser preview click **Run tests**; on the terminal route, `pytest` runs the automated checks (`-k TestFormatRupiah` runs just that one group, `-v` prints each test name):
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
 > Then go on to Lesson 6.
 
@@ -279,7 +286,7 @@ Three rules that separate good pipelines from dangerous ones:
 
 A bad row from a customer is *expected* data, so you handle it (put it aside with a reason). A missing file or a programming mistake is *not* expected, so let it fail loudly.
 
-> 💡 **Practice Pause 6 (Try It Now):**
+> 💡 **Practice Pause 6 (Part B):**
 > Apply pure functions, error handling, and avoiding the mutable default bug:
 > 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
 > 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
@@ -312,10 +319,10 @@ Python sets the special name `__name__` to `"__main__"` only when the file is *r
 
 Paths: use `pathlib.Path("data") / "orders.csv"` instead of gluing strings, and remember that a relative path is relative to the folder you started Python in, which is the usual reason for `FileNotFoundError`.
 
-> 💡 **Practice Pause 7 (Complete the Entire Lab):**
+> 💡 **Practice Pause 7 (Part B: complete the lab):**
 > In `basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
-> Click **Run tests** once more (or run all tests in the terminal): all 31 should pass. On the preview route, after Module 0.2 you write the lab again on your own computer and run all 31 there:
-> `pytest labs/mod-0-0/test_lab.py -v`
+> Click **Run tests** on each part, or run everything in the terminal: all 46 checks should pass, 15 in Part A and 31 in Part B:
+> `pytest labs/mod-0-0/test_practice.py labs/mod-0-0/test_lab.py -v`
 > The preview shows your logic works; the run on your own computer is the one that counts. On the terminal route that run is already yours: `python3 scripts/prove.py mod-0-0` prints your proof code.
 
 ## @lesson Putting it together, and how to debug
@@ -342,7 +349,7 @@ def test_format_rupiah():
     assert format_rupiah(1250000) == "Rp 1.250.000"
 ```
 
-`assert` raises an error if the condition is false. A test tool (pytest) finds the functions named `test_...`, runs them all and reports which failed and why. The lab has 31 such tests: read a failing test as a **specification** (it tells you exactly what is expected), not as an obstacle.
+`assert` raises an error if the condition is false. A test tool (pytest) finds the functions named `test_...`, runs them all and reports which failed and why. The lab has 46 such tests: read a failing test as a **specification** (it tells you exactly what is expected), not as an obstacle.
 
 You will not remember everything after one reading, and you are not supposed to. Type the examples, break them on purpose, and look at the error messages. Each lab function below practises one lesson; do them in order and run the tests after each.
 
@@ -350,7 +357,7 @@ You will not remember everything after one reading, and you are not supposed to.
 >
 > **You should see:** three FAIL lines at first (one `TypeError`, two wrong answers) and `all three fixed` at the end. Then write one sentence per bug: what was the clue that led you to it? That sentence is the skill.
 
-**Where these ideas show up in a data engineer's day.** It is fair to ask what eleven small functions have to do with the job. Almost every task you will be given is these same ideas, only bigger:
+**Where these ideas show up in a data engineer's day.** It is fair to ask what these small exercises have to do with the job. Almost every task you will be given is these same ideas, only bigger:
 - **Types:** data arrives as text; you give each value its right type before anything else, or totals come out wrong without an error.
 - **Lists and dicts:** a file or a table is a list of rows; each row is a dict of column to value.
 - **Counting with a dict:** "how many per city, per status, per day" is the most common question in data; SQL's `GROUP BY` (Module 0.3) is the same idea.
@@ -360,14 +367,14 @@ You will not remember everything after one reading, and you are not supposed to.
 
 The labs grow from here: in Module 1.2 the same ideas become a real pipeline that reads files, converts types, quarantines bad rows and can be re-run safely. If something in this module still feels unclear, that is normal after one reading: re-read the lesson whose Practice Pause was hardest, and do its Try it again.
 
-## @lab Lab: eleven small functions on KopiKu orders
-Write eleven short functions, each practising one idea from the lessons, on KopiKu order data.
+## @lab Lab: from plain code to eleven small functions on KopiKu orders
+Two parts, on KopiKu order data. **Part A** (after Lessons 1 to 4) is plain Python with no functions: you fill in twelve variables. **Part B** (after Lessons 5 to 7) turns the same ideas into eleven small functions.
 
-**What a lab is.** The file `basics.py` holds eleven functions whose inside is empty: each one only says `raise NotImplementedError`. You write the inside. A second file, `test_lab.py`, holds 31 **tests**: small programs that call your function with an example and check the answer, for example "`format_rupiah(1250000)` must give `"Rp 1.250.000"`". A test is ✓ when your function gives the expected answer, and ✗ when it gives something else or crashes. You are done when all 31 are ✓.
+**What a lab is.** Each part is a file you edit and a file of **tests** that checks it. In Part A, `practice.py` gives you data and twelve variables set to `None`; you replace each `None` with your own code, and `test_practice.py` runs your file, with several different data sets in place of the given one, and checks each variable. In Part B, `basics.py` holds eleven functions whose inside is empty (each one only says `raise NotImplementedError`), and `test_lab.py` calls each function with examples, for example "`format_rupiah(1250000)` must give `"Rp 1.250.000"`". A check is ✓ when your code gives the expected answer, and ✗ when it gives something else or crashes. You are done when all 46 pass: 15 in Part A and 31 in Part B.
 
 **Where to do it: choose one of two routes.**
 
-- **Route A, the browser preview** (nothing to install): the editor box further down this page holds the file, **Run tests** runs all 31, and the list under the button shows each group of tests (one group per function) as ✓ or ✗. A preview pass does not count: after Module 0.2 you write the lab again on your own computer.
+- **Route A, the browser preview** (nothing to install): the editor box further down this page has a **Part A / Part B** switch. **Run tests** runs the part you are on, and the list under the button shows each group of checks (one group per step or function) as ✓ or ✗. A preview pass does not count: you do the lab again in your own terminal.
 - **Route B, your own terminal** (recommended if you did Start here): this is how you will work for the rest of the course, and the run counts. Set it up once, in the terminal:
 
 ```bash
@@ -377,24 +384,34 @@ source venv/bin/activate                   # every new terminal
 python -m pip install -r labs/mod-0-0/requirements.txt    # once: pytest
 ```
 
-  Use your own course folder in the first line. If its name has a space, put a backslash before the space: `cd ~/Documents/Learn\ DE/DECourse`. After `source`, the prompt starts with `(venv)`; Module 0.2 explains what a venv is. Then open the course folder in VS Code (File, Open Folder) and click `labs/mod-0-0/basics.py` to edit it. Run one function's tests with, for example:
+  Use your own course folder in the first line. If its name has a space, put a backslash before the space: `cd ~/Documents/Learn\ DE/DECourse`. After `source`, the prompt starts with `(venv)`; Module 0.2 explains what a venv is. Then open the course folder in VS Code (File, Open Folder) and click `labs/mod-0-0/practice.py` (Part A) or `labs/mod-0-0/basics.py` (Part B) to edit it. Check one step or one function with, for example:
 
 ```bash
-pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v
+pytest labs/mod-0-0/test_practice.py -k Step1 -v       # Part A, step 1
+pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v # Part B, one function
 ```
 
-  You see one line per test ending in `PASSED` or `FAILED`; under a failure, the line that starts with `E` says what went wrong. On the untouched file it is `E       NotImplementedError: TODO: implement format_rupiah`, which only means you have not written it yet. `-k TestFormatRupiah` picks one group (the other 27 tests are "deselected"); without `-k` you see all 31, and the last line says, for example, `29 failed, 2 passed`.
+  You see one line per check ending in `PASSED` or `FAILED`; under a failure, the message says what went wrong. In Part A it names the variable: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` (you have not replaced the `None` yet). In Part B on the untouched file it is `E       NotImplementedError: TODO: implement format_rupiah`, which only means you have not written the function yet. `-k` picks one group (the other checks are "deselected"); without `-k` you see them all, and the last line says, for example, `29 failed, 2 passed`.
 
-Lessons 1 to 4 end with practice done the simple way, without functions. From Lesson 5 on, each **Practice Pause** tells you which lab functions to write, mostly by turning the code you already wrote into a function.
+Lessons 1 to 4 end with Part A steps, without functions. From Lesson 5 on, each **Practice Pause** tells you which Part B functions to write, mostly by turning the code you already wrote in Part A into a function.
 
-**The loop, for every function.**
-1. Read the function's description in the file: the text between the `"""` lines says what goes in and what must come out, with examples.
-2. Write your attempt, replacing the `raise NotImplementedError` line.
-3. Click **Run tests** and find that function's group. At first the other groups are ✗ too; that is expected, ignore them.
-4. If your group is ✗, click it and read the message. A line such as `AssertionError: assert 'Rp 1,250,000' == 'Rp 1.250.000'` means: your function returned `'Rp 1,250,000'` (left), the test expected `'Rp 1.250.000'` (right). The difference, commas instead of dots, tells you exactly what to change.
-5. Change one thing, run again. Going round this loop five times for one function is normal: it is how programmers work, not a sign that you are bad at it.
+**The loop, for every step and function.**
+1. Read the description in the file: in Part A the comment above each variable, in Part B the text between the `"""` lines. It says what goes in and what must come out, with examples.
+2. Write your attempt: replace the `None` (Part A) or the `raise NotImplementedError` line (Part B).
+3. Run the check and find that step's or function's group. At first the other groups are ✗ too; that is expected, ignore them.
+4. If your group is ✗, read the message. `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is 'Rp 1,250,000' `` (Part A) or `AssertionError: assert 'Rp 1,250,000' == 'Rp 1.250.000'` (Part B) both mean: your answer is `'Rp 1,250,000'`, the expected one is `'Rp 1.250.000'`. The difference, commas instead of dots, tells you exactly what to change.
+5. Change one thing, run again. Going round this loop five times for one step is normal: it is how programmers work, not a sign that you are bad at it.
 
-**The eleven functions, in the order of the lessons, and why a data engineer needs each one:**
+**Part A, twelve variables, and why a data engineer needs them:**
+
+| Step | You make | Where you will need it at work |
+|---|---|---|
+| 1 | `formatted`, `two_totals` | reports show money people can read; totals from a file are text until you make them numbers |
+| 2 | `order_count`, `first_status`, `last_total`, `unique_ids` | looking things up in rows; each customer counted once, because files are re-sent and rows repeat |
+| 3 | `signed_text`, `average` | negative amounts (refunds); a day with no orders must not crash the whole job |
+| 4 | `status_counts`, `revenue`, `customer_ids`, `batches` | how many per category (SQL calls it `GROUP BY`, Module 0.3); the revenue Finance checks you against; sending data in pieces |
+
+**Part B, the eleven functions, in the order of the lessons, and why a data engineer needs each one:**
 
 | Idea from lesson | Function | What it does | Where you will need it at work |
 |---|---|---|---|
@@ -411,29 +428,32 @@ Lessons 1 to 4 end with practice done the simple way, without functions. From Le
 | 7 | `read_orders` | read a CSV file into a list of dicts | every pipeline starts by reading a file |
 
 ### @steps
-1. Choose your route (see "Where to do it" above): the **Browser preview** below, or `labs/mod-0-0/basics.py` in VS Code with the tests in your terminal. Read the whole file from top to bottom once, without writing anything: eleven functions, each with its description.
-2. Follow the Practice Pauses. Lessons 1 to 4: practise the simple way, no lab yet. After Lesson 5: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches` and `top_customers`. After Lesson 6: `safe_int`, `add_to_batch` and `split_valid`. After Lesson 7: `read_orders`. Run the tests after each function and look only at its group.
-3. Unsure what a value is inside your function? Add `print(type(x), x)` above the line you doubt and run again; the printout appears in the output. Remove it when you are done.
+1. Choose your route (see "Where to do it" above): the **Browser preview** below, or the files in VS Code with the checks in your terminal. Open `practice.py` and read it from top to bottom once, without writing anything: the data at the top and four steps.
+2. Follow the Practice Pauses. After Lessons 1 to 4: Steps 1 to 4 of Part A, in `practice.py`. After Lesson 5: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches` and `top_customers` in Part B (`basics.py`). After Lesson 6: `safe_int`, `add_to_batch` and `split_valid`. After Lesson 7: `read_orders`. Run the checks after each step or function and look only at its group.
+3. Unsure what a value is in your code? Add `print(type(x), x)` above the line you doubt and run again; the printout appears when you run the file, or in the output of the preview. Remove it when you are done. (Part A also prints all its variables each time you run `practice.py`.)
 4. Before each run, **predict** which groups will be ✓. When the result surprises you, find out why: that surprise is where the learning is.
-5. **Do it for real.** On the terminal route you already are: when all 31 pass, run the proof command below. On the preview route, after Module 0.2 write the lab again on your own computer, in your own venv, **without copying** from the preview. From the course folder, with the venv active:
+5. **Do it for real.** On the terminal route you already are: when all 46 pass, run the proof command below. On the preview route, write both parts again in your own terminal, in your own venv, **without copying** from the preview. From the course folder, with the venv active:
 
 ```bash
-pytest labs/mod-0-0/test_lab.py -v                    # all of them
-pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt     # one group while you work
-python3 scripts/prove.py mod-0-0                      # when all 31 pass: your proof code
+pytest labs/mod-0-0/test_practice.py labs/mod-0-0/test_lab.py -v   # all 46 checks
+pytest labs/mod-0-0/test_lab.py -v -k TestSafeInt                  # one group while you work
+python3 scripts/prove.py mod-0-0                                   # when all pass: your proof code
 ```
 
-   Open `labs/mod-0-0/basics.py` in your editor (VS Code: File, Open Folder, then click the file); it is a file you edit, not a command you type. Paste the proof code into the **Proof** box on this page.
+   Open the two files in your editor (VS Code: File, Open Folder, then click the file); they are files you edit, not commands you type. Paste the proof code into the **Proof** box on this page.
 
 ### @files
-- labs/mod-0-0/basics.py :: Your working file: implement the eleven TODO functions :: starter
+- labs/mod-0-0/practice.py :: Part A, your working file: plain Python, fill in the twelve variables :: starter
+- labs/mod-0-0/basics.py :: Part B, your working file: implement the eleven TODO functions :: starter
 - labs/mod-0-0/debug_me.py :: A debugging drill: three functions with one bug each (lesson 8) :: config
-- labs/mod-0-0/test_lab.py :: The 31 tests that check your work :: test
+- labs/mod-0-0/test_practice.py :: The 15 tests that check Part A :: test
+- labs/mod-0-0/test_lab.py :: The 31 tests that check Part B :: test
 - labs/mod-0-0/requirements.txt :: pytest :: config
-- labs/mod-0-0/reference/basics.py :: One possible solution (try first!) :: reference
+- labs/mod-0-0/reference/practice.py :: One possible solution for Part A (try first!) :: reference
+- labs/mod-0-0/reference/basics.py :: One possible solution for Part B (try first!) :: reference
 
 ### @deliverables
-- All 31 tests in test_lab.py pass **on your own computer, run from your own terminal** (a pass in the browser preview does not count)
+- All 46 checks pass (15 in test_practice.py, 31 in test_lab.py) **on your own computer, run from your own terminal** (a pass in the browser preview does not count)
 - You can explain in your own words the difference between `print` and `return`, and between a list, a dict and a set
 - You can explain why `batch=[]` as a default argument is a bug and what to write instead
 
@@ -441,7 +461,7 @@ python3 scripts/prove.py mod-0-0                      # when all 31 pass: your p
 Run the tests from the repository root:
 
 ```bash
-pytest labs/mod-0-0/test_lab.py -v
+pytest labs/mod-0-0/test_practice.py labs/mod-0-0/test_lab.py -v
 python3 scripts/prove.py mod-0-0
 ```
 

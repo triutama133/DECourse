@@ -259,7 +259,7 @@ const readLab = (rel, where) => {
   return fs.readFileSync(abs, 'utf8');
 };
 for (const [id, c] of Object.entries(blCfg)) {
-  if (!built[id]) { errors.push(`browser-labs.json: unknown module ${id}`); continue; }
+  if (!built[id.replace(/[a-z]$/, '')]) { errors.push(`browser-labs.json: unknown module ${id}`); continue; }  // 'mod-0-0a' is part A of mod-0-0
   for (const k of ['note', 'editable', 'reference', 'tests', 'extra']) if (!c[k]) errors.push(`browser-labs.json ${id}: missing "${k}"`);
   if (!c.note || !c.note.id || !c.note.en) errors.push(`browser-labs.json ${id}: note needs id and en`);
   const files = {};

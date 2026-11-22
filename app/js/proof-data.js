@@ -17,9 +17,9 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-0",
   "argExample": null,
-  "tests": "6c539931",
-  "starter": "5ce618a8",
-  "reference": "99af3274"
+  "tests": "9fba5f82",
+  "starter": "69a9d2bc",
+  "reference": "a980e9bf"
  },
  "mod-0-1": {
   "arg": null,
@@ -27,7 +27,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-1",
   "argExample": null,
-  "tests": "28acaa42",
+  "tests": "bf30719d",
   "starter": "ceb3a800",
   "reference": "660c89a8"
  },

@@ -23,17 +23,21 @@
    {
     "kind": "pytest",
     "targets": [
+     "labs/mod-0-0/test_practice.py",
      "labs/mod-0-0/test_lab.py"
     ]
    }
   ],
   "tests": [
+   "labs/mod-0-0/test_practice.py",
    "labs/mod-0-0/test_lab.py"
   ],
   "work": [
+   "labs/mod-0-0/practice.py",
    "labs/mod-0-0/basics.py"
   ],
   "reference": [
+   "labs/mod-0-0/reference/practice.py",
    "labs/mod-0-0/reference/basics.py"
   ]
  },

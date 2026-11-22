@@ -1270,3 +1270,8 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .tryit-where > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; }
 .tryit-where > div { margin-top: 6px; display: grid; gap: 6px; }
 .tryit-where ol, .tryit-where ul { margin-left: 18px; display: grid; gap: 4px; }
+
+/* Lab 0.0: Part A / Part B switch on the Lab tab */
+.bl-parts { display: flex; gap: 6px; flex-wrap: wrap; }
+.bl-parts button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: var(--radius-sm, 6px); border: 1px solid var(--border); background: var(--card); color: var(--text-muted); cursor: pointer; }
+.bl-parts button.active { color: var(--text); border-color: var(--text); font-weight: 600; background: var(--card-subtle); }

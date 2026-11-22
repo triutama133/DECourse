@@ -14,9 +14,9 @@
 
   const TRACKS = [
     {
-      id: "tokopaedi",
-      logo: { text: "TK", bg: "#0f766e", fg: "#f0fdfa" },
-      company: "Tokopaedi Commerce",
+      id: "pasarmaya",
+      logo: { text: "PM", bg: "#0f766e", fg: "#f0fdfa" },
+      company: "Pasarmaya Commerce",
       role: "Junior / Mid Data Engineer",
       level: T("Junior → Mid", "Junior → Mid"),
       salary: T("Rp 12–18 juta / bulan", "IDR 12–18 million / month"),

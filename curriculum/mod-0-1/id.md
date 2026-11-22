@@ -43,7 +43,7 @@ Karena itu perusahaan menyalin data ke **sistem terpisah yang dibangun untuk ana
 
 > 🛠 **Coba sendiri (10 menit, dengan Python).** Buat datanya (`python3 labs/shared/shopgen.py --out data`) dan baca `data/orders.csv` dengan `csv.DictReader` dari Modul 0.0 untuk merasakan bedanya **pencarian satu titik OLTP** dan **pemindaian penuh OLAP**:
 > 1. Telusuri `3634` baris dan isi dict `by_id` dengan kunci `order_id` (`by_id[row["order_id"]] = row`). Berapa banyak kunci duplikat yang menimpa baris sebelumnya sehingga `len(by_id)` lebih pendek dari `3634`? Perhatikan mencari `by_id["1001"]` langsung menyentuh **satu** item seketika (OLTP).
-> 2. Sekarang pindai seluruh baris untuk menghitung berapa pesanan di setiap status huruf kecil (`counts[status] += 1`). Perhatikan ia harus membaca **semua** `3634` baris (OLAP).
+> 2. Sekarang pindai seluruh baris untuk menghitung berapa pesanan di setiap status huruf kecil (`counts[status] = counts.get(status, 0) + 1`, baris penghitung dari Modul 0.0). Perhatikan ia harus membaca **semua** `3634` baris (OLAP).
 >
 > **Seharusnya Anda melihat:** `len(by_id)` bernilai `3599` (artinya ada `35` ID pesanan duplikat di file!), sedangkan `counts` mengunjungi setiap baris untuk meringkas kategori. Modul 0.3 menunjukkan bagaimana database SQL melakukan keduanya lewat pencarian `PRIMARY KEY` dibanding pemindaian `GROUP BY`.
 

@@ -383,7 +383,7 @@ window.INTERVIEW_DATA = {
       },
       "schema": "CREATE TABLE user_activity (user_id INT, activity_date DATE);",
       "sandboxSetup": "CREATE TABLE user_activity (user_id INT, activity_date TEXT);\nINSERT INTO user_activity VALUES\n  (101, '2026-03-01'), (101, '2026-03-01'), (101, '2026-03-02'), (101, '2026-03-03'),\n  (101, '2026-03-06'), (101, '2026-03-07'),\n  (102, '2026-03-01'), (102, '2026-03-04'), (102, '2026-03-05'), (102, '2026-03-06'), (102, '2026-03-07'),\n  (103, '2026-03-02');",
-      "sandboxAdversarial": "INSERT INTO user_activity VALUES\n  (101, '2026-03-08'), (101, '2026-03-09'), (101, '2026-03-09'),\n  (104, '2026-03-10'), (104, '2026-03-10');",
+      "sandboxAdversarial": "INSERT INTO user_activity VALUES\n  (101, '2026-03-08'), (101, '2026-03-09'), (101, '2026-03-09'),\n  (104, '2026-03-10'), (104, '2026-03-10'),\n  (105, '2026-03-10'), (105, '2026-03-11'), (105, '2026-03-11'), (105, '2026-03-12');",
       "sqliteSolutionSql": "WITH distinct_activity AS (\n  SELECT DISTINCT user_id, activity_date FROM user_activity\n), ranked_activity AS (\n  SELECT\n    user_id,\n    CAST(julianday(activity_date) AS INT) - ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY activity_date) AS island\n  FROM distinct_activity\n), streak_lengths AS (\n  SELECT user_id, island, COUNT(*) AS streak_days\n  FROM ranked_activity\n  GROUP BY user_id, island\n)\nSELECT user_id, MAX(streak_days) AS longest_active_streak\nFROM streak_lengths\nGROUP BY user_id\nORDER BY longest_active_streak DESC, user_id ASC;",
       "sqliteHint": {
         "id": "Sandbox berjalan di SQLite 3.39: gunakan `CAST(julianday(activity_date) AS INT) - ROW_NUMBER() OVER (...)` (atau `date(activity_date, '-' || rn || ' days')`) untuk membentuk grup pulau tanggal.",

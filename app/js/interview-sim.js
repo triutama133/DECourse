@@ -280,6 +280,10 @@
                 "Setiap wawancara terdiri dari screening pembuka, 3 babak teknis mendalam (SQL, Whiteboard Arsitektur, dan Insiden/Stakeholder) dengan pertanyaan lanjutan mendadak, lalu ditutup sidang komite rekrutmen.",
                 "Each loop walks you through a recruiter pitch, 3 live technical rounds (SQL, Architecture Whiteboard, and Incident/Executive defense) with sharp follow-up pushback, ending in a hiring committee debrief."
               )}</p>
+              <p class="muted small">${this.l(
+                "Semua perusahaan, orang, dan gaji di simulasi ini fiktif: dibuat untuk latihan, bukan data pasar.",
+                "All companies, people and salaries in these simulations are fictional: made up for practice, not market data."
+              )}</p>
             </div>
           </div>
           <div class="is-tracks">

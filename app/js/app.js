@@ -294,7 +294,7 @@ class DataForgeApp {
           <div class="callout-head">
             <span class="callout-badge">💡 ${this.l("Jeda Praktik Terarah (Jembatan ke Lab)", "Guided Lab Checkpoint (Practice Pause)")}</span>
             ${modId ? (window.BROWSER_LABS && window.BROWSER_LABS[modId]
-              ? `<button class="btn btn-sm btn-quiet" onclick="app.openLabPreview('${modId}')">${this.l("Buka pratinjau di tab Lab", "Open the preview on the Lab tab")} →</button>`
+              ? `<button class="btn btn-sm btn-quiet" onclick="app.openLabPreview('${modId}'${/\b(?:Part|Bagian) ([AB])\b/i.test(first) ? `,'${first.match(/\b(?:Part|Bagian) ([AB])\b/i)[1].toLowerCase()}'` : ""})">${this.l("Buka pratinjau di tab Lab", "Open the preview on the Lab tab")} →</button>`
               : `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${modId}','lab')">${this.l("Buka Tab Lab", "Open Lab Tab")} →</button>`) : ""}
           </div>
           <div class="stack-sm">${this.renderQuoteBody(q)}</div>
@@ -330,7 +330,10 @@ class DataForgeApp {
         `Capstone ini dibangun per langkah. ${C("check.py <folder> --step N")} memeriksa langkah N dan mencetak ${C("PASS")}/${C("FAIL")} per pemeriksaan, plus ringkasan. ${C("--hint 1")} sampai ${C("--hint 3")} memberi petunjuk bertingkat; coba sendiri minimal 30 menit sebelum memintanya.`,
         `This capstone is built step by step. ${C("check.py <folder> --step N")} checks step N and prints ${C("PASS")}/${C("FAIL")} per check, plus a summary. ${C("--hint 1")} to ${C("--hint 3")} give hints of increasing detail; try for at least 30 minutes before you ask.`)
     }[kind];
-    const extra = alsoPytest ? `<p>${this.l(`Modul ini juga punya bagian Python dengan tes ${C("pytest")}; langkah lab di bawah menyebutkan keduanya.`, `This module also has a Python part checked with ${C("pytest")}; the lab steps below cover both.`)}</p>` : "";
+    const partA = mod.id === "mod-0-0" ? `<p>${this.l(
+      `Lab ini punya dua bagian. <strong>Bagian A</strong> (Pelajaran 1–4) tidak memakai fungsi: Anda mengganti setiap ${C("None")} di ${C("practice.py")} dengan kode biasa, dan tesnya menjalankan file Anda lalu memeriksa nilai variabelnya. <strong>Bagian B</strong> (mulai Pelajaran 5) adalah fungsi di ${C("basics.py")}.`,
+      `This lab has two parts. <strong>Part A</strong> (Lessons 1–4) uses no functions: you replace each ${C("None")} in ${C("practice.py")} with plain code, and the tests run your file and check the values of its variables. <strong>Part B</strong> (from Lesson 5) is the functions in ${C("basics.py")}.`)}</p>` : "";
+    const extra = partA + (alsoPytest ? `<p>${this.l(`Modul ini juga punya bagian Python dengan tes ${C("pytest")}; langkah lab di bawah menyebutkan keduanya.`, `This module also has a Python part checked with ${C("pytest")}; the lab steps below cover both.`)}</p>` : "");
     const read = kind === "pytest" || kind === "dbt" ? this.l(
       `<strong>Membaca tes yang gagal.</strong> Lihat baris yang diawali ${C("E")}. ${C("assert 'Rp 1,250,000' == 'Rp 1.250.000'")} berarti: fungsi Anda mengembalikan nilai kiri, tes mengharapkan nilai kanan. Perbedaannya memberi tahu apa yang harus diubah. ${C("NotImplementedError")} berarti fungsinya belum Anda tulis. Jalankan satu kelompok saja agar pesannya pendek: ${C("pytest <file tes> -k NamaKelompok -v")}.`,
       `<strong>Reading a failed test.</strong> Look at the lines that start with ${C("E")}. ${C("assert 'Rp 1,250,000' == 'Rp 1.250.000'")} means: your function returned the left value, the test expected the right one. The difference tells you what to change. ${C("NotImplementedError")} means you have not written that function yet. Run one group only to keep the output short: ${C("pytest <test file> -k GroupName -v")}.`) : this.l(
@@ -514,7 +517,8 @@ class DataForgeApp {
   }
   switchView(view) { this.go(view); }
   // A Practice Pause sends a beginner to the browser preview, so land on it, not on the top of the Lab tab.
-  openLabPreview(modId) {
+  openLabPreview(modId, part) {
+    if (part) this._blPartChoice = Object.assign({}, this._blPartChoice, { [modId]: part });
     this.go("curriculum", modId, "lab");
     let tries = 0;
     const land = () => {
@@ -816,14 +820,30 @@ class DataForgeApp {
   }
 
   // ================= IN-BROWSER PYTHON LABS (Pyodide, in a Web Worker) =================
-  browserLabCard(modId) {
+  // A lab can have two parts: Module 0.0 has Part A (plain code, browser lab "mod-0-0a") and Part B (functions, "mod-0-0").
+  // Everything below the card (drafts, runs, the reference unlock) is keyed by the browser-lab id, so the parts stay separate.
+  blHasParts(realModId) { return Boolean(window.BROWSER_LABS && window.BROWSER_LABS[realModId + "a"]); }
+  blPart(realModId) {
+    if (!this.blHasParts(realModId)) return "b";
+    const chosen = this._blPartChoice && this._blPartChoice[realModId];
+    if (chosen) return chosen;
+    return this.isLessonDone(realModId, 4) ? "b" : "a";   // Part B uses def, which Lesson 5 teaches
+  }
+  setBlPart(realModId, part) {
+    this._blPartChoice = Object.assign({}, this._blPartChoice, { [realModId]: part });
+    this.renderView();
+  }
+  browserLabCard(realModId) {
+    const hasParts = this.blHasParts(realModId);
+    const part = this.blPart(realModId);
+    const modId = hasParts && part === "a" ? realModId + "a" : realModId;   // the browser-lab id used below
     const bl = window.BROWSER_LABS && window.BROWSER_LABS[modId];
     if (!bl) return "";
     const draft = readStore("df_bl_" + modId, null);
     const code = typeof draft === "string" ? draft : bl.starter;
     const passed = (readStore("df_browser_labs", {}) || {})[modId];
     const last = (this._blOut && this._blOut[modId]) || {};
-    const needLesson5Intro = modId === "mod-0-0" && !this.isLessonDone("mod-0-0", 3) && !this.isLessonDone("mod-0-0", 4) && draft === null;
+    const needLesson5Intro = hasParts && part === "b" && !this.isLessonDone(realModId, 4) && draft === null;
     const editorBlock = `
         <p class="small muted">${this.esc(this.t(bl.note))}</p>
         <label class="label" for="bl-code"><code>${this.esc(bl.editable)}</code></label>
@@ -838,17 +858,24 @@ class DataForgeApp {
         <div id="bl-summary" aria-live="polite">${last.summary || ""}</div>
         <pre class="bl-out" id="bl-out"${last.out ? "" : " hidden"}>${this.esc(last.out || "")}</pre>
         <div id="bl-ref">${this.blReferenceHtml(modId)}</div>`;
+    const switchHtml = hasParts ? `
+        <div class="bl-parts" role="tablist" aria-label="${this.l("Bagian lab", "Lab part")}">
+          <button role="tab" aria-selected="${part === "a"}" class="${part === "a" ? "active" : ""}" onclick="app.setBlPart('${realModId}','a')">${this.l("Bagian A: kode biasa (Pelajaran 1–4)", "Part A: plain code (Lessons 1–4)")}</button>
+          <button role="tab" aria-selected="${part === "b"}" class="${part === "b" ? "active" : ""}" onclick="app.setBlPart('${realModId}','b')">${this.l("Bagian B: fungsi (mulai Pelajaran 5)", "Part B: functions (from Lesson 5)")}</button>
+        </div>` : "";
     return `
       <div class="card browser-lab stack-sm" id="browser-lab">
         <div class="row between">
           <h3>${this.l("Pratinjau di browser (tidak dihitung)", "Browser preview (does not count)")}</h3>
           ${passed ? `<span class="state-done" id="bl-passed">✓ ${this.l("Pratinjau lulus", "Preview passed")}</span>` : `<span id="bl-passed"></span>`}
         </div>
+        ${switchHtml}
         ${needLesson5Intro ? `
           <div class="callout">
-            <p class="small"><strong>🪜 ${this.l("Masih di Pelajaran 1–4?", "Still on Lessons 1–4?")}</strong> ${this.l("Kerjakan Jeda Praktik 1–4 dengan Python baris-demi-baris di terminal Anda dulu (<code>python3 ~/practice/pause1.py</code>) sebelum menyentuh fungsi <code>def</code> di bawah. Kotak lab 11 fungsi ini mulai dipakai pada Pelajaran 5.", "Do Practice Pauses 1–4 using plain top-level lines in your terminal first (<code>python3 ~/practice/pause1.py</code>) before touching the <code>def</code> functions below. This 11-function lab box starts at Lesson 5.")}</p>
+            <p class="small"><strong>🪜 ${this.l("Bagian B memakai fungsi (<code>def</code>), yang diajarkan Pelajaran 5.", "Part B uses functions (<code>def</code>), which Lesson 5 teaches.")}</strong> ${this.l("Kerjakan Bagian A dulu (Pelajaran 1–4): kode biasa, tanpa fungsi.", "Do Part A first (Lessons 1–4): plain code, no functions.")}</p>
+            <button class="btn btn-sm btn-primary" onclick="app.setBlPart('${realModId}','a')">${this.l("Ke Bagian A", "Go to Part A")}</button>
           </div>
-          <details class="fold-callout"><summary class="label">${this.l("Buka pratinjau lab Pelajaran 5+ (berisi fungsi def)", "Open Lesson 5+ lab preview (contains def functions)")}</summary><div class="stack-sm" style="margin-top:8px">${editorBlock}</div></details>`
+          <details class="fold-callout"><summary class="label">${this.l("Lihat Bagian B sekarang (berisi fungsi def)", "Look at Part B now (contains def functions)")}</summary><div class="stack-sm" style="margin-top:8px">${editorBlock}</div></details>`
         : editorBlock}
       </div>`;
   }
@@ -945,11 +972,11 @@ class DataForgeApp {
           writeStore("df_browser_labs", done);
           const mark = document.getElementById("bl-passed");
           if (mark) { mark.className = "state-done"; mark.textContent = "✓ " + this.l("Pratinjau lulus", "Preview passed"); }
-          summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus di pratinjau. Langkah yang sesungguhnya: selesaikan Modul 0.2, lalu ulangi lab ini di komputer Anda sendiri (venv, pytest, editor Anda) dan tulis ulang kodenya tanpa menyalin. Hanya itu yang dihitung.`, `All ${passed} tests pass in the preview. The real step: finish Module 0.2, then repeat this lab on your own computer (venv, pytest, your own editor) and write the code again without copying. Only that counts.`)}</div>`;
+          summary = `<div class="feedback ok">✓ ${this.l(`Semua ${passed} tes lulus di pratinjau. Langkah yang sesungguhnya: kerjakan lab ini di terminal Anda sendiri (venv, pytest, editor Anda), tulis kodenya lagi tanpa menyalin, lalu jalankan python3 scripts/prove.py. Hanya itu yang dihitung.`, `All ${passed} tests pass in the preview. The real step: do this lab in your own terminal (venv, pytest, your own editor), write the code again without copying, then run python3 scripts/prove.py. Only that counts.`)}</div>`;
         } else if (passed > 0) {
-          summary = `<div class="feedback info">${this.l(`${passed} dari ${passed + failed + errors} tes lulus. Grup bertanda ✓ sudah selesai; kerjakan fungsi berikutnya, lalu jalankan lagi. Pesan di bawah menjelaskan yang masih gagal (baca dari baris paling bawah).`, `${passed} of ${passed + failed + errors} tests pass. Groups marked ✓ are done; write the next function, then run again. The messages below explain what still fails (read them from the bottom up).`)}</div>`;
+          summary = `<div class="feedback info">${this.l(`${passed} dari ${passed + failed + errors} tes lulus. Grup bertanda ✓ sudah selesai; kerjakan langkah atau fungsi berikutnya, lalu jalankan lagi. Pesan di bawah menjelaskan yang masih gagal (baca dari baris paling bawah).`, `${passed} of ${passed + failed + errors} tests pass. Groups marked ✓ are done; write the next function, then run again. The messages below explain what still fails (read them from the bottom up).`)}</div>`;
         } else {
-          summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one function, then run again.`)}</div>`;
+          summary = `<div class="feedback bad">${this.l(`${passed} lulus, ${failed} gagal, ${errors} error. Baca pesan di bawah dari baris paling bawah ke atas, perbaiki satu langkah atau fungsi, lalu jalankan lagi.`, `${passed} passed, ${failed} failed, ${errors} errors. Read the messages below from the bottom up, fix one step or function, then run again.`)}</div>`;
         }
         const raw = String(m.output).replace(/\/lab\//g, "");
         const groups = this.blGroups(bl, raw);
@@ -1261,7 +1288,7 @@ class DataForgeApp {
 
   exportProgress() {
     const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
-    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
+    try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d[a-z]?$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -1327,7 +1354,7 @@ class DataForgeApp {
           for (const [id, rec] of Object.entries(d.df_proofs)) if (rec && typeof rec.code === "string" && this.verifyProof(id, rec.code).ok) kept[id] = { code: rec.code, at: String(rec.at || "") };
           writeStore("df_proofs", kept);
         }
-        for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
+        for (const k of Object.keys(d)) if (/^df_bl_mod-\d-\d[a-z]?$/.test(k) && typeof d[k] === "string" && d[k].length < 200000) writeStore(k, d[k]);
         if (d.df_streak && typeof d.df_streak.lastDate === "string" && Number.isFinite(Number(d.df_streak.days))) writeStore("df_streak", { days: Number(d.df_streak.days), lastDate: d.df_streak.lastDate });
         this.touchStreak();
         this.renderChrome(); this.renderView();
@@ -2744,7 +2771,8 @@ Hello from KopiKu</code></pre>
     const totalLessons = (mod.lessons || []).length;
     const tryItStats = this.moduleTryItStats(mod);
     const hasProof = Boolean(this.proofFor(mod.id));
-    const blPassed = Boolean((readStore("df_browser_labs", {}) || {})[mod.id]);
+    const blDone = readStore("df_browser_labs", {}) || {};
+    const blPassed = Boolean(blDone[mod.id]) && (!(window.BROWSER_LABS && window.BROWSER_LABS[mod.id + "a"]) || Boolean(blDone[mod.id + "a"]));
     const isChaosDone = Boolean(this.chaosDone[mod.id] && this.chaosDone[mod.id].done);
     const quizScore = this.quizScores[mod.id];
     const quizNeed = Math.ceil((mod.quiz || []).length * 0.8);
