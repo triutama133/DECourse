@@ -420,7 +420,7 @@ Two differences deserve a second look. `qty * price` works in SQLite because `->
 
 ## @part Performance and interviews
 
-## @lesson Cost-based optimizer join operators, MVCC VACUUM, Sargable tuning, and the 7 SQL interview patterns
+## @lesson Cost-based optimizer join operators, MVCC VACUUM, Sargable tuning, and the 7 SQL interview patterns {optional}
 
 When you inspect an `EXPLAIN ANALYZE` plan in PostgreSQL, Spark, Snowflake, or BigQuery, the **Cost-Based Optimizer (CBO)** does not just decide whether to use an index—it also chooses the physical algorithm used to join two tables:
 
@@ -475,7 +475,7 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 
 ## @part SQL Server and T-SQL
 
-## @lesson SQL Server and T-SQL: the dialect many job posts expect
+## @lesson SQL Server and T-SQL: the dialect many job posts expect {optional}
 Microsoft's data tools are everywhere in this job market: of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), **53.9%** name at least one of Azure, SQL Server, SSIS, Power BI, Fabric or Synapse, and **10.8%** ask for SQL Server or T-SQL by name. Banks and older enterprises often keep years of business logic in SQL Server **stored procedures** and SSIS packages, and a new data engineer is expected to read them, fix them and eventually move them. You already know SQL: `SELECT`, joins, `GROUP BY` and window functions work the same in **T-SQL** (Transact-SQL, the dialect of SQL Server, Azure SQL, Synapse and Fabric Warehouse). This lesson is the short list of differences that trip people up.
 
 **Run it on your laptop, free.** SQL Server's Developer edition runs in Docker:

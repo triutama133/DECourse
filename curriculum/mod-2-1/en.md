@@ -246,7 +246,7 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 > 2. Ensure all 10 tests pass cleanly without errors (`10 passed`).
 > 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
 
-## @lesson Serialization & compression matrix (Appendix A) and NoSQL storage internals (LSM-Tree vs. B-Tree)
+## @lesson Serialization & compression matrix (Appendix A) and NoSQL storage internals (LSM-Tree vs. B-Tree) {optional}
 
 Two storage questions appear repeatedly in both production architecture reviews (Reis & Housley Chapter 6 & Appendix A) and senior data engineering interviews: **(1) Which file format and compression codec should we pick for each stage of the pipeline?** and **(2) How do NoSQL storage engines (`LSM-Tree`) differ from relational databases (`B+Tree`) when we ingest from or serve to them?**
 

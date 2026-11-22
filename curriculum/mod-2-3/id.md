@@ -284,7 +284,7 @@ Alur kerja profesional yang sehat: kembangkan fitur di skema pribadi lokal, buka
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Indikator Sukses:** `OK snapshotted snapshots.customers_snapshot`, siap mendeteksi perubahan domisili kota dan tier pelanggan ketika data batch kedua dimuat.
 
-## @lesson dbt produksi di cloud warehouse: strategi inkremental, unit test, kontrak model, dan Slim CI
+## @lesson dbt produksi di cloud warehouse: strategi inkremental, unit test, kontrak model, dan Slim CI {optional}
 
 Pada hari pertama Anda bergabung dengan tim Analytics Engineering atau Data Engineering modern, Anda jarang menjalankan `dbt build` pada file lokal kecil; Anda akan membuka repositori dbt berisi 300 model yang terhubung ke **BigQuery, Snowflake, atau Databricks**. Empat praktik dbt produksi ini mencegah pembengkakan tagihan cloud dan rusaknya tabel mart hilir:
 

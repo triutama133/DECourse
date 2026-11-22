@@ -303,7 +303,7 @@ load_info = pipeline.run(kopiku_orders_source())
 
 ## @part Other ways data arrives
 
-## @lesson Database drivers, file drops, EDI and data sharing
+## @lesson Database drivers, file drops, EDI and data sharing {optional}
 Chapter 7 of *Fundamentals of Data Engineering* lists the ways data reaches a platform. This module covered APIs, files and webhooks; four more come up in real jobs, especially in banking, retail and logistics.
 
 **1. A direct database connection: ODBC and JDBC.** When you read a source database with `psycopg` or SQLAlchemy, a **driver** turns your query into the database's network protocol. **ODBC** (for C and most languages) and **JDBC** (for Java, and so for Spark) are the standard driver interfaces: Spark's `spark.read.jdbc(...)`, Power BI, SSIS and Data Factory all connect through them. The same rules as for APIs apply: read from a **replica**, not the primary that serves customers; pull in pages or ranges, not one giant `SELECT *`; and for anything big or frequent, prefer change data capture (Module 3.2) to repeated full reads.

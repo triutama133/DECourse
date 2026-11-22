@@ -196,7 +196,7 @@ Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti
 >
 > **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Tidak ada yang perlu dibangunkan untuk job yang gagal, tetapi job yang sekadar lebih lambat dari inputnya adalah kegagalan yang tumbuh diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
 
-## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream join, dan real-time OLAP (Pinot, ClickHouse, Druid)
+## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream join, dan real-time OLAP (Pinot, ClickHouse, Druid) {optional}
 
 Memperluas Bab 7 dan 8 (ingestion, serta query termasuk streaming) dari *Fundamentals of Data Engineering* serta Modul 6 *DataTalksClub Data Engineering Zoomcamp*, empat arsitektur streaming produksi ini sangat sering muncul dalam wawancara system design dan platform berlatensi rendah:
 

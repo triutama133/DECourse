@@ -102,7 +102,11 @@ function parseModule(dir, lang) {
     if (s.name === '_head') continue;
     if (s.name === 'outcomes') out.outcomes = bullets(s.lines);
     else if (s.name === 'prereq') out.prereq = text(s.lines);
-    else if (s.name === 'lesson') out.lessons.push({ title: s.arg, body: text(s.lines) });
+    // '## @lesson Title {optional}' marks a lesson a beginner may skip on the first pass (shown as a badge; numbering unchanged)
+    else if (s.name === 'lesson') {
+      const optional = /\s*\{optional\}\s*$/.test(s.arg);
+      out.lessons.push({ title: s.arg.replace(/\s*\{optional\}\s*$/, ''), body: text(s.lines), optional });
+    }
     // '## @part Title' groups the lessons that follow it (display only; lesson numbers do not change)
     else if (s.name === 'part') out.parts.push({ title: s.arg, start: out.lessons.length });
     else if (s.name === 'lab') {
@@ -164,7 +168,7 @@ function buildModule(dir) {
 
   // ---- parity checks ----
   pair(m, 'outcomes', P.id.outcomes, P.en.outcomes);
-  pair(m, 'lessons', P.id.lessons, P.en.lessons);
+  pair(m, 'lessons', P.id.lessons, P.en.lessons, (a, b) => a.optional === b.optional);
   pair(m, 'parts', P.id.parts, P.en.parts, (a, b) => a.start === b.start);
   for (const l of LANGS) P[l].parts.forEach((pt, i) => {
     if (i === 0 && pt.start !== 0) err(m, `${l} parts: the first @part must come before the first lesson`);
@@ -210,7 +214,7 @@ function buildModule(dir) {
     title: bi((p) => p.fm.title), duration: bi((p) => p.fm.duration), summary: bi((p) => p.fm.summary), whyTutorialsLie: bi((p) => p.fm.why),
     outcomes: P.en.outcomes.map((_, i) => ({ id: P.id.outcomes[i], en: P.en.outcomes[i] })),
     prerequisites: P.en.prereq || P.id.prereq ? { id: P.id.prereq, en: P.en.prereq } : null,
-    lessons: P.en.lessons.map((l, i) => ({ title: { id: P.id.lessons[i].title, en: l.title }, body: { id: P.id.lessons[i].body, en: l.body } })),
+    lessons: P.en.lessons.map((l, i) => ({ title: { id: P.id.lessons[i].title, en: l.title }, body: { id: P.id.lessons[i].body, en: l.body }, ...(l.optional ? { optional: true } : {}) })),
     parts: P.en.parts.map((pt, i) => ({ title: { id: P.id.parts[i].title, en: pt.title }, start: pt.start })),
     lab: {
       title: bi((p) => p.lab.title), description: bi((p) => p.lab.description), steps: bi((p) => p.lab.steps), verify: bi((p) => p.lab.verify),

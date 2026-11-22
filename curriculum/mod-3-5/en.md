@@ -216,7 +216,7 @@ ASOF LEFT JOIN tier_feed f
 >
 > **You should see:** `808` customers at 2026-01-15 (`466` ordered again) and `915` at 2026-01-22; always guessing "yes" scores `57.7%` and `56.8%`. The leaky feature looks useful in training, `70.4%` with k = 3, and collapses to `44.7%` at the later date, worse than guessing. The point-in-time feature scores `57.7%` and `54.9%`: on this data the honest signal is weak, which is exactly what you need to know before anyone ships the model. `14` of the 808 customers had a different tier on 15 January than today, so joining the current tier would have leaked too. Measured with DuckDB 2.0.1.
 
-## @lesson Dual-storage feature stores (Feast pattern), in-warehouse ML (BigQuery ML), and point-in-time ASOF verification
+## @lesson Dual-storage feature stores (Feast pattern), in-warehouse ML (BigQuery ML), and point-in-time ASOF verification {optional}
 
 In Chapter 9 (*Serving Data for Analytics, Machine Learning, and Reverse ETL*) of *Fundamentals of Data Engineering* and Module 3 of *DataTalksClub Data Engineering Zoomcamp*, two production ML data patterns bridge data warehouses and real-time inference:
 

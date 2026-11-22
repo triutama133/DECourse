@@ -246,7 +246,7 @@ Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena memat
 > 2. Pastikan ke-10 pengujian lulus sempurna tanpa hambatan (`10 passed`).
 > 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
 
-## @lesson Matriks serialisasi & kompresi (Lampiran A) serta arsitektur internal NoSQL (LSM-Tree vs. B-Tree)
+## @lesson Matriks serialisasi & kompresi (Lampiran A) serta arsitektur internal NoSQL (LSM-Tree vs. B-Tree) {optional}
 
 Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab 6 & Lampiran A *Fundamentals of Data Engineering* karya Reis & Housley) maupun wawancara senior data engineer: **(1) Format file dan codec kompresi apa yang paling tepat untuk tiap tahap pipeline?** dan **(2) Bagaimana mesin penyimpanan NoSQL (`LSM-Tree`) berbeda dari database relasional (`B+Tree`) saat kita menarik atau menyajikan data?**
 

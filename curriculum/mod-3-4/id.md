@@ -378,7 +378,7 @@ Gagasan dari bab 3 buku ini muncul di setiap wawancara system design, dan masing
 
 ## @part Opsional: terapkan sungguhan
 
-## @lesson Opsional: terapkan sungguhan, di AWS tiruan di laptop Anda
+## @lesson Terapkan sungguhan, di AWS tiruan di laptop Anda {optional}
 Lab ini hanya membuat *plan*: provider memakai kredensial palsu dan tidak pernah menghubungi AWS. Separuh lain pekerjaan Terraform, yaitu benar-benar membuat, memeriksa, memperbaiki, dan menghapus resource, butuh endpoint AWS. Akun AWS sungguhan butuh kartu pembayaran; **moto** tidak butuh apa pun. moto adalah program Python open-source yang menjawab panggilan API yang sama dengan AWS (S3, IAM, KMS, dan banyak lagi) di komputer Anda sendiri. Terraform, command line `aws`, dan `boto3` tidak bisa membedakannya, jadi Anda melatih alat dan alur kerja yang sungguhan; hanya cloud di belakangnya yang tiruan.
 
 **Yang tidak bisa diajarkan AWS tiruan.** moto tidak memeriksa izin kecuali Anda memintanya, jadi policy IAM yang akan ditolak di akun sungguhan tetap berjalan di sini; ia tidak punya harga dan tidak punya jeda jaringan sungguhan; dan sebagian layanan baru diimplementasikan sebagian. Anggap seperti simulator penerbangan: kemudi dan prosedurnya nyata, akibatnya tidak.

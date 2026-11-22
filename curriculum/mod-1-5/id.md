@@ -196,7 +196,7 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 > `pytest labs/mod-1-5/test_lab.py -v`
 > Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
 
-## @lesson Engine vektorisasi satu-node modern: eksekusi lazy Polars dan zero-copy Apache Arrow
+## @lesson Engine vektorisasi satu-node modern: eksekusi lazy Polars dan zero-copy Apache Arrow {optional}
 
 Meskipun `pandas` tetap digunakan secara luas di banyak basis kode produksi, ada dua batas arsitektur yang muncul ketika ukuran dataset di satu mesin tumbuh dari 100 MB menjadi 20 GB:
 1. **Eksekusi Satu Inti CPU (Single-Core) & Materialisasi Eager:** `pandas` standar menjalankan operasi pada satu thread CPU dan mengalokasikan DataFrame perantara baru di RAM pada setiap langkah rangkaian method (`df[df.status == 'paid'].groupby('city')...`), sehingga itulah sebabnya Wes McKinney, pembuat pandas, menyarankan **RAM 5 sampai 10 kali ukuran dataset**.

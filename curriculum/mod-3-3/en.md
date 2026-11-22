@@ -193,7 +193,7 @@ A streaming job is a service that never finishes, and it fails in ways batch doe
 >
 > **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). Nobody has to be paged for a job that fails, but a job that is merely slower than its input is a failure that grows quietly; that is why lag is the first metric to alert on.
 
-## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream joins, and real-time OLAP (Pinot, ClickHouse, Druid)
+## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream joins, and real-time OLAP (Pinot, ClickHouse, Druid) {optional}
 
 Extending Chapters 7 and 8 (ingestion, and queries including streaming) of *Fundamentals of Data Engineering* and Module 6 of the *DataTalksClub Data Engineering Zoomcamp*, four production streaming architectures appear frequently in system design interviews and low-latency platforms:
 

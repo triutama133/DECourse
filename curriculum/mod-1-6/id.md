@@ -297,7 +297,7 @@ load_info = pipeline.run(kopiku_orders_source())
 
 ## @part Cara lain data tiba
 
-## @lesson Driver database, file drop, EDI, dan data sharing
+## @lesson Driver database, file drop, EDI, dan data sharing {optional}
 Bab 7 *Fundamentals of Data Engineering* mendaftar cara-cara data sampai ke sebuah platform. Modul ini sudah membahas API, file, dan webhook; empat cara lagi muncul di pekerjaan nyata, terutama di perbankan, ritel, dan logistik.
 
 **1. Koneksi database langsung: ODBC dan JDBC.** Saat Anda membaca database sumber dengan `psycopg` atau SQLAlchemy, sebuah **driver** mengubah query Anda menjadi protokol jaringan database itu. **ODBC** (untuk C dan sebagian besar bahasa) dan **JDBC** (untuk Java, dan karena itu untuk Spark) adalah antarmuka driver standar: `spark.read.jdbc(...)` milik Spark, Power BI, SSIS, dan Data Factory semuanya terhubung lewat keduanya. Aturannya sama dengan API: baca dari **replica**, bukan primary yang melayani pelanggan; tarik per halaman atau per rentang, bukan satu `SELECT *` raksasa; dan untuk apa pun yang besar atau sering, pilih change data capture (Modul 3.2) daripada pembacaan penuh berulang.

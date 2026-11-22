@@ -353,7 +353,7 @@ Embedded analytics is the hardest. It is **multi-tenant**: one set of tables ser
 >
 > **You should see:** `monthly` has `48000` rows (24 months for each of 2,000 customers) and takes about a tenth of a second to build. On a laptop CPU (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) the median was about `13` ms on the raw orders and about `0.9` ms on `monthly`, around 14 times faster, with identical results: roughly 75 versus 1,100 queries per second per core. If 1,000 cafés open a five-chart dashboard in the same minute, that is 5,000 queries, about 83 per second: more than one core can serve from raw orders, a small fraction of one core from `monthly`. Without the `WHERE`, the dashboard silently adds up the orders of all `2000` tenants and shows them to one café. Your times will differ; the ratio should not by much.
 
-## @lesson Deep dive: Google BigQuery architecture, ARRAY<STRUCT> modeling, FinOps & Free Sandbox
+## @lesson Deep dive: Google BigQuery architecture, ARRAY<STRUCT> modeling, FinOps & Free Sandbox {optional}
 **Google BigQuery** appears in **12.7%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), behind Databricks (34.8%) and Snowflake (25.8%) and just ahead of Redshift (11.7%). It is still the easiest *real* warehouse to practise on, because its sandbox needs no payment card, and its design explains a lot about the others. You need to understand how its internal architecture shapes how you model tables, ingest streams, and control costs on GCP.
 
 ### 1. How BigQuery works under the hood (Colossus, Capacitor, Dremel & Dynamic Shuffle)
@@ -508,7 +508,7 @@ CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
 >
 > **You should see:** each dry run prints the bytes it would process, and `SELECT *` is several times the one-column query. The first real run of the `CA` query shows `cache_hit = false`; the identical second run is answered from the result cache, with `cache_hit = true` and `total_bytes_billed = 0` (lesson 4's `ResultCache`, on a real warehouse). Write down your byte counts and timings; no measured values are given here yet.
 
-## @lesson Python-to-warehouse connectors, RBAC role hierarchies, BI rollup marts, and external vs. native tables
+## @lesson Python-to-warehouse connectors, RBAC role hierarchies, BI rollup marts, and external vs. native tables {optional}
 
 Combining the best production practices from *Data Engineering 101*, *DataTalksClub Data Engineering Zoomcamp*, and *Google Business Intelligence*, four practical workflows complete your cloud data warehouse toolkit:
 
@@ -579,7 +579,7 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 
 ## @part The Microsoft data stack
 
-## @lesson Azure and Microsoft Fabric: ADLS, Data Factory, Synapse and OneLake
+## @lesson Azure and Microsoft Fabric: ADLS, Data Factory, Synapse and OneLake {optional}
 Azure appears in **41.7%** of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), more than AWS (41.4%) or Google Cloud (28.0%) in the same count. **Azure Data Factory** appears in 17.1%, **Microsoft Fabric** in 10.7% and **Azure Synapse** in 10.1%. None of it is new to you: every Microsoft service below does a job you have already done with open tools in this course. Learn the mapping and the names, and a job post full of Microsoft words becomes readable.
 
 | What you built in this course | On Azure | In Microsoft Fabric |

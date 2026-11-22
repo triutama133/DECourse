@@ -379,7 +379,7 @@ These ideas from chapter 3 of the book come up in every system design interview,
 
 ## @part Optional: apply it for real
 
-## @lesson Optional: apply it for real, on a fake AWS on your laptop
+## @lesson Apply it for real, on a fake AWS on your laptop {optional}
 The lab only *plans*: the provider uses fake credentials and never talks to AWS. The other half of Terraform's job, actually creating, checking, repairing and destroying resources, needs an AWS endpoint. A real AWS account needs a payment card; **moto** needs nothing. It is an open-source Python program that answers the same API calls as AWS (S3, IAM, KMS and many more) on your own computer. Terraform, the `aws` command line and `boto3` cannot tell the difference, so you practise the real tools and the real workflow; only the cloud behind them is pretend.
 
 **What a fake AWS cannot teach.** moto does not check permissions unless you ask it to, so an IAM policy that would be denied in a real account still works here; it has no prices and no real network delays; and some services are only partly implemented. Treat it as a flight simulator: the controls and procedures are real, the consequences are not.

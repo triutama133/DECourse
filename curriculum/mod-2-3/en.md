@@ -284,7 +284,7 @@ A healthy workflow: develop in a personal schema, open a pull request, let CI ru
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Success Indicator:** `OK snapshotted snapshots.customers_snapshot`, ready to capture city moves and tier changes when the second batch is loaded.
 
-## @lesson Production dbt on cloud warehouses: incremental strategies, unit tests, model contracts, and Slim CI
+## @lesson Production dbt on cloud warehouses: incremental strategies, unit tests, model contracts, and Slim CI {optional}
 
 On your first day joining a modern Analytics Engineering or Data Engineering team, you will rarely run `dbt build` against a small local file; you will open a 300-model dbt repository connected to **BigQuery, Snowflake, or Databricks**. Four production dbt practices prevent cloud bill explosions and broken downstream marts:
 

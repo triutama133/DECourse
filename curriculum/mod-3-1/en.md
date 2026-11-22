@@ -216,7 +216,7 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 
 ## @part Spark in production on Databricks
 
-## @lesson Production Spark on Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
+## @lesson Production Spark on Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps {optional}
 Everything you just learned about Spark internals—Catalyst, Tungsten, AQE, shuffles, broadcast joins, and data skew—is the engine inside **Databricks**, which appears in **34.8%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), and in 53.4% of the 517 postings that mention Spark. Here is how a production Databricks platform puts those pieces together on AWS, Azure, or GCP.
 
 ### 1. Control Plane vs. Cloud Data Plane & Unity Catalog (`catalog.schema.table`)
@@ -339,7 +339,7 @@ You already run real Apache Spark (`pyspark`) and real Delta Lake (`deltalake` /
 
 ## @part Reading Spark code in Scala and Java
 
-## @lesson Reading Scala and Java Spark jobs
+## @lesson Reading Scala and Java Spark jobs {optional}
 Spark itself is written in Scala, and many older or performance-critical pipelines are too. Java or Scala appears in **16.9%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20). Few of those jobs ask you to write Scala on day one. Many will ask you to read an existing job, find the bug in it, or move it to PySpark. The DataFrame API has the same method names in all three languages, so reading is mostly about knowing a short list of differences.
 
 **The same job in Scala and in PySpark.** The course ships it as `labs/mod-3-1/scala/revenue_job.scala`:

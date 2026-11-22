@@ -196,7 +196,7 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 > `pytest labs/mod-1-5/test_lab.py -v`
 > When all 35 tests show PASSED, your production pandas lab is 100% complete!
 
-## @lesson Modern single-node vectorized engines: Polars lazy execution and Apache Arrow zero-copy
+## @lesson Modern single-node vectorized engines: Polars lazy execution and Apache Arrow zero-copy {optional}
 
 While `pandas` remains ubiquitous across existing codebases, two architectural limits show up when a single-machine dataset grows from 100 MB to 20 GB:
 1. **Single-Core Execution & Eager Materialization:** Standard pandas runs operations on a single CPU thread and allocates a brand-new intermediate DataFrame in RAM at every step of a method chain (`df[df.status == 'paid'].groupby('city')...`), which is why Wes McKinney, who created pandas, advised having **5 to 10 times as much RAM as the dataset**.

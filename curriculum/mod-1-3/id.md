@@ -420,7 +420,7 @@ Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `-
 
 ## @part Performa dan wawancara
 
-## @lesson Operator join cost-based optimizer, MVCC VACUUM, tuning Sargable, dan 7 pola wawancara SQL
+## @lesson Operator join cost-based optimizer, MVCC VACUUM, tuning Sargable, dan 7 pola wawancara SQL {optional}
 
 Saat Anda membaca rencana eksekusi `EXPLAIN ANALYZE` di PostgreSQL, Spark, Snowflake, atau BigQuery, **Cost-Based Optimizer (CBO)** tidak hanya memutuskan apakah akan memakai indeks—ia juga memilih algoritma fisik untuk menggabungkan (join) dua tabel:
 
@@ -475,7 +475,7 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 
 ## @part SQL Server dan T-SQL
 
-## @lesson SQL Server dan T-SQL: dialek yang diharapkan banyak lowongan
+## @lesson SQL Server dan T-SQL: dialek yang diharapkan banyak lowongan {optional}
 Alat data Microsoft ada di mana-mana di pasar kerja ini: dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), **53,9%** menyebut setidaknya satu dari Azure, SQL Server, SSIS, Power BI, Fabric, atau Synapse, dan **10,8%** meminta SQL Server atau T-SQL secara eksplisit. Bank dan perusahaan lama sering menyimpan logika bisnis bertahun-tahun di **stored procedure** SQL Server dan paket SSIS, dan data engineer baru diharapkan bisa membacanya, memperbaikinya, dan suatu saat memindahkannya. Anda sudah menguasai SQL: `SELECT`, join, `GROUP BY`, dan window function bekerja sama di **T-SQL** (Transact-SQL, dialek SQL Server, Azure SQL, Synapse, dan Fabric Warehouse). Pelajaran ini adalah daftar pendek perbedaan yang sering menjebak.
 
 **Jalankan di laptop Anda, gratis.** Edisi Developer SQL Server berjalan di Docker:

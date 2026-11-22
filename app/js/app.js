@@ -1236,10 +1236,18 @@ class DataForgeApp {
     this.lessonFilter = filter;
     this.renderView();
   }
+  // The lesson to study next: the first unread lesson that is not optional; optional ones only when the rest are read.
+  nextLessonIdx(mod) {
+    const core = mod.lessons.findIndex((ls, i) => !ls.optional && !this.isLessonDone(mod.id, i));
+    return core >= 0 ? core : mod.lessons.findIndex((_, i) => !this.isLessonDone(mod.id, i));
+  }
+  optionalBadge(ls) {
+    return ls && ls.optional ? `<span class="micro-badge opt" title="${this.l("Boleh dilewati pada putaran pertama; kembali sebelum mencari kerja. Lab berikutnya tidak membutuhkannya.", "You may skip this on the first pass and come back before job hunting. Later labs do not need it.")}">${this.l("Opsional", "Optional")}</span>` : "";
+  }
   jumpNextUnreadLesson(modId) {
     const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
     if (!mod) return;
-    const nextIdx = mod.lessons.findIndex((_, i) => !this.isLessonDone(modId, i));
+    const nextIdx = this.nextLessonIdx(mod);
     if (nextIdx >= 0) this.openLesson(modId, nextIdx);
   }
   toggleTryIt(key) {
@@ -2122,8 +2130,10 @@ class DataForgeApp {
         ${step(5, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>
           <ul style="margin-left:18px">
-            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 68 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 68 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
+            <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 70 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 70 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
+            <li>${this.l("Materi bertanda <strong>Opsional</strong> boleh dilewati pada putaran pertama: isinya persiapan kerja, wawancara, atau alat vendor tertentu, dan tidak ada lab yang membutuhkannya. Tombol Lanjutkan otomatis melewatinya; kembalilah sebelum mencari kerja.", "Lessons marked <strong>Optional</strong> can be skipped on your first pass: they cover job preparation, interviews or one vendor's tools, and no lab needs them. The Continue button skips them for you; come back to them before you look for a job.")}</li>
+            <li>${this.l("Apa yang dibutuhkan kapan: Level 0 hanya butuh Python dan terminal. Docker opsional di Modul 1.1 dan 2.2, dan diperlukan di 3.2, 3.4, dan 3.5 (serta lab 1.3 jika Python Anda 3.14). Java 17 diperlukan mulai Modul 3.1 untuk Spark, Terraform di 3.4. Baris Prasyarat di setiap modul menyebutkannya persis.", "What you need when: Level 0 needs only Python and a terminal. Docker is optional in Modules 1.1 and 2.2, and needed in 3.2, 3.4 and 3.5 (and for lab 1.3 if your Python is 3.14). Java 17 is needed from Module 3.1 for Spark, Terraform in 3.4. Each module's Prerequisites line says exactly what it needs.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab, bersama penjelasan singkat (minimal 30 kata) dengan kata-kata Anda sendiri tentang bagian tersulit. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page, together with a short explanation (at least 30 words) in your own words of the hardest part. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
             <li>${this.l("Tekan Ctrl+K (atau /) kapan saja untuk mencari istilah di seluruh materi.", "Press Ctrl+K (or /) at any time to search every lesson for a term.")}</li>
           </ul>
@@ -2134,6 +2144,7 @@ class DataForgeApp {
           <ul style="margin-left:18px">
             <li>${this.l("Baca pesan error <strong>dari baris paling bawah</strong>. Jawabannya biasanya di sana (Modul 0.2 melatih ini).", "Read the error message <strong>from the bottom line</strong>. The answer is usually there (Module 0.2 trains this).")}</li>
             <li>${this.l("Coba sendiri minimal 30 menit sebelum melihat folder <code>reference/</code>. Setelah melihat, tutup dan tulis ulang dengan kata-kata Anda sendiri.", "Try for at least 30 minutes before looking at the <code>reference/</code> folder. After looking, close it and write it again in your own words.")}</li>
+            <li>${this.l("Asisten AI boleh dipakai untuk penjelasan: tempel pesan error-nya dan tanyakan <em>mengapa</em>, jangan tempel file lab dan meminta solusinya. Kode bukti hanya menolak salinan persis solusi referensi, jadi kejujuran ada di tangan Anda, dan yang Anda tulis sendirilah yang akan Anda ingat saat wawancara.", "An AI assistant is fine for explanations: paste the error and ask <em>why</em>; do not paste the lab file and ask for the solution. The proof code only rejects an exact copy of the reference, so honesty is up to you, and only what you wrote yourself will stay with you in an interview.")}</li>
             <li>${this.l("Jalankan satu tes saja agar pesan error lebih pendek: <code>pytest labs/mod-0-0 -k safe_int -x</code>.", "Run one test only to get a shorter error: <code>pytest labs/mod-0-0 -k safe_int -x</code>.")}</li>
             <li>${this.l("Masih macet? Buka isu di", "Still stuck? Open an issue at")} <a href="${repo}/issues" target="_blank" rel="noopener">${repo.replace("https://", "")}/issues</a> ${this.l("dan sertakan perintah yang Anda jalankan serta pesan error lengkap.", "and include the command you ran and the full error message.")}</li>
           </ul>
@@ -2492,7 +2503,7 @@ class DataForgeApp {
               const pt = parts.find((x) => x.start === i);
               const read = this.isLessonDone(m.id, i);
               const here = isCur && this.activeModuleTab === "concepts" && this.activeLessonIdx === i;
-              return `${pt ? `<div class="side-part">${this.l("Bagian", "Part")} ${pt.k + 1} · ${this.esc(this.t(pt.title))}</div>` : ""}<button class="side-lesson ${read ? "read" : ""} ${here ? "here" : ""}" onclick="app.openLesson('${m.id}', ${i})" ${here ? 'aria-current="page"' : ""}><span class="side-mark" aria-hidden="true">${read ? "✓" : ""}</span><span class="side-num">${i + 1}.</span><span class="side-title">${this.esc(this.t(ls.title))}</span><span class="sr-only">${read ? this.l(" (selesai)", " (done)") : ""}</span></button>`;
+              return `${pt ? `<div class="side-part">${this.l("Bagian", "Part")} ${pt.k + 1} · ${this.esc(this.t(pt.title))}</div>` : ""}<button class="side-lesson ${read ? "read" : ""} ${here ? "here" : ""}" onclick="app.openLesson('${m.id}', ${i})" ${here ? 'aria-current="page"' : ""}><span class="side-mark" aria-hidden="true">${read ? "✓" : ""}</span><span class="side-num">${i + 1}.</span><span class="side-title">${this.esc(this.t(ls.title))}${ls.optional ? ` <span class="side-opt">${this.l("opsional", "optional")}</span>` : ""}</span><span class="sr-only">${read ? this.l(" (selesai)", " (done)") : ""}</span></button>`;
             }).join("")}</div>` : "";
             return `
               <div class="mod-nav ${open ? "open" : ""}">
@@ -2663,7 +2674,7 @@ class DataForgeApp {
       const prereqNote = noteAt < 0 ? "" : prereqRaw.slice(noteAt).trim();
 
       const lessonIdx = this.activeLessonIdx != null && this.activeLessonIdx < totalLessons ? this.activeLessonIdx : null;
-      const nextUnread = mod.lessons.findIndex((_, i) => !this.isLessonDone(mod.id, i));
+      const nextUnread = this.nextLessonIdx(mod);
 
       // ---------- one lesson on screen ----------
       if (lessonIdx != null) {
@@ -2680,7 +2691,7 @@ class DataForgeApp {
         return `
         <nav class="lesson-bar" aria-label="${this.l("Navigasi materi", "Lesson navigation")}">
           <button class="btn btn-sm btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>
-          <span class="lesson-bar-pos">${part ? `<span class="lesson-bar-part">${this.l("Bagian", "Part")} ${part.k + 1}: ${this.esc(this.t(part.title))}</span>` : ""}${this.l("Materi", "Lesson")} <strong>${i + 1}</strong> ${this.l("dari", "of")} ${totalLessons} · ~${this.lessonMinutes(ls)} ${this.l("menit", "min")}</span>
+          <span class="lesson-bar-pos">${part ? `<span class="lesson-bar-part">${this.l("Bagian", "Part")} ${part.k + 1}: ${this.esc(this.t(part.title))}</span>` : ""}${this.l("Materi", "Lesson")} <strong>${i + 1}</strong> ${this.l("dari", "of")} ${totalLessons} · ~${this.lessonMinutes(ls)} ${this.l("menit", "min")} ${this.optionalBadge(ls)}</span>
           <div class="lesson-dots">${dots}</div>
         </nav>
         <section class="lesson lesson-card ${isRead ? "lesson-done" : ""}" id="lesson-${i}">
@@ -2695,6 +2706,7 @@ class DataForgeApp {
               </button>
             </div>
           </div>
+          ${ls.optional ? `<div class="callout optional-note"><strong>${this.l("Opsional pada putaran pertama.", "Optional on the first pass.")}</strong> ${this.l("Materi ini berguna untuk persiapan kerja dan wawancara, tetapi lab dan modul berikutnya tidak membutuhkannya. Jika Anda baru mulai, boleh lewati sekarang dan kembali sebelum mencari kerja.", "This lesson helps with job preparation and interviews, but the labs and later modules do not need it. If you are just starting, you may skip it now and come back before you look for a job.")}</div>` : ""}
           ${lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("")}
           ${this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i })}
         </section>
@@ -2765,6 +2777,7 @@ class DataForgeApp {
                     ${hasAnim ? `<span class="micro-badge info" title="${this.l("Dilengkapi animasi konsep interaktif", "Includes interactive step-by-step concept animation")}">🎬 ${this.l("Animasi", "Anim")}</span>` : ""}
                     ${hasTryIt ? `<span class="micro-badge ok" title="${this.l("Memiliki latihan praktik Try It", "Includes hands-on Try It exercise")}">🛠 Try It</span>` : ""}
                     ${hasPause ? `<span class="micro-badge info" title="${this.l("Memiliki Jeda Praktik Lab", "Includes Lab Practice Pause")}">💡 Lab</span>` : ""}
+                    ${this.optionalBadge(ls)}
                     <span>~${this.lessonMinutes(ls)}m</span>
                   </div>
                 </div>`;

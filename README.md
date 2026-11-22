@@ -38,7 +38,7 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 
 | Part | What you get |
 |---|---|
-| **Curriculum** | 5 levels, 27 modules, about 68 weeks at the suggested pace. Each module has 5 to 7 lessons (about 2,000 to 2,800 words together), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8 to 10 question quiz with explanations (80% to pass). |
+| **Curriculum** | 5 levels, 27 modules and 206 lessons, about 70 weeks at the suggested pace. Each module has 5 to 12 short lessons (16 of them marked optional for a first pass), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and a 6 to 13 question quiz with explanations (80% to pass). |
 | **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
 | **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and 58 challenges whose results are checked against a reference query (`node scripts/verify_sandbox.js` runs every solution on the same engine). SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
 | **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |

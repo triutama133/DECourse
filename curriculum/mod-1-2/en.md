@@ -267,7 +267,7 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 >
 > **You should see:** one `F401` ("imported but unused") for `os` and one for `json`; the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
 
-## @lesson Concurrent I/O, bulk database loading, integration testing, and live-coding patterns
+## @lesson Concurrent I/O, bulk database loading, integration testing, and live-coding patterns {optional}
 
 As you move from small scripts to production data pipelines and technical interviews, four engineering patterns separate a job-ready Data Engineer from a beginner:
 
@@ -321,6 +321,49 @@ def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> l
 > 🛠 **Try it (15 min, Python).** Fake an API call with `def fetch(ep): time.sleep(0.25); return {"ep": ep}` and fetch 40 endpoints three ways: a plain loop, `fetch_all_bounded` above with 8 workers and no throttle, and the same with the 20-per-second throttle. (Give `fetch_all_bounded` a `min_interval_sec` parameter that it passes on to `throttled_fetch`, so `0` switches the throttle off.) Time each with `time.perf_counter()` and check that all three return 40 results. Before running, predict the three times from the numbers alone.
 >
 > **You should see:** about `10.0` s for the loop (40 × 0.25 s), about `1.25` s with 8 workers (5 waves of 8), and about `2.2` s with the throttle: the 40th request may not start before 39 × 0.05 = 1.95 s, whatever the pool size, and then takes its 0.25 s. The throttle, not the pool, sets the speed once the API has a rate limit. Measured with Python 3.14.
+
+## @part Working on a team
+
+## @lesson Pre-commit hooks, virtual environments, and Agile data team pull requests {optional}
+
+On a real data engineering team, you rarely work alone on the `main` branch. Every change goes through a feature branch (`git switch -c feat/add-store-scd2`), automated **pre-commit hooks** on your laptop, a **GitHub Actions CI** run, and a **Pull Request (PR)** reviewed by a teammate.
+
+**1. Automated Pre-Commit Hooks (`.pre-commit-config.yaml`).** Waiting until code reaches GitHub to discover that you accidentally staged a 200 MB CSV export, left a private API key in a script, or broke Python formatting wastes everyone's time. The `pre-commit` framework runs fast local checks *before* `git commit` is allowed to succeed:
+
+```yaml
+# .pre-commit-config.yaml — runs automatically on every `git commit`
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']          # Blocks accidental commit of raw CSV/Parquet dumps
+      - id: detect-private-key         # Blocks PEM/SSH/API private keys before they enter Git history
+      - id: check-yaml                 # Validates dbt schema.yml and GitHub Actions workflows
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff                       # Fast Rust-based Python linter (replaces flake8 + isort)
+        args: [--fix]
+      - id: ruff-format                # Deterministic Python formatter (replaces black)
+```
+
+Once you run `pip install pre-commit && pre-commit install`, Git runs those seven checks automatically on every commit, and the commit stops if one fails.
+
+**2. Modern Environment Isolation (`venv` and `uv`).** Whether a team uses standard `python3 -m venv .venv` with `requirements.txt` or modern `pyproject.toml` with `uv` (`uv venv && uv pip sync`), the rule is identical: **one project, one isolated environment, pinned versions committed to Git, virtual environment directory ignored in `.gitignore`**.
+
+**3. How Data Engineers Write Pull Requests in Agile Sprints.** A software engineer's PR screenshot shows a UI button; a **data engineer's PR description must show data proof**. When you open a PR on a real team, include four lines in the summary:
+- **Grain & Contract:** What is the primary key of the new/modified table, and did the grain change?
+- **Row & Money Reconciliation Proof:** Before vs. after row count and key metric sum (e.g., `fact_orders: 3,599 rows before -> 3,599 rows after; net_revenue_idr: Rp 1,208,770,000 -> Rp 1,208,770,000 (0.00% drift)`).
+- **Query Cost / Runtime Impact:** Bytes scanned or execution time before vs. after (e.g., `BigQuery dry-run scan dropped from 42.1 GB to 1.4 GB via date partition pruning`).
+- **Backfill & Rollback Plan:** Does merging this PR require a historical backfill (`dbt run --full-refresh` or date-range backfill), and how do we revert if downstream BI dashboards break?
+
+> 🛠 **Try it (5 min, terminal).** Inside any Git repo, inspect `.git/hooks/`. Even without installing third-party tools, you can create an executable `.git/hooks/pre-commit` shell script (first line `#!/bin/sh`, then `chmod +x .git/hooks/pre-commit`) that runs `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Do not commit data files!" && exit 1 || exit 0`. Try `git add` on a dummy `.csv` file and commit it, then do the same with a `.txt` file.
+>
+> **You should see:** the `.csv` commit stops: the hook prints the file name and `ERROR: Do not commit data files!`, and `echo $?` right after `git commit` shows `1`. The `.txt` commit goes through. If nothing happens, check `chmod +x`: without it Git skips the hook and only prints a `hint:` that it was ignored because it is not executable. Measured with Git 2.53.
 
 ## @lab Lab: a validated, streaming, idempotent ETL
 Build the production version of the cleaning job from Module 0.1. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.

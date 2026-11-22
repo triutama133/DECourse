@@ -322,6 +322,31 @@ Dataset tanpa semua itu hanyalah file yang pernah dibuat seseorang; dengan semua
 >
 > **Seharusnya Anda melihat:** `1000` pelanggan. Kota dan tier saja memberi `26` kelompok, yang terkecil berisi `3` orang. Menambahkan bulan daftar membuat `80` pelanggan unik dan menaruh `353` di kelompok yang lebih kecil dari 5. Dengan tanggal daftar yang persis, `846` dari 1.000 pelanggan unik: siapa pun yang tahu kapan temannya mendaftar dan di mana ia tinggal bisa menemukan barisnya. Hanya rilis pertama yang mendekati 5-anonim, dan itu pun punya kelompok berisi 3. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
 
+## @part Bekerja dengan orang yang meminta data
+
+## @lesson Menerjemahkan permintaan stakeholder menjadi kontrak data dan pohon KPI
+
+Sebagian besar pipeline yang gagal di dunia kerja bukan rusak karena salah ketik sintaks, melainkan karena data engineer langsung menulis SQL atau Python sebelum menyepakati arti bisnis data tersebut bersama stakeholder. Ketika VP Operations mengirim pesan Slack, *"Bisa buatkan tabel layanan pelanggan dan retensi hari Jumat ini?"*, langsung membuka editor kode tanpa klarifikasi hampir pasti berujung pada bongkar-pasang ulang.
+
+Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.1, Pelajaran 3).
+
+| Dokumen | Pertanyaan yang Dijawab | Contoh Nyata di KopiKu |
+|---|---|---|
+| **1. Spesifikasi Kebutuhan Stakeholder** | Siapa pengambil keputusannya, tindakan nyata apa yang akan diambil saat angkanya berubah, dan berapa SLA kesegaran data yang benar-benar dibutuhkan? | **Pemilik:** Head of Café Operations.<br/>**Tindakan:** Menambah jadwal barista pagi dan mengirim voucher otomatis saat rasio pembelian ulang cabang turun.<br/>**SLA Kesegaran:** Harian pukul `06:00 WIB` (batch ELT; streaming Kafka yang 10× lebih mahal tidak diperlukan). |
+| **2. Pohon KPI Leading vs. Lagging** | Metrik mana yang mengukur hasil akhir di masa lalu (*lagging*) versus sinyal peringatan dini yang masih bisa dicegah (*leading*)? | **Lagging KPI:** Rasio Churn Bulanan (`% pelanggan dengan 0 pesanan dalam 30 hari`).<br/>**Leading KPI:** `% pesanan terlambat > 15 menit` dan `Keluhan berulang dalam 24 jam` (keduanya bergerak sebelum churn terjadi, jadi tim masih sempat bertindak). |
+| **3. Kontrak Grain Tabel Target & RACI** | Apa arti **satu baris** pada tabel target, apa primary key-nya, dan siapa yang **R**esponsible, **A**ccountable, **C**onsulted, dan **I**nformed saat skema hulu berubah? | **Tabel Target:** `mart_daily_store_retention`<br/>**Grain:** Satu baris per `(store_id, order_date)`.<br/>**Rumus Omzet Bersih:** `SUM(gross_idr - discount_idr - tax_idr)` untuk `status IN ('paid', 'shipped', 'delivered')`. |
+
+**Daftar Periksa 5 Pertanyaan Sebelum Menerima Tiket Data.** Pada 90 hari pertama Anda bekerja, tanyakan lima hal ini sebelum menulis kode:
+1. **Keputusan:** *"Jika angka metrik ini naik atau turun 20% besok pagi, tindakan spesifik apa yang akan diambil tim Anda?"* (Jika jawabannya *"tidak ada, sekadar ingin tahu"*, turunkan prioritasnya.)
+2. **Grain:** *"Di tabel atau grafik akhir nanti, satu baris mewakili apa—satu item barang, satu struk pesanan, satu pelanggan per hari, atau satu cabang per bulan?"*
+3. **Aturan Inklusi & Kasus Tepi:** *"Apakah pesanan yang direfund, dibatalkan, atau memakai voucher Rp 0 ikut dihitung? Zona waktu mana yang menjadi batas pergantian hari (`UTC` atau `Asia/Jakarta UTC+7`)?"*
+4. **Kesegaran vs. Biaya:** *"Apakah data kemarin yang siap pukul 06:00 pagi sudah cukup, atau ada sistem otomatis yang harus bereaksi dalam 60 detik?"*
+5. **Leading vs. Lagging:** *"Apakah kita hanya mencatat otopsi di akhir kuartal (lagging), atau melacak penyebab operasionalnya hari ini (leading)?"*
+
+> 🛠 **Coba sendiri (10 menit, kertas).** Seorang Direktur Marketing menulis: *"Boleh minta tabel pelanggan terbaik kita beserta omzetnya?"* Sebelum membaca lebih jauh, tulis setiap pertanyaan yang perlu dijawab sebelum Anda bisa menulis SQL-nya, lalu ajukan lima pertanyaan intake di atas pada permintaan ini. Kelompokkan pertanyaan Anda menurut tiga dokumen tadi: kebutuhan, KPI, dan grain.
+>
+> **Seharusnya Anda melihat:** minimal tiga ambiguitas. Yang biasa muncul: apa arti "terbaik" (belanja kotor, pendapatan bersih setelah diskon dan refund, atau seberapa sering memesan), dalam rentang waktu apa (seumur hidup, 90 hari terakhir, bulan ini), dan pada grain apa (satu baris per pelanggan, atau satu baris per pelanggan per bulan). Jawaban yang baik juga menanyakan status mana yang dihitung sebagai pendapatan dan apa yang akan *dilakukan* Marketing dengan daftar itu: kampanye win-back butuh pelanggan yang berbeda dari hadiah VIP.
+
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 

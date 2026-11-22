@@ -216,7 +216,7 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 
 ## @part Spark di produksi dengan Databricks
 
-## @lesson Spark Produksi di Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps
+## @lesson Spark Produksi di Databricks: Unity Catalog, Auto Loader, Photon, Workflows & FinOps {optional}
 Seluruh mekanisme internal Spark yang baru saja Anda pelajari—Catalyst, Tungsten, AQE, shuffle, broadcast join, dan data skew—adalah mesin utama di balik **Databricks**, yang muncul di **34,8%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), dan di 53,4% dari 517 lowongan yang menyebut Spark. Berikut adalah bagaimana platform Databricks produksi menyatukan seluruh komponen tersebut di atas AWS, Azure, atau GCP.
 
 ### 1. Control Plane vs. Cloud Data Plane & Unity Catalog (`catalog.schema.table`)
@@ -339,7 +339,7 @@ Anda sudah menjalankan Apache Spark asli (`pyspark`) dan Delta Lake asli (`delta
 
 ## @part Membaca kode Spark dalam Scala dan Java
 
-## @lesson Membaca job Spark dalam Scala dan Java
+## @lesson Membaca job Spark dalam Scala dan Java {optional}
 Spark sendiri ditulis dalam Scala, begitu pula banyak pipeline lama atau yang menuntut performa tinggi. Java atau Scala muncul di **16,9%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20). Sedikit dari pekerjaan itu yang meminta Anda menulis Scala di hari pertama. Banyak yang akan meminta Anda membaca job yang sudah ada, menemukan bug di dalamnya, atau memindahkannya ke PySpark. API DataFrame memakai nama method yang sama di ketiga bahasa, jadi membaca sebagian besar soal mengetahui daftar pendek perbedaannya.
 
 **Job yang sama dalam Scala dan PySpark.** Kursus menyertakannya sebagai `labs/mod-3-1/scala/revenue_job.scala`:

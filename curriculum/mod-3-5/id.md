@@ -216,7 +216,7 @@ ASOF LEFT JOIN tier_feed f
 >
 > **Seharusnya Anda melihat:** `808` pelanggan pada 2026-01-15 (`466` memesan lagi) dan `915` pada 2026-01-22; selalu menebak "ya" mendapat `57.7%` dan `56.8%`. Fitur yang bocor tampak berguna saat pelatihan, `70.4%` dengan k = 3, lalu jatuh ke `44.7%` pada tanggal berikutnya, lebih buruk daripada menebak. Fitur point-in-time mendapat `57.7%` dan `54.9%`: pada data ini sinyal yang jujur memang lemah, dan justru itulah yang perlu Anda ketahui sebelum ada yang merilis modelnya. `14` dari 808 pelanggan punya tier yang berbeda pada 15 Januari dibanding hari ini, jadi menjoin tier saat ini pun akan bocor. Diukur dengan DuckDB 2.0.1.
 
-## @lesson Feature store penyimpanan ganda (pola Feast), ML di dalam warehouse (BigQuery ML), dan verifikasi ASOF point-in-time
+## @lesson Feature store penyimpanan ganda (pola Feast), ML di dalam warehouse (BigQuery ML), dan verifikasi ASOF point-in-time {optional}
 
 Dalam Bab 9 (*Serving Data for Analytics, Machine Learning, and Reverse ETL*) buku *Fundamentals of Data Engineering* serta Modul 3 *DataTalksClub Data Engineering Zoomcamp*, dua pola data ML produksi ini menjembatani data warehouse dengan inferensi waktu-nyata:
 

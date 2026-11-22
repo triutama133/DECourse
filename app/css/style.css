@@ -1406,3 +1406,8 @@ details.fold-callout:not([open]) { padding-top: 10px; padding-bottom: 10px; }
 .side-lesson.read .side-title { color: var(--text-muted); }
 .side-lesson.here { background: var(--blue-tint); border-color: var(--blue); }
 .side-lesson.here .side-title, .side-lesson.here .side-num { color: var(--text); font-weight: 600; }
+
+/* lessons a beginner may skip on the first pass */
+.micro-badge.opt { background: transparent; color: var(--text-muted); border: 1px dashed currentColor; }
+.side-opt { font-size: 0.72em; color: var(--text-muted); border: 1px dashed currentColor; border-radius: 6px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
+.optional-note { margin: 10px 0 14px; border-left: 4px solid var(--text-muted); }

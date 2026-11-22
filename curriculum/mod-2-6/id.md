@@ -353,7 +353,7 @@ Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu s
 >
 > **Seharusnya Anda melihat:** `monthly` berisi `48000` baris (24 bulan untuk masing-masing 2.000 pelanggan) dan dibangun dalam sekitar sepersepuluh detik. Pada CPU laptop (AMD Ryzen 5 PRO 4650U, DuckDB 2.0.1) mediannya sekitar `13` ms pada pesanan mentah dan sekitar `0.9` ms pada `monthly`, sekitar 14 kali lebih cepat, dengan hasil yang identik: kira-kira 75 berbanding 1.100 query per detik per core. Jika 1.000 kafe membuka dashboard lima grafik di menit yang sama, itu 5.000 query, sekitar 83 per detik: lebih dari yang bisa dilayani satu core dari pesanan mentah, dan hanya sebagian kecil satu core dari `monthly`. Tanpa `WHERE`, dashboard itu diam-diam menjumlahkan pesanan kesemua `2000` tenant dan menampilkannya kepada satu kafe. Waktu Anda akan berbeda; rasionya seharusnya tidak jauh berbeda.
 
-## @lesson Bedah mendalam: Arsitektur Google BigQuery, pemodelan ARRAY<STRUCT>, FinOps & Sandbox Gratis
+## @lesson Bedah mendalam: Arsitektur Google BigQuery, pemodelan ARRAY<STRUCT>, FinOps & Sandbox Gratis {optional}
 **Google BigQuery** muncul di **12,7%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), di belakang Databricks (34,8%) dan Snowflake (25,8%), dan sedikit di atas Redshift (11,7%). Ia tetap warehouse *sungguhan* yang paling mudah untuk berlatih, karena sandbox-nya tidak butuh kartu pembayaran, dan desainnya menjelaskan banyak hal tentang yang lain. Anda perlu memahami bagaimana arsitektur internalnya menentukan cara Anda memodelkan tabel, memasukkan stream, dan mengendalikan biaya di GCP.
 
 ### 1. Cara kerja BigQuery di balik layar (Colossus, Capacitor, Dremel & Dynamic Shuffle)
@@ -507,7 +507,7 @@ CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
 >
 > **Seharusnya Anda melihat:** setiap dry run mencetak byte yang akan diproses, dan `SELECT *` beberapa kali lipat query satu kolom. Eksekusi sungguhan pertama query `CA` menunjukkan `cache_hit = false`; eksekusi kedua yang identik dijawab dari result cache, dengan `cache_hit = true` dan `total_bytes_billed = 0` (`ResultCache` dari pelajaran 4, di warehouse sungguhan). Catat jumlah byte dan waktu Anda; belum ada nilai terukur yang dicantumkan di sini.
 
-## @lesson Konektor Python ke warehouse, hierarki peran RBAC, mart rollup BI, serta tabel eksternal vs. native
+## @lesson Konektor Python ke warehouse, hierarki peran RBAC, mart rollup BI, serta tabel eksternal vs. native {optional}
 
 Memadukan praktik produksi terbaik dari *Data Engineering 101*, *DataTalksClub Data Engineering Zoomcamp*, dan *Google Business Intelligence*, empat alur kerja praktis ini melengkapi keahlian cloud data warehouse Anda:
 
@@ -578,7 +578,7 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 
 ## @part Stack data Microsoft
 
-## @lesson Azure dan Microsoft Fabric: ADLS, Data Factory, Synapse, dan OneLake
+## @lesson Azure dan Microsoft Fabric: ADLS, Data Factory, Synapse, dan OneLake {optional}
 Azure muncul di **41,7%** dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), lebih banyak daripada AWS (41,4%) atau Google Cloud (28,0%) dalam hitungan yang sama. **Azure Data Factory** muncul di 17,1%, **Microsoft Fabric** di 10,7%, dan **Azure Synapse** di 10,1%. Tidak ada yang benar-benar baru bagi Anda: setiap layanan Microsoft di bawah mengerjakan tugas yang sudah Anda kerjakan dengan alat open source di kursus ini. Pelajari pemetaan dan namanya, dan lowongan yang penuh istilah Microsoft menjadi mudah dibaca.
 
 | Yang Anda bangun di kursus ini | Di Azure | Di Microsoft Fabric |
