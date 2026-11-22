@@ -18,33 +18,110 @@ Modul 0.0 (dasar perulangan Python, dictionary, set, dan membaca file CSV) dihar
 ## @part Terminal
 
 ## @lesson Mengapa engineer tinggal di terminal
-Antarmuka grafis bagus untuk menjelajah. Ia buruk untuk **mengulang** pekerjaan, **mencatat** apa yang Anda lakukan, dan **berjalan di mesin tanpa layar**. Server cloud tidak punya desktop, dan job yang menjalankan pipeline Anda pukul 2 pagi tidak punya mouse. Semua di mesin-mesin itu dikerjakan dengan perintah teks, dan semua yang Anda otomatisasi adalah perintah teks yang bisa dibaca, ditinjau, dan dijalankan ulang orang lain.
+Bayangkan hari Senin: atasan Anda meminta, "ganti nama 40 file di `data/` dan beri tahu saya berapa pesanan yang dibatalkan". Dengan mouse itu dua puluh menit mengklik, dan tidak ada yang bisa Anda ulang besok. Dengan beberapa perintah yang diketik, itu sepuluh detik, dan perintahnya sendiri adalah catatan yang bisa dibaca dan dijalankan ulang siapa pun. Karena itu modul ini dimulai dari terminal, dan karena itu **Anda mengetik setiap perintah di komputer Anda sendiri**: membaca tentang terminal hampir tidak mengajarkan apa-apa, mengetik di dalamnya mengajar dengan cepat.
 
-Program yang membaca perintah Anda disebut **shell** (biasanya `bash` atau `zsh`; PowerShell di Windows). Jendela yang menampungnya adalah **terminal**. Anda mengetik perintah, menekan Enter, dan melihat keluarannya. Beberapa kebiasaan membuatnya jauh tidak menakutkan:
+Antarmuka grafis bagus untuk menjelajah. Ia buruk untuk **mengulang** sesuatu, **mencatat** apa yang Anda lakukan, dan **berjalan di mesin tanpa layar**. Server di cloud tidak punya desktop, dan job yang menjalankan pipeline Anda jam 2 pagi tidak punya mouse. Semua di mesin itu dikerjakan dengan perintah teks, dan semua yang Anda otomatisasi adalah perintah teks yang bisa dibaca, ditinjau, dan dijalankan ulang orang lain.
+
+Program yang membaca perintah Anda adalah **shell** (biasanya `bash` atau `zsh`; PowerShell di Windows). Jendela yang menaunginya adalah **terminal**. Anda mengetik perintah, menekan Enter, dan melihat keluarannya. Beberapa kebiasaan membuatnya jauh tidak menakutkan:
 
 - **Tekan Tab** untuk melengkapi nama file. Lebih cepat dan mencegah salah ketik.
 - **Tekan panah Atas** untuk memanggil perintah sebelumnya, dan `Ctrl+R` untuk mencarinya.
 - **Baca error-nya.** Sembilan dari sepuluh kali jawabannya ada di baris terakhir.
-- **Minta bantuan ke perintahnya:** `ls --help`, atau `man ls` (tekan `q` untuk keluar).
+- **Minta bantuan dari perintahnya:** `ls --help`, atau `man ls` (tekan `q` untuk keluar).
 
-Perintah yang akan Anda pakai setiap hari:
+Perintah-perintahnya datang dalam kelompok kecil. Untuk setiap kelompok: baca gunanya, jawab pertanyaannya, lalu coba di komputer Anda.
 
-| Perintah | Fungsi | Contoh |
+### Saya di mana, dan apa isinya?
+
+Sebelum yang lain Anda perlu tahu **di folder mana Anda berdiri** dan **apa isinya**. Shell selalu punya *folder saat ini*; perintah yang menyebut file tanpa alamat lengkap (`data/orders.csv`) mencarinya mulai dari folder itu.
+
+| Perintah | Fungsinya | Contoh |
 |---|---|---|
-| `pwd` | Menampilkan folder tempat Anda berada | `pwd` |
-| `ls -la` | Mendaftar file, termasuk yang tersembunyi, dengan detail | `ls -la data` |
+| `pwd` | Cetak folder tempat Anda berada | `pwd` |
+| `ls -la` | Daftar file, termasuk yang tersembunyi, dengan detail | `ls -la data` |
 | `cd` | Pindah folder | `cd ~/kopiku` |
-| `mkdir -p` | Membuat folder (beserta induknya) | `mkdir -p kopiku/data` |
-| `cp`, `mv` | Menyalin, memindah, atau mengganti nama | `mv lama.csv baru.csv` |
-| `rm` | **Menghapus permanen** (tidak ada tempat sampah) | `rm catatan.txt` |
-| `cat`, `head`, `tail` | Menampilkan seluruh file, baris pertama, baris terakhir | `head -5 orders.csv` |
+
+:::ask Anda berada di `~/kopiku/scripts`. Folder datanya `~/kopiku/data`. Anda menjalankan `head -5 data/orders.csv`. Apa yang terjadi?
+@options
+menampilkan lima baris pertama file pesanan
+* error: `No such file or directory`, karena `data/` tidak ada di dalam `scripts/`
+menghapus lima baris pertama
+@why
+`data/orders.csv` adalah **path relatif**: shell mencarinya mulai dari folder tempat Anda berada, `scripts/`, dan di dalamnya tidak ada `data/`. File itu satu tingkat di atas. Jalankan `pwd` dan `ls` dulu, atau tulis path dari tempat Anda berdiri: `../data/orders.csv`.
+:::
+
+> **Di komputer Anda, sekarang:** buka terminal lalu jalankan `pwd`, lalu `ls -la`, lalu `cd ..` dan `pwd` lagi. Perhatikan jawaban `pwd` berubah.
+
+### Membuat, menyalin, memindah
+
+| Perintah | Fungsinya | Contoh |
+|---|---|---|
+| `mkdir -p` | Membuat folder (dan induknya) | `mkdir -p kopiku/data` |
+| `cp` | Menyalin file | `cp orders.csv backup.csv` |
+| `mv` | Memindah atau mengganti nama | `mv old.csv new.csv` |
+
+`mv` punya dua tugas yang tampak sama bagi shell: memindah file ke folder lain, dan menggantinya namanya di tempat.
+
+:::ask Apa yang dilakukan ini, jika `old.csv` ada?
+```bash
+mv old.csv new.csv
+```
+@options
+menyalin `old.csv` ke `new.csv`; keduanya ada sesudahnya
+* mengganti nama: hanya `new.csv` yang ada sesudahnya
+menghapus kedua file
+@why
+`mv` memindah. Ketika tujuannya nama baru di folder yang sama, "memindah" file sama dengan **mengganti namanya**. Pakai `cp` ketika Anda ingin menyimpan yang asli.
+:::
+
+> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt`, `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt` dan `c.txt`.
+
+### Melihat isi file
+
+| Perintah | Fungsinya | Contoh |
+|---|---|---|
+| `cat` | Menampilkan seluruh file | `cat notes.txt` |
+| `head`, `tail` | Menampilkan baris pertama, baris terakhir | `head -5 orders.csv` |
 | `less` | Menggulir file panjang (`q` untuk keluar) | `less events.ndjson` |
+
+Jangan pernah membuka file sejuta baris di editor untuk "melihat isinya": `head` menunjukkan bentuknya dalam sekejap.
+
+:::ask Perintah mana yang tepat sebagai pandangan pertama pada file yang sangat besar?
+@options
+`cat huge.csv`
+* `head -5 huge.csv`
+`rm huge.csv`
+@why
+`cat` akan mencetak setiap baris dan membanjiri layar Anda. `head -5` menampilkan hanya lima baris pertama (header dan beberapa baris), yang biasanya sudah cukup untuk memahami bentuk datanya.
+:::
+
+### Mencari dan menghitung
+
+| Perintah | Fungsinya | Contoh |
+|---|---|---|
 | `grep` | Mencari baris yang mengandung teks | `grep "cancelled" orders.csv` |
 | `wc -l` | Menghitung baris | `wc -l orders.csv` |
 
-> **Peringatan:** `rm` tidak bertanya dan tidak bisa dibatalkan, dan `rm -rf` menghapus seluruh pohon folder tanpa satu pertanyaan pun. Sebelum menjalankannya, jalankan `ls` pada path yang persis sama untuk melihat apa yang akan Anda hancurkan. Jangan pernah menjalankan perintah hasil salinan dari internet tanpa memahaminya.
+Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka file: `grep -c "cancelled" orders.csv`.
 
-**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti tertulis. Jika Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker, dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak kerepotan.
+### Yang berbahaya: rm
+
+| Perintah | Fungsinya | Contoh |
+|---|---|---|
+| `rm` | **Menghapus permanen** (tanpa tempat sampah) | `rm notes.txt` |
+
+> **Peringatan:** `rm` tidak bertanya dan tidak bisa dibatalkan, dan `rm -rf` menghapus seluruh pohon folder tanpa satu pertanyaan pun. Sebelum menjalankannya, jalankan `ls` pada path yang persis sama untuk melihat apa yang akan Anda hancurkan. Jangan pernah menjalankan perintah yang Anda salin dari internet tanpa memahaminya.
+
+:::ask Anda ingin menghapus folder `old_data/`. Apa kebiasaan paling aman?
+@options
+langsung jalankan `rm -rf old_data`
+* jalankan `ls old_data` dulu, pastikan isinya seperti dugaan Anda, baru hapus
+pindahkan ke tempat sampah dengan `rm`
+@why
+Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` lebih dulu hanya butuh dua detik dan sudah menyelamatkan banyak orang dari hari yang buruk.
+:::
+
+**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti yang tertulis. Kalau Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker, dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak gesekan.
 
 > 💡 **Jeda Praktik 1 (Eksplorasi Perintah Terminal):**
 > Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang di direktori kursus ini dan coba perintah navigasi dasar:
@@ -55,18 +132,66 @@ Perintah yang akan Anda pakai setiap hari:
 > Setelah melihat data tampil di terminal Anda, lanjut ke Pelajaran 2 di bawah.
 
 ## @lesson Path, file, dan lingkungan
-Setiap file punya **path**, alamatnya di sistem file. **Path absolut** dimulai dari root (`/home/budi/kopiku/data/orders.csv`). **Path relatif** dimulai dari tempat Anda sekarang (`data/orders.csv`). Beberapa jalan pintas yang konstan dipakai: `~` adalah folder home Anda, `.` adalah folder saat ini, `..` adalah folder induk. Kalau sebuah skrip bilang "file not found", penyebabnya hampir selalu Anda berdiri di folder yang berbeda dari dugaan; jalankan `pwd` dan `ls` lebih dulu.
+Mengapa skrip berkata "file not found" padahal file-nya ada di situ? Hampir selalu karena skrip berdiri di folder yang berbeda dari dugaan Anda. Memahami **path** menghapus seluruh kelas kebingungan ini.
 
-File yang namanya diawali titik (`.gitignore`, `.env`) bersifat **tersembunyi**; `ls -a` menampilkannya. Ekstensi file (`.csv`, `.py`) hanya petunjuk bagi manusia dan program, bukan jaminan isi.
+### Path: alamat sebuah file
 
-Dua bagian lingkungan penting sejak awal:
+Setiap file punya **path**, alamatnya di sistem file. **Path absolut** dimulai dari root (`/home/budi/kopiku/data/orders.csv`). **Path relatif** dimulai dari tempat Anda berada sekarang (`data/orders.csv`). Beberapa pintasan yang akan sering Anda pakai: `~` adalah folder home Anda, `.` adalah folder saat ini, `..` adalah folder induk. Kalau skrip berkata "file not found", jalankan `pwd` dan `ls` dulu.
 
-- **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya. Nanti Anda memakainya untuk mengirim pengaturan dan rahasia ke program tanpa menuliskannya di kode.
-- **`PATH`** adalah daftar folder yang dicari shell saat Anda mengetik nama perintah. "command not found" berarti programnya belum terpasang, atau tidak berada di folder yang ada di `PATH`. Mengaktifkan virtual environment Python (pelajaran berikut) bekerja dengan menaruh foldernya di depan `PATH`.
+Perhatikan bagaimana path relatif menjadi absolut: shell menempelkannya pada folder tempat Anda berada.
 
-**Encoding teks dan akhir baris** menyebabkan bug yang diam-diam. File teks adalah byte yang ditafsirkan lewat sebuah encoding; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris dengan cara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
+:::trace Path relatif, diselesaikan
+@code
+import posixpath
 
-**Izin (permission).** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya (`-rwxr-xr-x`). `chmod +x script.sh` membuat skrip bisa dijalankan langsung. Anda akan lebih sering menemuinya sebagai "Permission denied", yang artinya pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file tersebut. Jangan "memperbaikinya" dengan `sudo` secara membabi buta: itu menjalankan perintah dengan kuasa penuh dan membuat file yang kemudian hanya bisa diubah administrator.
+cwd = "/home/budi/kopiku/scripts"
+relative = "data/orders.csv"
+absolute = posixpath.join(cwd, relative)
+print(absolute)
+
+fixed = posixpath.normpath(posixpath.join(cwd, "..", relative))
+print(fixed)
+@notes
+3 | Anda berdiri di `scripts/`. Ini "folder saat ini", yang dicetak `pwd`.
+5 | Shell menyambung folder saat ini dan path relatif. Itulah tempat yang sungguh-sungguh dicarinya.
+6 | `/home/budi/kopiku/scripts/data/orders.csv`: tidak ada `data/` di dalam `scripts/`, jadi: "No such file or directory".
+8 | `..` berarti "folder induk". Naik satu tingkat sebelum `data/orders.csv` mendarat di file yang sebenarnya.
+:::
+
+File yang namanya diawali titik (`.gitignore`, `.env`) **tersembunyi**; `ls -a` menampilkannya. Ekstensi file (`.csv`, `.py`) hanyalah petunjuk bagi manusia dan program, bukan jaminan isi.
+
+> **Di komputer Anda, sekarang:** `cd ~`, lalu `ls`, lalu `ls -a`: nama tambahan apa yang muncul? Lalu `cd /tmp` dan `pwd`. Mana di antara `~`, `/tmp`, dan `..` yang path absolut, dan mana yang pintasan?
+
+### Environment variable dan PATH
+
+- **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya. Nanti Anda akan memakainya untuk mengoper pengaturan dan secret ke program tanpa menuliskannya di kode.
+- **`PATH`** adalah daftar folder yang dicari shell ketika Anda mengetik nama perintah, **berurutan, dan yang pertama cocok menang**. "command not found" berarti programnya tidak terpasang, atau tidak ada di folder pada `PATH` Anda.
+
+:::ask Anda mengetik `pytest` dan shell menjawab `command not found`. Apa yang dikatakan itu?
+@options
+program pytest rusak
+* tidak ada folder di `PATH` Anda yang berisi program bernama `pytest`
+Anda salah mengetik password
+@why
+Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" berarti tidak satu pun punya: belum terpasang, atau terpasang di tempat yang tidak ada di `PATH`. Mengaktifkan virtual environment Python (dua materi berikutnya) bekerja dengan menaruh foldernya di **depan** `PATH`.
+:::
+
+> **Di komputer Anda, sekarang:** `echo $PATH` (foldernya dipisahkan `:`), lalu `which python3` untuk melihat folder mana yang menang.
+
+### Bug diam-diam: encoding, akhir baris, permission
+
+**Encoding teks dan akhir baris** menyebabkan bug diam-diam. File teks adalah byte yang ditafsirkan lewat sebuah encoding; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris secara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
+
+**Permission.** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya (`-rwxr-xr-x`). `chmod +x script.sh` memungkinkan Anda menjalankan skrip langsung. Anda terutama akan menemui permission sebagai "Permission denied", yang berarti pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file itu.
+
+:::ask Anda mendapat `Permission denied` saat menjalankan skrip yang baru diunduh. Langkah pertama yang benar?
+@options
+taruh `sudo` di depannya, supaya selalu berhasil
+* lihat permission dengan `ls -l`, dan beri izin eksekusi dengan `chmod +x` bila skripnya milik Anda dan tepercaya
+hapus file lalu unduh lagi
+@why
+`sudo` menjalankan perintah dengan kekuatan penuh dan membuat file yang kemudian hanya bisa diubah administrator: jangan "memperbaiki" error permission dengan itu secara membabi buta. Baca dulu flag permission-nya, lalu ubah hanya yang perlu, pada file yang Anda percayai.
+:::
 
 > 💡 **Jeda Praktik 2 (Eksplorasi Path & Variabel Lingkungan):**
 > Coba periksa lingkungan shell Anda langsung di terminal:
@@ -77,24 +202,84 @@ Dua bagian lingkungan penting sejak awal:
 > Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Pelajaran 3 di bawah.
 
 ## @lesson Redirect dan pipe: alat kecil yang disambung
-Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, dan Anda menyambungkannya. Dua simbol melakukan penyambungan.
+Mengapa merangkai perintah? Karena perintah yang mengerjakan **satu** tugas kecil mudah dipercaya, dan sepuluh tugas kecil yang disambung bisa menjawab pertanyaan yang tidak dirancang untuk satu program mana pun. Inilah gagasan di balik hampir setiap pipeline data yang akan Anda bangun.
+
+### Dua simbol yang menyambung
+
+Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, dan Anda menyambungnya.
 
 - `|` (pipe) mengirim keluaran satu perintah ke perintah berikutnya.
-- `>` menulis keluaran ke file (menggantikan isinya), dan `>>` menambahkannya di akhir file.
+- `>` menulis keluaran ke file (menggantikannya), dan `>>` menambahkan ke file.
 
-Coba ini pada file pesanan KopiKu yang Anda buat di Mulai di sini (`python3 labs/shared/shopgen.py --out data`). Berapa pesanan per status?
+### Baca pipe dari kiri ke kanan
+
+Berapa pesanan per status? Coba pada file pesanan KopiKu yang Anda buat di Mulai dari sini (`python3 labs/shared/shopgen.py --out data`):
 
 ```bash
 cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
 ```
 
-Baca dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (status), `tail -n +2` melewati baris judul, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung deretan nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di atas. Lima alat kecil menggantikan sebuah program, dan tidak ada yang dimuat ke memori sekaligus, jadi cara ini berjalan pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini lebih dalam.
+Jangan dijalankan dulu. Tebak dulu apa yang diserahkan setiap tahap ke tahap berikutnya, pada file kecil:
 
-Perhatikan keluarannya juga memperlihatkan masalah data dunia nyata: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang bagus untuk *melihat data sebelum menulis kode untuknya* — Modul 0.2 melatih cara membersihkannya dengan benar.
+```
+id,customer,total,status
+1,7,150000,paid
+2,3,90000,cancelled
+3,7,25000,paid
+```
 
-> **Peringatan:** `>` mengganti file tujuan seketika dan tanpa suara. `sort data.csv > data.csv` menghancurkan file itu (shell mengosongkannya sebelum `sort` membaca). Tulis ke file baru, lalu ganti namanya.
+:::ask Apa yang dicetak `cut -d, -f4 orders.csv` untuk file itu?
+@options
+seluruh file
+* kolom ke-4 yang dipisah koma, satu nilai per baris: `status`, `paid`, `cancelled`, `paid`
+hanya angkanya
+@why
+`-d,` menyatakan pemisahnya koma, dan `-f4` memilih field ke-4. Field ke-4 pada header (`status`) ikut keluar, itulah sebabnya tahap berikutnya melewati baris pertama.
+:::
 
-Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python job.py > out.txt 2> errors.txt`). Pemisahan inilah yang membuat pipeline bisa gagal dengan jelas meski keluarannya sedang dialirkan ke tempat lain.
+:::ask Mengapa `sort` harus datang SEBELUM `uniq -c` dalam pipe?
+@options
+`uniq` hanya bekerja pada angka yang terurut
+* `uniq -c` menghitung rangkaian baris sama yang **bersebelahan**, jadi nilai yang sama harus berdekatan dulu
+supaya keluarannya lebih rapi
+@why
+`uniq -c` hanya membandingkan sebuah baris dengan baris tepat sebelumnya. Untuk `paid, cancelled, paid` ia menghitung tiga kelompok berisi 1. Setelah `sort` ia melihat `cancelled, paid, paid` dan menghitung `1 cancelled` dan `2 paid`.
+:::
+
+Setiap tahap adalah langkah kecil yang sudah Anda kenal dari Python. Lihat pipeline yang sama ditulis sebagai Python, satu tahap per baris:
+
+:::trace Pipe, tahap demi tahap
+@code
+column = ["status", "paid", "cancelled", "paid"]
+no_header = column[1:]
+ordered = sorted(no_header)
+counts = {}
+for status in ordered:
+    counts[status] = counts.get(status, 0) + 1
+print(counts)
+@notes
+1 | `cut -d, -f4`: kolom ke-4, termasuk header.
+2 | `tail -n +2`: lewati baris pertama (header).
+3 | `sort`: nilai yang sama berakhir berdekatan.
+6 | `uniq -c`: hitung setiap rangkaian nilai sama. Perhatikan dictionary-nya bertambah.
+:::
+
+Bacalah dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (statusnya), `tail -n +2` melewati baris header, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung rangkaian nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di depan. Lima alat kecil menggantikan satu program, dan tidak ada yang dimuat ke memori sekaligus, jadi ia bekerja pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini secara mendalam.
+
+Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang baik untuk *melihat data sebelum Anda menulis kode untuknya* — Modul 0.2 menangani pembersihan status ini dengan benar.
+
+### Menulis ke file
+
+:::ask Anda menjalankan `sort orders.csv > orders.csv`. Apa yang terjadi pada datanya?
+@options
+file terurut di tempat
+* file dikosongkan: shell membuka file untuk ditulis (dan mengosongkannya) **sebelum** `sort` membacanya
+tidak ada, shell menolak
+@why
+`>` mengosongkan file tujuan begitu perintah dimulai. `sort` lalu membaca file yang sudah kosong. Untuk mengurutkan sebuah file ke file lain, tulis ke nama yang **berbeda**: `sort orders.csv > sorted.csv`. (Mengalihkan ke file yang sedang dibaca menghancurkannya.)
+:::
+
+Setiap program punya tiga aliran standar: input (`stdin`), output (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python job.py > out.txt 2> errors.txt`). Memisahkan keduanya adalah alasan pipeline bisa gagal dengan jelas meski outputnya dialirkan ke tempat lain.
 
 > 💡 **Jeda Praktik 3 (Piping Data KopiKu):**
 > Mari buktikan kekuatan pipe langsung di terminal tanpa menulis program Python:
@@ -105,11 +290,52 @@ Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`)
 ## @part Lingkungan Python dan Git
 
 ## @lesson Python: pasang sekali, lalu isolasi setiap proyek
+Mengapa ini penting sejak hari pertama? Karena begitu Anda memasang sesuatu secara global dan itu merusak alat yang dibutuhkan sistem operasi Anda, Anda kehilangan satu sore. Virtual environment adalah asuransi murah untuk itu.
+
 Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2 (halaman **Mulai di sini** menuntun cara memasangnya).
 
 **Pengguna Ubuntu, Debian, dan WSL2:** sistem ini membawa Python tanpa alat venv. Pasang sekali dengan `sudo apt install -y python3-venv python3-pip`; tanpanya, baris `python3 -m venv` di bawah berhenti dengan pesan `ensurepip is not available` (diukur pada Ubuntu 24.04 yang baru dipasang).
 
 Masalah intinya: paket Python dipasang di satu tempat, sedangkan proyek berbeda butuh versi berbeda. Proyek A butuh `pandas 1.5`, proyek B butuh `pandas 2.2`. Kalau semuanya dipasang global, cepat atau lambat satu proyek merusak yang lain, atau merusak alat Python bawaan sistem operasi Anda. Solusinya adalah **virtual environment**: folder privat dengan Python dan paketnya sendiri, per proyek.
+
+Inilah seluruh gagasannya dalam beberapa baris. Shell mencari perintah di folder-folder `PATH`, berurutan, dan **yang pertama cocok menang**. Mengaktifkan virtual environment menaruh foldernya **di depan**:
+
+:::trace Bagaimana mengaktifkan venv mengubah program mana yang berjalan
+@code
+path = ["/usr/local/bin", "/usr/bin"]
+folders = {
+    "/usr/local/bin": [],
+    "/usr/bin": ["python3", "git"],
+    "/home/budi/kopiku/venv/bin": ["python3", "pytest"],
+}
+
+def which(command):
+    for folder in path:
+        if command in folders[folder]:
+            return folder + "/" + command
+    return None
+
+print(which("python3"))
+print(which("pytest"))
+path.insert(0, "/home/budi/kopiku/venv/bin")
+print(which("python3"))
+print(which("pytest"))
+@notes
+14 | `python3` ditemukan di `/usr/bin`: folder pertama yang punya menang.
+15 | `pytest` tidak ada di folder mana pun di `PATH`: shell akan berkata `command not found`.
+16 | Inilah yang dilakukan `source venv/bin/activate`: ia menaruh folder venv di urutan pertama.
+17 | Nama yang sama sekarang menemukan Python milik venv, yang berisi paket proyek ini.
+18 | Dan `pytest`, yang terpasang hanya di venv, juga ditemukan.
+:::
+
+:::ask Proyek A butuh `pandas 1.5` dan proyek B butuh `pandas 2.2`. Keduanya dipasang ke satu Python global. Apa yang terjadi?
+@options
+kedua versi bekerja berdampingan
+* memasang satu versi menggantikan yang lain, sehingga salah satu proyek rusak
+pip menolak dan tidak memasang apa pun
+@why
+Satu instalasi Python menyimpan **satu** versi untuk setiap paket. Virtual environment memberi setiap proyek folder paket pribadinya sendiri, sehingga A dan B berhenti berebut.
+:::
 
 ```bash
 cd ~/kopiku
@@ -129,6 +355,26 @@ Tiga aturan menyelamatkan banyak sore para pemula:
 
 Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cepat dan menambahkan lock file; konsepnya identik, jadi pelajari dulu dengan `venv`.
 
+Sebelum membaca bagian berikutnya, jawab:
+
+:::ask Perintah mana yang memasang `requests` ke Python yang sedang Anda pakai?
+@options
+`pip install requests`
+* `python -m pip install requests`
+`sudo pip install requests`
+@why
+`python -m pip` menjalankan pip milik Python **ini**, jadi paketnya mendarat di tempat Anda memakainya. `pip` saja mungkin milik Python lain, dan `sudo pip` mengubah Python sistem dan bisa merusak alat sistem operasi Anda.
+:::
+
+:::ask Mana di antara ini yang harus Anda commit ke Git?
+@options
+folder `venv/`
+* `requirements.txt`
+keduanya
+@why
+`venv/` besar, spesifik untuk mesin Anda, dan dibuat ulang dengan satu perintah dari `requirements.txt` (`python -m pip install -r requirements.txt`). Commit resepnya, bukan hasilnya.
+:::
+
 **Menjalankan skrip.** `python summarize.py data/orders.csv` menjalankan sebuah file; kata-kata setelah nama file masuk ke `sys.argv` dan diurai dengan rapi oleh modul standar `argparse`. Idiom `if __name__ == "__main__":` di bagian bawah berarti "jalankan bagian ini hanya ketika file dieksekusi langsung, bukan saat di-import", yang akan Anda pakai di setiap skrip yang kelak mungkin menjadi library.
 
 **Membaca traceback.** Ketika Python gagal, ia mencetak *stack trace*. Bacalah **dari bawah**: baris terakhir menyebut jenis dan pesan error (`FileNotFoundError: [Errno 2] No such file or directory: 'data/orders.csv'`); baris di atasnya menunjukkan baris file mana yang memanggil apa. Frame terakhir di kode Anda sendiri biasanya tempat yang harus dilihat. Salin baris terakhir saat mencari bantuan atau bertanya ke orang.
@@ -142,6 +388,8 @@ Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cep
 > Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Pelajaran 5 untuk menyiapkan Git.
 
 ## @lesson Git: jaring pengaman untuk semua yang Anda tulis
+Mengapa Git sebelum Anda punya sesuatu yang bisa hilang? Karena pada hari Anda menimpa skrip yang berfungsi, Anda ingin tombol yang berkata "kembali ke kemarin".
+
 Git mencatat snapshot proyek Anda sehingga Anda bisa melihat apa yang berubah, kembali ke kondisi mana pun sebelumnya, bereksperimen tanpa risiko, dan berkolaborasi. Tiga area menjelaskan hampir semuanya:
 
 1. **Working tree**: file seperti adanya di disk sekarang.
@@ -159,6 +407,17 @@ git log --oneline                # daftar riwayat
 git diff                         # lihat perubahan yang belum di-stage baris demi baris
 ```
 
+Tebak dulu sebelum membaca bagian berikutnya:
+
+:::ask Anda mengedit `a.py` dan `b.py`. Anda menjalankan `git add a.py` lalu `git commit -m "fix"`. Apa isi commit itu?
+@options
+kedua file
+* hanya `a.py`: hanya perubahan yang di-stage yang masuk ke commit
+tidak ada, Anda juga harus menjalankan `git push`
+@why
+Commit mengambil snapshot dari **staging area**, dan hanya `a.py` yang di-stage. `b.py` tetap file yang dimodifikasi di working tree. Itulah mengapa `git status` sebelum setiap commit berguna.
+:::
+
 **Commit yang baik** kecil dan pesannya menjelaskan *apa dan mengapa* ("Reject orders with non-positive totals"), bukan "update" atau "fix". Commit ketika satu hal sudah berfungsi. Commit kecil membuat kesalahan mudah ditemukan dan dibatalkan.
 
 **Membatalkan dengan aman** (pelajari sebelum Anda membutuhkannya):
@@ -168,11 +427,32 @@ git diff                         # lihat perubahan yang belum di-stage baris dem
 - Membatalkan commit dengan menambah commit baru yang membalikkannya: `git revert <commit>`
 - Memperbaiki pesan commit terakhir (yang belum dibagikan): `git commit --amend`
 
+Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah mana yang membuang suntingan dan mengembalikan versi commit terakhir?
+
+:::ask Pilih perintah yang tepat.
+@options
+`git revert`
+* `git restore summarize.py`
+`git commit --amend`
+@why
+`git restore file` membuang suntingan yang belum di-commit pada sebuah file. `git revert` membatalkan sebuah **commit** dengan menambah commit baru, dan `git commit --amend` menulis ulang pesan commit terakhir. Hati-hati: `git restore` tidak bisa dibatalkan, suntingan itu hilang.
+:::
+
 **Branch** memungkinkan Anda bereksperimen tanpa menyentuh jalur utama: `git switch -c coba-parser-baru`, bekerja dan commit, lalu gabungkan (`git switch main && git merge coba-parser-baru`) atau buang. **Remote** seperti GitHub menyimpan salinan di tempat lain: `git remote add origin <url>` dan `git push -u origin main`. Repositori yang di-push adalah cadangan dan portofolio, tetapi juga sesuatu yang bisa dibaca orang lain, itulah mengapa dua poin berikutnya penting.
 
 **`.gitignore`** mendaftar file yang tidak boleh dilacak Git: `venv/`, `.env`, `__pycache__/`, file data besar seperti `data/`. Catatan: mengabaikan file hanya berlaku untuk file yang belum di-commit. Kalau Anda sudah meng-commit `data/` sebelumnya, tambahkan ke `.gitignore` *dan* jalankan `git rm -r --cached data` untuk berhenti melacaknya.
 
-> **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu rahasia tidak boleh di-commit, bahkan "sementara".
+> **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu secret tidak boleh pernah di-commit, bahkan "sementara".
+
+:::ask Anda meng-commit `.env` berisi password, menyadarinya, dan menghapus file itu di commit berikutnya. Apakah password itu sudah aman?
+@options
+ya, file-nya sudah hilang
+* tidak: ia masih ada di commit sebelumnya, dan siapa pun yang punya salinan repositori bisa membacanya
+ya, karena commit tidak bisa dibaca
+@why
+Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Commit lama masih berisinya. Anggap setiap secret yang ter-commit sudah terbuka: cabut dan ganti dulu (materi berikutnya).
+:::
+
 
 > 💡 **Jeda Praktik 5 (Inisialisasi Git & Proteksi .gitignore):**
 > Masih di dalam folder `~/kopiku` dengan terminal Anda:
@@ -186,6 +466,8 @@ git diff                         # lihat perubahan yang belum di-stage baris dem
 ## @part Kebiasaan kerja yang aman
 
 ## @lesson Rahasia dan konfigurasi
+Mengapa tidak menulis password langsung di kode saja? Karena kode dibagikan, disalin, dan di-push, jadi secret di dalam kode adalah secret di mana pun kode itu pergi.
+
 **Rahasia (secret)** adalah apa pun yang memberi akses: password, API key, token, private key, connection string database yang berisi password. **Konfigurasi** adalah pengaturan yang berbeda antar lingkungan (host database di development vs produksi). Keduanya harus berada *di luar* kode Anda.
 
 Versi pemula dari solusinya adalah environment variable:
@@ -196,7 +478,29 @@ db_password = os.environ["DB_PASSWORD"]      # gagal dengan jelas bila tidak ada
 region = os.environ.get("REGION", "ap-southeast-1")   # dengan nilai bawaan yang tidak berbahaya
 ```
 
+Tebak: apa yang terjadi?
+
+:::ask `os.environ["DB_PASSWORD"]` dijalankan di mesin yang `DB_PASSWORD`-nya tidak pernah diatur. Apa yang terjadi?
+@options
+ia mengembalikan string kosong
+* ia berhenti dengan `KeyError`: keras dan cepat, dan itu bagus
+ia mengembalikan password program lain
+@why
+Gagal seketika dan jelas lebih baik daripada berjalan setengah terkonfigurasi. `os.environ.get("REGION", "ap-southeast-1")` adalah versi untuk pengaturan yang **tidak berbahaya** dan punya nilai bawaan yang aman; jangan pernah memberi secret nilai bawaan.
+:::
+
 Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.gitignore`, lalu muat dengan shell (`set -a; source .env; set +a`) atau library seperti `python-dotenv`. Di produksi, platform menyuntikkannya dari secrets manager. Commit sebuah `.env.example` berisi nilai palsu agar rekan tim tahu variabel apa saja yang ada.
+
+Tebak urutan langkah daruratnya:
+
+:::ask Sebuah API key di-push ke repositori publik. Apa hal PERTAMA yang dilakukan?
+@options
+menghapus file di commit baru
+* mencabut key di providernya dan membuat yang baru
+menunggu dan melihat apakah ada yang memakainya
+@why
+Bot memindai repositori publik dalam hitungan menit, jadi anggap key itu sudah disalin. Cabut dan ganti dulu. Membersihkan riwayat dan menambah `.gitignore` menyusul, dan menghapus file saja bukan perbaikan.
+:::
 
 Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena bot memindai repositori publik dalam hitungan menit. Urutan perbaikan penting: (1) **cabut dan ganti rahasia** di penyedianya, (2) baru bersihkan riwayat repositori bila perlu, (3) lalu tambahkan file ke `.gitignore` dan aktifkan secret scanning. Menghapus file di commit berikutnya *bukan* perbaikan.
 
@@ -209,6 +513,8 @@ Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena b
 > Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Pelajaran 7.
 
 ## @lesson Kebiasaan kerja yang membuat Anda lebih cepat
+Mengapa menghabiskan satu materi untuk kebiasaan? Karena perbedaan dua pemula dengan keterampilan sama biasanya adalah seberapa cepat masing-masing keluar dari kebuntuan.
+
 Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang yang bergulat dengan alatnya.
 
 - **Satu proyek, satu folder, satu repositori, satu environment.** Untuk kursus ini: `~/kopiku/` berisi `venv/`, `data/`, skrip Anda, `requirements.txt`, `.gitignore`, dan `README.md` singkat yang menjelaskan cara menjalankan.
@@ -216,6 +522,17 @@ Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang
 - **Buat error mudah dibantu.** Saat meminta bantuan, sertakan perintah persis yang Anda jalankan, teks error lengkap (sebagai teks, bukan tangkapan layar), apa yang Anda harapkan, versi Python dan OS Anda, dan apa yang sudah Anda coba. Pertanyaan yang rapi dijawab dalam hitungan menit; yang samar diabaikan.
 - **Baca sebelum menempel.** Pahami setiap perintah yang Anda salin. Utamakan dokumentasi resmi untuk langkah instalasi; tutorial cepat usang.
 - **Pakai editor yang membantu.** Visual Studio Code dengan ekstensi Python memberi syntax highlighting, terminal terintegrasi, dan debugger. Keterampilan terminal di modul ini bekerja sama di dalamnya.
+
+Permintaan bantuan mana yang cepat dijawab?
+
+:::ask Pilih cara terbaik meminta bantuan untuk skrip yang gagal.
+@options
+tangkapan layar dan kata-kata "tidak jalan"
+* perintah persisnya, teks error lengkap sebagai teks, apa yang Anda harapkan, OS dan versi Python Anda, dan apa yang sudah Anda coba
+"tolong, mendesak"
+@why
+Orang menjawab pertanyaan yang tersusun baik dalam hitungan menit: mereka bisa mereproduksi masalahnya dan melihat error-nya. Tangkapan layar tidak bisa dicari atau disalin, dan pertanyaan yang kabur tidak bisa dijawab.
+:::
 
 Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, lihat hasilnya, commit. Semua yang datang kemudian di kursus ini (tes, container, orchestrator) adalah siklus yang sama dengan alat yang lebih baik.
 

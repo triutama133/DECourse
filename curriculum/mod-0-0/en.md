@@ -17,10 +17,7 @@ why: Many courses show you def and for for ten minutes and rush on. You copy the
 None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.1 then teaches the proper setup on your own computer.
 
 > [!IMPORTANT]
-> **How to Work on Labs (Beginner Guide):**
-> - **The lab has two parts.** **Part A** is plain Python, no functions: after each of Lessons 1 to 4 you fill in a few variables in the file `labs/mod-0-0/practice.py` (replace each `None` with your own code). **Part B** starts after Lesson 5, which teaches functions (`def`): the file `labs/mod-0-0/basics.py` holds eleven functions to write. Do not read the whole chapter first; go back and forth between a lesson and its Practice Pause.
-> - **Where:** in the **Browser preview** on the Lab tab (nothing to install; use the Part A / Part B switch), or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The files are text files that you open in an editor (VS Code, or `code labs/mod-0-0/practice.py`), not commands: typing a file's name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause checks your work, and that run is the one that counts.
-> - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
+> **Short version:** the lab has two parts. **Part A** is plain Python (after Lessons 1 to 4), **Part B** is functions (after Lesson 5). Do not read the whole chapter first: go back and forth between a lesson and its Practice Pause. The full "how to work on the lab" guide appears at the end of Lesson 1, exactly where you first need it.
 
 ## @part The basics: values, collections, decisions and loops
 
@@ -31,6 +28,8 @@ Here you learn by doing. Each small idea is followed by a short **drill**: you w
 
 ### Show a value: print()
 
+**Why:** a program that cannot show you anything is useless to you. `print()` is how you see what a program is doing.
+
 `print()` puts something on the screen. Text goes inside quotes; a number does not:
 
 ```python
@@ -38,7 +37,7 @@ print("Hello")
 print(150000)
 ```
 
-> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type the three lines at the `>>>` prompt, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
+> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type `print("Hello")` at the `>>>` prompt. Python answers `Hello`. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
 
 :::drill python Print a word
 Use `print()` to show the word `paid`. It is text, so it goes inside quotes.
@@ -64,6 +63,8 @@ status = "paid"
 print(total)        # shows 150000
 ```
 
+> **Where do I type this?** The same way: at the `>>>` prompt type the three lines, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it.
+
 Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result.
 
 :::drill python Make two variables
@@ -87,6 +88,20 @@ drink = "Kopi Susu"
 Because the right side is worked out first, `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
 
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
+
+Watch it happen, with other numbers than the drill below:
+
+:::trace A name keeps its value
+@code
+a = 2
+b = a * 3
+a = 10
+print(b)
+@notes
+2 | `b` is worked out **now**, from the current value of `a` (2). It gets 6.
+3 | `a` changes, but `b` already holds 6. Nothing recalculates it.
+4 | So this prints 6, not 30.
+:::
 
 :::drill python Follow the value
 Read the three lines from the top. What number does `y` hold at the end? Replace `None` with that number. (Run it if you want to check yourself: `print(y)`.)
@@ -178,6 +193,20 @@ Look at the quotes: `"150000"` is text (`str`), not a number. Now your manager a
 | Totals from small to large? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | the same character-by-character order |
 
 Nothing crashed. The program ran, the report went out, and every number in it was wrong. That is why a data engineer's first job with any new data is to **give each value its right type, on purpose**: `int("150000")` is the number `150000`, and `str(150000)` is the text `"150000"`. With numbers the same three questions give `240000`, `False` and `[25000, 90000, 150000]`.
+
+Watch the silent bug happen, one line at a time, with small numbers:
+
+:::trace Text glues, numbers add
+@code
+a = "150"
+b = "90"
+glued = a + b
+total = int(a) + int(b)
+print(glued, total)
+@notes
+3 | `+` on **text** glues the characters together: `150` and `90` become `15090`. No error, just a wrong answer.
+4 | Convert each text to a number first, and `+` adds: 240.
+:::
 
 Before the drill, one prediction. Do not run it; think first:
 
@@ -306,6 +335,12 @@ with_dots = with_commas.replace(",", ".")
 
 Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000`. You now know every piece of Step 1 of the lab: the lab asks you to put them together on its own numbers.
 
+> [!IMPORTANT]
+> **How to Work on Labs (Beginner Guide):**
+> - **The lab has two parts.** **Part A** is plain Python, no functions: after each of Lessons 1 to 4 you fill in a few variables in the file `labs/mod-0-0/practice.py` (replace each `None` with your own code). **Part B** starts after Lesson 5, which teaches functions (`def`): the file `labs/mod-0-0/basics.py` holds eleven functions to write. Do not read the whole chapter first; go back and forth between a lesson and its Practice Pause.
+> - **Where:** in the **Browser preview** on the Lab tab (nothing to install; use the Part A / Part B switch), or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The files are text files that you open in an editor (VS Code, or `code labs/mod-0-0/practice.py`), not commands: typing a file's name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause checks your work, and that run is the one that counts.
+> - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
+
 > 💡 **Practice Pause 1 (Part A, Step 1):**
 > Open Part A of the lab: the file `labs/mod-0-0/practice.py` in your editor, or the **Part A** tab of the Browser preview on the Lab tab. Read the top of the file once, then find **Step 1**. It gives you `amount`, `row1` and `row2`, and two variables to fill in: replace each `None` with your own code.
 > 1. `formatted`: the amount written as text with dots, `Rp 1.250.000` (the f-string and `.replace` above).
@@ -318,6 +353,8 @@ Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000
 One order has several facts, and a file has thousands of orders. Python gives you four containers: the **list**, the **dictionary**, the **tuple** and the **set**. Knowing **why each exists** tells you which to choose. As in Lesson 1, every idea is followed by a drill.
 
 ### List: an ordered row of things
+
+**Why:** a shop has thousands of orders, and one variable per order is hopeless. A list keeps many values under one name.
 
 A **list** (`[...]`) is an ordered row of things, where position matters and duplicates are allowed. `len()` tells you **how many items** a list has:
 
@@ -470,6 +507,8 @@ paid_orders = statuses.count("paid")
 :::
 
 ### Dictionary: look things up by name
+
+**Why:** "position 3" says nothing about an order, but `"status"` does. A dictionary lets you ask for a fact by its name.
 
 A **dictionary** (`{...}`) looks things up by a *name* (a **key**) instead of a position. One order is a dictionary:
 
@@ -625,6 +664,20 @@ last_staff = int(shops[-1]["staff"])
 
 One idea to meet early: **mutable versus immutable**. Lists, dictionaries and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
 
+Watch a second name being attached to the **same** list (look at the label next to the value):
+
+:::trace A second name, the same list
+@code
+orders = ["x"]
+copy = orders
+copy.append("y")
+print(orders)
+@notes
+2 | `copy = orders` does **not** copy the list: it attaches a second name to the same list. Both names show the same label.
+3 | Changing the list through `copy`...
+4 | ...changes what `orders` sees too: it prints `['x', 'y']`.
+:::
+
 :::drill python Two names, one list
 `b = a` does not copy the list: both names point at the same list. After the three lines, what list does `a` hold? Replace `None` with that list.
 @starter
@@ -693,7 +746,8 @@ False False
 `stock` is `12`. Make `is_low` hold the answer to the question "is the stock below 20?". It should be `True` now, and follow `stock` if the number changes.
 @starter
 stock = 12
-is_low = None
+
+# write your solution below this line
 @check
 is_low is True ## `is_low` should be True: 12 is below 20.
 uses("stock") ## Ask the question about the variable `stock`, do not just type True.
@@ -736,7 +790,6 @@ print(message)
 Write an `if` / `else` so that `message` is `"reorder"` when `stock` is below 20, and `"enough"` otherwise.
 @starter
 stock = 12
-message = None
 # write your if / else below this line
 
 @check
@@ -777,7 +830,6 @@ else:
 Set `action` by the `status`: `"paid"` gives `"count it"`; `"cancelled"` or `"refunded"` give `"skip it"`; anything else gives `"check it"`.
 @starter
 status = "refunded"
-action = None
 # write your if / elif / else below this line
 
 @check
@@ -807,7 +859,8 @@ An order can be shipped when it is paid **and** there is stock. Make `can_ship` 
 @starter
 paid = True
 stock = 5
-can_ship = None
+
+# write your solution below this line
 @check
 can_ship is True ## With paid True and stock 5, `can_ship` should be True.
 rerun_with("stock", 0)["can_ship"] is False ## With stock 0, `can_ship` should be False.
@@ -845,7 +898,8 @@ an error
 `total` is `0`: the order was free, which is a real value. Make `has_total` `True` whenever `total` is not `None` (so `True` for `0`), and `False` when it is `None`.
 @starter
 total = 0
-has_total = None
+
+# write your solution below this line
 @check
 has_total is True ## With total 0, `has_total` should be True: a free order is still a total.
 rerun_with("total", None)["has_total"] is False ## With total None, `has_total` should be False.
@@ -866,7 +920,6 @@ has_total = total is not None
 `n` is a whole number. Make `signed` its text: with a `-` in front when `n` is negative (`-450` gives `"-450"`), and just the digits otherwise (`450` gives `"450"`). Use `abs()`.
 @starter
 n = -450
-signed = None
 # write your if / else below this line
 
 @check
@@ -892,7 +945,6 @@ The average of a list is its sum divided by how many numbers it has. Python has 
 `scores` is a list of numbers. Make `mean` their average. When the list is empty there is no average: `mean` should be `None`.
 @starter
 scores = [80, 90, 70]
-mean = None
 # write your if / else below this line
 
 @check
@@ -1166,7 +1218,6 @@ A set keeps each value once. Start with an empty set (`seen = set()`) and put va
 @starter
 texts = ["7", "3", "7", "5", "3"]
 seen = set()
-unique_ids = None
 # write your loop below this line, then make unique_ids
 
 @check
@@ -1196,7 +1247,8 @@ print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 `items` has 10 items. A piece is 3 items long. Make `starts` the list of positions where each piece starts: `[0, 3, 6, 9]`. Use `range` with `len(items)`.
 @starter
 items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-starts = None
+
+# write your solution below this line
 @check
 starts == [0, 3, 6, 9] ## `starts` should be [0, 3, 6, 9].
 calls("range") and calls("len") ## Use range(0, len(items), 3), wrapped in list(...).
@@ -1237,7 +1289,8 @@ A **comprehension** is a loop that builds a list in one expression: `[int(t) for
 Use a list comprehension to make `ints` from `texts`: every text converted to a number.
 @starter
 texts = ["7", "3", "12"]
-ints = None
+
+# write your solution below this line
 @check
 ints == [7, 3, 12] ## `ints` should be [7, 3, 12], as numbers.
 has_node("ListComp") ## Use a list comprehension: [ ... for ... in ...].
@@ -1257,7 +1310,8 @@ In data pipelines you often rank things (the customers who spent the most). `sor
 `pairs` holds `(customer_id, total)` tuples. Make `ranked` the pairs sorted by total, **biggest first**; when two totals are equal, the smaller customer id comes first.
 @starter
 pairs = [(7, 100), (3, 100), (5, 250)]
-ranked = None
+
+# write your solution below this line
 @check
 ranked == [(5, 250), (3, 100), (7, 100)] ## `ranked` should be [(5, 250), (3, 100), (7, 100)].
 has_node("Lambda") ## Use a key function written with lambda.
@@ -1618,6 +1672,8 @@ The fix: use `None` as the default and create a new list inside: `if box is None
 def add(item, box=[]):
     box.append(item)
     return box
+
+# write your solution below this line
 @check
 add(1) == [1] ## add(1) should give back [1].
 add(2) == [2] ## add(2) should give back [2], not [1, 2]: every call without a list must start fresh.
@@ -1783,6 +1839,8 @@ def to_number(text):
         return int(text)
     except Exception:
         return 0
+
+# write your solution below this line
 @check
 to_number("abc") == 0 ## to_number("abc") should still give back 0.
 raises_error(TypeError, to_number, None) ## to_number(None) should raise a TypeError (not hide it as 0). Catch only ValueError.
@@ -2014,7 +2072,6 @@ An **import** brings in code written by someone else. The **standard library** s
 Import the `statistics` module and make `average` the mean of `prices` with `statistics.mean(...)`.
 @starter
 prices = [25000, 22000, 18000]
-average = None
 # write your lines below this line
 
 @check
@@ -2157,6 +2214,8 @@ prices = ["25000", "18000"]
 total = 0
 for price in prices:
     total = total + price
+
+# write your solution below this line
 @check
 total == 43000 ## `total` should be 43000.
 type(total) is int ## `total` should be a number (int).
@@ -2174,6 +2233,8 @@ This should print the numbers 1 to 5, but it prints 0 to 4. Fix it, without writ
 @starter
 for n in range(5):
     print(n)
+
+# write your solution below this line
 @check
 out == "1\n2\n3\n4\n5" ## It should print 1, 2, 3, 4 and 5, each on its own line.
 has_node("For") ## Keep the for loop.
@@ -2189,6 +2250,8 @@ for n in range(1, 6):
 @starter
 def add_fee(price):
     price + 500
+
+# write your solution below this line
 @check
 add_fee(1000) == 1500 ## add_fee(1000) should give back 1500.
 add_fee(0) == 500 ## add_fee(0) should give back 500.

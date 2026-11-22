@@ -17,10 +17,7 @@ why: Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-bur
 Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.1 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.
 
 > [!IMPORTANT]
-> **Cara Mengerjakan Lab (Panduan Pemula):**
-> - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Pelajaran 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Pelajaran 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
-> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda memeriksa pekerjaan Anda, dan run itulah yang dihitung.
-> - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
+> **Versi singkat:** lab ini punya dua bagian. **Bagian A** adalah Python biasa (setelah Pelajaran 1 sampai 4), **Bagian B** adalah fungsi (setelah Pelajaran 5). Jangan membaca seluruh bab lebih dulu: bergantianlah antara pelajaran dan Jeda Praktiknya. Panduan lengkap "cara mengerjakan lab" muncul di akhir Pelajaran 1, tepat di tempat Anda pertama kali membutuhkannya.
 
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
 
@@ -31,6 +28,8 @@ Di sini Anda belajar dengan mengerjakan. Setiap gagasan kecil diikuti **latihan*
 
 ### Menampilkan nilai: print()
 
+**Mengapa:** program yang tidak bisa menunjukkan apa pun tidak berguna bagi Anda. `print()` adalah cara Anda melihat apa yang dikerjakan sebuah program.
+
 `print()` menaruh sesuatu di layar. Teks ditulis di dalam tanda kutip; angka tidak:
 
 ```python
@@ -38,7 +37,7 @@ print("Halo")
 print(150000)
 ```
 
-> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik ketiga baris itu di prompt `>>>`, Enter setelah setiap baris. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan, tidak ada yang tampil kecuali Anda mem-`print`-nya. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file berdampingan.)
+> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik `print("Halo")` di prompt `>>>`. Python menjawab `Halo`. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file secara berdampingan.)
 
 :::drill python Cetak sebuah kata
 Pakai `print()` untuk menampilkan kata `paid`. Ini teks, jadi ditulis di dalam tanda kutip.
@@ -64,6 +63,8 @@ status = "paid"
 print(total)        # menampilkan 150000
 ```
 
+> **Di mana saya mengetik ini?** Dengan cara yang sama: di prompt `>>>` ketik ketiga barisnya, tekan Enter setelah masing-masing. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan tidak ada yang ditampilkan kecuali Anda `print`-nya.
+
 Baca `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan tanda sama dengan dalam matematika; ia adalah *penugasan* (assignment): kerjakan sisi kanan dulu, lalu tempelkan nama di kiri pada hasilnya.
 
 :::drill python Buat dua variabel
@@ -87,6 +88,20 @@ drink = "Kopi Susu"
 Karena sisi kanan dikerjakan lebih dulu, `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama pada nilai baru) tetapi tidak masuk akal dalam matematika.
 
 Telusuri dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Kalau Anda menebak 30, Anda baru saja belajar sesuatu yang penting.
+
+Lihat bagaimana ia terjadi, dengan angka yang berbeda dari latihan di bawah:
+
+:::trace Sebuah nama menyimpan nilainya
+@code
+a = 2
+b = a * 3
+a = 10
+print(b)
+@notes
+2 | `b` dihitung **sekarang**, dari nilai `a` saat ini (2). Ia mendapat 6.
+3 | `a` berubah, tetapi `b` sudah berisi 6. Tidak ada yang menghitungnya ulang.
+4 | Jadi ini mencetak 6, bukan 30.
+:::
 
 :::drill python Ikuti nilainya
 Baca tiga baris dari atas. Berapa angka yang dipegang `y` di akhir? Ganti `None` dengan angka itu. (Jalankan kalau mau memeriksa sendiri: `print(y)`.)
@@ -178,6 +193,20 @@ Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang mana
 | Total dari kecil ke besar? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | urutan karakter demi karakter yang sama |
 
 Tidak ada yang crash. Program berjalan, laporan terkirim, dan setiap angka di dalamnya salah. Karena itu pekerjaan pertama seorang data engineer pada data baru apa pun adalah **memberi setiap nilai tipe yang benar, dengan sengaja**: `int("150000")` adalah angka `150000`, dan `str(150000)` adalah teks `"150000"`. Dengan angka, tiga pertanyaan yang sama memberi `240000`, `False`, dan `[25000, 90000, 150000]`.
+
+Lihat bug diam-diam itu terjadi, satu baris demi satu baris, dengan angka kecil:
+
+:::trace Teks menempel, angka menjumlah
+@code
+a = "150"
+b = "90"
+glued = a + b
+total = int(a) + int(b)
+print(glued, total)
+@notes
+3 | `+` pada **teks** menempelkan karakternya: `150` dan `90` menjadi `15090`. Tidak ada error, hanya jawaban yang salah.
+4 | Ubah dulu setiap teks menjadi angka, dan `+` menjumlah: 240.
+:::
 
 Sebelum latihan, satu tebakan. Jangan dijalankan; pikirkan dulu:
 
@@ -306,6 +335,12 @@ with_dots = with_commas.replace(",", ".")
 
 Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.250.000`. Sekarang Anda tahu setiap bagian dari Langkah 1 lab: lab meminta Anda menggabungkannya sendiri pada angka-angkanya.
 
+> [!IMPORTANT]
+> **Cara Mengerjakan Lab (Panduan Pemula):**
+> - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Pelajaran 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Pelajaran 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
+> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda memeriksa pekerjaan Anda, dan run itulah yang dihitung.
+> - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
+
 > 💡 **Jeda Praktik 1 (Bagian A, Langkah 1):**
 > Buka Bagian A lab: file `labs/mod-0-0/practice.py` di editor Anda, atau tab **Bagian A** pada Pratinjau browser di tab Lab. Baca bagian atas file sekali, lalu cari **Langkah 1**. Ia memberi Anda `amount`, `row1`, dan `row2`, serta dua variabel untuk diisi: ganti setiap `None` dengan kode Anda sendiri.
 > 1. `formatted`: jumlah itu ditulis sebagai teks dengan titik, `Rp 1.250.000` (f-string dan `.replace` di atas).
@@ -318,6 +353,8 @@ Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.2
 Satu pesanan punya beberapa fakta, dan sebuah file berisi ribuan pesanan. Python memberi Anda empat wadah: **list**, **dictionary**, **tuple**, dan **set**. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih. Seperti di Materi 1, setiap gagasan diikuti latihan.
 
 ### List: deretan berurutan
+
+**Mengapa:** sebuah toko punya ribuan pesanan, dan satu variabel per pesanan itu mustahil. List menyimpan banyak nilai di bawah satu nama.
 
 **List** (`[...]`) adalah deretan benda yang berurutan, tempat posisi penting dan duplikat boleh ada. `len()` memberi tahu **berapa banyak item** dalam sebuah list:
 
@@ -470,6 +507,8 @@ paid_orders = statuses.count("paid")
 :::
 
 ### Dictionary: mencari berdasarkan nama
+
+**Mengapa:** "posisi 3" tidak memberi tahu apa-apa tentang sebuah pesanan, tetapi `"status"` memberi tahu. Dictionary memungkinkan Anda meminta sebuah fakta menurut namanya.
 
 **Dictionary** (`{...}`) mencari sesuatu berdasarkan *nama* (sebuah **key**) alih-alih posisi. Satu pesanan adalah sebuah dictionary:
 
@@ -625,6 +664,20 @@ last_staff = int(shops[-1]["staff"])
 
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dictionary, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang ditunjukkan skenario chaos modul ini.
 
+Perhatikan nama kedua ditempelkan pada list yang **sama** (lihat label di sebelah nilainya):
+
+:::trace Nama kedua, list yang sama
+@code
+orders = ["x"]
+copy = orders
+copy.append("y")
+print(orders)
+@notes
+2 | `copy = orders` **tidak** menyalin list: ia menempelkan nama kedua pada list yang sama. Kedua nama menunjukkan label yang sama.
+3 | Mengubah list lewat `copy`...
+4 | ...mengubah apa yang dilihat `orders` juga: ia mencetak `['x', 'y']`.
+:::
+
 :::drill python Dua nama, satu list
 `b = a` tidak menyalin list: kedua nama menunjuk ke list yang sama. Setelah tiga baris itu, list apa yang dipegang `a`? Ganti `None` dengan list itu.
 @starter
@@ -693,7 +746,8 @@ False False
 `stock` bernilai `12`. Buat `is_low` berisi jawaban untuk pertanyaan "apakah stoknya di bawah 20?". Sekarang harus `True`, dan mengikuti `stock` kalau angkanya berubah.
 @starter
 stock = 12
-is_low = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 is_low is True ## `is_low` harus True: 12 di bawah 20.
 uses("stock") ## Ajukan pertanyaan tentang variabel `stock`, jangan hanya mengetik True.
@@ -736,7 +790,6 @@ print(message)
 Tulis `if` / `else` sehingga `message` bernilai `"reorder"` ketika `stock` di bawah 20, dan `"enough"` kalau tidak.
 @starter
 stock = 12
-message = None
 # tulis if / else Anda di bawah baris ini
 
 @check
@@ -777,7 +830,6 @@ else:
 Tentukan `action` dari `status`: `"paid"` menghasilkan `"count it"`; `"cancelled"` atau `"refunded"` menghasilkan `"skip it"`; selain itu menghasilkan `"check it"`.
 @starter
 status = "refunded"
-action = None
 # tulis if / elif / else Anda di bawah baris ini
 
 @check
@@ -807,7 +859,8 @@ Sebuah pesanan bisa dikirim ketika sudah dibayar **dan** ada stok. Buat `can_shi
 @starter
 paid = True
 stock = 5
-can_ship = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 can_ship is True ## Dengan paid True dan stock 5, `can_ship` harus True.
 rerun_with("stock", 0)["can_ship"] is False ## Dengan stock 0, `can_ship` harus False.
@@ -845,7 +898,8 @@ sebuah error
 `total` bernilai `0`: pesanannya gratis, dan itu nilai sungguhan. Buat `has_total` bernilai `True` setiap kali `total` bukan `None` (jadi `True` untuk `0`), dan `False` ketika `None`.
 @starter
 total = 0
-has_total = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 has_total is True ## Dengan total 0, `has_total` harus True: pesanan gratis tetap sebuah total.
 rerun_with("total", None)["has_total"] is False ## Dengan total None, `has_total` harus False.
@@ -866,7 +920,6 @@ has_total = total is not None
 `n` adalah bilangan bulat. Buat `signed` berisi teksnya: dengan `-` di depan ketika `n` negatif (`-450` menjadi `"-450"`), dan hanya digitnya kalau tidak (`450` menjadi `"450"`). Pakai `abs()`.
 @starter
 n = -450
-signed = None
 # tulis if / else Anda di bawah baris ini
 
 @check
@@ -892,7 +945,6 @@ Rata-rata sebuah list adalah jumlahnya dibagi banyaknya angka. Python punya dua 
 `scores` adalah list berisi angka. Buat `mean` berisi rata-ratanya. Ketika list kosong tidak ada rata-rata: `mean` harus `None`.
 @starter
 scores = [80, 90, 70]
-mean = None
 # tulis if / else Anda di bawah baris ini
 
 @check
@@ -1166,7 +1218,6 @@ Set menyimpan setiap nilai satu kali. Mulai dengan set kosong (`seen = set()`) d
 @starter
 texts = ["7", "3", "7", "5", "3"]
 seen = set()
-unique_ids = None
 # tulis loop Anda di bawah baris ini, lalu buat unique_ids
 
 @check
@@ -1196,7 +1247,8 @@ print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 `items` punya 10 item. Satu bagian panjangnya 3 item. Buat `starts` berisi list posisi tempat setiap bagian dimulai: `[0, 3, 6, 9]`. Pakai `range` dengan `len(items)`.
 @starter
 items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
-starts = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 starts == [0, 3, 6, 9] ## `starts` harus [0, 3, 6, 9].
 calls("range") and calls("len") ## Pakai range(0, len(items), 3), dibungkus list(...).
@@ -1237,7 +1289,8 @@ Ketika `n` adalah 3, `continue` melewati `append`, jadi 3 tidak pernah ditambahk
 Pakai list comprehension untuk membuat `ints` dari `texts`: setiap teks diubah menjadi angka.
 @starter
 texts = ["7", "3", "12"]
-ints = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 ints == [7, 3, 12] ## `ints` harus [7, 3, 12], sebagai angka.
 has_node("ListComp") ## Pakai list comprehension: [ ... for ... in ...].
@@ -1257,7 +1310,8 @@ Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terb
 `pairs` berisi tuple `(customer_id, total)`. Buat `ranked` berisi pasangan yang diurutkan menurut total, **terbesar dulu**; ketika dua total sama, customer id yang lebih kecil didahulukan.
 @starter
 pairs = [(7, 100), (3, 100), (5, 250)]
-ranked = None
+
+# tulis solusi Anda di bawah baris ini
 @check
 ranked == [(5, 250), (3, 100), (7, 100)] ## `ranked` harus [(5, 250), (3, 100), (7, 100)].
 has_node("Lambda") ## Pakai fungsi key yang ditulis dengan lambda.
@@ -1618,6 +1672,8 @@ Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box 
 def add(item, box=[]):
     box.append(item)
     return box
+
+# tulis solusi Anda di bawah baris ini
 @check
 add(1) == [1] ## add(1) harus mengembalikan [1].
 add(2) == [2] ## add(2) harus mengembalikan [2], bukan [1, 2]: setiap panggilan tanpa list harus mulai dari baru.
@@ -1783,6 +1839,8 @@ def to_number(text):
         return int(text)
     except Exception:
         return 0
+
+# tulis solusi Anda di bawah baris ini
 @check
 to_number("abc") == 0 ## to_number("abc") tetap harus mengembalikan 0.
 raises_error(TypeError, to_number, None) ## to_number(None) harus memunculkan TypeError (jangan disembunyikan sebagai 0). Tangkap hanya ValueError.
@@ -2014,7 +2072,6 @@ with open("report.txt", "w", encoding="utf-8") as f:
 Import modul `statistics` dan buat `average` berisi rata-rata `prices` dengan `statistics.mean(...)`.
 @starter
 prices = [25000, 22000, 18000]
-average = None
 # tulis baris Anda di bawah baris ini
 
 @check
@@ -2157,6 +2214,8 @@ prices = ["25000", "18000"]
 total = 0
 for price in prices:
     total = total + price
+
+# tulis solusi Anda di bawah baris ini
 @check
 total == 43000 ## `total` harus 43000.
 type(total) is int ## `total` harus berupa angka (int).
@@ -2174,6 +2233,8 @@ Ini seharusnya mencetak angka 1 sampai 5, tetapi mencetak 0 sampai 4. Perbaiki, 
 @starter
 for n in range(5):
     print(n)
+
+# tulis solusi Anda di bawah baris ini
 @check
 out == "1\n2\n3\n4\n5" ## Harus mencetak 1, 2, 3, 4, dan 5, masing-masing di barisnya sendiri.
 has_node("For") ## Pertahankan loop for.
@@ -2189,6 +2250,8 @@ for n in range(1, 6):
 @starter
 def add_fee(price):
     price + 500
+
+# tulis solusi Anda di bawah baris ini
 @check
 add_fee(1000) == 1500 ## add_fee(1000) harus mengembalikan 1500.
 add_fee(0) == 500 ## add_fee(0) harus mengembalikan 500.
