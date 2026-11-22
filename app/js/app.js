@@ -64,6 +64,7 @@ class DataForgeApp {
     this.stepMode = readStore("df_step_mode", null);      // "steps" | "page" | null (null: steps for the beginner levels)
     this.stepPos = readStore("df_step_pos", {}) || {};    // "mod:lesson" -> the step the learner stopped at
     this.stepCache = {};
+    this.labReturn = null;                                // {modId, from}: the lesson the learner left for its lab step
     this.tryitDone = readStore("df_tryit_done", {}) || {};
     this.chaosDone = readStore("df_chaos_done", {}) || {};
     this.moduleNotes = readStore("df_module_notes", {}) || {};
@@ -296,9 +297,7 @@ class DataForgeApp {
         <div class="callout-pause">
           <div class="callout-head">
             <span class="callout-badge">💡 ${this.l("Jeda Praktik Terarah (Jembatan ke Lab)", "Guided Lab Checkpoint (Practice Pause)")}</span>
-            ${modId ? (window.BROWSER_LABS && window.BROWSER_LABS[modId]
-              ? `<button class="btn btn-sm btn-quiet" onclick="app.openLabPreview('${modId}'${/\b(?:Part|Bagian) ([AB])\b/i.test(first) ? `,'${first.match(/\b(?:Part|Bagian) ([AB])\b/i)[1].toLowerCase()}'` : ""})">${this.l("Buka pratinjau di tab Lab", "Open the preview on the Lab tab")} →</button>`
-              : `<button class="btn btn-sm btn-quiet" onclick="app.go('curriculum','${modId}','lab')">${this.l("Buka Tab Lab", "Open Lab Tab")} →</button>`) : ""}
+            ${modId ? `<button class="btn btn-sm btn-quiet" onclick="app.lessonToLab('${modId}', ${ctx && ctx.lessonIdx != null ? ctx.lessonIdx : -1}${/\b(?:Part|Bagian) ([AB])\b/i.test(first) ? `, '${first.match(/\b(?:Part|Bagian) ([AB])\b/i)[1].toLowerCase()}'` : ""})">${window.BROWSER_LABS && window.BROWSER_LABS[modId] ? this.l("Buka pratinjau di tab Lab", "Open the preview on the Lab tab") : this.l("Buka Tab Lab", "Open Lab Tab")} →</button>` : ""}
           </div>
           <div class="stack-sm">${this.renderQuoteBody(q)}</div>
         </div>`;
@@ -520,6 +519,43 @@ class DataForgeApp {
   }
   switchView(view) { this.go(view); }
   // A Practice Pause sends a beginner to the browser preview, so land on it, not on the top of the Lab tab.
+  // The lab checkpoint of a lesson (its Practice Pause), or null when the lesson has none.
+  pauseOf(mod, i) {
+    const m = this.lessonBody(mod.lessons[i]).match(/^>\s*(?:💡|\*\*(?:Practice Pause|Jeda Praktik))[^\n]*/im);
+    if (!m) return null;
+    const part = m[0].match(/\b(?:Part|Bagian) ([AB])\b/i);
+    return { part: part ? part[1].toLowerCase() : "" };
+  }
+  // From a lesson to its lab step; the lab page then offers "Continue to the next lesson".
+  lessonToLab(modId, i, part, finish) {
+    if (i != null && i >= 0) {
+      this.labReturn = { modId, from: i };
+      if (finish) {
+        if (this.stepPos[`${modId}:${i}`] != null) { delete this.stepPos[`${modId}:${i}`]; writeStore("df_step_pos", this.stepPos); }
+        if (!this.isLessonDone(modId, i)) this.toggleLessonDone(modId, i, false);
+      }
+    }
+    if (window.BROWSER_LABS && window.BROWSER_LABS[modId]) this.openLabPreview(modId, part || "");
+    else this.go("curriculum", modId, "lab");
+  }
+  labContinue(modId) {
+    const r = this.labReturn;
+    this.labReturn = null;
+    if (r && r.modId === modId) this.openLesson(modId, r.from + 1);
+  }
+  labBack(modId) {
+    const r = this.labReturn;
+    this.labReturn = null;
+    if (r && r.modId === modId) this.openLesson(modId, r.from);
+  }
+  labReturnBanner(mod) {
+    const r = this.labReturn;
+    if (!r || r.modId !== mod.id || !mod.lessons[r.from]) return "";
+    const more = r.from + 1 < mod.lessons.length;
+    return `<div class="callout success lab-return" role="status"><p><strong>${this.l(`Anda datang dari Materi ${r.from + 1}.`, `You came here from Lesson ${r.from + 1}.`)}</strong> ${this.l("Kerjakan langkah lab-nya di bawah, jalankan pengecekan sampai lulus, lalu kembali ke materi.", "Do its lab step below, run the checks until they pass, then go back to the lessons.")}</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-quiet" onclick="app.labBack('${mod.id}')">← ${this.l("Kembali ke Materi", "Back to Lesson")} ${r.from + 1}</button>${more ? `<button class="btn btn-sm btn-primary" onclick="app.labContinue('${mod.id}')">${this.l("Sudah lulus, lanjut ke Materi", "Passed, continue to Lesson")} ${r.from + 2} →</button>` : ""}</div></div>`;
+  }
+
   openLabPreview(modId, part) {
     if (part) this._blPartChoice = Object.assign({}, this._blPartChoice, { [modId]: part });
     this.go("curriculum", modId, "lab");
@@ -3054,6 +3090,12 @@ Hello from KopiKu</code></pre>
         const stepK = steps ? this.stepIndex(mod.id, i, steps.length) : 0;
         this._stepCtx = steps ? { modId: mod.id, i, k: stepK, n: steps.length } : null;
         const stepLast = steps ? stepK === steps.length - 1 : true;
+        // a lesson with a lab checkpoint sends the learner to the lab first; skipping to the next lesson stays possible
+        const pause = !isLast ? this.pauseOf(mod, i) : null;
+        const endButtons = pause
+          ? `<button class="btn btn-quiet" onclick="${nextAction}">${this.l("Lewati lab, ke materi", "Skip the lab, next lesson")} ${i + 2}</button>
+             <button class="btn btn-primary" onclick="app.lessonToLab('${mod.id}', ${i}${pause.part ? `, '${pause.part}'` : ", ''"}, true)">🧪 ${this.l("Latihan di lab dulu", "Practise in the lab now")} →</button>`
+          : `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`;
         const stepBody = steps ? (() => {
           const st = steps[stepK], n = steps.length;
           const turn = st.kind === "turn";
@@ -3062,7 +3104,7 @@ Hello from KopiKu</code></pre>
             ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK - 1})">← ${this.l("Kembali", "Back")}</button>`
             : i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← ${this.l("Materi", "Lesson")} ${i}</button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`;
           const forward = stepLast
-            ? `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`
+            ? endButtons
             : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : this.l("Lanjut", "Next")} →</button>`;
           return `
           <div class="step-progress" role="group" aria-label="${this.l("Langkah dalam materi ini", "Steps in this lesson")}">
@@ -3106,7 +3148,7 @@ Hello from KopiKu</code></pre>
         </section>
         ${steps ? "" : `<div class="lesson-pager">
           ${i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← <span class="pager-label">${this.l("Materi", "Lesson")} ${i}</span></button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`}
-          <button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>
+          ${endButtons}
         </div>`}`;
       }
 
@@ -3204,6 +3246,7 @@ Hello from KopiKu</code></pre>
       const labProven = Boolean(this.proofFor(mod.id)) || !hasProofSpec;
       const kindLabel = { starter: this.l("Titik awal", "Starter"), reference: this.l("Solusi referensi", "Reference solution"), test: this.l("Tes", "Tests"), data: this.l("Data", "Data"), config: this.l("Konfigurasi", "Config") };
       return `
+        ${this.labReturnBanner(mod)}
         <div>
           <h2>${this.esc(this.t(lab.title))}</h2>
           ${this.md(lab.description, { modId: mod.id })}

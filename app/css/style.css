@@ -1300,5 +1300,7 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 }
 @media (max-width: 820px) {
   .step-nav { bottom: 74px; }   /* above the phone's bottom bar */
-  .step-nav .btn { flex: 1 1 auto; justify-content: center; }
+  .step-nav { padding: 8px; gap: 6px; }
+  .step-nav .btn { flex: 1 1 0; justify-content: center; padding-left: 8px; padding-right: 8px; font-size: 13px; }
+  .step-nav .btn-primary { order: -1; flex: 1 1 100%; margin-left: 0; }   /* the main action on its own row, Back and Skip below it */
 }
