@@ -27,6 +27,33 @@ None. You do not need to have written code before, and it does not matter if ear
 ## @lesson How a program runs: values, variables and types
 A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens "in the background" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.
 
+Here you learn by doing. Each small idea is followed by a short **drill**: you write a few lines, press **Run & check**, and the checker tells you exactly what is still wrong. Stuck? Press **Hint**, and if you are still stuck, **Show the solution** and then type it again yourself. The drills run Python in your browser, so there is nothing to install. Your own terminal is where the real work happens: the **Try it** and the lab at the end of the lesson use it.
+
+### Show a value: print()
+
+`print()` puts something on the screen. Text goes inside quotes; a number does not:
+
+```python
+print("Hello")
+print(150000)
+```
+
+> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type the three lines at the `>>>` prompt, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
+
+:::drill python Print a word
+Use `print()` to show the word `paid`. It is text, so it goes inside quotes.
+@starter
+# write your line below this one
+
+@check
+calls("print") ## Use the print() function.
+out == "paid" ## The program should print exactly: paid
+@hint
+`print("paid")`: the quotes tell Python that `paid` is text, not a name.
+@solution
+print("paid")
+:::
+
 ### Values and variables
 
 To do any work the computer must remember things. It remembers a **value** (a piece of data such as `150000` or `"paid"`) and gives it a **name** so you can use it again. That named value is a **variable**:
@@ -37,11 +64,62 @@ status = "paid"
 print(total)        # shows 150000
 ```
 
-> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type the three lines at the `>>>` prompt, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
+Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result.
 
-Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result. That is why `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
+:::drill python Make two variables
+Make a variable `price` that holds the number `25000`, and a variable `drink` that holds the text `"Kopi Susu"`.
+@starter
+# write your two lines below this one
+
+@check
+price == 25000 ## `price` should hold the number 25000 (a number has no quotes).
+type(price) is int ## `price` should be a number, not text.
+drink == "Kopi Susu" ## `drink` should hold the text "Kopi Susu" (text has quotes).
+@hint
+`price = 25000` and `drink = "Kopi Susu"`: one name, one `=`, one value per line.
+@solution
+price = 25000
+drink = "Kopi Susu"
+:::
+
+### A name keeps its value until you change it
+
+Because the right side is worked out first, `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
 
 Trace this by hand before you run it: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. It prints `6`, not `30`. `b` got the value 6 at the moment of the assignment; changing `a` later does not change `b`. If you predicted 30, you just learned something important.
+
+:::drill python Follow the value
+Read the three lines from the top. What number does `y` hold at the end? Replace `None` with that number. (Run it if you want to check yourself: `print(y)`.)
+@starter
+x = 5
+y = x + 1
+x = 20
+answer = None
+@check
+answer == 6 ## `y` got its value (6) when `x` was 5. Changing `x` later does not change `y`.
+type(answer) is int ## `answer` should be a number.
+@hint
+Go line by line. After line 2, `y` is 6. Line 3 changes `x`, but nothing makes `y` be worked out again.
+@solution
+x = 5
+y = x + 1
+x = 20
+answer = 6
+:::
+
+:::ask What will this print?
+```python
+count = 10
+count = count + 5
+print(count)
+```
+@options
+count
+count + 5
+* 15
+@why
+Python works out the **right side first**: the old value of `count` (10) plus 5 is 15, and only then does the name `count` point at 15. `print` shows the value, not the name.
+:::
 
 ### Types
 
@@ -55,7 +133,32 @@ Every value has a **type**, which tells Python what you are allowed to do with i
 | `bool` | `True`, `False` | yes or no |
 | `None` | `None` | "there is no value" |
 
-**Money is a whole number.** Store money as an `int` in the smallest unit (rupiah), never as a `float`: decimals are stored in binary, so `0.1 + 0.2` is `0.30000000000000004`, and after a million rows such tiny errors become real money.
+`type(x)` tells you the type of a value:
+
+```python
+print(type(150000))
+print(type("150000"))
+```
+
+The two lines look alike, but the first is a number and the second is text. **Money is a whole number.** Store money as an `int` in the smallest unit (rupiah), never as a `float`: decimals are stored in binary, so `0.1 + 0.2` is `0.30000000000000004`, and after a million rows such tiny errors become real money.
+
+:::drill python Number or text?
+Make `price` the number `25000` and `price_text` the text `"25000"` (the same digits, inside quotes). Then print the type of each, one per line: first `price`, then `price_text`.
+@starter
+# write your lines below this one
+
+@check
+price == 25000 and type(price) is int ## `price` should be the number 25000 (no quotes).
+price_text == "25000" ## `price_text` should be the text "25000" (with quotes).
+out == "<class 'int'>\n<class 'str'>" ## Print type(price) on the first line and type(price_text) on the second. You should see int, then str.
+@hint
+`print(type(price))` shows the type of the value that `price` points at.
+@solution
+price = 25000
+price_text = "25000"
+print(type(price))
+print(type(price_text))
+:::
 
 ### Why types matter: the first bug of every data job
 
@@ -74,11 +177,59 @@ Look at the quotes: `"150000"` is text (`str`), not a number. Now your manager a
 | Is 90,000 more than 150,000? | `"90000" > "150000"` | `True` | text is compared character by character, like words in a dictionary, and `"9"` comes after `"1"` |
 | Totals from small to large? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | the same character-by-character order |
 
-Nothing crashed. The program ran, the report went out, and every number in it was wrong. That is why a data engineer's first job with any new data is to **give each value its right type, on purpose**: `int("150000")` is the number `150000`. With numbers the same three questions give `240000`, `False` and `[25000, 90000, 150000]`. Check what you have with `type(x)`: `type(row1["total_idr"])` shows `<class 'str'>`.
+Nothing crashed. The program ran, the report went out, and every number in it was wrong. That is why a data engineer's first job with any new data is to **give each value its right type, on purpose**: `int("150000")` is the number `150000`, and `str(150000)` is the text `"150000"`. With numbers the same three questions give `240000`, `False` and `[25000, 90000, 150000]`.
+
+Before the drill, one prediction. Do not run it; think first:
+
+:::ask What will this print?
+```python
+print("2" + "3")
+```
+@options
+5
+* 23
+an error
+@why
+The quotes make `"2"` and `"3"` **text**, and `+` on text glues the characters together: `23`. Python does not guess that you meant numbers. This is exactly how a total of text prices goes wrong without any error.
+:::
+
+:::drill python Add prices as numbers
+Two prices came out of a file, so they are text. Make `price_sum` their total **as a number** (43000), not the two texts glued together.
+@starter
+price_a = "25000"
+price_b = "18000"
+price_sum = None
+@check
+price_sum == 43000 ## `price_sum` should be 43000. If you got 2500018000, the two texts were glued together: convert each one with int(...) first.
+type(price_sum) is int ## `price_sum` should be a number (int).
+calls("int") ## Convert with int(...) before adding.
+@hint
+`int("25000")` is the number 25000. Convert both prices, then add them with `+`.
+@solution
+price_a = "25000"
+price_b = "18000"
+price_sum = int(price_a) + int(price_b)
+:::
 
 Types protect you in two more ways:
 - **Dirty text fails loudly, and that is good.** `int("Rp 1.250.000")` raises `ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`. An error that stops you is better than a wrong number that nobody notices. Lesson 6 shows how to catch it and set the bad row aside.
-- **`None` is not `0`.** A missing total (`None`) means "we do not know"; `0` means "the order was free". `None == 0` is `False`. Mix them up and averages and totals become quietly wrong.
+- **`None` is not `0`.** A missing total (`None`) means "we do not know"; `0` means "the order was free". Mix them up and averages and totals become quietly wrong.
+
+:::drill python None is not zero
+`missing_total` is `None`: we do not know the total. Print the answer to the question "is `missing_total` equal to `0`?" (use `==`).
+@starter
+missing_total = None
+# print your comparison below this line
+
+@check
+calls("print") ## Use print(...) to show the answer.
+out == "False" ## You should see False: None ("we do not know") is not 0 ("it was free").
+@hint
+`print(missing_total == 0)` prints `True` or `False`.
+@solution
+missing_total = None
+print(missing_total == 0)
+:::
 
 **Where you will meet this again.** Everywhere: a database gives every column a type (Module 0.3); a pipeline converts and checks types before it loads anything (Module 1.2); file formats such as Parquet store the type next to the data so nobody has to guess (Module 2.1). The first warm-up task in the job simulator is exactly this: prices typed as text, turned into numbers.
 
@@ -86,14 +237,74 @@ Types protect you in two more ways:
 >
 > **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
-### Writing a number as text
+### Writing a number as text: f-strings
 
-Reports show `Rp 1.250.000`, not `1250000`. Two small tools do it:
+Reports show `Rp 1.250.000`, not `1250000`. Three small tools do it, one at a time. First, an **f-string** puts values inside text: write `f` before the opening quote and put the value in braces:
 
-- An **f-string** puts values inside text: write `f` before the opening quote and put the value in braces. `f"Order {1001}: Rp {total}"` becomes `Order 1001: Rp 150000`. A format code after a colon changes how the number is written: `f"{1250000:,}"` gives the text `"1,250,000"`, with commas between the thousands.
-- A text's **`.replace(old, new)`** swaps characters. Text values have helper actions like this, called **methods**: `"1,250,000".replace(",", ".")` gives `"1.250.000"`. Indonesians write the thousands separator as a dot.
+```python
+total = 150000
+print(f"Order {1001}: Rp {total}")     # Order 1001: Rp 150000
+```
 
-Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000`.
+:::drill python Put a number inside text
+`amount` is `45000`. Make `label` the text `Rp 45000` with an f-string, so that it follows `amount` if the number changes.
+@starter
+amount = 45000
+label = None
+@check
+label == "Rp 45000" ## `label` should be the text Rp 45000.
+"{" in code and "}" in code ## Use an f-string: f"Rp {amount}".
+uses("amount") ## Take the value from the variable `amount`, do not type 45000 again.
+@hint
+Write `f` before the opening quote, then put `{amount}` where the number goes.
+@solution
+amount = 45000
+label = f"Rp {amount}"
+:::
+
+### Thousands separators
+
+A format code after a colon changes how the number is written. `f"{1250000:,}"` gives the text `"1,250,000"`, with commas between the thousands:
+
+```python
+print(f"{1250000:,}")
+```
+
+:::drill python Commas between thousands
+Make `with_commas` the text of `amount` with commas between the thousands: `7,500,000`.
+@starter
+amount = 7500000
+with_commas = None
+@check
+with_commas == "7,500,000" ## `with_commas` should be the text 7,500,000.
+":," in code ## Put the format code `:,` after the name inside the braces: {amount:,}
+@hint
+`f"{amount:,}"`: the colon starts the format code, the comma asks for thousands separators.
+@solution
+amount = 7500000
+with_commas = f"{amount:,}"
+:::
+
+### Swapping characters: .replace()
+
+Indonesians write the thousands separator as a dot. A text's **`.replace(old, new)`** swaps characters. Text values have helper actions like this, called **methods**: `"1,250,000".replace(",", ".")` gives `"1.250.000"`.
+
+:::drill python Commas to dots
+`with_commas` is the text `7,500,000`. Make `with_dots` the same text with dots instead of commas.
+@starter
+with_commas = "7,500,000"
+with_dots = None
+@check
+with_dots == "7.500.000" ## `with_dots` should be the text 7.500.000.
+calls("replace") ## Use the .replace(old, new) method on the text.
+@hint
+`with_commas.replace(",", ".")` gives back a new text; the old one stays the same.
+@solution
+with_commas = "7,500,000"
+with_dots = with_commas.replace(",", ".")
+:::
+
+Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000`. You now know every piece of Step 1 of the lab: the lab asks you to put them together on its own numbers.
 
 > 💡 **Practice Pause 1 (Part A, Step 1):**
 > Open Part A of the lab: the file `labs/mod-0-0/practice.py` in your editor, or the **Part A** tab of the Browser preview on the Lab tab. Read the top of the file once, then find **Step 1**. It gives you `amount`, `row1` and `row2`, and two variables to fill in: replace each `None` with your own code.
@@ -104,32 +315,269 @@ Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000
 > You should see `Rp 1.250.000` and `240000`, and three passed checks. A check that fails says which variable is wrong, what it should be and what it is: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` just means you have not replaced the `None` yet. Then go on to Lesson 2.
 
 ## @lesson Collections: one value is never enough
-One order has several facts, and a file has thousands of orders. Python gives you four containers. Knowing **why each exists** tells you which to choose.
+One order has several facts, and a file has thousands of orders. Python gives you four containers: the **list**, the **dictionary**, the **tuple** and the **set**. Knowing **why each exists** tells you which to choose. As in Lesson 1, every idea is followed by a drill.
 
-**List** (`[...]`): an ordered row of things, where position matters and duplicates are allowed. `orders = [row1, row2, row3]`. You read by position starting at **0**: `orders[0]` is the first, `orders[-1]` is the last, `orders[1:3]` is a *slice* (positions 1 and 2). `len(orders)` counts, `orders.append(x)` adds at the end. Use a list for "all the rows of the file".
+### List: an ordered row of things
 
-**Dictionary** (`{...}`): look things up by a *name* instead of a position. One order is a dict: 
+A **list** (`[...]`) is an ordered row of things, where position matters and duplicates are allowed. `len()` tells you **how many items** a list has:
+
+```python
+products = ["Kopi Susu", "Americano", "Teh Tarik"]
+print(len(products))     # 3: three items in the list
+```
+
+:::drill python How many items?
+`prices` is a list. Make `how_many` the number of items in it, using `len()`.
+@starter
+prices = [25000, 22000, 18000, 30000]
+how_many = None
+@check
+how_many == 4 ## `how_many` should be 4: the list has four items.
+calls("len") ## Use len(prices) to count the items.
+@hint
+`len(prices)` gives how many items `prices` has.
+@solution
+prices = [25000, 22000, 18000, 30000]
+how_many = len(prices)
+:::
+
+### Positions start at 0
+
+You read one item by its **position** (also called an index), written in square brackets. Positions start at **0**, so `products[0]` is the first item and `products[1]` the second. A negative position counts from the end: `products[-1]` is the last item. A **slice** `products[0:2]` takes positions 0 and 1 (it stops *before* the second number):
+
+```python
+products = ["Kopi Susu", "Americano", "Teh Tarik"]
+print(products[0])       # Kopi Susu
+print(products[-1])      # Teh Tarik
+print(products[0:2])     # ['Kopi Susu', 'Americano']
+```
+
+Predict before you drill:
+
+:::ask What will this print?
+```python
+letters = ["a", "b", "c", "d"]
+print(letters[1], letters[-1])
+```
+@options
+a d
+* b d
+b c
+@why
+Positions start at 0, so `letters[1]` is the **second** item, `"b"`. Position `-1` is the **last** item, `"d"`. `print` with two values puts a space between them: `b d`.
+:::
+
+:::drill python First and last
+Make `first` the first item of `cities` and `last` the last item. Use positions, do not type the names again.
+@starter
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first = None
+last = None
+@check
+first == "Jakarta" ## `first` should be "Jakarta": the first item is at position 0.
+last == "Medan" ## `last` should be "Medan": position -1 is the last item.
+uses("cities") ## Take them from the list `cities` with [position].
+@hint
+`cities[0]` is the first item; `cities[-1]` is the last one.
+@solution
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first = cities[0]
+last = cities[-1]
+:::
+
+:::drill python A slice
+Make `first_two` the first two cities, as a list, with a slice.
+@starter
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first_two = None
+@check
+first_two == ["Jakarta", "Bandung"] ## `first_two` should be ['Jakarta', 'Bandung'].
+":" in code.split("first_two =")[-1] ## Use a slice: cities[0:2] (it stops before position 2).
+@hint
+`cities[0:2]` starts at position 0 and stops before position 2.
+@solution
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first_two = cities[0:2]
+:::
+
+### Changing a list
+
+A list can change. `.append(x)` adds `x` at the end:
+
+```python
+products = ["Kopi Susu", "Americano"]
+products.append("Teh Tarik")
+print(products)          # ['Kopi Susu', 'Americano', 'Teh Tarik']
+```
+
+:::drill python Add one at the end
+Add `"Medan"` to the end of the list `cities`.
+@starter
+cities = ["Jakarta", "Bandung"]
+# write your line below this one
+
+@check
+cities == ["Jakarta", "Bandung", "Medan"] ## `cities` should end with "Medan" and keep the two cities before it.
+calls("append") ## Use cities.append(...).
+@hint
+`cities.append("Medan")` changes the list in place; you do not need `cities = ...`.
+@solution
+cities = ["Jakarta", "Bandung"]
+cities.append("Medan")
+:::
+
+### Counting: how many in total, and how many of one kind
+
+Two different questions, two different tools. `len(list)` answers **how many items in total**. `list.count(x)` answers **how many items are equal to `x`**:
+
+```python
+statuses = ["paid", "paid", "cancelled", "paid"]
+print(len(statuses))             # 4: four orders in total
+print(statuses.count("paid"))    # 3: three of them are paid
+```
+
+Predict first:
+
+:::ask What will this print?
+```python
+statuses = ["paid", "cancelled", "paid"]
+print(len(statuses), statuses.count("paid"))
+```
+@options
+3 3
+* 3 2
+2 3
+@why
+`len(statuses)` counts **every** item: 3. `statuses.count("paid")` counts only the items equal to `"paid"`: 2. The first number is "how many in total", the second is "how many of one kind".
+:::
+
+:::drill python In total, and of one kind
+`statuses` holds the status of four orders. Make `all_orders` the number of orders, and `paid_orders` the number of orders whose status is `"paid"`.
+@starter
+statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
+all_orders = None
+paid_orders = None
+@check
+all_orders == 5 ## `all_orders` should be 5: use len(statuses), it counts everything.
+paid_orders == 3 ## `paid_orders` should be 3: use statuses.count("paid"), it counts only the equal ones.
+calls("len") and calls("count") ## Use both: len(...) for the total, .count(...) for one kind.
+@hint
+`len(statuses)` counts all the items. `statuses.count("paid")` counts only the items equal to `"paid"`.
+@solution
+statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
+all_orders = len(statuses)
+paid_orders = statuses.count("paid")
+:::
+
+### Dictionary: look things up by name
+
+A **dictionary** (`{...}`) looks things up by a *name* (a **key**) instead of a position. One order is a dictionary:
 
 ```python
 order = {"order_id": "1001", "customer_id": "7", "status": "paid", "total_idr": "150000"}
 print(order["status"])         # paid
 print(order.get("note"))       # None: .get gives None instead of an error when the key is missing
-order["status"] = "shipped"    # change a value
 ```
 
-Reading a missing key with `order["note"]` raises `KeyError`; `.get("note", "")` gives a default instead. A dict is also the tool for **counting**: `counts[status] = counts.get(status, 0) + 1`. Remember this line; you will write it many times. To inspect keys and values together, use `order.items()`: it gives a sequence of `(key, value)` pairs, which is how you loop over both or sort them for ranking.
+Reading a missing key with `order["note"]` raises `KeyError`; `.get("note", "")` gives a default instead.
 
-**Tuple** (`(...)`): a small fixed group that should not change, such as `("paid", 3)`. Functions often return a tuple to give back two things at once.
+:::drill python Look up by key
+Make `status` the status of the `order`, and `note` its note. The order has no note, so use `.get` with the default `"no note"`.
+@starter
+order = {"order_id": "1002", "status": "cancelled", "total_idr": "90000"}
+status = None
+note = None
+@check
+status == "cancelled" ## `status` should be "cancelled": read it with order["status"].
+note == "no note" ## `note` should be "no note": use order.get("note", "no note") for a key that may be missing.
+calls("get") ## Use .get(...) for the note.
+@hint
+`order["status"]` reads a key that exists. `order.get("note", "no note")` gives the default when the key is missing.
+@solution
+order = {"order_id": "1002", "status": "cancelled", "total_idr": "90000"}
+status = order["status"]
+note = order.get("note", "no note")
+:::
 
-**Set** (`{...}` with no keys): a bag of **unique** values with no order. `set([7, 3, 7, 5])` is `{3, 5, 7}`. Use it to remove duplicates, and to ask "have I seen this before?" very quickly with `x in seen`. Because a set is unordered, use the built-in function `sorted(my_set)` whenever you need the unique values back as an ordered list (for example, customer IDs in ascending order: `sorted({7, 3, 5})` produces `[3, 5, 7]`).
+### Changing a dictionary
 
-A real data file is therefore usually **a list of dictionaries**: the list is the file, each dict is a row, the keys are the column names. The lab's `orders` looks exactly like this.
+Assigning to a key changes it, or adds it when it does not exist yet:
 
-One idea to meet early: **mutable versus immutable**. Lists, dicts and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
+```python
+order["status"] = "shipped"    # change a value
+order["courier"] = "JNE"       # add a new key
+```
 
-### Reading a list of rows: count, first, last
+:::drill python Change and add
+Change the status of `order` to `"shipped"` and add a key `"courier"` with the value `"JNE"`.
+@starter
+order = {"order_id": "1003", "status": "paid"}
+# write your lines below this one
 
-Most days you do not loop over a list yet; you just **ask it a question**. Four small tools answer the first questions. Here is a list of three products (a list of dictionaries, like a CSV file), and each question with its answer:
+@check
+order["status"] == "shipped" ## `order["status"]` should be "shipped".
+order.get("courier") == "JNE" ## `order` should have the key "courier" with the value "JNE".
+len(order) == 3 ## `order` should have three keys: order_id, status and courier.
+@hint
+`order["status"] = "shipped"` and `order["courier"] = "JNE"`.
+@solution
+order = {"order_id": "1003", "status": "paid"}
+order["status"] = "shipped"
+order["courier"] = "JNE"
+:::
+
+### A dictionary can hold counts
+
+A dictionary is also the tool for keeping a **count per name**, "how many of each kind". It is a different question from `len`: `counts = {"paid": 3, "cancelled": 1}` says there are 3 paid orders and 1 cancelled one. `counts["paid"]` reads one count, and `len(counts)` is the number of *different kinds*, not the number of orders. How to build such a dictionary from many rows is the job of a loop, which Lesson 4 teaches. Here you only read one.
+
+:::drill python Read a count
+Make `paid_count` the number of paid orders, and `kinds` the number of different statuses, both read from the dictionary `counts`.
+@starter
+counts = {"paid": 3, "cancelled": 1, "shipped": 2}
+paid_count = None
+kinds = None
+@check
+paid_count == 3 ## `paid_count` should be 3: read it with counts["paid"].
+kinds == 3 ## `kinds` should be 3: there are three different statuses. len(counts) counts the keys.
+@hint
+`counts["paid"]` is the count of paid orders. `len(counts)` is how many keys the dictionary has.
+@solution
+counts = {"paid": 3, "cancelled": 1, "shipped": 2}
+paid_count = counts["paid"]
+kinds = len(counts)
+:::
+
+### Tuple: a small fixed group
+
+A **tuple** (`(...)`) is a small fixed group that should not change, such as `("paid", 3)`. Functions often return a tuple to give back two things at once.
+
+### Set: each value once
+
+A **set** is a bag of **unique** values with no order. `set([7, 3, 7, 5])` is `{3, 5, 7}`. Use it to remove duplicates, and to ask "have I seen this before?" very quickly with `x in seen`. Because a set has no order, use the built-in function `sorted(my_set)` whenever you need the unique values back as an ordered list:
+
+```python
+ids = [7, 3, 7, 5]
+print(sorted(set(ids)))    # [3, 5, 7]
+```
+
+:::drill python Each id once
+`ids` has repeats. Make `unique_ids` a list of the different ids, each once, smallest first.
+@starter
+ids = [4, 9, 4, 1, 9, 9]
+unique_ids = None
+@check
+unique_ids == [1, 4, 9] ## `unique_ids` should be [1, 4, 9]: each id once, smallest first.
+calls("set") and calls("sorted") ## Use set(...) to drop the repeats and sorted(...) for the order.
+@hint
+`set(ids)` keeps each value once; `sorted(...)` turns it into an ordered list.
+@solution
+ids = [4, 9, 4, 1, 9, 9]
+unique_ids = sorted(set(ids))
+:::
+
+### A real file: a list of dictionaries
+
+A real data file is therefore usually **a list of dictionaries**: the list is the file, each dictionary is a row, the keys are the column names. Here are three products (every value is text, as it comes out of a CSV file) and four questions with their answers:
 
 ```python
 products = [
@@ -137,13 +585,63 @@ products = [
     {"sku": "K2", "name": "Americano", "price_idr": "22000"},
     {"sku": "K3", "name": "Teh Tarik", "price_idr": "18000"},
 ]
-product_count = len(products)                  # 3: len() counts the items in a list
-first_name = products[0]["name"]               # "Kopi Susu": [0] is the FIRST item, then ["name"] picks one fact from that dictionary
-last_price = int(products[-1]["price_idr"])    # 18000: [-1] is the LAST item; int() because the price is text, as in a CSV file
+product_count = len(products)                  # 3: len() counts the rows
+first_name = products[0]["name"]               # "Kopi Susu": [0] is the FIRST row, then ["name"] picks one fact from that dictionary
+last_price = int(products[-1]["price_idr"])    # 18000: [-1] is the LAST row; int() because the price is text
 print(product_count, first_name, last_price)   # 3 Kopi Susu 18000
 ```
 
-Read each line from the inside out: `products[0]` is one dictionary, and `["name"]` reads one value from it. `product_count`, `first_name` and `last_price` are just **names you choose** for the answers, the same way `total` named a value in Lesson 1; the lab will tell you which names it wants. To get the different values of a list once each, use a set and `sorted`, as above: `sorted(set([7, 3, 7, 5]))` gives `[3, 5, 7]`.
+Read each line from the inside out: `products[0]` is one dictionary, and `["name"]` reads one value from it.
+
+:::drill python Ask a list of rows
+`shops` is a list of dictionaries. Make `shop_count` the number of rows, `first_city` the city of the first row, and `last_staff` the staff of the last row **as a number**.
+@starter
+shops = [
+    {"city": "Jakarta", "staff": "12"},
+    {"city": "Bandung", "staff": "8"},
+    {"city": "Surabaya", "staff": "15"},
+]
+shop_count = None
+first_city = None
+last_staff = None
+@check
+shop_count == 3 ## `shop_count` should be 3: len(shops) counts the rows.
+first_city == "Jakarta" ## `first_city` should be "Jakarta": shops[0]["city"].
+last_staff == 15 and type(last_staff) is int ## `last_staff` should be the number 15: shops[-1]["staff"] is text, so wrap it in int(...).
+@hint
+Position first, key second: `shops[0]["city"]`. The last row is `shops[-1]`. The value is text, so `int(...)`.
+@solution
+shops = [
+    {"city": "Jakarta", "staff": "12"},
+    {"city": "Bandung", "staff": "8"},
+    {"city": "Surabaya", "staff": "15"},
+]
+shop_count = len(shops)
+first_city = shops[0]["city"]
+last_staff = int(shops[-1]["staff"])
+:::
+
+### Two names, one list
+
+One idea to meet early: **mutable versus immutable**. Lists, dictionaries and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
+
+:::drill python Two names, one list
+`b = a` does not copy the list: both names point at the same list. After the three lines, what list does `a` hold? Replace `None` with that list.
+@starter
+a = [1, 2]
+b = a
+b.append(3)
+a_now = None
+@check
+a_now == [1, 2, 3] ## `a` holds [1, 2, 3]: `b` is the same list as `a`, so the append through `b` shows up in `a`.
+@hint
+`b = a` makes `b` point at the same list as `a`. `b.append(3)` changes that one list.
+@solution
+a = [1, 2]
+b = a
+b.append(3)
+a_now = [1, 2, 3]
+:::
 
 > 💡 **Practice Pause 2 (Part A, Step 2):**
 > In `practice.py` (or the **Part A** tab), do **Step 2** with the list `orders` (a list of dicts, exactly what a CSV file gives you) and the list `ids_seen`:

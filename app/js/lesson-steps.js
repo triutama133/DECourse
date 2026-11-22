@@ -5,7 +5,7 @@
  *
  * The rules, in short:
  *   - a heading (### or ####) starts a new step;
- *   - every Try it / Practice Pause box is a step of its own ("Your turn"), so the learner stops and does it;
+ *   - every Try it / Practice Pause box, and every drill (a small exercise with checks), is a step of its own ("Your turn");
  *   - a code block, a table, a list or a callout stays with the text before it (never alone on a screen);
  *   - a long section is cut between paragraphs, so a step stays around 180 words;
  *   - a heading with nothing under it, and a very short step, join the next step.
@@ -30,6 +30,7 @@
   const isFence = (l) => /^```/.test(l);
   const isAdvancedStart = (l) => /^:::advanced\s+/.test(l);
   const isFoldEnd = (l) => /^:::\s*$/.test(l);
+  const isDrillStart = (l) => /^:::(drill|ask)\b/.test(l);
   const isDiagram = (l) => /^\[\[diagram:[a-z0-9-]+\]\]\s*$/.test(l);
   const isRule = (l) => /^---+\s*$/.test(l);
 
@@ -58,7 +59,12 @@
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       const from = i;
-      if (isAdvancedStart(line)) {                       // a fold: everything up to its closing ::: is one block
+      if (isDrillStart(line)) {                          // a drill: everything up to its closing ::: is one block
+        i++;
+        while (i < lines.length && !isFoldEnd(lines[i])) i++;
+        i++;
+        push("drill", from, i);
+      } else if (isAdvancedStart(line)) {                // a fold: everything up to its closing ::: is one block
         let depth = 1;
         i++;
         while (i < lines.length && depth > 0) {
@@ -101,7 +107,7 @@
         i++;                                              // a paragraph: runs until a blank line or the start of another kind of block
         while (i < lines.length) {
           const l = lines[i];
-          if (l.trim() === "" || isHeading(l) || isFence(l) || isQuote(l) || isAdvancedStart(l) || isFoldEnd(l) || isDiagram(l) || isRule(l)) break;
+          if (l.trim() === "" || isHeading(l) || isFence(l) || isQuote(l) || isAdvancedStart(l) || isDrillStart(l) || isFoldEnd(l) || isDiagram(l) || isRule(l)) break;
           if (isTableRow(l) || isBullet(l) || isOrdered(l)) break;
           i++;
         }
@@ -124,6 +130,12 @@
         // a heading starts a step; if the current step holds only headings (nothing under them yet), the heading joins it
         if (cur && cur.blocks.some((x) => x.type !== "heading")) flush();
         open().blocks.push(b);
+      } else if (b.type === "drill") {                  // a drill is a step of its own: the learner stops and does it
+        const onlyHeading = cur && cur.blocks.every((x) => x.type === "heading");
+        if (!onlyHeading) flush();
+        open().blocks.push(b);
+        cur.kind = "drill";
+        flush();
       } else if (b.type === "quote" && b.turn) {
         const onlyHeading = cur && cur.blocks.every((x) => x.type === "heading");   // "### Practice" + its box: one step
         if (!onlyHeading) flush();
@@ -155,7 +167,7 @@
       else if (prev && prev.kind === "read") { prev.blocks = prev.blocks.concat(s.blocks); raw.splice(k, 1); k--; }
     }
 
-    let tryits = 0;
+    let tryits = 0, drills = 0;
     return raw.map((s) => {
       const text = s.blocks.map((x) => x.text).join("\n\n");
       const head = s.blocks.find((x) => x.type === "heading");
@@ -165,7 +177,9 @@
         words: words(s),
         title: head ? head.text.replace(/^#{3,4} /, "").replace(/[`*]/g, "") : "",
         tryitStart: tryits,
+        drillStart: drills,
       };
+      drills += s.blocks.filter((x) => x.type === "drill").length;
       tryits += s.blocks.filter((x) => x.type === "quote" && x.turn === "tryit").length;
       return step;
     });

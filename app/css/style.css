@@ -1331,3 +1331,16 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .lesson-lab .ll-inputs pre { margin: 6px 0 0; padding: 8px 10px; background: var(--card-subtle); border-radius: var(--radius-sm, 6px); font: 12.5px/1.45 ui-monospace, Menlo, Consolas, monospace; overflow-x: auto; }
 .lesson-lab .ll-out { display: grid; gap: 8px; }
 .lesson-lab .ll-out:empty { display: none; }
+
+/* Drills: a small exercise with checks inside a lesson */
+.drill { display: grid; gap: 10px; margin: 8px 0; padding: 14px 16px; border: 1px solid var(--primary); border-radius: var(--radius); background: var(--card); }
+.drill.is-done { border-color: rgba(22, 163, 74, 0.5); }
+.drill-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.drill-tag { padding: 2px 10px; border-radius: 999px; background: var(--primary); color: var(--primary-fg); font-size: 12px; font-weight: 600; }
+.drill-task > :first-child { margin-top: 0; }
+.drill-code { min-height: 90px; }
+.drill-extra:empty, .drill-out:empty { display: none; }
+.ask-options { display: grid; gap: 6px; }
+.ask-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--card-subtle); cursor: pointer; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+.ask-option:hover { border-color: var(--text); }
+.ask-option input { accent-color: var(--primary); }

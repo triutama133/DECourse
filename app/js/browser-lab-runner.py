@@ -76,3 +76,69 @@ def exec_pad(session, code, reset=False):
                     print("\nHint: Python does not know that name yet. Run the lines that create it first (the earlier examples of this lesson, "
                           "in order), or this example is only a piece of a bigger program: then run the complete program in your terminal.")
     return buf.getvalue(), ok
+
+
+# ---- drills in the lessons (freeCodeCamp / DataCamp style): run the learner's code, then evaluate small checks ----
+def check_drill(code, checks):
+    """Run `code` in a fresh namespace, then evaluate each check: a list of [expression, message].
+
+    An expression sees the learner's variables, `out` (what the code printed, whitespace-trimmed), `code` (the source)
+    and the helpers calls(name), uses(name), defines(name). Returns a JSON text:
+    {"output": ..., "error": ... or "", "results": [{"ok": bool, "msg": str}, ...]}.
+    """
+    import ast
+    import json
+    import traceback
+
+    buf = io.StringIO()
+    ns = {"__name__": "__main__"}
+    error = ""
+
+    def no_input(*args, **kwargs):
+        raise EOFError("input() cannot ask for typing here: put the value in the code (name = ...) instead.")
+
+    ns["input"] = no_input
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            tree = ast.parse(code, "<drill>")
+            for node in tree.body:
+                if isinstance(node, ast.Expr):
+                    value = eval(compile(ast.Expression(node.value), "<drill>", "eval"), ns)
+                    if value is not None:
+                        print(repr(value))
+                else:
+                    exec(compile(ast.Module([node], []), "<drill>", "exec"), ns)
+        except BaseException as exc:  # noqa: BLE001 - show whatever the learner's code raised, like the terminal does
+            frames = [f for f in traceback.extract_tb(exc.__traceback__) if f.filename == "<drill>"]
+            if isinstance(exc, SyntaxError):
+                error = "".join(traceback.format_exception_only(type(exc), exc)).rstrip()
+            else:
+                error = "Traceback (most recent call last):\n" + "".join(traceback.format_list(frames)).rstrip() + "\n" + "".join(traceback.format_exception_only(type(exc), exc)).rstrip()
+                if isinstance(exc, NameError):
+                    error += "\n\nHint: Python does not know that name yet. Is it spelled exactly as in the task, and is the line that creates it above?"
+    output = buf.getvalue()
+    results = []
+    if not error:
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            tree = ast.parse("")
+
+        def calls(name):
+            return any(isinstance(n, ast.Call) and ((isinstance(n.func, ast.Name) and n.func.id == name) or (isinstance(n.func, ast.Attribute) and n.func.attr == name)) for n in ast.walk(tree))
+
+        def uses(name):
+            return any((isinstance(n, ast.Name) and n.id == name) or (isinstance(n, ast.Attribute) and n.attr == name) for n in ast.walk(tree))
+
+        def defines(name):
+            return any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name == name for n in ast.walk(tree))
+
+        scope = dict(ns)
+        scope.update({"out": output.strip(), "code": code, "calls": calls, "uses": uses, "defines": defines, "ns": ns})
+        for expression, message in checks:
+            try:
+                ok = bool(eval(expression, scope))
+            except Exception:  # noqa: BLE001 - a missing variable or a wrong type means the check is not met
+                ok = False
+            results.append({"ok": ok, "msg": message})
+    return json.dumps({"output": output, "error": error, "results": results})

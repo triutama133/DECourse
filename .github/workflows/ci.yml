@@ -23,6 +23,9 @@ jobs:
         run: |
           node scripts/build-curriculum.js --check
 
+      - name: Every drill's solution passes and its starter fails (real Pyodide)
+        run: node scripts/verify_drills.js
+
       - name: Python pad examples run in the real Pyodide
         run: node scripts/verify_lesson_pads.js
 

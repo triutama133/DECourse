@@ -30,12 +30,12 @@ for (const level of levels) for (const mod of level.modules) mod.lessons.forEach
     perLesson.push({ where, n: out.length, words: out.map((s) => s.words) });
     if (out.length === 0) { fail(where, "no steps"); continue; }
     if (norm(out.map((s) => s.text).join("\n\n")) !== norm(text)) fail(where, "steps joined differ from the lesson");
-    let tryits = 0;
+    let tryits = 0, drills = 0;
     out.forEach((s, k) => {
       const w = `${where} step ${k + 1}`;
       if (!s.text.trim()) fail(w, "empty");
       if ((s.text.match(/^```/gm) || []).length % 2) fail(w, "odd number of ``` lines (a fence is cut)");
-      const open = (s.text.match(/^:::advanced\s/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
+      const open = (s.text.match(/^:::(advanced\s|drill\s|ask\b)/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
       if (open !== close) fail(w, `fold not balanced (${open} open, ${close} close)`);
       if (s.tryitStart !== tryits) fail(w, `tryitStart ${s.tryitStart}, expected ${tryits}`);
       const boxes = (s.text.match(/^> ?(🛠|💡|\*\*(Try it|Coba sendiri|Practice Pause|Jeda Latihan))/gm) || []).length;
@@ -43,6 +43,11 @@ for (const level of levels) for (const mod of level.modules) mod.lessons.forEach
       if (s.kind === "turn" && boxes !== 1) fail(w, `a turn step must hold exactly one box, has ${boxes}`);
       if (s.kind === "read" && boxes) fail(w, "a reading step holds a Try it / Practice Pause box");
       tryits += tries;
+      const nd = (s.text.match(/^:::(drill\s|ask\b)/gm) || []).length;
+      if (s.drillStart !== drills) fail(w, `drillStart ${s.drillStart}, expected ${drills}`);
+      if (s.kind === "drill" && nd !== 1) fail(w, `a drill step must hold exactly one drill, has ${nd}`);
+      if (s.kind !== "drill" && nd) fail(w, "a step that is not a drill step holds a drill");
+      drills += nd;
       // a table is never cut (its header row must stay with it), so one big table may carry a step past the budget
       const biggestTable = Math.max(0, ...LessonSteps.toBlocks(s.text).filter((x) => x.type === "table").map((x) => x.words));
       if (s.kind === "read" && s.words - biggestTable > LessonSteps.MAX_WORDS * 1.6) fail(w, `reading step of ${s.words} words (${biggestTable} of them a table)`);

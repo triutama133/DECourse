@@ -1,5 +1,6 @@
 // Module Web Worker (new Worker(url, { type: "module" })): runs a lab's pytest suite in Pyodide (Python in WebAssembly) off the main thread.
 // Messages in:  { type: "run", id, files: {path: text}, args: [pytest args] }
+//               { type: "drill", id, code, checks: [[expression, message], ...] }   (a drill in a lesson: run the code, evaluate the checks)
 //               { type: "exec", id, session, code, reset }   (the Python pad in the lessons: run a snippet, keep variables per session)
 // Messages out: { type: "status", text } while loading, then { type: "result", id, output, code } or { type: "error", id, message }
 import { loadPyodide } from "../vendor/pyodide/pyodide.mjs";
@@ -36,6 +37,19 @@ self.onmessage = async (ev) => {
       const [output, ok] = result.toJs();
       result.destroy();
       self.postMessage({ type: "padresult", id: m.id, output, ok });
+    } catch (e) {
+      booting = null;
+      self.postMessage({ type: "error", id: m.id, message: String(e && e.message ? e.message : e) });
+    }
+    return;
+  }
+  if (m.type === "drill") {
+    try {
+      booting = booting || boot();
+      const py = await booting;
+      self.postMessage({ type: "status", text: "running" });
+      const result = py.globals.get("check_drill")(m.code, py.toPy(m.checks));
+      self.postMessage({ type: "drillresult", id: m.id, json: String(result) });
     } catch (e) {
       booting = null;
       self.postMessage({ type: "error", id: m.id, message: String(e && e.message ? e.message : e) });

@@ -68,6 +68,9 @@ class DataForgeApp {
     this.tryitDone = readStore("df_tryit_done", {}) || {};
     this.tryitPaste = readStore("df_tryit_paste", {}) || {};   // what the learner pasted from their own terminal, per Try it
     this._tryitExpect = {};
+    this.drillsDone = readStore("df_drills", {}) || {};       // "mod:lesson:n" -> {passed: iso} or {revealed: iso}
+    this.drillCode = readStore("df_drill_code", {}) || {};    // the learner's code per drill
+    this._drills = {};
     this.chaosDone = readStore("df_chaos_done", {}) || {};
     this.moduleNotes = readStore("df_module_notes", {}) || {};
     this.sqlAttempts = readStore("df_sql_attempts", {}) || {};
@@ -437,12 +440,20 @@ class DataForgeApp {
     const isOrdered = (l) => /^\s*\d+\. /.test(l);
     const isTableRow = (l) => /^\s*\|.*\|\s*$/.test(l);
     let i = 0;
-    let tryitIdx = (ctx && ctx.tryitStart) || 0;   // step mode renders a lesson in pieces: the Try-it keys must stay the same as on one page
+    let tryitIdx = (ctx && ctx.tryitStart) || 0;
+    let drillIdx = (ctx && ctx.drillStart) || 0;   // step mode renders a lesson in pieces: the Try-it keys must stay the same as on one page
     while (i < lines.length) {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       let m;
-      if ((m = line.match(/^:::advanced\s+(.+)$/))) {
+      if (/^:::(drill|ask)\b/.test(line)) {
+        // ":::drill python Title" ... ":::": a small exercise with checks (see drill-parse.js)
+        const blk = [line];
+        i++;
+        while (i < lines.length && !/^:::\s*$/.test(lines[i])) blk.push(lines[i++]);
+        i++;
+        out.push(this.renderDrill(blk.join("\n"), ctx, drillIdx++));
+      } else if ((m = line.match(/^:::advanced\s+(.+)$/))) {
         // ":::advanced Title" ... ":::" folds material for later, so a beginner sees the core of the lesson first
         out.push(`<details class="advanced-fold"><summary><span class="advanced-tag">${this.l("Lanjutan (opsional)", "Advanced (optional)")}</span> ${this.inline(m[1])}</summary><div class="advanced-body">`);
         i++;
@@ -1552,7 +1563,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_drills", "df_drill_code", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d[a-z]?$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1604,6 +1615,8 @@ class DataForgeApp {
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
         if (d.df_bl_groups && typeof d.df_bl_groups === "object" && !Array.isArray(d.df_bl_groups)) writeStore("df_bl_groups", d.df_bl_groups);
+        if (d.df_drills && typeof d.df_drills === "object" && !Array.isArray(d.df_drills)) writeStore("df_drills", d.df_drills);
+        if (d.df_drill_code && typeof d.df_drill_code === "object" && !Array.isArray(d.df_drill_code)) writeStore("df_drill_code", d.df_drill_code);
         const objOf = (v) => v && typeof v === "object" && !Array.isArray(v);
         if (objOf(d.df_job_sim_proofs)) { this.jobSimProofs = d.df_job_sim_proofs; writeStore("df_job_sim_proofs", this.jobSimProofs); }
         if (objOf(d.df_job_sim_gates)) { this.jobSimGates = d.df_job_sim_gates; writeStore("df_job_sim_gates", this.jobSimGates); }
@@ -1686,6 +1699,160 @@ class DataForgeApp {
     const nextIdx = this.nextLessonIdx(mod);
     if (nextIdx >= 0) this.openLesson(modId, nextIdx);
   }
+  // ---------- drills: a small exercise with checks, inside a lesson ----------
+  drillState(key) { return this.drillsDone[key] || null; }
+  drillDone(key) { const d = this.drillsDone[key]; return Boolean(d && (d.passed || d.revealed)); }
+  renderDrill(text, ctx, idx) {
+    const d = window.DrillParse && window.DrillParse.parse(text);
+    if (!d) return "";
+    const key = ctx && ctx.modId != null ? `${ctx.modId}:${ctx.lessonIdx || 0}:${idx}` : `loose:${idx}`;
+    this._drills[key] = d;
+    const st = this.drillState(key);
+    if (d.kind === "ask") return this.renderAsk(d, key, st);
+    const code = typeof this.drillCode[key] === "string" ? this.drillCode[key] : d.starter;
+    const rows = Math.min(16, Math.max(4, code.split("\n").length + 1));
+    const badge = st && st.passed ? `<span class="chip chip-blue">✓ ${this.l("Benar", "Correct")}</span>` : st && st.revealed ? `<span class="chip">${this.l("Jawaban dilihat", "Solution seen")}</span>` : "";
+    return `<div class="drill ${st && st.passed ? "is-done" : ""}" data-key="${this.esc(key)}">
+      <div class="drill-head"><span class="drill-tag">🎯 ${this.l("Latihan", "Drill")}</span> <strong>${this.inline(d.title)}</strong> ${badge}</div>
+      <div class="drill-task stack-sm">${this.md(d.task)}</div>
+      <textarea class="pad-code drill-code" rows="${rows}" spellcheck="false" aria-label="${this.l("Kode Anda", "Your code")}" oninput="app.drillSave(this)" onkeydown="app.blKey(event, 'drill');if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();app.drillRun(this)}">${this.esc(code)}</textarea>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary" onclick="app.drillRun(this)">${this.l("Jalankan & periksa", "Run & check")}</button>
+        ${d.hint ? `<button class="btn btn-sm btn-quiet" onclick="app.drillHint(this)">💡 ${this.l("Petunjuk", "Hint")}</button>` : ""}
+        ${d.solution ? `<button class="btn btn-sm btn-quiet" onclick="app.drillSolution(this)">${this.l("Lihat jawaban", "Show the solution")}</button>` : ""}
+        <button class="btn btn-sm btn-quiet" onclick="app.drillReset(this)">${this.l("Ulangi dari awal", "Start over")}</button>
+        <span class="small muted">Ctrl+Enter</span>
+      </div>
+      <div class="drill-extra stack-sm" aria-live="polite"></div>
+      <div class="drill-out stack-sm" role="status" aria-live="polite">${st && st.passed ? `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>` : ""}</div>
+    </div>`;
+  }
+  // "What will this print?": pick an answer; the explanation follows
+  renderAsk(d, key, st) {
+    const done = st && (st.passed || st.revealed);
+    const name = "ask-" + key.replace(/[^\w]/g, "_");
+    const why = `<div class="callout success"><strong>${this.l("Mengapa", "Why")}</strong><div>${this.md(d.why)}</div></div>`;
+    return `<div class="drill drill-ask ${st && st.passed ? "is-done" : ""}" data-key="${this.esc(key)}">
+      <div class="drill-head"><span class="drill-tag">❓ ${this.l("Tebak dulu", "Predict first")}</span> <strong>${this.inline(d.title)}</strong> ${st && st.passed ? `<span class="chip chip-blue">✓ ${this.l("Benar", "Correct")}</span>` : ""}</div>
+      <div class="drill-task stack-sm">${this.md(d.task)}</div>
+      <div class="ask-options" role="radiogroup" aria-label="${this.l("Pilihan jawaban", "Answers")}">${d.options.map((o, n) => `<label class="ask-option"><input type="radio" name="${name}" value="${n}" ${done && o.correct ? "checked" : ""}> <span>${this.inline(o.text)}</span></label>`).join("")}</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><button class="btn btn-primary" onclick="app.askCheck(this)">${this.l("Periksa jawaban", "Check my answer")}</button></div>
+      <div class="drill-out stack-sm" role="status" aria-live="polite">${done ? `<div class="feedback ok">✓ ${this.l("Jawaban yang benar sudah dipilih.", "The right answer is marked.")}</div>${why}` : ""}</div>
+    </div>`;
+  }
+  askCheck(btn) {
+    const box = this.drillBox(btn), key = box.dataset.key, d = this._drills[key], out = box.querySelector(".drill-out");
+    const pick = box.querySelector("input[type=radio]:checked");
+    if (!pick) { out.innerHTML = `<div class="feedback info">${this.l("Pilih satu jawaban dulu.", "Pick an answer first.")}</div>`; return; }
+    const why = `<div class="callout success"><strong>${this.l("Mengapa", "Why")}</strong><div>${this.md(d.why)}</div></div>`;
+    this._askTries = this._askTries || {};
+    if (d.options[Number(pick.value)].correct) {
+      const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
+      this.drillsDone[key] = { passed: new Date().toISOString() };
+      writeStore("df_drills", this.drillsDone);
+      out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar!", "Correct!")}</div>${why}`;
+      if (first) this.drillRefreshNav();
+      return;
+    }
+    const tries = (this._askTries[key] = (this._askTries[key] || 0) + 1);
+    if (tries >= 2) {   // after two wrong answers, show the explanation and let the learner go on
+      out.innerHTML = `<div class="feedback info">${this.l("Belum tepat. Ini penjelasannya; baca, lalu pilih jawaban yang benar.", "Not this one. Here is the explanation: read it, then choose the right answer.")}</div>${why}`;
+      if (!this.drillDone(key)) { this.drillsDone[key] = { revealed: new Date().toISOString() }; writeStore("df_drills", this.drillsDone); this.drillRefreshNav(); }
+      return;
+    }
+    out.innerHTML = `<div class="feedback info">${this.l("Belum tepat. Baca kodenya baris demi baris, seperti Python, lalu coba jawaban lain.", "Not this one. Read the code line by line, the way Python does, then try another answer.")}</div>`;
+  }
+  drillBox(el) { return el.closest(".drill"); }
+  drillSave(ta) {
+    const key = this.drillBox(ta).dataset.key;
+    this.drillCode[key] = ta.value;
+    clearTimeout(this._drillSave);
+    this._drillSave = setTimeout(() => writeStore("df_drill_code", this.drillCode), 400);
+  }
+  drillHint(btn) {
+    const box = this.drillBox(btn), d = this._drills[box.dataset.key];
+    box.querySelector(".drill-extra").innerHTML = `<div class="callout success"><strong>💡 ${this.l("Petunjuk", "Hint")}</strong><div>${this.md(d.hint)}</div></div>`;
+  }
+  drillSolution(btn) {
+    const box = this.drillBox(btn), key = box.dataset.key, d = this._drills[key];
+    box.querySelector(".drill-extra").innerHTML = `<div class="callout"><strong>${this.l("Satu jawaban yang benar", "One correct answer")}</strong><pre class="pad-out" style="margin-top:6px">${this.esc(d.solution)}</pre><p class="small muted">${this.l("Bandingkan dengan kode Anda, lalu ketik ulang sendiri dengan kata-kata Anda: itu yang membuat Anda ingat.", "Compare it with your code, then type it again yourself in your own words: that is what makes it stick.")}</p></div>`;
+    if (!this.drillDone(key)) {
+      this.drillsDone[key] = { revealed: new Date().toISOString() };
+      writeStore("df_drills", this.drillsDone);
+      this.drillRefreshNav();
+    }
+  }
+  drillReset(btn) {
+    const box = this.drillBox(btn), key = box.dataset.key, d = this._drills[key];
+    box.querySelector(".drill-code").value = d.starter;
+    this.drillCode[key] = d.starter;
+    writeStore("df_drill_code", this.drillCode);
+    box.querySelector(".drill-out").innerHTML = "";
+  }
+  // The step's Next button depends on the drill: re-render, and keep the page where it is.
+  drillRefreshNav() {
+    const y = window.scrollY;
+    this.renderView();
+    window.scrollTo(0, y);
+  }
+  drillRun(el) {
+    const box = this.drillBox(el), key = box.dataset.key, d = this._drills[key];
+    const ta = box.querySelector(".drill-code"), out = box.querySelector(".drill-out");
+    const say = (html) => { out.innerHTML = html; };
+    this.drillCode[key] = ta.value;
+    writeStore("df_drill_code", this.drillCode);
+    if (this._padBusy || this._blBusy) { say(`<div class="feedback info">${this.l("Python masih sibuk. Tunggu sebentar lalu coba lagi.", "Python is busy. Wait a moment and try again.")}</div>`); return; }
+    if (!window.Worker || location.protocol === "file:") { say(`<div class="feedback bad">${this.l("Browser ini tidak bisa menjalankan Python di halaman yang dibuka dari file. Jalankan situs dengan python3 server.py, atau pakai terminal Anda.", "This browser cannot run Python on a page opened from a file. Run the site with python3 server.py, or use your terminal.")}</div>`); return; }
+    if (!this._blWorker) {
+      try { this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" }); }
+      catch (e) { say(`<div class="feedback bad">${this.l("Tidak bisa memulai Python di browser ini. Pakai terminal Anda.", "Could not start Python in this browser. Use your terminal.")}</div>`); return; }
+    }
+    const w = this._blWorker;
+    const id = (this._padId = (this._padId || 0) + 1);
+    this._padBusy = true;
+    const buttons = box.querySelectorAll("button");
+    buttons.forEach((b) => { b.disabled = true; });
+    let timer;
+    const finish = () => { this._padBusy = false; clearTimeout(timer); w.removeEventListener("message", onMsg); buttons.forEach((b) => { b.disabled = false; }); };
+    const stop = (msg) => { if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; } finish(); say(`<div class="feedback bad">${msg}</div>`); };
+    const loading = { "loading-python": this.l("Memuat Python (sekitar 12 MB, hanya sekali)…", "Loading Python (about 12 MB, only once)…"), "loading-pytest": this.l("Hampir siap…", "Almost ready…"), running: this.l("Memeriksa…", "Checking…") };
+    const onMsg = (ev) => {
+      const m = ev.data;
+      if (m.type === "status") {
+        if (loading[m.text]) say(`<div class="feedback info">${loading[m.text]}</div>`);
+        if (m.text === "running") { clearTimeout(timer); timer = setTimeout(() => stop(this.l("Kode berjalan lebih dari 15 detik, jadi dihentikan (mungkin berulang tanpa henti).", "The code ran for more than 15 seconds, so it was stopped (it may loop forever).")), 15000); }
+      } else if (m.type === "drillresult" && m.id === id) {
+        finish();
+        this.drillResult(box, key, d, JSON.parse(m.json));
+      } else if (m.type === "error" && m.id === id) {
+        stop(this.l("Python gagal dimulai:", "Python failed to start:") + " " + this.esc(m.message));
+      }
+    };
+    w.addEventListener("message", onMsg);
+    timer = setTimeout(() => stop(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
+    say(`<div class="feedback info">${loading["loading-python"]}</div>`);
+    w.postMessage({ type: "drill", id, code: ta.value, checks: d.checks.map((c) => [c.expr, c.msg]) });
+  }
+  drillResult(box, key, d, r) {
+    const out = box.querySelector(".drill-out");
+    const printed = r.output && r.output.trim() ? `<div><div class="small muted">${this.l("Yang dicetak kode Anda:", "What your code printed:")}</div><pre class="pad-out">${this.esc(r.output.trimEnd())}</pre></div>` : "";
+    if (r.error) {
+      out.innerHTML = `<div class="feedback bad">${this.l("Kode Anda berhenti karena error. Baca baris paling bawah: itu yang salah.", "Your code stopped with an error. Read the last line: it says what went wrong.")}</div><pre class="pad-out pad-err">${this.esc(r.error)}</pre>${printed}`;
+      return;
+    }
+    const failed = r.results.filter((x) => !x.ok);
+    if (!failed.length) {
+      const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
+      this.drillsDone[key] = { passed: new Date().toISOString() };
+      writeStore("df_drills", this.drillsDone);
+      out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>${printed}`;
+      if (first) this.drillRefreshNav();
+      return;
+    }
+    const n = r.results.length;
+    out.innerHTML = `<div class="feedback info"><strong>${this.l(`${n - failed.length} dari ${n} pemeriksaan lulus.`, `${n - failed.length} of ${n} checks pass.`)}</strong> ${this.inline(failed[0].msg || this.l("Belum tepat.", "Not quite yet."))}</div>${printed}`;
+  }
+
   // ---------- the Python pad: run a snippet in the browser, next to the terminal route ----------
   padRunnable(code) {
     if (/^\s*>>>/m.test(code) || /\binput\s*\(|\bopen\s*\(|sys\.argv|os\.environ|getenv|argparse|__file__|\.\.\.|…|<[a-z_ -]+>/.test(code)) return false;
@@ -3457,14 +3624,17 @@ Hello from KopiKu</code></pre>
           : `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`;
         const stepBody = steps ? (() => {
           const st = steps[stepK], n = steps.length;
-          const turn = st.kind === "turn" || st.kind === "lab";
-          const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" || sx.kind === "lab" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" || sx.kind === "lab" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
+          const turn = st.kind === "turn" || st.kind === "lab" || st.kind === "drill";
+          const drillLocked = st.kind === "drill" && !this.drillDone(`${mod.id}:${i}:${st.drillStart}`);
+          const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" || sx.kind === "lab" || sx.kind === "drill" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" || sx.kind === "lab" || sx.kind === "drill" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
           const back = stepK > 0
             ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK - 1})">← ${this.l("Kembali", "Back")}</button>`
             : i > 0 ? `<button class="btn btn-quiet" onclick="app.openLesson('${mod.id}', ${i - 1})">← ${this.l("Materi", "Lesson")} ${i}</button>` : `<button class="btn btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>`;
           const forward = stepLast
             ? endButtons
-            : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : this.l("Lanjut", "Next")} →</button>`;
+            : drillLocked
+              ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${this.l("Lewati latihan", "Skip the drill")}</button><button class="btn btn-primary" disabled title="${this.l("Terbuka setelah semua pemeriksaan lulus, atau setelah Anda melihat jawabannya", "Unlocks when every check passes, or after you look at the solution")}">🔒 ${this.l("Selesaikan latihan untuk lanjut", "Pass the drill to continue")}</button>`
+              : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : this.l("Lanjut", "Next")} →</button>`;
           return `
           <div class="step-progress" role="group" aria-label="${this.l("Langkah dalam materi ini", "Steps in this lesson")}">
             <span class="step-count">${this.l("Langkah", "Step")} <strong>${stepK + 1}</strong> ${this.l("dari", "of")} ${n}</span>
@@ -3473,7 +3643,7 @@ Hello from KopiKu</code></pre>
           </div>
           <div class="step-card ${turn ? "step-turn" : ""}" key="step-${i}-${stepK}">
             ${turn ? `<div class="step-turn-tag">${st.kind === "lab" ? "🧪 " + this.l("Lab: tulis kodenya, jalankan tesnya", "Lab: write the code, run its tests") : "✋ " + this.l("Giliranmu: berhenti dan coba", "Your turn: stop and try it")}</div>` : ""}
-            ${st.kind === "lab" ? this.lessonLabHtml(mod.id, i) : this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart })}
+            ${st.kind === "lab" ? this.lessonLabHtml(mod.id, i) : this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart, drillStart: st.drillStart })}
           </div>
           <div class="step-nav">${back}${forward}</div>`;
         })() : "";

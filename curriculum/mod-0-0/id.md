@@ -25,11 +25,38 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
 
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
-Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.
+Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris demi satu baris**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental yang paling berguna dalam pemrograman: saat Anda tersesat, letakkan jari di baris pertama lalu jalan ke bawah.
+
+Di sini Anda belajar dengan mengerjakan. Setiap gagasan kecil diikuti **latihan** singkat: Anda menulis beberapa baris, menekan **Jalankan & periksa**, dan pemeriksa memberi tahu persis apa yang masih salah. Buntu? Tekan **Petunjuk**, dan kalau masih buntu, **Lihat jawaban** lalu ketik ulang sendiri. Latihan ini menjalankan Python di browser Anda, jadi tidak ada yang perlu dipasang. Terminal Anda sendiri tetap tempat kerja yang sesungguhnya: **Coba sendiri** dan lab di akhir materi memakainya.
+
+### Menampilkan nilai: print()
+
+`print()` menaruh sesuatu di layar. Teks ditulis di dalam tanda kutip; angka tidak:
+
+```python
+print("Halo")
+print(150000)
+```
+
+> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik ketiga baris itu di prompt `>>>`, Enter setelah setiap baris. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan, tidak ada yang tampil kecuali Anda mem-`print`-nya. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file berdampingan.)
+
+:::drill python Cetak sebuah kata
+Pakai `print()` untuk menampilkan kata `paid`. Ini teks, jadi ditulis di dalam tanda kutip.
+@starter
+# tulis baris Anda di bawah baris ini
+
+@check
+calls("print") ## Pakai fungsi print().
+out == "paid" ## Program harus mencetak persis: paid
+@hint
+`print("paid")`: tanda kutip memberi tahu Python bahwa `paid` adalah teks, bukan nama.
+@solution
+print("paid")
+:::
 
 ### Nilai dan variabel
 
-Untuk bekerja, komputer harus mengingat sesuatu. Ia mengingat sebuah **nilai** (potongan data seperti `150000` atau `"paid"`) dan memberinya **nama** agar bisa dipakai lagi. Nilai bernama itu adalah **variabel**:
+Untuk bekerja, komputer harus mengingat sesuatu. Ia mengingat sebuah **nilai** (sepotong data seperti `150000` atau `"paid"`) dan memberinya **nama** supaya bisa dipakai lagi. Nilai bernama itu adalah **variabel**:
 
 ```python
 total = 150000
@@ -37,11 +64,62 @@ status = "paid"
 print(total)        # menampilkan 150000
 ```
 
-> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik ketiga baris itu di prompt `>>>`, Enter setelah setiap baris. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan, tidak ada yang tampil kecuali Anda mem-`print`-nya. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file berdampingan.)
+Baca `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan tanda sama dengan dalam matematika; ia adalah *penugasan* (assignment): kerjakan sisi kanan dulu, lalu tempelkan nama di kiri pada hasilnya.
 
-Bacalah `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan "sama dengan" dalam matematika; ia adalah *penugasan* (assignment): hitung sisi kanan dulu, lalu tempelkan nama di kiri ke hasilnya. Karena itu `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama ke nilai baru) tetapi tidak masuk akal dalam matematika.
+:::drill python Buat dua variabel
+Buat variabel `price` yang berisi angka `25000`, dan variabel `drink` yang berisi teks `"Kopi Susu"`.
+@starter
+# tulis dua baris Anda di bawah baris ini
 
-Telusuri dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja belajar sesuatu yang penting.
+@check
+price == 25000 ## `price` harus berisi angka 25000 (angka tidak memakai tanda kutip).
+type(price) is int ## `price` harus berupa angka, bukan teks.
+drink == "Kopi Susu" ## `drink` harus berisi teks "Kopi Susu" (teks memakai tanda kutip).
+@hint
+`price = 25000` dan `drink = "Kopi Susu"`: satu nama, satu `=`, satu nilai per baris.
+@solution
+price = 25000
+drink = "Kopi Susu"
+:::
+
+### Sebuah nama menyimpan nilainya sampai Anda mengubahnya
+
+Karena sisi kanan dikerjakan lebih dulu, `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama pada nilai baru) tetapi tidak masuk akal dalam matematika.
+
+Telusuri dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Kalau Anda menebak 30, Anda baru saja belajar sesuatu yang penting.
+
+:::drill python Ikuti nilainya
+Baca tiga baris dari atas. Berapa angka yang dipegang `y` di akhir? Ganti `None` dengan angka itu. (Jalankan kalau mau memeriksa sendiri: `print(y)`.)
+@starter
+x = 5
+y = x + 1
+x = 20
+answer = None
+@check
+answer == 6 ## `y` mendapat nilainya (6) ketika `x` bernilai 5. Mengubah `x` kemudian tidak mengubah `y`.
+type(answer) is int ## `answer` harus berupa angka.
+@hint
+Jalan baris demi baris. Setelah baris 2, `y` bernilai 6. Baris 3 mengubah `x`, tetapi tidak ada yang membuat `y` dihitung ulang.
+@solution
+x = 5
+y = x + 1
+x = 20
+answer = 6
+:::
+
+:::ask Apa yang akan tercetak?
+```python
+count = 10
+count = count + 5
+print(count)
+```
+@options
+count
+count + 5
+* 15
+@why
+Python mengerjakan **sisi kanan dulu**: nilai lama `count` (10) ditambah 5 adalah 15, baru kemudian nama `count` menunjuk ke 15. `print` menampilkan nilainya, bukan namanya.
+:::
 
 ### Tipe
 
@@ -50,50 +128,183 @@ Setiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakuka
 | Tipe | Contoh | Arti |
 |---|---|---|
 | `int` | `150000` | bilangan bulat |
-| `float` | `3.5` | bilangan dengan desimal |
+| `float` | `3.5` | angka dengan desimal |
 | `str` | `"paid"` | teks, selalu di dalam tanda kutip |
 | `bool` | `True`, `False` | ya atau tidak |
 | `None` | `None` | "tidak ada nilai" |
 
-**Uang adalah bilangan bulat.** Simpan uang sebagai `int` dalam satuan terkecil (rupiah), jangan pernah sebagai `float`: desimal disimpan secara biner, sehingga `0.1 + 0.2` adalah `0.30000000000000004`, dan setelah sejuta baris kesalahan sekecil itu menjadi uang sungguhan.
+`type(x)` memberi tahu tipe sebuah nilai:
 
-### Mengapa tipe penting: bug pertama di setiap pekerjaan data
+```python
+print(type(150000))
+print(type("150000"))
+```
 
-Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, masuk sebagai **teks**. Ini dua pesanan KopiKu persis seperti yang dibaca Python dari file CSV:
+Kedua baris itu tampak mirip, tetapi yang pertama angka dan yang kedua teks. **Uang adalah bilangan bulat.** Simpan uang sebagai `int` dalam satuan terkecil (rupiah), jangan pernah sebagai `float`: desimal disimpan dalam biner, sehingga `0.1 + 0.2` adalah `0.30000000000000004`, dan setelah sejuta baris kesalahan sekecil itu menjadi uang sungguhan.
+
+:::drill python Angka atau teks?
+Buat `price` berisi angka `25000` dan `price_text` berisi teks `"25000"` (angka yang sama, di dalam tanda kutip). Lalu cetak tipe masing-masing, satu per baris: pertama `price`, lalu `price_text`.
+@starter
+# tulis baris Anda di bawah baris ini
+
+@check
+price == 25000 and type(price) is int ## `price` harus berupa angka 25000 (tanpa tanda kutip).
+price_text == "25000" ## `price_text` harus berupa teks "25000" (dengan tanda kutip).
+out == "<class 'int'>\n<class 'str'>" ## Cetak type(price) di baris pertama dan type(price_text) di baris kedua. Anda harus melihat int, lalu str.
+@hint
+`print(type(price))` menampilkan tipe dari nilai yang ditunjuk `price`.
+@solution
+price = 25000
+price_text = "25000"
+print(type(price))
+print(type(price_text))
+:::
+
+### Mengapa tipe penting: bug pertama setiap pekerjaan data
+
+Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, datang sebagai **teks**. Ini dua pesanan KopiKu persis seperti Python membacanya dari file CSV:
 
 ```python
 row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
 row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
 ```
 
-Perhatikan tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang atasan Anda bertanya tiga hal sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
+Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang manajer Anda mengajukan tiga pertanyaan sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
 
 | Pertanyaannya | Yang Anda tulis | Jawaban Python | Mengapa |
 |---|---|---|---|
-| Total dua pesanan? | `row1["total_idr"] + row2["total_idr"]` | `'15000090000'` | `+` pada teks menyambung karakternya |
+| Total kedua pesanan? | `row1["total_idr"] + row2["total_idr"]` | `'15000090000'` | `+` pada teks menempelkan karakternya |
 | Apakah 90.000 lebih besar dari 150.000? | `"90000" > "150000"` | `True` | teks dibandingkan karakter demi karakter, seperti kata di kamus, dan `"9"` datang setelah `"1"` |
 | Total dari kecil ke besar? | `sorted(["150000", "90000", "25000"])` | `['150000', '25000', '90000']` | urutan karakter demi karakter yang sama |
 
-Tidak ada yang crash. Programnya berjalan, laporannya terkirim, dan setiap angka di dalamnya salah. Karena itulah tugas pertama data engineer dengan data baru apa pun adalah **memberi setiap nilai tipe yang benar, dengan sengaja**: `int("150000")` adalah angka `150000`. Dengan angka, tiga pertanyaan yang sama menjawab `240000`, `False`, dan `[25000, 90000, 150000]`. Periksa apa yang Anda pegang dengan `type(x)`: `type(row1["total_idr"])` menampilkan `<class 'str'>`.
+Tidak ada yang crash. Program berjalan, laporan terkirim, dan setiap angka di dalamnya salah. Karena itu pekerjaan pertama seorang data engineer pada data baru apa pun adalah **memberi setiap nilai tipe yang benar, dengan sengaja**: `int("150000")` adalah angka `150000`, dan `str(150000)` adalah teks `"150000"`. Dengan angka, tiga pertanyaan yang sama memberi `240000`, `False`, dan `[25000, 90000, 150000]`.
+
+Sebelum latihan, satu tebakan. Jangan dijalankan; pikirkan dulu:
+
+:::ask Apa yang akan tercetak?
+```python
+print("2" + "3")
+```
+@options
+5
+* 23
+sebuah error
+@why
+Tanda kutip membuat `"2"` dan `"3"` menjadi **teks**, dan `+` pada teks menempelkan karakternya: `23`. Python tidak menebak bahwa Anda bermaksud angka. Beginilah total harga berupa teks bisa salah tanpa error apa pun.
+:::
+
+:::drill python Jumlahkan harga sebagai angka
+Dua harga datang dari sebuah file, jadi keduanya teks. Buat `price_sum` berisi totalnya **sebagai angka** (43000), bukan dua teks yang saling menempel.
+@starter
+price_a = "25000"
+price_b = "18000"
+price_sum = None
+@check
+price_sum == 43000 ## `price_sum` harus 43000. Kalau hasilnya 2500018000, kedua teks saling menempel: ubah masing-masing dengan int(...) dulu.
+type(price_sum) is int ## `price_sum` harus berupa angka (int).
+calls("int") ## Ubah dengan int(...) sebelum menjumlahkan.
+@hint
+`int("25000")` adalah angka 25000. Ubah kedua harga, lalu jumlahkan dengan `+`.
+@solution
+price_a = "25000"
+price_b = "18000"
+price_sum = int(price_a) + int(price_b)
+:::
 
 Tipe melindungi Anda dengan dua cara lagi:
-- **Teks kotor gagal dengan keras, dan itu bagus.** `int("Rp 1.250.000")` memunculkan `ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`. Error yang menghentikan Anda lebih baik daripada angka salah yang tidak disadari siapa pun. Pelajaran 6 menunjukkan cara menangkapnya dan menyisihkan baris yang rusak.
-- **`None` bukan `0`.** Total yang hilang (`None`) berarti "kita tidak tahu"; `0` berarti "pesanannya gratis". `None == 0` adalah `False`. Kalau tertukar, rata-rata dan total jadi salah diam-diam.
+- **Teks kotor gagal dengan keras, dan itu bagus.** `int("Rp 1.250.000")` memunculkan `ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`. Error yang menghentikan Anda lebih baik daripada angka salah yang tidak disadari siapa pun. Materi 6 menunjukkan cara menangkapnya dan menyisihkan baris yang buruk.
+- **`None` bukan `0`.** Total yang hilang (`None`) berarti "kita tidak tahu"; `0` berarti "pesanannya gratis". Kalau tertukar, rata-rata dan total menjadi salah secara diam-diam.
 
-**Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi setiap kolom sebuah tipe (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet menyimpan tipe di samping datanya sehingga tidak ada yang perlu menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga yang diketik sebagai teks, diubah menjadi angka.
+:::drill python None bukan nol
+`missing_total` bernilai `None`: kita tidak tahu totalnya. Cetak jawaban untuk pertanyaan "apakah `missing_total` sama dengan `0`?" (pakai `==`).
+@starter
+missing_total = None
+# cetak perbandingan Anda di bawah baris ini
+
+@check
+calls("print") ## Pakai print(...) untuk menampilkan jawabannya.
+out == "False" ## Anda harus melihat False: None ("kita tidak tahu") bukan 0 ("gratis").
+@hint
+`print(missing_total == 0)` mencetak `True` atau `False`.
+@solution
+missing_total = None
+print(missing_total == 0)
+:::
+
+**Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi tipe pada setiap kolom (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet menyimpan tipe di samping datanya agar tidak ada yang menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga bertipe teks, diubah menjadi angka.
 
 > 🛠 **Coba sendiri (5 menit, Python di prompt `>>>`).** Di terminal ketik `python3`, lalu ketik (atau tempel) baris `row1` dan tekan Enter, kemudian baris `row2` dan tekan Enter: satu baris setiap kali. Jika Anda menempel keduanya sekaligus, prompt menampilkan `...`: Python menunggu akhir blok, jadi tekan Enter sekali lagi pada baris `...` yang kosong (bukan Ctrl+C, yang membatalkannya). Sebelum setiap pertanyaan di tabel, **tebak** jawabannya, lalu ketik kodenya dan bandingkan. Kemudian jawab tiga pertanyaan yang sama lagi dengan `int(...)` di sekitar setiap total.
 >
 > **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 
-### Menulis angka sebagai teks
+### Menulis angka sebagai teks: f-string
 
-Laporan menampilkan `Rp 1.250.000`, bukan `1250000`. Dua alat kecil melakukannya:
+Laporan menampilkan `Rp 1.250.000`, bukan `1250000`. Tiga alat kecil melakukannya, satu per satu. Pertama, **f-string** menaruh nilai di dalam teks: tulis `f` sebelum tanda kutip pembuka dan taruh nilainya di dalam kurung kurawal:
 
-- **f-string** memasukkan nilai ke dalam teks: tulis `f` sebelum tanda kutip pembuka dan taruh nilainya di dalam kurung kurawal. `f"Order {1001}: Rp {total}"` menjadi `Order 1001: Rp 150000`. Kode format setelah titik dua mengubah cara angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`, dengan koma di antara ribuan.
-- **`.replace(lama, baru)`** pada sebuah teks menukar karakter. Nilai teks punya aksi bantu seperti ini, disebut **method**: `"1,250,000".replace(",", ".")` menghasilkan `"1.250.000"`. Orang Indonesia menulis pemisah ribuan sebagai titik.
+```python
+total = 150000
+print(f"Pesanan {1001}: Rp {total}")     # Pesanan 1001: Rp 150000
+```
 
-Bersama-sama, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.250.000`.
+:::drill python Taruh angka di dalam teks
+`amount` bernilai `45000`. Buat `label` berisi teks `Rp 45000` dengan f-string, supaya ia mengikuti `amount` kalau angkanya berubah.
+@starter
+amount = 45000
+label = None
+@check
+label == "Rp 45000" ## `label` harus berupa teks Rp 45000.
+"{" in code and "}" in code ## Pakai f-string: f"Rp {amount}".
+uses("amount") ## Ambil nilainya dari variabel `amount`, jangan ketik 45000 lagi.
+@hint
+Tulis `f` sebelum tanda kutip pembuka, lalu taruh `{amount}` di tempat angkanya.
+@solution
+amount = 45000
+label = f"Rp {amount}"
+:::
+
+### Pemisah ribuan
+
+Kode format setelah titik dua mengubah cara angka ditulis. `f"{1250000:,}"` menghasilkan teks `"1,250,000"`, dengan koma di antara ribuan:
+
+```python
+print(f"{1250000:,}")
+```
+
+:::drill python Koma di antara ribuan
+Buat `with_commas` berisi teks `amount` dengan koma di antara ribuan: `7,500,000`.
+@starter
+amount = 7500000
+with_commas = None
+@check
+with_commas == "7,500,000" ## `with_commas` harus berupa teks 7,500,000.
+":," in code ## Taruh kode format `:,` setelah nama di dalam kurung kurawal: {amount:,}
+@hint
+`f"{amount:,}"`: titik dua memulai kode format, koma meminta pemisah ribuan.
+@solution
+amount = 7500000
+with_commas = f"{amount:,}"
+:::
+
+### Menukar karakter: .replace()
+
+Orang Indonesia menulis pemisah ribuan sebagai titik. **`.replace(lama, baru)`** pada teks menukar karakter. Nilai teks punya aksi bantu seperti ini, disebut **method**: `"1,250,000".replace(",", ".")` menghasilkan `"1.250.000"`.
+
+:::drill python Koma menjadi titik
+`with_commas` adalah teks `7,500,000`. Buat `with_dots` berisi teks yang sama dengan titik sebagai pengganti koma.
+@starter
+with_commas = "7,500,000"
+with_dots = None
+@check
+with_dots == "7.500.000" ## `with_dots` harus berupa teks 7.500.000.
+calls("replace") ## Pakai method .replace(lama, baru) pada teks.
+@hint
+`with_commas.replace(",", ".")` menghasilkan teks baru; teks lamanya tetap.
+@solution
+with_commas = "7,500,000"
+with_dots = with_commas.replace(",", ".")
+:::
+
+Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.250.000`. Sekarang Anda tahu setiap bagian dari Langkah 1 lab: lab meminta Anda menggabungkannya sendiri pada angka-angkanya.
 
 > 💡 **Jeda Praktik 1 (Bagian A, Langkah 1):**
 > Buka Bagian A lab: file `labs/mod-0-0/practice.py` di editor Anda, atau tab **Bagian A** pada Pratinjau browser di tab Lab. Baca bagian atas file sekali, lalu cari **Langkah 1**. Ia memberi Anda `amount`, `row1`, dan `row2`, serta dua variabel untuk diisi: ganti setiap `None` dengan kode Anda sendiri.
@@ -104,32 +315,269 @@ Bersama-sama, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp
 > Anda seharusnya melihat `Rp 1.250.000` dan `240000`, dan tiga pemeriksaan lulus. Pemeriksaan yang gagal menyebutkan variabel mana yang salah, seharusnya berapa, dan sekarang berapa: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` hanya berarti Anda belum mengganti `None`. Lalu lanjut ke Pelajaran 2.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
-Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
+Satu pesanan punya beberapa fakta, dan sebuah file berisi ribuan pesanan. Python memberi Anda empat wadah: **list**, **dictionary**, **tuple**, dan **set**. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih. Seperti di Materi 1, setiap gagasan diikuti latihan.
 
-**List** (`[...]`): deretan hal yang berurutan, tempat posisi penting dan duplikat boleh ada. `orders = [row1, row2, row3]`. Anda membaca berdasarkan posisi mulai dari **0**: `orders[0]` yang pertama, `orders[-1]` yang terakhir, `orders[1:3]` adalah *irisan* (slice; posisi 1 dan 2). `len(orders)` menghitung, `orders.append(x)` menambah di akhir. Pakai list untuk "semua baris dari file".
+### List: deretan berurutan
 
-**Dictionary** (`{...}`): mencari berdasarkan *nama*, bukan posisi. Satu pesanan adalah sebuah dict: 
+**List** (`[...]`) adalah deretan benda yang berurutan, tempat posisi penting dan duplikat boleh ada. `len()` memberi tahu **berapa banyak item** dalam sebuah list:
+
+```python
+products = ["Kopi Susu", "Americano", "Teh Tarik"]
+print(len(products))     # 3: tiga item dalam list
+```
+
+:::drill python Berapa banyak item?
+`prices` adalah sebuah list. Buat `how_many` berisi jumlah item di dalamnya, dengan `len()`.
+@starter
+prices = [25000, 22000, 18000, 30000]
+how_many = None
+@check
+how_many == 4 ## `how_many` harus 4: list-nya punya empat item.
+calls("len") ## Pakai len(prices) untuk menghitung itemnya.
+@hint
+`len(prices)` memberi tahu berapa banyak item yang dimiliki `prices`.
+@solution
+prices = [25000, 22000, 18000, 30000]
+how_many = len(prices)
+:::
+
+### Posisi dimulai dari 0
+
+Anda membaca satu item lewat **posisinya** (disebut juga indeks), ditulis di dalam kurung siku. Posisi dimulai dari **0**, jadi `products[0]` adalah item pertama dan `products[1]` item kedua. Posisi negatif menghitung dari belakang: `products[-1]` adalah item terakhir. **Irisan** (slice) `products[0:2]` mengambil posisi 0 dan 1 (berhenti *sebelum* angka kedua):
+
+```python
+products = ["Kopi Susu", "Americano", "Teh Tarik"]
+print(products[0])       # Kopi Susu
+print(products[-1])      # Teh Tarik
+print(products[0:2])     # ['Kopi Susu', 'Americano']
+```
+
+Tebak dulu sebelum latihan:
+
+:::ask Apa yang akan tercetak?
+```python
+letters = ["a", "b", "c", "d"]
+print(letters[1], letters[-1])
+```
+@options
+a d
+* b d
+b c
+@why
+Posisi dimulai dari 0, jadi `letters[1]` adalah item **kedua**, `"b"`. Posisi `-1` adalah item **terakhir**, `"d"`. `print` dengan dua nilai menaruh spasi di antaranya: `b d`.
+:::
+
+:::drill python Pertama dan terakhir
+Buat `first` berisi item pertama `cities` dan `last` berisi item terakhir. Pakai posisi, jangan ketik namanya lagi.
+@starter
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first = None
+last = None
+@check
+first == "Jakarta" ## `first` harus "Jakarta": item pertama ada di posisi 0.
+last == "Medan" ## `last` harus "Medan": posisi -1 adalah item terakhir.
+uses("cities") ## Ambil dari list `cities` dengan [posisi].
+@hint
+`cities[0]` adalah item pertama; `cities[-1]` adalah yang terakhir.
+@solution
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first = cities[0]
+last = cities[-1]
+:::
+
+:::drill python Sebuah irisan
+Buat `first_two` berisi dua kota pertama, sebagai list, dengan irisan.
+@starter
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first_two = None
+@check
+first_two == ["Jakarta", "Bandung"] ## `first_two` harus ['Jakarta', 'Bandung'].
+":" in code.split("first_two =")[-1] ## Pakai irisan: cities[0:2] (berhenti sebelum posisi 2).
+@hint
+`cities[0:2]` mulai dari posisi 0 dan berhenti sebelum posisi 2.
+@solution
+cities = ["Jakarta", "Bandung", "Surabaya", "Medan"]
+first_two = cities[0:2]
+:::
+
+### Mengubah list
+
+Sebuah list bisa berubah. `.append(x)` menambahkan `x` di akhir:
+
+```python
+products = ["Kopi Susu", "Americano"]
+products.append("Teh Tarik")
+print(products)          # ['Kopi Susu', 'Americano', 'Teh Tarik']
+```
+
+:::drill python Tambah satu di akhir
+Tambahkan `"Medan"` di akhir list `cities`.
+@starter
+cities = ["Jakarta", "Bandung"]
+# tulis baris Anda di bawah baris ini
+
+@check
+cities == ["Jakarta", "Bandung", "Medan"] ## `cities` harus berakhir dengan "Medan" dan mempertahankan dua kota sebelumnya.
+calls("append") ## Pakai cities.append(...).
+@hint
+`cities.append("Medan")` mengubah list di tempat; Anda tidak perlu `cities = ...`.
+@solution
+cities = ["Jakarta", "Bandung"]
+cities.append("Medan")
+:::
+
+### Menghitung: berapa semuanya, dan berapa dari satu jenis
+
+Dua pertanyaan berbeda, dua alat berbeda. `len(list)` menjawab **berapa banyak item semuanya**. `list.count(x)` menjawab **berapa banyak item yang sama dengan `x`**:
+
+```python
+statuses = ["paid", "paid", "cancelled", "paid"]
+print(len(statuses))             # 4: empat pesanan semuanya
+print(statuses.count("paid"))    # 3: tiga di antaranya paid
+```
+
+Tebak dulu:
+
+:::ask Apa yang akan tercetak?
+```python
+statuses = ["paid", "cancelled", "paid"]
+print(len(statuses), statuses.count("paid"))
+```
+@options
+3 3
+* 3 2
+2 3
+@why
+`len(statuses)` menghitung **setiap** item: 3. `statuses.count("paid")` hanya menghitung item yang sama dengan `"paid"`: 2. Angka pertama adalah "berapa semuanya", angka kedua adalah "berapa dari satu jenis".
+:::
+
+:::drill python Semuanya, dan satu jenis
+`statuses` berisi status beberapa pesanan. Buat `all_orders` berisi jumlah pesanan, dan `paid_orders` berisi jumlah pesanan yang statusnya `"paid"`.
+@starter
+statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
+all_orders = None
+paid_orders = None
+@check
+all_orders == 5 ## `all_orders` harus 5: pakai len(statuses), ia menghitung semuanya.
+paid_orders == 3 ## `paid_orders` harus 3: pakai statuses.count("paid"), ia hanya menghitung yang sama.
+calls("len") and calls("count") ## Pakai keduanya: len(...) untuk jumlah semuanya, .count(...) untuk satu jenis.
+@hint
+`len(statuses)` menghitung semua item. `statuses.count("paid")` hanya menghitung item yang sama dengan `"paid"`.
+@solution
+statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
+all_orders = len(statuses)
+paid_orders = statuses.count("paid")
+:::
+
+### Dictionary: mencari berdasarkan nama
+
+**Dictionary** (`{...}`) mencari sesuatu berdasarkan *nama* (sebuah **key**) alih-alih posisi. Satu pesanan adalah sebuah dictionary:
 
 ```python
 order = {"order_id": "1001", "customer_id": "7", "status": "paid", "total_idr": "150000"}
 print(order["status"])         # paid
-print(order.get("note"))       # None: .get memberi None, bukan error, jika kuncinya tidak ada
-order["status"] = "shipped"    # ubah sebuah nilai
+print(order.get("note"))       # None: .get memberi None, bukan error, kalau key-nya tidak ada
 ```
 
-Membaca kunci yang tidak ada dengan `order["note"]` memunculkan `KeyError`; `.get("note", "")` memberi nilai bawaan. Dict juga alat untuk **menghitung**: `counts[status] = counts.get(status, 0) + 1`. Ingat baris ini; Anda akan menulisnya berkali-kali. Untuk memeriksa kunci dan nilai secara bersamaan, gunakan `order.items()`: ia menghasilkan deretan pasangan `(kunci, nilai)`, yang memungkinkan Anda menelusuri keduanya atau mengurutkannya dalam pemeringkatan.
+Membaca key yang tidak ada dengan `order["note"]` memunculkan `KeyError`; `.get("note", "")` memberi nilai default.
 
-**Tuple** (`(...)`): kelompok kecil tetap yang tidak seharusnya berubah, seperti `("paid", 3)`. Fungsi sering mengembalikan tuple untuk memberi dua hal sekaligus.
+:::drill python Cari berdasarkan key
+Buat `status` berisi status `order`, dan `note` berisi catatannya. Pesanan ini tidak punya catatan, jadi pakai `.get` dengan default `"no note"`.
+@starter
+order = {"order_id": "1002", "status": "cancelled", "total_idr": "90000"}
+status = None
+note = None
+@check
+status == "cancelled" ## `status` harus "cancelled": baca dengan order["status"].
+note == "no note" ## `note` harus "no note": pakai order.get("note", "no note") untuk key yang mungkin tidak ada.
+calls("get") ## Pakai .get(...) untuk catatannya.
+@hint
+`order["status"]` membaca key yang ada. `order.get("note", "no note")` memberi default kalau key-nya tidak ada.
+@solution
+order = {"order_id": "1002", "status": "cancelled", "total_idr": "90000"}
+status = order["status"]
+note = order.get("note", "no note")
+:::
 
-**Set** (`{...}` tanpa kunci): kantong nilai **unik** tanpa urutan. `set([7, 3, 7, 5])` adalah `{3, 5, 7}`. Pakai untuk membuang duplikat, dan untuk bertanya "pernahkah saya melihat ini?" dengan sangat cepat memakai `x in seen`. Karena set tidak berurutan, gunakan fungsi bawaan `sorted(my_set)` kapan pun Anda memerlukan nilai-nilai unik tersebut kembali sebagai list yang terurut (misalnya, ID pelanggan dari terkecil ke terbesar: `sorted({7, 3, 5})` menghasilkan `[3, 5, 7]`).
+### Mengubah dictionary
 
-Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adalah file, setiap dict adalah satu baris, kuncinya adalah nama kolom. `orders` di lab terlihat persis seperti ini.
+Menugaskan nilai ke sebuah key mengubahnya, atau menambahkannya kalau belum ada:
 
-Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
+```python
+order["status"] = "shipped"    # ubah sebuah nilai
+order["courier"] = "JNE"       # tambah key baru
+```
 
-### Membaca list berisi baris: hitung, pertama, terakhir
+:::drill python Ubah dan tambah
+Ubah status `order` menjadi `"shipped"` dan tambahkan key `"courier"` dengan nilai `"JNE"`.
+@starter
+order = {"order_id": "1003", "status": "paid"}
+# tulis baris Anda di bawah baris ini
 
-Pada hari-hari awal Anda belum mengulang (loop) isi list; Anda cukup **bertanya** kepadanya. Empat alat kecil menjawab pertanyaan pertama. Ini list berisi tiga produk (list berisi dictionary, seperti file CSV), lengkap dengan setiap pertanyaan dan jawabannya:
+@check
+order["status"] == "shipped" ## `order["status"]` harus "shipped".
+order.get("courier") == "JNE" ## `order` harus punya key "courier" dengan nilai "JNE".
+len(order) == 3 ## `order` harus punya tiga key: order_id, status, dan courier.
+@hint
+`order["status"] = "shipped"` dan `order["courier"] = "JNE"`.
+@solution
+order = {"order_id": "1003", "status": "paid"}
+order["status"] = "shipped"
+order["courier"] = "JNE"
+:::
+
+### Dictionary bisa menyimpan hitungan
+
+Dictionary juga alat untuk menyimpan **hitungan per nama**, "berapa banyak dari setiap jenis". Ini pertanyaan yang berbeda dari `len`: `counts = {"paid": 3, "cancelled": 1}` berarti ada 3 pesanan paid dan 1 cancelled. `counts["paid"]` membaca satu hitungan, dan `len(counts)` adalah jumlah *jenis yang berbeda*, bukan jumlah pesanan. Cara membangun dictionary seperti itu dari banyak baris adalah tugas sebuah loop, yang diajarkan Materi 4. Di sini Anda hanya membacanya.
+
+:::drill python Baca sebuah hitungan
+Buat `paid_count` berisi jumlah pesanan paid, dan `kinds` berisi jumlah status yang berbeda, keduanya dibaca dari dictionary `counts`.
+@starter
+counts = {"paid": 3, "cancelled": 1, "shipped": 2}
+paid_count = None
+kinds = None
+@check
+paid_count == 3 ## `paid_count` harus 3: baca dengan counts["paid"].
+kinds == 3 ## `kinds` harus 3: ada tiga status yang berbeda. len(counts) menghitung key-nya.
+@hint
+`counts["paid"]` adalah hitungan pesanan paid. `len(counts)` adalah jumlah key dalam dictionary.
+@solution
+counts = {"paid": 3, "cancelled": 1, "shipped": 2}
+paid_count = counts["paid"]
+kinds = len(counts)
+:::
+
+### Tuple: kelompok kecil yang tetap
+
+**Tuple** (`(...)`) adalah kelompok kecil yang tetap dan tidak seharusnya berubah, seperti `("paid", 3)`. Fungsi sering mengembalikan tuple untuk memberikan dua hal sekaligus.
+
+### Set: setiap nilai satu kali
+
+**Set** adalah kantong berisi nilai **unik** tanpa urutan. `set([7, 3, 7, 5])` adalah `{3, 5, 7}`. Pakai untuk menghapus duplikat, dan untuk bertanya "apakah saya sudah pernah melihat ini?" dengan sangat cepat memakai `x in seen`. Karena set tidak berurutan, pakai fungsi bawaan `sorted(my_set)` kapan pun Anda butuh nilai uniknya kembali sebagai list berurutan:
+
+```python
+ids = [7, 3, 7, 5]
+print(sorted(set(ids)))    # [3, 5, 7]
+```
+
+:::drill python Setiap id satu kali
+`ids` punya pengulangan. Buat `unique_ids` berisi list id yang berbeda, masing-masing satu kali, dari yang terkecil.
+@starter
+ids = [4, 9, 4, 1, 9, 9]
+unique_ids = None
+@check
+unique_ids == [1, 4, 9] ## `unique_ids` harus [1, 4, 9]: setiap id satu kali, dari yang terkecil.
+calls("set") and calls("sorted") ## Pakai set(...) untuk membuang pengulangan dan sorted(...) untuk urutannya.
+@hint
+`set(ids)` menyimpan setiap nilai satu kali; `sorted(...)` mengubahnya menjadi list berurutan.
+@solution
+ids = [4, 9, 4, 1, 9, 9]
+unique_ids = sorted(set(ids))
+:::
+
+### File sungguhan: list berisi dictionary
+
+File data sungguhan biasanya berupa **list berisi dictionary**: list adalah file-nya, setiap dictionary adalah satu baris, key-nya adalah nama kolom. Ini tiga produk (setiap nilai berupa teks, seperti keluar dari file CSV) dan empat pertanyaan beserta jawabannya:
 
 ```python
 products = [
@@ -137,13 +585,63 @@ products = [
     {"sku": "K2", "name": "Americano", "price_idr": "22000"},
     {"sku": "K3", "name": "Teh Tarik", "price_idr": "18000"},
 ]
-product_count = len(products)                  # 3: len() menghitung isi list
-first_name = products[0]["name"]               # "Kopi Susu": [0] adalah item PERTAMA, lalu ["name"] mengambil satu fakta dari dictionary itu
-last_price = int(products[-1]["price_idr"])    # 18000: [-1] adalah item TERAKHIR; int() karena harganya teks, seperti di file CSV
+product_count = len(products)                  # 3: len() menghitung barisnya
+first_name = products[0]["name"]               # "Kopi Susu": [0] adalah baris PERTAMA, lalu ["name"] mengambil satu fakta dari dictionary itu
+last_price = int(products[-1]["price_idr"])    # 18000: [-1] adalah baris TERAKHIR; int() karena harganya teks
 print(product_count, first_name, last_price)   # 3 Kopi Susu 18000
 ```
 
-Baca setiap baris dari dalam ke luar: `products[0]` adalah satu dictionary, dan `["name"]` membaca satu nilai darinya. `product_count`, `first_name`, dan `last_price` hanyalah **nama yang Anda pilih** untuk jawabannya, sama seperti `total` memberi nama pada sebuah nilai di Materi 1; lab akan memberi tahu nama mana yang diminta. Untuk mendapatkan nilai berbeda dari sebuah list masing-masing sekali, pakai set dan `sorted`, seperti di atas: `sorted(set([7, 3, 7, 5]))` menghasilkan `[3, 5, 7]`.
+Baca setiap baris dari dalam ke luar: `products[0]` adalah satu dictionary, dan `["name"]` membaca satu nilai darinya.
+
+:::drill python Bertanya pada list berisi baris
+`shops` adalah list berisi dictionary. Buat `shop_count` berisi jumlah baris, `first_city` berisi kota pada baris pertama, dan `last_staff` berisi staf pada baris terakhir **sebagai angka**.
+@starter
+shops = [
+    {"city": "Jakarta", "staff": "12"},
+    {"city": "Bandung", "staff": "8"},
+    {"city": "Surabaya", "staff": "15"},
+]
+shop_count = None
+first_city = None
+last_staff = None
+@check
+shop_count == 3 ## `shop_count` harus 3: len(shops) menghitung barisnya.
+first_city == "Jakarta" ## `first_city` harus "Jakarta": shops[0]["city"].
+last_staff == 15 and type(last_staff) is int ## `last_staff` harus angka 15: shops[-1]["staff"] adalah teks, jadi bungkus dengan int(...).
+@hint
+Posisi dulu, key kemudian: `shops[0]["city"]`. Baris terakhir adalah `shops[-1]`. Nilainya teks, jadi `int(...)`.
+@solution
+shops = [
+    {"city": "Jakarta", "staff": "12"},
+    {"city": "Bandung", "staff": "8"},
+    {"city": "Surabaya", "staff": "15"},
+]
+shop_count = len(shops)
+first_city = shops[0]["city"]
+last_staff = int(shops[-1]["staff"])
+:::
+
+### Dua nama, satu list
+
+Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dictionary, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang ditunjukkan skenario chaos modul ini.
+
+:::drill python Dua nama, satu list
+`b = a` tidak menyalin list: kedua nama menunjuk ke list yang sama. Setelah tiga baris itu, list apa yang dipegang `a`? Ganti `None` dengan list itu.
+@starter
+a = [1, 2]
+b = a
+b.append(3)
+a_now = None
+@check
+a_now == [1, 2, 3] ## `a` memegang [1, 2, 3]: `b` adalah list yang sama dengan `a`, jadi append lewat `b` terlihat di `a`.
+@hint
+`b = a` membuat `b` menunjuk ke list yang sama dengan `a`. `b.append(3)` mengubah satu list itu.
+@solution
+a = [1, 2]
+b = a
+b.append(3)
+a_now = [1, 2, 3]
+:::
 
 > 💡 **Jeda Praktik 2 (Bagian A, Langkah 2):**
 > Di `practice.py` (atau tab **Bagian A**), kerjakan **Langkah 2** dengan list `orders` (list berisi dict, persis seperti yang diberikan file CSV) dan list `ids_seen`:
