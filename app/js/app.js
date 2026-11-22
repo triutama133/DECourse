@@ -167,7 +167,15 @@ class DataForgeApp {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       let m;
-      if ((m = line.trim().match(/^`((?:pytest|python3?|curl|git|docker|dbt|terraform)\s+[^`]+)`$/))) {
+      if ((m = line.trim().match(/^```\s*([\w+-]*)\s*$/))) {
+        // a fenced code block inside a callout (``` ... ```), indentation kept: Python needs it
+        const lang = m[1];
+        const code = [];
+        i++;
+        while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) code.push(lines[i++]);
+        i++;
+        out.push(`<div class="code-wrap" style="margin:6px 0"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre${lang ? ` data-lang="${this.esc(lang)}"` : ""}><code>${this.esc(code.join("\n"))}</code></pre></div>`);
+      } else if ((m = line.trim().match(/^`((?:pytest|python3?|curl|git|docker|dbt|terraform)\s+[^`]+)`$/))) {
         out.push(`<div class="code-wrap" style="margin:6px 0"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(m[1])}</code></pre></div>`);
         i++;
       } else if (isBullet(line) || isOrdered(line)) {
@@ -186,7 +194,7 @@ class DataForgeApp {
         out.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ""}>${items.map((it) => `<li>${this.inline(it)}</li>`).join("")}</${tag}>`);
       } else {
         const p = [];
-        while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i])) {
+        while (i < lines.length && lines[i].trim() !== "" && !isBullet(lines[i]) && !isOrdered(lines[i]) && !isStandaloneCmd(lines[i]) && !/^\s*```/.test(lines[i])) {
           p.push(lines[i++]);
         }
         out.push(`<p>${p.map((x) => this.inline(x)).join("<br>")}</p>`);

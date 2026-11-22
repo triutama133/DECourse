@@ -18,14 +18,16 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
-> - **Mulai di browser:** setiap pelajaran diakhiri **💡 Jeda Praktik**. Jeda itu mengarahkan Anda ke **Pratinjau di browser** pada tab Lab: tulis fungsinya di sana lalu klik **Jalankan tes**. Tidak ada yang perlu diinstal. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
-> - **Atau di terminal Anda sendiri, sekarang juga jika Anda sudah mengikuti Mulai di sini** (halaman lab menunjukkan empat perintah persiapannya, sekali saja): kode yang sama ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
+> - **Mulai sederhana, lalu lab:** Pelajaran 1 sampai 4 masing-masing diakhiri **Jeda Praktik** dengan cara sederhana: beberapa baris Python biasa, diketik di prompt `>>>` atau di file latihan, belum memakai fungsi. Pelajaran 5 mengajarkan fungsi (`def`); dari sana jedanya mengarahkan Anda ke lab, tempat Anda mengubah kode yang sudah Anda tulis menjadi fungsi-fungsinya. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan jedanya.
+> - **Lab, mulai Pelajaran 5:** di **Pratinjau browser** pada tab Lab, atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). Kode lab ada di file `labs/mod-0-0/basics.py`. Itu file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/basics.py`), bukan perintah: mengetik namanya di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda menjalankan tesnya di sana, dan run itulah yang dihitung.
 > - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
 
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
 
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
 Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris pada satu waktu**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental paling berguna dalam pemrograman: saat tersesat, taruh jari di baris pertama dan berjalanlah ke bawah.
+
+### Nilai dan variabel
 
 Untuk bekerja, komputer harus mengingat sesuatu. Ia mengingat sebuah **nilai** (potongan data seperti `150000` atau `"paid"`) dan memberinya **nama** agar bisa dipakai lagi. Nilai bernama itu adalah **variabel**:
 
@@ -39,6 +41,8 @@ print(total)        # menampilkan 150000
 
 Bacalah `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan "sama dengan" dalam matematika; ia adalah *penugasan* (assignment): hitung sisi kanan dulu, lalu tempelkan nama di kiri ke hasilnya. Karena itu `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama ke nilai baru) tetapi tidak masuk akal dalam matematika.
 
+### Tipe
+
 Setiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakukan dengannya. Lima yang akan Anda pakai setiap hari:
 
 | Tipe | Contoh | Arti |
@@ -49,7 +53,9 @@ Setiap nilai punya **tipe**, yang memberi tahu Python apa yang boleh Anda lakuka
 | `bool` | `True`, `False` | ya atau tidak |
 | `None` | `None` | "tidak ada nilai" |
 
-**Mengapa tipe penting: bug pertama di setiap pekerjaan data.** Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, masuk sebagai **teks**. Ini dua pesanan KopiKu persis seperti yang dibaca Python dari file CSV:
+### Mengapa tipe penting: bug pertama di setiap pekerjaan data
+
+Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, masuk sebagai **teks**. Ini dua pesanan KopiKu persis seperti yang dibaca Python dari file CSV:
 
 ```python
 row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
@@ -76,17 +82,25 @@ Tipe melindungi Anda dengan dua cara lagi:
 >
 > **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 
+### Dua jebakan
+
 Dua jebakan yang perlu dipelajari sekarang. Pertama, uang harus berupa `int` dalam satuan terkecil, karena desimal disimpan secara biner dan tidak selalu bisa tepat: `0.1 + 0.2` adalah `0.30000000000000004`. Kedua, susun teks dengan **f-string**: `f"Order {1001}: Rp {total}"` memasukkan nilai ke dalam teks, dan lebih mudah dibaca daripada menyambung potongan dengan `+`. Fungsi angka bawaan yang sangat berguna adalah `abs(n)`, yang mengembalikan jarak positif dari nol: `abs(-45000)` menghasilkan `45000`. Ini sangat membantu saat memformat mata uang negatif di mana tanda minus harus berada di depan awalan rupiah (`"-Rp 45.000"`, bukan `"Rp -45.000"`).
 
 Telusuri ini dengan tangan sebelum menjalankannya: `a = 2`, `b = a * 3`, `a = 10`, `print(b)`. Hasilnya `6`, bukan `30`. `b` mendapat nilai 6 pada saat penugasan; mengubah `a` kemudian tidak mengubah `b`. Jika Anda menebak 30, Anda baru saja mempelajari sesuatu yang penting.
 
-**Tiga alat kecil untuk fungsi lab pertama Anda.** Kode format di dalam f-string mengubah cara sebuah angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`. `.replace(lama, baru)` pada sebuah teks menukar karakter: `"a-b-c".replace("-", "+")` menghasilkan `"a+b+c"`. Dan fungsi lab mengembalikan jawabannya dengan `return`: `return text` mengakhiri fungsi dan memberikan `text` kepada pemanggilnya, dan dengan cara itulah tes melihat hasil Anda. `print(text)` hanya menampilkannya di layar, dan tes tidak menerima apa pun. Pelajaran 5 menjelaskan fungsi selengkapnya; sampai saat itu, akhiri setiap fungsi lab dengan `return`.
+### Dua alat untuk latihan di bawah
 
-> 💡 **Jeda Praktik 1 (Coba Sekarang):**
-> Jangan membaca materi berikutnya dulu! Buka **Pratinjau di browser** pada tab Lab (jalur terminal: file `labs/mod-0-0/basics.py` di editor Anda).
-> Temukan fungsi `format_rupiah(amount)` (sekitar baris 13), hapus baris `raise NotImplementedError`, dan tulis logika format Rupiah Anda dengan alat-alat di atas. Lalu klik **Jalankan tes**. Kesebelas fungsi diperiksa sekaligus, jadi sepuluh lainnya masih gagal, dan itu wajar. Lihat `TestFormatRupiah` di daftar grup tes di bawah tombol dan targetkan 3 dari 4: tes keempat, jumlah negatif, butuh `if` yang diajarkan Pelajaran 3, dan Anda menyelesaikannya di sana. Klik grup ✗ untuk membaca mengapa tesnya gagal. Di jalur terminal (lihat halaman lab untuk persiapan sekali saja), pemeriksaan yang sama adalah:
-> `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> Jika `TestFormatRupiah` menunjukkan 3/4, Anda telah menulis fungsi pertama yang bekerja. Lanjut ke Pelajaran 2.
+Kode format di dalam f-string mengubah cara sebuah angka ditulis: `f"{1250000:,}"` menghasilkan teks `"1,250,000"`. `.replace(lama, baru)` pada sebuah teks menukar karakter: `"a-b-c".replace("-", "+")` menghasilkan `"a+b+c"`. Bersama-sama keduanya mengubah `1250000` menjadi cara orang Indonesia menulisnya.
+
+> 🛠 **Coba sendiri (10 menit, Python di file latihan): Jeda Praktik 1, cara sederhana.** Belum ada fungsi: hanya variabel, f-string, dan `.replace`. Sekali saja, di terminal, buat folder untuk file latihan Anda: `mkdir -p ~/practice`. Di VS Code pilih File, New File, ketik tiga baris ini, lalu simpan (File, Save As) sebagai `pause1.py` di dalam folder `practice` di folder rumah Anda. Lalu jalankan dari terminal dengan `python3 ~/practice/pause1.py`:
+>
+> `amount = 1250000`
+> `text = f"Rp {amount:,}"`
+> `print(text)`
+>
+> Hasilnya `Rp 1,250,000`, dengan koma. Ubah baris kedua agar komanya menjadi titik, jalankan lagi, lalu coba `amount` bernilai `0`, `999`, dan `1000`. Angka negatif butuh `if`, yang datang di Pelajaran 3.
+>
+> **Seharusnya Anda melihat:** `Rp 1.250.000`, `Rp 0`, `Rp 999`, dan `Rp 1.000`. Simpan file-nya: di Pelajaran 5 baris-baris inilah yang menjadi fungsi pertama lab.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan satu file punya ribuan pesanan. Python memberi Anda empat wadah. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih.
@@ -112,12 +126,20 @@ Data file nyata karenanya biasanya adalah **list berisi dictionary**: list adala
 
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dict, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang diperlihatkan skenario chaos modul ini.
 
-> 💡 **Jeda Praktik 2 (Coba Sekarang):**
-> Kembali ke `basics.py` (kotak pratinjau, atau editor Anda di jalur terminal). Terapkan gagasan dictionary dan set yang baru saja Anda pelajari:
-> 1. Kerjakan `count_by_status(orders)` menggunakan pola penghitungan dict `counts[status] = counts.get(status, 0) + 1`.
-> 2. Kerjakan `unique_customer_ids(orders)` menggunakan `set` dan `sorted()`.
-> Klik **Jalankan tes** dan pastikan `TestCountByStatus` dan `TestUniqueCustomerIds` bertanda ✓ (jalur terminal):
-> `pytest labs/mod-0-0/test_lab.py -k "TestCount or TestUnique" -v`
+> 🛠 **Coba sendiri (10 menit, Python di file latihan): Jeda Praktik 2, cara sederhana.** Buat `~/practice/pause2.py` yang diawali list empat pesanan ini (list berisi dict, persis seperti yang diberikan file CSV):
+>
+> ```python
+> orders = [
+>     {"order_id": "1001", "customer_id": "7", "status": "paid", "total_idr": "150000"},
+>     {"order_id": "1002", "customer_id": "3", "status": "cancelled", "total_idr": "90000"},
+>     {"order_id": "1003", "customer_id": "7", "status": "paid", "total_idr": "25000"},
+>     {"order_id": "1004", "customer_id": "5", "status": "delivered", "total_idr": "60000"},
+> ]
+> ```
+>
+> Lalu, masih tanpa perulangan, cetak: berapa jumlah pesanannya (`len`); status pesanan pertama; total pesanan terakhir. Hitung dua status secara manual dengan baris penghitung: `counts = {}`, lalu `counts["paid"] = counts.get("paid", 0) + 1`, cetak `counts`, lakukan lagi untuk `"paid"` dan sekali untuk `"cancelled"`, cetak lagi. Terakhir masukkan keempat nilai `customer_id` ke sebuah set dan cetak berapa pelanggan yang berbeda, lalu bandingkan `sorted([7, 3, 7, 5])` dengan `sorted(set([7, 3, 7, 5]))`.
+>
+> **Seharusnya Anda melihat:** `4`, `paid`, `60000`; `{'paid': 1}` lalu `{'paid': 2, 'cancelled': 1}`; `3` pelanggan berbeda; `[3, 5, 7, 7]` dibanding `[3, 5, 7]`. Menghitung secara manual memang sengaja lambat: perulangan di Pelajaran 4 melakukan persis ini untuk setiap pesanan.
 
 ## @lesson Keputusan: if, elif, else
 Keputusan adalah cara program memilih di antara jalur. Dalam data engineering hampir semua **validasi** adalah keputusan: apakah total ini angka? apakah status ini kita kenal?
@@ -142,9 +164,9 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 
 Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. `if not values: return None` menanganinya sebelum error terjadi. Lebih baik periksa kasus berbahaya lebih dulu lalu keluar lebih awal.
 
-> 💡 **Jeda Praktik 3 (Coba Sekarang):**
-> Di `basics.py`, temukan fungsi `average_total(orders)`. Terapkan aturan pencegahan pembagian dengan nol: periksa apakah orders kosong terlebih dahulu (`if not orders: return None`). Lalu kembali ke `format_rupiah` dan tangani jumlah negatif, karena sekarang Anda sudah mengenal `if`. Klik **Jalankan tes**: `TestAverageTotal` dan `TestFormatRupiah` harus sama-sama bertanda ✓ (jalur terminal):
-> `pytest labs/mod-0-0/test_lab.py -k "TestAverageTotal or TestFormatRupiah" -v`
+> 🛠 **Coba sendiri (10 menit, Python di file latihan): Jeda Praktik 3, cara sederhana.** Di `~/practice/pause3.py`: (1) isi `amount = -45000` dan pakai `if` dengan `abs()` agar angka negatif ditulis `-Rp 45.000` sementara angka positif tetap menghasilkan `Rp 45.000`; (2) isi `totals = []` dan cetak rata-ratanya dengan `sum(totals) / len(totals)` (`sum` menjumlahkan list berisi angka, `len` menghitung isinya), tetapi hanya jika list-nya tidak kosong, dan cetak `None` jika kosong; jalankan, lalu ubah `totals` menjadi `[150000, 25000]` dan jalankan lagi.
+>
+> **Seharusnya Anda melihat:** `-Rp 45.000`, lalu `None` untuk list kosong dan `87500.0` untuk dua total itu. Tanpa `if`, list kosong menghentikan program Anda dengan `ZeroDivisionError`.
 
 ## @lesson Pengulangan: for, while, dan comprehension
 Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah perulangan (loop), dan ia adalah mesin dari setiap pipeline data.
@@ -171,13 +193,9 @@ Alat-alat yang berguna, masing-masing menyelesaikan satu gangguan tertentu:
 
 Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. Pakai saat Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: jika tidak ada yang membuat kondisi menjadi salah di dalam loop, ia berjalan selamanya. Selalu tanyakan: "apa yang berubah di dalam loop sehingga ia berakhir?"
 
-> 💡 **Jeda Praktik 4 (Coba Sekarang):**
-> Terapkan perulangan for, accumulator, pemotongan slicing, dan pemeringkatan:
-> 1. Kerjakan `total_revenue(orders)` untuk menjumlahkan pesanan yang tidak dibatalkan.
-> 2. Kerjakan `batches(items, size)` menggunakan loop `range(0, len(items), size)`.
-> 3. Kerjakan `top_customers(orders, n)` menggunakan `sorted(..., key=lambda pair: (-pair[1], pair[0]))`.
-> Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (jalur terminal):
-> `pytest labs/mod-0-0/test_lab.py -k "TestTotal or TestBatches or TestTop" -v`
+> 🛠 **Coba sendiri (15 menit, Python di file latihan): Jeda Praktik 4, cara sederhana.** Salin list `orders` dari Jeda 2 ke `~/practice/pause4.py`. Dengan satu perulangan `for order in orders:`, bangun tiga hal sekaligus: `counts` (pesanan per status, dengan baris penghitung dari Pelajaran 2), `revenue` (jumlah `int(order["total_idr"])` untuk pesanan yang statusnya bukan `"cancelled"` atau `"refunded"`), dan `ids` (sebuah set: `ids = set()` sebelum perulangan, `ids.add(int(order["customer_id"]))` di dalamnya, yang memasukkan satu nilai ke set). Cetak setelah perulangan, dengan `sorted(ids)`. Lalu potong `items = [1, 2, 3, 4, 5]` menjadi bagian berisi 2 dengan `for start in range(0, len(items), 2):` dan slice `items[start:start + 2]`, kumpulkan potongannya dalam sebuah list.
+>
+> **Seharusnya Anda melihat:** `{'paid': 2, 'cancelled': 1, 'delivered': 1}`, `235000`, `[3, 5, 7]`, dan `[[1, 2], [3, 4], [5]]`. Anda sekarang sudah menulis, dengan cara sederhana, isi dari lima dari sebelas fungsi lab.
 
 ## @part Fungsi, error, dan file
 
@@ -204,12 +222,37 @@ Bagian-bagiannya: `def`, **nama**, **parameter** dalam tanda kurung (masukan; `o
 
 Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.1: idempotensi).
 
+**Mengetik fungsi di prompt `>>>`.** Setelah baris yang diakhiri `:`, seperti `def double(n):`, Python menampilkan `...` dan menjorokkan baris berikutnya untuk Anda. Setelah fungsinya lengkap, tekan **Enter sekali lagi pada baris kosong** untuk menyelesaikannya; tanpa baris kosong itu, apa pun yang Anda ketik berikutnya menjadi bagian dari fungsi. Untuk yang lebih dari dua baris, file lebih mudah.
+
 > 🛠 **Coba sendiri (8 menit, di file `fn.py`).** Tebak dulu setiap output di kepala Anda, baru jalankan.
 > 1. Tulis `def show_square(n): print(n * n)` dan `def give_square(n): return n * n` (masing-masing di barisnya sendiri seperti biasa). Jalankan `a = show_square(4)` dan `b = give_square(4)`, lalu `print(a, b)`.
 > 2. Tulis `def add(item, box=[]): box.append(item); return box` (dengan baris yang benar) dan jalankan `print(add(1))`, `print(add(2))`, `print(add(3))`. Lalu perbaiki agar setiap pemanggilan tanpa argumen kedua mulai dengan list kosong yang baru.
 > 3. Tulis `total(orders)` yang menjumlahkan `int(order["total_idr"])` dari list dict pesanan, tanpa `print` di dalamnya. Periksa dengan `total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350` dan `total([]) == 0`.
 >
 > **Seharusnya Anda melihat:** `16` dicetak oleh langkah 1, lalu `None 16` (`print` menampilkan, `return` mengembalikan); `add` yang salah mencetak `[1]`, `[1, 2]`, `[1, 2, 3]` dan yang sudah Anda perbaiki `[1]`, `[2]`, `[3]`; kedua pemeriksaan di langkah 3 bernilai `True`.
+
+> 💡 **Jeda Praktik 5 (Buka lab):**
+> Sekarang buka lab: **Pratinjau browser** di tab Lab, atau `labs/mod-0-0/basics.py` di editor Anda pada jalur terminal (halaman lab menunjukkan persiapan sekali saja). Setiap fungsi di sana diawali seperti `def format_rupiah(amount):`, lalu deskripsinya di antara `"""`, lalu `raise NotImplementedError(...)`: penanda tempat yang berarti "belum ditulis". Hapus baris itu dan taruh kode Anda sendiri dari Jeda 1 sampai 4 di tempatnya, dengan dua perubahan: nilainya masuk sebagai parameter (`amount`, `orders`) alih-alih variabel yang Anda ketik, dan jawabannya keluar dengan `return` alih-alih `print`.
+> Sebelumnya, di Jeda 1:
+>
+> ```python
+> amount = 1250000
+> text = ...                 # baris Anda dari Jeda 1
+> print(text)
+> ```
+>
+> Sesudahnya, di lab:
+>
+> ```python
+> def format_rupiah(amount):
+>     text = ...             # baris yang sama, dijorokkan
+>     return text
+> ```
+>
+> `amount` tidak lagi mendapat nilai dari Anda: tes yang memberinya, dengan memanggil misalnya `format_rupiah(1250000)`. Lalu tambahkan `if` dari Jeda 3 untuk angka negatif.
+> Lakukan untuk `format_rupiah` (Jeda 1 dan 3), `count_by_status` dan `unique_customer_ids` (Jeda 4), `average_total` (Jeda 3, tetapi atas total pesanan), `total_revenue` dan `batches` (Jeda 4), serta `top_customers` (`sorted` dengan `key` dari Pelajaran 4). Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya (jalur terminal):
+> `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
+> Lalu lanjut ke Pelajaran 6.
 
 ## @lesson Saat ada yang salah: error dan try/except
 Error bukan kegagalan pelajar; ia adalah program yang memberi tahu persis apa yang tidak bisa dilakukannya. Belajarlah membacanya. **Traceback** mendaftar jalur pemanggilan; **bacalah dari bawah**. Baris terakhir menyebut jenis error dan pesannya (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); baris di atasnya menunjukkan di mana ia terjadi, dan baris terakhir yang menunjuk ke kode *Anda* biasanya tempat untuk melihat.
@@ -236,7 +279,7 @@ Tiga aturan yang memisahkan pipeline yang baik dari yang berbahaya:
 
 Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (menyisihkannya beserta alasan). File hilang atau kesalahan pemrograman *tidak diduga*, jadi biarkan gagal dengan lantang.
 
-> 💡 **Jeda Praktik 5 (Coba Sekarang):**
+> 💡 **Jeda Praktik 6 (Coba Sekarang):**
 > Terapkan fungsi murni, penanganan error, dan pencegahan bug mutable default:
 > 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
 > 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
@@ -269,7 +312,7 @@ Python mengisi nama khusus `__name__` dengan `"__main__"` hanya saat file *dijal
 
 Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, dan ingat bahwa path relatif dihitung dari folder tempat Anda memulai Python, yang biasanya jadi sebab `FileNotFoundError`.
 
-> 💡 **Jeda Praktik 6 (Lengkapi Seluruh Lab):**
+> 💡 **Jeda Praktik 7 (Lengkapi Seluruh Lab):**
 > Di `basics.py`, kerjakan fungsi terakhir `read_orders(path)` menggunakan `with open(...)` dan `csv.DictReader`.
 > Klik **Jalankan tes** sekali lagi (atau jalankan semua tes di terminal): ke-31 tes seharusnya lulus. Di jalur pratinjau, setelah Modul 0.2 Anda menulis ulang lab ini di komputer Anda sendiri dan menjalankan ke-31 tes di sana:
 > `pytest labs/mod-0-0/test_lab.py -v`
@@ -342,7 +385,7 @@ pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v
 
   Anda melihat satu baris per tes yang diakhiri `PASSED` atau `FAILED`; di bawah kegagalan, baris yang diawali `E` menyebutkan apa yang salah. Pada file yang belum disentuh isinya `E       NotImplementedError: TODO: implement format_rupiah`, yang hanya berarti Anda belum menulisnya. `-k TestFormatRupiah` memilih satu kelompok (27 tes lainnya "deselected"); tanpa `-k` Anda melihat ke-31 tes, dan baris terakhir menyebutkan, misalnya, `29 failed, 2 passed`.
 
-Jalur mana pun, setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fungsi mana yang ditulis berikutnya, jadi bergantianlah: pelajaran, fungsi, pelajaran, fungsi.
+Pelajaran 1 sampai 4 diakhiri latihan dengan cara sederhana, tanpa fungsi. Mulai Pelajaran 5, setiap **Jeda Praktik** menyebutkan fungsi lab mana yang ditulis, sebagian besar dengan mengubah kode yang sudah Anda tulis menjadi fungsi.
 
 **Putarannya, untuk setiap fungsi.**
 1. Baca deskripsi fungsi di file: teks di antara baris `"""` menyebutkan apa yang masuk dan apa yang harus keluar, dengan contoh.
@@ -353,7 +396,7 @@ Jalur mana pun, setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fung
 
 **Sebelas fungsinya, urut sesuai pelajaran, dan mengapa data engineer membutuhkan masing-masing:**
 
-| Pelajaran | Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
+| Gagasan dari pelajaran | Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
 |---|---|---|---|
 | 1 | `format_rupiah` | `1250000` menjadi `"Rp 1.250.000"` | laporan, dashboard, dan e-mail menampilkan uang yang bisa dibaca orang |
 | 2 | `count_by_status` | berapa pesanan per status | pertanyaan paling umum tentang data apa pun: berapa per kategori (SQL menyebutnya `GROUP BY`, Modul 0.3) |
@@ -369,7 +412,7 @@ Jalur mana pun, setiap pelajaran diakhiri **Jeda Praktik** yang menyebutkan fung
 
 ### @steps
 1. Pilih jalur Anda (lihat "Di mana mengerjakannya" di atas): **Pratinjau browser** di bawah, atau `labs/mod-0-0/basics.py` di VS Code dengan tes di terminal Anda. Baca seluruh file dari atas ke bawah sekali, tanpa menulis apa pun: sebelas fungsi, masing-masing dengan deskripsinya.
-2. Ikuti Jeda Praktik: setelah Pelajaran 1 tulis `format_rupiah`; setelah Pelajaran 2 `count_by_status` dan `unique_customer_ids`; setelah Pelajaran 3 `average_total` (dan selesaikan `format_rupiah`); setelah Pelajaran 4 `total_revenue`, `batches`, dan `top_customers`; setelah Pelajaran 6 `safe_int`, `add_to_batch`, dan `split_valid`; setelah Pelajaran 7 `read_orders`. Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya.
+2. Ikuti Jeda Praktik. Pelajaran 1 sampai 4: berlatih dengan cara sederhana, belum ada lab. Setelah Pelajaran 5: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, dan `top_customers`. Setelah Pelajaran 6: `safe_int`, `add_to_batch`, dan `split_valid`. Setelah Pelajaran 7: `read_orders`. Jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya.
 3. Ragu nilai apa yang ada di dalam fungsi Anda? Tambahkan `print(type(x), x)` di atas baris yang Anda ragukan lalu jalankan lagi; cetakannya muncul di output. Hapus setelah selesai.
 4. Sebelum setiap run, **tebak** kelompok mana yang akan ✓. Ketika hasilnya mengejutkan, cari tahu mengapa: kejutan itulah tempat belajar terjadi.
 5. **Kerjakan yang sesungguhnya.** Di jalur terminal Anda sudah melakukannya: setelah ke-31 tes lulus, jalankan perintah bukti di bawah. Di jalur pratinjau, setelah Modul 0.2 tulis lab ini lagi di komputer Anda sendiri, di venv Anda sendiri, **tanpa menyalin** dari pratinjau. Dari folder kursus, dengan venv aktif:
