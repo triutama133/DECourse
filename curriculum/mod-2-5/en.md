@@ -294,6 +294,34 @@ In most data engineering jobs your first 90 days are **brownfield**: you inherit
 >
 > **You should see:** the fact alone has `7123` lines and `1208770000`. The colleague's join has `8584` rows and `1459220000`, about 21% too high, and nothing errors. With `is_current = 1` it is back to `7123` and `1208770000`. The cause: `100` customers have more than one version in the SCD Type 2 dimension, so their lines are counted once per version. Measured with the lab's reference warehouse on the course's default data.
 
+## @part Ethics and data products
+
+## @lesson Data ethics, re-identification, and data as a product
+*Fundamentals of Data Engineering* lists **ethics and privacy** under data management, an undercurrent of every stage: the question is not only "may we, by law?" but "should we, and what could go wrong for the people in this data?" Lesson 8 covered the legal side (pseudonymisation, erasure under GDPR and Indonesia's UU PDP). This lesson covers three things the law does not do for you.
+
+**1. Removing names does not make data anonymous.** A table without names or emails can still point at one person through **quasi-identifiers**: ordinary columns such as city, birth date, gender or signup date that are harmless alone and identifying together. Latanya Sweeney showed in 2000 that ZIP code, birth date and sex alone were enough to single out about 87% of the US population. The standard test is **k-anonymity**: every combination of quasi-identifiers in a released table must be shared by at least *k* people. Before you hand a "de-identified" extract to a partner, a vendor or a public dashboard, count the groups; if some are smaller than *k*, coarsen the columns (month instead of date, region instead of city) or drop them.
+
+**2. Ethics questions a data engineer can actually ask.**
+- **Purpose:** what will this data be used for, and is that what the people in it would expect? Data collected to deliver coffee is not automatically fit for credit scoring.
+- **Minimisation:** does the consumer need every column, every row and every year? The safest personal data is the data you never copied.
+- **Bias:** does the dataset under-represent some groups (a city with few customers, a payment method used mostly by one age group), so that a model or a KPI built on it treats them worse?
+- **Access and retention:** who can see the raw table, and when is it deleted? Write both down in the data contract.
+
+These are engineering decisions as much as legal ones: the columns you select, the grain you publish and the retention you set are where they get made.
+
+**3. Data as a product.** Data mesh (Module 2.6) hands data ownership to domain teams, and one of its principles is *data as a product*: treat a published dataset as a **data product**, something with users, an owner and a promise, like any product. A table becomes a product when it has:
+- an **owner** who answers questions and fixes it;
+- a **contract**: schema, grain, meaning of each column, and what will never change without notice (Lesson 3 of this module);
+- a **service level**: how fresh it is and by when (Lesson 6 of this module);
+- **documentation** and a place in the catalog, so people can find it without asking you;
+- known **consumers**, so a change can be announced to the people it affects.
+
+A dataset without these is a file someone once made; with them it is something the business can depend on.
+
+> 🛠 **Try it (15 min, Python with DuckDB).** Load `data/customers.csv` with `all_varchar=true` and keep one row per `customer_id` (the file has repeats). Pretend you will share a table without names or emails, keeping only `city`, `tier` and `signup_date`. For three candidate releases, (city, tier), (city, tier, signup month) and (city, tier, signup date), count the groups, the size of the smallest group, how many customers are alone in their group, and how many are in groups smaller than 5.
+>
+> **You should see:** `1000` customers. City and tier alone give `26` groups, the smallest with `3` people. Adding the signup month makes `80` customers unique and puts `353` in groups smaller than 5. With the exact signup date `846` of the 1,000 customers are unique: anyone who knows when a friend signed up, and where they live, can find their row. Only the first release is close to 5-anonymous, and even it has a group of 3. Measured with DuckDB 2.0.1 on the course's default data.
+
 ## @lab Lab: build a data quality gate
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.
 

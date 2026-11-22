@@ -473,6 +473,65 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 >
 > **You should see:** the slow plan reads `CORRELATED SCALAR SUBQUERY` and `SCAN o`: a full scan of the orders for each of the 2,000 customers, because the functions on `order_ts` and `status` hide the columns from the index. The fast plan reads `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Both return the same total (`3192691000` on the data measured here, `random.seed(7)`), in about `31` to `33` seconds versus `18` to `19` ms. Your numbers will differ a little with your own random data; the gap will not. Measured with SQLite 3.46.
 
+## @part SQL Server and T-SQL
+
+## @lesson SQL Server and T-SQL: the dialect many job posts expect
+Microsoft's data tools are everywhere in this job market: of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), **53.9%** name at least one of Azure, SQL Server, SSIS, Power BI, Fabric or Synapse, and **10.8%** ask for SQL Server or T-SQL by name. Banks and older enterprises often keep years of business logic in SQL Server **stored procedures** and SSIS packages, and a new data engineer is expected to read them, fix them and eventually move them. You already know SQL: `SELECT`, joins, `GROUP BY` and window functions work the same in **T-SQL** (Transact-SQL, the dialect of SQL Server, Azure SQL, Synapse and Fabric Warehouse). This lesson is the short list of differences that trip people up.
+
+**Run it on your laptop, free.** SQL Server's Developer edition runs in Docker:
+
+```bash
+docker run -d --name mssql -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=Kopiku#Dev2026" \
+  -p 1433:1433 mcr.microsoft.com/mssql/server:2025-latest
+docker exec -it mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Kopiku#Dev2026' -C
+```
+
+Microsoft asks for at least 2 GB of RAM, and the password must have at least eight characters from three of: upper case, lower case, digits, symbols (otherwise the container stops). `-C` trusts the server's self-signed certificate, because the ODBC 18 tools encrypt connections by default. Inside `sqlcmd`, a statement runs when you type `GO` on its own line: `GO` ends a **batch**, and it is a command of the tool, not of T-SQL. Measured: the image is 2.2 GB, published for amd64 (Intel and AMD processors), and a fresh container answered queries after about 7 seconds, using about 640 MB of memory while idle.
+
+**The differences that matter:**
+
+| You know (PostgreSQL, DuckDB, SQLite) | T-SQL | Note |
+|---|---|---|
+| `LIMIT 10` | `TOP (10)`, or `ORDER BY ... OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY` | `LIMIT` is a syntax error |
+| `QUALIFY ROW_NUMBER() OVER (...) = 1` | number the rows in a CTE, then `WHERE rn = 1` | no `QUALIFY` |
+| `'a' \|\| 'b'` | `'a' + 'b'` or `CONCAT('a', 'b')` | `'a' + NULL` is `NULL`; `CONCAT` skips `NULL`s. `\|\|` works from SQL Server 2025 |
+| `COALESCE(x, 0)` | the same, or `ISNULL(x, 0)` | |
+| `7 / 2` | `3` | integer division, as in PostgreSQL; DuckDB gives `3.5` |
+| `strptime(s, '%d/%m/%Y')` | `TRY_CONVERT(date, s, 103)` | style numbers: `126` is ISO 8601, `103` is dd/mm/yyyy; `TRY_` returns `NULL` instead of failing |
+| `now()`, `d + INTERVAL 1 DAY` | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
+| `"order"` | `[order]` | square brackets quote names |
+| `CREATE TEMP TABLE t` | `#t` (your session), `##t` (everyone) | |
+| `string_agg(x, ',' ORDER BY x)` | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
+| `TEXT` | `NVARCHAR(n)` with `N'...'` literals | `N` means Unicode: `DATALENGTH(N'abc')` is 6 bytes |
+| `CREATE OR REPLACE` | `CREATE OR ALTER` | for procedures, views and functions |
+
+**Collation: the difference that changes numbers silently.** A **collation** decides how text compares. SQL Server's default (`SQL_Latin1_General_CP1_CI_AS`, measured) is **case-insensitive** (`CI`) and accent-sensitive (`AS`), so `status <> 'cancelled'` also excludes `CANCELLED` and `Cancelled`. DuckDB, PostgreSQL, Spark and Snowflake compare case-sensitively by default, so the same `WHERE` keeps those rows. On the course data the same query gives Rp 100,360,000 in SQL Server and Rp 101,925,000 in DuckDB for 10 to 12 January. When you move a SQL Server job to a lakehouse, normalise text (`lower(trim(status))`) before you compare, or the migrated numbers will not match and nobody will know why.
+
+**Stored procedures.** A procedure is named T-SQL with parameters, stored in the database and run with `EXEC`. Legacy pipelines are often a chain of them, scheduled by SQL Server Agent, SSIS or Data Factory (Lesson 10 of Module 2.6). A safe loading procedure looks like this:
+
+```sql
+CREATE OR ALTER PROCEDURE dbo.usp_load_daily_revenue @day DATE
+AS
+BEGIN
+    SET NOCOUNT ON;      -- no "(1 row affected)" chatter
+    SET XACT_ABORT ON;   -- any error rolls the whole transaction back
+    BEGIN TRAN;
+    MERGE daily_revenue AS t
+    USING (SELECT ... WHERE order_ts >= @day AND order_ts < DATEADD(day, 1, @day) ...) AS s
+    ON t.order_date = s.order_date
+    WHEN MATCHED THEN UPDATE SET orders = s.orders, revenue_idr = s.revenue_idr
+    WHEN NOT MATCHED BY TARGET THEN INSERT (order_date, orders, revenue_idr)
+        VALUES (s.order_date, s.orders, s.revenue_idr);   -- MERGE must end with a semicolon
+    COMMIT;
+END;
+```
+
+**DDL, DML, DCL and TCL.** *Fundamentals of Data Engineering* sorts SQL statements into four kinds, and T-SQL has all four: **DDL** defines objects (`CREATE`, `ALTER`, `DROP`), **DML** reads and changes rows (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** controls access (`GRANT`, `REVOKE`, and in SQL Server also `DENY`, which wins over any grant), and **TCL** controls transactions (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). The procedure above uses DML inside TCL; Module 2.6 showed DCL for warehouse roles.
+
+> 🛠 **Try it (30 min, Docker and `sqlcmd`).** Start SQL Server as above and copy the data in: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Create a database `kopiku` and a table `raw_orders` with the six columns of the file, all `NVARCHAR(50)`, and load it with `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Count the rows whose `total_idr` is all digits (`NOT LIKE '%[^0-9]%'`) and whose `order_ts` converts with style 126. If the answer surprises you, find out why before going on. Then create `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, finish the procedure above for orders that are not cancelled, and run it for 10, 11 and 12 January, twice. Finally, try `LIMIT` and `QUALIFY` on `raw_orders`.
+>
+> **You should see:** `3634` rows loaded, but `0` clean ones: the file ends its lines with `\r\n`, so every `total_idr` kept an invisible `\r` and no total is "all digits". Add `ROWTERMINATOR = '0x0d0a'`, reload, and you get `3539`. Style 126 reads `3593` timestamps and style 103 the other `41`. After both runs `daily_revenue` has `3` days and `100360000` (`109`, `108` and `93` orders): running twice changed nothing. `LIMIT 3` fails with `Incorrect syntax near '3'`, `QUALIFY` with `Incorrect syntax near 'ROW_NUMBER'`. Measured on SQL Server 2025 (17.0) in Docker. Stop it afterwards with `docker rm -f mssql`; the image stays until you `docker rmi` it.
+
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.
 
@@ -630,6 +689,14 @@ Look at the plan, not at the server size. A function on an indexed column hides 
 - [ ] The key must be written as a path, `'$.amount'`, or PostgreSQL does not find it
 
 > `->>` extracts text; `->` extracts JSON. Arithmetic needs a cast. (A JSONPath string such as `'$.amount'` after `->>` is not a path in PostgreSQL: it silently returns NULL.)
+
+### A SQL Server job filters `WHERE status <> 'cancelled'`. Moved to DuckDB unchanged, it reports higher revenue. What is the likely cause?
+- [ ] DuckDB rounds every BIGINT total up to the nearest thousand rupiah
+- [x] SQL Server's default collation ignores case, so it also dropped CANCELLED rows
+- [ ] DuckDB reads the CSV twice when a filter compares text values
+- [ ] SQL Server's `<>` operator skips NULLs, while DuckDB's version counts them as cancelled
+
+> SQL Server's default collation (`..._CI_AS`) is case-insensitive, so `'CANCELLED' <> 'cancelled'` is false there and true in DuckDB, PostgreSQL, Spark and Snowflake. Normalise text before you compare.
 
 ## @resources
 - [PostgreSQL docs: window functions tutorial](https://www.postgresql.org/docs/current/tutorial-window.html)

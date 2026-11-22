@@ -473,6 +473,65 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 >
 > **Seharusnya Anda melihat:** plan yang lambat berbunyi `CORRELATED SCALAR SUBQUERY` dan `SCAN o`: scan penuh atas pesanan untuk setiap 2.000 pelanggan, karena fungsi pada `order_ts` dan `status` menyembunyikan kolomnya dari indeks. Plan yang cepat berbunyi `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Keduanya memberi total yang sama (`3192691000` pada data yang diukur di sini, `random.seed(7)`), dalam sekitar `31` sampai `33` detik versus `18` sampai `19` ms. Angka Anda akan sedikit berbeda dengan data acak Anda sendiri; selisihnya tidak. Diukur dengan SQLite 3.46.
 
+## @part SQL Server dan T-SQL
+
+## @lesson SQL Server dan T-SQL: dialek yang diharapkan banyak lowongan
+Alat data Microsoft ada di mana-mana di pasar kerja ini: dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), **53,9%** menyebut setidaknya satu dari Azure, SQL Server, SSIS, Power BI, Fabric, atau Synapse, dan **10,8%** meminta SQL Server atau T-SQL secara eksplisit. Bank dan perusahaan lama sering menyimpan logika bisnis bertahun-tahun di **stored procedure** SQL Server dan paket SSIS, dan data engineer baru diharapkan bisa membacanya, memperbaikinya, dan suatu saat memindahkannya. Anda sudah menguasai SQL: `SELECT`, join, `GROUP BY`, dan window function bekerja sama di **T-SQL** (Transact-SQL, dialek SQL Server, Azure SQL, Synapse, dan Fabric Warehouse). Pelajaran ini adalah daftar pendek perbedaan yang sering menjebak.
+
+**Jalankan di laptop Anda, gratis.** Edisi Developer SQL Server berjalan di Docker:
+
+```bash
+docker run -d --name mssql -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=Kopiku#Dev2026" \
+  -p 1433:1433 mcr.microsoft.com/mssql/server:2025-latest
+docker exec -it mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Kopiku#Dev2026' -C
+```
+
+Microsoft meminta RAM minimal 2 GB, dan password harus minimal delapan karakter dari tiga kelompok: huruf besar, huruf kecil, angka, simbol (jika tidak, container berhenti). `-C` mempercayai sertifikat self-signed server, karena tool ODBC 18 mengenkripsi koneksi secara default. Di dalam `sqlcmd`, perintah dijalankan saat Anda mengetik `GO` di barisnya sendiri: `GO` mengakhiri sebuah **batch**, dan ia perintah milik tool, bukan bagian T-SQL. Diukur: image-nya 2,2 GB, diterbitkan untuk amd64 (prosesor Intel dan AMD), dan container baru menjawab query setelah sekitar 7 detik, memakai sekitar 640 MB memori saat diam.
+
+**Perbedaan yang penting:**
+
+| Yang Anda kenal (PostgreSQL, DuckDB, SQLite) | T-SQL | Catatan |
+|---|---|---|
+| `LIMIT 10` | `TOP (10)`, atau `ORDER BY ... OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY` | `LIMIT` adalah syntax error |
+| `QUALIFY ROW_NUMBER() OVER (...) = 1` | beri nomor baris di CTE, lalu `WHERE rn = 1` | tidak ada `QUALIFY` |
+| `'a' \|\| 'b'` | `'a' + 'b'` atau `CONCAT('a', 'b')` | `'a' + NULL` hasilnya `NULL`; `CONCAT` melewati `NULL`. `\|\|` berlaku mulai SQL Server 2025 |
+| `COALESCE(x, 0)` | sama, atau `ISNULL(x, 0)` | |
+| `7 / 2` | `3` | pembagian integer, seperti PostgreSQL; DuckDB memberi `3.5` |
+| `strptime(s, '%d/%m/%Y')` | `TRY_CONVERT(date, s, 103)` | nomor style: `126` adalah ISO 8601, `103` adalah dd/mm/yyyy; `TRY_` mengembalikan `NULL` alih-alih gagal |
+| `now()`, `d + INTERVAL 1 DAY` | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
+| `"order"` | `[order]` | kurung siku mengutip nama |
+| `CREATE TEMP TABLE t` | `#t` (sesi Anda), `##t` (semua orang) | |
+| `string_agg(x, ',' ORDER BY x)` | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
+| `TEXT` | `NVARCHAR(n)` dengan literal `N'...'` | `N` berarti Unicode: `DATALENGTH(N'abc')` adalah 6 byte |
+| `CREATE OR REPLACE` | `CREATE OR ALTER` | untuk procedure, view, dan function |
+
+**Collation: perbedaan yang mengubah angka diam-diam.** **Collation** menentukan cara teks dibandingkan. Default SQL Server (`SQL_Latin1_General_CP1_CI_AS`, diukur) **tidak peka huruf besar-kecil** (`CI`) dan peka aksen (`AS`), sehingga `status <> 'cancelled'` juga mengecualikan `CANCELLED` dan `Cancelled`. DuckDB, PostgreSQL, Spark, dan Snowflake membandingkan dengan peka huruf besar-kecil secara default, sehingga `WHERE` yang sama tetap menyimpan baris itu. Pada data kursus, query yang sama memberi Rp 100.360.000 di SQL Server dan Rp 101.925.000 di DuckDB untuk 10 sampai 12 Januari. Saat Anda memindahkan job SQL Server ke lakehouse, normalkan teks (`lower(trim(status))`) sebelum membandingkan, atau angka hasil migrasi tidak akan cocok dan tidak ada yang tahu sebabnya.
+
+**Stored procedure.** Procedure adalah T-SQL bernama dengan parameter, disimpan di database dan dijalankan dengan `EXEC`. Pipeline lama sering berupa rangkaian procedure yang dijadwalkan SQL Server Agent, SSIS, atau Data Factory (Pelajaran 10 Modul 2.6). Procedure pemuatan yang aman terlihat seperti ini:
+
+```sql
+CREATE OR ALTER PROCEDURE dbo.usp_load_daily_revenue @day DATE
+AS
+BEGIN
+    SET NOCOUNT ON;      -- tanpa pesan "(1 row affected)"
+    SET XACT_ABORT ON;   -- error apa pun membatalkan seluruh transaksi
+    BEGIN TRAN;
+    MERGE daily_revenue AS t
+    USING (SELECT ... WHERE order_ts >= @day AND order_ts < DATEADD(day, 1, @day) ...) AS s
+    ON t.order_date = s.order_date
+    WHEN MATCHED THEN UPDATE SET orders = s.orders, revenue_idr = s.revenue_idr
+    WHEN NOT MATCHED BY TARGET THEN INSERT (order_date, orders, revenue_idr)
+        VALUES (s.order_date, s.orders, s.revenue_idr);   -- MERGE wajib diakhiri titik koma
+    COMMIT;
+END;
+```
+
+**DDL, DML, DCL, dan TCL.** *Fundamentals of Data Engineering* membagi perintah SQL menjadi empat jenis, dan T-SQL punya keempatnya: **DDL** mendefinisikan objek (`CREATE`, `ALTER`, `DROP`), **DML** membaca dan mengubah baris (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** mengatur akses (`GRANT`, `REVOKE`, dan di SQL Server juga `DENY`, yang mengalahkan grant apa pun), dan **TCL** mengatur transaksi (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). Procedure di atas memakai DML di dalam TCL; Modul 2.6 menunjukkan DCL untuk role warehouse.
+
+> 🛠 **Coba sendiri (30 menit, Docker dan `sqlcmd`).** Jalankan SQL Server seperti di atas dan salin datanya: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Buat database `kopiku` dan tabel `raw_orders` dengan enam kolom file itu, semuanya `NVARCHAR(50)`, lalu muat dengan `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Hitung baris yang `total_idr`-nya hanya angka (`NOT LIKE '%[^0-9]%'`) dan `order_ts`-nya bisa dikonversi dengan style 126. Jika jawabannya mengejutkan, cari tahu sebabnya sebelum lanjut. Lalu buat `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, lengkapi procedure di atas untuk pesanan yang tidak dibatalkan, dan jalankan untuk 10, 11, dan 12 Januari, dua kali. Terakhir, coba `LIMIT` dan `QUALIFY` pada `raw_orders`.
+>
+> **Seharusnya Anda melihat:** `3634` baris dimuat, tetapi `0` yang bersih: file-nya mengakhiri baris dengan `\r\n`, sehingga setiap `total_idr` menyimpan `\r` yang tak terlihat dan tidak ada total yang "hanya angka". Tambahkan `ROWTERMINATOR = '0x0d0a'`, muat ulang, dan Anda mendapat `3539`. Style 126 membaca `3593` timestamp dan style 103 sisanya, `41`. Setelah kedua run, `daily_revenue` berisi `3` hari dan `100360000` (`109`, `108`, dan `93` pesanan): menjalankan dua kali tidak mengubah apa pun. `LIMIT 3` gagal dengan `Incorrect syntax near '3'`, `QUALIFY` dengan `Incorrect syntax near 'ROW_NUMBER'`. Diukur pada SQL Server 2025 (17.0) di Docker. Hentikan sesudahnya dengan `docker rm -f mssql`; image-nya tetap ada sampai Anda menjalankan `docker rmi`.
+
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.
 
@@ -630,6 +689,14 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 - [ ] Key-nya harus ditulis sebagai path, `'$.amount'`, atau PostgreSQL tidak menemukannya
 
 > `->>` mengambil teks; `->` mengambil JSON. Aritmetika butuh cast. (String JSONPath seperti `'$.amount'` setelah `->>` bukan path di PostgreSQL: hasilnya diam-diam NULL.)
+
+### Job SQL Server memfilter `WHERE status <> 'cancelled'`. Dipindah ke DuckDB tanpa diubah, pendapatannya jadi lebih tinggi. Apa penyebab yang paling mungkin?
+- [ ] DuckDB membulatkan setiap total BIGINT ke atas ke ribuan rupiah terdekat
+- [x] Collation default SQL Server tidak peka huruf besar-kecil, jadi CANCELLED juga terbuang
+- [ ] DuckDB membaca CSV dua kali ketika sebuah filter membandingkan nilai teks
+- [ ] Operator `<>` SQL Server melewati NULL, sedangkan DuckDB menghitungnya sebagai cancelled
+
+> Collation default SQL Server (`..._CI_AS`) tidak peka huruf besar-kecil, sehingga `'CANCELLED' <> 'cancelled'` bernilai false di sana dan true di DuckDB, PostgreSQL, Spark, dan Snowflake. Normalkan teks sebelum membandingkan.
 
 ## @resources
 - [Dokumen PostgreSQL: tutorial window function](https://www.postgresql.org/docs/current/tutorial-window.html)

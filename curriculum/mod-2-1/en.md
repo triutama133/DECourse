@@ -274,6 +274,32 @@ Two storage questions appear repeatedly in both production architecture reviews 
 >
 > **You should see:** `107400` rows. CSV `5,650,952` bytes, gzipped CSV `1,419,659`, Parquet without compression `770,696`, Snappy `402,243`, gzip `168,852` and Zstd `163,042`. Parquet's own encodings (dictionary and run-length) make it seven times smaller than the CSV before any codec runs, and Zstd edges out gzip here while decompressing faster. Measured with pyarrow 26.0.1 on the course's default data.
 
+## @part Under the abstractions
+
+## @lesson Block, file and object storage, consistency, and caches
+Chapter 6 of *Fundamentals of Data Engineering* starts below the warehouse and the lake, with the "raw ingredients" every storage system is built from. Three kinds of storage show up in every architecture discussion, and mixing them up leads to slow or broken pipelines.
+
+| | **Block storage** | **File storage** | **Object storage** |
+|---|---|---|---|
+| What you get | A raw disk of fixed-size blocks, formatted by one machine's operating system | A shared tree of folders and files over the network (NFS, SMB) | A flat bucket of whole objects, each found by its key, over HTTP |
+| Cloud examples | AWS EBS, Azure Managed Disks, Google Persistent Disk | AWS EFS, Azure Files, Google Filestore | S3, Azure Blob and ADLS Gen2, Google Cloud Storage |
+| Change part of it | Yes: rewrite any block | Yes: append to or edit a file | No: replace the whole object |
+| Rename a folder | One operation | One operation | No real folders: copy and delete every object (ADLS Gen2 with a hierarchical namespace is the exception) |
+| Typical use | Database data files, a VM's boot disk | Shared home folders, tools that need a POSIX file system | Data lakes, lakehouse tables, backups, anything large |
+| Cost and scale | Highest per GB, one machine at a time (mostly) | In between | Cheapest per GB, practically unlimited |
+
+Two older names you will meet in brownfield jobs: **RAID** combines several disks into one, for speed (striping), for safety (mirroring or parity), or both; a **SAN** (storage area network) serves block storage to many servers over a dedicated network. Cloud block storage is the same idea as a managed service.
+
+**Why object storage shaped the lakehouse.** Since objects cannot be edited or renamed cheaply, the old Hadoop habit of writing results to a temporary folder and renaming it at the end becomes thousands of copy requests on S3. Table formats such as Delta Lake and Iceberg (Module 2.2) never rename data files: they write new files and then commit one small metadata change, which is why they work on object storage.
+
+**Consistency: when does a reader see a write?** A system is **strongly consistent** when every read after a successful write sees that write. It is **eventually consistent** when readers may see old data for a while, until every copy catches up. Distributed systems choose between them because waiting for all copies costs latency and availability. Examples: S3 has given strong read-after-write consistency for all objects since December 2020 (before that, a list right after a write could miss the new object); DynamoDB reads are eventually consistent unless you ask for a strongly consistent read; Cassandra lets each query choose how many replicas must answer. When a pipeline "sometimes" misses fresh data, ask which kind of consistency the store gives.
+
+**Caches and CDNs.** A **cache** keeps a copy of data in faster storage (memory instead of disk, a nearby server instead of a far one), trading freshness for speed: Module 1.7's Redis and the query result caches of cloud warehouses are caches. A **CDN** (content delivery network, Appendix B of the book) caches files on servers close to the users, which is how a dashboard's images or a public dataset download stays fast worldwide. Every cache needs a rule for when its copy is too old.
+
+> 🛠 **Try it (15 min, Python with `boto3` and `moto[s3]`).** Inside `with mock_aws():` (moto's in-process fake S3, no account needed), create a bucket and put 1,500 small objects under `raw/2026-01/`. Count the API requests with `s3.meta.events.register("before-call.s3", counter)`, then "rename the folder" to `archive/2026-01/`: list the keys (with the paginator), copy each object to its new key, and delete the old ones with `delete_objects` (at most 1,000 keys per call). Do the same with 1,500 files on your own disk and `os.rename`.
+>
+> **You should see:** `1504` requests for the object store (`2` list pages, `1500` copies, `2` batch deletes), with `0` objects left under `raw/` and `1500` under `archive/`; the file system needs one `os.rename`. On real S3 each of those requests is billed and takes milliseconds over the network, which is why lake layouts are designed so that nothing is ever renamed. Measured with moto 5.2.5 and boto3 1.44.9.
+
 ## @lab Lab: from CSV to Parquet, two engines, and pushdown by hand
 Convert the KopiKu tables to Parquet, answer the same business question with DuckDB and with Polars (and prove both give the independently calculated answer), and implement predicate pushdown yourself from nothing but a Parquet footer. Then measure on a bigger dataset and compare engines.
 

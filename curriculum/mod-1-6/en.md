@@ -301,6 +301,23 @@ load_info = pipeline.run(kopiku_orders_source())
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
 
+## @part Other ways data arrives
+
+## @lesson Database drivers, file drops, EDI and data sharing
+Chapter 7 of *Fundamentals of Data Engineering* lists the ways data reaches a platform. This module covered APIs, files and webhooks; four more come up in real jobs, especially in banking, retail and logistics.
+
+**1. A direct database connection: ODBC and JDBC.** When you read a source database with `psycopg` or SQLAlchemy, a **driver** turns your query into the database's network protocol. **ODBC** (for C and most languages) and **JDBC** (for Java, and so for Spark) are the standard driver interfaces: Spark's `spark.read.jdbc(...)`, Power BI, SSIS and Data Factory all connect through them. The same rules as for APIs apply: read from a **replica**, not the primary that serves customers; pull in pages or ranges, not one giant `SELECT *`; and for anything big or frequent, prefer change data capture (Module 3.2) to repeated full reads.
+
+**2. File drops over SFTP.** Many partners still deliver a nightly file to an **SFTP** server (file transfer over SSH): a bank statement, a supplier's price list, a payment provider's settlement report. The partner writes the file, you collect it. The traps are the ones from Lesson 6 of this module, plus three of their own: wait until the file is complete (partners often upload `x.csv.tmp` and rename it, or send a `.done` marker file), never process the same file twice (keep a list of processed names and checksums), and know who to call when the file does not arrive. Authenticate with an SSH key, not a password.
+
+**3. EDI: business documents between companies.** **Electronic Data Interchange** is how large companies have exchanged purchase orders, invoices and shipping notices since long before APIs. An EDI file is text made of **segments** ending in `~`, whose **elements** are separated by `*`. In the US standard ANSI X12, a purchase order is transaction set **850**: `BEG` holds the order number and date, each `PO1` is one line (quantity, unit, price, product code), `CTT` states how many lines there are, and `SE` states how many segments the document has. Those two counts are the file's own checksum: a parser that does not compare them will load a truncated order without noticing. (Europe and much of Asia use UN/EDIFACT, with different segment names and the same idea.)
+
+**4. Data sharing.** Instead of copying data to a partner, some platforms let the provider **share** a live table: the consumer queries it in their own account, the provider pays for storage and the consumer for compute, and nothing is exported. Snowflake Secure Data Sharing, Delta Sharing (Databricks, an open protocol) and BigQuery's Analytics Hub work this way. It removes the file drop entirely, but it only works when both sides use a platform that supports it.
+
+> 🛠 **Try it (20 min, Python).** Write `parse_850(path)` that reads `labs/shared/edi/po_850.edi`, splits it into segments and elements, and returns the order number and date (from `BEG`), the lines (from each `PO1`: line number, quantity, unit, unit price, product code, line total) and the order total. Then make it check the file against itself: the number in `CTT` must equal the number of `PO1` lines, and the number in `SE` must equal the segments from `ST` to `SE`, both included. Run it on `po_850.edi` and on `po_850_broken.edi`.
+>
+> **You should see:** order `PO-2026-0042` dated `20260115` with three lines, `BEAN-ARABICA-1KG` `1700000`, `CUP-PAPER-12OZ` `60000` and `MILK-OAT-CASE` `1200000`, total `2960000`, and both checks passing (`3` lines, `7` segments). The broken file still parses without an error, but the cup line is gone: `2` lines found where `CTT` says `3`, and `6` segments where `SE` says `7`. Without the checks you would have loaded an order of `2900000` and nobody would know.
+
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
 

@@ -274,6 +274,32 @@ Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab
 >
 > **Seharusnya Anda melihat:** `107400` baris. CSV `5,650,952` byte, CSV ber-gzip `1,419,659`, Parquet tanpa kompresi `770,696`, Snappy `402,243`, gzip `168,852`, dan Zstd `163,042`. Encoding bawaan Parquet (dictionary dan run-length) sudah membuatnya tujuh kali lebih kecil daripada CSV sebelum codec apa pun berjalan, dan di sini Zstd sedikit mengungguli gzip sambil mendekompresi lebih cepat. Diukur dengan pyarrow 26.0.1 pada data bawaan kursus.
 
+## @part Di bawah abstraksi
+
+## @lesson Block, file, dan object storage, konsistensi, dan cache
+Bab 6 *Fundamentals of Data Engineering* dimulai di bawah warehouse dan lake, dengan "bahan mentah" yang membentuk setiap sistem penyimpanan. Tiga jenis penyimpanan muncul di setiap diskusi arsitektur, dan mencampuradukkannya membuat pipeline lambat atau rusak.
+
+| | **Block storage** | **File storage** | **Object storage** |
+|---|---|---|---|
+| Yang Anda dapat | Disk mentah berisi blok berukuran tetap, diformat oleh sistem operasi satu mesin | Pohon folder dan file bersama lewat jaringan (NFS, SMB) | Bucket datar berisi objek utuh, masing-masing ditemukan lewat key-nya, lewat HTTP |
+| Contoh di cloud | AWS EBS, Azure Managed Disks, Google Persistent Disk | AWS EFS, Azure Files, Google Filestore | S3, Azure Blob dan ADLS Gen2, Google Cloud Storage |
+| Mengubah sebagian | Bisa: tulis ulang blok mana pun | Bisa: tambahkan ke atau edit file | Tidak: ganti seluruh objek |
+| Rename folder | Satu operasi | Satu operasi | Tidak ada folder sungguhan: salin dan hapus setiap objek (ADLS Gen2 dengan hierarchical namespace adalah pengecualiannya) |
+| Pemakaian umum | File data database, boot disk VM | Folder home bersama, alat yang butuh file system POSIX | Data lake, tabel lakehouse, backup, apa pun yang besar |
+| Biaya dan skala | Termahal per GB, umumnya satu mesin pada satu waktu | Di tengah | Termurah per GB, praktis tak terbatas |
+
+Dua nama lama yang akan Anda temui di pekerjaan brownfield: **RAID** menggabungkan beberapa disk menjadi satu, untuk kecepatan (striping), untuk keamanan (mirroring atau parity), atau keduanya; **SAN** (storage area network) melayani block storage ke banyak server lewat jaringan khusus. Block storage di cloud adalah gagasan yang sama sebagai layanan terkelola.
+
+**Mengapa object storage membentuk lakehouse.** Karena objek tidak bisa diedit atau di-rename dengan murah, kebiasaan lama Hadoop menulis hasil ke folder sementara lalu me-rename-nya di akhir berubah menjadi ribuan request copy di S3. Format tabel seperti Delta Lake dan Iceberg (Modul 2.2) tidak pernah me-rename file data: mereka menulis file baru lalu meng-commit satu perubahan metadata kecil, itulah sebabnya mereka bekerja di object storage.
+
+**Konsistensi: kapan pembaca melihat sebuah penulisan?** Sistem **strongly consistent** ketika setiap pembacaan setelah penulisan yang berhasil melihat penulisan itu. Ia **eventually consistent** ketika pembaca bisa melihat data lama untuk sementara, sampai semua salinan menyusul. Sistem terdistribusi memilih di antara keduanya karena menunggu semua salinan memakan latensi dan ketersediaan. Contoh: S3 memberi konsistensi read-after-write yang kuat untuk semua objek sejak Desember 2020 (sebelumnya, list tepat setelah penulisan bisa melewatkan objek baru); pembacaan DynamoDB eventually consistent kecuali Anda meminta strongly consistent read; Cassandra membiarkan setiap query memilih berapa replika yang harus menjawab. Ketika pipeline "kadang-kadang" melewatkan data baru, tanyakan jenis konsistensi apa yang diberikan penyimpanannya.
+
+**Cache dan CDN.** **Cache** menyimpan salinan data di penyimpanan yang lebih cepat (memori alih-alih disk, server dekat alih-alih yang jauh), menukar kesegaran dengan kecepatan: Redis di Modul 1.7 dan cache hasil query di cloud warehouse adalah cache. **CDN** (content delivery network, Lampiran B buku itu) menyimpan cache file di server yang dekat dengan pengguna, begitulah gambar dashboard atau unduhan dataset publik tetap cepat di seluruh dunia. Setiap cache butuh aturan kapan salinannya terlalu tua.
+
+> 🛠 **Coba sendiri (15 menit, Python dengan `boto3` dan `moto[s3]`).** Di dalam `with mock_aws():` (S3 palsu milik moto yang berjalan di proses, tanpa akun), buat bucket dan simpan 1.500 objek kecil di bawah `raw/2026-01/`. Hitung request API dengan `s3.meta.events.register("before-call.s3", counter)`, lalu "rename folder"-nya menjadi `archive/2026-01/`: list key-nya (dengan paginator), salin setiap objek ke key barunya, dan hapus yang lama dengan `delete_objects` (paling banyak 1.000 key per panggilan). Lakukan hal yang sama dengan 1.500 file di disk Anda sendiri dan `os.rename`.
+>
+> **Seharusnya Anda melihat:** `1504` request untuk object store (`2` halaman list, `1500` copy, `2` batch delete), dengan `0` objek tersisa di bawah `raw/` dan `1500` di bawah `archive/`; file system cukup satu `os.rename`. Di S3 sungguhan setiap request itu ditagih dan butuh beberapa milidetik lewat jaringan, itulah sebabnya tata letak lake dirancang agar tidak ada yang pernah di-rename. Diukur dengan moto 5.2.5 dan boto3 1.44.9.
+
 ## @lab Lab: konversi CSV ke Parquet, dua mesin analitik, dan implementasi pushdown
 Konversikan tabel operasional KopiKu ke dalam format Parquet terkompresi, jawab pertanyaan bisnis yang sama menggunakan SQL di DuckDB dan lazy dataframe di Polars (buktikan kedua mesin menghasilkan angka omset yang identik dengan verifikasi independen SQLite), serta implementasikan logika predicate pushdown sendiri langsung dari metadata footer Parquet. Terakhir, lakukan pengujian benchmark mandiri pada data berskala lebih besar untuk membandingkan performa ketiga alat.
 

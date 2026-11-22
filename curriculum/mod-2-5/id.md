@@ -294,6 +294,34 @@ Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingku
 >
 > **Seharusnya Anda melihat:** fakta saja berisi `7123` baris dan `1208770000`. Join rekan tadi berisi `8584` baris dan `1459220000`, sekitar 21% terlalu tinggi, dan tidak ada error sama sekali. Dengan `is_current = 1` kembali menjadi `7123` dan `1208770000`. Penyebabnya: `100` pelanggan punya lebih dari satu versi di dimensi SCD Type 2, jadi baris mereka terhitung sekali per versi. Diukur dengan warehouse referensi lab pada data bawaan kursus.
 
+## @part Etika dan produk data
+
+## @lesson Etika data, re-identifikasi, dan data sebagai produk
+*Fundamentals of Data Engineering* menaruh **etika dan privasi** di bawah data management, undercurrent di setiap tahap: pertanyaannya bukan hanya "bolehkah menurut hukum?" tetapi "pantaskah, dan apa yang bisa salah bagi orang-orang di dalam data ini?" Pelajaran 8 membahas sisi hukumnya (pseudonimisasi, penghapusan menurut GDPR dan UU PDP Indonesia). Pelajaran ini membahas tiga hal yang tidak dikerjakan hukum untuk Anda.
+
+**1. Menghapus nama tidak membuat data anonim.** Tabel tanpa nama atau email tetap bisa menunjuk ke satu orang lewat **quasi-identifier**: kolom biasa seperti kota, tanggal lahir, jenis kelamin, atau tanggal daftar yang tidak berbahaya sendiri-sendiri tetapi mengidentifikasi bila digabung. Latanya Sweeney menunjukkan pada tahun 2000 bahwa kode pos, tanggal lahir, dan jenis kelamin saja sudah cukup untuk mengenali sekitar 87% penduduk AS. Uji standarnya adalah **k-anonymity**: setiap kombinasi quasi-identifier dalam tabel yang dirilis harus dimiliki oleh minimal *k* orang. Sebelum Anda menyerahkan ekstrak "tanpa identitas" ke mitra, vendor, atau dashboard publik, hitung kelompoknya; jika ada yang lebih kecil dari *k*, kasarkan kolomnya (bulan alih-alih tanggal, wilayah alih-alih kota) atau buang.
+
+**2. Pertanyaan etika yang benar-benar bisa diajukan data engineer.**
+- **Tujuan:** untuk apa data ini akan dipakai, dan apakah itu yang diharapkan orang-orang di dalamnya? Data yang dikumpulkan untuk mengantar kopi tidak otomatis layak untuk penilaian kredit.
+- **Minimisasi:** apakah konsumen butuh setiap kolom, setiap baris, dan setiap tahun? Data pribadi yang paling aman adalah data yang tidak pernah Anda salin.
+- **Bias:** apakah dataset kurang mewakili sebagian kelompok (kota dengan sedikit pelanggan, metode pembayaran yang kebanyakan dipakai satu kelompok umur), sehingga model atau KPI yang dibangun di atasnya memperlakukan mereka lebih buruk?
+- **Akses dan retensi:** siapa yang bisa melihat tabel mentah, dan kapan ia dihapus? Tulis keduanya di data contract.
+
+Ini keputusan engineering sama banyaknya dengan keputusan hukum: kolom yang Anda pilih, grain yang Anda terbitkan, dan retensi yang Anda tetapkan adalah tempat keputusan itu dibuat.
+
+**3. Data sebagai produk.** Data mesh (Modul 2.6) menyerahkan kepemilikan data kepada tim domain, dan salah satu prinsipnya adalah *data as a product*: perlakukan dataset yang diterbitkan sebagai **produk data**, sesuatu yang punya pengguna, pemilik, dan janji, seperti produk lainnya. Sebuah tabel menjadi produk ketika ia punya:
+- **pemilik** yang menjawab pertanyaan dan memperbaikinya;
+- **kontrak**: skema, grain, arti setiap kolom, dan apa yang tidak akan pernah berubah tanpa pemberitahuan (Pelajaran 3 modul ini);
+- **service level**: seberapa segar dan paling lambat kapan (Pelajaran 6 modul ini);
+- **dokumentasi** dan tempat di katalog, agar orang bisa menemukannya tanpa bertanya kepada Anda;
+- **konsumen** yang diketahui, agar perubahan bisa diumumkan kepada orang yang terdampak.
+
+Dataset tanpa semua itu hanyalah file yang pernah dibuat seseorang; dengan semua itu ia menjadi sesuatu yang bisa diandalkan bisnis.
+
+> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat `data/customers.csv` dengan `all_varchar=true` dan simpan satu baris per `customer_id` (file-nya punya duplikat). Anggap Anda akan membagikan tabel tanpa nama atau email, hanya menyimpan `city`, `tier`, dan `signup_date`. Untuk tiga calon rilis, (city, tier), (city, tier, bulan daftar), dan (city, tier, tanggal daftar), hitung jumlah kelompok, ukuran kelompok terkecil, berapa pelanggan yang sendirian di kelompoknya, dan berapa yang berada di kelompok yang lebih kecil dari 5.
+>
+> **Seharusnya Anda melihat:** `1000` pelanggan. Kota dan tier saja memberi `26` kelompok, yang terkecil berisi `3` orang. Menambahkan bulan daftar membuat `80` pelanggan unik dan menaruh `353` di kelompok yang lebih kecil dari 5. Dengan tanggal daftar yang persis, `846` dari 1.000 pelanggan unik: siapa pun yang tahu kapan temannya mendaftar dan di mana ia tinggal bisa menemukan barisnya. Hanya rilis pertama yang mendekati 5-anonim, dan itu pun punya kelompok berisi 3. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 

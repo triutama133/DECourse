@@ -573,9 +573,46 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 - **External Tables:** Zero warehouse storage duplication cost; great for cold archival logs or one-off exploration. However, query planning is slower and fine-grained clustering/BI Engine acceleration is more limited (unless using **BigLake / Iceberg tables** with pinned metadata).
 - **Native Managed Tables + Pre-Aggregated BI Rollup Marts:** For hot executive dashboards in Tableau or Looker, load atomic facts into partitioned/clustered native tables and materialize **Rollup Target Tables** (`mart_daily_store_rollup` at `(order_date, store_id, product_category)` grain). Pointing Tableau at a 50,000-row daily rollup instead of a 2-billion-row fact table means every filter reads 40,000 times fewer rows (2,000,000,000 / 50,000), and on a warehouse that bills by bytes scanned, the bill shrinks with it.
 
-> 🛠 **Try it (15 min, Python with DuckDB).** Load the rows of `data/orders.csv` whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST`, and make a bigger fact table by repeating them 300 times (`CROSS JOIN range(300)`), with `order_date`, `payment_method`, `status` and `total_idr`. Build a rollup at the grain `(order_date, payment_method, status)` with `count(*)` and `sum(total_idr)`. Answer the dashboard question "revenue per payment method, not cancelled, 10 to 16 January" from both tables, check that the answers are identical, and time each query five times.
+> 🛠 **Try it (15 min, Python with DuckDB).** Load the rows of `data/orders.csv` whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST`, and make a bigger fact table by repeating them 300 times (`CROSS JOIN range(300)`), with `order_date`, `payment_method`, `status` (lowercased and trimmed: the file spells it several ways) and `total_idr`. Build a rollup at the grain `(order_date, payment_method, status)` with `count(*)` and `sum(total_idr)`. Answer the dashboard question "revenue per payment method, not cancelled, 10 to 16 January" from both tables, check that the answers are identical, and time each query five times.
 >
-> **You should see:** `1061700` fact rows and `657` rollup rows, the same four totals from both, and a median of about `10.6` ms on the fact table against `1.8` ms on the rollup. On a warehouse that bills by bytes scanned the gap is in money as well as time. The rollup only works because every filter the dashboard offers is a column of its grain: ask it for revenue per customer and it cannot answer. Measured with DuckDB 2.0.1 on the course's default data.
+> **You should see:** `1061700` fact rows and `557` rollup rows, the same four totals from both (`bank_transfer` first with `20436000000`), and a median of about `13` ms on the fact table against `3` ms on the rollup. On a warehouse that bills by bytes scanned the gap is in money as well as time. The rollup only works because every filter the dashboard offers is a column of its grain: ask it for revenue per customer and it cannot answer. Measured with DuckDB 2.0.1 on the course's default data.
+
+## @part The Microsoft data stack
+
+## @lesson Azure and Microsoft Fabric: ADLS, Data Factory, Synapse and OneLake
+Azure appears in **41.7%** of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), more than AWS (41.4%) or Google Cloud (28.0%) in the same count. **Azure Data Factory** appears in 17.1%, **Microsoft Fabric** in 10.7% and **Azure Synapse** in 10.1%. None of it is new to you: every Microsoft service below does a job you have already done with open tools in this course. Learn the mapping and the names, and a job post full of Microsoft words becomes readable.
+
+| What you built in this course | On Azure | In Microsoft Fabric |
+|---|---|---|
+| Object storage (S3 in Module 2.1) | **ADLS Gen2**: Blob Storage with a hierarchical namespace, so folders are real and renames are cheap | **OneLake**, built on ADLS: one lake for the whole organisation |
+| Ingestion and orchestration (Modules 1.6, 2.4) | **Azure Data Factory** pipelines | **Data Factory** in Fabric (pipelines and Dataflow Gen2) |
+| Warehouse SQL (Module 2.6, T-SQL in 1.3) | **Synapse** dedicated SQL pool, **Azure SQL Database** | **Fabric Warehouse** (T-SQL) |
+| Spark (Module 3.1) | **Azure Databricks**, Synapse Spark pools | Fabric **Data Engineering** (notebooks, Spark) |
+| Lakehouse tables (Module 2.2) | Delta tables on ADLS | **Lakehouse** items: Delta Parquet or Iceberg tables in OneLake |
+| Streaming (Modules 3.2, 3.3) | **Event Hubs** (it also accepts Kafka clients) | **Real-Time Intelligence** |
+| BI (Module 1.4) | **Power BI** | Power BI, reading OneLake directly |
+
+**Azure Data Factory (ADF) in six words.** Microsoft's documentation defines the pieces, and each maps to something you know:
+- A **pipeline** is "a logical grouping of activities that together perform a task": the DAG of Module 2.4.
+- An **activity** is one step: *Copy* (move data between stores), *Lookup* (read a value), *Stored Procedure*, *Notebook*, *ForEach*, *If Condition*.
+- A **linked service** is "much like" a connection string: where a store is and how to log in.
+- A **dataset** is "a named view of data" inside a linked service: one table, one folder, one file pattern.
+- A **trigger** starts pipelines: on a wall-clock schedule, on demand, and other types such as tumbling windows and storage events.
+- An **integration runtime** is the compute that does the work. The Azure one reaches public endpoints; a **self-hosted integration runtime** is a small program you install inside the company network, so ADF can reach an on-premises SQL Server or a private network without opening it to the internet. Companies that keep data on their own servers, banks among them, connect ADF this way.
+
+Activities pass values with expressions such as `@{activity('LookupOldWaterMarkActivity').output.firstRow.WatermarkValue}`, and every pipeline is stored as JSON, which ADF can keep in Git. Treat that JSON like code: review it, version it, deploy it through CI (Module 3.4), never only click it together in the portal.
+
+**Synapse and Fabric.** Synapse (2019) put a warehouse, Spark and pipelines in one Azure workspace. **Fabric** (2023) goes further: it is software as a service with one lake for every workload. Microsoft says the Fabric engines (T-SQL, Spark, Analysis Services and others) all store tables in OneLake in the open **Delta Parquet** format, so a table written by the warehouse can be read by a Spark notebook without copying. Two Fabric ideas come straight from *Fundamentals of Data Engineering*:
+- A **shortcut** is "an object in OneLake that points to other storage locations" (ADLS, S3, Google Cloud Storage and more); it "behaves like a symbolic link". Reading through a shortcut is **data virtualization**: the data stays where it is and is queried in place.
+- **Mirroring** "continuously replicates data from an operational database into OneLake as analytics-ready Delta tables": change data capture (Module 3.2) as a managed feature.
+
+Microsoft publishes a migration plan and a *Fabric Migration Assistant* for moving Synapse dedicated SQL pools to Fabric Warehouse, which tells you which way the platform is heading: expect existing Synapse systems in brownfield jobs and Fabric in new projects.
+
+**Practising without a company account.** The Azure and Fabric parts of this lesson were not run for this course, because they need an account. Your options: a **Fabric trial** gives free access for 60 days (as an F4 or F64 capacity); **Azure for Students** gives US$100 of credit with no credit card, using an academic e-mail address; a normal Azure account gives some services free for the first 12 months. Everything else runs locally: T-SQL in Docker (Module 1.3), Delta tables with `deltalake` (Module 2.2), Power BI Desktop on Windows (Module 1.4), and the Data Factory pattern below.
+
+> 🛠 **Try it (25 min, SQL Server in Docker from Module 1.3).** Microsoft's tutorial *Incrementally copy a table using Azure portal* builds the most common ADF pattern: two **Lookup** activities read the old watermark (from a `watermarktable`) and the new one (`MAX(LastModifytime)` of the source), a **Copy** activity copies the rows with `LastModifytime > old AND <= new`, and a **Stored Procedure** activity, `usp_write_watermark`, saves the new watermark. Create the tutorial's `data_source_table` (5 people, modified 2017-09-01 to 2017-09-05), its `watermarktable` (starting at 2010-01-01) and `usp_write_watermark` in your `kopiku` database. Then write `usp_run_pipeline @run_no` that does the four activities in order, copying into a `sink_copy` table that records `run_no`. Run it; add the tutorial's rows 6 (2017-09-06 02:23) and 7 (2017-09-07 09:01) and run again; run once more with no change. Last, insert row 8 with `LastModifytime` 2017-09-06 23:00, as if it had been held up somewhere, and run a fourth time. Compare the rows in the source with the rows copied.
+>
+> **You should see:** run 1 moves the watermark from `2010-01-01` to `2017-09-05 08:06` and copies `5` rows, run 2 copies `2`, run 3 copies `0`. Run 4 also copies `0`: row 8 is stamped before the saved watermark (`2017-09-07 09:01`), so the source ends with `8` rows and the copy with `7`, and no error tells you. A watermark trusts the source's clock. This is the "ties and late updates" problem of Module 1.6, and the cure is the same: re-read a small overlap before the watermark and make the load idempotent, or select by the time rows were loaded rather than a business timestamp, as the dbt model of Module 2.3 does. Measured on SQL Server 2025 (17.0) in Docker.
 
 ## @lab Lab: how a warehouse saves work
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
@@ -723,6 +760,14 @@ In a warehouse, cost is the amount of data a query touches. Layout, column choic
 - [ ] Delete the old code first, so nobody depends on it any more, then rebuild from the requirements
 
 > Each difference between old and new is either a bug in the new code or an old bug you just found. Consumers move only when the numbers are explained.
+
+### Azure Data Factory must copy tables from a SQL Server inside a bank's private network. What does it need?
+- [ ] A public IP address on the SQL Server so the Azure integration runtime can connect
+- [x] A self-hosted integration runtime installed inside that network, next to the server
+- [ ] A Fabric shortcut pointing at the SQL Server's data files on the server's local disk
+- [ ] A tumbling window trigger, because schedule triggers cannot reach private servers
+
+> The Azure integration runtime reaches public endpoints. A self-hosted integration runtime runs inside the private network and connects out to Data Factory, so the database never has to be exposed.
 
 ## @resources
 - [Snowflake documentation: micro-partitions and data clustering](https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions)

@@ -572,9 +572,46 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 - **External Table:** Nol biaya duplikasi storage di warehouse; cocok untuk arsip log dingin atau eksplorasi sesekali. Namun, perencanaan query lebih lambat dan optimasi clustering/BI Engine lebih terbatas (kecuali memakai **BigLake / tabel Iceberg**).
 - **Native Table + Mart Rollup Pra-Agregasi untuk BI:** Untuk dashboard eksekutif di Tableau atau Looker, simpan fakta atomik di tabel native terpartisi/terklaster, lalu bangun **Tabel Target Rollup** (`mart_daily_store_rollup` pada grain `(order_date, store_id, product_category)`). Mengarahkan Tableau ke rollup harian berisi 50.000 baris alih-alih tabel fakta 2 miliar baris berarti setiap filter membaca 40.000 kali lebih sedikit baris (2.000.000.000 / 50.000), dan di warehouse yang menagih per byte yang dipindai, tagihannya ikut menyusut.
 
-> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat baris `data/orders.csv` yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST`, lalu buat tabel fakta yang lebih besar dengan mengulangnya 300 kali (`CROSS JOIN range(300)`), berisi `order_date`, `payment_method`, `status`, dan `total_idr`. Bangun rollup pada grain `(order_date, payment_method, status)` dengan `count(*)` dan `sum(total_idr)`. Jawab pertanyaan dashboard "pendapatan per metode pembayaran, bukan cancelled, 10 sampai 16 Januari" dari kedua tabel, pastikan jawabannya identik, dan ukur setiap query lima kali.
+> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat baris `data/orders.csv` yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST`, lalu buat tabel fakta yang lebih besar dengan mengulangnya 300 kali (`CROSS JOIN range(300)`), berisi `order_date`, `payment_method`, `status` (diubah ke huruf kecil dan di-trim: file-nya menulisnya dengan beberapa cara), dan `total_idr`. Bangun rollup pada grain `(order_date, payment_method, status)` dengan `count(*)` dan `sum(total_idr)`. Jawab pertanyaan dashboard "pendapatan per metode pembayaran, bukan cancelled, 10 sampai 16 Januari" dari kedua tabel, pastikan jawabannya identik, dan ukur setiap query lima kali.
 >
-> **Seharusnya Anda melihat:** `1061700` baris fakta dan `657` baris rollup, empat total yang sama dari keduanya, dan median sekitar `10.6` ms pada tabel fakta melawan `1.8` ms pada rollup. Di warehouse yang menagih per byte yang dipindai, selisih itu juga berupa uang, bukan hanya waktu. Rollup hanya berhasil karena setiap filter di dashboard adalah kolom pada grain-nya: minta pendapatan per pelanggan dan ia tidak bisa menjawab. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+> **Seharusnya Anda melihat:** `1061700` baris fakta dan `557` baris rollup, empat total yang sama dari keduanya (`bank_transfer` pertama dengan `20436000000`), dan median sekitar `13` ms pada tabel fakta melawan `3` ms pada rollup. Di warehouse yang menagih per byte yang dipindai, selisih itu juga berupa uang, bukan hanya waktu. Rollup hanya berhasil karena setiap filter di dashboard adalah kolom pada grain-nya: minta pendapatan per pelanggan dan ia tidak bisa menjawab. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+
+## @part Stack data Microsoft
+
+## @lesson Azure dan Microsoft Fabric: ADLS, Data Factory, Synapse, dan OneLake
+Azure muncul di **41,7%** dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), lebih banyak daripada AWS (41,4%) atau Google Cloud (28,0%) dalam hitungan yang sama. **Azure Data Factory** muncul di 17,1%, **Microsoft Fabric** di 10,7%, dan **Azure Synapse** di 10,1%. Tidak ada yang benar-benar baru bagi Anda: setiap layanan Microsoft di bawah mengerjakan tugas yang sudah Anda kerjakan dengan alat open source di kursus ini. Pelajari pemetaan dan namanya, dan lowongan yang penuh istilah Microsoft menjadi mudah dibaca.
+
+| Yang Anda bangun di kursus ini | Di Azure | Di Microsoft Fabric |
+|---|---|---|
+| Object storage (S3 di Modul 2.1) | **ADLS Gen2**: Blob Storage dengan hierarchical namespace, sehingga folder sungguhan dan rename murah | **OneLake**, dibangun di atas ADLS: satu lake untuk seluruh organisasi |
+| Ingestion dan orkestrasi (Modul 1.6, 2.4) | Pipeline **Azure Data Factory** | **Data Factory** di Fabric (pipeline dan Dataflow Gen2) |
+| SQL warehouse (Modul 2.6, T-SQL di 1.3) | **Synapse** dedicated SQL pool, **Azure SQL Database** | **Fabric Warehouse** (T-SQL) |
+| Spark (Modul 3.1) | **Azure Databricks**, Synapse Spark pool | **Data Engineering** di Fabric (notebook, Spark) |
+| Tabel lakehouse (Modul 2.2) | Tabel Delta di ADLS | Item **Lakehouse**: tabel Delta Parquet atau Iceberg di OneLake |
+| Streaming (Modul 3.2, 3.3) | **Event Hubs** (juga menerima klien Kafka) | **Real-Time Intelligence** |
+| BI (Modul 1.4) | **Power BI** | Power BI, membaca OneLake langsung |
+
+**Azure Data Factory (ADF) dalam enam kata.** Dokumentasi Microsoft mendefinisikan bagian-bagiannya, dan masing-masing setara dengan sesuatu yang Anda kenal:
+- **Pipeline** adalah "pengelompokan logis aktivitas yang bersama-sama menjalankan satu tugas": DAG di Modul 2.4.
+- **Activity** adalah satu langkah: *Copy* (memindahkan data antarpenyimpanan), *Lookup* (membaca satu nilai), *Stored Procedure*, *Notebook*, *ForEach*, *If Condition*.
+- **Linked service** "mirip sekali" dengan connection string: di mana penyimpanannya dan cara login.
+- **Dataset** adalah "tampilan data yang diberi nama" di dalam sebuah linked service: satu tabel, satu folder, satu pola file.
+- **Trigger** memulai pipeline: menurut jadwal jam dinding, sesuai permintaan, dan tipe lain seperti tumbling window dan event penyimpanan.
+- **Integration runtime** adalah komputasi yang mengerjakannya. Versi Azure menjangkau endpoint publik; **self-hosted integration runtime** adalah program kecil yang Anda pasang di dalam jaringan perusahaan, sehingga ADF bisa menjangkau SQL Server on-premises atau jaringan privat tanpa membukanya ke internet. Perusahaan yang menyimpan data di server sendiri, termasuk bank, menghubungkan ADF dengan cara ini.
+
+Activity saling meneruskan nilai dengan ekspresi seperti `@{activity('LookupOldWaterMarkActivity').output.firstRow.WatermarkValue}`, dan setiap pipeline disimpan sebagai JSON, yang bisa disimpan ADF di Git. Perlakukan JSON itu seperti kode: review, beri versi, deploy lewat CI (Modul 3.4), jangan hanya diklik di portal.
+
+**Synapse dan Fabric.** Synapse (2019) menyatukan warehouse, Spark, dan pipeline dalam satu workspace Azure. **Fabric** (2023) melangkah lebih jauh: ia software as a service dengan satu lake untuk setiap workload. Microsoft menyatakan engine Fabric (T-SQL, Spark, Analysis Services, dan lainnya) semuanya menyimpan tabel di OneLake dalam format terbuka **Delta Parquet**, sehingga tabel yang ditulis warehouse bisa dibaca notebook Spark tanpa disalin. Dua gagasan Fabric datang langsung dari *Fundamentals of Data Engineering*:
+- **Shortcut** adalah "objek di OneLake yang menunjuk ke lokasi penyimpanan lain" (ADLS, S3, Google Cloud Storage, dan lainnya); ia "berperilaku seperti symbolic link". Membaca lewat shortcut adalah **data virtualization**: data tetap di tempatnya dan di-query di sana.
+- **Mirroring** "terus-menerus mereplikasi data dari database operasional ke OneLake sebagai tabel Delta yang siap untuk analitik": change data capture (Modul 3.2) sebagai fitur terkelola.
+
+Microsoft menerbitkan rencana migrasi dan *Fabric Migration Assistant* untuk memindahkan Synapse dedicated SQL pool ke Fabric Warehouse, yang menunjukkan arah platformnya: harapkan sistem Synapse yang sudah ada di pekerjaan brownfield dan Fabric di proyek baru.
+
+**Berlatih tanpa akun perusahaan.** Bagian Azure dan Fabric di pelajaran ini tidak dijalankan untuk kursus ini, karena butuh akun. Pilihan Anda: **trial Fabric** memberi akses gratis selama 60 hari (sebagai kapasitas F4 atau F64); **Azure for Students** memberi kredit US$100 tanpa kartu kredit, memakai alamat e-mail akademik; akun Azure biasa memberi beberapa layanan gratis selama 12 bulan pertama. Sisanya berjalan lokal: T-SQL di Docker (Modul 1.3), tabel Delta dengan `deltalake` (Modul 2.2), Power BI Desktop di Windows (Modul 1.4), dan pola Data Factory di bawah.
+
+> 🛠 **Coba sendiri (25 menit, SQL Server di Docker dari Modul 1.3).** Tutorial Microsoft *Incrementally copy a table using Azure portal* membangun pola ADF yang paling umum: dua activity **Lookup** membaca watermark lama (dari `watermarktable`) dan yang baru (`MAX(LastModifytime)` dari sumber), activity **Copy** menyalin baris dengan `LastModifytime > lama AND <= baru`, dan activity **Stored Procedure**, `usp_write_watermark`, menyimpan watermark baru. Buat `data_source_table` dari tutorial itu (5 orang, diubah 2017-09-01 sampai 2017-09-05), `watermarktable`-nya (mulai 2010-01-01), dan `usp_write_watermark` di database `kopiku` Anda. Lalu tulis `usp_run_pipeline @run_no` yang menjalankan keempat activity secara berurutan, menyalin ke tabel `sink_copy` yang mencatat `run_no`. Jalankan; tambahkan baris 6 (2017-09-06 02:23) dan 7 (2017-09-07 09:01) dari tutorial dan jalankan lagi; jalankan sekali lagi tanpa perubahan. Terakhir, sisipkan baris 8 dengan `LastModifytime` 2017-09-06 23:00, seolah-olah tertahan di suatu tempat, dan jalankan untuk keempat kalinya. Bandingkan baris di sumber dengan baris yang tersalin.
+>
+> **Seharusnya Anda melihat:** run 1 memindahkan watermark dari `2010-01-01` ke `2017-09-05 08:06` dan menyalin `5` baris, run 2 menyalin `2`, run 3 menyalin `0`. Run 4 juga menyalin `0`: baris 8 bertanda waktu sebelum watermark yang tersimpan (`2017-09-07 09:01`), sehingga sumber berakhir dengan `8` baris dan salinan dengan `7`, dan tidak ada error yang memberi tahu Anda. Watermark memercayai jam milik sumber. Ini masalah "ties dan late updates" di Modul 1.6, dan obatnya sama: baca ulang sedikit tumpang tindih sebelum watermark dan buat pemuatannya idempoten, atau pilih menurut waktu baris dimuat alih-alih timestamp bisnis, seperti model dbt di Modul 2.3. Diukur pada SQL Server 2025 (17.0) di Docker.
 
 ## @lab Lab: bagaimana warehouse menghemat pekerjaan
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
@@ -722,6 +759,14 @@ Di warehouse, biaya adalah jumlah data yang disentuh sebuah query. Tata letak, p
 - [ ] Hapus kode lama lebih dulu agar tidak ada yang bergantung padanya, lalu bangun ulang dari kebutuhannya
 
 > Setiap selisih antara lama dan baru adalah bug di kode baru atau bug lama yang baru Anda temukan. Konsumen baru dipindahkan setelah angkanya terjelaskan.
+
+### Azure Data Factory harus menyalin tabel dari SQL Server di dalam jaringan privat sebuah bank. Apa yang dibutuhkan?
+- [ ] Alamat IP publik pada SQL Server agar integration runtime Azure bisa terhubung
+- [x] Self-hosted integration runtime yang dipasang di dalam jaringan, dekat server itu
+- [ ] Shortcut Fabric yang menunjuk ke file data SQL Server di disk lokal server tersebut
+- [ ] Trigger tumbling window, karena trigger jadwal tidak bisa menjangkau server privat
+
+> Integration runtime Azure menjangkau endpoint publik. Self-hosted integration runtime berjalan di dalam jaringan privat dan terhubung keluar ke Data Factory, sehingga database tidak perlu dibuka ke luar.
 
 ## @resources
 - [Dokumentasi Snowflake: micro-partition dan data clustering](https://docs.snowflake.com/en/user-guide/tables-clustering-micropartitions)
