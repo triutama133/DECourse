@@ -1,4 +1,4 @@
-"""Tests for Lab 0.1.   pytest labs/mod-0-1/test_lab.py -v"""
+"""Tests for Lab 0.2.   pytest labs/mod-0-2/test_lab.py -v"""
 import re
 import sys
 from pathlib import Path

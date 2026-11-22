@@ -34,7 +34,7 @@ What a **trustworthy ingestion job** promises, and what this module teaches you 
 
 1. **Complete**: no record is lost, even after a crash or a rate limit.
 2. **No duplicates, safe to rerun**: running it twice produces the same result as running it once (idempotence, Module 1.2).
-3. **Raw first**: it stores what it received, unchanged, before any cleaning (the ELT habit of Module 0.1), so you can reprocess later without calling the source again.
+3. **Raw first**: it stores what it received, unchanged, before any cleaning (the ELT habit of Module 0.2), so you can reprocess later without calling the source again.
 4. **Observable**: it reports how many records it fetched, how long it took, how many retries it needed and how fresh the data is.
 5. **Polite**: it respects the source's limits and fails clearly rather than hammering it.
 
@@ -72,7 +72,7 @@ The **status code** tells you what happened, and your code must react differentl
 | 429 | **too many requests**: you are rate limited | wait, then retry (see below) |
 | 500, 502, 503, 504 | the server has a problem | wait and retry |
 
-**Authentication** is how the API knows who you are: an **API key** in a header or query string, a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a secret manager, never in the code or in Git (Module 0.2), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.
+**Authentication** is how the API knows who you are: an **API key** in a header or query string, a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a secret manager, never in the code or in Git (Module 0.1), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.
 
 Always set a **timeout**. Without one, a hung connection blocks your job forever. Connection problems (the server unreachable, a reset, a timeout) are different from HTTP errors: there is no status code, so you treat them like a 5xx, as something temporary.
 

@@ -27,7 +27,7 @@ If you group events by *processing time*, results depend on network delays, outa
 
 Correct analytics use **event time**: group by when it *happened*. The price is a new problem: because events can arrive late, **when is a time window complete?** At 10:05:00 the window for 10:00 to 10:05 has ended in real life, but a late event for 10:03 might still be on its way. If you wait forever, you never emit a result; if you emit immediately, you will be wrong. Stream processors answer with the **watermark**, a deliberate, bounded trade-off between **latency** (how soon you answer) and **completeness** (how many late events you include). Understanding that trade-off precisely is the subject of this module.
 
-A related point: if a decision does not need an answer within seconds, **batch is simpler** (Module 0.1). Stream processing earns its complexity for fraud checks, live operations dashboards, alerting, and feeding downstream systems quickly.
+A related point: if a decision does not need an answer within seconds, **batch is simpler** (Module 0.2). Stream processing earns its complexity for fraud checks, live operations dashboards, alerting, and feeding downstream systems quickly.
 
 > 🛠 **Try it (10 min, Python).** Simulate an outage. There is one event per minute with event minutes 0 to 59. Normally the processing minute equals the event minute, but the events of minutes 20 to 39 are only processed together at processing minute 40, after the pipeline recovers. Count events per processing minute and per event minute with `collections.Counter`. Print the busiest minute of each, and how many distinct minutes have data in each.
 >

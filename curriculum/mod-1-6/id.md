@@ -33,7 +33,7 @@ Apa yang dijanjikan **job ingestion yang tepercaya**, dan apa yang diajarkan mod
 
 1. **Lengkap**: tidak ada record yang hilang, bahkan setelah crash atau rate limit.
 2. **Tanpa duplikat, aman diulang**: menjalankannya dua kali menghasilkan hasil yang sama dengan sekali (idempotensi, Modul 1.2).
-3. **Mentah dulu**: ia menyimpan apa yang diterima, tanpa diubah, sebelum pembersihan apa pun (kebiasaan ELT dari Modul 0.1), sehingga Anda bisa memproses ulang nanti tanpa memanggil sumber lagi.
+3. **Mentah dulu**: ia menyimpan apa yang diterima, tanpa diubah, sebelum pembersihan apa pun (kebiasaan ELT dari Modul 0.2), sehingga Anda bisa memproses ulang nanti tanpa memanggil sumber lagi.
 4. **Teramati**: ia melaporkan berapa record yang diambil, berapa lama, berapa retry yang dibutuhkan, dan seberapa segar datanya.
 5. **Sopan**: ia menghormati batas sumber dan gagal dengan jelas daripada menghantamnya.
 
@@ -70,7 +70,7 @@ Accept: application/json
 | 429 | **terlalu banyak permintaan**: Anda terkena rate limit | tunggu, lalu ulangi (lihat di bawah) |
 | 500, 502, 503, 504 | server bermasalah | tunggu dan ulangi |
 
-**Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau query string, **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau secret manager, jangan pernah di kode atau di Git (Modul 0.2), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.
+**Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau query string, **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau secret manager, jangan pernah di kode atau di Git (Modul 0.1), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.
 
 Selalu pasang **timeout**. Tanpanya, koneksi yang menggantung memblokir job Anda selamanya. Masalah koneksi (server tidak terjangkau, reset, timeout) berbeda dari error HTTP: tidak ada status code, jadi Anda memperlakukannya seperti 5xx, sebagai sesuatu yang sementara.
 

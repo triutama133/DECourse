@@ -100,7 +100,7 @@
     {
       id: "anim-row-vs-column",
       placements: [
-        { modId: "mod-0-1", lessonIdx: 0 },
+        { modId: "mod-0-2", lessonIdx: 0 },
         { modId: "mod-1-5", lessonIdx: 5 }
       ],
       title: {

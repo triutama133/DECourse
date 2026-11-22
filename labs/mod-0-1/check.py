@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Checks the workspace you build in Lab 0.2.
+"""Checks the workspace you build in Lab 0.1.
 
-    python3 labs/mod-0-2/check.py ~/kopiku
+    python3 labs/mod-0-1/check.py ~/kopiku
 
 Prints PASS/FAIL for each requirement and exits non-zero if any failed. Standard library only.
 """

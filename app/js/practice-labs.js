@@ -46,7 +46,7 @@
     },
     {
       id: "sim-idempotency",
-      modules: ["mod-0-2", "mod-1-1", "mod-1-5", "mod-1-6"],
+      modules: ["mod-0-1", "mod-1-1", "mod-1-5", "mod-1-6"],
       icon: "🔁",
       title: {
         id: "Simulator: Idempotensi Pipeline Saat Retry & Backfill",
@@ -59,7 +59,7 @@
     },
     {
       id: "sim-data-maturity",
-      modules: ["mod-0-1", "mod-0-3"],
+      modules: ["mod-0-2", "mod-0-3"],
       icon: "🧭",
       title: {
         id: "Simulator: Tahap Kematangan Data (Reis & Housley), Tipe A vs. B & Jebakan TOCO",
@@ -727,7 +727,7 @@
         { name: "Dimensional Modeling (Kimball Star Schema, SCD2 & Data Vault 2.0)", keywords: ["dimensional", "star schema", "kimball", "scd", "data vault", "model"], modules: ["mod-1-4"] },
         { name: "dbt Core Transformations & Testing", keywords: ["dbt", "elt", "mart", "staging"], modules: ["mod-2-3"] },
         { name: "Cloud Data Warehouses, Semantic Layer & Reverse ETL", keywords: ["snowflake", "bigquery", "redshift", "warehouse", "semantic", "reverse etl", "bi"], modules: ["mod-2-6"] },
-        { name: "Data Quality Gates, Observability & Stakeholder Contracts", keywords: ["quality", "contract", "sla", "stakeholder", "governance"], modules: ["mod-0-1", "mod-2-5"] }
+        { name: "Data Quality Gates, Observability & Stakeholder Contracts", keywords: ["quality", "contract", "sla", "stakeholder", "governance"], modules: ["mod-0-2", "mod-2-5"] }
       ]
     },
     {
@@ -736,7 +736,7 @@
       company: "Example job description (written for practice)",
       rawText: "Architect and operate scalable batch and real-time streaming data pipelines using Python, PySpark, Apache Kafka, Debezium Change Data Capture (CDC) from PostgreSQL WAL, and Apache Flink. Orchestrate complex DAGs with Apache Airflow or Dagster with strict idempotency, cursor pagination, rate-limit backoff, watermarks, and dead-letter queues (DLQ). Diagnose data skew, shuffle spill, and OOM exit code 137 in Docker/Linux environments.",
       requiredSkills: [
-        { name: "Linux, Bash, Docker Containers & Git Hygiene", keywords: ["linux", "bash", "docker", "git", "137", "container"], modules: ["mod-0-2", "mod-1-1"] },
+        { name: "Linux, Bash, Docker Containers & Git Hygiene", keywords: ["linux", "bash", "docker", "git", "137", "container"], modules: ["mod-0-1", "mod-1-1"] },
         { name: "Production Python, Pydantic, Generators & API Ingestion", keywords: ["python", "pydantic", "api", "pagination", "idempoten", "pytest"], modules: ["mod-1-2", "mod-1-6", "mod-4-2"] },
         { name: "Distributed Spark / PySpark & Skew Optimization", keywords: ["spark", "pyspark", "shuffle", "skew", "hadoop"], modules: ["mod-3-0", "mod-3-1"] },
         { name: "Kafka Event Streaming, Debezium CDC & Watermarks", keywords: ["kafka", "cdc", "debezium", "stream", "flink", "watermark", "real-time"], modules: ["mod-3-2", "mod-3-3", "mod-4-3"] },

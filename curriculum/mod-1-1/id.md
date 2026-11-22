@@ -13,7 +13,7 @@ why: Tutorial menjalankan semuanya di laptop dengan RAM 16 GB dan terminal yang 
 - Menulis Dockerfile yang cepat dibangun, berjalan sebagai pengguna non-root dan dapat direproduksi, serta mendiagnosis container yang dimatikan karena memakai terlalu banyak memori
 
 ## @prereq
-Modul 0.2 dan 0.3: dasar terminal, Git, dan gagasan virtual environment Python. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
+Modul 0.1 dan 0.3: dasar terminal, Git, dan gagasan virtual environment Python. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
 
 ## @part Alat shell dan skrip
 
@@ -68,7 +68,7 @@ Dua jebakan. Pertama, `uniq` hanya meringkas duplikat yang *bersebelahan*, jadi 
 awk -F, 'NR > 1 { n[tolower($4)]++ } END { for (s in n) print s, n[s] }' data/orders.csv | sort
 ```
 
-Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `refunded 174`, `shipped 576`. Perhatikan ia menghitung baris duplikat juga, sehingga berbeda dari hitungan tanpa duplikat di Modul 0.2; Anda harus memutuskan apakah duplikat berpengaruh sebelum mempercayai hitungan apa pun.
+Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `refunded 174`, `shipped 576`. Perhatikan ia menghitung baris duplikat juga, sehingga berbeda dari hitungan tanpa duplikat di Modul 0.1; Anda harus memutuskan apakah duplikat berpengaruh sebelum mempercayai hitungan apa pun.
 
 > **Peringatan:** `awk -F,` dan `cut -d,` memecah di setiap koma, sehingga rusak pada nilai CSV seperti `"Santoso, Budi"`. Keduanya baik untuk file sederhana yang sudah dikenal. Untuk CSV sungguhan dengan field berkutip pakai modul `csv` Python, `csvkit`, atau Miller (`mlr`).
 

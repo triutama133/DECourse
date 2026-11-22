@@ -18,7 +18,7 @@ Modul 1.3 dan 1.4 (window function, pemodelan dimensional) serta Modul 2.1 (Duck
 ## @part Dasar dbt
 
 ## @lesson Paradigma ELT dan posisi strategis dbt
-Modul 0.1 telah memperkenalkan pendekatan **ELT**: muat data mentah ke dalam storage/warehouse terlebih dahulu, baru kemudian lakukan transformasi data *di dalam* warehouse menggunakan SQL. Pendekatan ini sangat efektif (daya komputasi warehouse murah dan scalable, serta data mentah asli selalu terjaga utuh), namun menyisakan tantangan praktis di lapangan. Lapisan transformasi yang ditulis sebagai tumpukan skrip SQL mentah sangat rapuh: tidak ada yang tahu urutan dependensi antar-skrip, urutan eksekusi mana yang benar, apakah hasil tabel valid, atau apa arti bisnis dari kolom-kolom tertentu.
+Modul 0.2 telah memperkenalkan pendekatan **ELT**: muat data mentah ke dalam storage/warehouse terlebih dahulu, baru kemudian lakukan transformasi data *di dalam* warehouse menggunakan SQL. Pendekatan ini sangat efektif (daya komputasi warehouse murah dan scalable, serta data mentah asli selalu terjaga utuh), namun menyisakan tantangan praktis di lapangan. Lapisan transformasi yang ditulis sebagai tumpukan skrip SQL mentah sangat rapuh: tidak ada yang tahu urutan dependensi antar-skrip, urutan eksekusi mana yang benar, apakah hasil tabel valid, atau apa arti bisnis dari kolom-kolom tertentu.
 
 **dbt** (data build tool) membawa praktik rekayasa perangkat lunak (software engineering) ke dalam lapisan SQL tersebut. Anda menulis setiap transformasi sebagai sebuah **model**: satu perintah `SELECT` mandiri di dalam satu file berekstensi `.sql`. dbt kemudian secara otomatis:
 
@@ -89,7 +89,7 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 Dua puluh dua entitas dieksekusi: tujuh model (empat view, tiga tabel, salah satunya tabel inkremental), satu snapshot histori, dan empat belas pengujian data. Jika ada satu model yang gagal kompilasi atau tesnya bernilai error, perintah `dbt build` secara cerdas menandai model dan pengujian di hilirnya sebagai `SKIP`, sehingga data yang rusak tidak akan pernah mengalir mencemari lapisan data mart pelaporan.
 
 > 💡 **Jeda Praktik 1 (Eksplorasi CLI & Struktur Proyek):**
-> 1. Aktifkan virtual environment Anda (yang dibuat di Modul 0.2, misalnya `source venv/bin/activate`).
+> 1. Aktifkan virtual environment Anda (yang dibuat di Modul 0.1, misalnya `source venv/bin/activate`).
 > 2. Siapkan data mentah KopiKu dan buat database DuckDB:
 >    `python3 labs/shared/shopgen.py --out data`
 >    `export KOPIKU_DB=$PWD/kopiku.duckdb`

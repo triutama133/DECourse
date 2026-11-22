@@ -1,410 +1,371 @@
 ---
-title: Bengkel Kerja Anda: Terminal, Lingkungan Python, dan Git
-duration: 1-2 minggu
-summary: Belajar bekerja dengan nyaman di terminal, menjaga paket Python tiap proyek tetap terisolasi, dan memakai Git agar tidak ada hasil kerja yang hilang dan tidak ada rahasia yang bocor.
-why: Tutorial mengira komputer Anda sudah siap. Lalu Anda bertemu "command not found", paket yang jalan di satu laptop tetapi tidak di laptop lain, atau API key yang ter-push ke GitHub, dan kursus berhenti di situ.
+title: Peta Dunia Data: Apa Sebenarnya Kerja Data Engineer?
+duration: 1 minggu
+summary: Pahami mengapa data engineering ada, apa bedanya dengan analis dan data scientist, lalu ikuti satu pesanan dari HP pelanggan sampai dashboard, termasuk semua cara ia bisa salah di tengah jalan.
+why: Kebanyakan kursus langsung mengetik SELECT * di file yang sudah bersih. Di dunia kerja tidak ada yang menyerahkan data bersih: Anda menerima duplikat, format aneh, dan file yang terlambat, tetapi angkanya tetap diharapkan benar.
 ---
 
 ## @outcomes
-- Berpindah folder dan memeriksa file lewat terminal, termasuk menggabungkan perintah dengan pipe
-- Membuat lingkungan Python terisolasi untuk sebuah proyek dan mencatat dependensinya
-- Membaca pesan error Python dari bawah ke atas dan menemukan baris yang penting
-- Memakai Git untuk menyimpan snapshot pekerjaan, melihat riwayat, membatalkan kesalahan, dan menjauhkan file rahasia dari repositori
-- Menjaga password dan API key tetap di luar kode dan di luar Git
+- Menjelaskan dengan kata sederhana mengapa perusahaan memisahkan database analitik dari database produksi
+- Membedakan pekerjaan data engineer, analytics engineer, data analyst, dan data scientist
+- Menggambarkan perjalanan data dari sumber sampai dashboard dan menyebut apa yang bisa rusak di tiap tahap
+- Mengenali lima masalah data yang paling sering muncul (duplikat, data terlambat, perubahan skema, nilai rusak, perubahan volume)
+- Membaca file CSV kecil secara defensif dan membersihkannya dengan Python biasa
 
 ## @prereq
-Modul 0.0 (dasar perulangan Python, dictionary, set, dan membaca file CSV) diharapkan untuk skrip penghitung terakhir. Anda butuh komputer yang boleh Anda pasangi perangkat lunak: Linux, macOS, atau Windows 10/11 dengan WSL2 (disarankan di Windows karena hampir semua alat data mengasumsikan shell bergaya Linux).
+Modul 0.0 (Python dari nol) dan Modul 0.1 (terminal, virtual environment, dan `pytest`) mempersiapkan Anda untuk modul ini: lab ini memakai fungsi, perulangan, dictionary, penanganan error, dan menjalankan `pytest` di dalam venv kursus Anda (`python -m pip install -r labs/mod-0-2/requirements.txt`). Python 3.10+ apa pun bisa dipakai, dan pratinjau browser juga tersedia jika Anda ingin mencoba cepat dulu.
 
-## @part Terminal
+> [!IMPORTANT]
+> **Pengingat Editor vs Terminal:**
+> Buka dan edit file kode (seperti `labs/mod-0-2/pipeline.py`) menggunakan Text Editor Anda (VS Code / Cursor / tab Lab di aplikasi). Jangan menjalankan file kode langsung di terminal bash tanpa interpreter python (misal: jangan ketik `labs/mod-0-2/pipeline.py` di terminal). Perintah terminal hanya untuk pengujian, seperti `pytest labs/mod-0-2/test_lab.py -v`.
 
-## @lesson Mengapa engineer tinggal di terminal
-Antarmuka grafis bagus untuk menjelajah. Ia buruk untuk **mengulang** pekerjaan, **mencatat** apa yang Anda lakukan, dan **berjalan di mesin tanpa layar**. Server cloud tidak punya desktop, dan job yang menjalankan pipeline Anda pukul 2 pagi tidak punya mouse. Semua di mesin-mesin itu dikerjakan dengan perintah teks, dan semua yang Anda otomatisasi adalah perintah teks yang bisa dibaca, ditinjau, dan dijalankan ulang orang lain.
+## @part Pekerjaannya dan orang-orangnya
 
-Program yang membaca perintah Anda disebut **shell** (biasanya `bash` atau `zsh`; PowerShell di Windows). Jendela yang menampungnya adalah **terminal**. Anda mengetik perintah, menekan Enter, dan melihat keluarannya. Beberapa kebiasaan membuatnya jauh tidak menakutkan:
+## @lesson Mengapa profesi ini ada: dua jenis database
+Bayangkan **KopiKu**, toko online kecil yang menjual biji kopi spesialti dari Gayo, Toraja, dan Flores. Setiap kali pelanggan menekan "Bayar", website menulis satu baris baru ke database: siapa yang membeli, apa, berapa, kapan. Database itu ada untuk menjalankan toko. Ia harus menjawab pertanyaan kecil dengan sangat cepat ("apa isi keranjang pelanggan ini?") dan tidak boleh kehilangan satu pesanan pun. Jenis database seperti ini disebut **OLTP** (Online Transaction Processing). PostgreSQL dan MySQL adalah pilihan yang umum.
 
-- **Tekan Tab** untuk melengkapi nama file. Lebih cepat dan mencegah salah ketik.
-- **Tekan panah Atas** untuk memanggil perintah sebelumnya, dan `Ctrl+R` untuk mencarinya.
-- **Baca error-nya.** Sembilan dari sepuluh kali jawabannya ada di baris terakhir.
-- **Minta bantuan ke perintahnya:** `ls --help`, atau `man ls` (tekan `q` untuk keluar).
+Lalu pendiri toko bertanya: "Berapa omset per kota, per minggu, selama dua tahun terakhir?" Untuk menjawabnya, database harus membaca jutaan baris, mengelompokkan, dan menjumlahkannya. Ini pertanyaan **OLAP** (Online Analytical Processing). Bentuk pekerjaannya sama sekali berbeda:
 
-Perintah yang akan Anda pakai setiap hari:
-
-| Perintah | Fungsi | Contoh |
+| | OLTP (menjalankan toko) | OLAP (memahami toko) |
 |---|---|---|
-| `pwd` | Menampilkan folder tempat Anda berada | `pwd` |
-| `ls -la` | Mendaftar file, termasuk yang tersembunyi, dengan detail | `ls -la data` |
-| `cd` | Pindah folder | `cd ~/kopiku` |
-| `mkdir -p` | Membuat folder (beserta induknya) | `mkdir -p kopiku/data` |
-| `cp`, `mv` | Menyalin, memindah, atau mengganti nama | `mv lama.csv baru.csv` |
-| `rm` | **Menghapus permanen** (tidak ada tempat sampah) | `rm catatan.txt` |
-| `cat`, `head`, `tail` | Menampilkan seluruh file, baris pertama, baris terakhir | `head -5 orders.csv` |
-| `less` | Menggulir file panjang (`q` untuk keluar) | `less events.ndjson` |
-| `grep` | Mencari baris yang mengandung teks | `grep "cancelled" orders.csv` |
-| `wc -l` | Menghitung baris | `wc -l orders.csv` |
+| Pertanyaan khas | "Simpan pesanan ini." "Tampilkan keranjang #4821." | "Omset per kota per minggu sejak 2024?" |
+| Baris yang disentuh per query | Segelintir | Jutaan |
+| Kecepatan yang penting | Milidetik untuk satu permintaan | Detik atau menit untuk satu scan besar |
+| Pengguna | Pelanggan, ribuan sekaligus | Beberapa analis dan dashboard |
+| Data | Kondisi terkini | Seluruh riwayat |
+| Tujuan desain | Tidak pernah kehilangan atau merusak tulisan | Membaca dan mengagregasi dengan cepat |
 
-> **Peringatan:** `rm` tidak bertanya dan tidak bisa dibatalkan, dan `rm -rf` menghapus seluruh pohon folder tanpa satu pertanyaan pun. Sebelum menjalankannya, jalankan `ls` pada path yang persis sama untuk melihat apa yang akan Anda hancurkan. Jangan pernah menjalankan perintah hasil salinan dari internet tanpa memahaminya.
+Kalau analis menjalankan query omset dua tahun langsung di database produksi, query itu berebut CPU, memori, dan disk dengan pelanggan. Checkout melambat, kadang timeout, dan toko kehilangan uang selagi seseorang membuat grafik. Sebagian tim menambahkan read replica untuk meredam ini, dan itu membantu, tetapi tidak menyelesaikan masalah lain: data dibentuk untuk menulis, bukan menganalisis; ia hanya menyimpan kondisi terkini tiap baris; dan ia terpisah dari sistem pembayaran, iklan, dan event website Anda.
 
-**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti tertulis. Jika Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker, dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak kerepotan.
+Karena itu perusahaan menyalin data ke **sistem terpisah yang dibangun untuk analisis** (data warehouse atau lakehouse) dan menjaganya tetap mutakhir. Melakukan penyalinan itu dengan andal, setiap hari, dari puluhan sumber, dengan data yang benar dan terdokumentasi, adalah pekerjaan **data engineer**.
 
-> 💡 **Jeda Praktik 1 (Eksplorasi Perintah Terminal):**
-> Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang di direktori kursus ini dan coba perintah navigasi dasar:
-> Ketik `pwd` untuk melihat direktori aktif Anda.
-> Ketik `ls -la data` untuk melihat daftar file transaksi KopiKu.
-> Ketik `head -5 data/orders.csv` untuk mengintip 5 baris pertama pesanan.
-> Ketik `wc -l data/orders.csv` untuk menghitung total baris file.
-> Setelah melihat data tampil di terminal Anda, lanjut ke Pelajaran 2 di bawah.
+> **Tip:** Ketika seseorang bilang "kita butuh data warehouse", kebutuhan sebenarnya hampir selalu: "kita butuh angka yang bisa dipercaya tanpa memperlambat produk." Ingat kalimat itu; ia menjelaskan sebagian besar keputusan desain di kursus ini.
 
-## @lesson Path, file, dan lingkungan
-Setiap file punya **path**, alamatnya di sistem file. **Path absolut** dimulai dari root (`/home/budi/kopiku/data/orders.csv`). **Path relatif** dimulai dari tempat Anda sekarang (`data/orders.csv`). Beberapa jalan pintas yang konstan dipakai: `~` adalah folder home Anda, `.` adalah folder saat ini, `..` adalah folder induk. Kalau sebuah skrip bilang "file not found", penyebabnya hampir selalu Anda berdiri di folder yang berbeda dari dugaan; jalankan `pwd` dan `ls` lebih dulu.
+> 🛠 **Coba sendiri (10 menit, dengan Python).** Buat datanya (`python3 labs/shared/shopgen.py --out data`) dan baca `data/orders.csv` dengan `csv.DictReader` dari Modul 0.0 untuk merasakan bedanya **pencarian satu titik OLTP** dan **pemindaian penuh OLAP**:
+> 1. Telusuri `3634` baris dan isi dict `by_id` dengan kunci `order_id` (`by_id[row["order_id"]] = row`). Berapa banyak kunci duplikat yang menimpa baris sebelumnya sehingga `len(by_id)` lebih pendek dari `3634`? Perhatikan mencari `by_id["1001"]` langsung menyentuh **satu** item seketika (OLTP).
+> 2. Sekarang pindai seluruh baris untuk menghitung berapa pesanan di setiap status huruf kecil (`counts[status] = counts.get(status, 0) + 1`, baris penghitung dari Modul 0.0). Perhatikan ia harus membaca **semua** `3634` baris (OLAP).
+>
+> **Seharusnya Anda melihat:** `len(by_id)` bernilai `3599` (artinya ada `35` ID pesanan duplikat di file!), sedangkan `counts` mengunjungi setiap baris untuk meringkas kategori. Modul 0.3 menunjukkan bagaimana database SQL melakukan keduanya lewat pencarian `PRIMARY KEY` dibanding pemindaian `GROUP BY`.
 
-File yang namanya diawali titik (`.gitignore`, `.env`) bersifat **tersembunyi**; `ls -a` menampilkannya. Ekstensi file (`.csv`, `.py`) hanya petunjuk bagi manusia dan program, bukan jaminan isi.
+## @lesson Siapa mengerjakan apa: peran di sekitar data
+Nama jabatan saling tumpang tindih dan berbeda antar perusahaan, jadi pikirkan **pekerjaannya**, bukan namanya. Pembagian yang umum, masih dengan KopiKu:
 
-Dua bagian lingkungan penting sejak awal:
+| Peran | Pertanyaan utama | Yang diserahkan |
+|---|---|---|
+| **Software engineer** | "Bagaimana kita membangun tokonya?" | Website, aplikasi, dan database produksi |
+| **Data engineer** | "Bagaimana membawa data dari semua tempat ke satu tempat yang bisa dipercaya, tepat waktu?" | Pipeline, tabel, tes, monitoring |
+| **Analytics engineer** | "Bagaimana mengubah tabel mentah menjadi definisi bisnis yang bersih dan dipakai bersama?" | Tabel terstruktur seperti `fct_orders` dan `dim_customers`, lengkap dengan dokumentasi |
+| **Data analyst** | "Apa yang terjadi, dan mengapa?" | Dashboard, laporan, jawaban atas pertanyaan bisnis |
+| **Data scientist / ML engineer** | "Apa yang akan terjadi, dan apa yang sebaiknya dilakukan?" | Prakiraan, rekomendasi, model |
+| **Platform / DevOps engineer** | "Bagaimana menjalankan semua ini dengan aman?" | Server, jaringan, akses, alat deployment |
 
-- **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya. Nanti Anda memakainya untuk mengirim pengaturan dan rahasia ke program tanpa menuliskannya di kode.
-- **`PATH`** adalah daftar folder yang dicari shell saat Anda mengetik nama perintah. "command not found" berarti programnya belum terpasang, atau tidak berada di folder yang ada di `PATH`. Mengaktifkan virtual environment Python (pelajaran berikut) bekerja dengan menaruh foldernya di depan `PATH`.
+Di perusahaan kecil satu orang mengerjakan beberapa peran sekaligus. Di perusahaan besar tiap peran adalah satu tim. Yang tidak berubah adalah ketergantungannya: analis dan data scientist hanya bisa sebaik data yang mereka terima. Model yang dilatih dengan pesanan ganda belajar hal yang salah; dashboard di atas tabel yang diam-diam berhenti diperbarui menyesatkan CEO.
 
-**Encoding teks dan akhir baris** menyebabkan bug yang diam-diam. File teks adalah byte yang ditafsirkan lewat sebuah encoding; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris dengan cara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
+Cara yang berguna untuk menggambarkan hasil kerja data engineer: **produk seorang data engineer adalah kepercayaan**. Orang harus bisa membuka sebuah tabel, percaya angkanya, dan tahu seberapa baru data itu. Semua yang Anda pelajari di kursus ini (pengujian, idempotensi, kontrak data, monitoring) melayani satu tujuan itu.
 
-**Izin (permission).** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya (`-rwxr-xr-x`). `chmod +x script.sh` membuat skrip bisa dijalankan langsung. Anda akan lebih sering menemuinya sebagai "Permission denied", yang artinya pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file tersebut. Jangan "memperbaikinya" dengan `sudo` secara membabi buta: itu menjalankan perintah dengan kuasa penuh dan membuat file yang kemudian hanya bisa diubah administrator.
+Keterampilan yang penting, kira-kira sesuai urutan kursus ini: SQL, Python, command line dan Git, pemodelan data, format dan mesin penyimpanan, transformasi, orkestrasi, kualitas data, lalu sistem terdistribusi dan real-time. Anda tidak perlu semuanya di hari pertama; Anda perlu empat yang pertama untuk memulai dan kebiasaan mempelajari sisanya lewat masalah nyata.
 
-> 💡 **Jeda Praktik 2 (Eksplorasi Path & Variabel Lingkungan):**
-> Coba periksa lingkungan shell Anda langsung di terminal:
-> Ketik `echo $HOME` untuk melihat path direktori home Anda.
-> Ketik `echo $PATH` untuk melihat daftar folder program yang dicari shell.
-> Ketik `which python3` untuk mengetahui path absolut interpreter Python sistem Anda.
-> Ketik `ls -l data/orders.csv` untuk melihat hak akses izin (permission) file tersebut.
-> Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Pelajaran 3 di bawah.
+> 🛠 **Coba sendiri (5 menit, pena dan kertas).** Siapa yang mengerjakan? Tulis perannya (software engineer, data engineer, analytics engineer, data analyst, data scientist, atau platform engineer) untuk setiap tugas: (a) job malam yang menyalin pesanan ke warehouse dan memberi peringatan jika terlambat; (b) dashboard revenue mingguan per kota; (c) model yang memprediksi pelanggan mana yang akan berhenti memesan; (d) halaman checkout toko; (e) tabel `fct_orders` yang terdokumentasi dengan satu definisi "revenue" yang disepakati; (f) klaster yang menjalankan semua job.
+>
+> *Bandingkan:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Lalu tulis dua kalimat: tugas mana yang akan menjadi tugas Anda di perusahaan berisi lima orang, dan mana yang tidak ingin Anda kerjakan sendirian?
 
-## @lesson Redirect dan pipe: alat kecil yang disambung
-Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, dan Anda menyambungkannya. Dua simbol melakukan penyambungan.
+## @lesson Gambaran besar: siklus hidup, undercurrents, dan orang-orangnya
+> **Intinya:** Setiap pekerjaan data engineering, apa pun alatnya, memindahkan data melalui lima tahap: generation, storage, ingestion, transformation, dan serving. Enam "undercurrents" mengalir di bawah kelimanya: security, data management, DataOps, data architecture, orchestration, dan software engineering. Apa yang Anda bangun harus sesuai dengan sejauh mana perusahaan sudah memakai data. Sebagian besar pekerjaannya adalah bekerja sama dengan orang-orang di kedua sisi Anda.
 
-- `|` (pipe) mengirim keluaran satu perintah ke perintah berikutnya.
-- `>` menulis keluaran ke file (menggantikan isinya), dan `>>` menambahkannya di akhir file.
+Peta ini berasal dari buku *Fundamentals of Data Engineering* karya Joe Reis dan Matt Housley. Peta ini membantu saat daftar alat terasa tak ada habisnya: setiap alat yang akan Anda temui punya tempat di dalamnya.
 
-Coba ini pada file pesanan KopiKu yang Anda buat di Mulai di sini (`python3 labs/shared/shopgen.py --out data`). Berapa pesanan per status?
+**Lima tahapnya** (kursus ini mengajarkannya kira-kira dengan urutan ini):
 
-```bash
-cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
-```
+- **Generation.** Data lahir di sistem yang biasanya bukan milik Anda: database aplikasi, penyedia pembayaran, ponsel, log. Pemiliknya bisa mengubahnya tanpa bertanya kepada Anda. (Modul 1.6, 3.2)
+- **Storage.** Tempat data disimpan di setiap langkah: file, database, warehouse, tabel lakehouse. (Modul 1.7, 2.1, 2.2, 2.6)
+- **Ingestion.** Menyalin data dari sumber ke platform Anda. Di sinilah sebagian besar kerusakan bermula: sumber mati, memperlambat Anda, atau berubah bentuk. (Modul 1.6, 3.2)
+- **Transformation.** Mengubah record mentah menjadi tabel yang bisa dipercaya: tipe yang benar, satu baris per hal, definisi yang jelas. (Modul 0.3, 1.3, 1.4, 2.3)
+- **Serving.** Menyerahkan hasilnya kepada orang dan program yang memakainya: dashboard, analis, model machine learning, aplikasi lain. (Modul 2.6, 3.5)
 
-Baca dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (status), `tail -n +2` melewati baris judul, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung deretan nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di atas. Lima alat kecil menggantikan sebuah program, dan tidak ada yang dimuat ke memori sekaligus, jadi cara ini berjalan pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini lebih dalam.
+**Enam undercurrents** bukanlah tahap; mereka adalah kebiasaan yang Anda perlukan di setiap tahap. Security (siapa boleh melihat apa), data management (kualitas, definisi, privasi), DataOps (mengotomatiskan, menguji, dan mengawasi pipeline), data architecture (memilih bagaimana bagian-bagiannya tersusun), orchestration (menjalankan langkah dengan urutan yang benar), dan software engineering (kode yang bisa dibaca, diuji, dan diubah orang lain). Inilah sebabnya lowongan kerja meminta data engineer menguasai keahlian yang terdengar seperti DevOps atau software engineering: keahlian itu memang bagian dari pekerjaannya.
 
-Perhatikan keluarannya juga memperlihatkan masalah data dunia nyata: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang bagus untuk *melihat data sebelum menulis kode untuknya* — Modul 0.1 melatih cara membersihkannya dengan benar.
+## @lesson Kematangan data, tipe engineer, dan bekerja dengan tim
+Buku ini menggambarkan tiga tahap *kematangan data* (data maturity). Desain yang baik untuk satu tahap bisa menjadi desain yang buruk untuk tahap lain.
 
-> **Peringatan:** `>` mengganti file tujuan seketika dan tanpa suara. `sort data.csv > data.csv` menghancurkan file itu (shell mengosongkannya sebelum `sort` membaca). Tulis ke file baru, lalu ganti namanya.
+| Tahap | Seperti apa | Apa yang biasanya berhasil |
+|---|---|---|
+| **1. Memulai dengan data** | Spreadsheet dan ekspor CSV, belum ada warehouse, pimpinan ingin beberapa angka yang andal | Alat siap pakai: loader terkelola, warehouse sederhana atau DuckDB, beberapa tabel yang bersih |
+| **2. Berkembang dengan data** | Banyak sumber, laporan rusak saat sumber berubah, tiap tim punya angka "revenue" berbeda | Tes, definisi yang disepakati, data contract, orkestrator, tabel yang dimodelkan |
+| **3. Memimpin dengan data** | Data menjadi bagian dari produk: rekomendasi, deteksi fraud, self-service untuk banyak tim | Sistem custom di bagian yang memberi keunggulan, misalnya streaming, plus tata kelola yang kuat |
 
-Setiap program punya tiga aliran standar: masukan (`stdin`), keluaran (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python job.py > out.txt 2> errors.txt`). Pemisahan inilah yang membuat pipeline bisa gagal dengan jelas meski keluarannya sedang dialirkan ke tempat lain.
+Buku ini juga menyebut dua jenis data engineer. **Tipe A** (A untuk *abstraction*) memakai layanan siap pakai dan tidak membangun apa yang bisa dibeli. **Tipe B** (B untuk *build*) membangun sistem custom. Engineer Tipe A berguna di setiap tahap; engineer Tipe B kebanyakan baru terbayar di tahap 2 dan 3. Kesalahan klasiknya adalah perusahaan tahap 1 membangun platform tahap 3: berbulan-bulan mengerjakan klaster sebelum ada satu pun angka yang berguna.
 
-> 💡 **Jeda Praktik 3 (Piping Data KopiKu):**
-> Mari buktikan kekuatan pipe langsung di terminal tanpa menulis program Python:
-> Jalankan perintah berikut di root folder kursus:
-> `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
-> Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
+### Orang-orang di kedua sisi Anda
+Di database lowongan TalentHub, 64% dari 1.130 lowongan data engineering menyebut komunikasi atau stakeholder. Jumlah itu lebih banyak daripada yang menyebut Spark (46%) dan hampir sama dengan yang menyebut Python (69%). Buku ini mengatakannya dengan lugas: tim data jarang gagal karena teknologi.
 
-## @part Lingkungan Python dan Git
+- **Hulu: orang yang menghasilkan data**, biasanya engineer aplikasi. Bagi mereka, database ada untuk menjalankan aplikasi; laporan Anda hanyalah efek samping. Saat mereka merusak pipeline Anda, mengeluh tidak ada gunanya. Jelaskan apa yang rusak di hilir dan siapa yang bergantung padanya, lalu sepakati secara tertulis kolom mana yang akan mereka jaga tetap stabil (sebuah *data contract*, Modul 2.5).
+- **Hilir: orang yang memakai data:** analis, data scientist, manajer. Mereka sering meminta solusi yang pernah mereka dengar ("kita butuh dashboard real-time") alih-alih masalah yang sebenarnya mereka hadapi. Tanyakan tentang keputusannya: *Apa yang akan Anda lakukan saat angka ini berubah, dan seberapa cepat Anda perlu bertindak?* Jika jawabannya "kami melihatnya di rapat Senin", job harian yang andal mengalahkan sistem streaming.
 
-## @lesson Python: pasang sekali, lalu isolasi setiap proyek
-Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10 atau lebih baru. Di Linux dan macOS, gunakan package manager sistem atau installer resmi; di Windows, bekerjalah di dalam WSL2 (halaman **Mulai di sini** menuntun cara memasangnya).
+> 🛠 **Coba sendiri (10 menit, kertas dan simulator).** Pertama buka simulator kematangan di bagian atas halaman ini dan temukan, untuk setiap tahap, pilihan yang disebutnya pas ukurannya. Biayanya adalah model pengajaran kasar, bukan harga yang diukur: pakai untuk melihat bentuk trade-off-nya. Lalu tulis catatan scoping tiga baris untuk KopiKu dari apa yang sudah diceritakan modul ini: (1) tahap kematangannya, dan fakta yang memberi tahu Anda; (2) siapa yang menghasilkan data pesanan dan siapa yang memakai angka revenue; (3) Tipe A atau Tipe B, dan satu pertanyaan yang akan Anda ajukan kepada CEO sebelum memutuskan.
+>
+> **Seharusnya Anda melihat:** tahap 1: satu database website, founder mengajukan pertanyaan pertama, belum ada apa pun untuk analisis. Website (dan siapa pun yang membangunnya) menghasilkan pesanan; founder memakai angka revenue. Tipe A, setelah bertanya sesuatu seperti "keputusan apa yang akan Anda ambil dengan angka ini, dan seberapa sering?". Jika pertanyaan Anda tentang alat, bukan tentang keputusannya, coba lagi.
 
-**Pengguna Ubuntu, Debian, dan WSL2:** sistem ini membawa Python tanpa alat venv. Pasang sekali dengan `sudo apt install -y python3-venv python3-pip`; tanpanya, baris `python3 -m venv` di bawah berhenti dengan pesan `ensurepip is not available` (diukur pada Ubuntu 24.04 yang baru dipasang).
+**Dua pembedaan lagi dari buku ini.** Pertama, **siklus hidup data engineering** hanyalah bagian dari **siklus hidup data** yang lebih luas di sebuah bisnis. Kelima tahap menggambarkan apa yang dibangun engineer: generasi, penyimpanan, ingesti, transformasi, penyajian. Bisnis juga memutuskan berapa lama data harus disimpan, siapa yang boleh melihatnya, kapan harus diarsipkan, dan kapan harus dihapus, sering kali karena undang-undang atau kontrak mewajibkannya. Keputusan itu dibuat oleh bagian hukum, keuangan, atau keamanan, bukan oleh Anda, tetapi Andalah yang harus menjalankannya di setiap salinan data: file raw, warehouse, backup, dan ekspor (Modul 2.5 menunjukkan betapa sulitnya satu permintaan "hapus pelanggan ini").
 
-Masalah intinya: paket Python dipasang di satu tempat, sedangkan proyek berbeda butuh versi berbeda. Proyek A butuh `pandas 1.5`, proyek B butuh `pandas 2.2`. Kalau semuanya dipasang global, cepat atau lambat satu proyek merusak yang lain, atau merusak alat Python bawaan sistem operasi Anda. Solusinya adalah **virtual environment**: folder privat dengan Python dan paketnya sendiri, per proyek.
+Kedua, data engineer menghadap **ke dalam** atau **ke luar**. Engineer yang **menghadap ke dalam** (*internal-facing*) membangun untuk perusahaannya sendiri: pipeline, warehouse, dashboard, dan laporan untuk analis dan manajer. Itulah sebagian besar pekerjaan data engineering, dan itulah yang dilatih kursus ini lebih dulu. Engineer yang **menghadap ke luar** (*external-facing*) membangun sistem data yang dipakai pelanggan di dalam produk: dashboard penjualan di dalam aplikasi, rekomendasi di situs web, pipeline event di balik sebuah fitur. Keterampilannya sama, tetapi tuntutannya lebih ketat: jauh lebih banyak pengguna sekaligus, jawaban di bawah satu detik, dan sebuah kesalahan dilihat pelanggan, bukan rekan kerja (Modul 2.6 membandingkan keduanya). Banyak pekerjaan mencampur keduanya, jadi tanyakan saat wawancara ke arah mana peran itu condong.
 
-```bash
-cd ~/kopiku
-python3 -m venv venv              # membuat environment di ./venv
-source venv/bin/activate          # mengaktifkannya (Windows PowerShell: venv\Scripts\Activate.ps1)
-python --version                  # sekarang "python" berarti Python milik venv
-python -m pip install requests    # terpasang hanya ke ./venv
-python -m pip freeze > requirements.txt   # catat persis apa yang terpasang
-deactivate                        # keluar dari environment
-```
+> 🛠 **Coba sendiri (10 menit, pena dan kertas).** Untuk setiap tugas KopiKu, tulis *internal* atau *eksternal*, dan tahap siklus hidup tempatnya atau "siklus hidup data yang lebih luas" jika keputusannya datang dari luar engineering: (1) dashboard pendapatan mingguan untuk pendiri; (2) halaman "penjualan Anda bulan ini" di dalam aplikasi yang dijual KopiKu kepada pemilik kafe; (3) "pelanggan yang membeli Gayo juga membeli…" di situs web; (4) salinan malam hari database pesanan ke warehouse; (5) menghapus data pribadi pelanggan ketika ia menutup akunnya; (6) misalkan bagian keuangan menyatakan catatan pesanan harus disimpan sepuluh tahun: menyiapkan hal itu.
+>
+> **Seharusnya Anda melihat:** (1) internal, penyajian; (2) eksternal, penyajian (analitik untuk pelanggan); (3) eksternal, penyajian, dibangun di atas transformasi; (4) internal, ingesti ke penyimpanan; (5) siklus hidup data yang lebih luas: aturannya datang dari undang-undang privasi dan kebijakan perusahaan, dan engineering menjalankannya di setiap salinan; (6) juga siklus hidup data yang lebih luas: keuangan menentukan jangka waktunya, dan engineering mengubahnya menjadi aturan lifecycle penyimpanan (Modul 3.4). Jika Anda menaruh (5) atau (6) di bawah satu tahap saja, perhatikan bahwa keduanya menyentuh setiap tahap sekaligus.
 
-Tiga aturan menyelamatkan banyak sore para pemula:
+## @part Data yang akan Anda kerjakan
 
-1. **Selalu jalankan `python -m pip`, bukan `pip` saja.** Ini menjamin paket masuk ke Python yang sedang Anda pakai.
-2. **Jangan pernah `sudo pip install`.** Itu mengubah Python sistem dan bisa merusak alat sistem operasi.
-3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
+## @lesson Perjalanan satu pesanan
+Ikuti satu pesanan KopiKu, #4821, dari HP pelanggan sampai dashboard CEO. Setiap langkah adalah tahap yang dirancang dan dirawat oleh data engineer.
 
-Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cepat dan menambahkan lock file; konsepnya identik, jadi pelajari dulu dengan `venv`.
+1. **Sumber.** Budi menekan "Bayar" di aplikasi. Backend menulis satu baris di tabel `orders` di PostgreSQL, dan website juga mengirim event klik ("purchase") ke pelacak analitik. Inilah **sumber**: database, aliran event, file dari mitra, API pihak ketiga (pembayaran, iklan).
+2. **Ingestion.** Sebuah job menyalin data baru dan data yang berubah dari tiap sumber. Ia mungkin membaca database tiap jam, membaca file yang diunggah mitra tiap malam, atau mendengarkan aliran event. Di sinilah hal pertama yang sering salah, karena Anda tidak mengendalikan sumbernya.
+3. **Penyimpanan mentah.** Data mendarat apa adanya di area **raw** (sering disebut bronze). Anda menyimpan aslinya supaya kalau langkah berikutnya punya bug, Anda bisa menjalankannya ulang dari input yang asli.
+4. **Transformasi.** Job membersihkan data (memperbaiki tipe, menghapus duplikat, menyeragamkan status), menggabungkannya (pesanan dengan pelanggan dan produk), dan menghitung konsep bisnis (omset, pelanggan aktif). Hasilnya adalah lapisan **bersih** (silver) dan lapisan **terstruktur** (gold) yang dibentuk untuk menjawab pertanyaan.
+5. **Penyajian.** Dashboard, notebook analis, model machine learning, dan kadang produk itu sendiri membaca tabel terstruktur.
+6. **Operasi.** Sepanjang jalan, scheduler menjalankan job sesuai urutan, tes memeriksa data, dan monitoring memberi tahu bila ada yang terlambat atau salah. Inilah bagian yang dilewati tutorial dan dibayar perusahaan.
 
-**Menjalankan skrip.** `python summarize.py data/orders.csv` menjalankan sebuah file; kata-kata setelah nama file masuk ke `sys.argv` dan diurai dengan rapi oleh modul standar `argparse`. Idiom `if __name__ == "__main__":` di bagian bawah berarti "jalankan bagian ini hanya ketika file dieksekusi langsung, bukan saat di-import", yang akan Anda pakai di setiap skrip yang kelak mungkin menjadi library.
+Dua istilah yang akan sering Anda temui:
 
-**Membaca traceback.** Ketika Python gagal, ia mencetak *stack trace*. Bacalah **dari bawah**: baris terakhir menyebut jenis dan pesan error (`FileNotFoundError: [Errno 2] No such file or directory: 'data/orders.csv'`); baris di atasnya menunjukkan baris file mana yang memanggil apa. Frame terakhir di kode Anda sendiri biasanya tempat yang harus dilihat. Salin baris terakhir saat mencari bantuan atau bertanya ke orang.
+- **Batch vs streaming.** Batch berarti memproses data dalam potongan menurut jadwal (tiap jam, tiap malam). Streaming berarti memproses setiap event dalam hitungan detik setelah terjadi. Sebagian besar pekerjaan data adalah batch. Streaming lebih rumit dan lebih mahal; pakai hanya jika sebuah keputusan bisnis benar-benar butuh data segar (deteksi fraud, stok langsung).
+- **ETL vs ELT.** ETL mengubah data *sebelum* dimuat ke warehouse. ELT memuat data mentah lebih dulu lalu mengubahnya *di dalam* warehouse dengan SQL. Warehouse cloud modern cukup kuat dan murah sehingga ELT menjadi pilihan umum, itulah sebabnya alat seperti dbt (Modul 2.3) ada.
 
-> 💡 **Jeda Praktik 4 (Bangun Workspace & Virtual Environment):**
-> Saatnya membangun bengkel kerja lokal Anda sendiri! Buka terminal dan jalankan:
-> 1. Buat folder workspace: `mkdir -p ~/kopiku && cd ~/kopiku`
-> 2. Buat virtual environment terisolasi: `python3 -m venv venv`
-> 3. Aktifkan environment: `source venv/bin/activate`
-> 4. Verifikasi: `which python` (pastikan outputnya menunjuk ke `~/kopiku/venv/bin/python`).
-> Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Pelajaran 5 untuk menyiapkan Git.
+> **Tip:** Gambarlah perjalanan data untuk setiap sistem yang Anda kerjakan: kotak untuk sumber, panah untuk job, dan tanda di setiap tempat kegagalan tidak akan terlihat. Gambar itu adalah hasil kerja pertama yang paling berguna bagi data engineer.
 
-## @lesson Git: jaring pengaman untuk semua yang Anda tulis
-Git mencatat snapshot proyek Anda sehingga Anda bisa melihat apa yang berubah, kembali ke kondisi mana pun sebelumnya, bereksperimen tanpa risiko, dan berkolaborasi. Tiga area menjelaskan hampir semuanya:
+> 🛠 **Coba sendiri (10 menit, di terminal).** Bawa satu file melewati perjalanannya dengan perintah, dari folder kursus: `python3 labs/shared/shopgen.py --out data` (sumber), `mkdir -p raw && cp data/orders.csv raw/orders_$(date +%F).csv` (ingestion dan penyimpanan mentah), dan `cut -d, -f4 raw/orders_*.csv | tail -n +2 | sort | uniq -c | sort -rn` (transformasi pertama: jumlah pesanan per status). Sebutkan dalam satu kalimat tahap mana yang baru saja Anda kerjakan dan mana yang masih kurang sebelum sebuah dashboard bisa membaca data ini.
+>
+> **Seharusnya Anda melihat:** `2080 delivered` di paling atas dan, lebih ke bawah, `34 DELIVERED` dan `34 Delivered`: status yang sama ditulis tiga cara. Sebuah langkah transformasi harus memperbaikinya sebelum ada yang bisa memercayai hitungannya, dan karena Anda menyalin ke `raw/` lebih dulu, Anda bisa memperbaikinya berulang kali tanpa meminta file lagi ke sumbernya.
 
-1. **Working tree**: file seperti adanya di disk sekarang.
-2. **Staging area**: perubahan yang sudah *Anda pilih* untuk masuk ke snapshot berikutnya.
-3. **Riwayat repositori**: rantai permanen snapshot, disebut **commit**.
+## @lesson Lima cara data menjadi salah
+Dataset KopiKu yang akan Anda pakai sepanjang kursus ini sengaja dibuat sedikit kotor, karena data nyata memang begitu. Masalah-masalah ini mencakup sebagian besar yang akan pernah Anda debug. Kenali sejak awal.
 
-Siklus dasarnya:
+**1. Duplikat.** Pesanan yang sama muncul dua kali. Penyebab: job mencoba ulang setelah timeout lalu memuat file lagi; sumber mengirim "setidaknya sekali"; dua sumber melaporkan event yang sama. Akibat: omset terhitung dua kali. Pertahanan: beri setiap record kunci yang stabil dan buat pemuatan *idempoten* (dijalankan dua kali hasilnya sama), yang dibahas mendalam di Modul 2.4.
 
-```bash
-git init                         # mulai melacak folder ini (sekali)
-git status                       # apa yang berubah? apa yang sudah di-stage?
-git add summarize.py             # stage sebuah file untuk snapshot berikutnya
-git commit -m "Add script that counts orders by status"   # ambil snapshot
-git log --oneline                # daftar riwayat
-git diff                         # lihat perubahan yang belum di-stage baris demi baris
-```
+**2. Data terlambat atau hilang.** File mitra tiba pukul 09.40, bukan 06.00. Aplikasi seluler sempat offline dan baru mengirim event kemarin hari ini. Akibat: laporan kemarin salah, lalu diam-diam "membaik sendiri". Pertahanan: catat dua waktu (kapan kejadiannya dan kapan Anda menerimanya), dan rancang job agar memproses ulang beberapa hari terakhir.
 
-**Commit yang baik** kecil dan pesannya menjelaskan *apa dan mengapa* ("Reject orders with non-positive totals"), bukan "update" atau "fix". Commit ketika satu hal sudah berfungsi. Commit kecil membuat kesalahan mudah ditemukan dan dibatalkan.
+**3. Perubahan skema (schema drift).** Tim sumber mengganti nama kolom `total` menjadi `total_amount`, atau mengubah integer menjadi teks, tanpa memberi tahu. Akibat: job Anda crash, atau lebih buruk, mengisi kolom dengan null dan jalan terus. Pertahanan: validasi bentuk data di pintu masuk dan sepakati *data contract* dengan produsen data (Modul 2.5).
 
-**Membatalkan dengan aman** (pelajari sebelum Anda membutuhkannya):
+**4. Nilai rusak.** Total negatif, `"Rp 1.250.000"` di tempat yang seharusnya angka, status yang ditulis `PAID`, `paid`, dan `Paid`, id pelanggan yang tidak ada, tanggal yang ditulis hari-dulu. Akibat: penjumlahan salah, join rusak, baris hilang tanpa suara. Pertahanan: parse dengan ketat, seragamkan, dan kirim baris yang tidak bisa dipercaya ke **karantina**, jangan menebak atau membuangnya diam-diam.
 
-- Membuang perubahan yang belum di-commit pada sebuah file: `git restore file.py`
-- Mengeluarkan file dari staging: `git restore --staged file.py`
-- Membatalkan commit dengan menambah commit baru yang membalikkannya: `git revert <commit>`
-- Memperbaiki pesan commit terakhir (yang belum dibagikan): `git commit --amend`
+**5. Perubahan volume dan kecepatan.** Black Friday melipatgandakan trafik sepuluh kali, atau sebuah bug memotongnya setengah. Job yang biasanya lima menit kini lima jam, atau kehabisan memori. Akibat: dashboard terlambat, job crash, tagihan cloud yang mengejutkan. Pertahanan: ukur volume dan durasi, beri alert pada anomali, dan rancang untuk skala (Level 2 dan 3).
 
-**Branch** memungkinkan Anda bereksperimen tanpa menyentuh jalur utama: `git switch -c coba-parser-baru`, bekerja dan commit, lalu gabungkan (`git switch main && git merge coba-parser-baru`) atau buang. **Remote** seperti GitHub menyimpan salinan di tempat lain: `git remote add origin <url>` dan `git push -u origin main`. Repositori yang di-push adalah cadangan dan portofolio, tetapi juga sesuatu yang bisa dibaca orang lain, itulah mengapa dua poin berikutnya penting.
+Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server restart di tengah job, disk penuh, kredensial kedaluwarsa). Kurang menarik, tetapi menyebabkan banyak insiden jam 3 pagi. Pertahanan untuk keenamnya sama: **validasi di batas, buat setiap langkah aman dijalankan ulang, dan amati semuanya.**
 
-**`.gitignore`** mendaftar file yang tidak boleh dilacak Git: `venv/`, `.env`, `__pycache__/`, file data besar seperti `data/`. Catatan: mengabaikan file hanya berlaku untuk file yang belum di-commit. Kalau Anda sudah meng-commit `data/` sebelumnya, tambahkan ke `.gitignore` *dan* jalankan `git rm -r --cached data` untuk berhenti melacaknya.
+> **Peringatan:** Kegagalan paling berbahaya adalah yang *diam-diam*. Crash terlihat dan beres dalam sejam. Pipeline yang berjalan "sukses" dan menulis angka salah bisa menyesatkan keputusan berminggu-minggu. Setiap kali merancang sesuatu di kursus ini, tanyakan: "kalau ini salah, bagaimana saya akan mengetahuinya?"
 
-> **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu rahasia tidak boleh di-commit, bahkan "sementara".
+> 💡 **Jeda Praktik 1 (Eksplorasi Data Kotor):**
+> Sebelum lanjut membaca teori format, buktikan kelima masalah ini di komputer Anda! Buka terminal di folder kursus, buat datanya, lalu intip file pesanan:
+> `python3 labs/shared/shopgen.py --out data`
+> `head -20 data/orders.csv`
+> `grep -c "Rp " data/orders.csv` (total yang ditulis format teks)
+> `grep -c ",-" data/orders.csv` (total bernilai minus/rusak)
+> `cat data/manifest.json` (JSON adalah teks kunci-nilai terstruktur yang dijelaskan di pelajaran berikut; `manifest.json` mencatat semua anomali yang ditanam generator)
+> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 6 di bawah.
 
-> 💡 **Jeda Praktik 5 (Inisialisasi Git & Proteksi .gitignore):**
-> Masih di dalam folder `~/kopiku` dengan terminal Anda:
-> 1. Inisialisasi pelacakan Git: `git init`
-> 2. Buat file `.gitignore` agar folder venv dan data tidak ter-commit:
-> `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
-> 3. Buat commit pertama Anda:
-> `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
-> 4. Periksa riwayat Anda: `git log --oneline` (Anda resmi memiliki snapshot Git pertama!). Lanjut ke Pelajaran 6.
+## @lesson Format data yang akan Anda temui
+Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-jam.
 
-## @part Kebiasaan kerja yang aman
+**CSV** (comma-separated values) adalah format pertukaran paling umum dan paling tidak andal. Ia tidak punya tipe: semua nilai adalah teks, sehingga `007`, `7`, dan `"7"` tidak bisa dibedakan sampai Anda memutuskan. Ia tidak punya standar untuk tanggal, pemisah desimal, tanda kutip, atau encoding; nama pelanggan yang mengandung koma atau baris baru merusak parsing yang naif. Selalu pakai parser CSV yang benar (modul `csv` Python), jangan pernah `line.split(",")`, dan selalu tentukan encoding (biasanya UTF-8).
 
-## @lesson Rahasia dan konfigurasi
-**Rahasia (secret)** adalah apa pun yang memberi akses: password, API key, token, private key, connection string database yang berisi password. **Konfigurasi** adalah pengaturan yang berbeda antar lingkungan (host database di development vs produksi). Keduanya harus berada *di luar* kode Anda.
+**JSON** dan **NDJSON**. JSON menggambarkan data bersarang dan punya tipe dasar (string, angka, boolean, null). NDJSON (newline-delimited JSON) menaruh satu objek JSON per baris, sehingga Anda bisa memproses file raksasa baris demi baris tanpa memuat semuanya. Event klik dan log biasanya memakai NDJSON. Waspadai field yang kadang tidak ada dan angka yang datang sebagai string.
 
-Versi pemula dari solusinya adalah environment variable:
+**Parquet** adalah format biner *kolumnar* untuk analitik. Ia menyimpan tiap kolom bersama-sama, terkompresi baik, dan mempertahankan tipe, sehingga membaca tiga kolom dari lima puluh hanya membaca tiga kolom itu. Anda akan memakainya intensif mulai Modul 2.1. Anda tidak bisa membukanya di editor teks, harga yang wajar untuk ukuran yang jauh lebih kecil dan kecepatan yang jauh lebih tinggi daripada CSV.
 
-```python
-import os
-db_password = os.environ["DB_PASSWORD"]      # gagal dengan jelas bila tidak ada: bagus
-region = os.environ.get("REGION", "ap-southeast-1")   # dengan nilai bawaan yang tidak berbahaya
-```
+**Tabel database** adalah sumber utama lainnya. Anda membacanya dengan SQL, baik sebagai salinan penuh maupun dengan menangkap hanya yang berubah (change data capture, Modul 3.2).
 
-Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.gitignore`, lalu muat dengan shell (`set -a; source .env; set +a`) atau library seperti `python-dotenv`. Di produksi, platform menyuntikkannya dari secrets manager. Commit sebuah `.env.example` berisi nilai palsu agar rekan tim tahu variabel apa saja yang ada.
+Aturan praktis: CSV dan JSON untuk *pertukaran* (manusia dan sistem lain mengirimkannya kepada Anda); Parquet dan tabel database untuk *penyimpanan dan analisis*. Langkah pertama pipeline yang umum adalah mengubah yang pertama menjadi yang kedua, dengan tipe yang dipaksakan.
 
-Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena bot memindai repositori publik dalam hitungan menit. Urutan perbaikan penting: (1) **cabut dan ganti rahasia** di penyedianya, (2) baru bersihkan riwayat repositori bila perlu, (3) lalu tambahkan file ke `.gitignore` dan aktifkan secret scanning. Menghapus file di commit berikutnya *bukan* perbaikan.
+**Membaca dua format tanggal di Python (`datetime.strptime`).** Tanggal dari file CSV sering mencampur gaya seperti `"2026-01-31T14:03:00"` dan `"31/01/2026 14:03"`. Pustaka standar Python punya `from datetime import datetime`, yang menyediakan `datetime.strptime(text, fmt)` untuk mencocokkan teks dengan pola format (`"%Y-%m-%dT%H:%M:%S"` untuk ISO atau `"%d/%m/%Y %H:%M"` untuk hari/bulan/tahun) dan memunculkan `ValueError` jika tidak cocok. Tangkap `ValueError` untuk mencoba pola berikutnya, lalu ubah hasil yang sah kembali ke teks ISO standar dengan `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
 
-> 💡 **Jeda Praktik 6 (Proteksi File Rahasia):**
-> Lindungi rahasia sebelum terlanjur bocor!
-> Di dalam `~/kopiku`, tambahkan aturan `.env` ke `.gitignore` (jika belum ada).
-> Buat file contoh publik: `echo "DATABASE_URL=sqlite:///data/warehouse.db" > .env.example`
-> Simpan ke Git:
-> `git add .env.example && git commit -m "chore: add env template"`
-> Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Pelajaran 7.
+> 💡 **Jeda Praktik 2 (Parser Angka & Timestamp):**
+> Jangan baca materi berikutnya dulu! Buka `labs/mod-0-2/pipeline.py` di Text Editor Anda (klik di sidebar atau ketik `code labs/mod-0-2/pipeline.py`).
+> Terapkan konversi tipe data yang baru Anda pelajari:
+> 1. Kerjakan `parse_total(raw)`: bersihkan `"Rp"` dan titik, ubah ke integer Rupiah, dan return `None` jika teks rusak/kosong.
+> 2. Kerjakan `parse_ts(raw)`: coba kedua pola `datetime.strptime` di atas dan kembalikan teks ISO `"YYYY-MM-DDTHH:MM:SS"` atau `None`.
+> Uji kedua parser di terminal:
+> `pytest labs/mod-0-2/test_lab.py -v -k TestParsers`
+> Jika kedua tes parser PASSED, Anda siap melangkah ke aturan pembersihan defensif di Pelajaran 7.
 
-## @lesson Kebiasaan kerja yang membuat Anda lebih cepat
-Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang yang bergulat dengan alatnya.
+## @lesson Cara kerja kursus ini, dan data KopiKu
+Setiap modul punya empat bagian, dan sebaiknya dikerjakan berurutan:
 
-- **Satu proyek, satu folder, satu repositori, satu environment.** Untuk kursus ini: `~/kopiku/` berisi `venv/`, `data/`, skrip Anda, `requirements.txt`, `.gitignore`, dan `README.md` singkat yang menjelaskan cara menjalankan.
-- **Jauhkan data dari Git, dan buat agar bisa direproduksi.** Data itu besar dan berubah; *resep* yang menghasilkannya (perintah generator) masuk ke README. Ini kebiasaan reprodusibilitas, dan perekrut memperhatikannya.
-- **Buat error mudah dibantu.** Saat meminta bantuan, sertakan perintah persis yang Anda jalankan, teks error lengkap (sebagai teks, bukan tangkapan layar), apa yang Anda harapkan, versi Python dan OS Anda, dan apa yang sudah Anda coba. Pertanyaan yang rapi dijawab dalam hitungan menit; yang samar diabaikan.
-- **Baca sebelum menempel.** Pahami setiap perintah yang Anda salin. Utamakan dokumentasi resmi untuk langkah instalasi; tutorial cepat usang.
-- **Pakai editor yang membantu.** Visual Studio Code dengan ekstensi Python memberi syntax highlighting, terminal terintegrasi, dan debugger. Keterampilan terminal di modul ini bekerja sama di dalamnya.
+1. **Materi** (halaman ini). Baca sambil membuka lab di sebelahnya.
+2. **Lab.** Anda menulis kode sungguhan terhadap data KopiKu. Setiap lab punya tes otomatis sehingga Anda tahu solusi Anda benar-benar benar, bukan sekadar "jalan". Solusi referensi disertakan; buka hanya setelah Anda mencoba.
+3. **Chaos lab.** Kegagalan produksi bergaya nyata. Tebak penyebabnya sebelum membaca jawaban. Debugging adalah keterampilan yang dibangun dengan berlatih.
+4. **Kuis.** Pertanyaan pendek untuk memeriksa bahwa Anda memahami gagasannya, bukan sintaksnya.
 
-Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, lihat hasilnya, commit. Semua yang datang kemudian di kursus ini (tes, container, orchestrator) adalah siklus yang sama dengan alat yang lebih baik.
+Data untuk setiap lab berasal dari satu generator, `labs/shared/shopgen.py`. Dengan pengaturan yang sama ia selalu menghasilkan file yang sama, sehingga hasil Anda bisa diperiksa dengan tepat. Ia membuat pelanggan, produk, pesanan dan baris pesanan, event website, dan log perubahan pelanggan, lalu menanam masalah dari pelajaran sebelumnya dengan tingkat yang diketahui: baris duplikat, total bergaya `Rp 1.250.000`, status huruf campur, dua format tanggal, total negatif, id pelanggan yatim, baris JSON terpotong. Sebuah `manifest.json` mencatat persis apa yang ditanam, dan itulah cara tes mengetahui jawaban yang benar.
 
-**Membaca `summarize.py` sebelum mengeditnya.** Starter sudah menyiapkan dua alat standar Python untuk Anda:
-- **`argparse`**: membaca nama file yang Anda ketik setelah `python3 summarize.py` (misalnya `data/orders.csv`) dan menyimpannya ke `args.path`.
-- **`collections.Counter`**: dictionary khusus untuk menghitung — menulis `counts[status] += 1` otomatis dimulai dari `0` tanpa perlu menulis `counts.get(status, 0)`.
+Dua kebiasaan akan membantu lebih daripada alat apa pun:
 
-> 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
-> Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
-> 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/projects/DECourse` (folder dari Mulai di sini, langkah 3; `export` hanya berlaku di jendela terminal ini)
-> 1. Masih di `~/kopiku`, salin generator dan buat datanya:
-> `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
-> 2. Salin starter skrip: `cp $COURSE/labs/mod-0-2/starter/summarize.py .`
-> 3. Buka `summarize.py` di editor Anda, implementasikan penghitungan pesanan per status huruf kecil.
-> 4. Commit skrip dan generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
-> 5. Catat dependensi: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
-> 6. Jalankan pemeriksa otomatis dari repositori kursus:
-> `python3 $COURSE/labs/mod-0-2/check.py ~/kopiku`
-> Jika semua baris PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional!
+- **Lihat datanya dulu.** Sebelum menulis kode, buka file dan baca lima puluh baris. Setiap bug serius di kursus ini bisa terlihat dengan mata kalau Anda mau melihat.
+- **Tuliskan arti "benar".** Untuk setiap job, nyatakan satu atau dua fakta yang harus berlaku pada outputnya (misalnya: "tiap pesanan muncul sekali"; "omset harian tidak pernah menghitung pesanan yang dibatalkan"). Kalimat-kalimat itu menjadi tes Anda.
 
-## @lab Lab: bangun workspace KopiKu Anda
-Buat folder proyek yang akan Anda pakai di sisa kursus ini, dan buktikan ia disiapkan dengan benar lewat pemeriksa otomatis. Workspace Anda butuh lingkungan terisolasi, riwayat Git dengan commit yang masuk akal, `.gitignore` yang melindungi Anda, dan skrip kecil yang menghitung pesanan per status.
+> 💡 **Jeda Praktik 3 (Pembersihan Defensif & Agregasi Omset):**
+> Buka kembali `labs/mod-0-2/pipeline.py` di editor Anda untuk menuntaskan seluruh lab:
+> 1. Kerjakan `clean_orders(rows)`: pisahkan data menjadi `clean` dan `rejected` (dengan mencatat `reason` untuk setiap baris yang dibuang). Tangani duplikat order_id dengan mempertahankan baris pertama.
+> 2. Kerjakan `daily_revenue(clean)`: hitung total omset per tanggal `YYYY-MM-DD` dengan mengabaikan status cancelled dan refunded.
+> Jalankan seluruh pengujian di terminal:
+> `pytest labs/mod-0-2/test_lab.py -v`
+> Setelah semua 8 tes HIJAU, jalankan pipeline pada data riil:
+> `python3 labs/mod-0-2/pipeline.py data/orders.csv`
+> Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!
+
+## @lab Lab: bersihkan file pesanan KopiKu
+Anda punya file baris pesanan KopiKu dengan masalah dari materi: total ditulis sebagai teks, dua format tanggal, duplikat, nilai mustahil. Tulis empat fungsi kecil yang mengubahnya menjadi data yang bisa dipercaya, lalu hitung omzet per hari. Ini miniatur dari yang dilakukan setiap pipeline: baca, periksa, bersihkan, sisihkan yang tidak bisa dipercaya, lalu hitung.
+
+| Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
+|---|---|---|
+| `parse_total` | `"Rp 1.250.000"` atau `"150000"` menjadi angka rupiah, atau `None` jika tidak bisa dipahami | setiap sumber menulis uang dengan caranya sendiri; laporan butuh satu tipe angka |
+| `parse_ts` | dua format tanggal (`"2026-01-31T14:03:00"`, `"31/01/2026 14:03"`) menjadi satu format standar | omzet per hari, pengiriman terlambat, "7 hari terakhir": semua butuh tanggal yang bisa dibandingkan |
+| `clean_orders` | menyimpan baris yang baik dengan tipe yang benar, dan memasukkan setiap baris rusak ke `rejected` beserta alasannya | inti pipeline: tidak ada yang salah masuk ke laporan, dan tidak ada yang dibuang tanpa jejak |
+| `daily_revenue` | omzet per hari, tanpa pesanan yang dibatalkan dan dikembalikan | angka yang ditanyakan pendiri setiap pagi |
+
+Fungsi-fungsinya saling membangun: `clean_orders` memakai `parse_total` dan `parse_ts`, dan `daily_revenue` memakai hasil `clean_orders`. Karena itu urutannya penting.
 
 ### @steps
-1. Buat folder dan masuk ke dalamnya:
+1. Buka **Pratinjau browser** di bawah dan baca `pipeline.py` dari atas ke bawah sekali: empat fungsi kosong, masing-masing dengan deskripsi dan contoh nyata dari file.
+2. Tulis sesuai urutan ini, jalankan tes setelah setiap fungsi dan lihat hanya kelompoknya: `parse_total`, lalu `parse_ts`, lalu `clean_orders`, lalu `daily_revenue`.
+3. Aturan untuk baris yang tidak bisa dipercaya: **jangan pernah menebak dan jangan pernah membuang diam-diam.** Setiap baris yang Anda tinggalkan masuk ke `rejected` dengan alasan singkat.
+4. Opsional, jika Anda sudah mengikuti Mulai di sini: lihat file aslinya dengan mata sendiri. Di terminal, dari folder kursus:
 
 ```bash
-mkdir -p ~/kopiku && cd ~/kopiku
+python3 labs/shared/shopgen.py --out data
+head -20 data/orders.csv           # 20 baris pertama
+grep -c "Rp " data/orders.csv      # berapa total yang ditulis sebagai teks
+cat data/manifest.json             # apa yang ditanam di file, dan berapa banyak
 ```
 
-2. Buat dan aktifkan virtual environment, lalu buat commit pertama dengan `.gitignore` yang mengecualikan `venv/`, `.env`, `data/`, dan `__pycache__/`:
+5. **Kerjakan yang sesungguhnya.** Di komputer Anda sendiri, dengan venv kursus dari Modul 0.1 aktif, tulis lagi keempat fungsi di editor **tanpa menyalin** dari pratinjau, lalu dari folder kursus:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate            # Windows PowerShell: venv\Scripts\Activate.ps1
-git init
-printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore
-git add .gitignore
-git commit -m "Start project with a .gitignore"
+pytest labs/mod-0-2/test_lab.py -v                  # sampai semua tes lulus
+python3 labs/mod-0-2/pipeline.py data/orders.csv    # jalankan pada file asli: baris masuk, bersih, ditolak
+python3 scripts/prove.py mod-0-2                    # kode bukti untuk kotak Bukti di halaman ini
 ```
 
-3. Beri tahu shell di mana kursusnya (folder dari Mulai di sini, langkah 3; ubah jika Anda meng-clone di tempat lain, dan ulangi baris ini di setiap terminal baru), salin generator data ke proyek Anda, lalu buat datanya:
-
-```bash
-export COURSE=~/projects/DECourse
-cp $COURSE/labs/shared/shopgen.py .
-python3 shopgen.py --out data
-```
-
-4. Salin skrip starter ke proyek Anda dengan `cp $COURSE/labs/mod-0-2/starter/summarize.py .`, buka di editor, lalu implementasikan. Ia harus menghitung setiap `order_id` sekali dan mengelompokkan menurut status huruf kecil. Coba jalankan, dan bandingkan dengan one-liner terminal dari materi (ingat one-liner itu menghitung ganda duplikat, jadi angkanya akan sedikit berbeda: itulah intinya):
-
-```bash
-python3 summarize.py data/orders.csv
-```
-
-5. Commit skrip dan generator, catat dependensi (walau sekarang belum ada, file itu bagian dari kebiasaan) lalu commit lagi:
-
-```bash
-git add shopgen.py summarize.py
-git commit -m "Add script that counts orders by status"
-python -m pip freeze > requirements.txt
-git add requirements.txt
-git commit -m "Record dependencies in requirements.txt"
-```
-
-6. Jalankan pemeriksa dan perbaiki apa pun yang dilaporkan:
-
-```bash
-python3 $COURSE/labs/mod-0-2/check.py ~/kopiku
-```
-
-7. **Siapkan untuk Modul 0.1 dan buktikan workspace Anda.** Buat virtual environment bersama untuk folder kursus satu kali saja, pasang `pytest` (Modul 0.1 langsung memakainya setelah ini; jika tadi Anda baru mencoba `Lab 0.0` di pratinjau browser, jalankan juga `pytest labs/mod-0-0/test_lab.py -v` di sini), lalu buat kode bukti Modul 0.2 Anda:
-
-```bash
-cd ~/projects/DECourse
-python3 -m venv venv && source venv/bin/activate
-python -m pip install pytest
-python3 scripts/prove.py mod-0-2 ~/kopiku
-```
-
-Perintah terakhir mencetak kode bukti. Tempel ke kotak **Bukti** di halaman lab Modul 0.2.
-
-   Venv kedua ini milik **folder kursus** (`~/projects/DECourse`, atau tempat Anda meng-clone-nya di Mulai di sini, langkah 3), bukan milik `~/kopiku`: satu venv per proyek adalah kebiasaan yang normal. Inilah venv yang Anda pakai untuk semua modul berikutnya. Buat sekali saja; di awal setiap sesi belajar jalankan `cd ~/projects/DECourse` dan `source venv/bin/activate`, lalu pastikan prompt diawali `(venv)`.
+6. Opsional: tulis tiga kalimat di `NOTES.md` tentang masalah yang Anda temukan dan mana yang paling mengejutkan.
 
 ### @files
-- labs/mod-0-2/starter/summarize.py :: Kerangka skrip Anda: isi logika penghitungannya :: starter
-- labs/mod-0-2/check.py :: Pemeriksa yang memeriksa workspace Anda :: test
-- labs/mod-0-2/reference/summarize.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference
-- labs/mod-0-2/reference/make_workspace.sh :: Membuat workspace yang sudah jadi secara otomatis :: reference
+- labs/mod-0-2/pipeline.py :: File kerja Anda: implementasikan empat fungsi TODO :: starter
+- labs/mod-0-2/test_lab.py :: Tes yang memeriksa pekerjaan Anda :: test
+- labs/shared/shopgen.py :: Generator data KopiKu :: data
+- labs/mod-0-2/reference/pipeline.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference
 
 ### @deliverables
-- `python3 labs/mod-0-2/check.py ~/kopiku` mencetak PASS di setiap baris
-- Riwayat Git Anda punya minimal tiga commit dengan pesan yang bermakna
-- `venv/`, `data/`, dan `.env` tidak dilacak oleh Git
-- 8 tes Lab 0.1 lulus di terminal Anda sendiri, di dalam venv Anda sendiri (penyiapan Anda sendiri, bukan pratinjau browser)
+- Semua 8 tes di test_lab.py lulus **di komputer Anda sendiri, dijalankan dari terminal Anda sendiri** (lulus di pratinjau browser tidak dihitung)
+- Setiap baris yang dibuang muncul di `rejected` dengan alasan
+- Anda bisa menjelaskan masalah mana dari kelima masalah yang diwakili tiap baris yang ditolak atau diperbaiki
 
 ### @verify
-Pemeriksa itulah verifikasinya:
+Jalankan tes dari root repositori:
 
 ```bash
-python3 labs/mod-0-2/check.py ~/kopiku
+pytest labs/mod-0-2/test_lab.py -v
 ```
 
-Ia memeriksa environment, repositori, `.gitignore`, riwayat commit, bahwa tidak ada rahasia di seluruh riwayat, dan bahwa skrip Anda memberi hitungan yang benar. Setiap baris yang gagal mencetak petunjuk.
+Semua 8 tes harus lulus (`8 passed`). Untuk melihat seperti apa hasil yang lulus sebelum Anda mulai, jalankan tes terhadap solusi referensi: `LAB_DIR=reference pytest labs/mod-0-2/test_lab.py -v`.
 
-## @chaos API key yang menjadi publik
+## @chaos Omset hari Selasa yang berlipat dua
 ### @scenario
-Seorang engineer junior membuat job kecil yang mengunduh kurs mata uang dari API berbayar. Agar cepat jalan, ia menempelkan API key di `config.py`, commit, dan mem-push repositori ke akun GitHub publik untuk dipamerkan di portofolionya. Tiga hari kemudian team lead menerima email dari penyedia API: pemakaian pada key itu 400 kali lebih tinggi dari normal, dan tagihan bulanannya menuju angka yang sangat besar. Job-nya sendiri masih berjalan baik.
+Rabu pagi CEO bertanya mengapa omset hari Selasa tepat dua kali lipat angka biasanya. Tidak ada yang istimewa: tidak ada kampanye, tidak ada perubahan harga. Job malam yang memuat pesanan ke database analitik melaporkan "sukses" setiap hari. Pesanan hari Selasa di database toko tampak normal.
+
+Anda diberi log job itu: pada Selasa malam langkah pemuatan berjalan pukul 01.00, gagal pukul 01.07 dengan timeout jaringan saat *menulis*, dan scheduler otomatis mencobanya ulang pukul 01.10. Percobaan ulang selesai dengan normal.
 
 ### @cause
-Key itu di-commit sebagai teks biasa dan repositorinya publik. Bot otomatis memindai setiap push publik untuk pola yang menyerupai key dan mulai memakai yang mereka temukan, biasanya dalam hitungan menit. Engineer junior itu lalu menghapus key dari `config.py` di commit baru, yang tidak mengubah apa pun: key masih ada di commit sebelumnya, terlihat oleh siapa pun yang membuka riwayat.
+Job itu **menambahkan** (append) pesanan hari itu ke tabel analitik dengan `INSERT` biasa. Percobaan pertama sudah menulis sebagian besar baris sebelum timeout. Percobaan ulang mulai dari awal dan menulis *semua* baris lagi. Baris dari percobaan pertama tidak pernah dihapus, sehingga sebagian besar pesanan kini ada dua kali, dan setiap `SUM(total)` menghitungnya ganda.
+
+Dua hal memperburuk keadaan: job melaporkan sukses setelah percobaan ulang sehingga tidak ada alert, dan tidak ada yang memeriksa bahwa setiap id pesanan hanya muncul sekali.
 
 ### @fix
-1. **Cabut key itu segera** di penyedia dan terbitkan yang baru. Ini satu-satunya langkah yang benar-benar menghentikan kerugian.
-2. Periksa log pemakaian penyedia untuk melihat key lama dipakai untuk apa.
-3. Pindahkan key baru ke environment variable (`os.environ["RATES_API_KEY"]`), taruh `.env` di `.gitignore`, dan commit `.env.example` berisi nilai palsu.
-4. Jika repositori harus tetap publik, hapus rahasia dari riwayat dengan alat seperti `git filter-repo` lalu force-push, tetapi anggap ini pembersihan, bukan keamanan: key lama sudah terlanjur bocor.
-5. Aktifkan secret scanning milik platform dan tambahkan pemeriksaan pre-commit agar ini tidak terulang.
+1. Perbaiki datanya: untuk hari yang terdampak, hapus dan muat ulang barisnya, atau buang duplikat dengan menyisakan satu baris per `order_id`.
+2. Buat pemuatan **idempoten**: ganti data hari itu dalam satu langkah atomik (hapus hari itu dan masukkan ulang dalam satu transaksi, atau pakai `MERGE`/upsert berkunci `order_id`) alih-alih menambahkan membabi buta.
+3. Tambahkan pemeriksaan yang menggagalkan job bila ada `order_id` yang muncul lebih dari sekali, dan pemeriksaan yang membandingkan jumlah baris hari itu dengan sumbernya.
 
 ### @pattern
-Rahasia tinggal di environment, tidak pernah di repositori. Jika suatu saat bocor, cabut dulu, bersihkan kemudian.
+Anggap setiap job suatu hari akan berjalan dua kali. Kalau menjalankannya dua kali mengubah hasil, job itu belum selesai. Gagasan ini (idempotensi) muncul kembali di hampir setiap modul.
 
 ## @quiz
-### Apa tujuan utama virtual environment Python?
-- [ ] Membuat kode Python berjalan lebih cepat dengan mengompilasinya lebih dulu untuk mesin yang dipakai
-- [x] Memberi setiap proyek paketnya sendiri, sehingga proyek yang butuh versi berbeda tidak berbenturan
-- [ ] Melindungi kode Anda agar tidak dibaca pengguna lain yang berbagi komputer yang sama
-- [ ] Memasang salinan kedua Python milik sistem operasi agar pembaruan tidak bisa mengubahnya
+### Mengapa perusahaan biasanya membangun database analitik terpisah alih-alih membuat laporan langsung dari database produksi?
+- [ ] Database produksi dirancang hanya menyimpan data satu tahun terakhir, sehingga riwayat lama tetap harus disimpan di sistem lain
+- [x] Query analitik yang besar memperlambat transaksi pelanggan, dan tabel produksi dirancang untuk menulis, bukan untuk menganalisis
+- [ ] Database analitik tidak memakan biaya karena hanya berisi salinan, sehingga memisahkannya selalu menurunkan tagihan bulanan
+- [ ] Query SQL tidak bisa dijalankan di database produksi, sehingga analis harus mengekspor semua tabel ke spreadsheet terlebih dahulu
 
-> Virtual environment adalah folder privat dengan Python dan paket terpasangnya sendiri, dibuat per proyek. Ia tidak berpengaruh pada kecepatan maupun kerahasiaan file.
+> Sistem produksi (OLTP) harus tetap cepat untuk tulisan kecil. Memindai jutaan baris di sana memperlambat produk, dan desainnya (kondisi terkini, banyak tabel kecil) kurang cocok untuk analisis riwayat.
 
-### Anda meng-commit `data/orders.csv` minggu lalu dan kini menambahkan `data/` ke `.gitignore`. Apa yang terjadi pada file itu?
-- [ ] Git menghapusnya dari riwayat repositori begitu baris itu ditambahkan
-- [x] Ia tetap dilacak; ignore hanya untuk file yang belum dilacak. Pakai `git rm -r --cached data`
-- [ ] Ia dihapus dari disk Anda saat `git pull` berikutnya
-- [ ] Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan oleh Git
+### Dalam contoh KopiKu, peran mana yang terutama bertanggung jawab membawa data dari website, pembayaran, dan iklan ke satu tempat yang bisa dipercaya tepat waktu?
+- [ ] Data analyst, yang membuat dashboard yang dibaca seluruh perusahaan setiap pagi
+- [x] Data engineer, yang membangun dan menjalankan pipeline pemindah data
+- [ ] Software engineer tim checkout, yang memegang skema database produksi
+- [ ] Data scientist, yang melatih model peramal permintaan bulan depan
 
-> `.gitignore` hanya berlaku untuk file yang belum dilacak Git. File yang sudah di-commit terus dilacak sampai Anda mengeluarkannya dari index (dan tetap ada di commit lama).
+> Data engineer membangun dan menjalankan pipeline yang memindahkan dan menyiapkan data. Analis dan scientist memakai hasilnya; software engineer membangun sumbernya.
 
-### Apa yang dilakukan `grep "paid" orders.csv | wc -l`?
-- [ ] Menghitung berapa file di folder saat ini yang mengandung kata "paid"
-- [ ] Menghapus setiap baris yang mengandung "paid" dan mencetak jumlah baris yang tersisa
-- [x] Menghitung berapa baris di orders.csv yang mengandung teks "paid" di mana pun
-- [ ] Menulis kata "paid" ke orders.csv satu kali untuk setiap baris yang sudah ada
+### Sebuah job malam memuat pesanan hari itu dengan menambahkannya ke tabel. Ia gagal di tengah dan scheduler mencobanya ulang otomatis. Apa hasil yang paling mungkin?
+- [ ] Tabel tidak berubah, karena job yang gagal selalu membatalkan semua yang ditulisnya sebelum gagal
+- [ ] Percobaan ulang mengenali baris yang sudah ada dan melewatinya, sehingga tiap pesanan tersimpan tepat sekali
+- [x] Banyak pesanan termuat dua kali sehingga semua penjumlahan, hitungan, dan rata-rata hari itu terlalu tinggi
+- [ ] Percobaan ulang lebih dulu menghapus seluruh tabel lalu membangunnya lagi, sehingga data benar tetapi lama muncul
 
-> `grep` mencetak baris yang cocok, dan pipe mengirimnya ke `wc -l` yang menghitung baris. Tidak ada yang diubah.
+> Append biasa tidak mengingat percobaan pertama. Kecuali pemuatan itu idempoten (ganti atau upsert berdasarkan kunci), percobaan ulang menambahkan barisnya lagi.
 
-### Anda menjalankan `sort orders.csv > orders.csv`. Apa hasilnya?
-- [ ] File terurut di tempat, yang merupakan cara biasa dan aman untuk mengurutkan file
-- [ ] Perintah gagal dengan error karena masukan dan keluarannya file yang sama
-- [x] File menjadi kosong, karena shell memotongnya sebelum `sort` sempat membaca
-- [ ] File terurut dan salinan cadangan bernama orders.csv~ dibuat otomatis
+### Pernyataan mana tentang pemrosesan batch dan streaming yang benar?
+- [ ] Streaming selalu desain yang lebih baik karena lebih baru dan karena itu menangani semua beban kerja dengan lebih murah
+- [ ] Batch tidak sanggup menangani data besar, dan itu alasan utama perusahaan beralih ke streaming
+- [x] Batch lebih sederhana dan terjadwal; streaming bereaksi dalam hitungan detik tetapi lebih sulit dijalankan
+- [ ] Perusahaan harus memilih salah satu, karena sistem batch dan streaming tidak bisa berbagi data yang sama
 
-> Shell membuka file keluaran untuk ditulis (mengosongkannya) sebelum menjalankan perintah. Tulis ke file baru lalu ganti namanya, atau pakai `sort -o`.
+> Sebagian besar analitik adalah batch. Streaming menambah kerumitan state, urutan, dan pemulihan kegagalan, yang sepadan untuk hal seperti deteksi fraud tetapi tidak untuk laporan mingguan.
 
-### Skrip Python crash dengan stack trace panjang. Ke mana Anda sebaiknya melihat pertama kali?
-- [ ] Baris pertama trace, karena di situlah program mulai berjalan
-- [x] Baris terakhir yang menyebut error-nya, lalu baris terakhir kode Anda sendiri di trace
-- [ ] Bagian tengah trace, karena di situlah kode library berada
-- [ ] Tidak ke mana pun: stack trace untuk pengembang Python dan tidak dimaksudkan dibaca pengguna
+### Apa alasan utama menyimpan salinan data masuk yang tidak diubah di lapisan raw?
+- [ ] Data mentah memakai penyimpanan lebih sedikit daripada data bersih, sehingga menyimpannya lebih dulu menghemat biaya di setiap langkah berikutnya
+- [ ] Salinan mentah membuat dashboard tampil lebih cepat karena datanya belum melewati transformasi yang lambat
+- [x] Bila transformasi berikutnya punya bug, Anda bisa memperbaikinya dan menjalankan ulang semuanya dari input asli
+- [ ] Peraturan perlindungan data mewajibkan setiap tabel di warehouse punya tabel mentah pendamping yang tidak disentuh
 
-> Python mencetak rantai pemanggilan dari panggilan terluar ke terdalam. Baris akhir berisi jenis dan pesan error; frame terdekat di kode Anda biasanya penyebabnya.
+> Memproses ulang dari raw membuat perbaikan dan backfill mungkin. Kalau Anda hanya menyimpan data hasil transformasi, bug di transformasi bisa menghancurkan buktinya.
 
-### Mana pesan commit terbaik untuk perubahan yang membuat langkah pembersihan menolak total negatif?
-- [ ] "update"
-- [x] "Reject orders with a non-positive total"
-- [ ] "Changed some stuff in pipeline.py and also fixed things"
-- [ ] "WIP"
+### Tim sumber mengganti nama kolom `total` menjadi `total_amount` tanpa memberi tahu Anda. Job Anda tetap jalan tetapi kolom omset kini kosong. Ini termasuk kategori masalah apa?
+- [ ] Duplikat: kolom yang diganti namanya termuat berdampingan dengan yang lama, sehingga setiap pesanan muncul dua kali
+- [ ] Data terlambat: nama kolom baru tiba setelah yang lama, sehingga omset terisi beberapa jam kemudian
+- [x] Schema drift yang tidak ketahuan karena tidak ada yang memeriksa bentuk data masuk
+- [ ] Lonjakan volume: job melambat begitu parah sampai berhenti menulis kolom omset
 
-> Pesan yang baik menyebut apa yang berubah dan, bila perlu, mengapa. Pesan yang samar membuat riwayat tidak berguna saat Anda harus mencari bug.
+> Schema drift adalah perubahan struktur sumber. Bagian yang diam-diam itulah kegagalan sebenarnya: pemeriksaan di batas akan menghentikan job dengan error yang jelas.
 
-### Anda tidak sengaja mem-push commit berisi password database ke repositori publik, lalu menghapus file itu di commit berikutnya. Apa yang harus dilakukan?
-- [ ] Tidak perlu apa-apa lagi, karena password sudah tidak ada di versi terbaru kode itu
-- [ ] Menjadikan repositori privat, yang mencegah siapa pun sudah menyalinnya sebelumnya
-- [x] Mengganti password di database lebih dulu, baru membersihkan riwayat dan menambah pengaman
-- [ ] Meminta dukungan GitHub menghapus repositori dan terus memakai password yang sama seperti sebelumnya
+### Mengapa Anda sebaiknya memakai modul `csv` Python dan bukan `line.split(",")` untuk membaca file CSV?
+- [ ] `split` lebih lambat di setiap file, dan modul `csv` ditulis dalam bahasa C untuk menghindari biaya itu
+- [ ] Modul `csv` mengubah setiap kolom ke tipe yang benar secara otomatis, sehingga tidak perlu pembersihan lagi
+- [ ] `split` tidak bisa membaca file yang lebih besar dari memori, sedangkan modul `csv` selalu membaca satu baris sekali waktu
+- [x] Nilai CSV berkutip bisa berisi koma, tanda kutip, atau baris baru, yang dipotong `split` di tempat yang salah
 
-> Rahasia masih ada di commit lama dan mungkin sudah disalin. Mengganti kredensial adalah satu-satunya perbaikan yang benar-benar menghilangkan risiko. Pembersihan riwayat sifatnya sekunder.
+> Nilai seperti `"Santoso, Budi"` mengandung koma yang bukan pemisah. Modul csv mengikuti aturan kutipan. Perhatikan ia tetap mengembalikan semua nilai sebagai teks; mengubah tipe adalah tugas Anda.
 
-### Mengapa `requirements.txt` di-commit ke Git tetapi folder `venv/` tidak?
-- [ ] Git tidak bisa menyimpan folder yang berisi lebih dari seratus file
-- [ ] `requirements.txt` terenkripsi sehingga aman dibagikan, sedangkan `venv/` tidak
-- [x] Folder itu besar dan khusus mesin; file itu bisa membuat ulang environment-nya
-- [ ] Python menolak berjalan jika folder `venv/` disimpan di dalam repositori
+### Sebuah pipeline berjalan tiap malam dan melaporkan sukses, tetapi selama tiga minggu menulis pesanan dengan total 0 karena bug parsing. Apa yang paling cepat menangkapnya?
+- [ ] Menjalankan job yang sama di server lebih cepat supaya selesai sebelum ada yang membuka dashboard
+- [x] Pemeriksaan pada output, seperti "tidak ada total nol atau negatif" dan "omset dalam rentang normal"
+- [ ] Mengirim seluruh file log job ke CEO setiap pagi supaya ada yang membaca peringatannya
+- [ ] Mengganti format input dari CSV ke JSON, yang punya tipe angka sungguhan sehingga tidak mungkin menghasilkan nol
 
-> `python -m pip install -r requirements.txt` membangun ulang environment di mesin mana pun, jadi hanya resepnya yang perlu dikontrol versinya.
+> Sukses sebuah job hanya berarti kodenya berjalan. Pemeriksaan isi output yang menunjukkan apakah hasilnya masuk akal. Kegagalan senyap tertangkap oleh tes pada data, bukan pada eksekusi.
+
+### Sebuah startup berisi dua orang menyimpan angkanya di spreadsheet. CEO meminta dashboard real-time berbasis Kafka untuk rapat direksi hari Senin. Apa respons pertama yang terbaik?
+- [ ] Bangun pipeline streaming sesuai permintaan, karena perusahaan tetap akan butuh streaming saat tumbuh
+- [x] Tanyakan keputusan apa yang diambil dari angka itu dan seberapa sering, lalu tawarkan batch harian yang andal
+- [ ] Tolak, dan terus kirim spreadsheet lewat email sampai perusahaan sudah merekrut tim data lengkapnya sendiri nanti
+- [ ] Mulai dengan klaster Kafka kecil dan job Spark agar tim bisa belajar streaming sambil berjalan
+
+> Ini perusahaan tahap 1: keputusan mingguan butuh angka harian yang bisa dipercaya, bukan kesegaran di bawah satu detik. Membangun platform tahap 3 lebih dulu menghabiskan waktu tim berbulan-bulan sebelum ada angka yang berguna.
+
+### Mana di antara ini yang termasuk enam undercurrent, bukan lima tahap siklus hidup?
+- [ ] Ingestion: menyalin data dari sistem sumber ke platform Anda
+- [ ] Serving: menyerahkan hasilnya ke dashboard, analis, dan model
+- [x] Orkestrasi: menjalankan setiap langkah dengan urutan yang benar, dengan retry
+- [ ] Transformasi: mengubah record mentah menjadi tabel yang bisa dipercaya untuk analisis
+
+> Tahapnya adalah generation, storage, ingestion, transformation, dan serving. Security, data management, DataOps, data architecture, orchestration, dan software engineering mengalir di bawah semuanya.
 
 ## @resources
-- [Dokumentasi Python: venv, membuat virtual environment](https://docs.python.org/3/library/venv.html)
-- [Dokumentasi Python: tutorial argparse](https://docs.python.org/3/howto/argparse.html)
-- [Buku Pro Git (gratis)](https://git-scm.com/book/en/v2)
-- [Dokumen GitHub: menghapus data sensitif dari repositori](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository)
+- [Dokumentasi modul csv Python](https://docs.python.org/3/library/csv.html)
+- [Python datetime: kode format strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes)

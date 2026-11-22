@@ -13,10 +13,10 @@ why: Di dunia kerja data engineering nyata, data jarang sekali tiba dalam berkas
 - Melakukan Change Data Capture (CDC) upsert dan backfill historis ke DuckDB tanpa merusak watermark inkremental di produksi
 
 ## @prereq
-Modul 0.2 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 1.6 (ingesti API, paginasi, dan watermark), serta 2.1 (DuckDB dan Parquet). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan instalasi DuckDB.
+Modul 0.1 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 1.6 (ingesti API, paginasi, dan watermark), serta 2.1 (DuckDB dan Parquet). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan instalasi DuckDB.
 
 ## @lesson Cara kerja capstone ini
-> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.2** (terminal & venv), **Modul 1.2** (exponential backoff, retry & idempotensi), **Modul 1.6** (paginasi API cursor/offset & checkpoint atomik), serta **Modul 2.1** (penyimpanan tabel DuckDB & upsert CDC). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (exponential backoff, retry & idempotensi), **Modul 1.6** (paginasi API cursor/offset & checkpoint atomik), serta **Modul 2.1** (penyimpanan tabel DuckDB & upsert CDC). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
 
 Setiap lab pada modul-modul sebelumnya memberi Anda fungsi-fungsi yang telah ditentukan rangkanya, berkas pengujian otomatis, dan petunjuk langkah demi langkah. Capstone ini sengaja dirancang berbeda: **Anda menerima kontrak teknis, data publik nyata, dan sebuah suite pemeriksa otomatis yang menyerang pipeline Anda.**
 

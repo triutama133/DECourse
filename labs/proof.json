@@ -41,48 +41,48 @@
    "labs/mod-0-0/reference/basics.py"
   ]
  },
- "mod-0-1": {
+ "mod-0-2": {
   "run": [
    {
     "kind": "pytest",
     "targets": [
-     "labs/mod-0-1/test_lab.py"
+     "labs/mod-0-2/test_lab.py"
     ]
    }
   ],
   "tests": [
-   "labs/mod-0-1/test_lab.py"
+   "labs/mod-0-2/test_lab.py"
   ],
   "work": [
-   "labs/mod-0-1/pipeline.py"
+   "labs/mod-0-2/pipeline.py"
   ],
   "reference": [
-   "labs/mod-0-1/reference/pipeline.py"
+   "labs/mod-0-2/reference/pipeline.py"
   ],
   "require_venv": true
  },
- "mod-0-2": {
+ "mod-0-1": {
   "run": [
    {
     "kind": "check",
-    "script": "labs/mod-0-2/check.py",
+    "script": "labs/mod-0-1/check.py",
     "args": [
      "{arg0}"
     ]
    }
   ],
   "tests": [
-   "labs/mod-0-2/check.py"
+   "labs/mod-0-1/check.py"
   ],
   "work": [
    "{arg0}/summarize.py"
   ],
   "reference": [
-   "labs/mod-0-2/reference/summarize.py"
+   "labs/mod-0-1/reference/summarize.py"
   ],
   "arg": "workspace",
   "starter": [
-   "labs/mod-0-2/starter/summarize.py"
+   "labs/mod-0-1/starter/summarize.py"
   ]
  },
  "mod-0-3": {

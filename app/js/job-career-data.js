@@ -59,7 +59,7 @@
         reqs: [
           { text: T("Python untuk mengolah file dan data", "Python for processing files and data"), mod: "mod-1-2" },
           { text: T("SQL: join, group by, window function", "SQL: joins, group by, window functions"), mod: "mod-1-3" },
-          { text: T("Git dan bekerja lewat pull request", "Git and working through pull requests"), mod: "mod-0-2" },
+          { text: T("Git dan bekerja lewat pull request", "Git and working through pull requests"), mod: "mod-0-1" },
           { text: T("Dasar pemodelan dimensional", "Basics of dimensional modelling"), mod: "mod-1-4" },
           { text: T("Mau belajar dbt dan cloud warehouse", "Willing to learn dbt and a cloud warehouse"), mod: "mod-2-3" }
         ],

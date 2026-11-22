@@ -19,7 +19,7 @@ Modules 1.4 (dimensional modeling) and 2.1 (columnar storage and Parquet) help (
 ## @part How a warehouse works
 
 ## @lesson What a cloud data warehouse is
-An operational database (Module 0.1) is built to read and write a few rows very quickly for many users. A **data warehouse** is built for the opposite job: **scan huge amounts of data and aggregate it** for a few analysts and dashboards. The same SQL, a different engine.
+An operational database (Module 0.2) is built to read and write a few rows very quickly for many users. A **data warehouse** is built for the opposite job: **scan huge amounts of data and aggregate it** for a few analysts and dashboards. The same SQL, a different engine.
 
 Two ideas make that fast, and you already know both. **Columnar storage** (Module 2.1) keeps each column together, so a query that needs three of fifty columns reads only those, and similar values compress well. **Massively parallel processing (MPP)** splits one query across many machines, each working on its own slice of the data, and merges the partial results.
 
@@ -171,7 +171,7 @@ A warehouse is built for **bulk loads**, not for inserting one row at a time as 
 
 Other practices:
 
-- Prefer a columnar, compressed format such as **Parquet** for loads; use CSV only when you must, and then watch quoting, encoding and the dirty values of Module 0.1.
+- Prefer a columnar, compressed format such as **Parquet** for loads; use CSV only when you must, and then watch quoting, encoding and the dirty values of Module 0.2.
 - **Load into a staging table first**, validate, then **MERGE** into the final table, so that a retried load never creates duplicates (idempotence, Module 1.2; dbt incremental models, Module 2.3).
 - For small, frequent updates prefer micro-batches (every minute) to row-level streaming inserts, which are more expensive and, in some systems, limited.
 - **External tables** let a warehouse query files in object storage without loading them (Redshift Spectrum, BigQuery external tables, Snowflake external and Iceberg tables): flexible, but usually slower than loaded data because there are no warehouse statistics and no clustering.

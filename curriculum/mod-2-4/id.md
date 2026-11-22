@@ -64,7 +64,7 @@ Aturan emas komunikasi antar-langkah: **alirkan referensi metadata, jangan alirk
 > 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi 30 partisi dari 2026-01-01 hingga 2026-01-30.
 
 ## @lesson Idempotensi dan backfill: aturan yang membuat segalanya aman
-Modul 0.1 telah mengenalkan konsepnya dan Modul 1.2 memperdalam tekniknya, namun di dalam orkestrator, idempotensi adalah syarat mutlak yang tidak bisa ditawar: **Setiap langkah dalam pipeline harus aman untuk dieksekusi berkali-kali untuk interval data yang sama tanpa mengubah hasil akhir.** Orkestrator melakukan retry otomatis, teknisi manusia sering kali menekan tombol trigger ulang, dan operasi backfill memproses ulang riwayat data; jika eksekusi ganda mengakibatkan metrik revenue berlipat ganda, maka bencana finansial hanya tinggal menunggu waktu.
+Modul 0.2 telah mengenalkan konsepnya dan Modul 1.2 memperdalam tekniknya, namun di dalam orkestrator, idempotensi adalah syarat mutlak yang tidak bisa ditawar: **Setiap langkah dalam pipeline harus aman untuk dieksekusi berkali-kali untuk interval data yang sama tanpa mengubah hasil akhir.** Orkestrator melakukan retry otomatis, teknisi manusia sering kali menekan tombol trigger ulang, dan operasi backfill memproses ulang riwayat data; jika eksekusi ganda mengakibatkan metrik revenue berlipat ganda, maka bencana finansial hanya tinggal menunggu waktu.
 
 Pola-pola arsitektur idempotensi yang diuji dalam lab modul ini:
 

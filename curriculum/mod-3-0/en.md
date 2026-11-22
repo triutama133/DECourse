@@ -276,7 +276,7 @@ The scarce resource is not always the obvious one. Metadata and file counts can 
 - [ ] YARN guarantees that no machine fails while it is running a task, so the case does not occur
 - [ ] The reducers wait until all mappers succeed once, and the final answer is then taken from the first run
 
-> Pure, repeatable tasks over durable inputs make retries safe. It is the same property that makes pipeline steps idempotent (Module 0.1).
+> Pure, repeatable tasks over durable inputs make retries safe. It is the same property that makes pipeline steps idempotent (Module 0.2).
 
 ### What is the Hive Metastore?
 - [ ] A cache that holds the results of recent queries so that Hive can answer them without reading any files

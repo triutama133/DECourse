@@ -13,7 +13,7 @@ why: In tutorials, a pipeline is finished when data lands in a table. In product
 - Run a data incident: detect, triage, communicate, fix, and learn, with clear ownership and service levels
 
 ## @prereq
-Modules 0.1 (the five ways data goes wrong), 1.2 (validation and quarantine) and 2.3 (dbt tests). `pip install -r labs/mod-2-5/requirements.txt` installs PyYAML and pytest.
+Modules 0.2 (the five ways data goes wrong), 1.2 (validation and quarantine) and 2.3 (dbt tests). `pip install -r labs/mod-2-5/requirements.txt` installs PyYAML and pytest.
 
 ## @part Preventing bad data
 
@@ -328,7 +328,7 @@ A dataset without these is a file someone once made; with them it is something t
 
 Most broken pipelines do not fail because of a syntax error; they fail because the engineer started writing SQL or Python before agreeing with the business stakeholder on what the data actually means. When a VP of Operations sends a Slack message asking, *"Can you build me a customer service and retention table by Friday?"*, jumping straight into your code editor guarantees rework.
 
-Good data teams start every pipeline with **three short alignment artifacts**, agreed with the person who asked, before a single table is created. *Fundamentals of Data Engineering* puts the same idea at the start of the lifecycle: first find out who the stakeholders are and what they will do with the data (Module 0.1, Lesson 3).
+Good data teams start every pipeline with **three short alignment artifacts**, agreed with the person who asked, before a single table is created. *Fundamentals of Data Engineering* puts the same idea at the start of the lifecycle: first find out who the stakeholders are and what they will do with the data (Module 0.2, Lesson 3).
 
 | Artifact | Question It Answers | Concrete KopiKu Example |
 |---|---|---|

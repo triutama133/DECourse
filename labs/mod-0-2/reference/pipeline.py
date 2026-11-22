@@ -1,4 +1,4 @@
-"""Reference solution for Lab 0.1."""
+"""Reference solution for Lab 0.2."""
 import csv
 from datetime import datetime
 

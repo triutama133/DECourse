@@ -13,7 +13,7 @@ why: Bootcamp mengajarkan pandas pada file kecil yang bersih. Di produksi, kode 
 - Menulis tes pytest dengan fixture dan parametrisasi, termasuk tes untuk pemakaian memori dan perilaku saat gagal
 
 ## @prereq
-Modul 0.2 dan 0.3, serta dasar Python (fungsi, loop, dictionary, file). Virtual environment dengan `pip install -r labs/mod-1-2/requirements.txt`.
+Modul 0.1 dan 0.3, serta dasar Python (fungsi, loop, dictionary, file). Virtual environment dengan `pip install -r labs/mod-1-2/requirements.txt`.
 
 ## @part Membangun job-nya
 
@@ -47,7 +47,7 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 **Antarmuka command-line** adalah cara scheduler dan manusia menjalankan job Anda. `argparse` (pustaka standar) memberi argumen bernama, nilai bawaan, `--help`, dan error penggunaan secara gratis. Kembalikan **exit code** dari `main()` dan panggil `sys.exit(main())`, seperti di Modul 1.1: `0` untuk sukses, bukan nol untuk gagal, dan angka berbeda untuk kegagalan berbeda bila pemanggil perlu membedakannya.
 
-**Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah ditulis keras di kode; **rahasia** hanya dari environment (Modul 0.2).
+**Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah ditulis keras di kode; **rahasia** hanya dari environment (Modul 0.1).
 
 Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berjalan, tetapi mendokumentasikan maksud, membantu editor menangkap kesalahan, dan memungkinkan pemeriksa seperti `mypy` atau `pyright` menemukan bug sebelum kode dijalankan. Perhatikan bahwa `-> int | None` di atas memakai sintaks union Python 3.10+ ("mengembalikan integer atau `None`").
 
@@ -219,7 +219,7 @@ def retry(fn, attempts=4, base=0.5, retry_on=(ConnectionError, TimeoutError)):
 
 (Ulangi hanya operasi yang **aman diulang**. Mengulang pembayaran tanpa idempotency key menagih dua kali.)
 
-Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.1: menjalankan job dua kali harus meninggalkan hasil yang sama dengan sekali. Teknik yang bisa Anda terapkan hari ini:
+Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalankan job dua kali harus meninggalkan hasil yang sama dengan sekali. Teknik yang bisa Anda terapkan hari ini:
 
 - **Keluaran deterministik.** Masukan sama memberi keluaran identik byte demi byte: pertahankan urutan masukan, `json.dumps(..., sort_keys=True)`, tanpa stempel waktu "sekarang" di dalam data.
 - **Tulis atomik.** Tulis ke `output.tmp` dan `os.replace("output.tmp", "output")` di akhir. Pembaca melihat file lama yang lengkap atau file baru yang lengkap; crash di tengah menyisakan yang lama utuh. Bersihkan file `.tmp` dalam `try/except` agar eksekusi yang gagal tidak meninggalkan apa pun.
@@ -409,10 +409,10 @@ Begitu Anda menjalankan `pip install pre-commit && pre-commit install`, Git menj
 > **Seharusnya Anda melihat:** commit `.csv` berhenti: hook mencetak nama file dan `ERROR: Jangan commit file data!`, dan `echo $?` tepat setelah `git commit` menampilkan `1`. Commit `.txt` berhasil. Jika tidak terjadi apa-apa, periksa `chmod +x`: tanpanya Git melewati hook dan hanya mencetak `hint:` bahwa hook diabaikan karena tidak bisa dieksekusi. Diukur dengan Git 2.53.
 
 ## @lab Lab: ETL tervalidasi, streaming, dan idempoten
-Bangun versi produksi dari job pembersihan di Modul 0.1. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.
+Bangun versi produksi dari job pembersihan di Modul 0.2. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.
 
 ### @steps
-1. Persiapan (lanjutkan di proyek `~/kopiku` dari Modul 0.2, atau bekerja di dalam repositori kursus). Pasang requirement dan buat datanya:
+1. Persiapan (lanjutkan di proyek `~/kopiku` dari Modul 0.1, atau bekerja di dalam repositori kursus). Pasang requirement dan buat datanya:
 
 ```bash
 python -m pip install -r labs/mod-1-2/requirements.txt

@@ -121,7 +121,7 @@ window.MARKET_DATA = {
    "count": 724,
    "pct": 64.1,
    "modules": [
-    "mod-0-1"
+    "mod-0-2"
    ],
    "pattern": "communicat|komunikasi|stakeholder|pemangku kepentingan"
   },
@@ -266,7 +266,7 @@ window.MARKET_DATA = {
    "count": 306,
    "pct": 27.1,
    "modules": [
-    "mod-0-2"
+    "mod-0-1"
    ],
    "pattern": "\\bgit\\b|github|gitlab|bitbucket"
   },

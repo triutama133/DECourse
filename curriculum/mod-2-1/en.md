@@ -30,7 +30,7 @@ Three benefits stack up:
 2. **Better compression.** Values of one column are the same type and often similar (`'mobile'`, `'mobile'`, `'desktop'`, ...), which compresses far better than a row mixing text, numbers and dates. Techniques such as **dictionary encoding** (store each distinct string once, then small integer codes), **run-length encoding (RLE)** (store `'mobile' x 1000` once instead of repeating `'mobile'` 1,000 times), **delta encoding** (store differences between sorted timestamps) and **bit-packing** (use only as many bits as the values need) shrink columns dramatically.
 3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute with **SIMD** instructions (Single Instruction, Multiple Data — adding 4 to 16 numbers in one CPU tick instead of one row at a time).
 
-The trade-off is the mirror image: updating or fetching **one whole record** touches every column's data, so columnar files suit analytics and bulk loads, not frequent single-row writes. That is why you keep an OLTP database for the application (Module 0.1) and a columnar format for analysis.
+The trade-off is the mirror image: updating or fetching **one whole record** touches every column's data, so columnar files suit analytics and bulk loads, not frequent single-row writes. That is why you keep an OLTP database for the application (Module 0.2) and a columnar format for analysis.
 
 Real numbers from a 5,000,000-row event table with seven columns (ids, timestamps, a few categories and an amount), written by the lab's tools (where **Snappy** prioritises fast decompression speed and **Zstd / Zstandard** achieves smaller files at similar speed):
 
@@ -238,7 +238,7 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 - **Identifiers as numbers.** CSV type inference reads a phone number or postcode `00123` as the integer 123. Declare such columns as text explicitly. Inference samples the start of the file, so a column that is numeric for the first 10,000 rows and text later breaks it; set the types or sample more rows.
 - **Schema drift.** A column that is `int` in January's files and `string` in March's makes a multi-file read fail or coerce. Validate the schema at ingestion (Module 2.5).
 
-**Other habits.** Avoid `SELECT *` on columnar data (it defeats column pruning); filter early and on the sorted column; write Parquet with explicit compression and row group size; prefer a few large files to many small ones; keep raw data and the converted copy separate (Module 0.1's raw layer); and measure with `EXPLAIN` and a stopwatch before believing any claim, including the ones in this lesson.
+**Other habits.** Avoid `SELECT *` on columnar data (it defeats column pruning); filter early and on the sorted column; write Parquet with explicit compression and row group size; prefer a few large files to many small ones; keep raw data and the converted copy separate (Module 0.2's raw layer); and measure with `EXPLAIN` and a stopwatch before believing any claim, including the ones in this lesson.
 
 > 💡 **Practice Pause: Full Columnar Test Suite Verification**
 > 1. Once all four functions in `labs/mod-2-1/analytics.py` are implemented, run the entire test suite in your terminal:

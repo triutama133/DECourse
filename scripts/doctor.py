@@ -174,7 +174,7 @@ def check_basics(r, mod, cwd):
 
 def check_venv(r, mod):
     course_venvs = [d for d in (ROOT / "venv", ROOT / ".venv") if d.exists()]
-    needs_venv = module_order(mod) >= 2 if mod else False
+    needs_venv = module_order(mod) >= 1 if mod else False   # the venv is made in Module 0.1 (the Workshop)
     for d in course_venvs:
         why = venv_health(d)
         if why:
@@ -189,7 +189,7 @@ def check_venv(r, mod):
             r.ok(f"the {capstone} venv is active, as the capstone setup asks")
         elif ROOT not in here.parents and here != ROOT:
             r.warn(f"the active venv is {short(here)}, not the course venv",
-                   "That is fine for its own project (for example Lab 0.2's ~/kopiku). For the course labs: deactivate,",
+                   "That is fine for its own project (for example Lab 0.1's ~/kopiku). For the course labs: deactivate,",
                    f"then cd {short(ROOT)} && source venv/bin/activate")
         else:
             r.ok(f"venv active: {short(here)}")
@@ -203,11 +203,11 @@ def check_venv(r, mod):
                   f"source {healthy[0].name}/bin/activate      (the prompt then starts with ({healthy[0].name}))",
                   "Without it, pip refuses to install (externally-managed-environment) and the labs miss their packages.")
         elif not course_venvs:
-            flag("the course has no venv yet" + ("" if mod else " (Modules 0.0 and 0.1 can do without; from Module 0.2 on you need it)"),
+            flag("the course has no venv yet" + ("" if mod else " (Module 0.0 can do without; from Module 0.1 on you need it)"),
                   f"cd {short(ROOT)} && python3 -m venv venv && source venv/bin/activate",
-                  "Create it once (Lab 0.2, step 7). On Ubuntu or Debian you may first need: sudo apt install python3-venv")
+                  "Create it once (Lab 0.1, step 7). On Ubuntu or Debian you may first need: sudo apt install python3-venv")
     else:
-        r.ok("no venv needed yet (Modules 0.0 and 0.1 can use the browser preview; Module 0.2 teaches the venv)")
+        r.ok("no venv needed yet (Modules 0.0 and 0.2 can use the browser preview; Module 0.1 teaches the venv)")
 
 
 def lab_uses_data(mod):

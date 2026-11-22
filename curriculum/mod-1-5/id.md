@@ -250,7 +250,7 @@ arrow_tbl = result_df.to_arrow()
 Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.
 
 ### @steps
-1. Buat atau aktifkan virtual environment Anda (Modul 0.2) dan pasang requirements lab: `pip install -r labs/mod-1-5/requirements.txt`.
+1. Buat atau aktifkan virtual environment Anda (Modul 0.1) dan pasang requirements lab: `pip install -r labs/mod-1-5/requirements.txt`.
 2. Baca bagian atas `labs/mod-1-5/orders_data.py`, tulis filenya dengan `python3 -c "from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])"` (jalankan di dalam `labs/mod-1-5`), dan **jelajahi sebelum menulis kode**: `head`, `dtypes`, `isna().sum()`, `value_counts()` pada country, berapa id pesanan yang berulang. Catat temuan Anda.
 3. Kerjakan `labs/mod-1-5/orders_lab.py` dari atas dan jalankan tes setelah SETIAP fungsi:
 

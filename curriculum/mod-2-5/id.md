@@ -13,7 +13,7 @@ why: Dalam tutorial pemula, sebuah pipeline dianggap selesai saat data mendarat 
 - Menjalankan manajemen insiden data secara profesional: deteksi dini, triase dampak, komunikasi transparan ke stakeholder, perbaikan data, dan post-mortem tanpa menyalahkan individu (blameless)
 
 ## @prereq
-Modul 0.1 (lima penyebab rusaknya data), Modul 1.2 (validasi dan karantina), serta Modul 2.3 (dbt tests). Jalankan `pip install -r labs/mod-2-5/requirements.txt` untuk menginstal PyYAML dan pytest.
+Modul 0.2 (lima penyebab rusaknya data), Modul 1.2 (validasi dan karantina), serta Modul 2.3 (dbt tests). Jalankan `pip install -r labs/mod-2-5/requirements.txt` untuk menginstal PyYAML dan pytest.
 
 ## @part Mencegah data buruk
 
@@ -328,7 +328,7 @@ Dataset tanpa semua itu hanyalah file yang pernah dibuat seseorang; dengan semua
 
 Sebagian besar pipeline yang gagal di dunia kerja bukan rusak karena salah ketik sintaks, melainkan karena data engineer langsung menulis SQL atau Python sebelum menyepakati arti bisnis data tersebut bersama stakeholder. Ketika VP Operations mengirim pesan Slack, *"Bisa buatkan tabel layanan pelanggan dan retensi hari Jumat ini?"*, langsung membuka editor kode tanpa klarifikasi hampir pasti berujung pada bongkar-pasang ulang.
 
-Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.1, Pelajaran 3).
+Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.2, Pelajaran 3).
 
 | Dokumen | Pertanyaan yang Dijawab | Contoh Nyata di KopiKu |
 |---|---|---|

@@ -13,10 +13,10 @@ why: In production data engineering, data arrives as a continuous, messy, and un
 - Guarantee crash-resilient stream checkpointing via atomic offset commits and idempotent analytical database upserts
 
 ## @prereq
-Modules 0.2 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 2.1 (DuckDB and analytical storage), 3.2 (Kafka, Redpanda, and event logs), and 3.3 (Stream processing, windowing, and watermarks). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
+Modules 0.1 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 2.1 (DuckDB and analytical storage), 3.2 (Kafka, Redpanda, and event logs), and 3.3 (Stream processing, windowing, and watermarks). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
-> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (terminal & venv), **Module 1.2** (atomic swaps & idempotency), **Module 2.1** (DuckDB table upserts), **Module 3.2** (consumer offsets & partitions), and **Module 3.3** (tumbling/sliding windows & monotonic watermarks). Every lesson now maps 1-to-1 to `check.py --step 1` through `--step 5`.
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (atomic swaps & idempotency), **Module 2.1** (DuckDB table upserts), **Module 3.2** (consumer offsets & partitions), and **Module 3.3** (tumbling/sliding windows & monotonic watermarks). Every lesson now maps 1-to-1 to `check.py --step 1` through `--step 5`.
 
 Every lab earlier in the course provided predefined test files, unit assertions, and guided boilerplate code. In this capstone, **you receive an architectural contract, realistic streaming telemetry, and an automated verification suite that stress-tests your stream processor.**
 

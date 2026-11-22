@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Run a lab's checks on YOUR computer and print a short proof code for the DataForge app.
 
-    python3 scripts/prove.py mod-0-1
-    python3 scripts/prove.py mod-0-2 ~/kopiku        (Lab 0.2 needs the path of your workspace)
+    python3 scripts/prove.py mod-0-2
+    python3 scripts/prove.py mod-0-1 ~/kopiku        (Lab 0.1 needs the path of your workspace)
 
 It runs the same tests as the lab. Only when every test passes (none skipped) does it print a code like
 
-    DF1:mod-0-1:8:v:3.12:linux:3f9a1c2e:b04d77a1:5c1e9b
+    DF1:mod-0-2:8:v:3.12:linux:3f9a1c2e:b04d77a1:5c1e9b
 
 Paste the code into the lab page of the app. The app checks that the tests are the course's real tests, that your work is
-not the reference solution, and (for Lab 0.1) that you ran it inside a virtual environment.
+not the reference solution, and (for Lab 0.2) that you ran it inside a virtual environment.
 
 This is an HONESTY check, not security: anyone can read this script. It exists so that "I did the lab myself" is
 something you state with evidence, for your own benefit. Standard library only (Python 3.8+).
@@ -45,7 +45,7 @@ def resolve(spec, args):
     """Replace {arg0} in a path from proof.json; relative paths are inside the course folder."""
     if "{arg0}" in spec:
         if not args:
-            raise SystemExit("This lab needs the path of your workspace, for example:  python3 scripts/prove.py mod-0-2 ~/kopiku")
+            raise SystemExit("This lab needs the path of your workspace, for example:  python3 scripts/prove.py mod-0-1 ~/kopiku")
         spec = spec.replace("{arg0}", os.path.expanduser(args[0]))
     p = Path(spec)
     return p if p.is_absolute() else ROOT / p
@@ -151,7 +151,7 @@ def main(argv):
     print("Your proof code (paste it into the lab page of the DataForge app):\n")
     print("    " + code_str + "\n")
     if venv == "n":
-        print("Note: you are not inside a virtual environment. Lab 0.1 requires one (Module 0.2 shows how).")
+        print("Note: you are not inside a virtual environment. Lab 0.2 requires one (Module 0.1 shows how).")
     print("=" * 72)
     return 0
 

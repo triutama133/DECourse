@@ -13,10 +13,10 @@ why: Dalam rekayasa data produksi modern, data tidak datang dalam file CSV bulan
 - Menjamin checkpointing stream yang tahan crash melalui commit offset atomik dan penyimpanan analitis DuckDB yang idempoten
 
 ## @prereq
-Modul 0.2 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 2.1 (DuckDB dan penyimpanan analitis), 3.2 (Kafka, Redpanda, dan log event), serta 3.3 (Stream processing, windowing, dan watermark). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan DuckDB terpasang.
+Modul 0.1 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 2.1 (DuckDB dan penyimpanan analitis), 3.2 (Kafka, Redpanda, dan log event), serta 3.3 (Stream processing, windowing, dan watermark). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan DuckDB terpasang.
 
 ## @lesson Cara kerja capstone ini
-> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.2** (terminal & venv), **Modul 1.2** (tukar file atomik & idempotensi), **Modul 2.1** (upsert tabel DuckDB), **Modul 3.2** (consumer offset & partisi), dan **Modul 3.3** (tumbling/sliding window & watermark monotonik). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (tukar file atomik & idempotensi), **Modul 2.1** (upsert tabel DuckDB), **Modul 3.2** (consumer offset & partisi), dan **Modul 3.3** (tumbling/sliding window & watermark monotonik). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
 
 Setiap lab di modul-modul sebelumnya memberi Anda fungsi bawaan, file pengujian unit yang terstruktur, dan kode kerangka yang terarah. Pada capstone ini, pendekatannya sengaja berbeda: **Anda menerima kontrak arsitektur teknis, data streaming telemetri realistis, dan suite pengujian otomatis yang menguji ketahanan kode Anda secara mendalam.**
 

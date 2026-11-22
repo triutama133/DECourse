@@ -18,7 +18,7 @@ Modules 1.3 and 1.4 (window functions, dimensional modeling) and 2.1 (DuckDB). `
 ## @part dbt basics
 
 ## @lesson ELT and where dbt fits
-Module 0.1 introduced **ELT**: load raw data into the warehouse first, then transform it *inside* the warehouse with SQL. That is a good idea for the reasons given there (the warehouse is powerful and cheap, and raw data is preserved), but it leaves a practical problem. A transformation layer written as a pile of SQL scripts is fragile: nobody knows which script depends on which, what order to run them in, whether the output is correct, or what any table means.
+Module 0.2 introduced **ELT**: load raw data into the warehouse first, then transform it *inside* the warehouse with SQL. That is a good idea for the reasons given there (the warehouse is powerful and cheap, and raw data is preserved), but it leaves a practical problem. A transformation layer written as a pile of SQL scripts is fragile: nobody knows which script depends on which, what order to run them in, whether the output is correct, or what any table means.
 
 **dbt** (data build tool) applies software-engineering practice to that SQL layer. You write each transformation as a **model**: one `SELECT` statement in one file. dbt then:
 
@@ -89,7 +89,7 @@ Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 Twenty-two items: seven models (four views, three tables, one of them incremental), one snapshot and fourteen tests. If a model fails, `dbt build` marks the models and tests downstream of it as `SKIP`, so bad data never flows on to the marts silently.
 
 > 💡 **Practice Pause 1 (CLI Discovery & Project Structure):**
-> 1. Activate your virtual environment (the one from Module 0.2, for example `source venv/bin/activate`).
+> 1. Activate your virtual environment (the one from Module 0.1, for example `source venv/bin/activate`).
 > 2. Prepare the raw KopiKu data and initialize DuckDB:
 >    `python3 labs/shared/shopgen.py --out data`
 >    `export KOPIKU_DB=$PWD/kopiku.duckdb`
@@ -118,7 +118,7 @@ A **materialization** decides how a model is stored:
 
 Set defaults per folder in `dbt_project.yml` (`staging: +materialized: view`) and override per model with `{{ config(materialized='incremental') }}`.
 
-**A real staging model** from the lab. The raw `orders` table is append-only: an update to an order arrives as a *new row* with a later `_loaded_at`. Staging must keep the latest version of each order and clean the mess from Module 0.1, here in DuckDB's SQL dialect:
+**A real staging model** from the lab. The raw `orders` table is append-only: an update to an order arrives as a *new row* with a later `_loaded_at`. Staging must keep the latest version of each order and clean the mess from Module 0.2, here in DuckDB's SQL dialect:
 
 ```sql
 with ranked as (

@@ -10,4 +10,4 @@ if python3 "$HERE/check.py" "$TMP/empty" >/dev/null 2>&1; then echo "empty folde
 # a workspace that leaks a secret must fail
 cp -r "$TMP/ok" "$TMP/leak"; cd "$TMP/leak"; echo "API_KEY=abc123" > .env; git add -f .env; git commit -q -m "Oops add config file"
 if python3 "$HERE/check.py" "$TMP/leak" >/dev/null 2>&1; then echo "leaky workspace unexpectedly PASSED"; exit 1; fi
-echo "mod-0-2 verified: reference passes; empty and leaky workspaces fail"
+echo "mod-0-1 verified: reference passes; empty and leaky workspaces fail"

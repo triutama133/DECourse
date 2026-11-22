@@ -222,7 +222,7 @@ Other practices: keep the **raw event log** (a bronze layer) so you can rebuild 
 
 **The outbox pattern** is the alternative when you want application *events* (OrderPlaced) rather than raw row changes: the application writes the event to an `outbox` table in the same transaction as its business change, and CDC publishes the outbox rows. It gives atomicity (no event without its change, no change without its event) without distributed transactions.
 
-**When not to stream.** Streaming adds moving parts, state and operational burden. If a decision can wait an hour, a batch job is simpler and cheaper (Module 0.1). Use streaming for genuinely time-sensitive uses, for many consumers of the same data, or for replicating databases with deletes and low latency.
+**When not to stream.** Streaming adds moving parts, state and operational burden. If a decision can wait an hour, a batch job is simpler and cheaper (Module 0.2). Use streaming for genuinely time-sensitive uses, for many consumers of the same data, or for replicating databases with deletes and low latency.
 
 > 💡 **Practice Pause 3 (Idempotent CDC State Replication & Tombstones):**
 > 1. Open `labs/mod-3-2/cdc.py` in your text editor.

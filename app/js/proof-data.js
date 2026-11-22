@@ -21,23 +21,23 @@ window.PROOF = {
   "starter": "69a9d2bc",
   "reference": "a980e9bf"
  },
- "mod-0-1": {
+ "mod-0-2": {
   "arg": null,
   "requireVenv": true,
   "needsEnv": [],
-  "command": "python3 scripts/prove.py mod-0-1",
+  "command": "python3 scripts/prove.py mod-0-2",
   "argExample": null,
-  "tests": "bf30719d",
-  "starter": "ceb3a800",
-  "reference": "660c89a8"
+  "tests": "8a575c32",
+  "starter": "58ff283e",
+  "reference": "93679968"
  },
- "mod-0-2": {
+ "mod-0-1": {
   "arg": "workspace",
   "requireVenv": false,
   "needsEnv": [],
-  "command": "python3 scripts/prove.py mod-0-2 ~/kopiku",
+  "command": "python3 scripts/prove.py mod-0-1 ~/kopiku",
   "argExample": "~/kopiku",
-  "tests": "b6a56e49",
+  "tests": "1cf7884e",
   "starter": "5648690a",
   "reference": "6bbd565a"
  },

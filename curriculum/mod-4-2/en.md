@@ -13,10 +13,10 @@ why: In production data engineering, data rarely arrives in tidy monthly CSV fil
 - Perform Change Data Capture (CDC) upserts and historical backfills into DuckDB without corrupting production incremental watermarks
 
 ## @prereq
-Modules 0.2 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 1.6 (API ingestion, pagination, and watermarks), and 2.1 (DuckDB and Parquet). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
+Modules 0.1 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 1.6 (API ingestion, pagination, and watermarks), and 2.1 (DuckDB and Parquet). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
-> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (terminal & venv), **Module 1.2** (exponential backoff, retries & idempotency), **Module 1.6** (cursor/offset API pagination & atomic checkpoints), and **Module 2.1** (DuckDB table storage & CDC upserts). Each lesson aligns 1-to-1 with `check.py --step 1` through `--step 5`.
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (exponential backoff, retries & idempotency), **Module 1.6** (cursor/offset API pagination & atomic checkpoints), and **Module 2.1** (DuckDB table storage & CDC upserts). Each lesson aligns 1-to-1 with `check.py --step 1` through `--step 5`.
 
 Every lab earlier in the course gave you predefined function signatures, unit test files, and guided scaffolding. A capstone is intentionally different: **you receive a technical contract, real public data, and an automated verification suite that attacks your pipeline.**
 

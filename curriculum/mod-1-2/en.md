@@ -13,7 +13,7 @@ why: Bootcamps teach pandas on a small, clean file. In production the same code 
 - Write pytest tests with fixtures and parametrisation, including tests for memory use and failure behaviour
 
 ## @prereq
-Modules 0.2 and 0.3, and basic Python (functions, loops, dictionaries, files). A virtual environment with `pip install -r labs/mod-1-2/requirements.txt`.
+Modules 0.1 and 0.3, and basic Python (functions, loops, dictionaries, files). A virtual environment with `pip install -r labs/mod-1-2/requirements.txt`.
 
 ## @part Building the job
 
@@ -47,7 +47,7 @@ For this module's lab everything is in one file to keep it readable, but the *se
 
 **A command-line interface** is how schedulers and people run your job. `argparse` (standard library) gives you named arguments, defaults, `--help` and usage errors for free. Return an **exit code** from `main()` and call `sys.exit(main())`, as in Module 1.1: `0` for success, non-zero for failure, and different numbers for different failures if the caller needs to tell them apart.
 
-**Configuration** (paths, thresholds, hostnames) comes from arguments or environment variables, never hard-coded; **secrets** only from the environment (Module 0.2).
+**Configuration** (paths, thresholds, hostnames) comes from arguments or environment variables, never hard-coded; **secrets** only from the environment (Module 0.1).
 
 Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, but they document intent, let editors catch mistakes, and let a checker such as `mypy` or `pyright` find bugs before you run the code. Notice `-> int | None` above uses Python 3.10+ union syntax ("returns either an integer or `None`").
 
@@ -219,7 +219,7 @@ def retry(fn, attempts=4, base=0.5, retry_on=(ConnectionError, TimeoutError)):
 
 (Only retry operations that are **safe to repeat**. Retrying a payment without an idempotency key charges twice.)
 
-That brings us to **idempotency**, introduced in Module 0.1: running the job twice must leave the same result as running it once. Techniques you can apply today:
+That brings us to **idempotency**, introduced in Module 0.2: running the job twice must leave the same result as running it once. Techniques you can apply today:
 
 - **Deterministic output.** Same input gives byte-identical output: keep input order, `json.dumps(..., sort_keys=True)`, no timestamps of "now" inside the data.
 - **Atomic writes.** Write to `output.tmp` and `os.replace("output.tmp", "output")` at the end. A reader sees the old complete file or the new complete file; a crash mid-run leaves the old one intact. Clean up `.tmp` files in a `try/except` so a failed run leaves nothing behind.
@@ -409,10 +409,10 @@ Once you run `pip install pre-commit && pre-commit install`, Git runs those seve
 > **You should see:** the `.csv` commit stops: the hook prints the file name and `ERROR: Do not commit data files!`, and `echo $?` right after `git commit` shows `1`. The `.txt` commit goes through. If nothing happens, check `chmod +x`: without it Git skips the hook and only prints a `hint:` that it was ignored because it is not executable. Measured with Git 2.53.
 
 ## @lab Lab: a validated, streaming, idempotent ETL
-Build the production version of the cleaning job from Module 0.1. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.
+Build the production version of the cleaning job from Module 0.2. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.
 
 ### @steps
-1. Set up (continue in your `~/kopiku` project from Module 0.2, or work inside the course repository). Install the requirements and generate the data:
+1. Set up (continue in your `~/kopiku` project from Module 0.1, or work inside the course repository). Install the requirements and generate the data:
 
 ```bash
 python -m pip install -r labs/mod-1-2/requirements.txt

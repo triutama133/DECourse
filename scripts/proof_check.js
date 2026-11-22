@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Verify a proof code the same way the app does:  node scripts/proof_check.js mod-0-1 DF1:...   (prints JSON; used by scripts/test_proof.py)
+// Verify a proof code the same way the app does:  node scripts/proof_check.js mod-0-2 DF1:...   (prints JSON; used by scripts/test_proof.py)
 const fs = require('fs');
 const path = require('path');
 global.window = {};

@@ -254,7 +254,7 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 
 > **Tip:** Uji pada volume yang realistis. Pada 1.000 baris setiap plan cepat dan tidak memberi tahu apa-apa. Bangkitkan data pada skala produksi (lab melakukannya) sebelum menilai sebuah query.
 
-> 🛠 **Coba sendiri (12 menit, Python dan SQLite).** Muat `data/orders.csv` ke SQLite (pakai lagi skrip Anda dari Modul 0.1). Untuk setiap query, cetak `EXPLAIN QUERY PLAN` (kolom terakhir): (1) `WHERE customer_id = '479'`; (2) yang sama setelah `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` dengan index sudah ada; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` sebelum dan sesudah `CREATE INDEX ix_ts ON orders(order_ts)`.
+> 🛠 **Coba sendiri (12 menit, Python dan SQLite).** Muat `data/orders.csv` ke SQLite (pakai lagi skrip Anda dari Modul 0.2). Untuk setiap query, cetak `EXPLAIN QUERY PLAN` (kolom terakhir): (1) `WHERE customer_id = '479'`; (2) yang sama setelah `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` dengan index sudah ada; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` sebelum dan sesudah `CREATE INDEX ix_ts ON orders(order_ts)`.
 >
 > **Seharusnya Anda melihat:** `SCAN orders` untuk (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` untuk (2); `SCAN orders` lagi untuk (3), karena fungsi pada kolom membuat index tidak terpakai (sargability); dan untuk (4) sebuah `SCAN` yang berubah menjadi `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 

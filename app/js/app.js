@@ -5,7 +5,7 @@ const REPO_URL = "https://github.com/triutama133/DECourse";
 const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 // modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
-const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
+const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-2", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
 const INTERVIEW_TABS = ["system-design", "sql-arena", "incidents", "silent-bugs", "pr-review", "active-recall", "stakeholder-defense"];
 
 function readStore(key, fallback) {
@@ -310,7 +310,7 @@ class DataForgeApp {
   labHowItWorks(mod) {
     const mm = mod.id.match(/mod-(\d)-(\d)/);
     const level0 = mm && mm[1] === "0";
-    const kind = /^mod-4-/.test(mod.id) ? "capstone" : ["mod-0-3", "mod-1-3", "mod-1-4"].includes(mod.id) ? "sql" : mod.id === "mod-0-2" ? "workspace" : mod.id === "mod-2-3" ? "dbt" : "pytest";
+    const kind = /^mod-4-/.test(mod.id) ? "capstone" : ["mod-0-3", "mod-1-3", "mod-1-4"].includes(mod.id) ? "sql" : mod.id === "mod-0-1" ? "workspace" : mod.id === "mod-2-3" ? "dbt" : "pytest";
     const alsoPytest = ["mod-1-3", "mod-1-4"].includes(mod.id);
     const C = (t) => `<code>${this.esc(t)}</code>`;
     const how = {
@@ -361,7 +361,7 @@ class DataForgeApp {
     const label = (head ? head[1] : "").replace(/^\s*\d+(-\d+)?\s*(min|minutes|menit)\b,?\s*/i, "").toLowerCase();
     const modId = (ctx && ctx.modId) || "";
     const mm = modId.match(/mod-(\d)-(\d)/);
-    const afterVenv = mm ? Number(mm[1]) * 10 + Number(mm[2]) >= 2 : true;   // the course venv exists from Module 0.2 on
+    const afterVenv = mm ? Number(mm[1]) * 10 + Number(mm[2]) >= 1 : true;   // the course venv exists from Module 0.1 on
     const pkgs = Array.from(new Set((text.match(/pip install ([^`]+)`/g) || []).map((x) => x.replace(/^pip install /, "").replace(/`$/, "").trim())));
     const named = text.match(/`(~?[\w./-]+\.py)`/g) || [];
     const writes = /\b(write|tulis|save|simpan|buat)\b[^.]{0,40}`[\w./-]+\.py`/i.test(text) || /file `[\w./-]+\.py`/i.test(label);
@@ -684,13 +684,13 @@ class DataForgeApp {
       { id: "first-proof", icon: "🧪", name: this.l("Bukti pertama", "First proof"), desc: this.l("Verifikasi bukti lab lokal DF1 atau TRY1 pertama Anda", "Verify your first local DF1 or TRY1 lab proof"), unlocked: (proofCount + tryItCount) >= 1 },
       { id: "sql-gladiator", icon: "⚡", name: this.l("Lima tantangan SQL", "Five SQL challenges"), desc: this.l("Selesaikan ≥ 5 tantangan SQL dengan tes mutasi hostil", "Solve ≥ 5 SQL challenges with hostile data tests"), unlocked: sqlCount >= 5 },
       { id: "chaos-defender", icon: "🛠️", name: this.l("Insiden diperbaiki", "Incident fixed"), desc: this.l("Selesaikan drill debugging CHAOS1 atau Silent Bug Clinic", "Complete a CHAOS1 terminal drill or Silent Bug case"), unlocked: (chaosCount + bugCount) >= 1 },
-      { id: "fode-architect", icon: "📐", name: this.l("Arsitek Siklus Hidup Data", "Lifecycle Architect"), desc: this.l("Selesaikan simulasi Pertahanan Stakeholder atau Modul 0.1", "Complete a Stakeholder Defense drill or Module 0.1"), unlocked: defCount >= 1 || this.completedModules.includes("mod-0-1") },
+      { id: "fode-architect", icon: "📐", name: this.l("Arsitek Siklus Hidup Data", "Lifecycle Architect"), desc: this.l("Selesaikan simulasi Pertahanan Stakeholder atau Modul 0.2", "Complete a Stakeholder Defense drill or Module 0.2"), unlocked: defCount >= 1 || this.completedModules.includes("mod-0-2") },
       { id: "ship-it", icon: "🏆", name: this.l("Portofolio terkirim", "Portfolio shipped"), desc: this.l("Verifikasi repositori Git lokal dengan token PORT1", "Verify a local Git repository with a PORT1 token"), unlocked: portCount >= 1 }
     ];
 
     const quests = [
       { label: this.l("Baca & Tandai 3 Materi Konsep", "Read & Check Off 3 Concept Lessons"), cur: Math.min(3, readLessons), max: 3, xp: "+45 XP", link: "#/curriculum" },
-      { label: this.l("Verifikasi 1 Latihan Lokal (TRY1 / DF1 / CHAOS1)", "Verify 1 Local Terminal Proof (TRY1 / DF1 / CHAOS1)"), cur: Math.min(1, proofCount + tryItCount + chaosCount), max: 1, xp: "+150 XP", link: "#/curriculum/mod-0-1/lab" },
+      { label: this.l("Verifikasi 1 Latihan Lokal (TRY1 / DF1 / CHAOS1)", "Verify 1 Local Terminal Proof (TRY1 / DF1 / CHAOS1)"), cur: Math.min(1, proofCount + tryItCount + chaosCount), max: 1, xp: "+150 XP", link: "#/curriculum/mod-0-2/lab" },
       { label: this.l("Lulus 1 Tantangan SQL atau Silent Bug", "Solve 1 Hostile SQL or Silent Bug Drill"), cur: Math.min(1, sqlCount + bugCount), max: 1, xp: "+50 XP", link: "#/playground" }
     ];
 
@@ -1074,7 +1074,7 @@ class DataForgeApp {
       copied: this.l("Pekerjaan Anda identik dengan solusi referensi. Tulis sendiri solusinya dengan kata-kata Anda, tanpa menyalin, lalu jalankan lagi.", "Your work is identical to the reference solution. Write the solution yourself, in your own words, without copying, then run again."),
       starter: this.l("File kerja Anda masih sama dengan titik awal. Kerjakan labnya dulu.", "Your work files are still the starter. Do the lab first."),
       passed: this.l("Kode ini tidak mencatat tes yang lulus.", "This code records no passing tests."),
-      venv: this.l("Lab 0.1 harus dijalankan di dalam virtual environment (venv) milik Anda sendiri; Modul 0.2 menunjukkan caranya. Aktifkan venv lalu jalankan perintahnya lagi.", "Lab 0.1 must be run inside your own virtual environment (venv); Module 0.2 shows how. Activate the venv and run the command again."),
+      venv: this.l("Lab 0.2 harus dijalankan di dalam virtual environment (venv) milik Anda sendiri; Modul 0.1 menunjukkan caranya. Aktifkan venv lalu jalankan perintahnya lagi.", "Lab 0.2 must be run inside your own virtual environment (venv); Module 0.1 shows how. Activate the venv and run the command again."),
       none: this.l("Modul ini tidak memiliki bukti lab.", "This module has no lab proof.")
     };
     return m[res.reason] || m.format;
@@ -1095,7 +1095,7 @@ class DataForgeApp {
         <div class="code-wrap"><button class="copy-btn" onclick="app.copyCode(this)">${this.l("Salin", "Copy")}</button><pre><code>${this.esc(P.command)}</code></pre></div>
         <ul class="small muted" style="margin-left:18px">
           <li>${this.l("Kode hanya tercetak jika semua tes lulus dan tidak ada yang dilewati.", "A code is printed only if every test passes and none is skipped.")}</li>
-          ${P.requireVenv ? `<li>${this.l("Untuk lab ini, jalankan di dalam venv Anda (Modul 0.2).", "For this lab, run it inside your venv (Module 0.2).")}</li>` : ""}
+          ${P.requireVenv ? `<li>${this.l("Untuk lab ini, jalankan di dalam venv Anda (Modul 0.1).", "For this lab, run it inside your venv (Module 0.1).")}</li>` : ""}
           ${P.arg ? `<li>${this.l(`Ganti ${P.argExample || "~/kopiku"} dengan folder workspace yang Anda buat di lab ini.`, `Replace ${P.argExample || "~/kopiku"} with the workspace folder you made in this lab.`)}</li>` : ""}
           ${envNote}
           <li>${this.l("Ini pemeriksaan kejujuran, bukan keamanan: siapa pun bisa membaca skripnya. Gunanya agar Anda menyatakan \"saya mengerjakannya\" dengan bukti, demi kebaikan Anda sendiri.", "This is an honesty check, not security: anyone can read the script. It exists so you can state \"I did it\" with evidence, for your own benefit.")}</li>
@@ -2303,7 +2303,7 @@ class DataForgeApp {
           <p class="muted" style="max-width:760px;font-size:15px">${this.l(
             "Kursus ini dipelajari dengan menjalankan kode, bukan hanya membaca. Halaman ini membawa Anda ke titik di mana lab pertama berjalan di komputer Anda. Anda tidak perlu pengalaman sebelumnya. Kalau ada langkah yang macet, itu bukan salah Anda: lihat bagian \"Kalau macet\" di bawah.",
             "You learn this course by running code, not only by reading. This page takes you to the point where the first lab runs on your computer. You do not need any experience. If a step gets stuck, it is not your fault: see \"If you get stuck\" below.")}</p>
-          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi dan memakai SQL Sandbox. Menyiapkan Python, venv, terminal, dan Git di komputer Anda sendiri adalah bagian penting dari belajar data engineering, dan itu dilatih di Modul 0.2. Lab Python dikerjakan di komputer Anda sendiri; hanya Lab 0.0 dan 0.1 punya pratinjau di browser, dan pratinjau itu tidak dihitung.", "With nothing installed, you can already read every lesson and use the SQL Sandbox in this browser. Setting up Python, a venv, a terminal and Git on your own computer is a core part of learning data engineering, and Module 0.2 trains it. The Python labs are done on your own computer; only Labs 0.0 and 0.1 have a browser preview, and the preview does not count.")}</p></div>
+          <div class="callout"><p>${this.l("Tanpa instalasi apa pun, di browser ini Anda sudah bisa membaca semua materi dan memakai SQL Sandbox. Menyiapkan Python, venv, terminal, dan Git di komputer Anda sendiri adalah bagian penting dari belajar data engineering, dan itu dilatih di Modul 0.1. Lab Python dikerjakan di komputer Anda sendiri; hanya Lab 0.0 dan 0.2 punya pratinjau di browser, dan pratinjau itu tidak dihitung.", "With nothing installed, you can already read every lesson and use the SQL Sandbox in this browser. Setting up Python, a venv, a terminal and Git on your own computer is a core part of learning data engineering, and Module 0.1 trains it. The Python labs are done on your own computer; only Labs 0.0 and 0.2 have a browser preview, and the preview does not count.")}</p></div>
         </div>
 
         <div class="card stack-sm" style="border-left:4px solid var(--blue)" id="learning-contract">
@@ -2321,9 +2321,9 @@ class DataForgeApp {
           <div class="grid cols-2">
             <div class="well stack-sm">
               <strong>${this.l("A. Di komputer Anda sendiri (disarankan)", "A. On your own computer (recommended)")}</strong>
-              <p class="small muted">${this.l("Ini yang Anda pakai di pekerjaan nyata, dan menyiapkannya sendiri adalah latihan yang berharga. Jika macet, lihat \"Kalau macet\" di bawah dan Modul 0.2.", "This is what you will use in a real job, and setting it up yourself is valuable practice. If you get stuck, see \"If you get stuck\" below and Module 0.2.")}</p>
+              <p class="small muted">${this.l("Ini yang Anda pakai di pekerjaan nyata, dan menyiapkannya sendiri adalah latihan yang berharga. Jika macet, lihat \"Kalau macet\" di bawah dan Modul 0.1.", "This is what you will use in a real job, and setting it up yourself is valuable practice. If you get stuck, see \"If you get stuck\" below and Module 0.1.")}</p>
               <ul class="small" style="margin-left:18px">
-                <li>${this.l("Linux, macOS, atau Windows 10/11 dengan WSL2 (Modul 0.2 menjelaskan WSL2)", "Linux, macOS, or Windows 10/11 with WSL2 (Module 0.2 explains WSL2)")}</li>
+                <li>${this.l("Linux, macOS, atau Windows 10/11 dengan WSL2 (Modul 0.1 menjelaskan WSL2)", "Linux, macOS, or Windows 10/11 with WSL2 (Module 0.1 explains WSL2)")}</li>
                 <li>${this.l("Python 3.10 atau lebih baru", "Python 3.10 or newer")}</li>
                 <li>${this.l("RAM 8 GB cukup untuk Level 0 sampai 2; 16 GB disarankan untuk Spark dan Kafka", "8 GB RAM is enough for Levels 0 to 2; 16 GB is recommended for Spark and Kafka")}</li>
                 <li>${this.l("Sekitar 10 GB ruang disk bebas", "About 10 GB of free disk space")}</li>
@@ -2348,7 +2348,7 @@ class DataForgeApp {
             </ol>
             ${cmd("sudo apt update && sudo apt install -y python3-venv python3-pip git")}
             <p class="small">${this.l("Lalu lanjutkan langkah 2 di jendela Ubuntu yang sama, di folder Linux Anda sendiri (<code>cd ~</code>), bukan di drive C:. Untuk melihat folder itu di Windows Explorer, ketik <code>explorer.exe .</code> (dengan titik).", "Then continue with step 2 in the same Ubuntu window, in your own Linux folder (<code>cd ~</code>), not on drive C:. To see that folder in Windows Explorer, type <code>explorer.exe .</code> (with the dot).")}</p>
-            <p class="small muted">${this.l("Linux Ubuntu atau Debian (bukan Windows)? Jalankan baris <code>sudo apt</code> di atas juga: tanpa <code>python3-venv</code>, perintah <code>python3 -m venv</code> di Modul 0.2 gagal. Error saat <code>wsl --install</code>? Biasanya virtualisasi mati di BIOS; cari pesan error-nya, atau pakai pilihan B.", "Ubuntu or Debian Linux (not Windows)? Run the <code>sudo apt</code> line above too: without <code>python3-venv</code>, the <code>python3 -m venv</code> command in Module 0.2 fails. An error during <code>wsl --install</code>? Usually virtualisation is switched off in the BIOS; search for the error message, or use option B.")}</p>
+            <p class="small muted">${this.l("Linux Ubuntu atau Debian (bukan Windows)? Jalankan baris <code>sudo apt</code> di atas juga: tanpa <code>python3-venv</code>, perintah <code>python3 -m venv</code> di Modul 0.1 gagal. Error saat <code>wsl --install</code>? Biasanya virtualisasi mati di BIOS; cari pesan error-nya, atau pakai pilihan B.", "Ubuntu or Debian Linux (not Windows)? Run the <code>sudo apt</code> line above too: without <code>python3-venv</code>, the <code>python3 -m venv</code> command in Module 0.1 fails. An error during <code>wsl --install</code>? Usually virtualisation is switched off in the BIOS; search for the error message, or use option B.")}</p>
           </details>
           <details class="callout neutral fold-callout" id="linux-setup">
             <summary class="label">${this.l("Pakai Linux (Ubuntu, Mint, Debian)? Siapkan alatnya (sekitar 5 menit, sekali saja)", "On Linux (Ubuntu, Mint, Debian)? Set up the tools (about 5 minutes, once)")}</summary>
@@ -2365,7 +2365,7 @@ class DataForgeApp {
               <li>${this.l("Buka <strong>Terminal</strong>: tekan Cmd+Spasi, ketik Terminal, lalu Enter.", "Open <strong>Terminal</strong>: press Cmd+Space, type Terminal and press Enter.")}</li>
               <li>${this.l("Ketik <code>python3 --version</code>. Di Mac yang belum pernah dipakai untuk coding, muncul jendela yang menawarkan memasang <em>command line developer tools</em>: klik <strong>Install</strong> dan tunggu sampai selesai. Itu normal, bukan error, dan alat ini sekaligus memasang <code>git</code>.", "Type <code>python3 --version</code>. On a Mac that has never been used for coding, a window offers to install the <em>command line developer tools</em>: click <strong>Install</strong> and wait until it finishes. That is normal, not an error, and it also installs <code>git</code>.")}</li>
               <li>${this.l("Jalankan <code>python3 --version</code> lagi. Python bawaan alat itu sering versi 3.9, terlalu lama untuk kursus ini. Jika di bawah 3.10, pasang Python terbaru dengan installer macOS dari python.org, tutup Terminal, buka yang baru, lalu periksa lagi.", "Run <code>python3 --version</code> again. The Python that comes with those tools is often version 3.9, too old for this course. If it is below 3.10, install the latest Python with the macOS installer from python.org, close Terminal, open a new one and check again.")}</li>
-              <li>${this.l("Lanjutkan ke langkah 2. Di macOS, <code>python3 -m venv</code> (Modul 0.2) bekerja tanpa paket tambahan.", "Continue with step 2. On macOS, <code>python3 -m venv</code> (Module 0.2) works without extra packages.")}</li>
+              <li>${this.l("Lanjutkan ke langkah 2. Di macOS, <code>python3 -m venv</code> (Modul 0.1) bekerja tanpa paket tambahan.", "Continue with step 2. On macOS, <code>python3 -m venv</code> (Module 0.1) works without extra packages.")}</li>
             </ol>
           </details>
         `)}
@@ -2423,7 +2423,7 @@ Hello from KopiKu</code></pre>
         ${step(5, this.l("Cek bahwa semuanya berjalan", "Check that everything works"), `
           <p class="small">${this.l("Di terminal, di folder <code>DECourse</code> (prompt berakhir dengan <code>DECourse$</code>):", "In the terminal, in the <code>DECourse</code> folder (the prompt ends with <code>DECourse$</code>):")}</p>
           ${cmd(`python3 --version\npython3 labs/shared/shopgen.py --out data\nls data\npython3 scripts/doctor.py`)}
-          <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap: lab Python bisa berjalan di sini. Baris terakhir menjalankan <strong>doctor</strong> kursus: baris bertanda <code>ok</code> beres, baris <code>FIX</code> datang dengan perintah perbaikannya, dan <code>note</code> hanya informasi. Sebelum Modul 0.2, catatan tentang venv itu wajar.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready: the Python labs can run here. The last line runs the course <strong>doctor</strong>: lines marked <code>ok</code> are fine, a <code>FIX</code> line comes with the command that fixes it, and a <code>note</code> is information. Before Module 0.2 a note about the venv is expected.")}</p>
+          <p>${this.l("Baris pertama harus menampilkan Python 3.10 atau lebih baru. Baris kedua membuat data toko kopi fiktif KopiKu, dan <code>ls data</code> harus menampilkan file seperti <code>orders.csv</code> dan <code>manifest.json</code>. Jika ya, komputer Anda siap: lab Python bisa berjalan di sini. Baris terakhir menjalankan <strong>doctor</strong> kursus: baris bertanda <code>ok</code> beres, baris <code>FIX</code> datang dengan perintah perbaikannya, dan <code>note</code> hanya informasi. Sebelum Modul 0.1, catatan tentang venv itu wajar.", "The first line should show Python 3.10 or newer. The second creates the fictional KopiKu coffee-shop data, and <code>ls data</code> should list files such as <code>orders.csv</code> and <code>manifest.json</code>. If so, your computer is ready: the Python labs can run here. The last line runs the course <strong>doctor</strong>: lines marked <code>ok</code> are fine, a <code>FIX</code> line comes with the command that fixes it, and a <code>note</code> is information. Before Module 0.1 a note about the venv is expected.")}</p>
           <p class="small muted">${this.l("Pesan <code>command not found</code>? Di Linux/macOS coba <code>python</code> sebagai ganti <code>python3</code>. Di Windows pastikan Anda berada di terminal Ubuntu (WSL2), bukan PowerShell. <code>can't open file 'labs/shared/shopgen.py'</code>? Anda belum di folder <code>DECourse</code>: jalankan <code>cd ~/projects/DECourse</code>.", "<code>command not found</code>? On Linux/macOS try <code>python</code> instead of <code>python3</code>. On Windows make sure you are in the Ubuntu (WSL2) terminal, not PowerShell. <code>can't open file 'labs/shared/shopgen.py'</code>? You are not in the <code>DECourse</code> folder yet: run <code>cd ~/projects/DECourse</code>.")}</p>`)}
 
         ${step(6, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
@@ -2435,7 +2435,7 @@ Hello from KopiKu</code></pre>
           <ul style="margin-left:18px">
             <li>${this.l("Ritme yang disarankan: 5 sampai 8 jam per minggu. Seluruh kursus sekitar 70 minggu; Level 0 saja sekitar 6 sampai 8 minggu.", "Suggested pace: 5 to 8 hours per week. The whole course is about 70 weeks; Level 0 alone is about 6 to 8 weeks.")}</li>
             <li>${this.l("Jangan melompat. Lab adalah inti pembelajaran; membaca saja tidak membuat Anda mampu.", "Do not skip ahead. The lab is the core; reading alone will not make you able.")}</li>
-            <li>${this.l("<strong>Setiap sesi belajar dimulai sama:</strong> buka terminal (atau VS Code dengan folder <code>DECourse</code>), lalu <code>cd ~/projects/DECourse</code>. Mulai Modul 0.2 Anda punya venv kursus di folder itu; aktifkan dengan <code>source venv/bin/activate</code> sampai prompt diawali <code>(venv)</code>. Setiap Try it punya tautan <em>📍 Di mana saya mengerjakan ini?</em>, dan tab Lab menyebutkan tempat menjalankan langkahnya.", "<strong>Every study session starts the same way:</strong> open the terminal (or VS Code on the <code>DECourse</code> folder), then <code>cd ~/projects/DECourse</code>. From Module 0.2 on you have a course venv in that folder; activate it with <code>source venv/bin/activate</code> until the prompt starts with <code>(venv)</code>. Every Try it has a <em>📍 Where do I do this?</em> link, and each Lab tab says where to run its steps.")}</li>
+            <li>${this.l("<strong>Setiap sesi belajar dimulai sama:</strong> buka terminal (atau VS Code dengan folder <code>DECourse</code>), lalu <code>cd ~/projects/DECourse</code>. Mulai Modul 0.1 Anda punya venv kursus di folder itu; aktifkan dengan <code>source venv/bin/activate</code> sampai prompt diawali <code>(venv)</code>. Setiap Try it punya tautan <em>📍 Di mana saya mengerjakan ini?</em>, dan tab Lab menyebutkan tempat menjalankan langkahnya.", "<strong>Every study session starts the same way:</strong> open the terminal (or VS Code on the <code>DECourse</code> folder), then <code>cd ~/projects/DECourse</code>. From Module 0.1 on you have a course venv in that folder; activate it with <code>source venv/bin/activate</code> until the prompt starts with <code>(venv)</code>. Every Try it has a <em>📍 Where do I do this?</em> link, and each Lab tab says where to run its steps.")}</li>
             <li>${this.l("Materi bertanda <strong>Opsional</strong> boleh dilewati pada putaran pertama: isinya persiapan kerja, wawancara, atau alat vendor tertentu, dan tidak ada lab yang membutuhkannya. Tombol Lanjutkan otomatis melewatinya; kembalilah sebelum mencari kerja.", "Lessons marked <strong>Optional</strong> can be skipped on your first pass: they cover job preparation, interviews or one vendor's tools, and no lab needs them. The Continue button skips them for you; come back to them before you look for a job.")}</li>
             <li>${this.l("Apa yang dibutuhkan kapan: Level 0 hanya butuh Python dan terminal. Docker opsional di Modul 1.1 dan 2.2, dan diperlukan di 3.2, 3.4, dan 3.5 (serta lab 1.3 jika Python Anda 3.14). Java 17 diperlukan mulai Modul 3.1 untuk Spark, Terraform di 3.4. Baris Prasyarat di setiap modul menyebutkannya persis.", "What you need when: Level 0 needs only Python and a terminal. Docker is optional in Modules 1.1 and 2.2, and needed in 3.2, 3.4 and 3.5 (and for lab 1.3 if your Python is 3.14). Java 17 is needed from Module 3.1 for Spark, Terraform in 3.4. Each module's Prerequisites line says exactly what it needs.")}</li>
             <li>${this.l("Setiap lab diakhiri dengan kode bukti: perintah <code>python3 scripts/prove.py &lt;modul&gt;</code> menjalankan tes di komputer Anda dan mencetak kode yang Anda tempel di halaman lab, bersama penjelasan singkat (minimal 30 kata) dengan kata-kata Anda sendiri tentang bagian tersulit. Modul baru ditandai selesai otomatis setelah kuis lulus dan bukti diterima.", "Every lab ends with a proof code: the command <code>python3 scripts/prove.py &lt;module&gt;</code> runs the tests on your computer and prints a code that you paste on the lab page, together with a short explanation (at least 30 words) in your own words of the hardest part. A module is marked complete automatically once the quiz is passed and the proof is accepted.")}</li>
@@ -2447,7 +2447,7 @@ Hello from KopiKu</code></pre>
           <h2>${this.l("Kalau macet", "If you get stuck")}</h2>
           <ul style="margin-left:18px">
             <li>${this.l("Masalah penyiapan (folder salah, venv tidak aktif, paket atau alat hilang)? Jalankan <code>python3 scripts/doctor.py mod-X-Y</code> dari folder kursus, dengan modul yang sedang Anda kerjakan. Ia memberi tahu persis apa yang harus dijalankan.", "Setup trouble (wrong folder, venv not active, a missing package or tool)? Run <code>python3 scripts/doctor.py mod-X-Y</code> from the course folder, with the module you are on. It tells you exactly what to run.")}</li>
-            <li>${this.l("Baca pesan error <strong>dari baris paling bawah</strong>. Jawabannya biasanya di sana (Modul 0.2 melatih ini).", "Read the error message <strong>from the bottom line</strong>. The answer is usually there (Module 0.2 trains this).")}</li>
+            <li>${this.l("Baca pesan error <strong>dari baris paling bawah</strong>. Jawabannya biasanya di sana (Modul 0.1 melatih ini).", "Read the error message <strong>from the bottom line</strong>. The answer is usually there (Module 0.1 trains this).")}</li>
             <li>${this.l("Coba sendiri minimal 30 menit sebelum melihat folder <code>reference/</code>. Setelah melihat, tutup dan tulis ulang dengan kata-kata Anda sendiri.", "Try for at least 30 minutes before looking at the <code>reference/</code> folder. After looking, close it and write it again in your own words.")}</li>
             <li>${this.l("Asisten AI boleh dipakai untuk penjelasan: tempel pesan error-nya dan tanyakan <em>mengapa</em>, jangan tempel file lab dan meminta solusinya. Kode bukti hanya menolak salinan persis solusi referensi, jadi kejujuran ada di tangan Anda, dan yang Anda tulis sendirilah yang akan Anda ingat saat wawancara.", "An AI assistant is fine for explanations: paste the error and ask <em>why</em>; do not paste the lab file and ask for the solution. The proof code only rejects an exact copy of the reference, so honesty is up to you, and only what you wrote yourself will stay with you in an interview.")}</li>
             <li>${this.l("Jalankan satu tes saja agar pesan error lebih pendek: <code>pytest labs/mod-0-0 -k safe_int -x</code>.", "Run one test only to get a shorter error: <code>pytest labs/mod-0-0 -k safe_int -x</code>.")}</li>
@@ -2478,21 +2478,21 @@ Hello from KopiKu</code></pre>
         icon: "📊",
         title: this.l("Analytics & Warehouse Data Engineer", "Analytics & Warehouse Data Engineer"),
         desc: this.l("Fokus pada SQL tingkat lanjut, Kimball/Data Vault, DuckDB, dbt Core, Semantic Layer & Governance.", "Focus on advanced SQL, Kimball/Data Vault, DuckDB, dbt Core, Semantic Layer & Data Governance."),
-        modules: ["mod-0-0", "mod-0-1", "mod-0-3", "mod-1-3", "mod-1-4", "mod-2-1", "mod-2-3", "mod-2-5", "mod-2-6", "mod-4-1"]
+        modules: ["mod-0-0", "mod-0-2", "mod-0-3", "mod-1-3", "mod-1-4", "mod-2-1", "mod-2-3", "mod-2-5", "mod-2-6", "mod-4-1"]
       },
       {
         id: "streaming",
         icon: "⚡",
         title: this.l("Streaming & Distributed Platform Engineer", "Streaming & Distributed Platform Engineer"),
         desc: this.l("Fokus pada Production Python, API Ingestion, Spark, Kafka KRaft, Debezium CDC & Flink Watermarks.", "Focus on Production Python, API Ingestion, Spark, Kafka KRaft, Debezium CDC & Flink Watermarks."),
-        modules: ["mod-0-1", "mod-0-2", "mod-1-1", "mod-1-2", "mod-1-6", "mod-3-0", "mod-3-1", "mod-3-2", "mod-3-3", "mod-4-2", "mod-4-3"]
+        modules: ["mod-0-2", "mod-0-1", "mod-1-1", "mod-1-2", "mod-1-6", "mod-3-0", "mod-3-1", "mod-3-2", "mod-3-3", "mod-4-2", "mod-4-3"]
       },
       {
         id: "ai_lakehouse",
         icon: "🧠",
         title: this.l("Lakehouse, Cloud FinOps & AI Data Engineer", "Lakehouse, Cloud FinOps & AI Data Engineer"),
         desc: this.l("Fokus pada Apache Iceberg, Dagster, DMBOK Privacy/GDPR, Terraform FinOps & pgvector RAG.", "Focus on Apache Iceberg, Dagster, DMBOK Privacy/GDPR, Terraform FinOps & pgvector RAG."),
-        modules: ["mod-0-1", "mod-1-7", "mod-2-2", "mod-2-4", "mod-2-5", "mod-3-4", "mod-3-5", "mod-4-4"]
+        modules: ["mod-0-2", "mod-1-7", "mod-2-2", "mod-2-4", "mod-2-5", "mod-3-4", "mod-3-5", "mod-4-4"]
       }
     ];
   }
@@ -2700,7 +2700,7 @@ Hello from KopiKu</code></pre>
               <strong>${this.l("Ingat dulu, baru lihat jawabannya", "Recall first, then look")}</strong>
               <span class="muted small">${this.l("Kartu model mental inti setiap modul, untuk ingatan jangka panjang.", "The key mental model of every module, for long-term memory.")}</span>
             </button>
-            <button class="card practice-card" onclick="app.go('curriculum','mod-0-1','concepts')">
+            <button class="card practice-card" onclick="app.go('curriculum','mod-0-2','concepts')">
               <span class="label">${this.l("Simulator", "Simulators")}</span>
               <strong>${this.l("Geser angkanya, lihat sistemnya berubah", "Move a number, watch the system change")}</strong>
               <span class="muted small">${this.l("Kematangan data, join fan-out, partition pruning, watermark, retry, PII. Ada di dalam modul terkait.", "Data maturity, join fan-out, partition pruning, watermarks, retries, PII. Inside the related modules.")}</span>
@@ -3099,7 +3099,7 @@ Hello from KopiKu</code></pre>
             ${prereqNote ? `<div style="margin-top:10px">${this.md(prereqNote)}</div>` : ""}
           </details>
 
-          <details class="callout neutral fold-callout" ${readCount === 0 && mod.id === "mod-0-1" && !this.focusMode ? "open" : ""}>
+          <details class="callout neutral fold-callout" ${readCount === 0 && mod.id === "mod-0-2" && !this.focusMode ? "open" : ""}>
             <summary class="label">📐 ${this.l("Posisi di siklus hidup data engineering", "Position in the data engineering lifecycle")}</summary>
             ${this.renderLifecycleDiagram(mod.id)}
           </details>
@@ -3126,9 +3126,9 @@ Hello from KopiKu</code></pre>
         ${this.labHowItWorks(mod)}
         <h3>${this.l("Langkah kerja", "Steps")}</h3>
         ${(() => {
-          // where every lab command is typed; from Module 0.2 on, with the course venv active
+          // where every lab command is typed; from Module 0.1 on, with the course venv active
           const mm = mod.id.match(/mod-(\d)-(\d)/);
-          const venv = mm && Number(mm[1]) * 10 + Number(mm[2]) >= 2;
+          const venv = mm && Number(mm[1]) * 10 + Number(mm[2]) >= 1;
           return `<div class="callout neutral"><p class="small"><strong>📍 ${this.l("Di mana menjalankan langkah-langkah ini", "Where to run these steps")}:</strong> ${this.l(
             `di terminal, dari folder kursus${venv ? " dengan venv aktif" : ""}, kecuali sebuah langkah menyuruh <code>cd</code> ke tempat lain. File kode dibuka dan diedit di editor (VS Code), lalu dijalankan dari terminal.`,
             `in the terminal, from the course folder${venv ? " with the venv active" : ""}, unless a step says to <code>cd</code> somewhere else. Code files are opened and edited in your editor (VS Code), then run from the terminal.`)}</p>
@@ -3298,7 +3298,7 @@ Hello from KopiKu</code></pre>
 
   renderLifecycleDiagram(modId) {
     const stageMap = {
-      "gen": { num: "1", icon: "🌱", name: this.l("1. Generasi Sumber", "1. Source Generation"), sub: "OLTP, APIs, IoT, Logs", mods: ["mod-0-0", "mod-0-1", "mod-0-2", "mod-1-5", "mod-1-6"] },
+      "gen": { num: "1", icon: "🌱", name: this.l("1. Generasi Sumber", "1. Source Generation"), sub: "OLTP, APIs, IoT, Logs", mods: ["mod-0-0", "mod-0-2", "mod-0-1", "mod-1-5", "mod-1-6"] },
       "store": { num: "2", icon: "🗄️", name: this.l("2. Penyimpanan", "2. Storage Layer"), sub: "Parquet, Iceberg, S3, RDBMS", mods: ["mod-0-3", "mod-1-7", "mod-2-1", "mod-2-2", "mod-3-4"] },
       "ingest": { num: "3", icon: "📥", name: this.l("3. Ingesti & Aliran", "3. Ingestion & Stream"), sub: "Batch, CDC, Kafka, Flink", mods: ["mod-1-1", "mod-1-2", "mod-3-2", "mod-3-3", "mod-4-2", "mod-4-3"] },
       "transform": { num: "4", icon: "⚙️", name: this.l("4. Transformasi & Model", "4. Transformation"), sub: "SQL, Kimball, DV2.0, dbt, Spark", mods: ["mod-1-3", "mod-1-4", "mod-2-3", "mod-2-4", "mod-3-0", "mod-3-1", "mod-4-1"] },
@@ -5139,7 +5139,7 @@ Hello from KopiKu</code></pre>
       {
         id: "python",
         name: this.l("2. Software Craftsmanship & Production Python", "2. Software Craftsmanship & Production Python"),
-        mods: ["mod-0-0", "mod-0-2", "mod-1-1", "mod-1-2", "mod-1-5", "mod-1-6", "mod-4-2"],
+        mods: ["mod-0-0", "mod-0-1", "mod-1-1", "mod-1-2", "mod-1-5", "mod-1-6", "mod-4-2"],
         topics: this.l("Linux Shell piping, Docker container limits (code 137), Pydantic v2 validation, Python Generators (flat RAM), Idempotensi, Pytest TDD, pandas, ingestion API (retry, pagination, checkpoint, DLQ, capstone seismik)", "Linux Shell pipes, Docker resource limits (code 137), Pydantic v2, Python Generators (flat RAM), Idempotency, Pytest TDD, pandas, API ingestion (retries, pagination, checkpoints, DLQ, seismic capstone)")
       },
       {

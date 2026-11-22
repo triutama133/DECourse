@@ -29,15 +29,15 @@
       "labs/shared/shopgen.py"
     ]
   },
-  "mod-0-1": {
+  "mod-0-2": {
     "note": {
-      "id": "Ini hanya pratinjau agar Anda bisa mencoba langsung tanpa instalasi: edit pipeline.py di bawah, lalu klik Jalankan tes. Python berjalan di komputer Anda (WebAssembly); tidak ada yang dikirim ke server. Yang dihitung adalah mengerjakannya sendiri di komputer Anda: setelah Modul 0.2, ulangi lab ini di terminal Anda sendiri dengan pytest sampai semua tes lulus. Menyiapkan Python, venv, dan terminal sendiri adalah keterampilan yang dicari perusahaan.",
-      "en": "This is only a preview so you can try the lab right away with nothing installed: edit pipeline.py below, then click Run tests. Python runs on your own computer (WebAssembly); nothing is sent to a server. What counts is doing it yourself on your own computer: after Module 0.2, repeat this lab in your own terminal with pytest until every test passes. Setting up Python, a venv and a terminal yourself is a skill employers look for."
+      "id": "Ini hanya pratinjau agar Anda bisa mencoba langsung tanpa instalasi: edit pipeline.py di bawah, lalu klik Jalankan tes. Python berjalan di komputer Anda (WebAssembly); tidak ada yang dikirim ke server. Yang dihitung adalah mengerjakannya sendiri di komputer Anda: setelah Modul 0.1, ulangi lab ini di terminal Anda sendiri dengan pytest sampai semua tes lulus. Menyiapkan Python, venv, dan terminal sendiri adalah keterampilan yang dicari perusahaan.",
+      "en": "This is only a preview so you can try the lab right away with nothing installed: edit pipeline.py below, then click Run tests. Python runs on your own computer (WebAssembly); nothing is sent to a server. What counts is doing it yourself on your own computer: after Module 0.1, repeat this lab in your own terminal with pytest until every test passes. Setting up Python, a venv and a terminal yourself is a skill employers look for."
     },
-    "editable": "labs/mod-0-1/pipeline.py",
-    "reference": "labs/mod-0-1/reference/pipeline.py",
+    "editable": "labs/mod-0-2/pipeline.py",
+    "reference": "labs/mod-0-2/reference/pipeline.py",
     "tests": [
-      "labs/mod-0-1/test_lab.py"
+      "labs/mod-0-2/test_lab.py"
     ],
     "extra": [
       "labs/shared/labtools.py",

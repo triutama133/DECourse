@@ -19,7 +19,7 @@ Modul 1.4 (pemodelan dimensional) dan 2.1 (penyimpanan kolumnar dan Parquet) mem
 ## @part Cara kerja warehouse
 
 ## @lesson Apa itu cloud data warehouse
-Database operasional (Modul 0.1) dibuat untuk membaca dan menulis beberapa baris dengan sangat cepat bagi banyak pengguna. **Data warehouse** dibuat untuk pekerjaan yang berlawanan: **memindai data dalam jumlah sangat besar dan mengagregasinya** untuk beberapa analis dan dashboard. SQL yang sama, mesin yang berbeda.
+Database operasional (Modul 0.2) dibuat untuk membaca dan menulis beberapa baris dengan sangat cepat bagi banyak pengguna. **Data warehouse** dibuat untuk pekerjaan yang berlawanan: **memindai data dalam jumlah sangat besar dan mengagregasinya** untuk beberapa analis dan dashboard. SQL yang sama, mesin yang berbeda.
 
 Dua gagasan membuatnya cepat, dan Anda sudah mengenal keduanya. **Penyimpanan kolumnar** (Modul 2.1) menyimpan tiap kolom bersama, sehingga query yang butuh tiga dari lima puluh kolom hanya membaca ketiganya, dan nilai yang mirip terkompresi dengan baik. **Massively parallel processing (MPP)** membagi satu query ke banyak mesin, masing-masing mengerjakan irisan datanya sendiri, lalu menggabungkan hasil parsial.
 
@@ -171,7 +171,7 @@ Warehouse dibuat untuk **bulk load**, bukan menyisipkan satu baris pada satu wak
 
 Praktik lain:
 
-- Pilih format kolumnar terkompresi seperti **Parquet** untuk pemuatan; pakai CSV hanya bila terpaksa, dan waspadai kutipan, encoding, dan nilai kotor dari Modul 0.1.
+- Pilih format kolumnar terkompresi seperti **Parquet** untuk pemuatan; pakai CSV hanya bila terpaksa, dan waspadai kutipan, encoding, dan nilai kotor dari Modul 0.2.
 - **Muat ke tabel staging lebih dulu**, validasi, lalu **MERGE** ke tabel akhir, sehingga pemuatan yang diulang tidak pernah membuat duplikat (idempotensi, Modul 1.2; model inkremental dbt, Modul 2.3).
 - Untuk pembaruan kecil yang sering, pilih micro-batch (tiap menit) daripada streaming insert tingkat baris, yang lebih mahal dan di beberapa sistem terbatas.
 - **Tabel eksternal** membiarkan warehouse mengkueri file di object storage tanpa memuatnya (Redshift Spectrum, tabel eksternal BigQuery, tabel eksternal dan Iceberg Snowflake): fleksibel, tetapi biasanya lebih lambat daripada data yang dimuat karena tidak ada statistik warehouse dan tidak ada clustering.

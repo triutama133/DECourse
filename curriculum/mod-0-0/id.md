@@ -14,7 +14,7 @@ why: Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-bur
 - Membaca file CSV dengan `with open` dan modul csv, serta menjelaskan apa yang dilakukan `import` dan `if __name__ == "__main__"`
 
 ## @prereq
-Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.2 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.
+Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.1 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.
 
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
@@ -156,7 +156,7 @@ Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==
 
 **Truthiness** menghemat ketikan: `0`, `""`, `None`, `[]`, `{}` dianggap salah di dalam `if`, selain itu dianggap benar. Jadi `if not rows:` berarti "jika tidak ada baris". Tetapi hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah. Bila nol sah, tulis `if total is not None:`.
 
-**Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.1 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.
+**Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.2 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.
 
 **Uang negatif.** `abs(n)` memberi jarak dari nol, selalu positif: `abs(-45000)` adalah `45000`. Untuk menulis jumlah negatif sebagai `-Rp 45.000`, format `abs(amount)` dan taruh tanda minus di depannya sendiri, dengan `if` yang memeriksa apakah jumlahnya di bawah nol.
 
@@ -228,7 +228,7 @@ Bagian-bagiannya: `def`, **nama**, **parameter** dalam tanda kurung (masukan; `o
 
 **Jebakan untuk dikenal sekarang.** Jangan pernah memakai nilai *mutable* (list atau dict) sebagai nilai bawaan: `def add(order, batch=[]):`. Python membuat list itu **sekali**, saat baris `def` dibaca, dan setiap pemanggilan yang tidak mengisi `batch` memakainya bersama. Pemanggilan kedua melihat apa yang ditambahkan pemanggilan pertama. Pakai `batch=None` dan buat list baru di dalam. Skenario chaos memperlihatkan akibatnya pada pipeline nyata, dan lab punya tesnya.
 
-Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.1: idempotensi).
+Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.2: idempotensi).
 
 **Mengetik fungsi di prompt `>>>`.** Setelah baris yang diakhiri `:`, seperti `def double(n):`, Python menampilkan `...` dan menjorokkan baris berikutnya untuk Anda. Setelah fungsinya lengkap, tekan **Enter sekali lagi pada baris kosong** untuk menyelesaikannya; tanpa baris kosong itu, apa pun yang Anda ketik berikutnya menjadi bagian dari fungsi. Untuk yang lebih dari dua baris, file lebih mudah.
 
@@ -306,7 +306,7 @@ with open("orders.csv", newline="", encoding="utf-8") as f:
 
 Mengapa setiap bagian ada. `open` memberi Anda sambungan ke file. **`with`** menjamin file ditutup saat blok selesai, bahkan jika terjadi error di dalamnya, sehingga Anda tidak membiarkan file terbuka (masalah nyata pada job yang berjalan lama). `encoding="utf-8"` menyatakan bagaimana byte menjadi teks; jika dihilangkan, program Anda berperilaku berbeda di komputer berbeda. `newline=""` adalah yang diminta modul csv agar pemisah baris di dalam nilai bertanda kutip tetap utuh. `csv.DictReader(f)` mengubah setiap baris menjadi dict dengan baris header sebagai kunci, sehingga Anda mendapat persis list berisi dictionary dari pelajaran 2. Semua nilainya string; mengonversinya adalah tugas Anda.
 
-**Import** membawa kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke virtual environment Anda (Modul 0.2). File Anda sendiri `basics.py` juga sebuah **modul**: `import basics` menjalankannya sekali dan memberi fungsinya sebagai `basics.total_revenue(...)`. Begitulah tes lab memakai kode Anda.
+**Import** membawa kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke virtual environment Anda (Modul 0.1). File Anda sendiri `basics.py` juga sebuah **modul**: `import basics` menjalankannya sekali dan memberi fungsinya sebagai `basics.total_revenue(...)`. Begitulah tes lab memakai kode Anda.
 
 Anda menjalankan skrip dengan `python3 myfile.py`. Baris yang umum di bagian bawah skrip adalah:
 
@@ -384,7 +384,7 @@ source venv/bin/activate                   # setiap terminal baru
 python -m pip install -r labs/mod-0-0/requirements.txt    # sekali: pytest
 ```
 
-  Pakai folder kursus Anda sendiri di baris pertama. Jika namanya mengandung spasi, beri garis miring terbalik sebelum spasinya: `cd ~/Documents/Learn\ DE/DECourse`. Setelah `source`, prompt diawali `(venv)`; Modul 0.2 menjelaskan apa itu venv. Lalu buka folder kursus di VS Code (File, Open Folder) dan klik `labs/mod-0-0/practice.py` (Bagian A) atau `labs/mod-0-0/basics.py` (Bagian B) untuk mengeditnya. Periksa satu langkah atau satu fungsi dengan, misalnya:
+  Pakai folder kursus Anda sendiri di baris pertama. Jika namanya mengandung spasi, beri garis miring terbalik sebelum spasinya: `cd ~/Documents/Learn\ DE/DECourse`. Setelah `source`, prompt diawali `(venv)`; Modul 0.1 menjelaskan apa itu venv. Lalu buka folder kursus di VS Code (File, Open Folder) dan klik `labs/mod-0-0/practice.py` (Bagian A) atau `labs/mod-0-0/basics.py` (Bagian B) untuk mengeditnya. Periksa satu langkah atau satu fungsi dengan, misalnya:
 
 ```bash
 pytest labs/mod-0-0/test_practice.py -k Step1 -v       # Bagian A, langkah 1

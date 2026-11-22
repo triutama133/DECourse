@@ -276,7 +276,7 @@ Sumber daya yang langka tidak selalu yang tampak jelas. Metadata dan jumlah file
 - [ ] YARN menjamin tidak ada mesin yang gagal saat menjalankan task, sehingga kasus itu tidak terjadi
 - [ ] Reducer menunggu sampai semua mapper berhasil sekali, lalu jawaban akhir diambil dari proses pertama
 
-> Task murni yang bisa diulang atas masukan yang tahan lama membuat pengulangan aman. Sifat yang sama membuat langkah pipeline idempoten (Modul 0.1).
+> Task murni yang bisa diulang atas masukan yang tahan lama membuat pengulangan aman. Sifat yang sama membuat langkah pipeline idempoten (Modul 0.2).
 
 ### Apa itu Hive Metastore?
 - [ ] Cache yang menyimpan hasil query terbaru agar Hive bisa menjawabnya tanpa membaca file apa pun

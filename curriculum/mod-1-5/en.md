@@ -250,7 +250,7 @@ arrow_tbl = result_df.to_arrow()
 Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops.
 
 ### @steps
-1. Create or activate your virtual environment (Module 0.2) and install the lab requirements: `pip install -r labs/mod-1-5/requirements.txt`.
+1. Create or activate your virtual environment (Module 0.1) and install the lab requirements: `pip install -r labs/mod-1-5/requirements.txt`.
 2. Read the top of `labs/mod-1-5/orders_data.py`, write the file with `python3 -c "from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])"` (run it inside `labs/mod-1-5`), and **explore it before writing code**: `head`, `dtypes`, `isna().sum()`, `value_counts()` on country, how many repeated order ids. Write down what you find.
 3. Work through `labs/mod-1-5/orders_lab.py` from the top and run the tests after EACH function:
 

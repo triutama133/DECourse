@@ -13,17 +13,17 @@ why: Labs teach one skill on tidy data. A job gives you a messy file, a vague re
 - Make a pipeline idempotent, atomic and protected by quality gates, so that duplicates and broken deliveries cannot damage good data
 
 ## @prereq
-Modules 0.2 (terminal, virtual environment), 1.2 (idempotency, retries), 1.4 (dimensional modeling), 1.5 (pandas habits) and 2.1 (Parquet and DuckDB) are the tools you will use; 2.5 (data quality gates) is the mindset. You need Python 3.10 or newer, about 1.5 GB of free disk space and a stable connection once, to download 50 MB.
+Modules 0.1 (terminal, virtual environment), 1.2 (idempotency, retries), 1.4 (dimensional modeling), 1.5 (pandas habits) and 2.1 (Parquet and DuckDB) are the tools you will use; 2.5 (data quality gates) is the mindset. You need Python 3.10 or newer, about 1.5 GB of free disk space and a stable connection once, to download 50 MB.
 
 ## @lesson How this capstone works
-> **Prior Modules Synthesized:** This capstone pulls together **Module 0.2** (virtual environment & CLI runner), **Module 1.2** (quarantine & idempotency), **Module 1.4** (star schema, grain & surrogate keys), **Module 1.5/2.1** (Parquet & DuckDB analytics), and **Module 2.5** (data contracts & quality gates).
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (virtual environment & CLI runner), **Module 1.2** (quarantine & idempotency), **Module 1.4** (star schema, grain & surrogate keys), **Module 1.5/2.1** (Parquet & DuckDB analytics), and **Module 2.5** (data contracts & quality gates).
 
 Every lab so far told you which functions to write and ran tests against them. A capstone is different on purpose. **You get a contract, real data and a checker.** You decide how to build it: DuckDB or pandas, one script or many, SQL or Python. Nobody reviews your code. The checker looks only at **results**: the files your pipeline writes, the numbers inside them, and how the pipeline behaves when something goes wrong.
 
 The rules of the game:
 
 1. **You do it yourself.** Not with a copied solution, not by pasting the task into an AI and running the answer. The purpose is that you can do this alone in a job. If you use an AI or a search engine to understand a concept, fine; if it writes the pipeline, you will pass the checker and fail the next real task. The proof code at the end (like in every lab) only means something if it is honest.
-2. **Work in your own folder** (for example `~/taxi`), inside your virtual environment (Module 0.2). Your workspace holds two files you write: `pipeline.py` and `profile.json`. The checker never edits them.
+2. **Work in your own folder** (for example `~/taxi`), inside your virtual environment (Module 0.1). Your workspace holds two files you write: `pipeline.py` and `profile.json`. The checker never edits them.
 3. **Check after every step**, not at the end: `python3 labs/mod-4-1/check.py ~/taxi --step 2`. A FAIL line says what is wrong, sometimes with a short hint about where to look.
 4. **Hints are levels, and you choose when.** `--hint 1` nudges, `--hint 2` explains the idea, `--hint 3` is almost the answer. Try for at least 30 minutes before you ask for level 1, and for level 3 only after you have already read the data yourself. Struggling is the point.
 5. **The checker also attacks your pipeline.** In step 5 it runs your code on deliveries it makes itself: the same file twice, a file with a renamed column, a file in which 40% of the rows are broken. Real pipelines meet such things on a normal Tuesday.

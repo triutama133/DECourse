@@ -6,8 +6,8 @@ yours; you find and fix the bug in your editor; `verify` runs it on the incident
 and prints a CHAOS1 code for the Chaos tab of the web app:
 
     python3 scripts/chaos_drill.py list
-    python3 scripts/chaos_drill.py init mod-0-1 ~/df-chaos/mod-0-1
-    python3 scripts/chaos_drill.py verify mod-0-1 ~/df-chaos/mod-0-1
+    python3 scripts/chaos_drill.py init mod-0-2 ~/df-chaos/mod-0-2
+    python3 scripts/chaos_drill.py verify mod-0-2 ~/df-chaos/mod-0-2
 
 The broken script describes the symptom, not the fix. Reference fixes live in labs/chaos/reference/: read them only after
 your own fix passes. Standard library only (Python 3.8+).
@@ -56,7 +56,7 @@ def transform_batch(raw_rows, accepted=[], rejected=[]):
 ''',
     },
     "idempotent_retry": {
-        "modules": ["mod-0-1"],
+        "modules": ["mod-0-2"],
         "title": "The Tuesday revenue that doubled",
         "function": "load_daily_orders",
         "broken_code": '''"""Chaos drill: the Tuesday revenue that doubled.
@@ -360,15 +360,15 @@ def self_test():
 def main(argv):
     ap = argparse.ArgumentParser(description="Chaos drill: fix a broken pipeline on your own computer.")
     ap.add_argument("action", choices=("list", "init", "verify", "self-test"))
-    ap.add_argument("mod_id", nargs="?", help="module id, e.g. mod-0-1")
-    ap.add_argument("folder", nargs="?", help="your workspace folder, e.g. ~/df-chaos/mod-0-1")
+    ap.add_argument("mod_id", nargs="?", help="module id, e.g. mod-0-2")
+    ap.add_argument("folder", nargs="?", help="your workspace folder, e.g. ~/df-chaos/mod-0-2")
     args = ap.parse_args(argv)
     if args.action == "list":
         return cmd_list()
     if args.action == "self-test":
         return self_test()
     if not args.mod_id:
-        ap.error("give a module id, e.g. mod-0-1 (see: python3 scripts/chaos_drill.py list)")
+        ap.error("give a module id, e.g. mod-0-2 (see: python3 scripts/chaos_drill.py list)")
     folder = args.folder or f"~/df-chaos/{args.mod_id}"
     return cmd_init(args.mod_id, folder) if args.action == "init" else cmd_verify(args.mod_id, folder)
 

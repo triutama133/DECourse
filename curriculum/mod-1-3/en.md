@@ -254,7 +254,7 @@ Thirteen pages instead of 4,167, and 0.045 ms instead of 21 ms: nearly 500 times
 
 > **Tip:** Test on realistic volumes. On 1,000 rows every plan is fast and tells you nothing. Generate data at production scale (the lab does) before you judge a query.
 
-> 🛠 **Try it (12 min, Python and SQLite).** Load `data/orders.csv` into SQLite (reuse your script from Module 0.1). For each query print `EXPLAIN QUERY PLAN` (last column): (1) `WHERE customer_id = '479'`; (2) the same after `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` with the index in place; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` before and after `CREATE INDEX ix_ts ON orders(order_ts)`.
+> 🛠 **Try it (12 min, Python and SQLite).** Load `data/orders.csv` into SQLite (reuse your script from Module 0.2). For each query print `EXPLAIN QUERY PLAN` (last column): (1) `WHERE customer_id = '479'`; (2) the same after `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` with the index in place; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` before and after `CREATE INDEX ix_ts ON orders(order_ts)`.
 >
 > **You should see:** `SCAN orders` for (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` for (2); `SCAN orders` again for (3), because a function on the column defeats the index (sargability); and for (4) a `SCAN` that becomes `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 

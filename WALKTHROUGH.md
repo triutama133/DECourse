@@ -81,8 +81,8 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 ```
 LEVEL 0: Fondasi Pemula (Minggu 1-7)
  ├── Modul 0.0: Python dari Nol (variabel, def, for, if, error, file, tes)
- ├── Modul 0.1: Lansekap Data Engineering (Batch vs Streaming, OLTP vs OLAP)
- ├── Modul 0.2: Terminal Linux Dasar, Git, dan Python Virtual Environments
+ ├── Modul 0.1: Terminal Linux Dasar, Git, dan Python Virtual Environments
+ ├── Modul 0.2: Lansekap Data Engineering (Batch vs Streaming, OLTP vs OLAP)
  └── Modul 0.3: Relational Database & Fondasi SQL (SQLite & Postgres; fungsi, DDL, view)
       │
 LEVEL 1: Core Engineering & Pemodelan Data (Minggu 8-25)

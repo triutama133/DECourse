@@ -31,8 +31,8 @@ LABS = ROOT / "labs"
 # module -> ("pytest", [targets]) or ("shell", [verify scripts])
 PLAN = {
     "mod-0-0": ("pytest", ["labs/mod-0-0/test_practice.py", "labs/mod-0-0/test_lab.py"]),
-    "mod-0-1": ("pytest", ["labs/mod-0-1/test_lab.py"]),
-    "mod-0-2": ("shell", ["labs/mod-0-2/verify.sh"]),
+    "mod-0-2": ("pytest", ["labs/mod-0-2/test_lab.py"]),
+    "mod-0-1": ("shell", ["labs/mod-0-1/verify.sh"]),
     "mod-0-3": ("shell", ["labs/mod-0-3/verify.sh"]),
     "mod-1-1": ("pytest", ["labs/mod-1-1/test_lab.py"]),
     "mod-1-2": ("pytest", ["labs/mod-1-2/test_lab.py"]),
@@ -172,7 +172,7 @@ def check_shell(script):
     code, out, secs = run(["bash", script])
     msg = (out.strip().splitlines() or [""])[-1] + f" ({secs:.0f}s)"
     checker = ROOT / Path(script).parent / "check.py"
-    if code == 0 and checker.exists() and "mod-0-2" not in script:
+    if code == 0 and checker.exists() and "mod-0-1" not in script:
         _, st_out, _ = run([sys.executable, str(checker)])
         broken = broken_in_output(st_out)
         if broken:
@@ -228,7 +228,7 @@ def self_test():
 <testcase classname="t" name="test_assert"><failure message="AssertionError: assert 0 == 3">source mentions SyntaxError here
 E   AssertionError: assert 0 == 3</failure></testcase>
 <testcase classname="t" name="test_build"><failure message="AssertionError: dbt build failed&#10;#x1B[0m09:11:08  Running with dbt=1.12.7&#10;Compilation Error in model fct_daily_revenue">x</failure></testcase>
-<testcase classname="labs.mod-0-1.test_lab" name=""><error message="collection failure">E   ModuleNotFoundError: No module named 'helpers'</error></testcase>
+<testcase classname="labs.mod-0-2.test_lab" name=""><error message="collection failure">E   ModuleNotFoundError: No module named 'helpers'</error></testcase>
 </testsuite></testsuites>""")
         bad = broken_in_junit(xml)
         assert len(bad) == 2, bad

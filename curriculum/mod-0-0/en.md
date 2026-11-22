@@ -14,7 +14,7 @@ why: Many courses show you def and for for ten minutes and rush on. You copy the
 - Read a CSV file with `with open` and the csv module, and explain what `import` and `if __name__ == "__main__"` do
 
 ## @prereq
-None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.2 then teaches the proper setup on your own computer.
+None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.1 then teaches the proper setup on your own computer.
 
 > [!IMPORTANT]
 > **How to Work on Labs (Beginner Guide):**
@@ -156,7 +156,7 @@ The condition is an expression that gives `True` or `False`. Comparisons: `==` e
 
 **Truthiness** saves typing: `0`, `""`, `None`, `[]`, `{}` count as false in an `if`, everything else as true. So `if not rows:` means "if there are no rows". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value. When zero is legal, write `if total is not None:`.
 
-**Why decisions are everywhere in pipelines.** The rule of Module 0.1 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
+**Why decisions are everywhere in pipelines.** The rule of Module 0.2 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
 
 **Negative money.** `abs(n)` gives the distance from zero, always positive: `abs(-45000)` is `45000`. To write a negative amount as `-Rp 45.000`, format `abs(amount)` and put the minus sign in front yourself, with an `if` that checks whether the amount is below zero.
 
@@ -228,7 +228,7 @@ The parts: `def`, the **name**, the **parameters** in brackets (the inputs; `ord
 
 **A trap to meet now.** Never use a *mutable* value (a list or dict) as a default: `def add(order, batch=[]):`. Python creates that list **once**, when the `def` line is read, and every call that omits `batch` shares it. The second call sees what the first one added. Use `batch=None` and create a new list inside. The chaos scenario shows what this does to a real pipeline, and the lab has a test for it.
 
-Prefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.1: idempotence).
+Prefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.2: idempotence).
 
 **Typing a function at the `>>>` prompt.** After a line that ends with `:`, such as `def double(n):`, Python shows `...` and indents the next line for you. When the function is complete, press **Enter once more on the empty line** to finish it; without that empty line, the next thing you type becomes part of the function. For anything longer than two lines, a file is easier.
 
@@ -306,7 +306,7 @@ with open("orders.csv", newline="", encoding="utf-8") as f:
 
 Why each part. `open` gives you a connection to the file. **`with`** guarantees the file is closed when the block ends, even if an error happens inside, so you never leak open files (a real problem in long-running jobs). `encoding="utf-8"` says how bytes become text; leaving it out means your program behaves differently on different computers. `newline=""` is what the csv module wants so that line breaks inside quoted values survive. `csv.DictReader(f)` turns each row into a dict using the header line as keys, so you get exactly the list of dictionaries of lesson 2. All values are strings; converting them is your job.
 
-An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.2). Your own file `basics.py` is a **module** too: `import basics` runs it once and gives you its functions as `basics.total_revenue(...)`. That is how the lab tests use your code.
+An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.1). Your own file `basics.py` is a **module** too: `import basics` runs it once and gives you its functions as `basics.total_revenue(...)`. That is how the lab tests use your code.
 
 You run a script with `python3 myfile.py`. A common line at the bottom of scripts is:
 
@@ -384,7 +384,7 @@ source venv/bin/activate                   # every new terminal
 python -m pip install -r labs/mod-0-0/requirements.txt    # once: pytest
 ```
 
-  Use your own course folder in the first line. If its name has a space, put a backslash before the space: `cd ~/Documents/Learn\ DE/DECourse`. After `source`, the prompt starts with `(venv)`; Module 0.2 explains what a venv is. Then open the course folder in VS Code (File, Open Folder) and click `labs/mod-0-0/practice.py` (Part A) or `labs/mod-0-0/basics.py` (Part B) to edit it. Check one step or one function with, for example:
+  Use your own course folder in the first line. If its name has a space, put a backslash before the space: `cd ~/Documents/Learn\ DE/DECourse`. After `source`, the prompt starts with `(venv)`; Module 0.1 explains what a venv is. Then open the course folder in VS Code (File, Open Folder) and click `labs/mod-0-0/practice.py` (Part A) or `labs/mod-0-0/basics.py` (Part B) to edit it. Check one step or one function with, for example:
 
 ```bash
 pytest labs/mod-0-0/test_practice.py -k Step1 -v       # Part A, step 1

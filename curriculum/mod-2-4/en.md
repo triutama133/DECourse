@@ -64,7 +64,7 @@ Pass **references, not data**, between steps. Task outputs travel through the or
 > 5. **Success Indicator:** The test passes, confirming exactly 30 partitions from 2026-01-01 through 2026-01-30.
 
 ## @lesson Idempotency and backfills: the rule that makes everything else safe
-Module 0.1 gave you the rule, Module 1.2 the techniques, and the orchestrator is where it becomes non-negotiable. **Every step must be safe to run more than once for the same interval.** Orchestrators retry automatically, humans re-trigger runs, and backfills re-run history; if running twice doubles the numbers, one of those will eventually happen to you.
+Module 0.2 gave you the rule, Module 1.2 the techniques, and the orchestrator is where it becomes non-negotiable. **Every step must be safe to run more than once for the same interval.** Orchestrators retry automatically, humans re-trigger runs, and backfills re-run history; if running twice doubles the numbers, one of those will eventually happen to you.
 
 The patterns, all of which the lab tests:
 

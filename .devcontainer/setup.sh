@@ -9,4 +9,4 @@ for req in labs/*/requirements.txt labs/*/*/requirements.txt; do
   python -m pip install -r "$req" || echo "WARNING: could not install $req (install it later when you reach that module)"
 done
 python3 labs/shared/shopgen.py --out data >/dev/null 2>&1 && echo "KopiKu sample data created in ./data"
-echo "Ready. Start with Module 0.1. To run the site: python3 server.py"
+echo "Ready. Start with Module 0.2. To run the site: python3 server.py"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the finished Lab 0.2 workspace, the way a careful learner would. Usage: make_workspace.sh <dir>
+# Builds the finished Lab 0.1 workspace, the way a careful learner would. Usage: make_workspace.sh <dir>
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SHARED="$HERE/../../shared"
