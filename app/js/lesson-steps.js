@@ -31,6 +31,7 @@
   const isAdvancedStart = (l) => /^:::advanced\s+/.test(l);
   const isFoldEnd = (l) => /^:::\s*$/.test(l);
   const isDrillStart = (l) => /^:::(drill|ask)\b/.test(l);
+  const isTraceStart = (l) => /^:::trace\s+/.test(l);
   const isDiagram = (l) => /^\[\[diagram:[a-z0-9-]+\]\]\s*$/.test(l);
   const isRule = (l) => /^---+\s*$/.test(l);
 
@@ -59,7 +60,12 @@
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       const from = i;
-      if (isDrillStart(line)) {                          // a drill: everything up to its closing ::: is one block
+      if (isTraceStart(line)) {                          // an animation ("watch it run"): stays with the text before it
+        i++;
+        while (i < lines.length && !isFoldEnd(lines[i])) i++;
+        i++;
+        push("trace", from, i, { words: 0 });
+      } else if (isDrillStart(line)) {                   // a drill: everything up to its closing ::: is one block
         i++;
         while (i < lines.length && !isFoldEnd(lines[i])) i++;
         i++;
@@ -107,7 +113,7 @@
         i++;                                              // a paragraph: runs until a blank line or the start of another kind of block
         while (i < lines.length) {
           const l = lines[i];
-          if (l.trim() === "" || isHeading(l) || isFence(l) || isQuote(l) || isAdvancedStart(l) || isDrillStart(l) || isFoldEnd(l) || isDiagram(l) || isRule(l)) break;
+          if (l.trim() === "" || isHeading(l) || isFence(l) || isQuote(l) || isAdvancedStart(l) || isDrillStart(l) || isTraceStart(l) || isFoldEnd(l) || isDiagram(l) || isRule(l)) break;
           if (isTableRow(l) || isBullet(l) || isOrdered(l)) break;
           i++;
         }
@@ -150,7 +156,7 @@
         const glued = prev && introduces(prev);                      // do not cut right after an introduction
         const step = open();
         const used = step.blocks.reduce((m, x) => m + x.words, 0);
-        const cuttable = b.type !== "advanced" && b.type !== "rule";
+        const cuttable = b.type !== "advanced" && b.type !== "rule" && b.type !== "trace";
         if (cuttable && !glued && used >= MIN_WORDS && used + group > MAX_WORDS) { flush(); open(); }
         cur.blocks.push(b);
       }

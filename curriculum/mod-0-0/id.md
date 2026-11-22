@@ -654,29 +654,263 @@ a_now = [1, 2, 3]
 > Anda seharusnya melihat `4`, `paid`, `60000`, dan `[3, 5, 7]`, serta empat pemeriksaan lulus.
 
 ## @lesson Keputusan: if, elif, else
-Keputusan adalah cara program memilih di antara jalur. Dalam data engineering hampir semua **validasi** adalah keputusan: apakah total ini angka? apakah status ini kita kenal?
+Keputusan adalah cara program memilih di antara jalur. Dalam data engineering hampir semua **validasi** adalah keputusan: apakah total ini angka? apakah statusnya salah satu yang kita kenal? Setiap keputusan dimulai dengan pertanyaan yang dijawab Python dengan `True` atau `False`.
+
+### Pertanyaan yang dijawab Python dengan True atau False
+
+Sebuah perbandingan mengajukan pertanyaan tentang dua nilai. Jawabannya adalah `bool` (`True` atau `False`):
+
+| Pertanyaan | Tulis | Contoh |
+|---|---|---|
+| sama? | `==` | `stock == 12` |
+| tidak sama? | `!=` | `status != "paid"` |
+| lebih kecil / lebih besar? | `<` `>` | `stock < 20` |
+| lebih kecil atau sama / lebih besar atau sama? | `<=` `>=` | `stock >= 20` |
+| ada di kelompok ini? | `in` | `"paid" in ["paid", "shipped"]` |
+
+```python
+stock = 12
+print(stock < 20)          # True
+print(stock == 12)         # True: dua tanda sama dengan MENANYAKAN
+print("a" in ["a", "b"])   # True
+```
+
+Hati-hati: satu `=` **menugaskan** (`stock = 12` menaruh 12 ke dalam nama), dua `==` **membandingkan** (`stock == 12` bertanya "apakah 12?"). Tertukar keduanya adalah kekeliruan pemula yang klasik.
+
+:::ask Apa yang akan tercetak?
+```python
+print(5 == 5.0, "5" == 5)
+```
+@options
+True True
+* True False
+False False
+@why
+`5` dan `5.0` adalah angka yang sama, jadi perbandingan pertama `True`. Tetapi `"5"` adalah **teks** dan `5` adalah angka, dan Python tidak pernah menganggap teks dan angka sama: `False`.
+:::
+
+:::drill python Ajukan sebuah pertanyaan
+`stock` bernilai `12`. Buat `is_low` berisi jawaban untuk pertanyaan "apakah stoknya di bawah 20?". Sekarang harus `True`, dan mengikuti `stock` kalau angkanya berubah.
+@starter
+stock = 12
+is_low = None
+@check
+is_low is True ## `is_low` harus True: 12 di bawah 20.
+uses("stock") ## Ajukan pertanyaan tentang variabel `stock`, jangan hanya mengetik True.
+rerun_with("stock", 50)["is_low"] is False ## Ketika `stock` 50, `is_low` harus False. Pakai stock < 20.
+@hint
+`stock < 20` adalah pertanyaan yang jawabannya `True` atau `False`. Simpan jawabannya: `is_low = stock < 20`.
+@solution
+stock = 12
+is_low = stock < 20
+:::
+
+### if: jalankan blok hanya ketika jawabannya True
+
+Sebuah `if` menjalankan baris di bawahnya **hanya ketika pertanyaannya `True`**. Baris yang menjadi milik `if` **menjorok** (empat spasi) di bawah baris yang berakhir dengan titik dua. Di Python, indentasi *adalah* strukturnya, jadi indentasi yang salah berarti program yang salah.
+
+```python
+stock = 12
+if stock < 20:
+    print("reorder")
+```
+
+Tambahkan `else` untuk "kalau tidak". Perhatikan baris mana yang berjalan, dan mana yang dilewati:
+
+:::trace Baris mana yang berjalan?
+@code
+stock = 12
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+print(message)
+@notes
+1 | `stock` mendapat nilai 12.
+2 | Pertanyaannya: apakah 12 < 20? Ya, `True`.
+3 | Karena jawabannya `True`, Python masuk ke blok yang menjorok di bawah `if`.
+6 | Blok `else` dilewati seluruhnya. Sekarang program melanjutkan dengan baris pertama yang tidak menjorok di bawahnya.
+:::
+
+:::drill python if dan else
+Tulis `if` / `else` sehingga `message` bernilai `"reorder"` ketika `stock` di bawah 20, dan `"enough"` kalau tidak.
+@starter
+stock = 12
+message = None
+# tulis if / else Anda di bawah baris ini
+
+@check
+has_node("If") ## Pakai if (dan else).
+message == "reorder" ## Dengan stock 12, `message` harus "reorder".
+rerun_with("stock", 50)["message"] == "enough" ## Dengan stock 50, `message` harus "enough".
+rerun_with("stock", 20)["message"] == "enough" ## Dengan stock tepat 20, `message` harus "enough": 20 tidak di bawah 20.
+@hint
+```python
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+```
+@solution
+stock = 12
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+:::
+
+### elif: lebih dari dua jalur
+
+`elif` ("else if") menambah pertanyaan. Python menanyakannya **dari atas**, menjalankan blok **yang pertama** `True`, dan melewati semua yang lain:
 
 ```python
 status = "refunded"
 if status == "paid":
-    print("hitung omsetnya")
+    print("hitung pendapatan")
 elif status == "cancelled" or status == "refunded":
-    print("tanpa omset")
+    print("tidak ada pendapatan")
 else:
     print("status tidak dikenal: kirim ke karantina")
 ```
 
-Cara kerjanya: Python memeriksa kondisi dari atas, menjalankan blok dari kondisi **pertama** yang benar, lalu melewati semua yang lain. Blok adalah apa pun yang **menjorok** (indentasi) di bawah titik dua; di Python indentasi adalah strukturnya (biasanya empat spasi), jadi indentasi yang salah adalah program yang salah.
+:::drill python Tiga jalur
+Tentukan `action` dari `status`: `"paid"` menghasilkan `"count it"`; `"cancelled"` atau `"refunded"` menghasilkan `"skip it"`; selain itu menghasilkan `"check it"`.
+@starter
+status = "refunded"
+action = None
+# tulis if / elif / else Anda di bawah baris ini
 
-Kondisi adalah ekspresi yang menghasilkan `True` atau `False`. Perbandingan: `==` sama dengan (dua tanda; satu `=` adalah penugasan!), `!=`, `<`, `>`, `<=`, `>=`, dan `in` untuk keanggotaan (`status in {"cancelled", "refunded"}`). Gabungkan dengan `and`, `or`, `not`.
+@check
+has_node("If") ## Pakai if / elif / else.
+action == "skip it" ## Dengan status "refunded", `action` harus "skip it".
+rerun_with("status", "paid")["action"] == "count it" ## Dengan status "paid", `action` harus "count it".
+rerun_with("status", "cancelled")["action"] == "skip it" ## Dengan status "cancelled", `action` harus "skip it".
+rerun_with("status", "shipped")["action"] == "check it" ## Dengan status lain (misalnya "shipped"), `action` harus "check it".
+@hint
+Mulai dengan `if status == "paid":`, lalu `elif status == "cancelled" or status == "refunded":`, lalu `else:`.
+@solution
+status = "refunded"
+if status == "paid":
+    action = "count it"
+elif status == "cancelled" or status == "refunded":
+    action = "skip it"
+else:
+    action = "check it"
+:::
 
-**Truthiness** menghemat ketikan: `0`, `""`, `None`, `[]`, `{}` dianggap salah di dalam `if`, selain itu dianggap benar. Jadi `if not rows:` berarti "jika tidak ada baris". Tetapi hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah. Bila nol sah, tulis `if total is not None:`.
+### and, or, not
 
-**Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.2 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid lanjut, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data hilang tanpa jejak.
+Gabungkan pertanyaan dengan `and` (keduanya harus benar), `or` (minimal satu), dan `not` (membalik jawabannya). `status in {"cancelled", "refunded"}` adalah cara singkat menulis beberapa `or`.
 
-**Uang negatif.** `abs(n)` memberi jarak dari nol, selalu positif: `abs(-45000)` adalah `45000`. Untuk menulis jumlah negatif sebagai `-Rp 45.000`, format `abs(amount)` dan taruh tanda minus di depannya sendiri, dengan `if` yang memeriksa apakah jumlahnya di bawah nol.
+:::drill python Keduanya harus benar
+Sebuah pesanan bisa dikirim ketika sudah dibayar **dan** ada stok. Buat `can_ship` bernilai `True` hanya ketika `paid` adalah `True` dan `stock` di atas 0.
+@starter
+paid = True
+stock = 5
+can_ship = None
+@check
+can_ship is True ## Dengan paid True dan stock 5, `can_ship` harus True.
+rerun_with("stock", 0)["can_ship"] is False ## Dengan stock 0, `can_ship` harus False.
+rerun_with("paid", False)["can_ship"] is False ## Ketika `paid` False, `can_ship` harus False.
+uses("paid") and uses("stock") ## Pakai kedua variabel dalam satu pertanyaan yang digabung dengan `and`.
+@hint
+`paid and stock > 0`: dua pertanyaan yang digabung dengan `and`.
+@solution
+paid = True
+stock = 5
+can_ship = paid and stock > 0
+:::
 
-Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0, ia tidak ada. Gunakan fungsi bawaan `sum(values)` (menjumlahkan semua angka dalam list) dan `len(values)` (menghitung jumlah item), lalu jaga dengan `if`: `if not values: avg = None` menangani list kosong sebelum error terjadi, sedangkan `else: avg = sum(values) / len(values)` berjalan aman saat ada data. Biasakan memeriksa kasus berbahaya lebih dulu.
+### Apa yang dianggap salah: truthiness
+
+Dalam sebuah `if`, beberapa nilai dianggap **salah** tanpa menjadi `False`: `0`, `""` (teks kosong), `None`, `[]` (list kosong), `{}`. Semua yang lain dianggap benar. Jadi `if not rows:` berarti "kalau tidak ada baris". Namun hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah sepenuhnya (pesanan gratis). Ketika nol itu sah, ajukan pertanyaan yang persis: `total is not None`.
+
+:::ask Apa yang akan tercetak?
+```python
+total = 0
+if total:
+    print("has a total")
+else:
+    print("no total")
+```
+@options
+has a total
+* no total
+sebuah error
+@why
+`0` dianggap salah dalam sebuah `if`, jadi Python menjalankan `else`. Inilah jebakannya: pesanan gratis (total `0`) akan diperlakukan sebagai "tidak ada total". Ketika `0` adalah nilai yang sah, tulis `if total is not None:`.
+:::
+
+:::drill python Nol adalah nilai sungguhan
+`total` bernilai `0`: pesanannya gratis, dan itu nilai sungguhan. Buat `has_total` bernilai `True` setiap kali `total` bukan `None` (jadi `True` untuk `0`), dan `False` ketika `None`.
+@starter
+total = 0
+has_total = None
+@check
+has_total is True ## Dengan total 0, `has_total` harus True: pesanan gratis tetap sebuah total.
+rerun_with("total", None)["has_total"] is False ## Dengan total None, `has_total` harus False.
+rerun_with("total", 250)["has_total"] is True ## Dengan total 250, `has_total` harus True.
+"is not None" in code ## Ajukan pertanyaan yang persis: total is not None.
+@hint
+`total is not None` bernilai `True` untuk `0` dan `False` hanya untuk `None`.
+@solution
+total = 0
+has_total = total is not None
+:::
+
+### Angka negatif: abs()
+
+`abs(n)` memberi jarak dari nol, selalu positif: `abs(-45000)` adalah `45000`. Untuk menampilkan angka negatif dengan tanda minus di depan, tulis `abs(n)` dan taruh tandanya di depan sendiri, dengan `if` yang memeriksa apakah `n` di bawah nol. Ingat `str(n)` mengubah angka menjadi teks.
+
+:::drill python Tanda minus di depan
+`n` adalah bilangan bulat. Buat `signed` berisi teksnya: dengan `-` di depan ketika `n` negatif (`-450` menjadi `"-450"`), dan hanya digitnya kalau tidak (`450` menjadi `"450"`). Pakai `abs()`.
+@starter
+n = -450
+signed = None
+# tulis if / else Anda di bawah baris ini
+
+@check
+signed == "-450" ## Dengan n -450, `signed` harus teks "-450".
+rerun_with("n", 450)["signed"] == "450" ## Dengan n 450, `signed` harus teks "450" (tanpa minus).
+rerun_with("n", 0)["signed"] == "0" ## Dengan n 0, `signed` harus "0".
+calls("abs") ## Pakai abs(n) untuk mendapatkan digit tanpa tanda.
+@hint
+Ketika `n < 0`: `"-" + str(abs(n))`. Kalau tidak: `str(n)`.
+@solution
+n = -450
+if n < 0:
+    signed = "-" + str(abs(n))
+else:
+    signed = str(n)
+:::
+
+### Pembagian dengan nol adalah masalah keputusan
+
+Rata-rata sebuah list adalah jumlahnya dibagi banyaknya angka. Python punya dua pembantu bawaan untuk itu: `sum(values)` menjumlahkan semua angka dalam list, dan `len(values)` menghitung itemnya. Untuk list **kosong** pembagiannya dengan nol dan Python berhenti dengan `ZeroDivisionError`. Rata-rata dari tidak ada apa pun bukan `0`, ia tidak ada: pakai `None`. Jaga kasus berbahaya itu lebih dulu dengan `if`.
+
+:::drill python Rata-rata dari tidak ada apa pun
+`scores` adalah list berisi angka. Buat `mean` berisi rata-ratanya. Ketika list kosong tidak ada rata-rata: `mean` harus `None`.
+@starter
+scores = [80, 90, 70]
+mean = None
+# tulis if / else Anda di bawah baris ini
+
+@check
+mean == 80 ## Dengan scores [80, 90, 70], `mean` harus 80.0.
+rerun_with("scores", [])["mean"] is None ## Dengan list kosong, `mean` harus None (dan program tidak boleh berhenti dengan ZeroDivisionError).
+rerun_with("scores", [10])["mean"] == 10 ## Dengan scores [10], `mean` harus 10.0.
+calls("sum") and calls("len") ## Pakai sum(scores) / len(scores).
+@hint
+`if len(scores) == 0:` beri `None`; `else:` jumlah dibagi panjangnya.
+@solution
+scores = [80, 90, 70]
+if len(scores) == 0:
+    mean = None
+else:
+    mean = sum(scores) / len(scores)
+:::
+
+**Mengapa keputusan ada di mana-mana dalam pipeline.** Aturan Modul 0.2 adalah "jangan menebak dan jangan membuang diam-diam". Dalam kode, aturan itu adalah `if` dengan dua cabang: baris yang valid dilanjutkan, baris yang tidak valid disisihkan *beserta alasannya*. `else` yang tidak melakukan apa-apa adalah cara data menghilang tanpa jejak.
 
 > 💡 **Jeda Praktik 3 (Bagian A, Langkah 3):**
 > Di `practice.py` (atau tab **Bagian A**), kerjakan **Langkah 3**:
@@ -687,29 +921,394 @@ Pembagian dengan nol juga masalah keputusan: rata-rata dari list kosong bukan 0,
 > Anda seharusnya melihat `-Rp 45.000` dan `87500.0`, serta empat pemeriksaan lulus. Pemeriksa juga mencoba `totals` kosong: tanpa `if` Anda, file akan berhenti dengan `ZeroDivisionError`, dan pesannya menyebutkan di baris berapa.
 
 ## @lesson Pengulangan: for, while, dan comprehension
-Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah perulangan (loop), dan ia adalah mesin dari setiap pipeline data.
+Sebuah file punya 100.000 baris. Anda tidak bisa menulis 100.000 baris kode, jadi Anda menulis instruksinya **sekali** dan membiarkan komputer mengulanginya. Itulah loop, dan ia adalah mesin setiap pipeline data.
 
+### for: lakukan sesuatu untuk setiap item
+
+Loop `for` mengambil item dalam sebuah list **satu per satu** dan menjalankan baris yang menjorok sekali untuk masing-masing. Perhatikan bagaimana ia berjalan:
+
+:::trace Setiap putaran, item baru
+@code
+cities = ["Jakarta", "Bandung", "Medan"]
+for city in cities:
+    print(city)
+print("done")
+@notes
+2 | Sebuah putaran dimulai: nama `city` ditempelkan pada item berikutnya dalam list.
+3 | Baris yang menjorok berjalan sekali untuk item ini.
+4 | Item habis, jadi loop selesai dan Python melanjutkan dengan baris berikutnya yang tidak menjorok.
+:::
+
+:::drill python Tampilkan setiap item
+Pakai loop `for` untuk mencetak setiap nama di `names`, satu per baris.
+@starter
+names = ["Kopi", "Teh", "Susu"]
+# tulis loop Anda di bawah baris ini
+
+@check
+has_node("For") ## Pakai loop for.
+out == "Kopi\nTeh\nSusu" ## Harus mencetak Kopi, Teh, dan Susu, masing-masing di barisnya sendiri.
+rerun_with("names", ["a", "b"])["__out__"] == "a\nb" ## Loop Anda harus bekerja untuk list apa pun: dengan ["a", "b"] harus mencetak a dan b.
+@hint
+`for name in names:` lalu, menjorok di baris berikutnya, `print(name)`.
+@solution
+names = ["Kopi", "Teh", "Susu"]
+for name in names:
+    print(name)
+:::
+
+### Akumulator: perbarui total di setiap putaran
+
+Untuk menjumlahkan, mulai dengan nilai netral (`0`) **sebelum** loop, lalu perbarui di setiap putaran. **Pola akumulator** ini ada di balik penjumlahan, penghitungan, nilai maksimum, dan hampir setiap agregasi yang akan Anda tulis.
+
+:::trace Total yang bertambah
+@code
+prices = [25000, 18000, 30000]
+total = 0
+for price in prices:
+    total = total + price
+print(total)
+@notes
+2 | Sebelum loop: mulai dengan nilai netral. Belum ada yang dijumlahkan.
+4 | `total` yang baru adalah `total` lama ditambah `price` putaran ini. Perhatikan baris kuning: `total` bertambah di setiap putaran.
+5 | Loop selesai. `total` berisi jumlah semua harga.
+:::
+
+:::ask Apa yang akan tercetak?
 ```python
 total = 0
-for order in orders:            # ambil baris satu per satu: tiap putaran, `order` menunjuk ke baris berikutnya
-    total = total + int(order["total_idr"])
+for n in [1, 2, 3]:
+    total = n
 print(total)
 ```
+@options
+6
+* 3
+0
+@why
+`total = n` **menggantikan** `total` di setiap putaran, jadi setelah putaran terakhir ia hanya berisi angka terakhir, 3. Untuk menjumlahkan Anda butuh `total = total + n`: nilai baru dibangun dari nilai lama.
+:::
 
-Telusuri dengan tiga baris (150000, 80000, 120000). Sebelum loop `total` bernilai 0. Putaran 1: `order` adalah baris 1, jadi `total` menjadi 150000. Putaran 2: 230000. Putaran 3: 350000. Loop berhenti karena baris habis, dan print menampilkan 350000. **Pola akumulator** ini (mulai dengan nilai netral, perbarui setiap putaran) ada di balik jumlah, hitungan, maksimum, dan hampir setiap agregasi yang akan Anda tulis.
+:::drill python Jumlahkan semuanya
+Pakai loop `for` untuk membuat `total` berisi jumlah angka di `prices`. Jangan pakai `sum()` bawaan: yang dilatih di sini adalah loopnya.
+@starter
+prices = [25000, 18000, 30000]
+total = 0
+# tulis loop Anda di bawah baris ini
 
-Alat-alat yang berguna, masing-masing menyelesaikan satu gangguan tertentu:
+@check
+has_node("For") ## Pakai loop for.
+total == 73000 ## `total` harus 73000.
+rerun_with("prices", [5, 5])["total"] == 10 ## Loop Anda harus bekerja untuk list apa pun: dengan [5, 5], `total` harus 10.
+not calls("sum") ## Jangan pakai sum(): tulis loopnya sendiri.
+@hint
+`for price in prices:` lalu, menjorok: `total = total + price`.
+@solution
+prices = [25000, 18000, 30000]
+total = 0
+for price in prices:
+    total = total + price
+:::
 
-- `range(5)` menghasilkan 0, 1, 2, 3, 4 (bukan 5!). `range(0, 100, 10)` melangkah sepuluh-sepuluh. Pakai saat butuh posisi atau jumlah pengulangan.
-- `enumerate(rows)` memberi posisi *dan* itemnya: `for i, row in enumerate(rows):`. Lebih baik daripada menyimpan penghitung sendiri.
-- `zip(a, b)` menelusuri dua list bersamaan.
-- `continue` melompat ke putaran berikutnya (pesanan dibatalkan: tidak ada yang ditambah). `break` keluar dari loop sepenuhnya.
+Data dari file datang sebagai teks (Materi 1), jadi di dalam loop Anda biasanya mengubah setiap nilai dengan `int(...)` sebelum menjumlahkannya.
 
-**Comprehension** adalah loop yang ditulis sebagai satu ekspresi: `ids = [int(o["customer_id"]) for o in orders]` membangun list; `{int(o["customer_id"]) for o in orders}` membangun set; `{k: v for ...}` membangun dict. Ia loop yang sama dalam bentuk singkat. Pakai bila muat di satu baris yang jelas; bila perlu cabang `if/else` atau beberapa langkah, tulis loop biasa. Mudah dibaca lebih baik daripada akal-akalan.
+:::drill python Harga berupa teks
+`texts` berisi harga sebagai teks. Buat `total` berisi jumlahnya **sebagai angka**.
+@starter
+texts = ["150000", "90000", "25000"]
+total = 0
+# tulis loop Anda di bawah baris ini
 
-**Mengurutkan dan memeringkat dengan `sorted()`**: Dalam pipeline data, Anda akan sering memeringkat data (misalnya pelanggan dengan total belanjaan terbesar). Fungsi bawaan `sorted(data, key=...)` menerima fungsi `key` yang memberi tahu Python nilai apa yang dijadikan patokan urutan. Fungsi kecil satu baris bernama **lambda** (`lambda x: ...`) sering dipakai sebagai key ini. Sebagai contoh, untuk mengurutkan pasangan `(customer_id, total)` dari total terbesar ke terkecil, tulis `sorted(pairs, key=lambda pair: -pair[1])` (tanda minus membalik urutan sehingga nilai terbesar muncul pertama). Jika dua pelanggan memiliki total yang sama persis dan Anda ingin memecah seri berdasarkan ID pelanggan terkecil, kembalikan sebuah tuple dari fungsi key: `key=lambda pair: (-pair[1], pair[0])`. Python membandingkan elemen pertama tuple terlebih dahulu, dan hanya memeriksa elemen kedua jika elemen pertama bernilai sama.
+@check
+total == 265000 ## `total` harus angka 265000, bukan teks yang menempel.
+type(total) is int ## `total` harus berupa angka (int).
+rerun_with("texts", ["1", "2"])["total"] == 3 ## Dengan ["1", "2"], `total` harus 3.
+@hint
+Ubah di dalam loop: `total = total + int(text)`.
+@solution
+texts = ["150000", "90000", "25000"]
+total = 0
+for text in texts:
+    total = total + int(text)
+:::
 
-Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. Pakai saat Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: jika tidak ada yang membuat kondisi menjadi salah di dalam loop, ia berjalan selamanya. Selalu tanyakan: "apa yang berubah di dalam loop sehingga ia berakhir?"
+### if di dalam loop: hanya sebagian item
+
+Taruh `if` di dalam loop untuk memperlakukan sebagian item secara berbeda. Setiap pesanan di bawah adalah dictionary; totalnya berupa teks.
+
+:::drill python Lewati yang dibatalkan
+Buat `revenue` berisi jumlah total (sebagai angka) dari pesanan yang statusnya **bukan** `"cancelled"`.
+@starter
+orders = [
+    {"status": "paid", "total": "150000"},
+    {"status": "cancelled", "total": "90000"},
+    {"status": "paid", "total": "25000"},
+]
+revenue = 0
+# tulis loop Anda di bawah baris ini
+
+@check
+revenue == 175000 ## `revenue` harus 175000: pesanan yang dibatalkan (90000) tidak boleh dihitung.
+rerun_with("orders", [{"status": "cancelled", "total": "5"}])["revenue"] == 0 ## Dengan hanya pesanan yang dibatalkan, `revenue` harus tetap 0.
+rerun_with("orders", [{"status": "paid", "total": "7"}, {"status": "shipped", "total": "3"}])["revenue"] == 10 ## Dengan paid 7 dan shipped 3, `revenue` harus 10.
+has_node("If") ## Pakai if di dalam loop.
+@hint
+```python
+for order in orders:
+    if order["status"] != "cancelled":
+        revenue = revenue + int(order["total"])
+```
+@solution
+orders = [
+    {"status": "paid", "total": "150000"},
+    {"status": "cancelled", "total": "90000"},
+    {"status": "paid", "total": "25000"},
+]
+revenue = 0
+for order in orders:
+    if order["status"] != "cancelled":
+        revenue = revenue + int(order["total"])
+:::
+
+### Menghitung dengan dictionary
+
+"Berapa banyak per status, per kota, per hari" adalah pertanyaan paling umum dalam data. Dictionary menyimpan satu hitungan per nama, dan satu baris melakukan pembaruannya:
+
+```python
+counts[status] = counts.get(status, 0) + 1
+```
+
+Baca dari kanan: `counts.get(status, 0)` adalah hitungan sejauh ini (`0` ketika status ini belum pernah terlihat), `+ 1` menambahkan yang ini, dan hasilnya disimpan kembali di key yang sama. Ingat baris ini; Anda akan menulisnya berkali-kali.
+
+:::trace Menghitung per nama
+@code
+statuses = ["paid", "cancelled", "paid"]
+counts = {}
+for status in statuses:
+    counts[status] = counts.get(status, 0) + 1
+print(counts)
+@notes
+2 | Dictionary kosong: belum ada yang dihitung.
+4 | `counts.get(status, 0)` memberi hitungan sejauh ini (0 untuk nama baru), +1 menambahkan yang ini, dan hasilnya disimpan kembali. Perhatikan dictionary-nya bertambah.
+5 | Ketika loop selesai, `counts` punya satu hitungan per status yang berbeda.
+:::
+
+:::drill python Hitung per kota
+`visits` mendaftar kota dari setiap kunjungan. Buat `counts` berupa dictionary berisi jumlah kunjungan per kota, seperti `{"Jakarta": 3, ...}`.
+@starter
+visits = ["Jakarta", "Medan", "Jakarta", "Jakarta", "Medan", "Bandung"]
+counts = {}
+# tulis loop Anda di bawah baris ini
+
+@check
+counts == {"Jakarta": 3, "Medan": 2, "Bandung": 1} ## `counts` harus {'Jakarta': 3, 'Medan': 2, 'Bandung': 1}.
+rerun_with("visits", ["a", "b", "a"])["counts"] == {"a": 2, "b": 1} ## Dengan ["a", "b", "a"], `counts` harus {'a': 2, 'b': 1}.
+has_node("For") ## Pakai loop for.
+@hint
+`for city in visits:` lalu `counts[city] = counts.get(city, 0) + 1`.
+@solution
+visits = ["Jakarta", "Medan", "Jakarta", "Jakarta", "Medan", "Bandung"]
+counts = {}
+for city in visits:
+    counts[city] = counts.get(city, 0) + 1
+:::
+
+Baris yang sama bisa menjumlahkan **nilai** alih-alih satu-satu: `totals[city] = totals.get(city, 0) + amount`. Ketika setiap item adalah sepasang, loop bisa memisahkan kedua bagiannya sekaligus: `for city, amount in sales:`.
+
+:::drill python Jumlahkan per nama
+`sales` berisi pasangan `(city, amount)`. Buat `totals` berupa dictionary berisi jumlah nilai per kota, seperti `{"Jakarta": 125, ...}`.
+@starter
+sales = [("Jakarta", 100), ("Medan", 50), ("Jakarta", 25)]
+totals = {}
+# tulis loop Anda di bawah baris ini
+
+@check
+totals == {"Jakarta": 125, "Medan": 50} ## `totals` harus {'Jakarta': 125, 'Medan': 50}.
+rerun_with("sales", [("a", 1), ("b", 2), ("a", 3)])["totals"] == {"a": 4, "b": 2} ## Dengan [("a", 1), ("b", 2), ("a", 3)], `totals` harus {'a': 4, 'b': 2}.
+has_node("For") ## Pakai loop for.
+@hint
+`for city, amount in sales:` lalu `totals[city] = totals.get(city, 0) + amount`.
+@solution
+sales = [("Jakarta", 100), ("Medan", 50), ("Jakarta", 25)]
+totals = {}
+for city, amount in sales:
+    totals[city] = totals.get(city, 0) + amount
+:::
+
+### Menelusuri dictionary: .items()
+
+`counts.items()` memberi key **dan** value sekaligus, sehingga loop bisa mengambil keduanya: `for key, value in counts.items():`.
+
+:::drill python Cetak setiap hitungan
+Cetak satu baris per entri `counts`, dalam bentuk `paid: 3` (key, titik dua, spasi, value).
+@starter
+counts = {"paid": 3, "cancelled": 1}
+# tulis loop Anda di bawah baris ini
+
+@check
+out == "paid: 3\ncancelled: 1" ## Harus mencetak `paid: 3` di satu baris dan `cancelled: 1` di baris berikutnya.
+uses("items") ## Pakai counts.items() untuk mendapatkan key dan value bersama-sama.
+rerun_with("counts", {"x": 2})["__out__"] == "x: 2" ## Dengan {"x": 2}, harus mencetak `x: 2`.
+@hint
+`for status, number in counts.items():` lalu `print(f"{status}: {number}")`.
+@solution
+counts = {"paid": 3, "cancelled": 1}
+for status, number in counts.items():
+    print(f"{status}: {number}")
+:::
+
+### Setiap nilai satu kali: set yang diisi dalam loop
+
+Set menyimpan setiap nilai satu kali. Mulai dengan set kosong (`seen = set()`) dan masukkan nilai dengan `.add(x)`; menambahkan nilai yang sudah ada tidak mengubah apa-apa. Sesudahnya `sorted(...)` memberi urutannya.
+
+:::drill python Setiap id satu kali, sebagai angka
+`texts` berisi id pelanggan sebagai teks, dengan pengulangan. Buat `unique_ids` berisi list id yang berbeda **sebagai angka**, dari yang terkecil. Isi set dalam loop dengan `.add()`.
+@starter
+texts = ["7", "3", "7", "5", "3"]
+seen = set()
+unique_ids = None
+# tulis loop Anda di bawah baris ini, lalu buat unique_ids
+
+@check
+unique_ids == [3, 5, 7] ## `unique_ids` harus [3, 5, 7]: angka (bukan teks), masing-masing satu kali, dari yang terkecil.
+calls("add") ## Isi set dengan seen.add(...) di dalam loop.
+has_node("For") ## Pakai loop for.
+rerun_with("texts", ["2", "2", "1"])["unique_ids"] == [1, 2] ## Dengan ["2", "2", "1"], `unique_ids` harus [1, 2].
+@hint
+Di dalam loop: `seen.add(int(text))`. Setelah loop: `unique_ids = sorted(seen)`.
+@solution
+texts = ["7", "3", "7", "5", "3"]
+seen = set()
+for text in texts:
+    seen.add(int(text))
+unique_ids = sorted(seen)
+:::
+
+### range(): angka, dan langkah
+
+`range(5)` memberi 0, 1, 2, 3, 4 (**bukan** 5: ia berhenti sebelum akhir). `range(2, 8)` memberi 2 sampai 7. `range(0, 10, 3)` melangkah tiga-tiga: 0, 3, 6, 9. Bungkus dengan `list(...)` untuk melihat angkanya. Bersama irisan (Materi 2) ia memotong list panjang menjadi bagian-bagian: `items[3:6]` adalah posisi 3, 4, dan 5.
+
+```python
+print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
+```
+
+:::drill python Dari mana setiap bagian mulai
+`items` punya 10 item. Satu bagian panjangnya 3 item. Buat `starts` berisi list posisi tempat setiap bagian dimulai: `[0, 3, 6, 9]`. Pakai `range` dengan `len(items)`.
+@starter
+items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+starts = None
+@check
+starts == [0, 3, 6, 9] ## `starts` harus [0, 3, 6, 9].
+calls("range") and calls("len") ## Pakai range(0, len(items), 3), dibungkus list(...).
+rerun_with("items", [1, 2, 3, 4])["starts"] == [0, 3] ## Dengan 4 item, `starts` harus [0, 3].
+@hint
+`list(range(0, len(items), 3))`: dari 0, sampai panjang `items`, dengan langkah 3.
+@solution
+items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+starts = list(range(0, len(items), 3))
+:::
+
+### Lewati satu, atau berhenti lebih awal
+
+`continue` melewati sisa putaran ini dan lanjut ke putaran berikutnya. `break` meninggalkan loop sepenuhnya.
+
+:::ask Apa yang akan tercetak?
+```python
+kept = []
+for n in [1, 2, 3, 4]:
+    if n == 3:
+        continue
+    kept.append(n)
+print(kept)
+```
+@options
+[1, 2, 3, 4]
+* [1, 2, 4]
+[1, 2]
+@why
+Ketika `n` adalah 3, `continue` melewati `append`, jadi 3 tidak pernah ditambahkan, tetapi loop **tetap berlanjut** ke 4. Dengan `break` sebagai ganti `continue`, loop berhenti di 3 dan list-nya `[1, 2]`.
+:::
+
+### Loop dalam satu baris: comprehension
+
+**Comprehension** adalah loop yang membangun list dalam satu ekspresi: `[int(t) for t in texts]` berarti "untuk setiap `t` di `texts`, ambil `int(t)`". Itu loop yang sama dalam bentuk singkat. Pakai ketika muat dalam satu baris yang jelas; ketika Anda butuh cabang atau beberapa langkah, tulis loop biasa. Mudah dibaca lebih baik daripada pintar.
+
+:::drill python Satu baris
+Pakai list comprehension untuk membuat `ints` dari `texts`: setiap teks diubah menjadi angka.
+@starter
+texts = ["7", "3", "12"]
+ints = None
+@check
+ints == [7, 3, 12] ## `ints` harus [7, 3, 12], sebagai angka.
+has_node("ListComp") ## Pakai list comprehension: [ ... for ... in ...].
+rerun_with("texts", ["5"])["ints"] == [5] ## Dengan ["5"], `ints` harus [5].
+@hint
+`[int(text) for text in texts]`
+@solution
+texts = ["7", "3", "12"]
+ints = [int(text) for text in texts]
+:::
+
+### Meranking dengan sorted() dan key
+
+Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak). `sorted(data, key=...)` menerima `key`: fungsi kecil yang memberi tahu Python berdasarkan apa meranking. Fungsi satu baris yang ditulis dengan `lambda` sering dipakai: `lambda pair: pair[1]` berarti "diberi sebuah pasangan, pakai item keduanya". Untuk meranking dari terbesar ke terkecil, tambahkan `reverse=True`. Untuk memutus seri, biarkan key mengembalikan **tuple**: Python membandingkan item pertama lebih dulu dan melihat item kedua hanya ketika item pertama sama. Tanda minus di depan angka mengubah "terbesar dulu" menjadi "terkecil dulu": `key=lambda pair: (-pair[1], pair[0])` meranking berdasarkan total, terbesar dulu, dan untuk total yang sama id yang lebih kecil dulu.
+
+:::drill python Ranking berdasarkan total
+`pairs` berisi tuple `(customer_id, total)`. Buat `ranked` berisi pasangan yang diurutkan menurut total, **terbesar dulu**; ketika dua total sama, customer id yang lebih kecil didahulukan.
+@starter
+pairs = [(7, 100), (3, 100), (5, 250)]
+ranked = None
+@check
+ranked == [(5, 250), (3, 100), (7, 100)] ## `ranked` harus [(5, 250), (3, 100), (7, 100)].
+has_node("Lambda") ## Pakai fungsi key yang ditulis dengan lambda.
+rerun_with("pairs", [(1, 5), (2, 9)])["ranked"] == [(2, 9), (1, 5)] ## Dengan [(1, 5), (2, 9)], `ranked` harus [(2, 9), (1, 5)].
+@hint
+`sorted(pairs, key=lambda pair: (-pair[1], pair[0]))`: tanda minus membuat total terbesar berada di depan, dan id memutus seri.
+@solution
+pairs = [(7, 100), (3, 100), (5, 250)]
+ranked = sorted(pairs, key=lambda pair: (-pair[1], pair[0]))
+:::
+
+### while: ulangi selama kondisi masih True
+
+Loop `while` mengulang **selama sebuah pertanyaan tetap `True`**. Pakai ketika Anda tidak tahu berapa putaran yang dibutuhkan (mencoba ulang, membaca sampai habis). Bahayanya: kalau tidak ada yang di dalam loop membuat pertanyaannya salah, ia berjalan selamanya. Selalu tanyakan: "apa yang berubah di dalam loop sehingga ia berakhir?"
+
+:::ask Berapa isi n di akhir?
+```python
+n = 3
+while n > 0:
+    n = n - 1
+print(n)
+```
+@options
+3
+1
+* 0
+@why
+Setiap putaran mengurangi 1: 3, 2, 1, 0. Ketika `n` adalah 0, pertanyaan `n > 0` menjadi `False`, loop berhenti, dan `n` adalah 0. Tanpa baris `n = n - 1` pertanyaannya akan tetap `True` selamanya.
+:::
+
+:::drill python Berapa kali?
+Berapa kali Anda bisa mengurangi `3` dari `n` selama `n` masih setidaknya 3? Hitung putarannya di `steps`, dengan loop `while` (untuk `n = 10`: 10, 7, 4 semuanya minimal 3, jadi `steps` adalah 3).
+@starter
+n = 10
+steps = 0
+# tulis loop while Anda di bawah baris ini
+
+@check
+has_node("While") ## Pakai loop while.
+steps == 3 ## Dengan n 10, `steps` harus 3.
+rerun_with("n", 30)["steps"] == 10 ## Dengan n 30, `steps` harus 10.
+rerun_with("n", 2)["steps"] == 0 ## Dengan n 2, `steps` harus 0: loop tidak boleh berjalan sama sekali.
+@hint
+`while n >= 3:` lalu, menjorok: `n = n - 3` dan `steps = steps + 1`.
+@solution
+n = 10
+steps = 0
+while n >= 3:
+    n = n - 3
+    steps = steps + 1
+:::
 
 > 💡 **Jeda Praktik 4 (Bagian A, Langkah 4):**
 > Di `practice.py` (atau tab **Bagian A**), kerjakan **Langkah 4**. Satu perulangan `for order in orders:` bisa membangun beberapa hasil sekaligus. Sebelum perulangan, mulai `status_counts` sebagai `{}`, `revenue` sebagai `0`, dan sebuah set untuk id (`ids = set()`):
@@ -724,29 +1323,323 @@ Loop `while` mengulang **selama sebuah kondisi benar**: `while attempts < 3:`. P
 ## @part Fungsi, error, dan file
 
 ## @lesson Fungsi: def, parameter, dan return
-Lihat loop yang menjumlahkan total. Jika Anda butuh jumlah yang sama di lima tempat, Anda tidak menyalin lima loop. Anda memberi loop itu sebuah **nama** dan memakainya ulang. Itulah fungsi, dan ia ada karena tiga alasan: **pemakaian ulang** (tulis sekali), **kejelasan** (nama yang baik menjelaskan tujuannya, jadi `total_revenue(orders)` terbaca seperti kalimat), dan **pengujian** (fungsi kecil dengan satu masukan dan satu keluaran bisa diperiksa otomatis, begitulah lab ini bekerja).
+Lihat loop yang menjumlahkan total. Kalau Anda butuh jumlah yang sama di lima tempat, Anda tidak menyalin lima loop. Anda memberi baris-baris itu sebuah **nama** dan memakainya kembali. Itulah fungsi, dan ia ada karena tiga alasan: **pemakaian ulang** (tulis sekali), **kejelasan** (nama yang baik menjelaskan tujuannya, sehingga `total_revenue(orders)` terbaca seperti kalimat), dan **pengujian** (fungsi kecil dengan satu input dan satu output bisa diperiksa otomatis, begitulah lab bekerja).
+
+### def: beri nama pada beberapa baris
+
+`def` berarti "mendefinisikan". Baris yang menjorok di bawahnya adalah **badan** fungsi. Mendefinisikan fungsi **tidak** menjalankannya, hanya menjelaskannya. Untuk menjalankan badannya Anda **memanggil** fungsi dengan menulis namanya diikuti kurung:
 
 ```python
-def total_revenue(orders):             # def = "define": di sini kita hanya menjelaskan; belum ada yang berjalan
-    total = 0
-    for order in orders:
-        total = total + int(order["total_idr"])
-    return total                       # return = serahkan jawabannya dan tinggalkan fungsi
+def say_hello():
+    print("Halo")
 
-result = total_revenue(my_orders)      # memanggil fungsi: sekarang badannya berjalan
+say_hello()
+say_hello()
 ```
 
-Bagian-bagiannya: `def`, **nama**, **parameter** dalam tanda kurung (masukan; `orders` adalah nama penampung), titik dua, lalu **badan** yang menjorok. Saat Anda *memanggilnya*, nilai yang Anda berikan (**argumen**) ditempelkan ke nama parameter selama pemanggilan.
+:::trace Definisikan sekali, panggil dua kali
+@code
+def say_hello():
+    print("Hello")
 
-**return versus print**, kebingungan yang paling menyakiti pemula. `print` hanya *menampilkan* sesuatu di layar; program tidak bisa memakainya setelah itu. `return` *menyerahkan nilai kembali* ke kode yang memanggil fungsi sehingga ia bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.
+say_hello()
+say_hello()
+@notes
+1 | `def` hanya menjelaskan fungsi dan memberinya nama. Belum ada yang tercetak.
+4 | Sebuah panggilan: Python melompat ke badan fungsi. Lihat kotak baru di kanan: setiap panggilan mendapat ruangnya sendiri untuk variabelnya.
+2 | Badan fungsi berjalan.
+5 | Dipanggil lagi: badan yang sama berjalan untuk kedua kalinya.
+:::
 
-**Nilai bawaan**: `def safe_int(text, default=None):` berarti pemanggil boleh menghilangkan `default`. **Scope**: nama yang dibuat di dalam fungsi hanya ada selama fungsi berjalan; dunia luar tidak bisa melihatnya, dan itu fitur (fungsi tidak bisa merusak variabel Anda yang lain secara tidak sengaja).
+:::drill python Definisikan dan panggil
+Definisikan fungsi `show_paid` yang mencetak kata `paid`. Lalu panggil sekali.
+@starter
+# tulis fungsi dan panggilan Anda di bawah baris ini
 
-**Jebakan untuk dikenal sekarang.** Jangan pernah memakai nilai *mutable* (list atau dict) sebagai nilai bawaan: `def add(order, batch=[]):`. Python membuat list itu **sekali**, saat baris `def` dibaca, dan setiap pemanggilan yang tidak mengisi `batch` memakainya bersama. Pemanggilan kedua melihat apa yang ditambahkan pemanggilan pertama. Pakai `batch=None` dan buat list baru di dalam. Skenario chaos memperlihatkan akibatnya pada pipeline nyata, dan lab punya tesnya.
+@check
+defines("show_paid") ## Definisikan fungsi bernama show_paid: def show_paid():
+out == "paid" ## Memanggilnya sekali harus mencetak: paid
+calls("show_paid") ## Panggil fungsinya: show_paid()
+@hint
+```python
+def show_paid():
+    print("paid")
 
-Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa mengubah hal lain (**fungsi murni**). Mereka mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.2: idempotensi).
+show_paid()
+```
+@solution
+def show_paid():
+    print("paid")
 
-**Mengetik fungsi di prompt `>>>`.** Setelah baris yang diakhiri `:`, seperti `def double(n):`, Python menampilkan `...` dan menjorokkan baris berikutnya untuk Anda. Setelah fungsinya lengkap, tekan **Enter sekali lagi pada baris kosong** untuk menyelesaikannya; tanpa baris kosong itu, apa pun yang Anda ketik berikutnya menjadi bagian dari fungsi. Untuk yang lebih dari dua baris, file lebih mudah.
+show_paid()
+:::
+
+### Parameter: beri fungsi sebuah input
+
+Di antara kurung Anda mendaftar **parameter**: nama untuk input. Ketika Anda memanggil fungsi, nilai yang Anda berikan (**argumen**) ditempelkan pada nama parameter selama panggilan itu.
+
+```python
+def show_total(total):
+    print("Rp", total)
+
+show_total(5000)       # total adalah 5000 selama panggilan ini
+show_total(7500)       # total adalah 7500 selama panggilan ini
+```
+
+:::drill python Fungsi dengan input
+Definisikan `show_label(label)` yang mencetak `Label: ` diikuti label-nya (untuk `"Kopi"` ia mencetak `Label: Kopi`). Lalu panggil dengan `"Kopi"`.
+@starter
+# tulis fungsi dan panggilan Anda di bawah baris ini
+
+@check
+defines("show_label") ## Definisikan fungsi bernama show_label dengan satu parameter.
+out == "Label: Kopi" ## Memanggil show_label("Kopi") harus mencetak: Label: Kopi
+printed_by(show_label, "Teh") == "Label: Teh" ## show_label("Teh") harus mencetak: Label: Teh (pakai parameternya, jangan mengetik Kopi di dalam fungsi).
+@hint
+```python
+def show_label(label):
+    print("Label:", label)
+```
+`print` menaruh spasi di antara nilainya, jadi `print("Label:", label)` menghasilkan `Label: Kopi`.
+@solution
+def show_label(label):
+    print("Label:", label)
+
+show_label("Kopi")
+:::
+
+### return: serahkan jawabannya kembali
+
+`print` hanya **menampilkan** sesuatu di layar; program tidak bisa memakainya sesudahnya. `return` **menyerahkan nilai kembali** kepada kode yang memanggil fungsi, sehingga bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.
+
+:::trace return menyerahkan nilai kembali
+@code
+def double(n):
+    result = n * 2
+    return result
+
+x = double(4)
+print(x)
+@notes
+5 | Panggilan `double(4)`: `n` akan bernilai 4 di dalam fungsi.
+2 | Fungsi menghitung `n * 2` dan menyimpannya di `result`. `result` ini hanya ada di dalam fungsi.
+3 | `return` menyerahkan nilainya kembali dan meninggalkan fungsi.
+6 | Kembali di luar: `x` sekarang berisi apa yang dikembalikan fungsi (8).
+:::
+
+:::ask Apa yang akan tercetak?
+```python
+def double(n):
+    print(n * 2)
+
+x = double(4)
+print(x)
+```
+@options
+8
+8 lalu 8
+* 8 lalu None
+@why
+Versi ini **mencetak** 8 di dalam fungsi (itu baris pertama), tetapi tidak me-`return` apa pun. Fungsi tanpa `return` memberi `None`, jadi `x` adalah `None` dan baris terakhir mencetak `None`. Mencetak untuk manusia; `return` untuk program.
+:::
+
+:::drill python Return, bukan print
+Tulis `double(n)` supaya ia **me-return** dua kali `n` (jangan mencetak di dalamnya).
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("double") ## Definisikan fungsi bernama double dengan satu parameter.
+double(4) == 8 ## double(4) harus mengembalikan 8 (pakai return).
+double(0) == 0 ## double(0) harus mengembalikan 0.
+double(2.5) == 5.0 ## double(2.5) harus mengembalikan 5.0.
+has_node("Return") ## Pakai return untuk menyerahkan jawabannya kembali.
+@hint
+```python
+def double(n):
+    return n * 2
+```
+@solution
+def double(n):
+    return n * 2
+:::
+
+:::drill python Dua input
+Tulis `total_price(price, quantity)` yang me-return harga dikali jumlah.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("total_price") ## Definisikan fungsi bernama total_price dengan dua parameter.
+total_price(25000, 3) == 75000 ## total_price(25000, 3) harus mengembalikan 75000.
+total_price(10, 0) == 0 ## total_price(10, 0) harus mengembalikan 0.
+has_node("Return") ## Pakai return untuk menyerahkan jawabannya kembali.
+@hint
+Dua parameter dipisahkan koma: `def total_price(price, quantity):`.
+@solution
+def total_price(price, quantity):
+    return price * quantity
+:::
+
+### Nilai default
+
+`def format_money(amount, symbol="Rp"):` berarti pemanggil boleh menghilangkan `symbol`; maka nilainya `"Rp"`.
+
+:::drill python Nilai default
+Tulis `format_money(amount, symbol="Rp")` yang me-return simbol, sebuah spasi, dan jumlahnya: `format_money(500)` menghasilkan `"Rp 500"`, dan `format_money(5, "USD")` menghasilkan `"USD 5"`.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("format_money") ## Definisikan fungsi bernama format_money.
+format_money(500) == "Rp 500" ## format_money(500) harus mengembalikan "Rp 500".
+format_money(5, "USD") == "USD 5" ## format_money(5, "USD") harus mengembalikan "USD 5".
+format_money(7, symbol="SGD") == "SGD 7" ## Anda juga bisa menamai argumennya: format_money(7, symbol="SGD").
+@hint
+```python
+def format_money(amount, symbol="Rp"):
+    return f"{symbol} {amount}"
+```
+@solution
+def format_money(amount, symbol="Rp"):
+    return f"{symbol} {amount}"
+:::
+
+### Fungsi yang menjawab ya atau tidak
+
+Fungsi yang me-return `True` atau `False` memberi nama pada sebuah pertanyaan. Dengan begitu loop Anda terbaca seperti kalimat.
+
+:::drill python Fungsi ya atau tidak
+Tulis `is_paid(order)` yang me-return `True` ketika `"status"` pesanan adalah `"paid"`, dan `False` kalau tidak.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("is_paid") ## Definisikan fungsi bernama is_paid dengan satu parameter.
+is_paid({"status": "paid"}) is True ## is_paid({"status": "paid"}) harus mengembalikan True.
+is_paid({"status": "shipped"}) is False ## is_paid({"status": "shipped"}) harus mengembalikan False.
+@hint
+Kembalikan jawaban dari pertanyaannya sendiri: `return order["status"] == "paid"`.
+@solution
+def is_paid(order):
+    return order["status"] == "paid"
+:::
+
+:::drill python Pakai fungsi Anda sendiri
+`is_paid` sudah ditulis untuk Anda. Pakai dalam loop untuk membuat `paid_count` berisi jumlah pesanan paid di `orders`.
+@starter
+def is_paid(order):
+    return order["status"] == "paid"
+
+orders = [{"status": "paid"}, {"status": "cancelled"}, {"status": "paid"}]
+paid_count = 0
+# tulis loop Anda di bawah baris ini
+
+@check
+paid_count == 2 ## `paid_count` harus 2.
+calls("is_paid") ## Panggil is_paid(order) di dalam loop.
+rerun_with("orders", [{"status": "shipped"}])["paid_count"] == 0 ## Tanpa pesanan paid, `paid_count` harus tetap 0.
+@hint
+```python
+for order in orders:
+    if is_paid(order):
+        paid_count = paid_count + 1
+```
+@solution
+def is_paid(order):
+    return order["status"] == "paid"
+
+orders = [{"status": "paid"}, {"status": "cancelled"}, {"status": "paid"}]
+paid_count = 0
+for order in orders:
+    if is_paid(order):
+        paid_count = paid_count + 1
+:::
+
+### Nama di dalam fungsi tetap di dalam
+
+**Scope**: nama yang dibuat di dalam fungsi hanya ada selama fungsi berjalan; dunia luar tidak bisa melihatnya. Itu fitur: fungsi tidak bisa tanpa sengaja merusak variabel Anda yang lain. Pilih fungsi yang hanya bergantung pada inputnya dan me-return hasil tanpa mengubah apa pun yang lain (**fungsi murni**). Fungsi seperti itu mudah diuji dan aman dijalankan dua kali, sifat yang dibutuhkan pipeline (Modul 0.2: idempotensi).
+
+:::ask Apa yang akan tercetak?
+```python
+def make_label():
+    label = "Rp 500"
+
+make_label()
+print(label)
+```
+@options
+Rp 500
+None
+* sebuah error: NameError, `label` tidak ada di luar fungsi
+@why
+`label` dibuat **di dalam** `make_label`, dan ia hilang ketika fungsi selesai. Baris terakhir mencari `label` di luar dan Python berhenti dengan `NameError: name 'label' is not defined`. Untuk mengeluarkan nilainya, fungsi harus me-`return`-nya.
+:::
+
+### Jebakan yang perlu dikenal sekarang: list sebagai nilai default
+
+Jangan pernah memakai nilai *mutable* (list atau dictionary) sebagai default: `def add(item, box=[]):`. Python membuat list itu **sekali**, ketika baris `def` dibaca, dan setiap panggilan yang tidak mengisi `box` berbagi list yang sama. Tebak dulu:
+
+:::ask Apa yang dicetak panggilan kedua?
+```python
+def add(item, box=[]):
+    box.append(item)
+    return box
+
+print(add(1))
+print(add(2))
+```
+@options
+[2]
+* [1, 2]
+[1]
+@why
+List default dibuat sekali dan **disimpan**. Panggilan pertama memasukkan 1; panggilan kedua mulai dengan list yang sama itu, yang sudah berisi 1, lalu menambahkan 2. Lihat di animasi berikutnya: list-nya tetap berlabel sama, `list#1`.
+:::
+
+:::trace Satu list, dipakai bersama oleh setiap panggilan
+@code
+def add(item, box=[]):
+    box.append(item)
+    return box
+
+print(add(1))
+print(add(2))
+@notes
+1 | Default `[]` dibuat **sekarang**, sekali, ketika baris `def` dibaca.
+6 | Panggilan kedua: `box` tidak diberikan, jadi ia adalah list yang **sama** seperti sebelumnya (label sama), yang sudah berisi 1.
+:::
+
+Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box is None: box = []`. Skenario chaos modul ini menunjukkan apa yang dilakukan bug ini pada pipeline sungguhan, dan lab punya tes untuknya.
+
+:::drill python Perbaiki list yang dipakai bersama
+`add` punya jebakannya. Perbaiki supaya setiap panggilan tanpa argumen kedua mulai dengan list kosong yang **baru**: `add(1)` menghasilkan `[1]` lalu `add(2)` menghasilkan `[2]`.
+@starter
+def add(item, box=[]):
+    box.append(item)
+    return box
+@check
+add(1) == [1] ## add(1) harus mengembalikan [1].
+add(2) == [2] ## add(2) harus mengembalikan [2], bukan [1, 2]: setiap panggilan tanpa list harus mulai dari baru.
+add(3, [1, 2]) == [1, 2, 3] ## add(3, [1, 2]) tetap harus mengembalikan [1, 2, 3].
+"box=None" in code.replace(" ", "") ## Pakai None sebagai default: box=None, dan buat list di dalam fungsi.
+@hint
+```python
+def add(item, box=None):
+    if box is None:
+        box = []
+    box.append(item)
+    return box
+```
+@solution
+def add(item, box=None):
+    if box is None:
+        box = []
+    box.append(item)
+    return box
+:::
+
+**Mengetik fungsi di prompt `>>>`.** Setelah baris yang berakhir dengan `:`, seperti `def double(n):`, Python menampilkan `...` dan menjorokkan baris berikutnya untuk Anda. Ketika fungsi selesai, tekan **Enter sekali lagi pada baris kosong** untuk menyelesaikannya; tanpa baris kosong itu, apa pun yang Anda ketik berikutnya menjadi bagian dari fungsi. Untuk yang lebih panjang dari dua baris, file lebih mudah.
 
 > 🛠 **Coba sendiri (8 menit, di file `fn.py`).** Tebak dulu setiap output di kepala Anda, baru jalankan.
 > 1. Tulis `def show_square(n): print(n * n)` dan `def give_square(n): return n * n` (masing-masing di barisnya sendiri seperti biasa). Jalankan `a = show_square(4)` dan `b = give_square(4)`, lalu `print(a, b)`.
@@ -778,29 +1671,190 @@ Pilih fungsi yang hanya bergantung pada masukannya dan me-return hasil tanpa men
 > Lalu lanjut ke Pelajaran 6.
 
 ## @lesson Saat ada yang salah: error dan try/except
-Error bukan kegagalan pelajar; ia adalah program yang memberi tahu persis apa yang tidak bisa dilakukannya. Belajarlah membacanya. **Traceback** mendaftar jalur pemanggilan; **bacalah dari bawah**. Baris terakhir menyebut jenis error dan pesannya (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); baris di atasnya menunjukkan di mana ia terjadi, dan baris terakhir yang menunjuk ke kode *Anda* biasanya tempat untuk melihat.
+Error bukan kegagalan pembelajar; error adalah program yang memberi tahu dengan tepat apa yang tidak bisa ia lakukan. Belajarlah membacanya, dan error menjadi hal paling berguna di layar Anda.
 
-Error yang akan terus Anda temui: `ValueError` (tipe benar, nilai mustahil: `int("abc")`), `TypeError` (tipe salah: `"a" + 1`), `KeyError` (kunci dict tidak ada), `IndexError` (posisi list terlalu besar), `ZeroDivisionError`, `FileNotFoundError`, `NameError` (salah ketik nama), `IndentationError`.
+### Membaca sebuah error
 
-Anda bisa **menangkap** error yang Anda duga dan memutuskan apa yang dilakukan:
+Ketika Python berhenti ia mencetak **traceback**: jalur panggilan yang menuju masalah. **Bacalah dari bawah.** Baris terakhir menyebut jenis error dan pesannya; baris di atasnya menunjukkan di mana itu terjadi, dan baris terakhir yang menunjuk ke kode *Anda* biasanya tempat yang harus dilihat.
 
 ```python
-def safe_int(text, default=None):
-    try:
-        return int(text)
-    except ValueError:       # hanya jenis error ini
-        return default
+order = {"order_id": "1001", "status": "paid"}
+print(order["total_idr"])
 ```
 
-Cara kerjanya: Python mencoba blok di bawah `try`. Jika semua berjalan, `except` dilewati. Jika `ValueError` terjadi, sisa `try` ditinggalkan dan blok `except` berjalan sebagai gantinya.
+Jalankan yang itu dengan tombol di bawah kode: baris terakhirnya berbunyi `KeyError: 'total_idr'`, karena dictionary tidak punya key tersebut. Error yang akan sering Anda temui:
+
+| Error | Artinya | Contoh |
+|---|---|---|
+| `ValueError` | tipe benar, nilai mustahil | `int("abc")` |
+| `TypeError` | tipe yang salah untuk aksi ini | `"a" + 1` |
+| `KeyError` | key dictionary tidak ada | `order["note"]` |
+| `IndexError` | posisi list terlalu besar | `[1, 2, 3][5]` |
+| `ZeroDivisionError` | membagi dengan nol | `10 / 0` |
+| `FileNotFoundError` | file tidak ada | `open("nope.csv")` |
+| `NameError` | nama yang tidak dikenal Python (sering salah ketik) | `totl` |
+
+:::ask Error apa ini?
+```python
+number = int("Rp 1.250.000")
+```
+@options
+TypeError
+* ValueError
+KeyError
+@why
+`int` adalah alat yang tepat untuk teks, tetapi teks ini bukan bilangan bulat: **tipenya** baik dan **nilainya** mustahil. Itu `ValueError`. `TypeError` misalnya menjumlahkan teks dan angka.
+:::
+
+:::ask Error apa ini?
+```python
+statuses = ["paid", "cancelled", "paid"]
+print(statuses[3])
+```
+@options
+KeyError
+* IndexError
+ValueError
+@why
+List punya tiga item, di posisi 0, 1, dan 2. Posisi 3 tidak ada: `IndexError: list index out of range`. `KeyError` adalah gagasan yang sama untuk key dictionary.
+:::
+
+### try / except: tangkap error yang Anda duga
+
+Anda bisa **menangkap** error yang Anda duga dan memutuskan apa yang dilakukan alih-alih berhenti:
+
+:::trace try dan except
+@code
+text = "abc"
+try:
+    n = int(text)
+    print("converted")
+except ValueError:
+    n = 0
+print(n)
+@notes
+3 | `int("abc")` gagal dengan `ValueError`. Sisa blok `try` ditinggalkan.
+5 | Python melompat ke `except` yang cocok. Baris `print("converted")` tidak pernah dijalankan.
+7 | Program berlanjut seperti biasa, dengan `n` bernilai 0.
+:::
+
+Cara kerjanya: Python mencoba blok di bawah `try`. Kalau semuanya berhasil, `except` dilewati. Kalau terjadi `ValueError`, sisa blok `try` ditinggalkan dan blok `except` berjalan sebagai gantinya.
+
+:::drill python Tangkap nilai yang buruk
+Tulis `to_number(text)` yang me-return `int(text)`, atau `0` ketika teksnya bukan bilangan bulat.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("to_number") ## Definisikan fungsi bernama to_number dengan satu parameter.
+to_number("42") == 42 ## to_number("42") harus mengembalikan 42.
+to_number("abc") == 0 ## to_number("abc") harus mengembalikan 0: errornya tertangkap.
+to_number("") == 0 ## to_number("") harus mengembalikan 0.
+has_node("Try") ## Pakai try / except.
+@hint
+```python
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+```
+@solution
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+:::
+
+### Tangkap hanya yang Anda duga
 
 Tiga aturan yang memisahkan pipeline yang baik dari yang berbahaya:
 
-1. **Tangkap error spesifik yang Anda duga.** `except ValueError` adalah rencana. `except Exception: pass` (atau `except:` kosong) adalah keputusan menyembunyikan setiap bug di masa depan: salah ketik, file hilang, masalah data sungguhan, semuanya lenyap diam-diam, dan angka salah muncul tanpa tanda masalah. Modul 1.2 menunjukkan betapa mahalnya itu.
-2. **Buat blok `try` tetap kecil**: hanya baris yang bisa gagal.
-3. **Angkat error dengan sengaja** (`raise`) saat fungsi Anda tidak bisa melakukan tugasnya: `raise ValueError("total must not be negative")`. Gagal dengan lantang lebih awal lebih baik daripada meneruskan data buruk.
+1. **Tangkap error spesifik yang Anda duga.** `except ValueError` adalah sebuah rencana. `except Exception: pass` (atau `except:` tanpa nama) adalah keputusan untuk menyembunyikan setiap bug di masa depan: salah ketik, file hilang, masalah data sungguhan, semuanya lenyap diam-diam, dan angka salah muncul tanpa tanda masalah. Modul 1.2 menunjukkan betapa mahalnya itu.
+2. **Jaga blok `try` tetap kecil**: hanya baris yang bisa gagal.
+3. **Munculkan error dengan sengaja** ketika fungsi Anda tidak bisa mengerjakan tugasnya: `raise ValueError("total must not be negative")`. Gagal dengan keras sejak awal lebih baik daripada meneruskan data buruk.
 
-Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (menyisihkannya beserta alasan). File hilang atau kesalahan pemrograman *tidak diduga*, jadi biarkan gagal dengan lantang.
+:::drill python Sembunyikan hanya yang Anda duga
+`to_number` menangkap **setiap** jenis error. Nilai yang hilang (`None`) adalah masalah yang berbeda dan tidak boleh disembunyikan sebagai `0`: `int(None)` memunculkan `TypeError`. Ubah fungsinya supaya hanya menangkap `ValueError`.
+@starter
+def to_number(text):
+    try:
+        return int(text)
+    except Exception:
+        return 0
+@check
+to_number("abc") == 0 ## to_number("abc") tetap harus mengembalikan 0.
+raises_error(TypeError, to_number, None) ## to_number(None) harus memunculkan TypeError (jangan disembunyikan sebagai 0). Tangkap hanya ValueError.
+@hint
+Ubah `except Exception:` menjadi `except ValueError:`.
+@solution
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+:::
+
+:::drill python Munculkan error dengan sengaja
+Tulis `check_total(total)` yang me-return `total` ketika tidak negatif, dan **memunculkan** `ValueError("total must not be negative")` ketika di bawah nol.
+@starter
+# tulis fungsi Anda di bawah baris ini
+
+@check
+defines("check_total") ## Definisikan fungsi bernama check_total dengan satu parameter.
+check_total(500) == 500 ## check_total(500) harus mengembalikan 500.
+check_total(0) == 0 ## check_total(0) harus mengembalikan 0: nol diperbolehkan.
+raises_error(ValueError, check_total, -1) ## check_total(-1) harus memunculkan ValueError.
+@hint
+```python
+def check_total(total):
+    if total < 0:
+        raise ValueError("total must not be negative")
+    return total
+```
+@solution
+def check_total(total):
+    if total < 0:
+        raise ValueError("total must not be negative")
+    return total
+:::
+
+### Baris buruk adalah data, bug bukan
+
+Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya: sisihkan **beserta alasannya**, jangan pernah membuangnya diam-diam. File yang hilang atau kesalahan pemrograman *tidak* diduga, jadi biarkan gagal dengan keras.
+
+:::drill python Sisihkan yang buruk
+`rows` berisi nilai sebagai teks; sebagian bukan angka. Isi `good` dengan angka-angkanya (sebagai `int`) dan `bad` dengan teks yang tidak bisa diubah, keduanya dalam urutan semula. Pakai `try` / `except ValueError` di dalam loop.
+@starter
+rows = ["10", "x", "25", "", "7"]
+good = []
+bad = []
+# tulis loop Anda di bawah baris ini
+
+@check
+good == [10, 25, 7] ## `good` harus [10, 25, 7].
+bad == ["x", ""] ## `bad` harus ['x', '']: tidak ada yang dibuang diam-diam.
+rerun_with("rows", ["1", "b"])["good"] == [1] and rerun_with("rows", ["1", "b"])["bad"] == ["b"] ## Dengan ["1", "b"], `good` harus [1] dan `bad` harus ['b'].
+has_node("Try") ## Pakai try / except di dalam loop.
+@hint
+```python
+for text in rows:
+    try:
+        good.append(int(text))
+    except ValueError:
+        bad.append(text)
+```
+@solution
+rows = ["10", "x", "25", "", "7"]
+good = []
+bad = []
+for text in rows:
+    try:
+        good.append(int(text))
+    except ValueError:
+        bad.append(text)
+:::
 
 > 💡 **Jeda Praktik 6 (Bagian B):**
 > Terapkan fungsi murni, penanganan error, dan pencegahan bug mutable default:
@@ -811,29 +1865,232 @@ Baris buruk dari pelanggan adalah data yang *diduga*, jadi Anda menanganinya (me
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson File, import, dan menjalankan skrip
-Program membaca file. Pola standarnya:
+Program membaca file, dan seorang data engineer membaca banyak sekali. Pola standarnya memakai `open`, `with`, dan sebuah pembaca. Materi ini membangunnya satu bagian demi satu bagian. Latihannya memberi Anda file contoh kecil, jadi Anda bisa mencoba semuanya di browser.
+
+### Membuka file dan membaca teksnya
 
 ```python
-import csv
-
-with open("orders.csv", newline="", encoding="utf-8") as f:
-    rows = list(csv.DictReader(f))
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
 ```
 
-Mengapa setiap bagian ada. `open` memberi Anda sambungan ke file. **`with`** menjamin file ditutup saat blok selesai, bahkan jika terjadi error di dalamnya, sehingga Anda tidak membiarkan file terbuka (masalah nyata pada job yang berjalan lama). `encoding="utf-8"` menyatakan bagaimana byte menjadi teks; jika dihilangkan, program Anda berperilaku berbeda di komputer berbeda. `newline=""` adalah yang diminta modul csv agar pemisah baris di dalam nilai bertanda kutip tetap utuh. `csv.DictReader(f)` mengubah setiap baris menjadi dict dengan baris header sebagai kunci, sehingga Anda mendapat persis list berisi dictionary dari pelajaran 2. Semua nilainya string; mengonversinya adalah tugas Anda.
+Mengapa setiap bagian. `open` memberi Anda sambungan ke file. **`with`** menjamin file ditutup ketika blok selesai, bahkan jika terjadi error di dalamnya, sehingga Anda tidak pernah membiarkan file terbuka (masalah nyata pada pekerjaan yang berjalan lama). `encoding="utf-8"` menyatakan bagaimana byte menjadi teks; kalau dihilangkan, program Anda berperilaku berbeda di komputer yang berbeda. `f.read()` memberi seluruh isi sebagai satu teks.
 
-**Import** membawa kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke virtual environment Anda (Modul 0.1). File Anda sendiri `basics.py` juga sebuah **modul**: `import basics` menjalankannya sekali dan memberi fungsinya sebagai `basics.total_revenue(...)`. Begitulah tes lab memakai kode Anda.
+:::drill python Baca sebuah file
+File `note.txt` ada di sebelah kode Anda. Baca seluruh teksnya ke dalam `text`, dengan `with open(...)`.
+@file note.txt
+Kopi Susu: 25000
+@starter
+# tulis baris Anda di bawah baris ini
 
-Anda menjalankan skrip dengan `python3 myfile.py`. Baris yang umum di bagian bawah skrip adalah:
+@check
+text.strip() == "Kopi Susu: 25000" ## `text` harus berisi isi note.txt: Kopi Susu: 25000
+has_node("With") ## Pakai blok with, supaya file selalu ditutup.
+calls("open") ## Pakai open("note.txt", ...).
+@hint
+```python
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
+```
+@solution
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
+:::
+
+### File CSV: baris sebagai dictionary
+
+File CSV adalah teks dengan satu baris per baris data dan koma di antara nilai; baris pertama berisi nama kolom. Modul `csv` membacanya. `csv.DictReader(f)` mengubah setiap baris menjadi dictionary, memakai baris header sebagai key, sehingga Anda mendapat persis **list berisi dictionary** dari Materi 2. `newline=""` adalah yang diinginkan modul csv supaya pemisah baris di dalam nilai yang dikutip tetap utuh. Semua nilai berupa teks; mengubahnya adalah tugas Anda.
+
+:::trace Dari file CSV ke list berisi dictionary
+@file drinks.csv
+name,price_idr
+Kopi,25000
+Teh,18000
+@code
+import csv
+
+with open("drinks.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+print(rows[0])
+@notes
+3 | File dibuka. `with` akan menutupnya untuk kita di akhir blok.
+4 | `csv.DictReader` membaca baris header (`name,price_idr`) dan mengubah setiap baris berikutnya menjadi dictionary. `list(...)` mengumpulkan semuanya.
+6 | `rows[0]` adalah baris pertama: dictionary dengan nama header sebagai key. Kedua nilainya berupa teks.
+:::
+
+:::drill python Baca sebuah CSV
+`products.csv` ada di sebelah kode Anda (kolom `sku`, `name`, dan `price_idr`). Baca ke dalam `rows`, sebuah list berisi dictionary, lalu cetak berapa banyak barisnya.
+@file products.csv
+sku,name,price_idr
+K1,Kopi Susu,25000
+K2,Americano,22000
+K3,Teh Tarik,18000
+@starter
+import csv
+# tulis baris Anda di bawah baris ini
+
+@check
+len(rows) == 3 ## `rows` harus berisi 3 dictionary, satu per baris di bawah header.
+rows[0]["name"] == "Kopi Susu" ## "name" pada baris pertama harus Kopi Susu.
+out == "3" ## Cetak jumlah barisnya: print(len(rows)).
+calls("DictReader") ## Pakai csv.DictReader(f).
+@hint
+```python
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+print(len(rows))
+```
+@solution
+import csv
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+print(len(rows))
+:::
+
+:::drill python Jumlahkan sebuah kolom
+`rows` sudah dibaca untuk Anda. Buat `total` berisi jumlah kolom `price_idr` **sebagai angka**.
+@file products.csv
+sku,name,price_idr
+K1,Kopi Susu,25000
+K2,Americano,22000
+K3,Teh Tarik,18000
+@starter
+import csv
+
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+total = 0
+# tulis loop Anda di bawah baris ini
+
+@check
+total == 65000 ## `total` harus 65000: ketiga harga sebagai angka.
+has_node("For") ## Pakai loop for.
+calls("int") ## Nilainya teks: ubah dengan int(...).
+@hint
+```python
+for row in rows:
+    total = total + int(row["price_idr"])
+```
+@solution
+import csv
+
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+total = 0
+for row in rows:
+    total = total + int(row["price_idr"])
+:::
+
+### Menulis file
+
+Buka dengan `"w"` untuk **menulis**. Hati-hati: `"w"` mengosongkan file lebih dulu. `f.write(text)` memasukkan teksnya; tambahkan `\n` untuk pemisah baris.
+
+:::drill python Tulis sebuah laporan
+Tulis teks `Total: 65000` ke file baru `report.txt`, dengan `with open("report.txt", "w", ...)`.
+@starter
+# tulis baris Anda di bawah baris ini
+
+@check
+read_file("report.txt").strip() == "Total: 65000" ## report.txt harus berisi: Total: 65000
+has_node("With") ## Pakai blok with.
+@hint
+```python
+with open("report.txt", "w", encoding="utf-8") as f:
+    f.write("Total: 65000")
+```
+@solution
+with open("report.txt", "w", encoding="utf-8") as f:
+    f.write("Total: 65000")
+:::
+
+### import: kode yang ditulis orang lain
+
+**Import** membawa masuk kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke dalam virtual environment Anda (Modul 0.1).
+
+:::drill python Pakai pustaka standar
+Import modul `statistics` dan buat `average` berisi rata-rata `prices` dengan `statistics.mean(...)`.
+@starter
+prices = [25000, 22000, 18000]
+average = None
+# tulis baris Anda di bawah baris ini
+
+@check
+average == 21666.666666666668 ## `average` harus rata-rata ketiga harga (sekitar 21666,67).
+calls("mean") ## Pakai statistics.mean(prices).
+rerun_with("prices", [10, 20])["average"] == 15 ## Dengan [10, 20], `average` harus 15.
+@hint
+`import statistics`, lalu `average = statistics.mean(prices)`.
+@solution
+import statistics
+
+prices = [25000, 22000, 18000]
+average = statistics.mean(prices)
+:::
+
+### File Anda sendiri adalah modul, dan __main__
+
+File Anda sendiri `basics.py` juga sebuah **modul**: `import basics` menjalankannya sekali dan memberi fungsinya sebagai `basics.total_revenue(...)`. Begitulah tes lab memakai kode Anda. Anda menjalankan skrip dengan `python3 myfile.py`. Baris yang umum di bagian bawah skrip adalah:
 
 ```python
 if __name__ == "__main__":
     main()
 ```
 
-Python mengisi nama khusus `__name__` dengan `"__main__"` hanya saat file *dijalankan langsung*. Ketika file lain meng-import-nya, `__name__` adalah nama modulnya, sehingga `main()` tidak berjalan. Akibatnya: file bisa berfungsi sebagai program dan sebagai pustaka yang bisa Anda uji.
+Python mengisi nama khusus `__name__` dengan `"__main__"` hanya ketika file *dijalankan langsung*. Ketika file lain meng-import-nya, `__name__` berisi nama modul, sehingga `main()` tidak berjalan. Efeknya: file berfungsi sebagai program sekaligus sebagai pustaka yang bisa Anda uji.
 
-Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, dan ingat bahwa path relatif dihitung dari folder tempat Anda memulai Python, yang biasanya jadi sebab `FileNotFoundError`.
+:::ask File shop.py dijalankan langsung: `python3 shop.py`
+```python
+# shop.py
+def main():
+    print("running")
+
+if __name__ == "__main__":
+    main()
+```
+@options
+tidak ada
+* running
+sebuah error
+@why
+Dijalankan langsung, `__name__` adalah `"__main__"`, jadi `if` benar dan `main()` berjalan: `running` tercetak.
+:::
+
+:::ask File lain melakukan `import shop`. Apa yang dicetak import itu?
+```python
+# shop.py
+def main():
+    print("running")
+
+if __name__ == "__main__":
+    main()
+```
+@options
+running
+* tidak ada
+sebuah error
+@why
+Saat di-import, `__name__` adalah `"shop"`, bukan `"__main__"`, jadi `main()` **tidak** dipanggil: import hanya membuat fungsinya tersedia. Karena itulah sebuah tes bisa meng-import file Anda tanpa memulai programnya.
+:::
+
+### Path: di mana file-nya?
+
+Pakai `pathlib.Path("data") / "orders.csv"` alih-alih menempel string. Path **relatif** relatif terhadap folder tempat Anda memulai Python, yang biasanya menjadi alasan error di bawah.
+
+:::ask Apa yang terjadi ketika file tidak ada?
+```python
+with open("missing.csv", encoding="utf-8") as f:
+    data = f.read()
+```
+@options
+* FileNotFoundError
+ValueError
+`data` yang kosong
+@why
+Python berhenti dengan `FileNotFoundError: No such file or directory`. Ketika Anda melihatnya, periksa dulu **folder tempat Anda memulai Python** dan ejaan path-nya, sebelum hal lain.
+:::
 
 > 💡 **Jeda Praktik 7 (Bagian B: lengkapi lab):**
 > Di `basics.py`, implementasikan fungsi terakhir `read_orders(path)` dengan `with open(...)` dan `csv.DictReader`.
@@ -842,7 +2099,7 @@ Path: pakai `pathlib.Path("data") / "orders.csv"` daripada menyambung string, da
 > Pratinjau menunjukkan logika Anda benar; run di komputer Anda sendiri itulah yang dihitung. Di jalur terminal run itu sudah milik Anda: `python3 scripts/prove.py mod-0-0` mencetak kode bukti Anda.
 
 ## @lesson Menyatukan semuanya, dan cara men-debug
-Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (pelajaran 7), ulangi baris-barisnya (4), putuskan mana yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus tiap langkah dalam fungsi (5). Berikut sebagai rencana yang bisa dibaca seperti cerita:
+Sekarang Anda punya setiap bagian dari pipeline kecil: baca file (materi 7), ulangi baris-barisnya (4), putuskan apa yang valid (3), sisihkan yang buruk (6), hitung dengan dict (2), bungkus setiap langkah dalam fungsi (5). Inilah dia sebagai rencana yang bisa dibaca seperti cerita:
 
 ```python
 def main(path):
@@ -852,36 +2109,142 @@ def main(path):
     print(format_rupiah(total_revenue(valid)))
 ```
 
-Perhatikan apa yang terjadi: `main` tidak berisi detail. Setiap fungsi punya satu tugas dan nama yang menyebutkannya. Beginilah pipeline profesional tetap mudah dibaca.
+Perhatikan apa yang terjadi: `main` tidak berisi detail. Setiap fungsi punya satu tugas dan nama yang menyebutkannya. Beginilah pipeline profesional tetap mudah dibaca. Lihat versi kecilnya berjalan, dan perhatikan kotak di kanan: `main()` memanggil `total_revenue(...)`, dan setiap panggilan mendapat kotaknya sendiri dengan variabelnya sendiri.
 
-**Cara membaca kode yang tidak Anda tulis.** Mulai dari bawah (biasanya titik masuk), lalu baca nama dan parameter setiap fungsi sebelum badannya. Pilih masukan yang sangat kecil dan **telusuri** dengan tangan, tulis nilai tiap variabel di kertas setelah setiap baris. Jika tebakan Anda dan keluarannya berbeda, Anda menemukan baris yang salah Anda pahami. Alat gratis pythontutor.com memperlihatkan eksekusi ini langkah demi langkah.
+:::trace Pipeline kecil, fungsi demi fungsi
+@code
+def read_orders():
+    return [{"status": "paid", "total": "100"}, {"status": "cancelled", "total": "50"}]
 
-**Cara men-debug.** (1) Baca error dari bawah. (2) Ulangi dengan masukan sekecil mungkin. (3) Cetak atau periksa nilai *tepat sebelum* baris yang gagal (`print(type(x), x)` menjawab separuh dari semua bug). (4) Ubah satu hal pada satu waktu. (5) Tulis **tes** yang gagal karena bug itu, perbaiki kodenya, dan simpan tesnya agar bug itu tidak kembali.
+def total_revenue(orders):
+    total = 0
+    for order in orders:
+        if order["status"] != "cancelled":
+            total = total + int(order["total"])
+    return total
 
-**Tes**, pandangan pertama. Tes hanyalah kode yang memanggil fungsi Anda dan membandingkannya dengan jawaban yang diharapkan:
+def main():
+    orders = read_orders()
+    print(total_revenue(orders))
+
+main()
+@notes
+15 | Program mulai di sini: semua yang di atas hanya mendefinisikan fungsi. Sekarang `main()` dipanggil.
+12 | `main` pertama-tama meminta data dari `read_orders()`.
+13 | Lalu ia meneruskan baris-barisnya ke `total_revenue`. Kotak baru muncul untuk panggilan itu, dengan `total`-nya sendiri.
+8 | Hanya pesanan paid yang dijumlahkan: yang dibatalkan dilewati oleh `if`.
+9 | `return` menyerahkan hasilnya kembali ke `main`, dan kotak `total_revenue` menghilang.
+:::
+
+### Cara membaca kode yang tidak Anda tulis
+
+Mulai dari bawah (biasanya titik masuknya), lalu baca nama dan parameter setiap fungsi sebelum badannya. Pilih input yang sangat kecil dan **telusuri** dengan tangan, tulis nilai setiap variabel di kertas setelah setiap baris. Kalau tebakan Anda dan hasilnya berbeda, Anda menemukan baris yang Anda salah pahami. Animasi di kursus ini melakukan hal yang sama untuk Anda; alat gratis pythontutor.com melakukannya untuk kode apa pun.
+
+### Cara men-debug
+
+1. **Baca error dari bawah.**
+2. **Reproduksi dengan input terkecil.**
+3. **Cetak atau periksa nilai tepat sebelum baris yang gagal** (`print(type(x), x)` menjawab setengah dari semua bug).
+4. **Ubah satu hal pada satu waktu.**
+5. **Tulis tes yang gagal karena bug itu**, perbaiki kodenya, dan simpan tesnya agar bug tidak kembali.
+
+Berlatihlah pada tiga bug kecil. Masing-masing dimulai dalam keadaan rusak: jalankan, baca apa yang dikatakannya, dan perbaiki dengan rutinitas di atas.
+
+:::drill python Bug 1: sebuah error
+Ini berhenti dengan error. Baca baris terakhir pesannya, dan perbaiki kodenya supaya `total` adalah angka `43000`.
+@starter
+prices = ["25000", "18000"]
+total = 0
+for price in prices:
+    total = total + price
+@check
+total == 43000 ## `total` harus 43000.
+type(total) is int ## `total` harus berupa angka (int).
+@hint
+Errornya `TypeError`: Anda tidak bisa menjumlahkan teks ke angka. Harganya teks (Materi 1): ubah setiap harga dengan `int(price)`.
+@solution
+prices = ["25000", "18000"]
+total = 0
+for price in prices:
+    total = total + int(price)
+:::
+
+:::drill python Bug 2: tanpa error, hasil salah
+Ini seharusnya mencetak angka 1 sampai 5, tetapi mencetak 0 sampai 4. Perbaiki, tanpa menulis angkanya dengan tangan.
+@starter
+for n in range(5):
+    print(n)
+@check
+out == "1\n2\n3\n4\n5" ## Harus mencetak 1, 2, 3, 4, dan 5, masing-masing di barisnya sendiri.
+has_node("For") ## Pertahankan loop for.
+@hint
+`range(5)` mulai dari 0 dan berhenti sebelum 5. Beri ia awal dan akhir: `range(1, 6)`.
+@solution
+for n in range(1, 6):
+    print(n)
+:::
+
+:::drill python Bug 3: jawabannya menghilang
+`add_fee` seharusnya mengembalikan harga ditambah biaya 500, tetapi ia mengembalikan `None`. Mengapa? Perbaiki.
+@starter
+def add_fee(price):
+    price + 500
+@check
+add_fee(1000) == 1500 ## add_fee(1000) harus mengembalikan 1500.
+add_fee(0) == 500 ## add_fee(0) harus mengembalikan 500.
+@hint
+Fungsi menghitung `price + 500` lalu membuang hasilnya. Kata kunci mana yang menyerahkan nilai kembali?
+@solution
+def add_fee(price):
+    return price + 500
+:::
+
+### Tes: pandangan pertama
+
+Tes hanyalah kode yang memanggil fungsi Anda dan membandingkan dengan jawaban yang diharapkan:
 
 ```python
 def test_format_rupiah():
     assert format_rupiah(1250000) == "Rp 1.250.000"
 ```
 
-`assert` memunculkan error jika kondisinya salah. Alat uji (pytest) menemukan fungsi bernama `test_...`, menjalankan semuanya dan melaporkan mana yang gagal dan mengapa. Lab punya 46 tes seperti itu: bacalah tes yang gagal sebagai **spesifikasi** (ia menyatakan persis apa yang diharapkan), bukan sebagai rintangan.
+`assert` memunculkan error kalau kondisinya salah, dan tidak melakukan apa-apa kalau benar. Alat tes (pytest) menemukan fungsi bernama `test_...`, menjalankan semuanya dan melaporkan mana yang gagal dan mengapa. Lab punya 46 tes seperti itu: baca tes yang gagal sebagai **spesifikasi** (ia memberi tahu persis apa yang diharapkan), bukan sebagai penghalang.
 
-Anda tidak akan mengingat semuanya setelah sekali membaca, dan memang tidak diharapkan. Ketik contoh-contohnya, rusak dengan sengaja, dan lihat pesan errornya. Setiap fungsi lab di bawah melatih satu pelajaran; kerjakan berurutan dan jalankan tes setelah masing-masing.
+:::drill python Tulis assert Anda sendiri
+`double` sudah ditulis untuk Anda. Tambahkan setidaknya **dua** baris `assert` yang memeriksanya, dengan angka berbeda. Keduanya harus lulus.
+@starter
+def double(n):
+    return n * 2
+
+# tulis baris assert Anda di bawah baris ini
+
+@check
+count_nodes("Assert") >= 2 ## Tulis setidaknya dua baris assert, misalnya: assert double(2) == 4
+@hint
+`assert double(2) == 4` dan `assert double(10) == 20`. Ketika sebuah assert benar, tidak terjadi apa-apa; ketika salah, Python berhenti dengan AssertionError.
+@solution
+def double(n):
+    return n * 2
+
+assert double(2) == 4
+assert double(10) == 20
+:::
+
+Anda tidak akan mengingat semuanya setelah satu kali membaca, dan memang tidak seharusnya. Ketik contohnya, rusak sengaja, dan lihat pesan errornya. Setiap fungsi lab melatih satu materi; kerjakan berurutan dan jalankan tesnya setelah masing-masing.
 
 > 🛠 **Coba sendiri (15 menit).** Jalankan `python3 labs/mod-0-0/debug_me.py`. Isinya tiga fungsi kecil, masing-masing dengan satu bug, dan mencetak PASS atau FAIL untuk setiap fungsi. Perbaiki satu per satu dengan rutinitas dari pelajaran ini: baca error dari bawah, ulangi dengan input sekecil mungkin, periksa nilainya tepat sebelum baris yang gagal. Jangan menulis ulang fungsinya; temukan bug-nya.
 >
 > **Seharusnya Anda melihat:** tiga baris FAIL di awal (satu `TypeError`, dua jawaban salah) dan `all three fixed` di akhir. Lalu tulis satu kalimat per bug: petunjuk apa yang membawa Anda ke sana? Kalimat itulah keahliannya.
 
-**Di mana gagasan ini muncul dalam keseharian data engineer.** Wajar bertanya apa hubungan latihan-latihan kecil ini dengan pekerjaan ini. Hampir setiap tugas yang akan Anda terima adalah gagasan yang sama, hanya lebih besar:
-- **Tipe:** data tiba sebagai teks; Anda memberi setiap nilai tipe yang benar sebelum apa pun, atau total jadi salah tanpa error.
+**Di mana gagasan-gagasan ini muncul dalam keseharian seorang data engineer.** Wajar bertanya apa hubungan latihan kecil ini dengan pekerjaannya. Hampir setiap tugas yang akan diberikan kepada Anda adalah gagasan-gagasan yang sama, hanya lebih besar:
+- **Tipe:** data datang sebagai teks; Anda memberi setiap nilai tipe yang benar sebelum hal lain, atau total keluar salah tanpa error.
 - **List dan dict:** sebuah file atau tabel adalah list berisi baris; setiap baris adalah dict dari kolom ke nilai.
-- **Menghitung dengan dict:** "berapa per kota, per status, per hari" adalah pertanyaan paling umum dalam data; `GROUP BY` di SQL (Modul 0.3) adalah gagasan yang sama.
-- **Set:** membuang duplikat, dan bertanya "apakah ini sudah pernah dimuat?".
-- **if dan try/except:** memutuskan baris mana yang valid, dan menyisihkan yang rusak alih-alih crash atau membuangnya diam-diam.
-- **Fungsi dengan tes:** setiap langkah pipeline adalah fungsi, dan tesnya adalah cara Anda tahu ia masih berjalan setelah perubahan besok.
+- **Menghitung dengan dict:** "berapa banyak per kota, per status, per hari" adalah pertanyaan paling umum dalam data; `GROUP BY` di SQL (Modul 0.3) adalah gagasan yang sama.
+- **Set:** menghapus duplikat, dan bertanya "apakah kita sudah memuat ini?".
+- **if dan try/except:** memutuskan baris mana yang valid, dan menyisihkan yang buruk alih-alih crash atau membuangnya diam-diam.
+- **Fungsi dengan tes:** setiap langkah pipeline adalah fungsi, dan tesnya adalah cara Anda tahu ia masih bekerja setelah perubahan besok.
 
-Lab akan tumbuh dari sini: di Modul 1.2 gagasan yang sama menjadi pipeline sungguhan yang membaca file, mengonversi tipe, mengarantina baris rusak, dan aman dijalankan ulang. Jika sesuatu di modul ini masih terasa belum jelas, itu wajar setelah sekali baca: baca ulang pelajaran yang Jeda Praktiknya paling sulit, dan kerjakan lagi Coba sendiri-nya.
+Lab berkembang dari sini: di Modul 1.2 gagasan yang sama menjadi pipeline sungguhan yang membaca file, mengonversi tipe, mengkarantina baris buruk, dan bisa dijalankan ulang dengan aman. Kalau sesuatu di modul ini masih terasa belum jelas, itu wajar setelah satu kali membaca: baca ulang materi yang Jeda Praktiknya paling sulit, dan ulangi Coba Sendirinya.
 
 ## @lab Lab: dari kode biasa ke sebelas fungsi kecil pada pesanan KopiKu
 Dua bagian, pada data pesanan KopiKu. **Bagian A** (setelah Pelajaran 1 sampai 4) adalah Python biasa tanpa fungsi: Anda mengisi dua belas variabel. **Bagian B** (setelah Pelajaran 5 sampai 7) mengubah gagasan yang sama menjadi sebelas fungsi kecil.

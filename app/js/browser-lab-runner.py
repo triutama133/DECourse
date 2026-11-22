@@ -79,7 +79,18 @@ def exec_pad(session, code, reset=False):
 
 
 # ---- drills in the lessons (freeCodeCamp / DataCamp style): run the learner's code, then evaluate small checks ----
-def check_drill(code, checks):
+def _drill_dir(files):
+    """A clean working folder for a drill, holding the sample files it gives the learner."""
+    root = "/drill"
+    shutil.rmtree(root, ignore_errors=True)
+    os.makedirs(root, exist_ok=True)
+    for name, text in (files or {}).items():
+        with open(os.path.join(root, name), "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+    os.chdir(root)
+
+
+def check_drill(code, checks, files=None):
     """Run `code` in a fresh namespace, then evaluate each check: a list of [expression, message].
 
     An expression sees the learner's variables, `out` (what the code printed, whitespace-trimmed), `code` (the source)
@@ -90,6 +101,7 @@ def check_drill(code, checks):
     import json
     import traceback
 
+    _drill_dir(files)
     buf = io.StringIO()
     ns = {"__name__": "__main__"}
     error = ""
@@ -133,8 +145,48 @@ def check_drill(code, checks):
         def defines(name):
             return any(isinstance(n, (ast.FunctionDef, ast.ClassDef)) and n.name == name for n in ast.walk(tree))
 
+        def has(kind):
+            return any(type(n).__name__ == kind for n in ast.walk(tree))
+
+        def count(kind):
+            return sum(1 for n in ast.walk(tree) if type(n).__name__ == kind)
+
+        def capture(fn, *args):
+            """What `fn(*args)` prints."""
+            sink = io.StringIO()
+            with contextlib.redirect_stdout(sink):
+                fn(*args)
+            return sink.getvalue().strip()
+
+        def raises(exc, fn, *args):
+            """True when `fn(*args)` raises exactly that kind of error (and not another)."""
+            try:
+                fn(*args)
+            except exc:
+                return True
+            except BaseException:  # noqa: BLE001 - a different error is a different answer
+                return False
+            return False
+
+        def rerun(name, value):
+            """Run the learner's code again with the first assignment to `name` replaced by `value`: the namespace afterwards.
+            It shows whether the code works for other data too, not only for the numbers in the task."""
+            fresh = ast.parse(code, "<drill>")
+            node = next((n for n in fresh.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in n.targets)), None)
+            if node is None:
+                raise NameError(name)
+            node.value = ast.parse(repr(value), mode="eval").body
+            ast.fix_missing_locations(fresh)
+            space = {"__name__": "__main__", "input": no_input}
+            sink = io.StringIO()
+            with contextlib.redirect_stdout(sink):
+                exec(compile(fresh, "<drill>", "exec"), space)
+            space["__out__"] = sink.getvalue().strip()
+            return space
+
         scope = dict(ns)
-        scope.update({"out": output.strip(), "code": code, "calls": calls, "uses": uses, "defines": defines, "ns": ns})
+        scope.update({"out": output.strip(), "code": code, "calls": calls, "uses": uses, "defines": defines, "has_node": has, "count_nodes": count, "printed_by": capture, "raises_error": raises, "rerun_with": rerun, "ns": ns})
+        scope["read_file"] = lambda name: open(os.path.join("/drill", name), encoding="utf-8", newline="").read()
         for expression, message in checks:
             try:
                 ok = bool(eval(expression, scope))
@@ -142,3 +194,79 @@ def check_drill(code, checks):
                 ok = False
             results.append({"ok": ok, "msg": message})
     return json.dumps({"output": output, "error": error, "results": results})
+
+
+# ---- "watch it run": the program executed line by line, with the variables after each step (like Python Tutor) ----
+def trace_code(code, files=None):
+    """Run `code` and record, before every line that runs, which line it is and what every variable holds.
+    Returns a JSON text: {"steps": [{"line": n, "frames": [{"name": ..., "vars": [[name, text, label], ...]}], "out": printed so far,
+    "event": "line"|"return"|"end", "ret": text}], "error": ""}. A mutable value (list, dict, set) gets a label like list#1, so two
+    names for the same object can be seen."""
+    import json
+    import sys
+    import types
+
+    _drill_dir(files)
+    steps = []
+    buf = io.StringIO()
+    ns = {"__name__": "__main__"}
+    labels = {}
+    LIMIT = 150
+
+    def no_input(*args, **kwargs):
+        raise EOFError("input() cannot ask for typing here.")
+
+    ns["input"] = no_input
+
+    def short(v):
+        text = repr(v)
+        return text if len(text) <= 90 else text[:87] + "..."
+
+    def label(v):
+        if isinstance(v, (list, dict, set)):
+            key = id(v)
+            if key not in labels:
+                labels[key] = len([1 for k in labels]) + 1
+            return type(v).__name__ + "#" + str(labels[key])
+        return ""
+
+    def variables(mapping):
+        rows = []
+        for k, v in list(mapping.items()):
+            if k.startswith("__") or k == "input" or isinstance(v, types.ModuleType):
+                continue
+            rows.append([k, "function" if isinstance(v, types.FunctionType) else short(v), label(v)])
+        return rows
+
+    def snapshot(frame):
+        chain = []
+        f = frame
+        while f is not None:
+            if f.f_code.co_filename == "<trace>":
+                chain.append(f)
+            f = f.f_back
+        chain.reverse()
+        return [{"name": "Global" if f.f_code.co_name == "<module>" else f.f_code.co_name + "()", "vars": variables(f.f_locals)} for f in chain]
+
+    def tracer(frame, event, arg):
+        if frame.f_code.co_filename != "<trace>":
+            return None
+        if event == "line":
+            steps.append({"line": frame.f_lineno, "frames": snapshot(frame), "out": buf.getvalue(), "event": "line"})
+        elif event == "return" and frame.f_code.co_name != "<module>":
+            steps.append({"line": frame.f_lineno, "frames": snapshot(frame), "out": buf.getvalue(), "event": "return", "ret": short(arg)})
+        if len(steps) > LIMIT:
+            raise RuntimeError("This program runs too many steps to show.")
+        return tracer
+
+    error = ""
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        sys.settrace(tracer)
+        try:
+            exec(compile(code, "<trace>", "exec"), ns)
+        except BaseException as exc:  # noqa: BLE001 - the program may fail on purpose, to show an error
+            error = type(exc).__name__ + ": " + str(exc)
+        finally:
+            sys.settrace(None)
+    steps.append({"line": 0, "frames": [{"name": "Global", "vars": variables(ns)}], "out": buf.getvalue(), "event": "end"})
+    return json.dumps({"steps": steps, "error": error})

@@ -1344,3 +1344,25 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .ask-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--card-subtle); cursor: pointer; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
 .ask-option:hover { border-color: var(--text); }
 .ask-option input { accent-color: var(--primary); }
+
+/* "Watch it run": a program stepped line by line with its variables */
+.trace { display: grid; gap: 10px; margin: 10px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.trace-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trace-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.trace-code { list-style: none; margin: 0; padding: 8px 0; background: #0f0f12; border-radius: var(--radius-sm, 6px); font: 13px/1.6 ui-monospace, Menlo, Consolas, monospace; color: #e4e4e7; overflow-x: auto; }
+.trace-code li { display: flex; gap: 6px; padding: 0 10px 0 4px; white-space: pre; border-left: 3px solid transparent; }
+.trace-code li.current { background: rgba(250, 204, 21, 0.16); border-left-color: #facc15; }
+.trace-code code { background: transparent !important; border: 0 !important; box-shadow: none !important; color: inherit !important; padding: 0 !important; border-radius: 0; font: inherit; }
+.trace-arrow { width: 14px; color: #facc15; flex: none; }
+.trace-state { display: grid; gap: 8px; }
+.trace-frame { border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--card-subtle); overflow: hidden; }
+.trace-frame-name { padding: 3px 10px; font-size: 12px; font-weight: 700; background: var(--border); }
+.trace-frame table { width: 100%; border-collapse: collapse; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+.trace-frame th { text-align: right; width: 38%; padding: 3px 8px; font-weight: 600; color: var(--text-muted); }
+.trace-frame td { padding: 3px 8px; overflow-wrap: anywhere; }
+.trace-frame tr.changed td, .trace-frame tr.changed th { background: rgba(250, 204, 21, 0.22); }
+.trace-tag { display: inline-block; padding: 0 6px; border-radius: 999px; background: var(--primary); color: var(--primary-fg); font-size: 11px; }
+.trace-note { min-height: 1.4em; padding: 8px 12px; border-left: 3px solid var(--primary); background: var(--card-subtle); border-radius: 0 var(--radius-sm, 6px) var(--radius-sm, 6px) 0; }
+@media (prefers-reduced-motion: no-preference) { .trace-frame tr.changed td { animation: trace-flash 0.7s ease-out; } @keyframes trace-flash { from { background: rgba(250, 204, 21, 0.6); } } }
+@media (max-width: 700px) { .trace-grid { grid-template-columns: 1fr; } }
+.trace-frame table { table-layout: fixed; }

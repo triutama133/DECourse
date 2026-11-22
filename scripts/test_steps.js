@@ -35,7 +35,7 @@ for (const level of levels) for (const mod of level.modules) mod.lessons.forEach
       const w = `${where} step ${k + 1}`;
       if (!s.text.trim()) fail(w, "empty");
       if ((s.text.match(/^```/gm) || []).length % 2) fail(w, "odd number of ``` lines (a fence is cut)");
-      const open = (s.text.match(/^:::(advanced\s|drill\s|ask\b)/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
+      const open = (s.text.match(/^:::(advanced\s|drill\s|ask\b|trace\s)/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
       if (open !== close) fail(w, `fold not balanced (${open} open, ${close} close)`);
       if (s.tryitStart !== tryits) fail(w, `tryitStart ${s.tryitStart}, expected ${tryits}`);
       const boxes = (s.text.match(/^> ?(🛠|💡|\*\*(Try it|Coba sendiri|Practice Pause|Jeda Latihan))/gm) || []).length;

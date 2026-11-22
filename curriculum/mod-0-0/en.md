@@ -654,7 +654,114 @@ a_now = [1, 2, 3]
 > You should see `4`, `paid`, `60000` and `[3, 5, 7]`, and four passed checks.
 
 ## @lesson Decisions: if, elif, else
-A decision is how a program chooses between paths. In data engineering almost all **validation** is decisions: is this total a number? is the status one we know?
+A decision is how a program chooses between paths. In data engineering almost all **validation** is decisions: is this total a number? is the status one we know? Every decision starts with a question that Python answers with `True` or `False`.
+
+### Questions that Python answers with True or False
+
+A comparison asks a question about two values. The answer is a `bool` (`True` or `False`):
+
+| Question | Write | Example |
+|---|---|---|
+| equal? | `==` | `stock == 12` |
+| not equal? | `!=` | `status != "paid"` |
+| smaller / bigger? | `<` `>` | `stock < 20` |
+| smaller or equal / bigger or equal? | `<=` `>=` | `stock >= 20` |
+| is it in this group? | `in` | `"paid" in ["paid", "shipped"]` |
+
+```python
+stock = 12
+print(stock < 20)          # True
+print(stock == 12)         # True: two equal signs ASK the question
+print("a" in ["a", "b"])   # True
+```
+
+Be careful: one `=` **assigns** (`stock = 12` puts 12 in the name), two `==` **compare** (`stock == 12` asks "is it 12?"). Mixing them up is the classic beginner slip.
+
+:::ask What will this print?
+```python
+print(5 == 5.0, "5" == 5)
+```
+@options
+True True
+* True False
+False False
+@why
+`5` and `5.0` are the same number, so the first comparison is `True`. But `"5"` is **text** and `5` is a number, and Python never treats text and numbers as equal: `False`.
+:::
+
+:::drill python Ask a question
+`stock` is `12`. Make `is_low` hold the answer to the question "is the stock below 20?". It should be `True` now, and follow `stock` if the number changes.
+@starter
+stock = 12
+is_low = None
+@check
+is_low is True ## `is_low` should be True: 12 is below 20.
+uses("stock") ## Ask the question about the variable `stock`, do not just type True.
+rerun_with("stock", 50)["is_low"] is False ## When `stock` is 50, `is_low` should be False. Use stock < 20.
+@hint
+`stock < 20` is a question whose answer is `True` or `False`. Store the answer: `is_low = stock < 20`.
+@solution
+stock = 12
+is_low = stock < 20
+:::
+
+### if: run a block only when the answer is True
+
+An `if` runs the lines under it **only when its question is `True`**. The lines that belong to the `if` are **indented** (four spaces) under a line that ends with a colon. In Python the indentation *is* the structure, so a wrong indent is a wrong program.
+
+```python
+stock = 12
+if stock < 20:
+    print("reorder")
+```
+
+Add an `else` for "otherwise". Watch which lines run, and which are skipped:
+
+:::trace Which lines run?
+@code
+stock = 12
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+print(message)
+@notes
+1 | `stock` gets the value 12.
+2 | The question: is 12 < 20? Yes, `True`.
+3 | Because the answer was `True`, Python goes into the indented block under the `if`.
+6 | The `else` block was skipped entirely. Now the program goes on with the first line that is not indented under it.
+:::
+
+:::drill python if and else
+Write an `if` / `else` so that `message` is `"reorder"` when `stock` is below 20, and `"enough"` otherwise.
+@starter
+stock = 12
+message = None
+# write your if / else below this line
+
+@check
+has_node("If") ## Use an if (and an else).
+message == "reorder" ## With stock 12, `message` should be "reorder".
+rerun_with("stock", 50)["message"] == "enough" ## With stock 50, `message` should be "enough".
+rerun_with("stock", 20)["message"] == "enough" ## With stock exactly 20, `message` should be "enough": 20 is not below 20.
+@hint
+```python
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+```
+@solution
+stock = 12
+if stock < 20:
+    message = "reorder"
+else:
+    message = "enough"
+:::
+
+### elif: more than two paths
+
+`elif` ("else if") adds more questions. Python asks them **from the top**, runs the block of the **first** one that is `True`, and skips all the others:
 
 ```python
 status = "refunded"
@@ -666,17 +773,144 @@ else:
     print("unknown status: send it to quarantine")
 ```
 
-How it runs: Python checks the conditions from the top, runs the block of the **first** one that is true, then skips all the others. The block is whatever is **indented** under the colon; in Python the indentation is the structure (usually four spaces), so a wrong indent is a wrong program.
+:::drill python Three paths
+Set `action` by the `status`: `"paid"` gives `"count it"`; `"cancelled"` or `"refunded"` give `"skip it"`; anything else gives `"check it"`.
+@starter
+status = "refunded"
+action = None
+# write your if / elif / else below this line
 
-The condition is an expression that gives `True` or `False`. Comparisons: `==` equal (two signs; one `=` is assignment!), `!=`, `<`, `>`, `<=`, `>=`, and `in` for membership (`status in {"cancelled", "refunded"}`). Combine with `and`, `or`, `not`.
+@check
+has_node("If") ## Use if / elif / else.
+action == "skip it" ## With status "refunded", `action` should be "skip it".
+rerun_with("status", "paid")["action"] == "count it" ## With status "paid", `action` should be "count it".
+rerun_with("status", "cancelled")["action"] == "skip it" ## With status "cancelled", `action` should be "skip it".
+rerun_with("status", "shipped")["action"] == "check it" ## With any other status (for example "shipped"), `action` should be "check it".
+@hint
+Start with `if status == "paid":`, then `elif status == "cancelled" or status == "refunded":`, then `else:`.
+@solution
+status = "refunded"
+if status == "paid":
+    action = "count it"
+elif status == "cancelled" or status == "refunded":
+    action = "skip it"
+else:
+    action = "check it"
+:::
 
-**Truthiness** saves typing: `0`, `""`, `None`, `[]`, `{}` count as false in an `if`, everything else as true. So `if not rows:` means "if there are no rows". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value. When zero is legal, write `if total is not None:`.
+### and, or, not
+
+Combine questions with `and` (both must be true), `or` (at least one) and `not` (turns the answer around). `status in {"cancelled", "refunded"}` is a short way to write several `or`.
+
+:::drill python Both must be true
+An order can be shipped when it is paid **and** there is stock. Make `can_ship` `True` only when `paid` is `True` and `stock` is above 0.
+@starter
+paid = True
+stock = 5
+can_ship = None
+@check
+can_ship is True ## With paid True and stock 5, `can_ship` should be True.
+rerun_with("stock", 0)["can_ship"] is False ## With stock 0, `can_ship` should be False.
+rerun_with("paid", False)["can_ship"] is False ## When `paid` is False, `can_ship` should be False.
+uses("paid") and uses("stock") ## Use both variables in one question joined with `and`.
+@hint
+`paid and stock > 0`: the two questions joined with `and`.
+@solution
+paid = True
+stock = 5
+can_ship = paid and stock > 0
+:::
+
+### What counts as false: truthiness
+
+In an `if`, some values count as **false** without being `False`: `0`, `""` (empty text), `None`, `[]` (empty list), `{}`. Everything else counts as true. So `if not rows:` means "if there are no rows". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value (a free order). When zero is legal, ask the exact question: `total is not None`.
+
+:::ask What will this print?
+```python
+total = 0
+if total:
+    print("has a total")
+else:
+    print("no total")
+```
+@options
+has a total
+* no total
+an error
+@why
+`0` counts as false in an `if`, so Python runs the `else`. This is exactly the trap: a free order (total `0`) would be treated as "no total". When `0` is a legal value, write `if total is not None:` instead.
+:::
+
+:::drill python Zero is a real value
+`total` is `0`: the order was free, which is a real value. Make `has_total` `True` whenever `total` is not `None` (so `True` for `0`), and `False` when it is `None`.
+@starter
+total = 0
+has_total = None
+@check
+has_total is True ## With total 0, `has_total` should be True: a free order is still a total.
+rerun_with("total", None)["has_total"] is False ## With total None, `has_total` should be False.
+rerun_with("total", 250)["has_total"] is True ## With total 250, `has_total` should be True.
+"is not None" in code ## Ask the exact question: total is not None.
+@hint
+`total is not None` is `True` for `0` and `False` only for `None`.
+@solution
+total = 0
+has_total = total is not None
+:::
+
+### Negative numbers: abs()
+
+`abs(n)` gives the distance from zero, always positive: `abs(-45000)` is `45000`. To show a negative number with the minus sign first, write `abs(n)` and put the sign in front yourself, with an `if` that checks whether `n` is below zero. Remember `str(n)` turns a number into text.
+
+:::drill python The minus sign first
+`n` is a whole number. Make `signed` its text: with a `-` in front when `n` is negative (`-450` gives `"-450"`), and just the digits otherwise (`450` gives `"450"`). Use `abs()`.
+@starter
+n = -450
+signed = None
+# write your if / else below this line
+
+@check
+signed == "-450" ## With n -450, `signed` should be the text "-450".
+rerun_with("n", 450)["signed"] == "450" ## With n 450, `signed` should be the text "450" (no minus).
+rerun_with("n", 0)["signed"] == "0" ## With n 0, `signed` should be "0".
+calls("abs") ## Use abs(n) to get the digits without the sign.
+@hint
+When `n < 0`: `"-" + str(abs(n))`. Otherwise: `str(n)`.
+@solution
+n = -450
+if n < 0:
+    signed = "-" + str(abs(n))
+else:
+    signed = str(n)
+:::
+
+### Division by zero is a decision problem
+
+The average of a list is its sum divided by how many numbers it has. Python has two built-in helpers for that: `sum(values)` adds up all the numbers in a list, and `len(values)` counts the items. For an **empty** list the division would be by zero and Python stops with `ZeroDivisionError`. The average of nothing is not `0`, it does not exist: use `None`. Guard the dangerous case first with an `if`.
+
+:::drill python The average of nothing
+`scores` is a list of numbers. Make `mean` their average. When the list is empty there is no average: `mean` should be `None`.
+@starter
+scores = [80, 90, 70]
+mean = None
+# write your if / else below this line
+
+@check
+mean == 80 ## With scores [80, 90, 70], `mean` should be 80.0.
+rerun_with("scores", [])["mean"] is None ## With an empty list, `mean` should be None (and the program must not stop with ZeroDivisionError).
+rerun_with("scores", [10])["mean"] == 10 ## With scores [10], `mean` should be 10.0.
+calls("sum") and calls("len") ## Use sum(scores) / len(scores).
+@hint
+`if len(scores) == 0:` give `None`; `else:` the sum divided by the length.
+@solution
+scores = [80, 90, 70]
+if len(scores) == 0:
+    mean = None
+else:
+    mean = sum(scores) / len(scores)
+:::
 
 **Why decisions are everywhere in pipelines.** The rule of Module 0.2 is "never guess and never drop silently". In code that rule is an `if` with two branches: a valid row continues, an invalid row is put aside *with a reason*. An `else` that does nothing is how data disappears without a trace.
-
-**Negative money.** `abs(n)` gives the distance from zero, always positive: `abs(-45000)` is `45000`. To write a negative amount as `-Rp 45.000`, format `abs(amount)` and put the minus sign in front yourself, with an `if` that checks whether the amount is below zero.
-
-Division by zero is a decision problem too: the average of an empty list is not 0, it does not exist. Use built-in `sum(values)` (adds up all numbers in a list) and `len(values)` (counts the items), guarded by an `if`: `if not values: avg = None` handles the empty list before the error can happen, and `else: avg = sum(values) / len(values)` runs safely when there is data. Prefer checking the dangerous case first.
 
 > 💡 **Practice Pause 3 (Part A, Step 3):**
 > In `practice.py` (or the **Part A** tab), do **Step 3**:
@@ -689,31 +923,396 @@ Division by zero is a decision problem too: the average of an empty list is not 
 ## @lesson Repetition: for, while and comprehensions
 A file has 100,000 rows. You cannot write 100,000 lines, so you write the instruction **once** and let the computer repeat it. That is a loop, and it is the engine of every data pipeline.
 
+### for: do something for each item
+
+A `for` loop takes the items of a list **one by one** and runs the indented lines once for each. Watch it happen:
+
+:::trace Each round, a new item
+@code
+cities = ["Jakarta", "Bandung", "Medan"]
+for city in cities:
+    print(city)
+print("done")
+@notes
+2 | A round starts: the name `city` is attached to the next item of the list.
+3 | The indented line runs once for this item.
+4 | The items ran out, so the loop is over and Python goes on with the next line that is not indented.
+:::
+
+:::drill python Show each item
+Use a `for` loop to print every name in `names`, one per line.
+@starter
+names = ["Kopi", "Teh", "Susu"]
+# write your loop below this line
+
+@check
+has_node("For") ## Use a for loop.
+out == "Kopi\nTeh\nSusu" ## It should print Kopi, Teh and Susu, each on its own line.
+rerun_with("names", ["a", "b"])["__out__"] == "a\nb" ## Your loop should work for any list: with ["a", "b"] it should print a and b.
+@hint
+`for name in names:` then, indented on the next line, `print(name)`.
+@solution
+names = ["Kopi", "Teh", "Susu"]
+for name in names:
+    print(name)
+:::
+
+### The accumulator: update a total every round
+
+To add things up, start with a neutral value (`0`) **before** the loop, then update it in every round. This **accumulator pattern** is behind sums, counts, maximums and almost every aggregation you will write.
+
+:::trace A total that grows
+@code
+prices = [25000, 18000, 30000]
+total = 0
+for price in prices:
+    total = total + price
+print(total)
+@notes
+2 | Before the loop: start with a neutral value. Nothing has been added yet.
+4 | The new `total` is the old `total` plus this round's `price`. Watch the yellow row: `total` grows each round.
+5 | The loop is over. `total` holds the sum of all the prices.
+:::
+
+:::ask What will this print?
 ```python
 total = 0
-for order in orders:            # take the rows one by one: each time, `order` points at the next row
-    total = total + int(order["total_idr"])
+for n in [1, 2, 3]:
+    total = n
 print(total)
 ```
+@options
+6
+* 3
+0
+@why
+`total = n` **replaces** `total` in every round, so after the last round it holds only the last number, 3. To add up you need `total = total + n`: the new value is built from the old one.
+:::
 
-Trace it with three rows (150000, 80000, 120000). Before the loop `total` is 0. Round 1: `order` is row 1, so `total` becomes 150000. Round 2: 230000. Round 3: 350000. The loop ends because the rows ran out, and the print shows 350000. This **accumulator pattern** (start with a neutral value, update it every round) is behind sums, counts, maximums and almost every aggregation you will write.
+:::drill python Add them all up
+Use a `for` loop to make `total` the sum of the numbers in `prices`. Do not use the built-in `sum()`: the point here is the loop.
+@starter
+prices = [25000, 18000, 30000]
+total = 0
+# write your loop below this line
 
-Useful tools, each solving a specific annoyance:
+@check
+has_node("For") ## Use a for loop.
+total == 73000 ## `total` should be 73000.
+rerun_with("prices", [5, 5])["total"] == 10 ## Your loop should work for any list: with [5, 5], `total` should be 10.
+not calls("sum") ## Do not use sum(): write the loop yourself.
+@hint
+`for price in prices:` then, indented: `total = total + price`.
+@solution
+prices = [25000, 18000, 30000]
+total = 0
+for price in prices:
+    total = total + price
+:::
 
-- `range(5)` gives 0, 1, 2, 3, 4 (not 5!). `range(0, 100, 10)` steps by ten. Use it when you need positions or a number of repeats.
-- `enumerate(rows)` gives the position *and* the item: `for i, row in enumerate(rows):`. Better than keeping your own counter.
-- `zip(a, b)` walks two lists together.
-- `continue` skips to the next round (a cancelled order: nothing to add). `break` leaves the loop entirely.
+Data from a file arrives as text (Lesson 1), so inside the loop you usually convert each value with `int(...)` before you add it.
 
-A **comprehension** is a loop written as one expression: `ids = [int(o["customer_id"]) for o in orders]` builds a list; `{int(o["customer_id"]) for o in orders}` builds a set; `{k: v for ...}` a dict. It is the same loop in short form. Use it when it fits on one clear line; when you need `if/else` branches or several steps, write the normal loop. Readable beats clever.
+:::drill python Text prices
+`texts` holds prices as text. Make `total` their sum **as numbers**.
+@starter
+texts = ["150000", "90000", "25000"]
+total = 0
+# write your loop below this line
 
-**Sorting and ranking with `sorted()`**: In data pipelines, you frequently rank items (e.g. highest spending customers). The built-in `sorted(data, key=...)` accepts a `key` function telling Python what property to rank by. A short one-line function called a **lambda** (`lambda x: ...`) is often used as the key. For example, to sort `(customer_id, total)` pairs by total descending, write `sorted(pairs, key=lambda pair: -pair[1])` (the minus sign turns highest into smallest so Python puts it first). When two customers spent the exact same total and you want to break ties by smaller customer ID, return a tuple from the key: `key=lambda pair: (-pair[1], pair[0])`. Python compares the first tuple element first, and only inspects the second when there is a tie.
+@check
+total == 265000 ## `total` should be the number 265000, not glued text.
+type(total) is int ## `total` should be a number (int).
+rerun_with("texts", ["1", "2"])["total"] == 3 ## With ["1", "2"], `total` should be 3.
+@hint
+Convert inside the loop: `total = total + int(text)`.
+@solution
+texts = ["150000", "90000", "25000"]
+total = 0
+for text in texts:
+    total = total + int(text)
+:::
 
-A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing in the loop ever makes the condition false, it runs forever. Always ask: "what changes inside the loop so that it ends?"
+### if inside a loop: only some of the items
+
+Put an `if` inside the loop to treat some items differently. Each order below is a dictionary; its total is text.
+
+:::drill python Skip the cancelled ones
+Make `revenue` the sum of the totals (as numbers) of the orders whose status is **not** `"cancelled"`.
+@starter
+orders = [
+    {"status": "paid", "total": "150000"},
+    {"status": "cancelled", "total": "90000"},
+    {"status": "paid", "total": "25000"},
+]
+revenue = 0
+# write your loop below this line
+
+@check
+revenue == 175000 ## `revenue` should be 175000: the cancelled order (90000) must not count.
+rerun_with("orders", [{"status": "cancelled", "total": "5"}])["revenue"] == 0 ## With only a cancelled order, `revenue` should stay 0.
+rerun_with("orders", [{"status": "paid", "total": "7"}, {"status": "shipped", "total": "3"}])["revenue"] == 10 ## With a paid 7 and a shipped 3, `revenue` should be 10.
+has_node("If") ## Use an if inside the loop.
+@hint
+```python
+for order in orders:
+    if order["status"] != "cancelled":
+        revenue = revenue + int(order["total"])
+```
+@solution
+orders = [
+    {"status": "paid", "total": "150000"},
+    {"status": "cancelled", "total": "90000"},
+    {"status": "paid", "total": "25000"},
+]
+revenue = 0
+for order in orders:
+    if order["status"] != "cancelled":
+        revenue = revenue + int(order["total"])
+:::
+
+### Counting with a dictionary
+
+"How many per status, per city, per day" is the most common question in data. A dictionary keeps one count per name, and one line does the update:
+
+```python
+counts[status] = counts.get(status, 0) + 1
+```
+
+Read it from the right: `counts.get(status, 0)` is the count so far (`0` when this status has not been seen yet), `+ 1` adds this one, and the result is stored back under the same key. Remember this line; you will write it many times.
+
+:::trace Counting per name
+@code
+statuses = ["paid", "cancelled", "paid"]
+counts = {}
+for status in statuses:
+    counts[status] = counts.get(status, 0) + 1
+print(counts)
+@notes
+2 | An empty dictionary: nothing counted yet.
+4 | `counts.get(status, 0)` gives the count so far (0 for a new name), +1 adds this one, and the result is stored back. Watch the dictionary grow.
+5 | When the loop is over, `counts` has one count per different status.
+:::
+
+:::drill python Count per city
+`visits` lists the city of each visit. Make `counts` a dictionary with the number of visits per city, like `{"Jakarta": 3, ...}`.
+@starter
+visits = ["Jakarta", "Medan", "Jakarta", "Jakarta", "Medan", "Bandung"]
+counts = {}
+# write your loop below this line
+
+@check
+counts == {"Jakarta": 3, "Medan": 2, "Bandung": 1} ## `counts` should be {'Jakarta': 3, 'Medan': 2, 'Bandung': 1}.
+rerun_with("visits", ["a", "b", "a"])["counts"] == {"a": 2, "b": 1} ## With ["a", "b", "a"], `counts` should be {'a': 2, 'b': 1}.
+has_node("For") ## Use a for loop.
+@hint
+`for city in visits:` then `counts[city] = counts.get(city, 0) + 1`.
+@solution
+visits = ["Jakarta", "Medan", "Jakarta", "Jakarta", "Medan", "Bandung"]
+counts = {}
+for city in visits:
+    counts[city] = counts.get(city, 0) + 1
+:::
+
+The same line can add **amounts** instead of ones: `totals[city] = totals.get(city, 0) + amount`. When each item is a pair, the loop can take the two parts apart in one go: `for city, amount in sales:`.
+
+:::drill python Add up per name
+`sales` holds `(city, amount)` pairs. Make `totals` a dictionary with the total amount per city, like `{"Jakarta": 125, ...}`.
+@starter
+sales = [("Jakarta", 100), ("Medan", 50), ("Jakarta", 25)]
+totals = {}
+# write your loop below this line
+
+@check
+totals == {"Jakarta": 125, "Medan": 50} ## `totals` should be {'Jakarta': 125, 'Medan': 50}.
+rerun_with("sales", [("a", 1), ("b", 2), ("a", 3)])["totals"] == {"a": 4, "b": 2} ## With [("a", 1), ("b", 2), ("a", 3)], `totals` should be {'a': 4, 'b': 2}.
+has_node("For") ## Use a for loop.
+@hint
+`for city, amount in sales:` then `totals[city] = totals.get(city, 0) + amount`.
+@solution
+sales = [("Jakarta", 100), ("Medan", 50), ("Jakarta", 25)]
+totals = {}
+for city, amount in sales:
+    totals[city] = totals.get(city, 0) + amount
+:::
+
+### Walking through a dictionary: .items()
+
+`counts.items()` gives the key **and** the value together, so a loop can take both: `for key, value in counts.items():`.
+
+:::drill python Print each count
+Print one line per entry of `counts`, in the form `paid: 3` (the key, a colon and a space, the value).
+@starter
+counts = {"paid": 3, "cancelled": 1}
+# write your loop below this line
+
+@check
+out == "paid: 3\ncancelled: 1" ## It should print `paid: 3` on one line and `cancelled: 1` on the next.
+uses("items") ## Use counts.items() to get the key and the value together.
+rerun_with("counts", {"x": 2})["__out__"] == "x: 2" ## With {"x": 2}, it should print `x: 2`.
+@hint
+`for status, number in counts.items():` then `print(f"{status}: {number}")`.
+@solution
+counts = {"paid": 3, "cancelled": 1}
+for status, number in counts.items():
+    print(f"{status}: {number}")
+:::
+
+### Each value once: a set filled in a loop
+
+A set keeps each value once. Start with an empty set (`seen = set()`) and put values in with `.add(x)`; adding a value that is already there changes nothing. Afterwards `sorted(...)` gives them in order.
+
+:::drill python Each id once, as numbers
+`texts` holds customer ids as text, with repeats. Make `unique_ids` a list of the different ids **as numbers**, smallest first. Fill a set in a loop with `.add()`.
+@starter
+texts = ["7", "3", "7", "5", "3"]
+seen = set()
+unique_ids = None
+# write your loop below this line, then make unique_ids
+
+@check
+unique_ids == [3, 5, 7] ## `unique_ids` should be [3, 5, 7]: numbers (not text), each once, smallest first.
+calls("add") ## Fill the set with seen.add(...) inside the loop.
+has_node("For") ## Use a for loop.
+rerun_with("texts", ["2", "2", "1"])["unique_ids"] == [1, 2] ## With ["2", "2", "1"], `unique_ids` should be [1, 2].
+@hint
+Inside the loop: `seen.add(int(text))`. After the loop: `unique_ids = sorted(seen)`.
+@solution
+texts = ["7", "3", "7", "5", "3"]
+seen = set()
+for text in texts:
+    seen.add(int(text))
+unique_ids = sorted(seen)
+:::
+
+### range(): numbers, and steps
+
+`range(5)` gives 0, 1, 2, 3, 4 (**not** 5: it stops before the end). `range(2, 8)` gives 2 to 7. `range(0, 10, 3)` steps by three: 0, 3, 6, 9. Wrap it in `list(...)` to see the numbers. With a slice (Lesson 2) it cuts a long list into pieces: `items[3:6]` is positions 3, 4 and 5.
+
+```python
+print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
+```
+
+:::drill python Where each piece starts
+`items` has 10 items. A piece is 3 items long. Make `starts` the list of positions where each piece starts: `[0, 3, 6, 9]`. Use `range` with `len(items)`.
+@starter
+items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+starts = None
+@check
+starts == [0, 3, 6, 9] ## `starts` should be [0, 3, 6, 9].
+calls("range") and calls("len") ## Use range(0, len(items), 3), wrapped in list(...).
+rerun_with("items", [1, 2, 3, 4])["starts"] == [0, 3] ## With 4 items, `starts` should be [0, 3].
+@hint
+`list(range(0, len(items), 3))`: from 0, up to the length of `items`, in steps of 3.
+@solution
+items = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+starts = list(range(0, len(items), 3))
+:::
+
+### Skip one, or stop early
+
+`continue` skips the rest of this round and goes to the next one. `break` leaves the loop completely.
+
+:::ask What will this print?
+```python
+kept = []
+for n in [1, 2, 3, 4]:
+    if n == 3:
+        continue
+    kept.append(n)
+print(kept)
+```
+@options
+[1, 2, 3, 4]
+* [1, 2, 4]
+[1, 2]
+@why
+When `n` is 3, `continue` skips the `append`, so 3 is never added, but the loop **goes on** with 4. With `break` instead of `continue` the loop would stop at 3 and the list would be `[1, 2]`.
+:::
+
+### A loop in one line: the comprehension
+
+A **comprehension** is a loop that builds a list in one expression: `[int(t) for t in texts]` means "for each `t` in `texts`, take `int(t)`". It is the same loop in short form. Use it when it fits on one clear line; when you need branches or several steps, write the normal loop. Readable beats clever.
+
+:::drill python One line
+Use a list comprehension to make `ints` from `texts`: every text converted to a number.
+@starter
+texts = ["7", "3", "12"]
+ints = None
+@check
+ints == [7, 3, 12] ## `ints` should be [7, 3, 12], as numbers.
+has_node("ListComp") ## Use a list comprehension: [ ... for ... in ...].
+rerun_with("texts", ["5"])["ints"] == [5] ## With ["5"], `ints` should be [5].
+@hint
+`[int(text) for text in texts]`
+@solution
+texts = ["7", "3", "12"]
+ints = [int(text) for text in texts]
+:::
+
+### Ranking with sorted() and a key
+
+In data pipelines you often rank things (the customers who spent the most). `sorted(data, key=...)` takes a `key`: a small function that tells Python what to rank by. A one-line function written with `lambda` is often used: `lambda pair: pair[1]` means "given a pair, use its second item". To rank from biggest to smallest, add `reverse=True`. To break ties, let the key return a **tuple**: Python compares the first item first and looks at the second only when the first is equal. A minus sign in front of a number turns "biggest first" into "smallest first": `key=lambda pair: (-pair[1], pair[0])` ranks by total, biggest first, and for the same total by the smaller id first.
+
+:::drill python Rank by total
+`pairs` holds `(customer_id, total)` tuples. Make `ranked` the pairs sorted by total, **biggest first**; when two totals are equal, the smaller customer id comes first.
+@starter
+pairs = [(7, 100), (3, 100), (5, 250)]
+ranked = None
+@check
+ranked == [(5, 250), (3, 100), (7, 100)] ## `ranked` should be [(5, 250), (3, 100), (7, 100)].
+has_node("Lambda") ## Use a key function written with lambda.
+rerun_with("pairs", [(1, 5), (2, 9)])["ranked"] == [(2, 9), (1, 5)] ## With [(1, 5), (2, 9)], `ranked` should be [(2, 9), (1, 5)].
+@hint
+`sorted(pairs, key=lambda pair: (-pair[1], pair[0]))`: the minus sign makes the biggest total sort first, and the id breaks ties.
+@solution
+pairs = [(7, 100), (3, 100), (5, 250)]
+ranked = sorted(pairs, key=lambda pair: (-pair[1], pair[0]))
+:::
+
+### while: repeat as long as a condition is true
+
+A `while` loop repeats **as long as a question stays `True`**. Use it when you do not know how many rounds you need (retrying, reading until the end). The danger: if nothing inside the loop ever makes the question false, it runs forever. Always ask: "what changes inside the loop so that it ends?"
+
+:::ask What does n hold at the end?
+```python
+n = 3
+while n > 0:
+    n = n - 1
+print(n)
+```
+@options
+3
+1
+* 0
+@why
+Each round takes 1 away: 3, 2, 1, 0. When `n` is 0 the question `n > 0` is `False`, the loop stops, and `n` is 0. Without the line `n = n - 1` the question would stay `True` forever.
+:::
+
+:::drill python How many times?
+How many times can you take `3` away from `n` while `n` is still at least 3? Count the rounds in `steps`, using a `while` loop (for `n = 10`: 10, 7, 4 are all at least 3, so `steps` is 3).
+@starter
+n = 10
+steps = 0
+# write your while loop below this line
+
+@check
+has_node("While") ## Use a while loop.
+steps == 3 ## With n 10, `steps` should be 3.
+rerun_with("n", 30)["steps"] == 10 ## With n 30, `steps` should be 10.
+rerun_with("n", 2)["steps"] == 0 ## With n 2, `steps` should be 0: the loop must not run at all.
+@hint
+`while n >= 3:` then, indented: `n = n - 3` and `steps = steps + 1`.
+@solution
+n = 10
+steps = 0
+while n >= 3:
+    n = n - 3
+    steps = steps + 1
+:::
 
 > 💡 **Practice Pause 4 (Part A, Step 4):**
 > In `practice.py` (or the **Part A** tab), do **Step 4**. One `for order in orders:` loop can build several results at once. Before the loop, start `status_counts` as `{}`, `revenue` as `0`, and a set for the ids (`ids = set()`):
-> 1. `status_counts`: orders per status, `{"paid": 2, "cancelled": 1, "delivered": 1}` (the counting line from Lesson 2).
+> 1. `status_counts`: orders per status, `{"paid": 2, "cancelled": 1, "delivered": 1}` (the counting line from this lesson).
 > 2. `revenue`: the sum of the totals, as numbers, of the orders whose status is not `"cancelled"` and not `"refunded"`.
 > 3. `customer_ids`: the different `customer_id` values as whole numbers, smallest first (fill the set inside the loop with `.add(...)`, which puts one value into a set, then use `sorted`).
 > 4. `batches`: `items` cut into pieces of at most `batch_size`, in order, `[[1, 2], [3, 4], [5]]` (`range` with a step, and a slice).
@@ -724,27 +1323,321 @@ A `while` loop repeats **as long as a condition is true**: `while attempts < 3:`
 ## @part Functions, errors and files
 
 ## @lesson Functions: def, parameters and return
-Look at the loop that sums totals. If you need the same sum in five places, you do not copy five loops. You give the loop a **name** and reuse it. That is a function, and it exists for three reasons: **reuse** (write once), **clarity** (a good name explains the purpose, so `total_revenue(orders)` is read like a sentence), and **testing** (a small function with one input and one output can be checked automatically, which is how the lab works).
+Look at the loop that sums totals. If you need the same sum in five places, you do not copy five loops. You give the lines a **name** and reuse them. That is a function, and it exists for three reasons: **reuse** (write once), **clarity** (a good name explains the purpose, so `total_revenue(orders)` is read like a sentence), and **testing** (a small function with one input and one output can be checked automatically, which is how the lab works).
+
+### def: give some lines a name
+
+`def` means "define". The indented lines under it are the **body**. Defining a function does **not** run it, it only describes it. To run the body you **call** the function by writing its name followed by brackets:
 
 ```python
-def total_revenue(orders):             # def = "define": here we only describe it; nothing runs yet
-    total = 0
-    for order in orders:
-        total = total + int(order["total_idr"])
-    return total                       # return = hand the answer back and leave the function
+def say_hello():
+    print("Hello")
 
-result = total_revenue(my_orders)      # calling the function: now the body runs
+say_hello()
+say_hello()
 ```
 
-The parts: `def`, the **name**, the **parameters** in brackets (the inputs; `orders` is a placeholder name), a colon, then the indented **body**. When you *call* it, the value you pass (the **argument**) is attached to the parameter name for the duration of the call.
+:::trace Define once, call twice
+@code
+def say_hello():
+    print("Hello")
 
-**return versus print**, the confusion that hurts most beginners. `print` only *shows* something on the screen; the program cannot use it afterwards. `return` *hands a value back* to the code that called the function so that it can store it, compare it or pass it on. A function that prints but does not return gives `None` to the caller. Pipelines run without a screen, so functions must **return** their results.
+say_hello()
+say_hello()
+@notes
+1 | `def` only describes the function and gives it a name. Nothing is printed yet.
+4 | A call: Python jumps into the function body. Look at the new box on the right: every call gets its own space for its variables.
+2 | The body runs.
+5 | Called again: the same body runs a second time.
+:::
 
-**Default values**: `def safe_int(text, default=None):` means the caller may leave `default` out. **Scope**: names created inside a function exist only while it runs; the outside world cannot see them, and that is a feature (a function cannot accidentally break your other variables).
+:::drill python Define and call
+Define a function `show_paid` that prints the word `paid`. Then call it once.
+@starter
+# write your function and your call below this line
 
-**A trap to meet now.** Never use a *mutable* value (a list or dict) as a default: `def add(order, batch=[]):`. Python creates that list **once**, when the `def` line is read, and every call that omits `batch` shares it. The second call sees what the first one added. Use `batch=None` and create a new list inside. The chaos scenario shows what this does to a real pipeline, and the lab has a test for it.
+@check
+defines("show_paid") ## Define a function named show_paid: def show_paid():
+out == "paid" ## Calling it once should print: paid
+calls("show_paid") ## Call the function: show_paid()
+@hint
+```python
+def show_paid():
+    print("paid")
 
-Prefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.2: idempotence).
+show_paid()
+```
+@solution
+def show_paid():
+    print("paid")
+
+show_paid()
+:::
+
+### Parameters: give the function an input
+
+Between the brackets you list **parameters**: names for the inputs. When you call the function, the value you pass (the **argument**) is attached to the parameter name for the duration of the call.
+
+```python
+def show_total(total):
+    print("Rp", total)
+
+show_total(5000)       # total is 5000 during this call
+show_total(7500)       # total is 7500 during this call
+```
+
+:::drill python A function with an input
+Define `show_label(label)` that prints `Label: ` followed by the label (for `"Kopi"` it prints `Label: Kopi`). Then call it with `"Kopi"`.
+@starter
+# write your function and your call below this line
+
+@check
+defines("show_label") ## Define a function named show_label with one parameter.
+out == "Label: Kopi" ## Calling show_label("Kopi") should print: Label: Kopi
+printed_by(show_label, "Teh") == "Label: Teh" ## show_label("Teh") should print: Label: Teh (use the parameter, do not type Kopi inside the function).
+@hint
+```python
+def show_label(label):
+    print("Label:", label)
+```
+`print` puts a space between its values, so `print("Label:", label)` gives `Label: Kopi`.
+@solution
+def show_label(label):
+    print("Label:", label)
+
+show_label("Kopi")
+:::
+
+### return: hand the answer back
+
+`print` only **shows** something on the screen; the program cannot use it afterwards. `return` **hands a value back** to the code that called the function, so that it can store it, compare it or pass it on. A function that prints but does not return gives `None` to the caller. Pipelines run without a screen, so functions must **return** their results.
+
+:::trace return hands a value back
+@code
+def double(n):
+    result = n * 2
+    return result
+
+x = double(4)
+print(x)
+@notes
+5 | The call `double(4)`: `n` will be 4 inside the function.
+2 | The function works out `n * 2` and keeps it in `result`. This `result` exists only inside the function.
+3 | `return` hands the value back and leaves the function.
+6 | Back outside: `x` now holds what the function returned (8).
+:::
+
+:::ask What will this print?
+```python
+def double(n):
+    print(n * 2)
+
+x = double(4)
+print(x)
+```
+@options
+8
+8 and then 8
+* 8 and then None
+@why
+This version **prints** 8 inside the function (that is the first line), but it does not `return` anything. A function without `return` gives back `None`, so `x` is `None` and the last line prints `None`. Printing is for people; `return` is for the program.
+:::
+
+:::drill python Return, not print
+Write `double(n)` so that it **returns** twice `n` (do not print inside it).
+@starter
+# write your function below this line
+
+@check
+defines("double") ## Define a function named double with one parameter.
+double(4) == 8 ## double(4) should give back 8 (use return).
+double(0) == 0 ## double(0) should give back 0.
+double(2.5) == 5.0 ## double(2.5) should give back 5.0.
+has_node("Return") ## Use return to hand the answer back.
+@hint
+```python
+def double(n):
+    return n * 2
+```
+@solution
+def double(n):
+    return n * 2
+:::
+
+:::drill python Two inputs
+Write `total_price(price, quantity)` that returns the price times the quantity.
+@starter
+# write your function below this line
+
+@check
+defines("total_price") ## Define a function named total_price with two parameters.
+total_price(25000, 3) == 75000 ## total_price(25000, 3) should give back 75000.
+total_price(10, 0) == 0 ## total_price(10, 0) should give back 0.
+has_node("Return") ## Use return to hand the answer back.
+@hint
+Two parameters are separated by a comma: `def total_price(price, quantity):`.
+@solution
+def total_price(price, quantity):
+    return price * quantity
+:::
+
+### Default values
+
+`def format_money(amount, symbol="Rp"):` means the caller may leave `symbol` out; then it is `"Rp"`.
+
+:::drill python A default value
+Write `format_money(amount, symbol="Rp")` that returns the symbol, a space and the amount: `format_money(500)` gives `"Rp 500"`, and `format_money(5, "USD")` gives `"USD 5"`.
+@starter
+# write your function below this line
+
+@check
+defines("format_money") ## Define a function named format_money.
+format_money(500) == "Rp 500" ## format_money(500) should give back "Rp 500".
+format_money(5, "USD") == "USD 5" ## format_money(5, "USD") should give back "USD 5".
+format_money(7, symbol="SGD") == "SGD 7" ## You can also name the argument: format_money(7, symbol="SGD").
+@hint
+```python
+def format_money(amount, symbol="Rp"):
+    return f"{symbol} {amount}"
+```
+@solution
+def format_money(amount, symbol="Rp"):
+    return f"{symbol} {amount}"
+:::
+
+### A function that answers yes or no
+
+A function that returns `True` or `False` gives a name to a question. Then your loops read like sentences.
+
+:::drill python A yes or no function
+Write `is_paid(order)` that returns `True` when the order's `"status"` is `"paid"`, and `False` otherwise.
+@starter
+# write your function below this line
+
+@check
+defines("is_paid") ## Define a function named is_paid with one parameter.
+is_paid({"status": "paid"}) is True ## is_paid({"status": "paid"}) should give back True.
+is_paid({"status": "shipped"}) is False ## is_paid({"status": "shipped"}) should give back False.
+@hint
+Return the answer of the question itself: `return order["status"] == "paid"`.
+@solution
+def is_paid(order):
+    return order["status"] == "paid"
+:::
+
+:::drill python Use your own function
+`is_paid` is written for you. Use it in a loop to make `paid_count` the number of paid orders in `orders`.
+@starter
+def is_paid(order):
+    return order["status"] == "paid"
+
+orders = [{"status": "paid"}, {"status": "cancelled"}, {"status": "paid"}]
+paid_count = 0
+# write your loop below this line
+
+@check
+paid_count == 2 ## `paid_count` should be 2.
+calls("is_paid") ## Call is_paid(order) inside the loop.
+rerun_with("orders", [{"status": "shipped"}])["paid_count"] == 0 ## With no paid order, `paid_count` should stay 0.
+@hint
+```python
+for order in orders:
+    if is_paid(order):
+        paid_count = paid_count + 1
+```
+@solution
+def is_paid(order):
+    return order["status"] == "paid"
+
+orders = [{"status": "paid"}, {"status": "cancelled"}, {"status": "paid"}]
+paid_count = 0
+for order in orders:
+    if is_paid(order):
+        paid_count = paid_count + 1
+:::
+
+### Names inside a function stay inside
+
+**Scope**: names created inside a function exist only while it runs; the outside world cannot see them. That is a feature: a function cannot accidentally break your other variables. Prefer functions that depend only on their inputs and return a result without changing anything else (**pure functions**). They are easy to test and safe to run twice, which is the property pipelines need (Module 0.2: idempotence).
+
+:::ask What will this print?
+```python
+def make_label():
+    label = "Rp 500"
+
+make_label()
+print(label)
+```
+@options
+Rp 500
+None
+* an error: NameError, `label` does not exist outside the function
+@why
+`label` was created **inside** `make_label`, and it disappears when the function ends. The last line looks for `label` outside and Python stops with `NameError: name 'label' is not defined`. To get the value out, the function must `return` it.
+:::
+
+### A trap to meet now: a list as a default value
+
+Never use a *mutable* value (a list or dictionary) as a default: `def add(item, box=[]):`. Python creates that list **once**, when the `def` line is read, and every call that omits `box` shares it. Predict first:
+
+:::ask What does the second call print?
+```python
+def add(item, box=[]):
+    box.append(item)
+    return box
+
+print(add(1))
+print(add(2))
+```
+@options
+[2]
+* [1, 2]
+[1]
+@why
+The default list is created once and **kept**. The first call puts 1 in it; the second call starts with that same list, which already holds 1, and adds 2. Watch it in the next animation: the list keeps the same label, `list#1`.
+:::
+
+:::trace One list, shared by every call
+@code
+def add(item, box=[]):
+    box.append(item)
+    return box
+
+print(add(1))
+print(add(2))
+@notes
+1 | The default `[]` is created **now**, once, when the `def` line is read.
+6 | The second call: `box` is not given, so it is the **same** list as before (same label), which already holds 1.
+:::
+
+The fix: use `None` as the default and create a new list inside: `if box is None: box = []`. The chaos scenario of this module shows what the bug does to a real pipeline, and the lab has a test for it.
+
+:::drill python Fix the shared list
+`add` has the trap. Fix it so every call without a second argument starts with a **fresh** empty list: `add(1)` gives `[1]` and then `add(2)` gives `[2]`.
+@starter
+def add(item, box=[]):
+    box.append(item)
+    return box
+@check
+add(1) == [1] ## add(1) should give back [1].
+add(2) == [2] ## add(2) should give back [2], not [1, 2]: every call without a list must start fresh.
+add(3, [1, 2]) == [1, 2, 3] ## add(3, [1, 2]) should still give back [1, 2, 3].
+"box=None" in code.replace(" ", "") ## Use None as the default: box=None, and create the list inside the function.
+@hint
+```python
+def add(item, box=None):
+    if box is None:
+        box = []
+    box.append(item)
+    return box
+```
+@solution
+def add(item, box=None):
+    if box is None:
+        box = []
+    box.append(item)
+    return box
+:::
 
 **Typing a function at the `>>>` prompt.** After a line that ends with `:`, such as `def double(n):`, Python shows `...` and indents the next line for you. When the function is complete, press **Enter once more on the empty line** to finish it; without that empty line, the next thing you type becomes part of the function. For anything longer than two lines, a file is easier.
 
@@ -778,29 +1671,190 @@ Prefer functions that depend only on their inputs and return a result without ch
 > Then go on to Lesson 6.
 
 ## @lesson When things go wrong: errors and try/except
-Errors are not failures of the learner; they are the program telling you precisely what it could not do. Learn to read them. A **traceback** lists the path of calls; **read it from the bottom**. The last line names the error type and a message (`ValueError: invalid literal for int() with base 10: 'Rp 1.250.000'`); the lines above it show where it happened, and the last line that points into *your* code is usually the place to look.
+Errors are not failures of the learner; they are the program telling you precisely what it could not do. Learn to read them, and they become the most useful thing on your screen.
 
-The errors you will meet constantly: `ValueError` (right type, impossible value: `int("abc")`), `TypeError` (wrong type: `"a" + 1`), `KeyError` (dict key missing), `IndexError` (list position too big), `ZeroDivisionError`, `FileNotFoundError`, `NameError` (a typo in a name), `IndentationError`.
+### Reading an error
 
-You can **catch** an error you expect and decide what to do:
+When Python stops it prints a **traceback**: the path of calls that led to the problem. **Read it from the bottom.** The last line names the error type and a message; the lines above it show where it happened, and the last line that points into *your* code is usually the place to look.
 
 ```python
-def safe_int(text, default=None):
-    try:
-        return int(text)
-    except ValueError:       # only this kind of error
-        return default
+order = {"order_id": "1001", "status": "paid"}
+print(order["total_idr"])
 ```
+
+Run that one with the button below the code: the last line says `KeyError: 'total_idr'`, because the dictionary has no such key. The errors you will meet constantly:
+
+| Error | Meaning | Example |
+|---|---|---|
+| `ValueError` | right type, impossible value | `int("abc")` |
+| `TypeError` | the wrong type for this action | `"a" + 1` |
+| `KeyError` | a dictionary key is missing | `order["note"]` |
+| `IndexError` | a list position is too big | `[1, 2, 3][5]` |
+| `ZeroDivisionError` | dividing by zero | `10 / 0` |
+| `FileNotFoundError` | the file is not there | `open("nope.csv")` |
+| `NameError` | a name Python does not know (often a typo) | `totl` |
+
+:::ask Which error is this?
+```python
+number = int("Rp 1.250.000")
+```
+@options
+TypeError
+* ValueError
+KeyError
+@why
+`int` is the right tool for text, but this text is not a whole number: the **type** is fine and the **value** is impossible. That is a `ValueError`. A `TypeError` would be, for example, adding text and a number.
+:::
+
+:::ask Which error is this?
+```python
+statuses = ["paid", "cancelled", "paid"]
+print(statuses[3])
+```
+@options
+KeyError
+* IndexError
+ValueError
+@why
+The list has three items, at positions 0, 1 and 2. Position 3 does not exist: `IndexError: list index out of range`. A `KeyError` is the same idea for a dictionary key.
+:::
+
+### try / except: catch an error you expect
+
+You can **catch** an error you expect and decide what to do instead of stopping:
+
+:::trace try and except
+@code
+text = "abc"
+try:
+    n = int(text)
+    print("converted")
+except ValueError:
+    n = 0
+print(n)
+@notes
+3 | `int("abc")` fails with a `ValueError`. The rest of the `try` block is abandoned.
+5 | Python jumps to the matching `except`. The line `print("converted")` was never run.
+7 | The program goes on normally, with `n` set to 0.
+:::
 
 How it runs: Python tries the block under `try`. If everything works, the `except` is skipped. If a `ValueError` happens, the rest of the `try` is abandoned and the `except` block runs instead.
 
-Three rules that separate good pipelines from dangerous ones:
+:::drill python Catch the bad value
+Write `to_number(text)` that returns `int(text)`, or `0` when the text is not a whole number.
+@starter
+# write your function below this line
+
+@check
+defines("to_number") ## Define a function named to_number with one parameter.
+to_number("42") == 42 ## to_number("42") should give back 42.
+to_number("abc") == 0 ## to_number("abc") should give back 0: the error is caught.
+to_number("") == 0 ## to_number("") should give back 0.
+has_node("Try") ## Use try / except.
+@hint
+```python
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+```
+@solution
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+:::
+
+### Catch only what you expect
+
+Three rules separate good pipelines from dangerous ones:
 
 1. **Catch the specific error you expect.** `except ValueError` is a plan. `except Exception: pass` (or a bare `except:`) is a decision to hide every future bug: a typo, a missing file, a real data problem all vanish silently, and wrong numbers appear with no sign of trouble. Module 1.2 shows how expensive that is.
 2. **Keep the `try` block small**: only the line that can fail.
 3. **Raise on purpose** when your function cannot do its job: `raise ValueError("total must not be negative")`. Failing loudly early is better than passing bad data on.
 
-A bad row from a customer is *expected* data, so you handle it (put it aside with a reason). A missing file or a programming mistake is *not* expected, so let it fail loudly.
+:::drill python Hide only what you expect
+`to_number` catches **every** kind of error. A missing value (`None`) is a different problem and must not be hidden as `0`: `int(None)` raises a `TypeError`. Change the function so it catches only `ValueError`.
+@starter
+def to_number(text):
+    try:
+        return int(text)
+    except Exception:
+        return 0
+@check
+to_number("abc") == 0 ## to_number("abc") should still give back 0.
+raises_error(TypeError, to_number, None) ## to_number(None) should raise a TypeError (not hide it as 0). Catch only ValueError.
+@hint
+Change `except Exception:` to `except ValueError:`.
+@solution
+def to_number(text):
+    try:
+        return int(text)
+    except ValueError:
+        return 0
+:::
+
+:::drill python Raise on purpose
+Write `check_total(total)` that returns `total` when it is not negative, and **raises** `ValueError("total must not be negative")` when it is below zero.
+@starter
+# write your function below this line
+
+@check
+defines("check_total") ## Define a function named check_total with one parameter.
+check_total(500) == 500 ## check_total(500) should give back 500.
+check_total(0) == 0 ## check_total(0) should give back 0: zero is allowed.
+raises_error(ValueError, check_total, -1) ## check_total(-1) should raise a ValueError.
+@hint
+```python
+def check_total(total):
+    if total < 0:
+        raise ValueError("total must not be negative")
+    return total
+```
+@solution
+def check_total(total):
+    if total < 0:
+        raise ValueError("total must not be negative")
+    return total
+:::
+
+### A bad row is data, a bug is not
+
+A bad row from a customer is *expected* data, so you handle it: put it aside **with a reason**, never drop it silently. A missing file or a programming mistake is *not* expected, so let it fail loudly.
+
+:::drill python Set the bad ones aside
+`rows` holds values as text; some are not numbers. Fill `good` with the numbers (as `int`) and `bad` with the texts that could not be converted, both in the original order. Use `try` / `except ValueError` inside a loop.
+@starter
+rows = ["10", "x", "25", "", "7"]
+good = []
+bad = []
+# write your loop below this line
+
+@check
+good == [10, 25, 7] ## `good` should be [10, 25, 7].
+bad == ["x", ""] ## `bad` should be ['x', '']: nothing is dropped silently.
+rerun_with("rows", ["1", "b"])["good"] == [1] and rerun_with("rows", ["1", "b"])["bad"] == ["b"] ## With ["1", "b"], `good` should be [1] and `bad` should be ['b'].
+has_node("Try") ## Use try / except inside the loop.
+@hint
+```python
+for text in rows:
+    try:
+        good.append(int(text))
+    except ValueError:
+        bad.append(text)
+```
+@solution
+rows = ["10", "x", "25", "", "7"]
+good = []
+bad = []
+for text in rows:
+    try:
+        good.append(int(text))
+    except ValueError:
+        bad.append(text)
+:::
 
 > 💡 **Practice Pause 6 (Part B):**
 > Apply pure functions, error handling, and avoiding the mutable default bug:
@@ -811,20 +1865,174 @@ A bad row from a customer is *expected* data, so you handle it (put it aside wit
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
 
 ## @lesson Files, imports and running a script
-Programs read files. The standard pattern:
+Programs read files, and a data engineer reads a lot of them. The standard pattern uses `open`, `with` and a reader. This lesson builds it up one piece at a time. The drills give you small sample files, so you can try everything in your browser.
+
+### Open a file and read its text
 
 ```python
-import csv
-
-with open("orders.csv", newline="", encoding="utf-8") as f:
-    rows = list(csv.DictReader(f))
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
 ```
 
-Why each part. `open` gives you a connection to the file. **`with`** guarantees the file is closed when the block ends, even if an error happens inside, so you never leak open files (a real problem in long-running jobs). `encoding="utf-8"` says how bytes become text; leaving it out means your program behaves differently on different computers. `newline=""` is what the csv module wants so that line breaks inside quoted values survive. `csv.DictReader(f)` turns each row into a dict using the header line as keys, so you get exactly the list of dictionaries of lesson 2. All values are strings; converting them is your job.
+Why each part. `open` gives you a connection to the file. **`with`** guarantees the file is closed when the block ends, even if an error happens inside, so you never leak open files (a real problem in long-running jobs). `encoding="utf-8"` says how bytes become text; leaving it out means your program behaves differently on different computers. `f.read()` gives the whole content as one text.
 
-An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.1). Your own file `basics.py` is a **module** too: `import basics` runs it once and gives you its functions as `basics.total_revenue(...)`. That is how the lab tests use your code.
+:::drill python Read a file
+The file `note.txt` is next to your code. Read all of its text into `text`, with `with open(...)`.
+@file note.txt
+Kopi Susu: 25000
+@starter
+# write your lines below this line
 
-You run a script with `python3 myfile.py`. A common line at the bottom of scripts is:
+@check
+text.strip() == "Kopi Susu: 25000" ## `text` should be the content of note.txt: Kopi Susu: 25000
+has_node("With") ## Use a with block, so the file is always closed.
+calls("open") ## Use open("note.txt", ...).
+@hint
+```python
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
+```
+@solution
+with open("note.txt", encoding="utf-8") as f:
+    text = f.read()
+:::
+
+### A CSV file: rows as dictionaries
+
+A CSV file is text with one row per line and commas between the values; the first line holds the column names. The `csv` module reads it. `csv.DictReader(f)` turns each row into a dictionary, using the header line as keys, so you get exactly the **list of dictionaries** of Lesson 2. `newline=""` is what the csv module wants so that line breaks inside quoted values survive. All values are text; converting them is your job.
+
+:::trace From a CSV file to a list of dictionaries
+@file drinks.csv
+name,price_idr
+Kopi,25000
+Teh,18000
+@code
+import csv
+
+with open("drinks.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+print(rows[0])
+@notes
+3 | The file is opened. `with` will close it for us at the end of the block.
+4 | `csv.DictReader` reads the header line (`name,price_idr`) and turns each following line into a dictionary. `list(...)` collects them all.
+6 | `rows[0]` is the first row: a dictionary with the header names as keys. Both values are text.
+:::
+
+:::drill python Read a CSV
+`products.csv` is next to your code (columns `sku`, `name` and `price_idr`). Read it into `rows`, a list of dictionaries, and print how many rows there are.
+@file products.csv
+sku,name,price_idr
+K1,Kopi Susu,25000
+K2,Americano,22000
+K3,Teh Tarik,18000
+@starter
+import csv
+# write your lines below this line
+
+@check
+len(rows) == 3 ## `rows` should hold 3 dictionaries, one per line under the header.
+rows[0]["name"] == "Kopi Susu" ## The first row's "name" should be Kopi Susu.
+out == "3" ## Print the number of rows: print(len(rows)).
+calls("DictReader") ## Use csv.DictReader(f).
+@hint
+```python
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+print(len(rows))
+```
+@solution
+import csv
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+print(len(rows))
+:::
+
+:::drill python Add up a column
+`rows` is already read for you. Make `total` the sum of the `price_idr` column **as numbers**.
+@file products.csv
+sku,name,price_idr
+K1,Kopi Susu,25000
+K2,Americano,22000
+K3,Teh Tarik,18000
+@starter
+import csv
+
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+total = 0
+# write your loop below this line
+
+@check
+total == 65000 ## `total` should be 65000: the three prices as numbers.
+has_node("For") ## Use a for loop.
+calls("int") ## The values are text: convert them with int(...).
+@hint
+```python
+for row in rows:
+    total = total + int(row["price_idr"])
+```
+@solution
+import csv
+
+with open("products.csv", newline="", encoding="utf-8") as f:
+    rows = list(csv.DictReader(f))
+
+total = 0
+for row in rows:
+    total = total + int(row["price_idr"])
+:::
+
+### Writing a file
+
+Open with `"w"` to **write**. Careful: `"w"` empties the file first. `f.write(text)` puts the text in; add `\n` for a line break.
+
+:::drill python Write a report
+Write the text `Total: 65000` into a new file `report.txt`, with `with open("report.txt", "w", ...)`.
+@starter
+# write your lines below this line
+
+@check
+read_file("report.txt").strip() == "Total: 65000" ## report.txt should contain: Total: 65000
+has_node("With") ## Use a with block.
+@hint
+```python
+with open("report.txt", "w", encoding="utf-8") as f:
+    f.write("Total: 65000")
+```
+@solution
+with open("report.txt", "w", encoding="utf-8") as f:
+    f.write("Total: 65000")
+:::
+
+### import: code written by someone else
+
+An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.1).
+
+:::drill python Use the standard library
+Import the `statistics` module and make `average` the mean of `prices` with `statistics.mean(...)`.
+@starter
+prices = [25000, 22000, 18000]
+average = None
+# write your lines below this line
+
+@check
+average == 21666.666666666668 ## `average` should be the mean of the three prices (about 21666.67).
+calls("mean") ## Use statistics.mean(prices).
+rerun_with("prices", [10, 20])["average"] == 15 ## With [10, 20], `average` should be 15.
+@hint
+`import statistics`, then `average = statistics.mean(prices)`.
+@solution
+import statistics
+
+prices = [25000, 22000, 18000]
+average = statistics.mean(prices)
+:::
+
+### Your own file is a module, and __main__
+
+Your own file `basics.py` is a **module** too: `import basics` runs it once and gives you its functions as `basics.total_revenue(...)`. That is how the lab tests use your code. You run a script with `python3 myfile.py`. A common line at the bottom of scripts is:
 
 ```python
 if __name__ == "__main__":
@@ -833,7 +2041,56 @@ if __name__ == "__main__":
 
 Python sets the special name `__name__` to `"__main__"` only when the file is *run directly*. When another file imports it, `__name__` is the module's name instead, so `main()` does not run. The effect: the file works both as a program and as a library you can test.
 
-Paths: use `pathlib.Path("data") / "orders.csv"` instead of gluing strings, and remember that a relative path is relative to the folder you started Python in, which is the usual reason for `FileNotFoundError`.
+:::ask The file shop.py is run directly: `python3 shop.py`
+```python
+# shop.py
+def main():
+    print("running")
+
+if __name__ == "__main__":
+    main()
+```
+@options
+nothing
+* running
+an error
+@why
+Run directly, `__name__` is `"__main__"`, so the `if` is true and `main()` runs: `running` is printed.
+:::
+
+:::ask Another file does `import shop`. What does the import print?
+```python
+# shop.py
+def main():
+    print("running")
+
+if __name__ == "__main__":
+    main()
+```
+@options
+running
+* nothing
+an error
+@why
+On import, `__name__` is `"shop"`, not `"__main__"`, so `main()` is **not** called: the import only makes the functions available. That is why a test can import your file without starting the program.
+:::
+
+### Paths: where is the file?
+
+Use `pathlib.Path("data") / "orders.csv"` instead of gluing strings. A **relative** path is relative to the folder you started Python in, which is the usual reason for the error below.
+
+:::ask What happens when the file is not there?
+```python
+with open("missing.csv", encoding="utf-8") as f:
+    data = f.read()
+```
+@options
+* FileNotFoundError
+ValueError
+an empty `data`
+@why
+Python stops with `FileNotFoundError: No such file or directory`. When you see it, check the **folder you started Python in** and the spelling of the path, before anything else.
+:::
 
 > 💡 **Practice Pause 7 (Part B: complete the lab):**
 > In `basics.py`, implement the final function `read_orders(path)` using `with open(...)` and `csv.DictReader`.
@@ -852,22 +2109,128 @@ def main(path):
     print(format_rupiah(total_revenue(valid)))
 ```
 
-Notice what happened: `main` contains no details. Each function has one job and a name that says it. This is how professional pipelines stay readable.
+Notice what happened: `main` contains no details. Each function has one job and a name that says it. This is how professional pipelines stay readable. Watch a small version run, and look at the boxes on the right: `main()` calls `total_revenue(...)`, and each call gets its own box with its own variables.
 
-**How to read code you did not write.** Start at the bottom (usually the entry point), then read each function's name and parameters before its body. Pick a tiny input and **trace** it by hand, writing the value of each variable on paper after each line. If your prediction and the output differ, you found the line you misunderstood. The free tool pythontutor.com shows this execution step by step.
+:::trace A small pipeline, function by function
+@code
+def read_orders():
+    return [{"status": "paid", "total": "100"}, {"status": "cancelled", "total": "50"}]
 
-**How to debug.** (1) Read the error from the bottom. (2) Reproduce it with the smallest input. (3) Print or inspect the value *just before* the failing line (`print(type(x), x)` answers half of all bugs). (4) Change one thing at a time. (5) Write a **test** that fails because of the bug, fix the code, and keep the test so the bug never returns.
+def total_revenue(orders):
+    total = 0
+    for order in orders:
+        if order["status"] != "cancelled":
+            total = total + int(order["total"])
+    return total
 
-**Tests**, a first look. A test is just code that calls your function and compares with the expected answer:
+def main():
+    orders = read_orders()
+    print(total_revenue(orders))
+
+main()
+@notes
+15 | The program starts here: everything above only defined functions. Now `main()` is called.
+12 | `main` first asks `read_orders()` for the data.
+13 | Then it passes the rows to `total_revenue`. A new box appears for that call, with its own `total`.
+8 | Only the paid order is added: the cancelled one is skipped by the `if`.
+9 | `return` hands the result back to `main`, and the `total_revenue` box disappears.
+:::
+
+### How to read code you did not write
+
+Start at the bottom (usually the entry point), then read each function's name and parameters before its body. Pick a tiny input and **trace** it by hand, writing the value of each variable on paper after each line. If your prediction and the output differ, you found the line you misunderstood. The animations in this course do the same for you; the free tool pythontutor.com does it for any code.
+
+### How to debug
+
+1. **Read the error from the bottom.**
+2. **Reproduce it with the smallest input.**
+3. **Print or inspect the value just before the failing line** (`print(type(x), x)` answers half of all bugs).
+4. **Change one thing at a time.**
+5. **Write a test that fails because of the bug**, fix the code, and keep the test so the bug never returns.
+
+Practise on three small bugs. Each one starts broken: run it, read what it tells you, and fix it with the routine above.
+
+:::drill python Bug 1: an error
+This stops with an error. Read the last line of the message, and fix the code so that `total` is the number `43000`.
+@starter
+prices = ["25000", "18000"]
+total = 0
+for price in prices:
+    total = total + price
+@check
+total == 43000 ## `total` should be 43000.
+type(total) is int ## `total` should be a number (int).
+@hint
+The error is a `TypeError`: you cannot add text to a number. The prices are text (Lesson 1): convert each with `int(price)`.
+@solution
+prices = ["25000", "18000"]
+total = 0
+for price in prices:
+    total = total + int(price)
+:::
+
+:::drill python Bug 2: no error, wrong output
+This should print the numbers 1 to 5, but it prints 0 to 4. Fix it, without writing the numbers by hand.
+@starter
+for n in range(5):
+    print(n)
+@check
+out == "1\n2\n3\n4\n5" ## It should print 1, 2, 3, 4 and 5, each on its own line.
+has_node("For") ## Keep the for loop.
+@hint
+`range(5)` starts at 0 and stops before 5. Give it a start and a stop: `range(1, 6)`.
+@solution
+for n in range(1, 6):
+    print(n)
+:::
+
+:::drill python Bug 3: the answer disappears
+`add_fee` should give back the price plus a fee of 500, but it gives `None`. Why? Fix it.
+@starter
+def add_fee(price):
+    price + 500
+@check
+add_fee(1000) == 1500 ## add_fee(1000) should give back 1500.
+add_fee(0) == 500 ## add_fee(0) should give back 500.
+@hint
+The function works out `price + 500` and then throws the result away. Which keyword hands a value back?
+@solution
+def add_fee(price):
+    return price + 500
+:::
+
+### Tests: a first look
+
+A test is just code that calls your function and compares with the expected answer:
 
 ```python
 def test_format_rupiah():
     assert format_rupiah(1250000) == "Rp 1.250.000"
 ```
 
-`assert` raises an error if the condition is false. A test tool (pytest) finds the functions named `test_...`, runs them all and reports which failed and why. The lab has 46 such tests: read a failing test as a **specification** (it tells you exactly what is expected), not as an obstacle.
+`assert` raises an error if the condition is false, and does nothing when it is true. A test tool (pytest) finds the functions named `test_...`, runs them all and reports which failed and why. The lab has 46 such tests: read a failing test as a **specification** (it tells you exactly what is expected), not as an obstacle.
 
-You will not remember everything after one reading, and you are not supposed to. Type the examples, break them on purpose, and look at the error messages. Each lab function below practises one lesson; do them in order and run the tests after each.
+:::drill python Write your own assertions
+`double` is written for you. Add at least **two** `assert` lines that check it, with different numbers. They must pass.
+@starter
+def double(n):
+    return n * 2
+
+# write your assert lines below this line
+
+@check
+count_nodes("Assert") >= 2 ## Write at least two assert lines, for example: assert double(2) == 4
+@hint
+`assert double(2) == 4` and `assert double(10) == 20`. When an assert is true, nothing happens; when it is false, Python stops with an AssertionError.
+@solution
+def double(n):
+    return n * 2
+
+assert double(2) == 4
+assert double(10) == 20
+:::
+
+You will not remember everything after one reading, and you are not supposed to. Type the examples, break them on purpose, and look at the error messages. Each lab function practises one lesson; do them in order and run the tests after each.
 
 > 🛠 **Try it (15 min).** Run `python3 labs/mod-0-0/debug_me.py`. It holds three small functions, each with one bug, and prints PASS or FAIL for each. Fix them one at a time with the routine from this lesson: read the error from the bottom, reproduce it with the smallest input, inspect the value just before the failing line. Do not rewrite a function; find the bug.
 >

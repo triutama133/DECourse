@@ -446,7 +446,14 @@ class DataForgeApp {
       const line = lines[i];
       if (line.trim() === "") { i++; continue; }
       let m;
-      if (/^:::(drill|ask)\b/.test(line)) {
+      if (/^:::trace\s+/.test(line)) {
+        // ":::trace Title" with @code: an animation, the program run line by line (see drill-parse.js)
+        const blk = [line];
+        i++;
+        while (i < lines.length && !/^:::\s*$/.test(lines[i])) blk.push(lines[i++]);
+        i++;
+        out.push(this.renderTrace(blk.join("\n"), ctx));
+      } else if (/^:::(drill|ask)\b/.test(line)) {
         // ":::drill python Title" ... ":::": a small exercise with checks (see drill-parse.js)
         const blk = [line];
         i++;
@@ -1707,6 +1714,7 @@ class DataForgeApp {
     if (!d) return "";
     const key = ctx && ctx.modId != null ? `${ctx.modId}:${ctx.lessonIdx || 0}:${idx}` : `loose:${idx}`;
     this._drills[key] = d;
+    this.warmPython();
     const st = this.drillState(key);
     if (d.kind === "ask") return this.renderAsk(d, key, st);
     const code = typeof this.drillCode[key] === "string" ? this.drillCode[key] : d.starter;
@@ -1727,6 +1735,117 @@ class DataForgeApp {
       <div class="drill-out stack-sm" role="status" aria-live="polite">${st && st.passed ? `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>` : ""}</div>
     </div>`;
   }
+  // Load Python in the background as soon as a lesson with drills or animations is on screen, so the first Run answers quickly.
+  warmPython() {
+    if (this._warmed || !window.Worker || location.protocol === "file:") return;
+    this._warmed = true;
+    try {
+      if (!this._blWorker) this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" });
+      this._blWorker.postMessage({ type: "warm" });
+    } catch (e) { this._warmed = false; }
+  }
+  // ---------- "watch it run": the program line by line, with the variables (like Python Tutor) ----------
+  traceKey(d, ctx) {
+    let h = 5381;
+    for (const ch of d.code) h = ((h << 5) + h + ch.charCodeAt(0)) | 0;
+    return `${ctx && ctx.modId != null ? ctx.modId + ":" + (ctx.lessonIdx || 0) : "loose"}:t${(h >>> 0).toString(36)}`;
+  }
+  renderTrace(text, ctx) {
+    const d = window.DrillParse && window.DrillParse.parse(text);
+    if (!d || d.kind !== "trace") return "";
+    const key = this.traceKey(d, ctx);
+    this._traceDefs = this._traceDefs || {};
+    this._traceDefs[key] = d;
+    this.warmPython();
+    return `<div class="trace" data-key="${this.esc(key)}">${this.traceInner(key)}</div>`;
+  }
+  traceInner(key) {
+    const d = this._traceDefs[key], st = (this._traces || {})[key];
+    const head = `<div class="trace-head"><span class="drill-tag">🎬 ${this.l("Lihat cara kerjanya", "Watch it run")}</span> <strong>${this.inline(d.title)}</strong></div>${d.task ? `<div class="stack-sm">${this.md(d.task)}</div>` : ""}`;
+    const lineOf = (n, cur) => `<li class="${n === cur ? "current" : ""}"><span class="trace-arrow" aria-hidden="true">${n === cur ? "▶" : ""}</span><code>${this.esc(d.code.split("\n")[n - 1] || " ")}</code></li>`;
+    const codeList = (cur) => `<ol class="trace-code">${d.code.split("\n").map((_, k) => lineOf(k + 1, cur)).join("")}</ol>`;
+    if (!st) return `${head}${codeList(0)}<div class="row"><button class="btn btn-primary" onclick="app.traceLoad(this)">▶ ${this.l("Jalankan langkah demi langkah", "Run it step by step")}</button></div>`;
+    if (st.loading) return `${head}${codeList(0)}<div class="feedback info">${this.l("Memuat Python (sekitar 12 MB, hanya sekali)…", "Loading Python (about 12 MB, only once)…")}</div>`;
+    if (st.failed) return `${head}${codeList(0)}<div class="feedback bad">${this.esc(st.failed)}</div><div class="row"><button class="btn btn-sm" onclick="app.traceLoad(this)">${this.l("Coba lagi", "Try again")}</button></div>`;
+    const steps = st.steps, i = st.at, step = steps[i], prev = steps[i - 1];
+    const changed = new Set();
+    if (prev) {
+      const old = {};
+      prev.frames.forEach((f) => f.vars.forEach((v) => { old[f.name + "|" + v[0]] = v[1] + "|" + v[2]; }));
+      step.frames.forEach((f) => f.vars.forEach((v) => { if (old[f.name + "|" + v[0]] !== v[1] + "|" + v[2]) changed.add(f.name + "|" + v[0]); }));
+    }
+    const frames = step.frames.map((f) => `<div class="trace-frame"><div class="trace-frame-name">${this.esc(f.name)}</div>${f.vars.length ? `<table>${f.vars.map((v) => `<tr class="${changed.has(f.name + "|" + v[0]) ? "changed" : ""}"><th>${this.esc(v[0])}</th><td>${v[2] ? `<span class="trace-tag">${this.esc(v[2])}</span> ` : ""}${this.esc(v[1])}</td></tr>`).join("")}</table>` : `<div class="small muted">${this.l("(belum ada variabel)", "(no variables yet)")}</div>`}</div>`).join("");
+    let note = d.notes[String(step.line)] || "";
+    if (step.event === "return") note = this.l(`Fungsi selesai dan mengembalikan ${step.ret}.`, `The function ends and hands back ${step.ret}.`);
+    if (step.event === "end") note = this.l("Program selesai. Ini nilai akhir semua variabel.", "The program has finished. These are the final values of every variable.");
+    const label = step.event === "end" ? this.l("Selesai", "Finished") : `${this.l("Langkah", "Step")} ${i + 1} / ${steps.length}`;
+    return `${head}
+      <div class="trace-grid">${step.line ? codeList(step.line) : codeList(0)}<div class="trace-state" aria-live="polite">${frames}</div></div>
+      ${note ? `<div class="trace-note">${this.inline(note)}</div>` : `<div class="trace-note muted">${step.event === "line" ? this.l("Baris yang diberi tanda ▶ akan dijalankan berikutnya.", "The line marked ▶ is the next one to run.") : ""}</div>`}
+      ${step.out && step.out.trim() ? `<div><div class="small muted">${this.l("Yang tercetak sejauh ini:", "Printed so far:")}</div><pre class="pad-out">${this.esc(step.out.trimEnd())}</pre></div>` : ""}
+      ${st.error ? `<div class="feedback info small">${this.l("Program ini berhenti dengan error:", "This program stops with an error:")} <code>${this.esc(st.error)}</code></div>` : ""}
+      <div class="row trace-ctl" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm btn-quiet" onclick="app.traceGo(this, 0)" ${i === 0 ? "disabled" : ""}>⏮</button>
+        <button class="btn btn-sm" onclick="app.traceGo(this, ${i - 1})" ${i === 0 ? "disabled" : ""}>← ${this.l("Mundur", "Back")}</button>
+        <span class="small">${label}</span>
+        <button class="btn btn-sm btn-primary" onclick="app.traceGo(this, ${i + 1})" ${i >= steps.length - 1 ? "disabled" : ""}>${this.l("Maju", "Next")} →</button>
+        <button class="btn btn-sm btn-quiet" onclick="app.tracePlay(this)">${st.playing ? "⏸ " + this.l("Jeda", "Pause") : "▶ " + this.l("Putar", "Play")}</button>
+      </div>`;
+  }
+  traceBox(el) { return el.closest(".trace"); }
+  traceRedraw(box) { box.innerHTML = this.traceInner(box.dataset.key); }
+  traceGo(el, n) {
+    const box = this.traceBox(el), st = this._traces[box.dataset.key];
+    if (!st || !st.steps) return;
+    st.at = Math.min(Math.max(0, n), st.steps.length - 1);
+    this.traceRedraw(box);
+  }
+  tracePlay(el) {
+    const box = this.traceBox(el), key = box.dataset.key, st = this._traces[key];
+    if (!st || !st.steps) return;
+    if (st.playing) { st.playing = false; clearInterval(st.timer); this.traceRedraw(box); return; }
+    if (st.at >= st.steps.length - 1) st.at = 0;
+    st.playing = true;
+    st.timer = setInterval(() => {
+      const live = document.querySelector(`.trace[data-key="${key}"]`);
+      if (!live || st.at >= st.steps.length - 1) { st.playing = false; clearInterval(st.timer); if (live) this.traceRedraw(live); return; }
+      st.at += 1;
+      this.traceRedraw(live);
+    }, 1100);
+    this.traceRedraw(box);
+  }
+  traceLoad(el) {
+    const box = this.traceBox(el), key = box.dataset.key, d = this._traceDefs[key];
+    this._traces = this._traces || {};
+    if (!window.Worker || location.protocol === "file:") { this._traces[key] = { failed: this.l("Browser ini tidak bisa menjalankan Python di halaman yang dibuka dari file. Jalankan situs dengan python3 server.py.", "This browser cannot run Python on a page opened from a file. Run the site with python3 server.py.") }; this.traceRedraw(box); return; }
+    if (this._padBusy || this._blBusy) { this._traces[key] = { failed: this.l("Python masih sibuk. Coba lagi sebentar.", "Python is busy. Try again in a moment.") }; this.traceRedraw(box); return; }
+    if (!this._blWorker) { try { this._blWorker = new Worker("js/pyodide-worker.js", { type: "module" }); } catch (e) { this._traces[key] = { failed: this.l("Tidak bisa memulai Python di browser ini.", "Could not start Python in this browser.") }; this.traceRedraw(box); return; } }
+    const w = this._blWorker, id = (this._padId = (this._padId || 0) + 1);
+    this._padBusy = true;
+    this._traces[key] = { loading: true };
+    this.traceRedraw(box);
+    let timer;
+    const done = () => { this._padBusy = false; clearTimeout(timer); w.removeEventListener("message", onMsg); };
+    const onMsg = (ev) => {
+      const m = ev.data;
+      if (m.type === "traceresult" && m.id === id) {
+        done();
+        const r = JSON.parse(m.json);
+        this._traces[key] = { steps: r.steps, error: r.error, at: 0 };
+        const live = document.querySelector(`.trace[data-key="${key}"]`);
+        if (live) this.traceRedraw(live);
+      } else if (m.type === "error" && m.id === id) {
+        done();
+        this._traces[key] = { failed: m.message };
+        const live = document.querySelector(`.trace[data-key="${key}"]`);
+        if (live) this.traceRedraw(live);
+      }
+    };
+    w.addEventListener("message", onMsg);
+    timer = setTimeout(() => { if (this._blWorker) { this._blWorker.terminate(); this._blWorker = null; } done(); this._traces[key] = { failed: this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.") }; const live = document.querySelector(`.trace[data-key="${key}"]`); if (live) this.traceRedraw(live); }, 240000);
+    w.postMessage({ type: "trace", id, code: d.code, files: d.files || {} });
+  }
+
   // "What will this print?": pick an answer; the explanation follows
   renderAsk(d, key, st) {
     const done = st && (st.passed || st.revealed);
@@ -1831,7 +1950,7 @@ class DataForgeApp {
     w.addEventListener("message", onMsg);
     timer = setTimeout(() => stop(this.l("Memuat Python terlalu lama. Periksa koneksi lalu coba lagi.", "Loading Python took too long. Check your connection and try again.")), 240000);
     say(`<div class="feedback info">${loading["loading-python"]}</div>`);
-    w.postMessage({ type: "drill", id, code: ta.value, checks: d.checks.map((c) => [c.expr, c.msg]) });
+    w.postMessage({ type: "drill", id, code: ta.value, checks: d.checks.map((c) => [c.expr, c.msg]), files: d.files || {} });
   }
   drillResult(box, key, d, r) {
     const out = box.querySelector(".drill-out");

@@ -1,6 +1,8 @@
 // Module Web Worker (new Worker(url, { type: "module" })): runs a lab's pytest suite in Pyodide (Python in WebAssembly) off the main thread.
 // Messages in:  { type: "run", id, files: {path: text}, args: [pytest args] }
 //               { type: "drill", id, code, checks: [[expression, message], ...] }   (a drill in a lesson: run the code, evaluate the checks)
+//               { type: "trace", id, code, files }   ("watch it run": every line with the variables, JSON from trace_code)
+//               { type: "warm" }                      (load Python in the background)
 //               { type: "exec", id, session, code, reset }   (the Python pad in the lessons: run a snippet, keep variables per session)
 // Messages out: { type: "status", text } while loading, then { type: "result", id, output, code } or { type: "error", id, message }
 import { loadPyodide } from "../vendor/pyodide/pyodide.mjs";
@@ -43,12 +45,28 @@ self.onmessage = async (ev) => {
     }
     return;
   }
+  if (m.type === "warm") {   // load Python now, so the first drill or animation answers quickly
+    try { booting = booting || boot(); await booting; self.postMessage({ type: "warmed" }); } catch (e) { booting = null; }
+    return;
+  }
+  if (m.type === "trace") {
+    try {
+      booting = booting || boot();
+      const py = await booting;
+      const result = py.globals.get("trace_code")(m.code, py.toPy(m.files || {}));
+      self.postMessage({ type: "traceresult", id: m.id, json: String(result) });
+    } catch (e) {
+      booting = null;
+      self.postMessage({ type: "error", id: m.id, message: String(e && e.message ? e.message : e) });
+    }
+    return;
+  }
   if (m.type === "drill") {
     try {
       booting = booting || boot();
       const py = await booting;
       self.postMessage({ type: "status", text: "running" });
-      const result = py.globals.get("check_drill")(m.code, py.toPy(m.checks));
+      const result = py.globals.get("check_drill")(m.code, py.toPy(m.checks), py.toPy(m.files || {}));
       self.postMessage({ type: "drillresult", id: m.id, json: String(result) });
     } catch (e) {
       booting = null;
