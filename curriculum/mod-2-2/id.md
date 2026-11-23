@@ -37,6 +37,15 @@ Tiga format tabel terbuka utama di industri saat ini adalah **Apache Iceberg**, 
 >
 > **Seharusnya Anda melihat:** penulis yang rusak meninggalkan `lake/orders` berisi 3 file dan pembaca mengembalikan `2181` baris dari 3634 **tanpa error sama sekali**. Dengan penulis folder-sementara-lalu-rename, `lake/orders` tidak ada setelah crash, sehingga pembaca gagal dengan jelas lewat `FileNotFoundError` alih-alih diam-diam mengembalikan data sebagian, dan sisa `orders.tmp` mudah ditemukan dan dibersihkan. Table format (pelajaran berikutnya) melakukan trik yang sama dengan file metadata, bukan rename folder.
 
+:::ask Sebuah job menulis 200 file Parquet ke sebuah folder lalu crash setelah 120. Apa yang dilihat pembaca folder biasa?
+@options
+* 60% data, tanpa tanda bahwa isinya belum lengkap
+error yang memblokir semua pembaca untuk sementara
+tidak ada, karena penulisan sebagian dibatalkan
+@why
+Folder tidak punya transaksi. Separuh file begitu saja ada di sana, dan tidak ada tanda tabel belum lengkap. Format tabel memperbaikinya dengan menerbitkan perubahan hanya saat commit metadata-nya berhasil.
+:::
+
 ## @lesson Arsitektur Iceberg: pohon metadata hierarkis
 Bayangkan Iceberg seperti kartu katalog perpustakaan: alih-alih menyusuri setiap rak untuk mengecek buku apa yang ada saat ini, pembaca cukup melihat satu kartu indeks terbaru di meja depan (`metadata.json`), mengikuti rujukan daftar rak (`manifest list`), lalu membaca ringkasan tiap rak (`manifest`) sebelum menyentuh satu pun buku (`*.parquet`).
 
@@ -90,6 +99,15 @@ Perhatikan bahwa **tidak ada satu pun file yang pernah dimodifikasi di tempat**.
 > 4. Buka terminal Anda dan uji pembentukan tabel Iceberg:
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
 > 5. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana folder `metadata/` dan `data/` terbentuk di direktori penyimpanan lokal Anda.
+
+:::ask Pada pohon metadata Iceberg, apa yang membuat sebuah commit atomik?
+@options
+setiap file data ditulis ulang ke folder baru
+* satu penunjuk ke metadata baru diganti
+pembaca mengunci tabel sampai penulisan selesai
+@why
+Semua file satu snapshot tidak bisa diubah dan ditulis lebih dulu. Commit adalah penggantian atomik tunggal pada penunjuk katalog, sehingga pembaca melihat snapshot lama atau baru, tidak pernah campuran.
+:::
 
 ## @lesson Mekanisme Commit, transaksi ACID, dan penulis konkuren
 Setiap modifikasi pada tabel Iceberg dieksekusi melalui prosedur **commit**: (1) tulis file-file data Parquet yang baru, (2) tulis file manifest baru, manifest list baru, dan file `metadata.json` baru, (3) minta katalog metadata untuk **menukar pointer tabel secara atomik (atomic swap)** dari file metadata lama ke file metadata baru, *namun hanya jika pointer katalog saat itu masih sama dengan versi saat proses dimulai*. Langkah 1 dan 2 tidak terlihat oleh pembaca (hanya file yatim tanpa referensi). Langkah 3 adalah satu operasi atomik tunggal (compare-and-swap di katalog). Hasilnya, pembaca hanya akan melihat versi lama yang utuh atau versi baru yang utuh, tidak pernah separuh versi. Pipeline yang mengalami crash di langkah 1 hanya meninggalkan file tanpa referensi yang tidak berbahaya, bukan tabel yang rusak. Inilah prinsip **Atomisitas (Atomicity)**.
@@ -174,6 +192,15 @@ Bandingkan dengan file Parquet biasa yang mencocokkan kolom berdasarkan *nama te
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_schema_evolution or test_new_schema"`
 > 4. Pastikan kedua pengujian lulus (`2 passed`). Verifikasi bahwa daftar file data Parquet di disk tidak berubah sama sekali (nol byte yang ditulis ulang) dan data lama membaca kolom baru sebagai `NULL`.
 
+:::ask Di Iceberg kamu mengganti nama kolom `status` menjadi `order_status`. Apa yang terjadi pada file data lama?
+@options
+setiap file lama ditulis ulang dengan nama baru
+file lama tak cocok lagi dan kolomnya NULL
+* tidak ada: hanya metadata berubah, kolom pakai id
+@why
+Iceberg mengenali kolom lewat field id permanen, bukan nama atau posisi. Penggantian nama hanya mengubah satu entri metadata, dan file lama tetap memegang id yang sama, jadi terbaca benar.
+:::
+
 ## @lesson Delta Lake: arsitektur berbasis transaction log
 **Delta Lake** mencapai tujuan yang serupa menggunakan arsitektur yang berbeda: buku besar transaksi terurut (**transaction log**) yang terdiri dari kumpulan file commit JSON di dalam folder `_delta_log/` tepat di samping file data Parquet.
 
@@ -227,6 +254,47 @@ Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir
 > `pytest labs/mod-2-2/test_lab.py -v -k TestDelta`
 > 4. Pastikan ke-3 pengujian Delta Lake lulus (`3 passed`). Perhatikan bagaimana operasi delete di Delta Lake menuliskan aksi `remove` untuk file lama dan aksi `add` untuk file baru hasil rewrite.
 
+:::trace Memutar ulang log Delta
+@code
+log = [
+    {"add": ["a.parquet"]},
+    {"add": ["b.parquet"]},
+    {"remove": ["a.parquet"], "add": ["c.parquet"]},
+]
+live = set()
+for commit in log:
+    live -= set(commit.get("remove", []))
+    live |= set(commit.get("add", []))
+print(sorted(live))
+@notes
+6 | Mulai tanpa file. Tabel **didefinisikan oleh** log, bukan oleh isi folder.
+8 | Untuk tiap commit secara berurutan: pertama buang file yang dihapusnya...
+9 | ...lalu tambahkan file yang ditambahkannya. Setelah commit 2 himpunan aktifnya a dan b; setelah commit 3 menjadi b dan c.
+10 | Hasilnya adalah tabel pada versi terbaru. Hentikan loop lebih awal dan kamu mendapat **time travel** ke versi lama.
+:::
+
+:::drill python Putar ulang log
+Tulis `replay(log)`: `log` adalah daftar commit; tiap commit berupa dictionary yang boleh punya daftar `"add"` dan `"remove"` berisi nama file. Kembalikan daftar terurut file yang aktif setelah semua commit.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("replay") ## Definisikan replay(log).
+replay([{"add": ["a"]}, {"add": ["b"]}]) == ["a", "b"] ## Dua append: kedua file aktif.
+replay([{"add": ["a"]}, {"remove": ["a"], "add": ["c"]}]) == ["c"] ## Penulisan ulang: a dihapus, c ditambah.
+replay([]) == [] ## Log kosong adalah tabel kosong.
+replay([{"add": ["x", "y"]}, {"remove": ["x"]}]) == ["y"] ## Sebuah commit boleh hanya berisi remove.
+@hint
+Simpan sebuah `set`. Untuk tiap commit: `live -= set(commit.get("remove", []))`, lalu `live |= set(commit.get("add", []))`.
+@solution
+def replay(log):
+    live = set()
+    for commit in log:
+        live -= set(commit.get("remove", []))
+        live |= set(commit.get("add", []))
+    return sorted(live)
+:::
+
 ## @lesson Pengoperasian tabel di produksi: pemeliharaan dan katalog
 Tabel lakehouse bukanlah sesuatu yang "dibuat lalu ditinggalkan". Setiap commit menambahkan file baru ke storage, dan tanpa perawatan rutin, performa tabel akan mengalami degradasi. Rangkaian tugas pemeliharaan berkala yang wajib dijadwalkan:
 
@@ -245,6 +313,15 @@ Praktik perancangan terbaik: buat partisi secara moderat (partisi harian adalah 
 > `pytest labs/mod-2-2 -v`
 > 2. Pastikan ke-12 pengujian lulus sempurna (`12 passed`).
 > 3. Selamat! Anda telah membuktikan secara nyata bagaimana transaksi ACID, time travel, evolusi skema, dan transaction log bekerja di disk pada dua format tabel terbuka standar industri.
+
+:::ask Sebuah job streaming menambahkan satu file kecil ke tabel Iceberg setiap menit. Sebulan kemudian query lambat. Tugas pemeliharaan mana yang paling membantu?
+@options
+* kompaksi: tulis ulang file kecil menjadi sedikit
+hapus metadata agar tabel mulai dari awal
+tambah kolom agar tiap file memuat lebih banyak
+@why
+Ribuan file kecil membuat perencanaan dan pemindaian lambat (masalah file kecil). Kompaksi menulis ulangnya menjadi file lebih besar dalam snapshot baru, dan file lama dibersihkan kemudian lewat kedaluwarsa snapshot.
+:::
 
 ## @lab Lab: membangun tabel lakehouse dan membedah struktur internalnya
 Bangun tabel Apache Iceberg produksi, lakukan manipulasi data bertahap, dan buktikan janji-janji arsitektur table format melalui unit test otomatis: verifikasi pembuatan snapshot, pembacaan time travel, operasi delete yang mempertahankan histori, evolusi skema tanpa penulisan ulang data, dan inspeksi langsung struktur file metadata di disk. Kemudian lakukan observasi yang sama terhadap transaction log Delta Lake.

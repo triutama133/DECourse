@@ -42,6 +42,15 @@ Where it fits: raw data lands in object storage (Modules 2.2, 3.4), a tool such 
 >
 > **You should see:** a share of `9.1%`, so `0.181 TB` scanned: about `$0.91` per run and `$87` per day, against `$10` per run and `$960` per day for `SELECT *`. A warehouse's "dry run" works out this estimate from metadata before running anything. (BigQuery bills the uncompressed size of the columns rather than the compressed bytes you used here, but the idea is the same.)
 
+:::ask What does 'separate storage from compute' let you do in a cloud warehouse?
+@options
+store the data without paying anything for it
+* stop or resize compute without moving the data
+run queries without any compute at all
+@why
+The data stays on cheap object storage while the compute is a set of machines you start, size and stop independently. You can add a big warehouse for a heavy job and switch it off afterwards.
+:::
+
 ## @lesson How data is stored: micro-partitions, zone maps and pruning
 A warehouse does not store a table as one big file. It cuts it into many **micro-partitions** (Snowflake's name; BigQuery and Redshift have equivalents), each holding a slice of the rows in columnar form, typically tens to hundreds of megabytes. For every partition and every column it records cheap **statistics**: the smallest and the largest value, a **zone map**. These live in metadata, so reading them costs almost nothing.
 
@@ -151,6 +160,15 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 >    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
 > 5. **Success Indicator:** 13 tests report `PASSED`, verifying zero network movement for co-located joins and replicated dimension tables.
 
+:::ask You join `orders` and `customers` on `customer_id` in an MPP warehouse. Which distribution avoids moving data across the network?
+@options
+distribute both tables EVEN, round-robin
+keep orders on one node and customers on another
+* distribute both tables by KEY on customer_id
+@why
+KEY distribution sends rows with the same customer_id to the same node, so the matching rows already meet there. EVEN balances the load but forces data to be shuffled for the join.
+:::
+
 ## @part Cost, loading and governance
 
 ## @lesson Cost: scan-based and time-based pricing
@@ -172,6 +190,24 @@ Storage has costs too. **Time travel** (query or restore data as of an earlier m
 > 3. Run the test in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k test_query_cost -v`
 > 4. **Success Indicator:** The test reports `PASSED`, confirming exact scan cost calculations in dollars per terabyte.
+
+:::drill python What does one query cost?
+BigQuery on-demand bills by the bytes a query processes. Write `query_cost(bytes_billed, price_per_tb)`: return the cost in dollars. One terabyte is `1_000_000_000_000` bytes here.
+@starter
+# write your function below this line
+
+@check
+defines("query_cost") ## Define query_cost(bytes_billed, price_per_tb).
+query_cost(1_000_000_000_000, 5) == 5 ## One terabyte at $5 per TB costs $5.
+query_cost(500_000_000_000, 6) == 3 ## Half a terabyte at $6 per TB costs $3.
+query_cost(0, 5) == 0 ## A query that reads nothing costs nothing.
+query_cost(2_000_000_000, 5) == 0.01 ## 2 GB is 0.002 TB, so 0.002 × $5 = $0.01.
+@hint
+`bytes_billed / 1_000_000_000_000 * price_per_tb`
+@solution
+def query_cost(bytes_billed, price_per_tb):
+    return bytes_billed / 1_000_000_000_000 * price_per_tb
+:::
 
 ## @lesson Loading data: bulk, not row by row
 A warehouse is built for **bulk loads**, not for inserting one row at a time as an application does. The standard path is: land files in object storage, then tell the warehouse to load them: Snowflake `COPY INTO` from a **stage** (and Snowpipe for continuous loading), BigQuery **load jobs** from Cloud Storage, Redshift `COPY` from S3. They read files in parallel, validate, convert and write micro-partitions.
@@ -243,6 +279,15 @@ WHEN NOT MATCHED THEN
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Success Indicator:** All 4 tests in `TestLoadPlanning` report `PASSED`, confirming balanced file sizing without small-file overhead.
 
+:::ask You must load 10 million rows into a warehouse each night. Which path is the right one?
+@options
+* write files to storage and bulk load them
+run 10 million single-row INSERT statements
+open one connection per row from the application
+@why
+Warehouses are built for bulk loads of reasonably sized files (about 100 to 250 MB compressed for Snowflake). Row-by-row inserts pay a large per-statement overhead and are slow and costly.
+:::
+
 ## @lesson Concurrency, governance, and choosing
 **Concurrency.** A warehouse has finite compute. When more queries arrive than it can run at once, the extra ones **queue**. The lab's `simulate_queue` shows it: five 10-second jobs on two slots finish at 10, 10, 20, 20 and 30 seconds, so the last user waits 20 seconds before the job even starts. The cures are the same everywhere: isolate workloads on separate compute (a warehouse for ETL, one for dashboards, one for analysts), use multi-cluster or auto-scaling features for bursts, and make heavy queries shorter with the layout tools above. Isolation also makes the bill attributable to a team (Module 3.4).
 
@@ -312,6 +357,28 @@ Questions you can now answer: "Why is this query expensive?" (it scans many part
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Success Indicator:** 8 tests report `PASSED`, validating cache invalidation and concurrency queue behavior.
+
+:::drill python The queue at the warehouse
+A warehouse can run `slots` queries at once; the rest wait. Write `finish_time(durations, slots)`: all jobs arrive at time 0 in the given order. Each job starts as soon as a slot is free. Return the time when the **last** job finishes.
+@starter
+# write your function below this line
+
+@check
+defines("finish_time") ## Define finish_time(durations, slots).
+finish_time([10, 10, 10, 10, 10], 2) == 30 ## Five 10-second jobs on two slots: 10 + 10 + 10 seconds.
+finish_time([10, 10], 2) == 10 ## Two jobs, two slots: both run at once.
+finish_time([5, 5, 5], 1) == 15 ## One slot: they run one after another.
+finish_time([], 3) == 0 ## No jobs finish at time 0.
+@hint
+Keep a list `free_at` of `slots` zeros. For each duration, take the slot that frees earliest (`min`), add the duration to it. The answer is the largest value.
+@solution
+def finish_time(durations, slots):
+    free_at = [0] * slots
+    for d in durations:
+        i = free_at.index(min(free_at))
+        free_at[i] += d
+    return max(free_at)
+:::
 
 ## @part Serving, and a real warehouse
 

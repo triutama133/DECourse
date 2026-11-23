@@ -37,6 +37,15 @@ The main open formats are **Apache Iceberg**, **Delta Lake** and **Apache Hudi**
 >
 > **You should see:** the broken writer leaves `lake/orders` with 3 files and the reader returns `2181` rows out of 3634 with **no error at all**. With the temp-folder-then-rename writer, `lake/orders` does not exist after the crash, so the reader fails loudly with `FileNotFoundError` instead of silently returning partial data, and the leftover `orders.tmp` is easy to find and clean up. Table formats (next lessons) do the same trick with a metadata file instead of a folder rename.
 
+:::ask A job writes 200 Parquet files into a folder and crashes after 120. What do readers of the plain folder see?
+@options
+* 60% of the data, with no sign it is incomplete
+an error that blocks every reader for now
+nothing, because partial writes roll back
+@why
+A folder has no transactions. Half the files are simply there, and nothing marks the table as incomplete. A table format fixes this by publishing a change only when its metadata commit succeeds.
+:::
+
 ## @lesson Iceberg: the metadata tree
 Think of Iceberg like a library card catalog: instead of walking down every shelf to see which books exist right now, a reader reads one current index card at the front desk (`metadata.json`), follows it to the list of shelves (`manifest list`), and checks each shelf's summary label (`manifest`) before opening a single book (`*.parquet`).
 
@@ -90,6 +99,15 @@ Notice that **nothing is ever modified in place**. A write adds new data files, 
 > 4. Open your terminal and test the Iceberg table setup:
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
 > 5. Ensure all 4 tests pass (`4 passed`). Observe how the `metadata/` and `data/` directories are laid out in your local warehouse.
+
+:::ask In Iceberg's metadata tree, what makes a commit atomic?
+@options
+every data file is rewritten to a new folder
+* one pointer to the new metadata is swapped
+readers lock the table until writing is done
+@why
+All the files of a snapshot are immutable and written first. The commit is the single atomic swap of the catalog's pointer, so a reader sees either the old snapshot or the new one, never a mix.
+:::
 
 ## @lesson Commits, ACID and concurrent writers
 A change to an Iceberg table is a **commit**: (1) write the new data files, (2) write new manifests, a manifest list and a new `metadata.json`, (3) ask the catalog to **atomically swap the table's pointer** from the old metadata file to the new one, *but only if the pointer still equals what you started from*. Steps 1 and 2 are invisible to readers (they are just unreferenced files). Step 3 is a single atomic operation, a compare-and-swap in the catalog. So a reader either sees the old complete version or the new complete version, never half of one. A job that dies at step 1 leaves harmless orphan files, not a half-written table. That is **atomicity**.
@@ -174,6 +192,15 @@ Compare with plain Parquet files matched by *column name*: rename a column and t
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_schema_evolution or test_new_schema"`
 > 4. Ensure both tests pass (`2 passed`). Verify that the list of Parquet data files on disk remains strictly identical (zero bytes rewritten) and old rows read the new column as `NULL`.
 
+:::ask In Iceberg you rename the column `status` to `order_status`. What happens to the old data files?
+@options
+every old file is rewritten with the new name
+old files stop matching and the column is NULL
+* nothing: only metadata changes, columns are by id
+@why
+Iceberg identifies columns by a permanent field id, not by name or position. The rename changes one metadata entry, and old files still hold the same id, so they are read correctly.
+:::
+
 ## @lesson Delta Lake: the transaction log
 **Delta Lake** reaches the same goals with a different structure: an ordered **transaction log** of JSON commit files in a `_delta_log/` folder beside the data.
 
@@ -227,6 +254,47 @@ The formats have been converging, and tools exist to expose one format's tables 
 > `pytest labs/mod-2-2/test_lab.py -v -k TestDelta`
 > 4. Ensure all 3 Delta Lake tests pass (`3 passed`). Notice how deleting a row in Delta Lake logs a `remove` action for the old file and an `add` action for the rewritten file.
 
+:::trace Replaying a Delta log
+@code
+log = [
+    {"add": ["a.parquet"]},
+    {"add": ["b.parquet"]},
+    {"remove": ["a.parquet"], "add": ["c.parquet"]},
+]
+live = set()
+for commit in log:
+    live -= set(commit.get("remove", []))
+    live |= set(commit.get("add", []))
+print(sorted(live))
+@notes
+6 | Start with no files. The table is **defined by** the log, not by what is in the folder.
+8 | For each commit in order: first take away the files it removes...
+9 | ...then add the files it adds. After commit 2 the live set is a and b; after commit 3 it is b and c.
+10 | The result is the table at the latest version. Stop the loop early and you get **time travel** to an older version.
+:::
+
+:::drill python Replay the log
+Write `replay(log)`: `log` is a list of commits; each commit is a dictionary that may have an `"add"` list and a `"remove"` list of file names. Return the sorted list of files that are live after all commits.
+@starter
+# write your function below this line
+
+@check
+defines("replay") ## Define replay(log).
+replay([{"add": ["a"]}, {"add": ["b"]}]) == ["a", "b"] ## Two appends: both files are live.
+replay([{"add": ["a"]}, {"remove": ["a"], "add": ["c"]}]) == ["c"] ## A rewrite: a is removed, c is added.
+replay([]) == [] ## An empty log is an empty table.
+replay([{"add": ["x", "y"]}, {"remove": ["x"]}]) == ["y"] ## A commit may have only a remove.
+@hint
+Keep a `set`. For each commit: `live -= set(commit.get("remove", []))`, then `live |= set(commit.get("add", []))`.
+@solution
+def replay(log):
+    live = set()
+    for commit in log:
+        live -= set(commit.get("remove", []))
+        live |= set(commit.get("add", []))
+    return sorted(live)
+:::
+
 ## @lesson Operating tables: maintenance and catalogs
 Tables are not "create and forget". Every commit adds files, and without care a table slowly degrades. The routine maintenance tasks:
 
@@ -245,6 +313,15 @@ Tables are not "create and forget". Every commit adds files, and without care a 
 > `pytest labs/mod-2-2 -v`
 > 2. Ensure all 12 tests pass cleanly (`12 passed`).
 > 3. Congratulations! You have proven firsthand how ACID transactions, time travel, schema evolution, and transaction logs operate on disk across both leading open table formats.
+
+:::ask A streaming job appends a small file to an Iceberg table every minute. After a month queries are slow. Which maintenance task helps most?
+@options
+* compaction: rewrite many small files into fewer
+delete the metadata so the table starts fresh
+add columns so that each file holds more data
+@why
+Thousands of small files make planning and scanning slow (the small-files problem). Compaction rewrites them as larger files in a new snapshot, and old files are cleaned up later by snapshot expiry.
+:::
 
 ## @lab Lab: build a lakehouse table, then look inside it
 Create an Iceberg table, make it change over time, and prove the format's promises with tests: snapshots, time travel, deletes that keep history, schema evolution that rewrites no data, and a metadata layout you verify on disk. Then do the same observations for Delta Lake's transaction log.

@@ -42,6 +42,15 @@ Di mana posisinya: data mentah mendarat di object storage (Modul 2.2, 3.4), alat
 >
 > **Seharusnya Anda melihat:** porsi `9.1%`, jadi `0.181 TB` yang dipindai: sekitar `$0.91` per run dan `$87` per hari, dibanding `$10` per run dan `$960` per hari untuk `SELECT *`. "Dry run" sebuah warehouse menghitung perkiraan ini dari metadata sebelum menjalankan apa pun. (BigQuery menagih ukuran kolom yang tidak terkompresi, bukan byte terkompresi yang Anda pakai di sini, tetapi idenya sama.)
 
+:::ask Apa yang dimungkinkan oleh 'memisahkan storage dari compute' di cloud warehouse?
+@options
+simpan data tanpa membayar apa pun untuknya
+* hentikan atau ubah compute tanpa memindah data
+jalankan query tanpa compute sama sekali
+@why
+Data tetap di object storage yang murah sementara compute adalah sekumpulan mesin yang kamu nyalakan, atur ukurannya, dan hentikan secara independen. Kamu bisa menambah warehouse besar untuk job berat lalu mematikannya.
+:::
+
 ## @lesson Cara data disimpan: micro-partition, zone map, dan pruning
 Warehouse tidak menyimpan tabel sebagai satu file besar. Ia memotongnya menjadi banyak **micro-partition** (nama Snowflake; BigQuery dan Redshift punya padanannya), masing-masing memuat irisan baris dalam bentuk kolumnar, biasanya puluhan hingga ratusan megabyte. Untuk setiap partisi dan setiap kolom ia mencatat **statistik** yang murah: nilai terkecil dan terbesar, sebuah **zone map**. Ini tinggal di metadata, sehingga membacanya nyaris tanpa biaya.
 
@@ -151,6 +160,15 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 >    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
 > 5. **Indikator Sukses:** Sebanyak 13 tes lulus membuktikan bahwa join yang co-located dan replikasi dimensi kecil tidak memindahkan data lewat jaringan.
 
+:::ask Kamu melakukan join `orders` dan `customers` pada `customer_id` di warehouse MPP. Distribusi mana yang menghindari perpindahan data lewat jaringan?
+@options
+distribusikan kedua tabel EVEN, round-robin
+taruh orders di satu node dan customers di node lain
+* distribusikan kedua tabel dengan KEY customer_id
+@why
+Distribusi KEY mengirim baris dengan customer_id sama ke node yang sama, sehingga baris yang cocok sudah bertemu di sana. EVEN menyeimbangkan beban tetapi memaksa data diacak ulang untuk join.
+:::
+
 ## @part Biaya, pemuatan, dan tata kelola
 
 ## @lesson Biaya: harga berbasis pemindaian dan berbasis waktu
@@ -172,6 +190,24 @@ Penyimpanan juga ada biayanya. **Time travel** (mengkueri atau memulihkan data p
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k test_query_cost -v`
 > 4. **Indikator Sukses:** Tes berstatus `PASSED` membuktikan kalkulasi biaya pemindaian dolar per terabyte presisi.
+
+:::drill python Berapa biaya satu query?
+BigQuery on-demand menagih berdasarkan byte yang diproses query. Tulis `query_cost(bytes_billed, price_per_tb)`: kembalikan biaya dalam dolar. Satu terabyte di sini adalah `1_000_000_000_000` byte.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("query_cost") ## Definisikan query_cost(bytes_billed, price_per_tb).
+query_cost(1_000_000_000_000, 5) == 5 ## Satu terabyte dengan $5 per TB berbiaya $5.
+query_cost(500_000_000_000, 6) == 3 ## Setengah terabyte dengan $6 per TB berbiaya $3.
+query_cost(0, 5) == 0 ## Query yang tidak membaca apa pun tidak berbiaya.
+query_cost(2_000_000_000, 5) == 0.01 ## 2 GB adalah 0,002 TB, jadi 0,002 × $5 = $0,01.
+@hint
+`bytes_billed / 1_000_000_000_000 * price_per_tb`
+@solution
+def query_cost(bytes_billed, price_per_tb):
+    return bytes_billed / 1_000_000_000_000 * price_per_tb
+:::
 
 ## @lesson Memuat data: bulk, bukan baris demi baris
 Warehouse dibuat untuk **bulk load**, bukan menyisipkan satu baris pada satu waktu seperti aplikasi. Jalur standarnya: taruh file di object storage, lalu minta warehouse memuatnya: Snowflake `COPY INTO` dari sebuah **stage** (dan Snowpipe untuk pemuatan kontinu), **load job** BigQuery dari Cloud Storage, `COPY` Redshift dari S3. Mereka membaca file secara paralel, memvalidasi, mengonversi, dan menulis micro-partition.
@@ -243,6 +279,15 @@ WHEN NOT MATCHED THEN
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Indikator Sukses:** Keempat pengujian `TestLoadPlanning` berstatus `PASSED` membuktikan pembagian irisan file pemuatan optimal tanpa menimbulkan overhead file kecil.
 
+:::ask Kamu harus memuat 10 juta baris ke warehouse setiap malam. Jalur mana yang benar?
+@options
+* tulis file ke storage dan bulk load
+jalankan 10 juta INSERT satu baris
+buka satu koneksi per baris dari aplikasi
+@why
+Warehouse dibangun untuk bulk load file berukuran wajar (sekitar 100 sampai 250 MB terkompresi untuk Snowflake). Insert baris demi baris membayar overhead besar per pernyataan dan lambat serta mahal.
+:::
+
 ## @lesson Konkurensi, tata kelola, dan memilih
 **Konkurensi.** Warehouse punya komputasi terbatas. Ketika query yang datang lebih banyak daripada yang bisa dijalankan sekaligus, sisanya **mengantre**. `simulate_queue` di lab memperlihatkannya: lima job 10 detik pada dua slot selesai pada detik 10, 10, 20, 20, dan 30, jadi pengguna terakhir menunggu 20 detik sebelum job-nya bahkan mulai. Obatnya sama di mana-mana: isolasi beban kerja pada komputasi terpisah (satu warehouse untuk ETL, satu untuk dashboard, satu untuk analis), pakai fitur multi-cluster atau auto-scaling untuk lonjakan, dan perpendek query berat dengan alat tata letak di atas. Isolasi juga membuat tagihan bisa dibebankan ke sebuah tim (Modul 3.4).
 
@@ -312,6 +357,28 @@ Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai ba
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Indikator Sukses:** Sebanyak 8 tes berstatus `PASSED` membuktikan keandalan invalidasi result cache dan akurasi simulasi antrean slot.
+
+:::drill python Antrean di warehouse
+Sebuah warehouse bisa menjalankan `slots` query sekaligus; sisanya menunggu. Tulis `finish_time(durations, slots)`: semua job tiba pada waktu 0 sesuai urutan yang diberikan. Tiap job mulai begitu ada slot kosong. Kembalikan waktu saat job **terakhir** selesai.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("finish_time") ## Definisikan finish_time(durations, slots).
+finish_time([10, 10, 10, 10, 10], 2) == 30 ## Lima job 10 detik pada dua slot: 10 + 10 + 10 detik.
+finish_time([10, 10], 2) == 10 ## Dua job, dua slot: keduanya jalan bersamaan.
+finish_time([5, 5, 5], 1) == 15 ## Satu slot: berjalan satu per satu.
+finish_time([], 3) == 0 ## Tanpa job, selesai pada waktu 0.
+@hint
+Simpan daftar `free_at` berisi `slots` nol. Untuk tiap durasi, ambil slot yang paling awal kosong (`min`), tambahkan durasinya. Jawabannya nilai terbesar.
+@solution
+def finish_time(durations, slots):
+    free_at = [0] * slots
+    for d in durations:
+        i = free_at.index(min(free_at))
+        free_at[i] += d
+    return max(free_at)
+:::
 
 ## @part Penyajian, dan warehouse sungguhan
 

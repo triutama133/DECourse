@@ -38,6 +38,15 @@ Gagasan kedua mengalir melalui semuanya: **pindahkan komputasi ke data, bukan da
 >
 > **Seharusnya Anda melihat:** kira-kira `150` blok hilang dengan satu salinan (130 sampai 162 di berbagai seed), kira-kira `15` dengan dua salinan (11 sampai 17), dan `0` sampai `3` dengan tiga. Nilai harapannya 150, 15,8, dan 0,9. Setiap salinan tambahan memangkas kehilangan sekitar sepuluh kali, itulah sebabnya HDFS secara default menyimpan tiga salinan di mesin-mesin murah.
 
+:::ask Sebuah klaster punya 4.000 mesin dengan 12 disk tiap mesin. Mengapa Hadoop harus berasumsi bahwa kegagalan itu normal?
+@options
+disk klaster murah dan tidak pernah awet
+* dengan disk sebanyak itu, satu rusak tiap hari
+jaringan merusak setiap file yang dibawanya
+@why
+Jika satu disk rusak sekali dalam beberapa tahun, 48.000 disk rusak kira-kira tiap hari. Pada skala itu kegagalan itu rutin, sehingga penyimpanan harus menyimpan salinan dan job harus bisa dijalankan ulang.
+:::
+
 ## @lesson HDFS: sistem file yang terbuat dari banyak mesin
 Hadoop Distributed File System menyimpan file raksasa di mesin biasa. Sebuah **file** dipotong menjadi **blok** berukuran tetap (bawaannya **128 MiB**; sistem file disk biasa memakai blok 4 KiB). Setiap blok **direplikasi**: secara bawaan **tiga salinan** pada tiga mesin berbeda. Blok terakhir sebuah file sepanjang yang dibutuhkan saja (file 300 MiB menjadi blok 128, 128, dan 44 MiB; `split_into_blocks` di lab melakukan persis ini).
 
@@ -188,6 +197,15 @@ Hari ini Spark bisa berjalan di YARN (masih umum di on-premises), di Kubernetes 
 >    `pytest labs/mod-3-0/test_lab.py -k TestYarnScheduler -v`
 > 4. **Indikator Sukses:** Seluruh 3 tes di `TestYarnScheduler` berstatus `PASSED`, mengonfirmasi penempatan container tanpa memutasi kamus kapasitas node asli.
 
+:::ask Mengapa Hadoop 2 memisahkan YARN dari MapReduce?
+@options
+agar job MapReduce butuh lebih sedikit kode
+agar HDFS bisa menyimpan file tanpa blok
+* agar klaster bisa menjalankan lebih dari MapReduce
+@why
+YARN hanya mengelola sumber daya (memori dan CPU dalam container). Setelah terpisah, Spark, Hive di Tez, dan lainnya bisa berbagi mesin yang sama dengan MapReduce.
+:::
+
 ## @lesson Hive: SQL di atas file
 Menulis MapReduce dalam Java untuk setiap pertanyaan itu pekerjaan lambat. **Hive** (dari Facebook, sekitar 2008) membiarkan Anda menulis **SQL**; Hive menerjemahkannya menjadi job. Gagasan kuncinya: tabel Hive bukan format penyimpanan khusus. Ia adalah **deskripsi yang dibentangkan di atas file** di HDFS: nama tabel, daftar kolom dan tipenya, serta folder tempat file berada.
 
@@ -200,6 +218,15 @@ Hive Metastore bertahan melewati semua ini, dan ia bagian yang paling mungkin An
 > 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install duckdb`. Buat folder `orders/dt=2026-01-15/` berisi dua file CSV yang keduanya ber-header `id,amount`. `a.csv` berisi baris `1,100` dan `2,250`; `b.csv` berisi `3,n/a` dan `4,400` (job milik orang lain menulis nilai yang salah). Perlakukan folder itu sebagai tabel gaya Hive: query `count(*)` dan `sum(amount)` dengan `read_csv('orders/*/*.csv', header=true, columns={'id':'INTEGER','amount':'INTEGER'})`. Lalu jalankan query yang sama lagi dengan menambahkan `ignore_errors=true` ke `read_csv`.
 >
 > **Seharusnya Anda melihat:** query pertama gagal dengan `ConversionException` yang menyebut baris yang buruk, dan baru sekarang, saat dibaca, bukan saat `b.csv` ditulis (schema on read). Dengan `ignore_errors=true` hasilnya `(3, 750)`: baris berisi `n/a` lenyap dan jumlahnya salah tanpa peringatan apa pun. Perilaku mana yang lebih Anda inginkan di produksi, dan contract (Modul 2.5) mana yang akan menangkap file buruk itu di pintu masuk?
+
+:::ask Di mana Hive menyimpan skema tabel dan daftar partisinya?
+@options
+* di Hive Metastore, sebuah database kecil
+di dalam tiap file data, diulang per baris
+di peta blok yang dipegang NameNode
+@why
+Tabel Hive hanyalah deskripsi yang diletakkan di atas file. Metastore menyimpan skema, lokasi, format, dan partisi, itulah mengapa Spark, Trino, dan lainnya masih memakainya sampai sekarang.
+:::
 
 ## @lesson Mengapa Spark dan lakehouse menggantikan sebagian besarnya, dan apa yang tersisa
 Tiga perubahan bersama menjelaskan pergeseran itu:
@@ -229,6 +256,15 @@ Tabel terjemahan untuk wawancara:
 > 🛠 **Coba sendiri (10 menit, Python).** Bandingkan dua cara menjalankan job iteratif. Tulis 500.000 bilangan bulat acak (1 sampai 1000) ke file teks, satu per baris. Versi A membaca dan mem-parse ulang seluruh file di **setiap** putaran (kebiasaan MapReduce); versi B membacanya sekali dan menyimpan list-nya di memori (kebiasaan Spark). Setiap putaran melakukan pembaruan kecil yang sama, `x = (x + sum(vals) / len(vals)) / 2`, dimulai dari `x = 500.0`. Ukur waktu keduanya untuk 1 putaran dan untuk 10 putaran, dan pastikan `x` akhirnya identik.
 >
 > **Seharusnya Anda melihat:** `x` yang sama dari kedua versi (sekitar `500.17` setelah 10 putaran). Dengan 1 putaran keduanya butuh waktu kira-kira sama; dengan 10 putaran versi A sekitar 800 ms dan versi B sekitar 115 ms, kira-kira tujuh kali lebih cepat, karena B hanya sekali membayar biaya membaca. Waktu persisnya tergantung mesin Anda; polanya tidak.
+
+:::ask Perubahan mana yang membantu Spark mengungguli MapReduce pada kerja bertahap dan iteratif?
+@options
+ia menyimpan tiap hasil antara di pita magnetik
+* ia menyimpan data antara di memori sebagai satu graf
+ia menjalankan tiap langkah di satu mesin
+@why
+MapReduce menulis ke disk di antara tiap job dalam rantai. Spark merencanakan seluruh job sebagai graf dan menyimpan data antara di memori, sehingga lintasan berulang atas data yang sama jauh lebih cepat.
+:::
 
 ## @lab Lab: HDFS, MapReduce, dan YARN dalam miniatur
 Bangun tiga model kecil yang deterministik dalam Python murni: pemecahan blok HDFS, penempatan replika sadar-rak, kegagalan, dan aritmetika file kecil; mesin MapReduce (map, partisi, shuffle, reduce, combiner, reduce-side join, pengulangan task); dan scheduler YARN mainan. Tidak perlu klaster, dan tesnya (38) memeriksa setiap perilaku yang dijelaskan pelajaran.

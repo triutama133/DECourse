@@ -36,6 +36,15 @@ Praktik mengonfigurasi cloud secara manual lewat browser ("ClickOps") dilarang b
 >
 > **Seharusnya Anda melihat:** `[('create', 'curated-bucket'), ('update', 'raw-bucket'), ('destroy', 'old-bucket')]` lalu `[]`. Run kedua tidak menemukan apa pun untuk dikerjakan: itulah arti "aman dijalankan dua kali", dan itulah inti `terraform plan` dan `apply`. Baris `destroy` adalah baris yang dibaca dua kali oleh reviewer yang teliti.
 
+:::ask Mengapa perubahan infrastruktur yang ditulis sebagai kode dan ditinjau lewat pull request lebih aman daripada klik di konsol?
+@options
+* rekan membacanya dulu dan Git menyimpan riwayat
+konsol selalu jauh lebih lambat dari kode
+kode tidak pernah mengandung kesalahan sama sekali
+@why
+Dapat ditinjau, dapat diulang, dan dapat diaudit adalah tiga keuntungannya. File yang sama membangun dev dan prod, dan riwayat menunjukkan siapa mengubah izin mana dan kapan.
+:::
+
 ## @lesson Praktik Terraform di dunia nyata
 Sebuah proyek Terraform tersusun dari sekumpulan file berekstensi `.tf` yang ditulis menggunakan HCL (HashiCorp Configuration Language). Blok-blok penyusun utama yang akan Anda gunakan secara konstan:
 
@@ -93,6 +102,15 @@ Lingkungan dev dan prod umumnya berbagi file arsitektur `.tf` yang sama namun me
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
 > 4. **Indikator Sukses:** Seluruh pengujian di kelas `TestHygiene` berstatus `PASSED` (atau dilewati secara rapi jika Terraform CLI belum terpasang), memvalidasi format HCL, sintaksis yang benar, dan penolakan otomatis terhadap nilai lingkungan yang tidak valid.
+
+:::ask Apa isi file state Terraform?
+@options
+salinan semua data di dalam bucket-mu
+* peta dari resource di kodemu ke objek nyata
+kata sandi para pengguna cloud-mu
+@why
+Tanpa state, Terraform tidak bisa membedakan 'buat ini' dari 'ini sudah ada'. Ia membandingkan kodemu, state, dan kenyataan untuk membangun plan. Simpan di tempat bersama yang terkunci dan akses-terkontrol.
+:::
 
 ## @lesson Mengamankan data lakehouse
 Lab modul ini memandu Anda membangun lapisan penyimpanan lakehouse dari Modul 2.2 menggunakan Terraform, dengan empat pilar pengamanan wajib standar enterprise:
@@ -342,6 +360,35 @@ jobs:
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Indikator Sukses:** Sebanyak 15 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, membuktikan guardrails deteksi anomali query, proyeksi anggaran, dan analisis tiering data bekerja akurat.
 
+:::drill python Perkirakan biaya bulan ini
+Tulis `forecast_month(daily_costs, days_in_month)`: `daily_costs` adalah daftar biaya sejauh bulan ini, satu per hari. Proyeksikan sisa bulan dengan **rata-rata 7 hari terakhir** (atau semua hari, jika kurang dari 7). Kembalikan pengeluaran sejauh ini ditambah rata-rata itu dikali jumlah hari yang tersisa.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("forecast_month") ## Definisikan forecast_month(daily_costs, days_in_month).
+forecast_month([10] * 10, 30) == 300 ## Tetap 10 per hari: 100 sejauh ini + 20 hari × 10.
+forecast_month([10] * 7 + [20] * 7, 30) == 530 ## 210 sejauh ini; rata-rata 7 hari terakhir 20, dan 16 hari tersisa: 210 + 320.
+forecast_month([10, 20], 30) == 450 ## Kurang dari 7 hari: rata-ratakan semuanya (15), 28 hari tersisa: 30 + 420.
+forecast_month([10] * 30, 30) == 300 ## Bulan sudah berakhir: tidak ada yang diproyeksikan.
+@hint
+`recent = daily_costs[-7:]`, `avg = sum(recent) / len(recent)`, lalu `sum(daily_costs) + avg * (days_in_month - len(daily_costs))`.
+@solution
+def forecast_month(daily_costs, days_in_month):
+    recent = daily_costs[-7:]
+    avg = sum(recent) / len(recent)
+    return sum(daily_costs) + avg * (days_in_month - len(daily_costs))
+:::
+
+:::ask Pagar pengaman mana yang menghentikan cross join liar di Jumat malam sebelum tagihan akhir pekan membengkak?
+@options
+laporan anggaran dikirim via email akhir bulan
+pengingat di chat tim agar berhati-hati
+* statement timeout pada warehouse dan akun
+@why
+Kontrol harus otomatis: timeout satu jam mematikan query dengan sendirinya. Laporan akhir bulan adalah autopsi, dan pengingat bergantung pada orang pukul 22.30 di hari Jumat.
+:::
+
 ## @lesson Di bawah cloud: kecepatan storage, biaya jaringan, dan memilih teknologi
 > **Intinya:** Cloud tetap terbuat dari disk, memori, dan kabel jaringan, dan setiap lapisan di bawahnya jauh lebih lambat dari lapisan di atasnya. Memindahkan data antar-zone, antar-region, dan ke internet ditagih per gigabyte, dan pada klaster yang sibuk biayanya bisa melebihi biaya komputasi. Saat memilih teknologi, hitung juga waktu engineering yang akan dihabiskannya selain tagihannya, dan utamakan keputusan yang bisa dibatalkan.
 
@@ -402,6 +449,15 @@ Gagasan dari bab 3 buku ini muncul di setiap wawancara system design, dan masing
 > 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: untuk `num_services` layanan yang dipanggil berurutan, masing-masing tersedia `service_sla` dari waktu (misalnya `0.999`), kembalikan `combined_sla` dibulatkan ke 6 desimal, `monthly_downtime_min` dalam bulan 30 hari (43.200 menit) dibulatkan ke 1 desimal, dan `needs_continuous_cdc`: `True` jika jarak antar-backup lebih lebar daripada yang diizinkan target RPO (bagian 4 pelajaran 6).
 >
 > **Periksa:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
+
+:::ask Sebuah klaster di tiga zona mengacak 50 TB per hari. Mengapa ini bisa jadi baris mengejutkan di tagihan?
+@options
+* dua pertiga data melintasi zona, dan ditagih
+lalu lintas dalam satu region selalu gratis
+shuffle hanya ditagih pada hari pertama
+@why
+Lalu lintas antar zona berbiaya (di pelajaran $0,02 per GB yang melintas). 33.000 GB pada tarif itu adalah biaya harian nyata yang tidak ditunjukkan rencana query mana pun. Jaga job yang cerewet di satu zona bila bisa.
+:::
 
 ## @part Opsional: terapkan sungguhan
 

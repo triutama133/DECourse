@@ -48,6 +48,15 @@ Sintaks kurung kurawal ganda `{{ ... }}` adalah **Jinja**, bahasa templating yan
 >
 > **Seharusnya Anda melihat:** `mart_daily` bergantung pada `fct_orders`, `fct_orders` pada kedua model staging, dan model staging tidak bergantung pada apa pun; urutan build-nya adalah kedua model `stg_` (urutan bebas), lalu `fct_orders`, lalu `mart_daily`. Setelah Anda menambahkan referensi melingkar, `graphlib.CycleError` menyebut putarannya (`mart_daily`, `stg_customers`, `fct_orders`). Persis inilah yang dilakukan dbt dengan `ref()`: ia membangun DAG dan menolak menjalankan siklus.
 
+:::ask Di dbt, model `orders_clean` memilih dari `{{ ref('orders_raw') }}`. Apa yang diberikan `ref` selain nama tabel?
+@options
+query lebih cepat, karena ref menyimpan cache
+* garis dependensi, jadi dbt membangun raw lebih dulu
+izin untuk menulis ke tabel orders_raw
+@why
+`ref` adalah cara dbt mengetahui graf dependensi. Dari referensi saja ia mengurutkan eksekusi, bisa menjalankan model beserta induknya, dan membangun dokumentasi serta lineage.
+:::
+
 ## @lesson Anatomi proyek dbt dan perintah-perintah CLI inti
 Struktur direktori standar proyek dbt:
 
@@ -396,6 +405,15 @@ Alur kerja profesional yang sehat: kembangkan fitur di skema pribadi lokal, buka
 > 3. Jalankan perintah snapshot di terminal:
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Indikator Sukses:** `OK snapshotted snapshots.customers_snapshot`, siap mendeteksi perubahan domisili kota dan tier pelanggan ketika data batch kedua dimuat.
+
+:::ask Seorang pelanggan pindah dari Jakarta ke Bandung. Dengan snapshot dbt (strategi check pada `city`), apa yang terjadi pada run berikutnya?
+@options
+baris lama ditimpa dengan nama Bandung
+run gagal karena kota sudah berubah
+* baris lama ditutup dan baris baru ditambahkan
+@why
+Snapshot membangun riwayat Type 2: versi sebelumnya tetap ada dengan waktu berakhir, dan versi baru dimulai. Menimpa akan menghilangkan fakta bahwa pelanggan pernah tinggal di Jakarta.
+:::
 
 ## @lesson dbt produksi di cloud warehouse: strategi inkremental, unit test, kontrak model, dan Slim CI {optional}
 

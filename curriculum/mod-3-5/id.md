@@ -41,6 +41,15 @@ Seluruh prinsip rekayasa data yang telah Anda pelajari tetap berlaku mutlak: ide
 >
 > **Seharusnya Anda melihat:** skor `0.67` untuk `refund`, `0.13` untuk `shipping`, dan `0.0` untuk `warranty` pada pertanyaan pertama; semuanya `0.0` pada pertanyaan kedua (retriever selalu mengembalikan *sesuatu* di peringkat pertama, jadi skor minimum adalah bagian dari pipeline). Dengan index yang basi, teks yang diambil masih menyebut `14` padahal sumbernya kini menyebut 30: jawabannya salah dan tidak ada yang gagal. Baru setelah dibangun ulang ia menyebut `30`. Sinkronisasi adalah tugas data engineer.
 
+:::ask Chatbot RAG memberi jawaban salah tentang kebijakan refund. Modelnya baik-baik saja. Ke mana insinyur data harus melihat lebih dulu?
+@options
+model lebih besar dengan lebih banyak parameter
+* pipeline offline: ekstraksi, chunking, kesegaran
+warna dan font dari jendela chat
+@why
+Kebanyakan kegagalan RAG di produksi berasal dari bagian offline: tabel rusak yang diekstrak menjadi tak bermakna, chunk yang kehilangan konteks, atau indeks yang masih menyimpan kebijakan tahun lalu.
+:::
+
 ## @lesson Embeddings dan kesamaan vektor (similarity)
 **Embedding** adalah serangkaian larik angka desimal terpadu (sebuah vektor berdimensi tinggi) yang dihasilkan oleh model machine learning dari suatu potongan teks, di mana teks-teks yang memiliki kesamaan makna semantik akan menghasilkan vektor-vektor yang mengarah ke sudut orientasi yang berdekatan di ruang spasial. Model embedding di industri umumnya memiliki ratusan hingga ribuan dimensi (seperti 384, 768, 1.536, atau 3.072 dimensi). Pencarian informasi kemudian bertransformasi menjadi operasi geometri murni: ubah pertanyaan pengguna menjadi vektor, lalu temukan vektor-vektor data di database yang posisinya paling dekat dengannya.
 
@@ -60,6 +69,29 @@ Sebuah vektor 1.536 dimensi yang disimpan sebagai bilangan float 4-byte memakan 
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k "TestEmbed or TestContentHash" -v`
 > 4. **Indikator Sukses:** Sebanyak 9 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, memvalidasi vektor satuan deterministik dan hash konten yang kebal terhadap variasi spasi.
+
+:::drill python Seberapa dekat dua vektor?
+Tulis `cosine(a, b)`: `a` dan `b` adalah daftar angka dengan panjang sama. Kembalikan cosine similarity: hasil kali titik dibagi hasil kali panjang (norma) kedua vektor. Vektor yang searah menghasilkan 1, yang tegak lurus 0, yang berlawanan −1.
+@starter
+import math
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("cosine") ## Definisikan cosine(a, b).
+abs(cosine([1, 0], [1, 0]) - 1) < 1e-9 ## Arah sama: 1.
+abs(cosine([1, 0], [0, 1])) < 1e-9 ## Tegak lurus: 0.
+abs(cosine([1, 0], [-1, 0]) + 1) < 1e-9 ## Berlawanan: −1.
+abs(cosine([1, 1], [5, 5]) - 1) < 1e-9 ## Panjang tidak penting, hanya arah.
+@hint
+`dot = sum(x * y for x, y in zip(a, b))`, `norm_a = math.sqrt(sum(x * x for x in a))`, sama untuk b, lalu `dot / (norm_a * norm_b)`.
+@solution
+import math
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    return dot / (norm_a * norm_b)
+:::
 
 ## @lesson Chunking dan manajemen metadata
 Dalam sistem RAG, entitas yang Anda ubah menjadi vektor adalah **potongan teks (chunks)** dan bukan keseluruhan isi dokumen utuh. Menghitung embedding untuk satu buku manual setebal 40 halaman akan menghasilkan vektor rata-rata yang terlalu umum dan kehilangan fokus, dan menyematkan 40 halaman dokumen ke dalam prompt LLM hanya untuk menjawab satu pertanyaan spesifik akan membanjiri model dengan teks sampah yang bising. Di sisi lain, potongan yang terlalu kecil akan kehilangan konteks aslinya (misalnya potongan teks: "Masa berlaku promonya 30 hari" — promo produk yang mana?). Oleh karena itu, strategi chunking adalah keputusan arsitektur krusial yang berdampak langsung pada akurasi jawaban dan tagihan token.
@@ -85,6 +117,31 @@ Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor 
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
 > 4. **Indikator Sukses:** Sebanyak 7 pengujian berstatus `PASSED`, memvalidasi pemotongan berbasis struktur, pelestarian konteks judul, dan jendela overlap tanpa potongan buntut mini.
+
+:::drill python Potong teks menjadi chunk yang saling tumpang tindih
+Tulis `chunk_words(text, size, overlap)`: pecah teks menjadi kata, lalu kembalikan daftar chunk (masing-masing string kata yang digabung satu spasi). Setiap chunk berisi hingga `size` kata, dan tiap chunk mulai `size - overlap` kata setelah chunk sebelumnya. Berhenti saat sebuah chunk mencapai akhir teks. Teks kosong menghasilkan `[]`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("chunk_words") ## Definisikan chunk_words(text, size, overlap).
+chunk_words("a b c d e f", 3, 1) == ["a b c", "c d e", "e f"] ## Ukuran 3, overlap 1: tiap chunk mulai 2 kata kemudian.
+chunk_words("a b c d", 4, 0) == ["a b c d"] ## Seluruh teks muat dalam satu chunk.
+chunk_words("a b c d e", 2, 0) == ["a b", "c d", "e"] ## Tanpa overlap: pemotongan biasa, chunk terakhir lebih pendek.
+chunk_words("", 3, 1) == [] ## Tidak ada yang di-chunk.
+@hint
+`words = text.split()`; `step = size - overlap`; ulangi `start` pada `range(0, len(words), step)`, ambil `words[start:start + size]`, dan berhenti setelah chunk yang mencapai akhir.
+@solution
+def chunk_words(text, size, overlap):
+    words = text.split()
+    chunks = []
+    step = size - overlap
+    for start in range(0, len(words), step):
+        chunks.append(" ".join(words[start:start + size]))
+        if start + size >= len(words):
+            break
+    return chunks
+:::
 
 ## @part Menyimpan, memperbarui, dan mengevaluasi
 
@@ -128,6 +185,15 @@ Vector database terdedikasi (seperti Qdrant, Weaviate, Milvus, atau Pinecone) me
 >    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
 > 4. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi perhitungan fraksi recall eksak serta pembuatan dan penelusuran graf HNSW di PostgreSQL pgvector.
 
+:::ask Pada 20 juta vektor, scan eksak terlalu lambat. Apa yang dikorbankan indeks HNSW demi kecepatan?
+@options
+kebenaran setiap vektor yang disimpan
+kemampuan memfilter dengan metadata selamanya
+* sedikit recall: bisa melewatkan tetangga sebenarnya
+@why
+HNSW menelusuri graf berlapis alih-alih membandingkan setiap vektor, jadi sifatnya aproksimasi. Pengaturan seperti `ef_search` menggeser keseimbangan recall dan waktu; lebih banyak tautan per vektor memakan lebih banyak memori.
+:::
+
 ## @lesson Pipeline inkremental: bayar hanya untuk data yang berubah
 Pendekatan naif pemula yang sering dilakukan adalah menjalankan batch job harian yang memproses ulang dan memanggil API embedding untuk seluruh koleksi dokumen dari awal setiap malam. Pola ini sangat lambat, boros biaya, dan mengabaikan fakta mendasar: *pemanggilan API embedding adalah langkah komputasi yang paling mahal, sehingga pipeline rekayasa data wajib memanggilnya sesedikit mungkin.*
 
@@ -162,6 +228,31 @@ Sebuah representasi vektor hanya memiliki makna jika dipadukan dengan model embe
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestSync -v`
 > 4. **Indikator Sukses:** Sebanyak 11 pengujian berstatus `PASSED`, memvalidasi 0 panggilan embedding saat teks tidak berubah, 1 panggilan saat 1 paragraf diedit, serta rollback transaksi yang aman saat terjadi kegagalan.
+
+:::drill python Chunk mana yang butuh embedding baru?
+Embedding adalah panggilan yang mahal, jadi hanya embed chunk yang baru. Tulis `to_embed(stored_hashes, chunks)`: `stored_hashes` adalah himpunan hash yang sudah di-embed, `chunks` adalah daftar teks chunk terbaru sebuah dokumen. Hash sebuah chunk adalah `hashlib.sha256(" ".join(chunk.split()).encode()).hexdigest()`, jadi spasi berlebih tidak mengubahnya. Kembalikan daftar teks chunk yang hash-nya **tidak** ada di `stored_hashes`, berurutan.
+@starter
+import hashlib
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("to_embed") ## Definisikan to_embed(stored_hashes, chunks).
+to_embed(set(), ["a b", "c"]) == ["a b", "c"] ## Belum ada yang tersimpan: semuanya baru.
+to_embed({hashlib.sha256(b"a b").hexdigest()}, ["a b", "c"]) == ["c"] ## "a b" sudah di-embed: lewati.
+to_embed({hashlib.sha256(b"a b").hexdigest()}, ["a   b"]) == [] ## Spasi berlebih tidak mengubah hash.
+to_embed(set(), []) == [] ## Tanpa chunk, tanpa panggilan.
+@hint
+Untuk tiap chunk, hitung hash dari `" ".join(chunk.split())` dan simpan chunk jika hash-nya tidak ada di `stored_hashes`.
+@solution
+import hashlib
+def to_embed(stored_hashes, chunks):
+    out = []
+    for chunk in chunks:
+        h = hashlib.sha256(" ".join(chunk.split()).encode()).hexdigest()
+        if h not in stored_hashes:
+            out.append(chunk)
+    return out
+:::
 
 ## @lesson Evaluasi metrik dan pengoperasian pipeline data RAG
 Anda tidak dapat menilai apakah sistem retrieval bekerja dengan baik hanya dengan membaca respon kalimat chatbot yang terdengar sopan dan lancar. Bangun **dataset evaluasi resmi (evaluation set)**: kumpulan ratusan pertanyaan nyata atau representatif yang masing-masing telah dipasangkan dengan dokumen (atau potongan teks) yang menjadi kunci jawaban benarnya. Dataset praktikum lab menghasilkan 116 pasangan pertanyaan dan jawaban berlabel. Dua metrik evaluasi retrieval yang menjadi standar industri:
@@ -272,6 +363,15 @@ ASOF LEFT JOIN tier_feed f
 > 🛠 **Coba sendiri (25 menit, Python dengan DuckDB, perlu `warehouse.db` Lab 1.4 Anda).** Lampirkan di DuckDB (`ATTACH 'warehouse.db' AS w (TYPE sqlite)`) dan pakai `stg_orders` untuk pelanggan yang ada di `stg_customers`, semua status, dengan `order_ts` di-cast ke `TIMESTAMP`. Untuk momen prediksi S, populasinya adalah setiap pelanggan dengan minimal satu pesanan sebelum S, labelnya "minimal satu pesanan dalam 7 hari sejak S", dan Anda membangun dua versi satu fitur: **point-in-time** (pesanan dalam 14 hari sebelum S) dan **bocor** (semua pesanan dalam data, sebelum dan sesudah S). Pilih aturan "prediksi ya jika fitur ≥ k" (k dari 1 sampai 7) dengan akurasi terbaik pada S = 2026-01-15, lalu terapkan k yang sama pada S = 2026-01-22, ketika hanya masa lalu yang ada, sehingga kedua versi menjadi hitungan point-in-time. Bandingkan dengan selalu menebak jawaban yang lebih umum. Terakhir, dengan as-of join pada feed tier (baris signup dari `stg_customers` ditambah `stg_customer_changes`), hitung pelanggan yang tier-nya pada 2026-01-15 berbeda dari tier terakhirnya.
 >
 > **Seharusnya Anda melihat:** `808` pelanggan pada 2026-01-15 (`466` memesan lagi) dan `915` pada 2026-01-22; selalu menebak "ya" mendapat `57.7%` dan `56.8%`. Fitur yang bocor tampak berguna saat pelatihan, `70.4%` dengan k = 3, lalu jatuh ke `44.7%` pada tanggal berikutnya, lebih buruk daripada menebak. Fitur point-in-time mendapat `57.7%` dan `54.9%`: pada data ini sinyal yang jujur memang lemah, dan justru itulah yang perlu Anda ketahui sebelum ada yang merilis modelnya. `14` dari 808 pelanggan punya tier yang berbeda pada 15 Januari dibanding hari ini, jadi menjoin tier saat ini pun akan bocor. Diukur dengan DuckDB 2.0.1.
+
+:::ask Baris pelatihan model churn untuk 15 Januari menghitung pesanan pelanggan, termasuk satu yang dibuat pada 20 Januari. Apa yang salah?
+@options
+* kebocoran: memakai informasi dari setelah hari itu
+tidak ada: lebih banyak pesanan selalu lebih baik
+label hilang, jadi baris itu harus dibuang
+@why
+Fitur hanya boleh memakai apa yang diketahui pada saat prediksi. Model akan tampak bagus saat pelatihan dan gagal di produksi, tempat pesanan masa depan itu belum ada.
+:::
 
 ## @lesson Feature store penyimpanan ganda (pola Feast), ML di dalam warehouse (BigQuery ML), dan verifikasi ASOF point-in-time {optional}
 

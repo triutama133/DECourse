@@ -33,6 +33,15 @@ A related point: if a decision does not need an answer within seconds, **batch i
 >
 > **You should see:** processing time: minute `40` has `21` events (the spike that never happened), and only `40` minutes have any data (the gap of 20 empty minutes); event time: every one of the `60` minutes has exactly `1` event. The event-time view is the true one, and a window has to wait for the late events to see it.
 
+:::ask After an outage a pipeline catches up and processes six hours of events in five minutes. If you group by processing time, what does the per-minute chart show?
+@options
+a flat line, since events are evenly spread
+* one huge spike: old events are counted as now
+nothing, because the late events are dropped
+@why
+Processing time is when your system saw the event, not when it happened. Grouping by it turns a backlog into a fake burst. Event time puts every event in the minute it really belongs to.
+:::
+
 ## @lesson Windows
 Aggregations over an unbounded stream need a bounded group, usually a **window** of event time.
 
@@ -52,6 +61,38 @@ In Part A of the lab you implement `window_starts(ts, size, slide)`, which retur
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWindowStarts -v`
 > 4. **Success Indicator:** All 3 tests report `PASSED`, confirming tumbling windows produce 1 unique start and sliding windows yield `size // slide` overlapping starts.
+
+:::drill python Which windows contain this event?
+Write `window_starts(ts, size, slide)`: `ts`, `size` and `slide` are whole numbers of seconds. A window starts at every multiple of `slide` and lasts `size` seconds, `[start, start + size)`. Return the sorted list of the starts of all windows that contain `ts`. When `size == slide` (tumbling windows) that is exactly one window.
+@starter
+# write your function below this line
+
+@check
+defines("window_starts") ## Define window_starts(ts, size, slide).
+window_starts(125, 60, 60) == [120] ## Tumbling: 125 s is in the window that starts at 120.
+window_starts(125, 300, 60) == [0, 60, 120] ## Sliding 5 minutes by 1 minute: windows starting at 0, 60 and 120 contain 125 s (windows starting before 0 do not exist).
+window_starts(600, 300, 60) == [360, 420, 480, 540, 600] ## 300/60 = 5 windows contain a normal event.
+window_starts(0, 60, 60) == [0] ## An event exactly on the boundary belongs to the window that starts there.
+@hint
+Start from the last window start `(ts // slide) * slide` and go backwards by `slide` while `start > ts - size` and `start >= 0`; sort at the end.
+@solution
+def window_starts(ts, size, slide):
+    starts = []
+    start = (ts // slide) * slide
+    while start >= 0 and start > ts - size:
+        starts.append(start)
+        start -= slide
+    return sorted(starts)
+:::
+
+:::ask A 5-minute sliding window moves forward by 1 minute. In how many windows is one event counted?
+@options
+1: every event has exactly one time
+60: one for each second of the window
+* 5: the size divided by the slide
+@why
+Each event belongs to size / slide sliding windows, here 300 / 60 = 5. A tumbling window is the special case where size equals slide, so each event belongs to exactly one.
+:::
 
 ## @lesson Watermarks: when is a window finished?
 A **watermark** is the stream processor's estimate of "how far event time has progressed": a promise that **events older than the watermark are unlikely to still arrive**. Spark defines it as:
@@ -196,6 +237,15 @@ Without the third condition you have at-least-once with possible duplicates (Mod
 >
 > **You should see:** both runs end with the state `{'a': 5, 'b': 2, 'c': 1}` because the checkpoint holds the progress. The appending sink has `4` rows (batch 1 appears twice: duplicated output), the overwriting sink has `3`, one per batch id. Replayable source, checkpoint, and idempotent sink: you have just built the three conditions for exactly-once effect.
 
+:::ask A streaming aggregation by window runs without a watermark. What happens to its state over months?
+@options
+* it grows forever: any event may still arrive
+it shrinks, since old windows close by themselves
+it stays the same, as state lives on disk
+@why
+A watermark is what tells Spark that a window can no longer receive events, so its state can be deleted. Without it every window must be kept, until the job runs out of memory.
+:::
+
 ## @lesson Spark Structured Streaming and Flink
 **Structured Streaming** treats a stream as an unbounded table and uses the same DataFrame and SQL API as batch. Your batch logic often runs on streaming data with minimal change. Internally it is **micro-batch**: it repeatedly runs small batch jobs over newly arrived data. That gives high throughput, fault tolerance from the batch engine, and typical end-to-end latency of seconds (sub-second is possible with effort).
 
@@ -246,6 +296,15 @@ Other patterns: **stream-static joins** enrich a stream with a dimension table (
 >    `pytest labs/mod-3-3/test_stream.py -v`
 > 4. **Success Indicator:** The test suite reports `PASSED` (or skips cleanly if Java runtime is not installed), verifying real Spark Structured Streaming output exactly matches our pure Python watermark model.
 
+:::ask Which situation points to Flink rather than Spark Structured Streaming?
+@options
+a dashboard refreshed each minute with SQL
+* fraud rules needing millisecond latency and timers
+a team that already runs Spark, changing little
+@why
+Structured Streaming is micro-batch, which suits 'within a minute' work and reuses batch skills. Flink processes record by record, with keyed state and timers, which suits very low latency and complex stateful logic.
+:::
+
 ## @lesson Operating streaming systems
 A streaming job is a service that never finishes, and it fails in ways batch does not.
 
@@ -260,6 +319,15 @@ A streaming job is a service that never finishes, and it fails in ways batch doe
 > 🛠 **Try it (10 min, Python).** A job receives 100 events per second but can process only 80. Simulate 600 seconds, keeping `lag += arrived - processed` each second, and print the lag. Then drop the input to 50 per second and count how many more seconds it takes the lag to reach zero (processing stays at 80, and the lag cannot go below 0).
 >
 > **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). Nobody has to be paged for a job that fails, but a job that is merely slower than its input is a failure that grows quietly; that is why lag is the first metric to alert on.
+
+:::ask A streaming job's input rate is 10,000 events per second but it only processes 8,000. What happens if nobody acts?
+@options
+the job slows the input down to match itself
+Kafka deletes the extra events right away
+* lag grows without bound until you scale it
+@why
+Every second the backlog grows by 2,000 events. Kafka keeps the records, so nothing is lost at first, but results fall further behind real time. Monitor lag and batch duration and add capacity before it matters.
+:::
 
 ## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream joins, and real-time OLAP (Pinot, ClickHouse, Druid) {optional}
 

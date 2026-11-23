@@ -38,6 +38,28 @@ The two systems you will meet most are **Apache Airflow** (the long-standing sta
 >
 > **You should see:** with `retries=2`, `load` fails twice (`warehouse busy`) and succeeds on attempt 3, and all five tasks end `success`. With `retries=1`, `load` ends `failed`, `report` is `skipped`, and `extract`, `clean` and `audit` are still `success`: `audit` does not depend on `load`, so the failure does not stop it. That small loop is the core of every orchestrator: dependencies, retries, and a state for each task.
 
+:::drill python Which task runs first?
+Write `run_order(deps)`: `deps` maps each task to the list of tasks it needs first, e.g. `{"load": ["extract"], "extract": []}`. Return a list of all tasks in a valid run order. When several tasks are ready at once, take them in alphabetical order.
+@starter
+# write your function below this line
+
+@check
+defines("run_order") ## Define run_order(deps).
+run_order({"load": ["extract"], "extract": []}) == ["extract", "load"] ## extract must come before load.
+run_order({"c": ["a", "b"], "b": ["a"], "a": []}) == ["a", "b", "c"] ## c needs a and b; b needs a.
+run_order({"b": [], "a": [], "c": ["a"]}) == ["a", "b", "c"] ## a and b are both ready: alphabetical order. c waits for a only.
+run_order({}) == [] ## No tasks, no order.
+@hint
+Repeat: take every task that is not done and whose needs are all done; pick the alphabetically first one; mark it done.
+@solution
+def run_order(deps):
+    done = []
+    while len(done) < len(deps):
+        ready = sorted(t for t in deps if t not in done and all(d in done for d in deps[t]))
+        done.append(ready[0])
+    return done
+:::
+
 ## @lesson Core concepts: runs, intervals and partitions
 **A DAG** (directed acyclic graph) is the graph of steps: nodes are tasks or assets, arrows are "runs after" or "depends on", and **acyclic** means no loops, so there is always a valid order.
 
@@ -62,6 +84,27 @@ Pass **references, not data**, between steps. Task outputs travel through the or
 > 4. Run the partition test in terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
 > 5. **Success Indicator:** The test passes, confirming exactly 30 partitions from 2026-01-01 through 2026-01-30.
+
+:::drill python The data interval of a daily run
+A daily pipeline processes the **previous** day. Write `interval_for(run_date)`: `run_date` is a string like `"2026-01-06"`. Return a tuple `(start, end)` of strings: the start of the day before and the start of `run_date` itself.
+@starter
+from datetime import date, timedelta
+# write your function below this line
+
+@check
+defines("interval_for") ## Define interval_for(run_date).
+interval_for("2026-01-06") == ("2026-01-05", "2026-01-06") ## The run on 6 January processes 5 January.
+interval_for("2026-03-01") == ("2026-02-28", "2026-03-01") ## It crosses month ends correctly.
+interval_for("2026-01-01") == ("2025-12-31", "2026-01-01") ## And year ends.
+@hint
+`end = date.fromisoformat(run_date)`, `start = end - timedelta(days=1)`, then `.isoformat()` both.
+@solution
+from datetime import date, timedelta
+def interval_for(run_date):
+    end = date.fromisoformat(run_date)
+    start = end - timedelta(days=1)
+    return (start.isoformat(), end.isoformat())
+:::
 
 ## @lesson Idempotency and backfills: the rule that makes everything else safe
 Module 0.2 gave you the rule, Module 1.2 the techniques, and the orchestrator is where it becomes non-negotiable. **Every step must be safe to run more than once for the same interval.** Orchestrators retry automatically, humans re-trigger runs, and backfills re-run history; if running twice doubles the numbers, one of those will eventually happen to you.
@@ -158,6 +201,15 @@ Many teams run Airflow as a managed service (Amazon MWAA, Google Cloud Composer,
 
 > 🛠 **Try it (5 min, pen and paper — DAG design check).** Look at the Airflow `@dag` above. Why should `read_csv` or database queries stay *inside* `@task def extract()`, never at the top of the file outside `@task`? And if you backfill `2026-01-01` through `2026-01-07`, what value must `extract()` and `load()` use instead of `datetime.now()`?
 
+:::ask In Airflow you set `retries=3` on a task that appends rows to a table. What must be true for retries to be safe?
+@options
+* the task is idempotent: twice gives the same result
+the scheduler is restarted between each attempt
+the task runs on the same worker every time
+@why
+A retry runs the task again, possibly after it already wrote part of its output. If the task replaces its slice (delete-then-insert or MERGE), a repeat is harmless; a blind append would duplicate rows.
+:::
+
 ## @lesson Dagster: pipelines as assets
 **Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it (`@asset` is a Python decorator from `dagster` that registers your function in the dependency graph, and subclassing `ConfigurableResource` defines typed settings — such as `Paths` — passed automatically into asset functions for clean dependency injection). Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
 
@@ -212,6 +264,15 @@ Dagster integrates with dbt (every dbt model becomes an asset in the same graph)
 >    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
 > 6. **Success Indicator:** Tests report `PASSED`, confirming asset checks and schedule definitions.
 
+:::ask How does Dagster's starting question differ from Airflow's?
+@options
+which server should run each of the scripts
+* which data assets should exist and what they need
+how many times each task should be retried
+@why
+Dagster models the data you want (tables, files, models) and derives the run from their dependencies. Airflow models the tasks and their order. Both can express the same pipeline.
+:::
+
 ## @lesson Choosing and operating an orchestrator
 The two philosophies compared honestly:
 
@@ -241,6 +302,15 @@ Anti-patterns to avoid: using `now()` inside tasks; appending instead of replaci
 > 🛠 **Try it (10 min, Python).** A job is supposed to succeed every day at 02:00. Its successful runs in January 2026 were on the 1st, 2nd, 4th, 5th, 8th, 9th and 10th. Using `datetime.date` and `timedelta`, write `missing_runs(success_dates, start, end)` that returns the days with no successful run, and print the missing days between 2026-01-01 and 2026-01-10 plus the longest stretch of consecutive missing days.
 >
 > **You should see:** `2026-01-03`, `2026-01-06` and `2026-01-07`, and a longest stretch of `2` days. Notice that nothing failed on those days: nothing ran at all, so no failure alert would ever fire. This is the "missing run" alert from the list above.
+
+:::ask A new team needs to pick between Airflow and Dagster. What is the honest basis for choosing?
+@options
+whichever tool has the more famous name
+the tool with fewer features, as it is simpler
+* team skills, existing stack and shape of the work
+@why
+Neither tool is better in every case. Airflow is the most widely deployed; Dagster fits work that is mostly producing tables and models. Choose by team, existing stack and the shape of the work.
+:::
 
 ## @lesson Dockerized local orchestration stack and the safe production backfill runbook
 
@@ -292,6 +362,15 @@ Notice `condition: service_healthy`: `depends_on` alone only waits for the conta
 > 🛠 **Try it (15 min, Python with DuckDB).** Load `data/orders.csv` with `read_csv(..., all_varchar=true)`, keeping rows whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST(order_ts AS TIMESTAMP)`. Create two empty tables `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11 and 12 into both, one day at a time, counting the orders that are not cancelled (compare `lower(trim(status))`: the file spells it three ways): into the first with a plain `INSERT`, into the second with `DELETE` of that day and then `INSERT`, in one transaction. Run the whole backfill a second time, as you would after a crash, and print the row count and total revenue of both tables after each run.
 >
 > **You should see:** after the first run both tables hold `3` rows and `100360000`. After the second run the plain-`INSERT` table holds `6` rows and `200720000`, every day counted twice, while the replace-the-day table still holds `3` and `100360000`. (Compare only `status <> 'cancelled'` and you get `101925000`: the orders written `CANCELLED` or `Cancelled` slip through as revenue.) That second table is what step 6 of the runbook reconciles against. Measured with DuckDB 2.0.1 on the course's default data.
+
+:::ask In a docker-compose file the app has `depends_on: postgres`. Why can it still fail with 'connection refused' at start-up?
+@options
+* depends_on waits for the start, not for readiness
+depends_on only works with Python containers
+Postgres refuses connections from other containers
+@why
+A started container is not a ready service. Add a healthcheck to Postgres and use `condition: service_healthy` so the app starts only once the database answers.
+:::
 
 ## @lab Lab: a daily pipeline in Dagster, tested like software
 Build the KopiKu daily pipeline as Dagster assets: clean orders per day, compute daily revenue, a report over all days, checks, a retry policy, and a Jakarta-time schedule. The tests exercise it with the real orchestration engine against temporary folders.

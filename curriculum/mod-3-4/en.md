@@ -36,6 +36,15 @@ IaC tools come in two styles. An **imperative** script says *how*: "create a buc
 >
 > **You should see:** `[('create', 'curated-bucket'), ('update', 'raw-bucket'), ('destroy', 'old-bucket')]` and then `[]`. The second run finds nothing to do: that is what "safe to run twice" means, and it is the heart of `terraform plan` and `apply`. The `destroy` line is the one a careful reviewer reads twice.
 
+:::ask Why is a change to infrastructure written as code and reviewed in a pull request safer than a click in the console?
+@options
+* a colleague reads it first and Git keeps history
+the console is always much slower than code
+code can never contain any mistakes at all
+@why
+Reviewable, repeatable and auditable are the three gains. The same files build dev and prod, and the history shows who changed which permission and when.
+:::
+
 ## @lesson Terraform in practice
 A Terraform project is a folder of `.tf` files written in HCL, a small configuration language. The pieces you will use constantly:
 
@@ -93,6 +102,15 @@ Dev and prod usually share the same code with different variable files; in the l
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
 > 4. **Success Indicator:** All tests in `TestHygiene` report `PASSED` (or cleanly skip if the Terraform CLI is not installed), verifying HCL formatting, valid syntax, and rejection of invalid environment names.
+
+:::ask What does the Terraform state file hold?
+@options
+a copy of all the data in your buckets
+* a map from your code's resources to real objects
+the passwords of the users of your cloud
+@why
+Without state, Terraform could not tell 'create this' from 'this already exists'. It compares your code, the state and reality to build the plan. Keep it in a shared, locked, access-controlled place.
+:::
 
 ## @lesson Securing the lakehouse
 The lab builds the storage layer of the lakehouse from Module 2.2, with four protections that every company that holds customer data expects.
@@ -343,6 +361,35 @@ jobs:
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Success Indicator:** All 15 tests report `PASSED` in milliseconds in pure Python, proving query outlier detection, monthly budget forecasting, and storage tiering trade-offs work accurately.
 
+:::drill python Forecast the month
+Write `forecast_month(daily_costs, days_in_month)`: `daily_costs` is the list of costs so far this month, one per day. Project the rest of the month with the **average of the last 7 days** (or of all days, if there are fewer than 7). Return the spend so far plus that average times the days still to come.
+@starter
+# write your function below this line
+
+@check
+defines("forecast_month") ## Define forecast_month(daily_costs, days_in_month).
+forecast_month([10] * 10, 30) == 300 ## Steady 10 per day: 100 so far + 20 days × 10.
+forecast_month([10] * 7 + [20] * 7, 30) == 530 ## 210 so far; the last 7 days average 20, and 16 days remain: 210 + 320.
+forecast_month([10, 20], 30) == 450 ## Fewer than 7 days: average all of them (15), 28 days remain: 30 + 420.
+forecast_month([10] * 30, 30) == 300 ## The month is over: nothing left to project.
+@hint
+`recent = daily_costs[-7:]`, `avg = sum(recent) / len(recent)`, then `sum(daily_costs) + avg * (days_in_month - len(daily_costs))`.
+@solution
+def forecast_month(daily_costs, days_in_month):
+    recent = daily_costs[-7:]
+    avg = sum(recent) / len(recent)
+    return sum(daily_costs) + avg * (days_in_month - len(daily_costs))
+:::
+
+:::ask Which guardrail stops a runaway cross join on Friday night before the weekend bill grows?
+@options
+a budget report emailed at the month end
+a reminder in the team chat to be careful
+* a statement timeout on warehouses and accounts
+@why
+Controls must be automatic: a one-hour timeout kills the query by itself. A month-end report is an autopsy, and reminders depend on people at 22:30 on a Friday.
+:::
+
 ## @lesson Under the cloud: storage speeds, network charges and choosing technology
 > **In short:** The cloud is still made of disks, memory and network cables, and each layer down is many times slower than the one above it. Moving data between zones, regions and the internet is billed per gigabyte, and on a busy cluster that can cost more than the computing. When you choose a technology, count the engineering time it will eat as well as the bill, and prefer decisions you can undo.
 
@@ -403,6 +450,15 @@ These ideas from chapter 3 of the book come up in every system design interview,
 > 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: for `num_services` services called one after another, each available `service_sla` of the time (for example `0.999`), return `combined_sla` rounded to 6 decimals, `monthly_downtime_min` in a 30-day month (43,200 minutes) rounded to 1 decimal, and `needs_continuous_cdc`: `True` when the backups are further apart than the target RPO allows (section 4 of lesson 6).
 >
 > **Check it:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
+:::ask A cluster in three zones shuffles 50 TB a day. Why can this be a surprising line on the bill?
+@options
+* two thirds of data crosses zones, and is charged
+traffic inside a single region is always free
+shuffles are billed only on the first day
+@why
+Traffic between zones costs money (in the lesson $0.02 per GB crossing). 33,000 GB at that rate is a real daily cost that no query plan shows. Keep chatty jobs inside one zone when you can.
+:::
 
 ## @part Optional: apply it for real
 

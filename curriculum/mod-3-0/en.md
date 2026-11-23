@@ -38,6 +38,15 @@ A second idea runs through all of it: **move the computation to the data, not th
 >
 > **You should see:** roughly `150` lost blocks with one copy (130 to 162 across the seeds), roughly `15` with two copies (11 to 17), and `0` to `3` with three. The expected values are 150, 15.8 and 0.9. Each extra copy cuts the losses by about a factor of ten, which is why HDFS defaults to three copies on cheap machines.
 
+:::ask A cluster has 4,000 machines with 12 disks each. Why must Hadoop assume that failures are normal?
+@options
+cluster disks are cheap and never last long
+* with so many disks, one fails about every day
+the network corrupts every file that it carries
+@why
+If one disk fails once every few years, 48,000 disks fail about every day. At that scale failure is routine, so storage must keep copies and jobs must be re-runnable.
+:::
+
 ## @lesson HDFS: a file system made of many machines
 The Hadoop Distributed File System stores huge files on ordinary machines. A **file** is cut into **blocks** of a fixed size (the default is **128 MiB**; an ordinary disk file system uses 4 KiB blocks). Every block is **replicated**: by default **three copies** on three different machines. The last block of a file is just as long as it needs to be (a 300 MiB file becomes blocks of 128, 128 and 44 MiB; the lab's `split_into_blocks` does exactly this).
 
@@ -188,6 +197,15 @@ Today Spark can run on YARN (still common on-premises), on Kubernetes (now more 
 >    `pytest labs/mod-3-0/test_lab.py -k TestYarnScheduler -v`
 > 4. **Success Indicator:** All 3 tests in `TestYarnScheduler` report `PASSED`, verifying correct container placement without mutating the input node capacity dictionary.
 
+:::ask Why did Hadoop 2 split YARN out of MapReduce?
+@options
+so MapReduce jobs would need less code
+so HDFS could store files without any blocks
+* so the cluster could run more than MapReduce
+@why
+YARN only manages resources (memory and CPU in containers). Once that is separate, Spark, Hive on Tez and others can share the same machines with MapReduce.
+:::
+
 ## @lesson Hive: SQL over files
 Writing MapReduce in Java for every question was slow work. **Hive** (from Facebook, around 2008) lets you write **SQL**; Hive translates it into jobs. The key idea is that a Hive table is not a special storage format. It is a **description laid over files** in HDFS: a table name, a list of columns and types, and the folder where the files live.
 
@@ -200,6 +218,15 @@ The Hive Metastore survived all of this, and it is the part you will most likely
 > 🛠 **Try it (10 min, Python).** Run `pip install duckdb`. Make the folder `orders/dt=2026-01-15/` with two CSV files that both have the header `id,amount`. `a.csv` holds the rows `1,100` and `2,250`; `b.csv` holds `3,n/a` and `4,400` (someone else's job wrote a wrong value). Treat the folder as a Hive-style table: query `count(*)` and `sum(amount)` with `read_csv('orders/*/*.csv', header=true, columns={'id':'INTEGER','amount':'INTEGER'})`. Then run the same query again with `ignore_errors=true` added to `read_csv`.
 >
 > **You should see:** the first query fails with a `ConversionException` that names the bad line, and only now, at read time, not when `b.csv` was written (schema on read). With `ignore_errors=true` it returns `(3, 750)`: the row with `n/a` vanished and the sum is wrong without any warning. Which of the two behaviours would you rather have in production, and which contract (Module 2.5) would have caught the bad file at the door?
+
+:::ask Where does Hive keep a table's schema and the list of its partitions?
+@options
+* in the Hive Metastore, a small database
+inside every data file, repeated per row
+in the block map held by the NameNode
+@why
+A Hive table is only a description laid over files. The Metastore stores the schema, location, format and partitions, which is why Spark, Trino and others still use it today.
+:::
 
 ## @lesson Why Spark and the lakehouse replaced most of it, and what remains
 Three changes together explained the shift:
@@ -229,6 +256,15 @@ A translation table for interviews:
 > 🛠 **Try it (10 min, Python).** Compare two ways to run an iterative job. Write 500,000 random integers (1 to 1000) to a text file, one per line. Version A re-reads and re-parses the whole file in **every** pass (the MapReduce habit); version B reads it once and keeps the list in memory (the Spark habit). Each pass does the same small update, `x = (x + sum(vals) / len(vals)) / 2`, starting from `x = 500.0`. Time both for 1 pass and for 10 passes and check that the final `x` is identical.
 >
 > **You should see:** the same `x` from both versions (about `500.17` after 10 passes). With 1 pass they take about the same time; with 10 passes version A is around 800 ms and version B around 115 ms, roughly seven times faster, because B pays the cost of reading once. The exact times depend on your machine; the pattern does not.
+
+:::ask Which change helped Spark outrun MapReduce on multi-step and iterative work?
+@options
+it stores each intermediate result on tape
+* it keeps intermediate data in memory as one graph
+it runs each step on a single machine
+@why
+MapReduce writes to disk between every job in a chain. Spark plans the whole job as a graph and keeps intermediate data in memory, so repeated passes over the same data are far faster.
+:::
 
 ## @lab Lab: HDFS, MapReduce and YARN in miniature
 Build three small, deterministic models in plain Python: HDFS block splitting, rack-aware replica placement, failure and the small-files arithmetic; a MapReduce engine (map, partition, shuffle, reduce, combiner, a reduce-side join, task retries); and a toy YARN scheduler. No cluster is needed, and the tests (38) check each behaviour the lessons describe.

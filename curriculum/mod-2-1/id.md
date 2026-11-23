@@ -47,6 +47,46 @@ Dua baris terakhir tabel di atas memperlihatkan wawasan penting: data yang *sama
 >
 > **Seharusnya Anda melihat:** CSV-nya `195075` byte dan file Parquet sekitar 77.000 (angka persisnya sedikit bergeser menurut versi library), jauh di bawah separuhnya. `order_ts` adalah kolom terbesar (sekitar 37 KB: hampir setiap nilainya berbeda), `status` dan `payment_method` yang terkecil (1 sampai 2 KB: segelintir nilai yang berulang), dan `status` ditambah `total_idr` sekitar 9% dari byte Parquet.
 
+:::ask Sebuah tabel punya 50 kolom dan 100 juta baris. Sebuah query hanya menjumlahkan kolom `amount`. Tata letak mana yang membaca data paling sedikit?
+@options
+* tata letak kolom: hanya membaca nilai amount
+tata letak baris: membaca tiap rekaman utuh
+keduanya sama, ukuran file-nya sama besar
+@why
+Penyimpanan kolom menyatukan semua nilai satu kolom, jadi mesin hanya membaca byte kolom itu (sekitar 1/50 tabel). Tata letak baris harus membaca setiap baris utuh untuk sampai ke satu field.
+:::
+
+:::trace Dari baris ke kolom
+@code
+rows = [(1, "paid", 150), (2, "cancelled", 90), (3, "paid", 25)]
+ids = [r[0] for r in rows]
+statuses = [r[1] for r in rows]
+amounts = [r[2] for r in rows]
+print(sum(amounts))
+@notes
+1 | **Tata letak baris**: setiap tuple adalah satu rekaman utuh. Untuk menjumlahkan satu field, kamu tetap melewati setiap rekaman.
+2 | **Tata letak kolom, langkah 1**: semua id berdampingan.
+4 | **Tata letak kolom, langkah 3**: semua amount berdampingan. Query total hanya menyentuh daftar ini.
+5 | Penjumlahan membaca satu daftar dan mengabaikan dua lainnya. Data sama, urutan di disk berbeda.
+:::
+
+:::drill python Baris ke kolom
+Tulis `to_columns(rows, names)`: `rows` adalah daftar tuple, `names` nama kolom. Kembalikan dictionary yang memetakan tiap nama ke daftar nilai kolom itu, sesuai urutan baris.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("to_columns") ## Definisikan to_columns(rows, names).
+to_columns([(1, "a"), (2, "b")], ["id", "tag"]) == {"id": [1, 2], "tag": ["a", "b"]} ## Tiap nama mendapat daftar kolomnya.
+to_columns([], ["x"]) == {"x": []} ## Tanpa baris: setiap kolom berupa daftar kosong.
+to_columns([(5, 6, 7)], ["a", "b", "c"]) == {"a": [5], "b": [6], "c": [7]} ## Berlaku untuk jumlah kolom berapa pun.
+@hint
+`{name: [row[i] for row in rows] for i, name in enumerate(names)}`
+@solution
+def to_columns(rows, names):
+    return {name: [row[i] for row in rows] for i, name in enumerate(names)}
+:::
+
 ## @lesson Membedah jeroan file Apache Parquet
 **Apache Parquet** adalah standar terbuka format file kolumnar untuk dunia analitik, yang didukung langsung oleh DuckDB, Polars, Spark, pandas, Snowflake, BigQuery, dan hampir seluruh platform data modern. File Parquet memiliki arsitektur hierarkis berlapis:
 
@@ -112,6 +152,15 @@ Prinsip penting yang harus menjadi kebiasaan kerja Anda: **nyatakan logika trans
 > 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB atas `range(2000000) t(x)`. Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
 >
 > **Seharusnya Anda melihat:** kedua jawaban bernilai `1333332666666`; loop-nya butuh sekitar 160 ms dan DuckDB sekitar 20 ms. Rasio persisnya tergantung mesin Anda (harapkan antara 5 dan 15 kali), tetapi arahnya tidak pernah berubah: logika yang sama sebagai satu operasi kolom mengalahkan loop baris demi baris.
+
+:::ask Sebuah job melakukan `for` loop Python atas 10 juta baris untuk menambah 1 pada tiap harga. Kebiasaan mana yang lebih baik?
+@options
+pertahankan loop dan jalankan di mesin lebih besar
+* tulis satu ekspresi seluruh kolom untuk mesin
+ubah harga ke teks agar penambahan lebih mudah
+@why
+Operasi seluruh kolom menjalankan loop di dalam kode terkompilasi atas memori yang berurutan, sering puluhan kali lebih cepat daripada loop Python yang membayar overhead interpreter per nilai.
+:::
 
 ## @part Alat dan tata letak
 
@@ -246,6 +295,15 @@ DuckDB dan Polars saling terhubung erat melalui format memori Apache Arrow, sehi
 > `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
 > 4. Pastikan seluruh 3 pengujian engine lulus (`3 passed`). Amati bagaimana dua mesin berbeda (DuckDB dan Polars) menghasilkan output yang 100% identik dengan hasil independen SQLite.
 
+:::ask Di Polars kamu menulis `scan_parquet(...).filter(...).select(...)` dan sepertinya tidak terjadi apa-apa. Mengapa?
+@options
+filenya kosong, jadi tidak ada yang dijalankan
+ia menunggu thread latar belakang memuat data
+* ia hanya membangun rencana; collect() menjalankannya
+@why
+Itulah lazy evaluation: rantai itu mendeskripsikan kerja, dan `.collect()` memicunya. Karena optimizer melihat seluruh rencana, ia bisa mendorong filter ke dalam scan dan hanya membaca kolom yang dipilih.
+:::
+
 ## @lesson Tata letak partisi, tipe data, dan jebakan umum
 **Partisi Direktori (Partitioning).** Membagi data ke dalam sub-folder berdasarkan nilai kolom tertentu (`month=2026-01/`) memungkinkan mesin query melewati seluruh folder yang tidak relevan saat ada filter pada kolom tersebut (partition pruning). Panduan praktis: partisi data hanya pada **kolom ber-kardinalitas rendah yang rutin difilter** (seperti tanggal atau wilayah), jangan pernah partisi pada ID transaksi; hindari pembagian partisi yang melahirkan ribuan file mini; dan prioritaskan **pengurutan data di dalam file** untuk kolom ber-kardinalitas tinggi karena statistik row group Parquet dapat menanganinya dengan sangat efisien. Partisi berlebihan (*over-partitioning*) adalah kesalahan paling umum data engineer pemula.
 
@@ -263,6 +321,24 @@ Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena memat
 > `pytest labs/mod-2-1 -v`
 > 2. Pastikan ke-10 pengujian lulus sempurna tanpa hambatan (`10 passed`).
 > 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
+
+:::ask Tabelmu berisi data harian 5 tahun, dan query hampir selalu memfilter satu tanggal. Kolom partisi mana yang masuk akal?
+@options
+* tanggal atau bulan, yang dipakai untuk filter
+id pesanan, sehingga tiap baris punya folder
+nama pelanggan, karena paling deskriptif
+@why
+Partisi pada kolom yang kamu filter dan yang jumlah nilainya wajar. Id akan membuat jutaan folder dan file kecil, yaitu masalah file kecil lagi.
+:::
+
+:::ask Sebuah pipeline menyimpan uang sebagai floating point. Total pendapatan kadang menjadi 0.30000000000000004, bukan 0.3. Apa perbaikannya?
+@options
+bulatkan setiap nilai ke 12 desimal saat dibaca
+* bilangan bulat rupiah atau sen, atau DECIMAL
+ganti ke floating point 128-bit yang lebih besar
+@why
+Float biner tidak bisa menyatakan kebanyakan pecahan desimal dengan tepat, sehingga galat menyelinap. Bilangan bulat dalam satuan mata uang terkecil, atau DECIMAL, bersifat eksak.
+:::
 
 ## @lesson Matriks serialisasi & kompresi (Lampiran A) serta arsitektur internal NoSQL (LSM-Tree vs. B-Tree) {optional}
 
@@ -319,6 +395,15 @@ Dua nama lama yang akan Anda temui di pekerjaan brownfield: **RAID** menggabungk
 > 🛠 **Coba sendiri (15 menit, Python dengan `boto3` dan `moto[s3]`).** Di dalam `with mock_aws():` (S3 palsu milik moto yang berjalan di proses, tanpa akun), buat bucket dan simpan 1.500 objek kecil di bawah `raw/2026-01/`. Hitung request API dengan `s3.meta.events.register("before-call.s3", counter)`, lalu "rename folder"-nya menjadi `archive/2026-01/`: list key-nya (dengan paginator), salin setiap objek ke key barunya, dan hapus yang lama dengan `delete_objects` (paling banyak 1.000 key per panggilan). Lakukan hal yang sama dengan 1.500 file di disk Anda sendiri dan `os.rename`.
 >
 > **Seharusnya Anda melihat:** `1504` request untuk object store (`2` halaman list, `1500` copy, `2` batch delete), dengan `0` objek tersisa di bawah `raw/` dan `1500` di bawah `archive/`; file system cukup satu `os.rename`. Di S3 sungguhan setiap request itu ditagih dan butuh beberapa milidetik lewat jaringan, itulah sebabnya tata letak lake dirancang agar tidak ada yang pernah di-rename. Diukur dengan moto 5.2.5 dan boto3 1.44.9.
+
+:::ask Mengapa object storage mendorong lakehouse ke format tabel seperti Iceberg dan Delta?
+@options
+object storage terlalu lambat untuk tabel apa pun
+object storage hanya menerima file CSV
+* objek tak bisa diganti nama murah, jadi commit butuh log
+@why
+Menulis ke folder sementara lalu mengganti namanya bekerja di file system, tetapi di object storage rename menyalin setiap objek. Format tabel menyelesaikan perubahan dengan menulis satu file metadata kecil.
+:::
 
 ## @lab Lab: konversi CSV ke Parquet, dua mesin analitik, dan implementasi pushdown
 Konversikan tabel operasional KopiKu ke dalam format Parquet terkompresi, jawab pertanyaan bisnis yang sama menggunakan SQL di DuckDB dan lazy dataframe di Polars (buktikan kedua mesin menghasilkan angka omset yang identik dengan verifikasi independen SQLite), serta implementasikan logika predicate pushdown sendiri langsung dari metadata footer Parquet. Terakhir, lakukan pengujian benchmark mandiri pada data berskala lebih besar untuk membandingkan performa ketiga alat.

@@ -36,6 +36,15 @@ Gunakan Spark hanya ketika hasil pengukuran metrik membuktikan bahwa satu mesin 
 >
 > **Seharusnya Anda melihat:** untuk job yang sangat kecil, satu proses butuh sekitar 0,2 ms dan pool sekitar 20 ms, kira-kira seratus kali *lebih lambat*; untuk job besar, satu proses butuh sekitar 780 ms dan pool sekitar 235 ms, kira-kira tiga kali lebih cepat dengan 4 worker. Menyalakan worker dan mengirim task memakan biaya tetap, jadi paralel hanya menang jika setiap task cukup besar untuk membayarnya.
 
+:::ask Sebuah CSV 5 GB perlu group-by harian. Rekan menyarankan menyalakan klaster Spark 20 node. Apa balasan pertama yang terbaik?
+@options
+ya, selalu pakai alat terbesar yang tersedia
+pecah CSV secara manual menjadi 20 file kecil
+* coba DuckDB atau Polars di satu mesin dulu
+@why
+Satu mesin modern menangani puluhan gigabyte dengan nyaman. Klaster menambah waktu start, shuffle lewat jaringan, dan biaya operasi, jadi pakai saat satu mesin benar-benar tidak sanggup.
+:::
+
 ## @lesson Arsitektur: driver, executor, stage, dan task
 Sebuah aplikasi Apache Spark (**Spark Application**) terdiri dari komponen runtime utama:
 
@@ -59,6 +68,15 @@ Cara kerja kode PySpark: Anda menulis ekspresi DataFrame atau query SQL di Pytho
 > 🛠 **Coba sendiri (15 menit, Python).** Modelkan job dua stage dengan tangan: total `total_idr` per `payment_method` dari `data/orders.csv` (ambil hanya baris yang totalnya berupa digit semua, 3.580 baris). **Stage 1:** bagi barisnya menjadi 8 partisi dengan `rows[i::8]`; setiap task menghitung jumlah sebagian per metode pembayaran untuk partisinya sendiri. **Shuffle:** kirim setiap jumlah sebagian ke salah satu dari 4 partisi reduce yang dipilih dengan `zlib.crc32(key.encode()) % 4`. **Stage 2:** setiap dari 4 task reduce menjumlahkan jumlah sebagian yang diterimanya. Hitung task di setiap stage dan record yang melewati shuffle, lalu bandingkan hasilnya dengan `groupby` pandas.
 >
 > **Seharusnya Anda melihat:** `8` task di stage 1, `4` di stage 2, hanya `32` record yang di-shuffle alih-alih 3.580 (jumlah sebagian dihitung sebelum shuffle), dan hasil yang sama dengan pandas: `bank_transfer 303975000`, `card 312380000`, `cod 302230000`, `ewallet 291140000`. Keempat partisi reduce memuat `[1, 0, 1, 2]` key: satu task reduce tidak mendapat pekerjaan, miniatur dari masalah ukuran partisi di atas.
+
+:::ask Di Spark UI sebuah stage menunjukkan 200 task. Apa itu task?
+@options
+* kerja atas satu partisi, pada satu core
+satu pernyataan SQL di notebook-mu
+satu mesin utuh di dalam klaster
+@why
+Driver memotong sebuah stage menjadi satu task per partisi. Executor menjalankan task secara paralel, satu per core, jadi partisi yang lebih banyak daripada core hanya mengantre.
+:::
 
 ## @lesson Lazy evaluation, transformasi narrow dan wide
 Operasi komputasi di Apache Spark terbagi menjadi dua kategori fundamental:
@@ -94,6 +112,47 @@ Dua kaidah emas performa: (1) action mahal pada DataFrame yang tidak di-cache ak
 >    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
 > 4. **Indikator Sukses:** Sebanyak 3 pengujian berstatus `PASSED`, memvalidasi bahwa transformasi narrow menghasilkan 0 exchange, group-by memicu 1 exchange, dan sort-merge join membutuhkan 2 exchange.
 
+:::trace Malas sampai ada action
+@code
+class Plan:
+    def __init__(self, data, steps=()):
+        self.data, self.steps = data, steps
+    def filter(self, fn):
+        return Plan(self.data, self.steps + (("filter", fn),))
+    def map(self, fn):
+        return Plan(self.data, self.steps + (("map", fn),))
+    def collect(self):
+        out = self.data
+        for kind, fn in self.steps:
+            out = [x for x in out if fn(x)] if kind == "filter" else [fn(x) for x in out]
+        return out
+p = Plan([1, 2, 3, 4]).filter(lambda x: x > 1).map(lambda x: x * 10)
+print(len(p.steps))
+print(p.collect())
+@notes
+12 | Dua **transformasi**. Belum ada yang dihitung: rencana hanya menyimpan dua langkah tercatat. Belum ada angka yang dikalikan.
+13 | Rencana punya 2 langkah dan belum ada hasil. Inilah sebabnya salah ketik di sebuah transformasi bisa baru gagal kemudian.
+14 | **Action** `collect` akhirnya menjalankan langkah tercatat, berurutan, atas data: filter menyisakan 2, 3, 4; map menghasilkan 20, 30, 40.
+:::
+
+:::ask Pemanggilan Spark mana yang memicu komputasi sungguhan?
+@options
+filter(...), karena ia membaca beberapa baris
+* count(), action yang butuh hasil
+select(...), karena ia memilih beberapa kolom
+@why
+`filter`, `select`, `withColumn`, `join`, dan `groupBy` adalah transformasi yang hanya membangun rencana. Action seperti `count`, `collect`, `show`, dan `write` membuat Spark menjalankannya.
+:::
+
+:::ask Sebuah `groupBy` yang diikuti sum adalah transformasi lebar. Apa arti 'lebar' bagi biayanya?
+@options
+setiap baris dibaca dua kali dari disk
+hasilnya butuh memori dua kali dari input
+* baris berkunci sama harus pindah: shuffle
+@why
+Transformasi sempit (filter, select) bekerja pada tiap partisi sendiri. Yang lebar membutuhkan semua baris satu kunci di tempat yang sama, sehingga data melewati jaringan: shuffle yang mahal dan stage baru.
+:::
+
 ## @lesson Sang pengoptimal: Catalyst, Tungsten, dan Adaptive Query Execution (AQE)
 Baik Anda menulis query menggunakan DataFrame API maupun Spark SQL murni, seluruh instruksi melewati engine internal yang sama melalui tiga pilar teknologi:
 
@@ -106,6 +165,15 @@ Keahlian membaca physical plan adalah kompetensi wajib data engineer senior: gun
 > 🛠 **Coba sendiri (10 menit, Python).** DuckDB punya optimizer dengan gagasan pushdown yang sama. Simpan `orders.parquet` seperti di Modul 2.1 dan jalankan `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, lalu cetak teks rencananya (`.fetchall()[0][1]`). Lalu jelaskan `SELECT * FROM 'orders.parquet'`. Temukan node scan di keduanya dan baca `Projections` dan `Filters`-nya.
 >
 > **Seharusnya Anda melihat:** di rencana pertama scan Parquet hanya mencantumkan `payment_method` di bawah `Projections` dan `status='delivered'` di bawah `Filters`: optimizer mendorong keduanya ke dalam scan, sehingga kolom lain tidak pernah dibaca dan baris difilter saat dibaca. Di rencana kedua scan memproyeksikan keenam kolom dan tidak punya filter. `explain("formatted")` milik Spark menampilkan gagasan yang sama sebagai `PushedFilters` dan `ReadSchema`.
+
+:::ask Pada keluaran `explain()` filter muncul di dalam node scan file. Apa artinya?
+@options
+* filter didorong ke bawah: lebih sedikit data dibaca
+filter diabaikan oleh seluruh mesin
+query hanya akan berjalan di mesin driver
+@why
+Predicate pushdown membuat scan melewati data (misalnya row group Parquet) yang tidak mungkin cocok, sebelum dibaca. Filter yang muncul di atas scan berarti semua data dibaca lebih dulu.
+:::
 
 ## @part Join, skew, dan tuning
 
@@ -139,6 +207,15 @@ Aturan praktis lapangan: **jika salah satu tabel berukuran kecil, lakukan broadc
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-1/test_lab.py -k test_a_broadcast_join_does_not_shuffle_the_big_table -v`
 > 4. **Indikator Sukses:** Pengujian berstatus `PASSED`, membuktikan terbentuknya node `BroadcastHashJoin` pada physical plan dengan 0 exchange pada tabel besar.
+
+:::ask Kamu melakukan join 3 juta event dengan tabel customers 1.001 baris. Bagaimana membuat join lebih murah?
+@options
+shuffle kedua sisi, yang selalu paling cepat
+* broadcast tabel kecil, lewati shuffle besar
+urutkan tabel kecil sebelum join
+@why
+Broadcast join mengirim tabel kecil ke setiap executor, dan tabel besar tetap di tempatnya. Di lab ini memakan sekitar seperempat waktu sort-merge join yang mengacak kedua sisi.
+:::
 
 ## @lesson Data skew: ketika satu task memikul seluruh beban komputasi
 Operasi shuffle memetakan seluruh baris data yang memiliki nilai hash key yang sama ke dalam satu partisi yang sama. Jika nilai key di dunia nyata **terdistribusi secara tidak merata** (**data skew**), satu partisi akan menerima volume data yang jauh lebih masif dibandingkan partisi lainnya. Karena durasi total sebuah stage ditentukan oleh **task yang paling lambat (straggler)**, maka keseluruhan stage akan tertahan menunggu satu task tersebut sementara ratusan CPU cores lainnya menganggur. Gejala klasiknya di Spark UI: indikator progres stage menunjukkan status "199 of 200 tasks complete" dan tersangkut di angka tersebut selama berjam-jam.
@@ -267,6 +344,15 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 > 🛠 **Coba sendiri (15 menit, Python).** Lihat masalah file kecil. Ulangi baris `data/orders.csv` 30 kali (sekitar 109.000 baris) dengan `pd.concat([df] * 30)`. Tulis sekali sebagai `sf/one/all.parquet`, dan sekali lagi dipotong menjadi 1.000 bagian sebagai `sf/many/p0000.parquet` dan seterusnya. Bandingkan total byte di setiap folder, dan ukur waktu `SELECT count(*) FROM read_parquet('<folder>/*.parquet')` di DuckDB untuk keduanya. Hapus `sf/` setelahnya.
 >
 > **Seharusnya Anda melihat:** kedua folder menjawab `109020`, tetapi 1.000 file kecil memakan sekitar 7,4 MB dibanding sekitar 0,4 MB untuk satu file (kompresi dan overhead per file sama-sama dirugikan), dan query atasnya puluhan kali lebih lambat (sekitar 60 ms dibanding 1,5 ms di sini). Setiap file memakan biaya listing, membuka, dan membaca footer, itulah sebabnya klaster yang menulis ribuan file kecil butuh compaction.
+
+:::ask Sebuah job Spark memakai UDF Python untuk mengubah satu kolom 100 juta baris menjadi huruf besar, dan sangat lambat. Apa perbaikan yang baik?
+@options
+beri UDF lebih banyak executor, tanpa yang lain
+panggil UDF dua kali agar cache menghangat
+* pakai F.upper bawaan di dalam JVM
+@why
+UDF Python mengirim setiap baris keluar dari JVM ke proses Python dan kembali. Fungsi bawaan tetap di dalam mesin, tempat optimizer bisa melihatnya dan tidak terjadi serialisasi.
+:::
 
 ## @part Spark di produksi dengan Databricks
 

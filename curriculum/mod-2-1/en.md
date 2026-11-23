@@ -47,6 +47,46 @@ The last two rows show something important: the *same* data, in a different row 
 >
 > **You should see:** the CSV is `195075` bytes and the Parquet file roughly 77,000 (the exact number moves a little with the library version), well under half. `order_ts` is the biggest column (about 37 KB: almost every value is different), `status` and `payment_method` are the smallest (1 to 2 KB: a handful of repeated values), and `status` plus `total_idr` are about 9% of the Parquet bytes.
 
+:::ask A table has 50 columns and 100 million rows. A query only adds up the `amount` column. Which layout reads the least data?
+@options
+* column layout: reads only the amount values
+row layout: reads each full record in order
+both read the same, the files are equally big
+@why
+Column storage keeps all values of one column together, so the engine reads just that column's bytes (about 1/50 of the table). A row layout has to read every whole row to reach one field in each.
+:::
+
+:::trace From rows to columns
+@code
+rows = [(1, "paid", 150), (2, "cancelled", 90), (3, "paid", 25)]
+ids = [r[0] for r in rows]
+statuses = [r[1] for r in rows]
+amounts = [r[2] for r in rows]
+print(sum(amounts))
+@notes
+1 | **Row layout**: each tuple is one whole record. To total one field you still have to step through every record.
+2 | **Column layout, step 1**: all the ids side by side.
+4 | **Column layout, step 3**: all the amounts side by side. A query for the total touches only this list.
+5 | The sum reads one list and ignores the other two. Same data, a different order on disk.
+:::
+
+:::drill python Rows to columns
+Write `to_columns(rows, names)`: `rows` is a list of tuples, `names` the column names. Return a dictionary that maps each name to the list of that column's values, in row order.
+@starter
+# write your function below this line
+
+@check
+defines("to_columns") ## Define to_columns(rows, names).
+to_columns([(1, "a"), (2, "b")], ["id", "tag"]) == {"id": [1, 2], "tag": ["a", "b"]} ## Each name gets the list of its column.
+to_columns([], ["x"]) == {"x": []} ## No rows: every column is an empty list.
+to_columns([(5, 6, 7)], ["a", "b", "c"]) == {"a": [5], "b": [6], "c": [7]} ## It works for any number of columns.
+@hint
+`{name: [row[i] for row in rows] for i, name in enumerate(names)}`
+@solution
+def to_columns(rows, names):
+    return {name: [row[i] for row in rows] for i, name in enumerate(names)}
+:::
+
 ## @lesson Inside a Parquet file
 **Apache Parquet** is the standard open columnar file format for analytics, read by DuckDB, Polars, Spark, pandas, Snowflake, BigQuery and almost every other tool. A Parquet file has a layered structure:
 
@@ -112,6 +152,15 @@ The practical takeaway is not the mechanism but the habit: **express work as who
 > 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query over `range(2000000) t(x)`. Time each with `time.perf_counter()` and check that the two answers are equal.
 >
 > **You should see:** both answers are `1333332666666`; the loop takes roughly 160 ms and DuckDB roughly 20 ms. The exact ratio depends on your machine (expect somewhere between 5 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
+
+:::ask A job loops over 10 million rows in a Python `for` loop to add 1 to each price. What is the better habit?
+@options
+keep the loop and run it on a bigger machine
+* write one whole-column expression for the engine
+convert the prices to text so adding is simpler
+@why
+A whole-column operation runs the loop inside compiled code over contiguous memory, often tens of times faster than the Python loop, which pays interpreter overhead per value.
+:::
 
 ## @part Tools and layout
 
@@ -246,6 +295,15 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 > `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
 > 4. Ensure all 3 engine tests pass (`3 passed`). Observe how two distinct modern engines (DuckDB and Polars) produce 100% identical outputs matching independent SQLite calculations.
 
+:::ask In Polars you write `scan_parquet(...).filter(...).select(...)` and nothing seems to happen. Why?
+@options
+the file is empty, so there is nothing to run
+it waits for a background thread to load data
+* it only builds a plan; collect() runs it
+@why
+That is lazy evaluation: the chain describes work, and `.collect()` triggers it. Because the optimiser sees the whole plan, it can push the filter into the scan and read only the selected columns.
+:::
+
 ## @lesson Layout, types and the traps to avoid
 **Partitioning.** Splitting data into folders by a column's value (`month=2026-01/`) lets an engine skip entire folders when you filter on that column (partition pruning). Rules: partition on a **low-cardinality column that queries filter on** (date, region), not on ids; avoid partitions that produce tiny files (100 customers x 365 days = tens of thousands of small files); and prefer **sorting within files** for high-cardinality filters, since row group statistics handle those. Over-partitioning is the most common mistake.
 
@@ -263,6 +321,24 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 > `pytest labs/mod-2-1 -v`
 > 2. Ensure all 10 tests pass cleanly without errors (`10 passed`).
 > 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
+
+:::ask Your table has 5 years of daily data, and queries almost always filter on one date. Which partition column is the sensible choice?
+@options
+* the date or month, which queries filter on
+the order id, so each row gets a folder
+the customer name, since it is descriptive
+@why
+Partition on a column you filter by and that has a modest number of values. An id would create millions of tiny folders and files, which is the small-files problem again.
+:::
+
+:::ask A pipeline stores money as floating point. Total revenue sometimes comes out as 0.30000000000000004 instead of 0.3. What is the fix?
+@options
+round every value to 12 decimals when read
+* integer rupiah or cents, or a fixed DECIMAL
+switch to a larger 128-bit floating point
+@why
+Binary floats cannot represent most decimal fractions exactly, so errors creep in. Integers in the smallest currency unit, or DECIMAL, are exact.
+:::
 
 ## @lesson Serialization & compression matrix (Appendix A) and NoSQL storage internals (LSM-Tree vs. B-Tree) {optional}
 
@@ -319,6 +395,15 @@ Two older names you will meet in brownfield jobs: **RAID** combines several disk
 > 🛠 **Try it (15 min, Python with `boto3` and `moto[s3]`).** Inside `with mock_aws():` (moto's in-process fake S3, no account needed), create a bucket and put 1,500 small objects under `raw/2026-01/`. Count the API requests with `s3.meta.events.register("before-call.s3", counter)`, then "rename the folder" to `archive/2026-01/`: list the keys (with the paginator), copy each object to its new key, and delete the old ones with `delete_objects` (at most 1,000 keys per call). Do the same with 1,500 files on your own disk and `os.rename`.
 >
 > **You should see:** `1504` requests for the object store (`2` list pages, `1500` copies, `2` batch deletes), with `0` objects left under `raw/` and `1500` under `archive/`; the file system needs one `os.rename`. On real S3 each of those requests is billed and takes milliseconds over the network, which is why lake layouts are designed so that nothing is ever renamed. Measured with moto 5.2.5 and boto3 1.44.9.
+
+:::ask Why did object storage push the lakehouse toward table formats such as Iceberg and Delta?
+@options
+object storage is too slow to hold any table
+object storage accepts only CSV files
+* objects cannot be renamed cheaply, so commits need a log
+@why
+Writing to a temporary folder and renaming it works on a file system, but on object storage a rename copies every object. A table format commits a change by writing one small metadata file instead.
+:::
 
 ## @lab Lab: from CSV to Parquet, two engines, and pushdown by hand
 Convert the KopiKu tables to Parquet, answer the same business question with DuckDB and with Polars (and prove both give the independently calculated answer), and implement predicate pushdown yourself from nothing but a Parquet footer. Then measure on a bigger dataset and compare engines.

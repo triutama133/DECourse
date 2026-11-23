@@ -38,6 +38,15 @@ Where do problems come from? Mostly **upstream and from change**, not from your 
 >
 > **You should see:** `0` empty ids; `112` bad statuses, `54` bad totals, `41` bad timestamps; `35` extra copies of an order id; `16` orders with an unknown customer; newest order `2026-01-30T23:59:00`. Which dimension would you have forgotten if the table above had not listed it?
 
+:::ask Every order row has a non-null id and a valid date, but yesterday's file holds 3,000 rows when 30,000 is normal. Which quality dimension failed?
+@options
+uniqueness: some of the ids are repeated
+* completeness: part of the data never arrived
+validity: the dates are not real dates
+@why
+Each row is valid, yet a tenth of the data is missing. Row-level checks cannot see this; it takes a dataset-level check that compares the count with what is normal.
+:::
+
 ## @lesson Defence in layers
 No single check catches everything, so quality is built as layers, each catching what the previous cannot. The principle is **shift left**: catch problems as close to the source as possible.
 
@@ -56,6 +65,15 @@ The lab builds layers 1 to 4 in miniature, in one gate.
 > 🛠 **Try it (15 min, Python).** Write a layer-2 gate for `data/orders.csv`: `gate(rows, max_reject_share)` splits the rows into accepted and rejected (a row is rejected when `total_idr` is not a plain non-negative integer or `order_ts` is not a real ISO timestamp) and raises `ValueError` when the rejected share is above `max_reject_share`. Run it with `0.05` and with `0.02`. Then run two layer-3 style checks on the *accepted* rows: extra copies of an `order_id`, and orders whose customer is not in `data/customers.csv`.
 >
 > **You should see:** `3539` accepted and `95` rejected (2.61%); the gate passes with `0.05` and raises with `0.02`. The accepted rows still contain `34` extra copies of an order id and `16` orders with an unknown customer: a gate that looks at one row at a time cannot see them, which is why the next layer exists. For each of the three findings, would you block, warn or only record?
+
+:::ask Why does 'shift left' make quality cheaper?
+@options
+it removes the need for any monitoring at all
+it moves every test to the end so they run once
+* a bad row stopped at the source never spreads
+@why
+The later a problem is found, the more tables, reports and decisions it has touched. Catching it near the source costs one fix; catching it in a dashboard costs a clean-up.
+:::
 
 ## @lesson Data contracts: write the agreement down
 A **data contract** is an explicit, versioned agreement between a data **producer** (the checkout team) and its **consumers** (the data team). Without one, the producer changes a column and finds out from an angry email a week later. With one, the change is discussed before it ships.
@@ -105,6 +123,28 @@ Contracts are not about blame; they make **expectations testable**. They work on
 > 3. Verify the contract definition in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
 > 4. **Success Indicator:** Both `TestContractFile` tests report `PASSED`, verifying schema and SLA completeness.
+
+:::drill python Check a row against a contract
+A contract says which fields are required and which type each has. Write `violations(row, contract)`: `contract` maps a field name to a type (for example `{"id": int, "email": str}`). Return a sorted list of the field names that are **missing** from `row` or have the **wrong type**. A row that obeys the contract gives `[]`.
+@starter
+# write your function below this line
+
+@check
+defines("violations") ## Define violations(row, contract).
+violations({"id": 1, "email": "a@b.c"}, {"id": int, "email": str}) == [] ## A valid row has no violations.
+violations({"id": "1", "email": "a@b.c"}, {"id": int, "email": str}) == ["id"] ## "1" is text, the contract wants int.
+violations({"id": 1}, {"id": int, "email": str}) == ["email"] ## email is missing.
+violations({}, {"b": int, "a": str}) == ["a", "b"] ## Everything missing; the list is sorted.
+@hint
+For each `name, kind` in the contract: it is a violation if `name not in row` or `not isinstance(row[name], kind)`. Return `sorted(...)`.
+@solution
+def violations(row, contract):
+    bad = []
+    for name, kind in contract.items():
+        if name not in row or not isinstance(row[name], kind):
+            bad.append(name)
+    return sorted(bad)
+:::
 
 ## @lesson The ingestion gate: strict at the door, quarantine what fails
 At the boundary, validate **strictly** against the contract and send failing rows to a **quarantine** with reasons (the pattern from Module 1.2). Strictness here is deliberate: the contract says `total_idr` is an integer, so `"Rp 1.250.000"` is a violation to report to the producer, not something to guess at. Cleaning and normalising for known messiness belongs in the staging layer (Module 2.3), where you do it explicitly and knowingly.
@@ -180,6 +220,46 @@ Practical tuning:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Success Indicator:** All 6 tests in `TestSmallChecks` report `PASSED`, proving detection resilience against outliers and drift.
 
+:::drill python Is the data stale?
+Write `is_stale(latest, now, max_hours)`: `latest` and `now` are `datetime` objects, `max_hours` a number. Return `True` when the newest data is **more than** `max_hours` old, otherwise `False`.
+@starter
+from datetime import datetime
+# write your function below this line
+
+@check
+defines("is_stale") ## Define is_stale(latest, now, max_hours).
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 8), 24) == True ## 26 hours old, limit 24.
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 5), 24) == False ## 23 hours old, fine.
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 6), 24) == False ## Exactly 24 hours is not more than 24.
+@hint
+`(now - latest).total_seconds() / 3600 > max_hours`
+@solution
+from datetime import datetime
+def is_stale(latest, now, max_hours):
+    return (now - latest).total_seconds() / 3600 > max_hours
+:::
+
+:::drill python A volume check that outliers cannot fool
+Write `volume_ok(today, history, tolerance)`: `history` is a list of past daily row counts. Return `True` when `today` is within `tolerance` (a fraction such as `0.5`) of the **median** of the history, else `False`. Use the median, not the mean: one past outage must not hide a real drop.
+@starter
+import statistics
+# write your function below this line
+
+@check
+defines("volume_ok") ## Define volume_ok(today, history, tolerance).
+volume_ok(30000, [29000, 30000, 31000], 0.5) == True ## Close to the median 30000.
+volume_ok(3000, [29000, 30000, 31000], 0.5) == False ## A tenth of normal: far outside the band.
+volume_ok(3000, [29000, 30000, 31000, 100, 28000], 0.5) == False ## One past outage (100) must not drag the median down.
+volume_ok(15000, [30000, 30000, 30000], 0.5) == True ## Exactly half is the edge of the band, still ok.
+@hint
+`m = statistics.median(history)`, then `abs(today - m) <= tolerance * m`.
+@solution
+import statistics
+def volume_ok(today, history, tolerance):
+    m = statistics.median(history)
+    return abs(today - m) <= tolerance * m
+:::
+
 ## @lesson Lineage, tools and service levels
 **Lineage** records how data flows: this dashboard reads this mart, built from these staging models, from these raw tables, loaded by this job. It answers two operational questions. *Impact analysis*: "this source is broken, which reports are affected?" *Root cause*: "this number is wrong, where did it come from?" Orchestrators and dbt produce lineage (Modules 2.3 and 2.4), and **OpenLineage** is an open standard for emitting it: each job run sends an event describing the run, the job, and its input and output datasets.
 
@@ -201,6 +281,15 @@ Practical tuning:
 >
 > **You should see:** `downstream("raw_customers")` has `6` datasets (`stg_customers`, `fct_orders`, `mart_daily`, `mart_tier`, `dashboard_revenue`, `dashboard_loyalty`), `downstream("stg_orders")` has `5`, and `upstream("dashboard_loyalty")` has `6` (`mart_tier`, `fct_orders`, `stg_orders`, `stg_customers`, `raw_orders`, `raw_customers`). The first two are *impact analysis*, the third is *root cause*.
 
+:::ask A dashboard shows a wrong number. Which question does lineage answer fastest?
+@options
+* which upstream tables and jobs feed it
+which analyst first built the dashboard
+how many rows the dashboard shows on screen
+@why
+Lineage records how data flows from raw tables through models to the dashboard. Read backwards it points to the suspects; read forwards it shows who is hit when a table is wrong.
+:::
+
 ## @lesson When it breaks: incident response
 Quality problems will reach production. What distinguishes a mature team is the response.
 
@@ -218,6 +307,15 @@ A few habits make this easier: keep a **runbook** per critical dataset (how to c
 > 3. Test gate orchestration in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.
+
+:::ask Users reported the wrong numbers before any alert fired. What does a mature team do first with that fact?
+@options
+ask the users to stop reporting problems
+* a detection gap: add a check that catches it
+turn the dashboard off for good to be safe
+@why
+How often users find problems before you do is a measure of your detection. Each such incident should end with a new check or monitor, so the same failure is caught automatically next time.
+:::
 
 ## @part Metadata, privacy and master data
 
@@ -255,6 +353,27 @@ def mask_phone(phone):
 > Decide for yourself: when two emails belong to the same person, what does "the same" mean; which record's city, tier and phone survive; and what must never appear in the output.
 > Check it: `python3 labs/tryit/check.py 2.5-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
+:::drill python Pseudonymise with a secret
+Write `pseudonymise(value, secret)`: both are strings. Return the hexadecimal HMAC-SHA256 of the value, keyed with the secret (`hmac.new(key, message, "sha256").hexdigest()`; encode both strings as UTF-8 bytes). The same value and secret must always give the same output, and a different secret a different one.
+@starter
+import hmac
+# write your function below this line
+
+@check
+defines("pseudonymise") ## Define pseudonymise(value, secret).
+pseudonymise("a@b.c", "s1") == pseudonymise("a@b.c", "s1") ## Same input, same output: you can still join on it.
+pseudonymise("a@b.c", "s1") != pseudonymise("a@b.c", "s2") ## A different secret gives a different token.
+pseudonymise("a@b.c", "s1") != pseudonymise("x@y.z", "s1") ## A different person gives a different token.
+len(pseudonymise("a@b.c", "s1")) == 64 ## SHA-256 in hex is 64 characters.
+"a@b.c" not in pseudonymise("a@b.c", "s1") ## The original value is not visible.
+@hint
+`hmac.new(secret.encode(), value.encode(), "sha256").hexdigest()`
+@solution
+import hmac
+def pseudonymise(value, secret):
+    return hmac.new(secret.encode("utf-8"), value.encode("utf-8"), "sha256").hexdigest()
+:::
+
 ## @part Communicating about data
 
 ## @lesson Writing that people act on: design docs, incident updates and post-mortems
@@ -280,6 +399,15 @@ The course gives you templates (English and Indonesian) in `labs/shared/writing/
 >
 > **You should see:** the draft passes the 6 section checks and fails 6 others: it is too short (`97` words), has `0` numbers, no times in the timeline, an unmeasured impact, `0 of 2` action items with an owner and a date, and blame words (`careless`, `fault`, `human error`). Your rewrite should end with `Structure looks right`. The difference between the two versions is what a hiring manager notices first in a take-home assignment.
 
+:::ask Which opening of an incident update is most useful to a manager who reads only the first line?
+@options
+the history of how the pipeline was first built
+an apology and a list of the tools you have tried
+* impact and decision: 'Revenue is 8% low; fix by 14:00'
+@why
+Put the answer first, with numbers: what is affected, how much, and what happens next. Details and the story of the investigation can follow below for the readers who want them.
+:::
+
 ## @lesson Day-1 brownfield survival: the 5-step wrong-number root-cause trace and zero-downtime schema deprecation
 
 In most data engineering jobs your first 90 days are **brownfield**: you inherit hundreds of existing tables and wake up to a Slack message from Finance saying, *"Yesterday's revenue on the Executive Dashboard looks 12% too low—can you check?"*
@@ -302,6 +430,24 @@ In most data engineering jobs your first 90 days are **brownfield**: you inherit
 > 🛠 **Try it (15 min, SQL on your Lab 1.4 `warehouse.db`).** Finance says "revenue by current city" is too high. A colleague's query gets each line's `customer_id` through `customer_sk`, then joins `dim_customer` a second time on `customer_id` to read the city, and forgot `is_current = 1`. Walk hop 3 of the trace: count the rows and sum `line_total_idr` of `fact_order_items` alone, then through the colleague's join, then with `is_current = 1` added. Find out how many customers make the difference.
 >
 > **You should see:** the fact alone has `7123` lines and `1208770000`. The colleague's join has `8584` rows and `1459220000`, about 21% too high, and nothing errors. With `is_current = 1` it is back to `7123` and `1208770000`. The cause: `100` customers have more than one version in the SCD Type 2 dimension, so their lines are counted once per version. Measured with the lab's reference warehouse on the course's default data.
+
+:::ask A dashboard number looks wrong. What does the lineage root-cause trace tell you to do first?
+@options
+* start at the dashboard and walk backwards
+re-run every pipeline until the number changes
+ask the source team to restate last month
+@why
+Never guess or re-run at random. Start at the visible symptom and walk back through the mart, the staging models and the raw tables; the first step whose output is already wrong is where the fault entered.
+:::
+
+:::ask You must replace the float column `total_amount` with integer `total_idr` without breaking any dashboard. Which order is safe?
+@options
+drop the old column first so no one can use it
+* expand, migrate the readers, then contract
+rename it in place and tell everyone afterwards
+@why
+Expand, migrate, contract keeps both columns alive during the move, so every consumer can switch at its own pace. The old column is dropped only after nobody reads it.
+:::
 
 ## @part Ethics and data products
 
@@ -331,6 +477,15 @@ A dataset without these is a file someone once made; with them it is something t
 >
 > **You should see:** `1000` customers. City and tier alone give `26` groups, the smallest with `3` people. Adding the signup month makes `80` customers unique and puts `353` in groups smaller than 5. With the exact signup date `846` of the 1,000 customers are unique: anyone who knows when a friend signed up, and where they live, can find their row. Only the first release is close to 5-anonymous, and even it has a group of 3. Measured with DuckDB 2.0.1 on the course's default data.
 
+:::ask A table has no names or emails, only postcode, birth date and gender. Is it anonymous?
+@options
+yes, because no direct identifier is left
+yes, as long as the table is stored encrypted
+* not necessarily: quasi-identifiers can single you out
+@why
+A combination of ordinary columns can be unique to one person, and joining with another dataset can reveal who it is. Removing names is pseudonymisation at best, not anonymisation.
+:::
+
 ## @part Working with the people who ask
 
 ## @lesson Translating stakeholder requests into data contracts and KPI trees
@@ -355,6 +510,15 @@ Good data teams start every pipeline with **three short alignment artifacts**, a
 > 🛠 **Try it (10 min, paper).** A Marketing Director writes: *"Can I get a table of our best customers and their revenue?"* Before reading on, write down every question you would need answered before you could write the SQL, then ask the five intake questions above of this request. Group your questions by the three artifacts: requirements, KPI and grain.
 >
 > **You should see:** at least three ambiguities. The usual ones: what "best" means (gross spend, net revenue after discounts and refunds, or how often they order), over what time window (lifetime, the last 90 days, this month), and at what grain (one row per customer, or one row per customer per month). Good answers also ask which statuses count as revenue and what Marketing will *do* with the list: a win-back campaign needs different customers from a VIP gift.
+
+:::ask A stakeholder asks for 'active customers'. What should you do before writing any SQL?
+@options
+* agree the exact definition: which period, which events
+build it with the most common definition and move on
+ask for a bigger budget before starting
+@why
+Most wrong numbers are definition mismatches, not code errors. Writing down the definition, grain and period with the requester, as a short contract, avoids building the right thing for the wrong question.
+:::
 
 ## @lab Lab: build a data quality gate
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.

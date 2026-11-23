@@ -41,6 +41,31 @@ Typical uses for data engineers: **change data capture** (database changes as ev
 >
 > **You should see:** A has read 5 and next continues with `order-6`, `order-7`, `order-8`; B continues from offset 2 with `order-3` to `order-8`; the replay from 0 returns the same five records as A's first read. Nothing was deleted by reading, and each reader owns its position, which is exactly what a queue cannot do.
 
+:::trace A log with two readers
+@code
+log = []
+for event in ["a", "b", "c"]:
+    log.append(event)
+offsets = {"billing": 0, "search": 0}
+offsets["billing"] = 2
+offsets["search"] = 3
+print(log[offsets["billing"]:])
+@notes
+3 | The producer **appends**; nothing is ever inserted or changed in the middle. The position in the log is the **offset**: a is 0, b is 1, c is 2.
+5 | `billing` has read two records (offsets 0 and 1) and stays at 2. Each reader keeps its own bookmark; reading does not delete anything.
+6 | `search` is fully caught up at 3. The same log serves both, which a classic queue cannot do.
+7 | `billing` still has the record at offset 2 left to read. If it crashes and restarts, it resumes from its saved offset.
+:::
+
+:::ask How does a Kafka topic differ from a classic message queue?
+@options
+* records stay after reading, so many can read them
+records are deleted once one consumer reads
+records can be edited after they are written
+@why
+The log is append-only and durable; each consumer group tracks its own offset. This lets a new team read the full history, and lets a consumer replay after a bug fix.
+:::
+
 ## @lesson Kafka's building blocks: topics, partitions, offsets, replication
 - A **topic** is a named stream, such as `orders`.
 - A topic is split into **partitions**. Each partition is its own log, ordered and independent. **The partition is the unit of parallelism and of ordering.**
@@ -185,6 +210,15 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 >
 > **You should see:** a clean election picks `B` and loses `[]`; the unclean election picks `C` and loses `[8, 9, 10]` — acknowledged records, silently. With the ISR `[A, B]`, writes are accepted for `min_isr=2` and refused for `min_isr=3`, the `NOT_ENOUGH_REPLICAS` situation of Experiment 2.
 
+:::ask A partition has replication factor 3, `acks=all` and `min.insync.replicas=2`. Two brokers die, leaving one in the ISR. What happens to a producer's writes?
+@options
+they succeed, because the leader is still alive
+* rejected: the ISR is below 2, safety is not possible
+they succeed and are copied over later on
+@why
+`min.insync.replicas=2` sets a floor. With only one replica in sync the leader refuses writes (NotEnoughReplicas) rather than accept data that could be lost if that last broker also fails.
+:::
+
 ## @part Producers, consumers and schemas
 
 ## @lesson Producers and consumers: delivery guarantees
@@ -223,6 +257,15 @@ The mainstream choice is **at-least-once with idempotent processing**: commit af
 >    `pytest labs/mod-3-2/test_minilog.py -k "TestConsuming or TestGroupsAndAssignment" -v`
 > 5. **Success Indicator:** All 8 tests report `PASSED`, confirming non-overlapping partition allocation, committed offset resumption, and idempotent recovery from mid-poll consumer crashes.
 
+:::ask A consumer commits its offset **before** processing each record, then crashes mid-record. After restart, what is the delivery guarantee?
+@options
+at-least-once: the record is processed again
+exactly-once: nothing is lost or repeated
+* at-most-once: the record may be lost
+@why
+Committing first means a crash after the commit but before the work skips that record. Committing after processing gives at-least-once instead: a crash causes a repeat, which a consumer must tolerate.
+:::
+
 ## @lesson Schemas, serialisation and Kafka Connect
 Records are bytes; you choose the format. **JSON** is easy to read and debug but repeats every field name in every message and enforces no types. **Apache Avro** (compact binary rows whose schema is stored out-of-band in JSON and referenced by a 4-byte ID) and **Protobuf** (typed binary fields identified by numeric field tags) are compact and designed for evolution. With them you normally run a **schema registry**: a service that stores schemas, gives each a numeric id embedded in the message, and enforces **compatibility rules** when a schema changes (backward: new readers can read old data; forward: old readers can read new data; full: both). This is the streaming counterpart of the data contracts of Module 2.5: a producer cannot publish an incompatible change without being told.
 
@@ -231,6 +274,15 @@ Records are bytes; you choose the format. **JSON** is easy to read and debug but
 > 🛠 **Try it (20 min, Python).** Encode the record `{"id": 1, "customer": "Budi", "total": 150000}` the way a registry-based Avro producer does, by hand. The rules: the message starts with a `0` byte and the schema id (1) as 4 bytes, big-endian. An Avro integer is **zig-zag** coded (`(n << 1) ^ (n >> 63)`), then written in groups of 7 bits, lowest group first, with the high bit set on every byte except the last. A string is its length written as an integer, then its UTF-8 bytes. Print the result as hex with `.hex()` and its length, and compare with the length of the same record as compact JSON (`json.dumps(rec, separators=(",", ":"))`).
 >
 > **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of JSON. Compare it with the bytes in the lesson: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
+
+:::ask Why do teams put Avro with a schema registry on a topic instead of plain JSON?
+@options
+* compact records and a versioned, checked schema
+JSON cannot be read by Kafka at all
+Avro removes the need for any producer
+@why
+JSON repeats every field name in every message and enforces no types. Avro stores the schema once in the registry and sends a short id, and the registry rejects changes that would break consumers.
+:::
 
 ## @lesson Schema Registry in practice: evolving a topic without breaking consumers
 The schema registry from the previous lesson becomes real when a team wants to *change* a message. We ran Redpanda's built-in registry, which speaks the same REST API as Confluent's, with an Avro subject `orders-value` and the default rule, **BACKWARD** ("a consumer using the new schema can read data written with the old one"). Starting from `{id: int, customer: string, total: int}`, we asked the registry whether each change is allowed:
@@ -257,6 +309,15 @@ Practical rules:
 > 🛠 **Try it (20 min, Python).** Write a compatibility checker. Represent a schema as `{field: (type, has_default)}`, with the lesson's starting point `{id: (int, False), customer: (string, False), total: (int, False)}`. `backward(old, new)` (a reader on the new schema reads data written with the old one) fails if the new schema has a field that the old one lacks and that has no default, or if a field changed type. `forward(old, new)` is the same check with the roles swapped. Run four changes: add an optional field `channel` with a default, add `channel` without a default, remove `total`, and change `total` from `int` to `string`. Print backward, forward and full (both) for each.
 >
 > **You should see:** add optional: backward `True`, forward `True`; add required: backward `False`, forward `True`; remove `total`: backward `True`, forward `False`; `int` to `string`: both `False`. That reproduces the table in this lesson. Which of the four would a registry with the default rule BACKWARD reject with HTTP 409?
+
+:::ask A producer wants to change a field's type from `int` to `string` under BACKWARD compatibility. What does the registry do?
+@options
+it accepts and converts all the old messages
+* it rejects it: Avro only promotes numbers like int
+it accepts and silently drops the field
+@why
+BACKWARD compatibility means consumers with the new schema can read old data. int to string breaks that, so it is refused; adding an optional field with a default is the safe kind of change.
+:::
 
 ## @part Change data capture
 
@@ -294,6 +355,15 @@ The lab's `pgoutput.py` decodes that real binary stream. Seeing it demystifies C
 >
 > **You should see:** the poll returns only `[(1, 'delivered')]`: it missed the delete of order 2 and the intermediate `shipped`. The `changes` table has 6 rows: three `c`, then `u` (`paid` to `shipped`), `u` (`shipped` to `delivered`) and a `d` with before `paid`. Replaying them gives `{1: 'delivered', 3: 'paid'}`, equal to the table. Real log-based CDC gives you the same event shape without triggers or load on the tables.
 
+:::ask Why does log-based CDC catch something that `WHERE updated_at > :last_run` misses?
+@options
+inserts, which polling cannot detect at all
+updates, which never change updated_at
+* deletes: the log records them, a scan never sees them
+@why
+A polling query only sees rows that still exist. The write-ahead log records every committed insert, update and delete in order, so a delete becomes an event instead of silence.
+:::
+
 ## @lesson Consuming CDC correctly, and running it safely
 A CDC consumer builds or updates a copy of the table, for example a **lakehouse table** that keeps current state (an Iceberg `MERGE`, Module 2.2) or a search index. Because delivery is at-least-once and consumers restart and rebalance, the apply step must be **idempotent and order-safe**. The lab's `apply_events` shows the pattern in miniature:
 
@@ -324,6 +394,39 @@ Other practices: keep the **raw event log** (a bronze layer) so you can rebuild 
 > 4. Run the tests in terminal (when PostgreSQL dependencies are present):
 >    `pytest labs/mod-3-2/test_cdc.py -v`
 > 5. **Success Indicator:** All CDC tests report `PASSED` (or skip gracefully if local database services are inactive), verifying idempotent state synchronization and tombstone safety.
+
+:::drill python Apply only newer events
+A CDC consumer keeps a replica of a table. Write `apply_events(events)`: each event is a dictionary `{"key": ..., "lsn": number, "value": ...}`. Return the replica as a dictionary `{key: value}`. For each key keep only the event with the **highest** `lsn`; an event with an older (or equal) `lsn` than the one already applied is skipped, even when it arrives later.
+@starter
+# write your function below this line
+
+@check
+defines("apply_events") ## Define apply_events(events).
+apply_events([{"key": 1, "lsn": 10, "value": "a"}, {"key": 1, "lsn": 20, "value": "b"}]) == {1: "b"} ## The later change wins.
+apply_events([{"key": 1, "lsn": 20, "value": "b"}, {"key": 1, "lsn": 10, "value": "a"}]) == {1: "b"} ## Out of order arrival: the old event is skipped.
+apply_events([{"key": 1, "lsn": 5, "value": "x"}, {"key": 1, "lsn": 5, "value": "x"}]) == {1: "x"} ## A replayed duplicate changes nothing.
+apply_events([{"key": 1, "lsn": 1, "value": "a"}, {"key": 2, "lsn": 2, "value": "b"}]) == {1: "a", 2: "b"} ## Keys are independent.
+@hint
+Keep two dictionaries: `latest_lsn` and `replica`. Apply an event only if `lsn > latest_lsn.get(key, -1)`.
+@solution
+def apply_events(events):
+    latest_lsn = {}
+    replica = {}
+    for e in events:
+        if e["lsn"] > latest_lsn.get(e["key"], -1):
+            latest_lsn[e["key"]] = e["lsn"]
+            replica[e["key"]] = e["value"]
+    return replica
+:::
+
+:::ask Why key the replica by primary key and remember the last position applied per key?
+@options
+* replays and late events cannot overwrite newer data
+the consumer never needs to commit any offsets
+the topic can be compacted down to zero records
+@why
+Delivery is at-least-once and consumers restart and rebalance, so the same event can arrive twice or late. Skipping anything not newer makes applying events idempotent.
+:::
 
 ## @lab Lab: a mini Kafka, a real broker, and CDC from real WAL
 Three parts, each testable. A: build a miniature Kafka to master the semantics. B: use a real broker (producer with idempotence, a consumer with manual commit, lag). C: consume PostgreSQL's actual replication stream into a replica that is correct under replay and reordering.

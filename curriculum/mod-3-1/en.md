@@ -36,6 +36,15 @@ Use Spark when measurement says one machine is not enough, and then learn its in
 >
 > **You should see:** for the tiny job, one process takes about 0.2 ms and the pool about 20 ms, around a hundred times *slower*; for the big job, one process takes about 780 ms and the pool about 235 ms, around three times faster with 4 workers. Starting workers and sending tasks costs a fixed amount, so parallel only wins when each task is big enough to pay for it.
 
+:::ask A 5 GB CSV needs a daily group-by. A teammate suggests starting a 20-node Spark cluster. What is the best first reply?
+@options
+yes, always use the biggest tool you can get
+split the CSV by hand into 20 smaller files
+* try DuckDB or Polars on one machine first
+@why
+A single modern machine handles tens of gigabytes comfortably. A cluster adds start-up time, shuffles over the network, and an operations bill, so use it when one machine truly cannot cope.
+:::
+
 ## @lesson Architecture: driver, executors, stages and tasks
 A Spark **application** has these parts:
 
@@ -59,6 +68,15 @@ Your code runs as follows. You write DataFrame or SQL operations in Python; they
 > 🛠 **Try it (15 min, Python).** Model a two-stage job by hand: total `total_idr` per `payment_method` from `data/orders.csv` (keep only rows whose total is all digits, 3,580 of them). **Stage 1:** split the rows into 8 partitions with `rows[i::8]`; each task computes partial sums per payment method for its own partition. **Shuffle:** send each partial sum to one of 4 reduce partitions chosen by `zlib.crc32(key.encode()) % 4`. **Stage 2:** each of the 4 reduce tasks adds up the partial sums it received. Count the tasks in each stage and the records that crossed the shuffle, and compare the result with a pandas `groupby`.
 >
 > **You should see:** `8` tasks in stage 1, `4` in stage 2, only `32` records shuffled instead of 3,580 (partial sums were computed before the shuffle), and a result equal to pandas: `bank_transfer 303975000`, `card 312380000`, `cod 302230000`, `ewallet 291140000`. The 4 reduce partitions hold `[1, 0, 1, 2]` keys: one reduce task gets nothing to do, a miniature of the partition-size problem above.
+
+:::ask In the Spark UI a stage shows 200 tasks. What is a task?
+@options
+* the work on one partition, on one core
+one SQL statement in your notebook
+one whole machine inside of the cluster
+@why
+The driver cuts a stage into one task per partition. Executors run tasks in parallel, one per core, so more partitions than cores simply queue up.
+:::
 
 ## @lesson Lazy evaluation, narrow and wide transformations
 Spark operations come in two kinds:
@@ -94,6 +112,47 @@ Two more rules from this view: (1) an expensive action on an uncached DataFrame 
 >    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
 > 4. **Success Indicator:** All 3 tests report `PASSED`, confirming that narrow transformations have 0 exchanges, group-by triggers 1 exchange, and sort-merge join requires 2 exchanges.
 
+:::trace Lazy until an action
+@code
+class Plan:
+    def __init__(self, data, steps=()):
+        self.data, self.steps = data, steps
+    def filter(self, fn):
+        return Plan(self.data, self.steps + (("filter", fn),))
+    def map(self, fn):
+        return Plan(self.data, self.steps + (("map", fn),))
+    def collect(self):
+        out = self.data
+        for kind, fn in self.steps:
+            out = [x for x in out if fn(x)] if kind == "filter" else [fn(x) for x in out]
+        return out
+p = Plan([1, 2, 3, 4]).filter(lambda x: x > 1).map(lambda x: x * 10)
+print(len(p.steps))
+print(p.collect())
+@notes
+12 | Two **transformations**. Nothing was computed: the plan only holds two recorded steps. No number was multiplied yet.
+13 | The plan has 2 steps and no results. This is why a typo in a transformation may only fail later.
+14 | The **action** `collect` finally runs the recorded steps, in order, over the data: filter keeps 2, 3, 4; map gives 20, 30, 40.
+:::
+
+:::ask Which of these Spark calls triggers actual computation?
+@options
+filter(...), because it reads some rows
+* count(), an action that needs a result
+select(...), because it chooses some columns
+@why
+`filter`, `select`, `withColumn`, `join` and `groupBy` are transformations that only build the plan. Actions such as `count`, `collect`, `show` and `write` make Spark run it.
+:::
+
+:::ask A `groupBy` followed by a sum is a wide transformation. What does 'wide' mean for the cost?
+@options
+every row is read twice from the disk
+the result needs twice the memory of the input
+* rows with the same key must move: a shuffle
+@why
+Narrow transformations (filter, select) work on each partition alone. A wide one needs all rows of a key in the same place, so data crosses the network: the expensive shuffle and a new stage.
+:::
+
 ## @lesson The optimiser: Catalyst, Tungsten and adaptive execution
 Whatever API you use (DataFrame, SQL), your query goes through the same engine, in stages:
 
@@ -106,6 +165,15 @@ Reading a plan is a core skill: use `df.explain("formatted")` and look at (a) th
 > 🛠 **Try it (10 min, Python).** DuckDB has an optimiser with the same pushdown ideas. Save `orders.parquet` as in Module 2.1 and run `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, printing the plan text (`.fetchall()[0][1]`). Then explain `SELECT * FROM 'orders.parquet'`. Find the scan node in both and read its `Projections` and `Filters`.
 >
 > **You should see:** in the first plan the Parquet scan lists only `payment_method` under `Projections` and `status='delivered'` under `Filters`: the optimiser pushed both into the scan, so other columns are never read and rows are filtered while reading. In the second plan the scan projects all six columns and has no filter. Spark's `explain("formatted")` shows the same ideas as `PushedFilters` and `ReadSchema`.
+
+:::ask In `explain()` output the filter appears inside the file scan node. What does that tell you?
+@options
+* the filter was pushed down: less data is read
+the filter was ignored by the whole engine
+the query will run on the driver machine only
+@why
+Predicate pushdown lets the scan skip data (for example Parquet row groups) that cannot match, before it is read. Seeing a filter above the scan instead would mean all data was read first.
+:::
 
 ## @part Joins, skew and tuning
 
@@ -139,6 +207,15 @@ So: **if one side is small, broadcast it** (`F.broadcast(small_df)`, or raise th
 > 3. Run the test in terminal:
 >    `pytest labs/mod-3-1/test_lab.py -k test_a_broadcast_join_does_not_shuffle_the_big_table -v`
 > 4. **Success Indicator:** The test reports `PASSED`, confirming a `BroadcastHashJoin` node appears in the physical plan with 0 exchanges on the large table.
+
+:::ask You join 3 million events with a 1,001-row customers table. How do you make the join cheaper?
+@options
+shuffle both sides, which is always fastest
+* broadcast the small table, skip the big shuffle
+sort the small table before the join
+@why
+A broadcast join sends the small table to every executor, and the large table stays where it is. In the lab this took about a quarter of the time of the sort-merge join that shuffled both sides.
+:::
 
 ## @lesson Data skew: when one task does all the work
 A shuffle sends all rows with the same key to the same partition. If the keys are **unevenly distributed** (**skew**), one partition receives far more data than the others. Stage time is set by the **slowest task**, so the whole stage waits for a straggler while the other cores sit idle. The signature symptom: a stage at "199 of 200 tasks complete" for a long time.
@@ -267,6 +344,15 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 > 🛠 **Try it (15 min, Python).** See the small-files problem. Repeat the rows of `data/orders.csv` 30 times (about 109,000 rows) with `pd.concat([df] * 30)`. Write them once as `sf/one/all.parquet`, and again cut into 1,000 pieces as `sf/many/p0000.parquet` and so on. Compare the total bytes in each folder, and time `SELECT count(*) FROM read_parquet('<folder>/*.parquet')` in DuckDB for both. Delete `sf/` afterwards.
 >
 > **You should see:** both folders answer `109020`, but the 1,000 small files take about 7.4 MB against about 0.4 MB for one file (compression and per-file overhead both suffer), and the query over them is tens of times slower (around 60 ms against 1.5 ms here). Every file costs a listing, an open and a footer read, which is why a cluster that writes thousands of tiny files needs compaction.
+
+:::ask A Spark job uses a Python UDF to upper-case a column of 100 million rows, and it is very slow. What is a good fix?
+@options
+give the UDF more executors and nothing else
+call the UDF twice so the cache warms up
+* use the built-in F.upper inside the JVM
+@why
+A Python UDF sends every row out of the JVM to a Python process and back. Built-in functions stay inside the engine, where the optimiser can see them and no serialisation happens.
+:::
 
 ## @part Spark in production on Databricks
 

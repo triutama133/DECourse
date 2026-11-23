@@ -41,6 +41,31 @@ Penerapan umum bagi data engineer: **Change Data Capture (CDC)** (mengalirkan mu
 >
 > **Seharusnya Anda melihat:** A sudah membaca 5 dan berikutnya melanjutkan dengan `order-6`, `order-7`, `order-8`; B melanjutkan dari offset 2 dengan `order-3` sampai `order-8`; pemutaran ulang dari 0 mengembalikan lima record yang sama dengan bacaan pertama A. Membaca tidak menghapus apa pun, dan setiap pembaca memegang posisinya sendiri, persis hal yang tidak bisa dilakukan sebuah antrean.
 
+:::trace Satu log dengan dua pembaca
+@code
+log = []
+for event in ["a", "b", "c"]:
+    log.append(event)
+offsets = {"billing": 0, "search": 0}
+offsets["billing"] = 2
+offsets["search"] = 3
+print(log[offsets["billing"]:])
+@notes
+3 | Produser **menambahkan** di akhir; tidak ada yang disisipkan atau diubah di tengah. Posisi dalam log adalah **offset**: a bernilai 0, b 1, c 2.
+5 | `billing` sudah membaca dua rekaman (offset 0 dan 1) dan berada di 2. Tiap pembaca menyimpan penanda sendiri; membaca tidak menghapus apa pun.
+6 | `search` sudah sepenuhnya mengejar di 3. Log yang sama melayani keduanya, hal yang tidak bisa dilakukan antrean klasik.
+7 | `billing` masih punya rekaman pada offset 2 untuk dibaca. Jika ia crash lalu restart, ia melanjutkan dari offset tersimpan.
+:::
+
+:::ask Apa beda topic Kafka dengan antrean pesan klasik?
+@options
+* rekaman tetap ada, jadi banyak konsumen bisa membaca
+rekaman dihapus begitu satu konsumen membacanya
+rekaman bisa diedit setelah ditulis
+@why
+Log bersifat append-only dan tahan lama; tiap consumer group melacak offsetnya sendiri. Ini memungkinkan tim baru membaca seluruh riwayat, dan konsumen memutar ulang setelah bug diperbaiki.
+:::
+
 ## @lesson Blok pembangun Kafka: topics, partitions, offsets, dan replication
 - **Topic** adalah nama logis dari sebuah aliran data, misalnya `orders`.
 - Sebuah topic dipecah menjadi beberapa **partitions**. Setiap partisi adalah log fisik tersendiri yang terurut dan independen. **Partisi adalah unit fundamental untuk paralelisme sekaligus unit penjamin keterurutan (ordering).**
@@ -185,6 +210,15 @@ Setiap partisi punya satu **leader** (semua baca dan tulis lewat dia) dan dua **
 >
 > **Seharusnya Anda melihat:** pemilihan bersih memilih `B` dan kehilangan `[]`; pemilihan tidak bersih memilih `C` dan kehilangan `[8, 9, 10]`, record yang sudah di-acknowledge, tanpa suara. Dengan ISR `[A, B]`, penulisan diterima untuk `min_isr=2` dan ditolak untuk `min_isr=3`, situasi `NOT_ENOUGH_REPLICAS` dari Eksperimen 2.
 
+:::ask Sebuah partisi punya replication factor 3, `acks=all`, dan `min.insync.replicas=2`. Dua broker mati, menyisakan satu di ISR. Apa yang terjadi pada penulisan produser?
+@options
+berhasil, karena leader masih hidup
+* ditolak: ISR di bawah 2, keamanan tak bisa dijamin
+berhasil dan disalin belakangan nanti
+@why
+`min.insync.replicas=2` menetapkan batas bawah. Dengan hanya satu replika yang sinkron, leader menolak penulisan (NotEnoughReplicas) daripada menerima data yang bisa hilang jika broker terakhir itu juga gagal.
+:::
+
 ## @part Producer, consumer, dan skema
 
 ## @lesson Producer dan consumer: jaminan pengiriman pesan
@@ -223,6 +257,15 @@ Pilihan standar industri enterprise adalah **at-least-once dengan pemrosesan ide
 >    `pytest labs/mod-3-2/test_minilog.py -k "TestConsuming or TestGroupsAndAssignment" -v`
 > 5. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi alokasi partisi tanpa tumpang tindih, pembacaan resume dari offset komit, dan penanganan crash sebelum komit dengan logika pemrosesan idempoten.
 
+:::ask Sebuah konsumen meng-commit offset-nya **sebelum** memproses tiap rekaman, lalu crash di tengah rekaman. Setelah restart, apa jaminan pengirimannya?
+@options
+at-least-once: rekaman diproses lagi
+exactly-once: tidak ada yang hilang atau berulang
+* at-most-once: rekaman bisa hilang
+@why
+Commit lebih dulu berarti crash setelah commit tetapi sebelum kerja akan melewatkan rekaman itu. Commit setelah memproses menghasilkan at-least-once: crash menyebabkan pengulangan, yang harus ditoleransi konsumen.
+:::
+
 ## @lesson Skema, serialisasi, dan Kafka Connect
 Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya ditentukan oleh aplikasi Anda. Format **JSON** sangat ramah manusia dan mudah di-debug, namun mengulang nama setiap field di setiap pesan dan tidak memiliki penegakan tipe yang kaku. Format biner seperti **Apache Avro** (baris biner ringkas yang menyimpan skemanya terpisah dan hanya menyematkan ID skema 4-byte pada pesan) dan **Protocol Buffers (Protobuf)** (field biner bertipe yang diidentifikasi lewat nomor tag) jauh lebih hemat dan dirancang untuk evolusi skema jangka panjang. Penggunaan Avro umumnya dipadukan dengan **Confluent Schema Registry**: sebuah layanan terpusat yang menyimpan versi skema data, menyematkan ID skema berukuran 4 byte pada setiap payload pesan, dan menegakkan **aturan kompatibilitas skema** saat skema diperbarui (Backward, Forward, atau Full Compatibility). Ini adalah wujud nyata dari konsep data contract (Modul 2.5) pada dunia streaming: producer tidak akan diizinkan mempublikasikan perubahan skema yang merusak aplikasi consumer downstream.
 
@@ -231,6 +274,15 @@ Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya
 > 🛠 **Coba sendiri (20 menit, Python).** Encode record `{"id": 1, "customer": "Budi", "total": 150000}` dengan cara producer Avro berbasis registry, dengan tangan. Aturannya: pesan dimulai dengan byte `0` dan schema id (1) sebagai 4 byte, big-endian. Sebuah integer Avro dikodekan **zig-zag** (`(n << 1) ^ (n >> 63)`), lalu ditulis dalam kelompok 7 bit, kelompok terendah lebih dulu, dengan bit tertinggi menyala di setiap byte kecuali yang terakhir. Sebuah string adalah panjangnya yang ditulis sebagai integer, lalu byte UTF-8-nya. Cetak hasilnya sebagai hex dengan `.hex()` beserta panjangnya, dan bandingkan dengan panjang record yang sama sebagai JSON ringkas (`json.dumps(rec, separators=(",", ":"))`).
 >
 > **Seharusnya Anda melihat:** `0000000001020842756469e0a712`, yaitu `14` byte, dibanding `41` byte JSON. Bandingkan dengan byte di pelajaran: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. Record itu sama sekali tidak memuat nama field: siapa pun yang membacanya butuh skemanya, itulah sebabnya schema id ikut dikirim bersamanya.
+
+:::ask Mengapa tim memasang Avro dengan schema registry pada topic, bukan JSON biasa?
+@options
+* rekaman ringkas dan skema berversi yang diperiksa
+JSON sama sekali tak bisa dibaca oleh Kafka
+Avro menghilangkan kebutuhan produser apa pun
+@why
+JSON mengulang setiap nama field di setiap pesan dan tidak menegakkan tipe. Avro menyimpan skema sekali di registry dan mengirim id pendek, dan registry menolak perubahan yang akan merusak konsumen.
+:::
 
 ## @lesson Schema Registry dalam praktik: mengubah topik tanpa merusak consumer
 Schema registry dari pelajaran sebelumnya menjadi nyata ketika sebuah tim ingin *mengubah* pesan. Kami menjalankan registry bawaan Redpanda, yang berbicara dengan REST API sama seperti milik Confluent, dengan subject Avro `orders-value` dan aturan default, **BACKWARD** ("consumer yang memakai skema baru bisa membaca data yang ditulis dengan skema lama"). Mulai dari `{id: int, customer: string, total: int}`, kami bertanya kepada registry apakah setiap perubahan diizinkan:
@@ -257,6 +309,15 @@ Aturan praktis:
 > 🛠 **Coba sendiri (20 menit, Python).** Tulis pemeriksa kompatibilitas. Representasikan skema sebagai `{field: (type, has_default)}`, dengan titik awal dari pelajaran `{id: (int, False), customer: (string, False), total: (int, False)}`. `backward(old, new)` (pembaca dengan skema baru membaca data yang ditulis dengan skema lama) gagal jika skema baru punya field yang tidak ada di skema lama dan tidak punya default, atau jika sebuah field berubah tipe. `forward(old, new)` adalah pemeriksaan yang sama dengan peran ditukar. Jalankan empat perubahan: menambah field opsional `channel` dengan default, menambah `channel` tanpa default, menghapus `total`, dan mengubah `total` dari `int` menjadi `string`. Cetak backward, forward, dan full (keduanya) untuk masing-masing.
 >
 > **Seharusnya Anda melihat:** tambah opsional: backward `True`, forward `True`; tambah wajib: backward `False`, forward `True`; hapus `total`: backward `True`, forward `False`; `int` ke `string`: keduanya `False`. Itu mereproduksi tabel di pelajaran ini. Dari keempatnya, mana yang akan ditolak registry dengan aturan default BACKWARD dengan HTTP 409?
+
+:::ask Seorang produser ingin mengubah tipe field dari `int` menjadi `string` di bawah kompatibilitas BACKWARD. Apa yang dilakukan registry?
+@options
+ia menerima dan mengonversi semua pesan lama
+* ia menolaknya: Avro hanya menaikkan angka seperti int
+ia menerima dan diam-diam membuang field itu
+@why
+Kompatibilitas BACKWARD berarti konsumen dengan skema baru bisa membaca data lama. int ke string merusaknya, jadi ditolak; menambah field opsional dengan nilai default adalah perubahan yang aman.
+:::
 
 ## @part Change data capture
 
@@ -294,6 +355,15 @@ Nilai atribut `op` menandakan tipe operasi: `c` (create/insert), `u` (update), `
 >
 > **Seharusnya Anda melihat:** polling hanya mengembalikan `[(1, 'delivered')]`: ia melewatkan penghapusan pesanan 2 dan status antara `shipped`. Tabel `changes` berisi 6 baris: tiga `c`, lalu `u` (`paid` ke `shipped`), `u` (`shipped` ke `delivered`), dan sebuah `d` dengan before `paid`. Memutarnya ulang menghasilkan `{1: 'delivered', 3: 'paid'}`, sama dengan tabelnya. CDC berbasis log yang sesungguhnya memberi Anda bentuk event yang sama tanpa trigger dan tanpa beban pada tabel.
 
+:::ask Mengapa CDC berbasis log menangkap sesuatu yang terlewat oleh `WHERE updated_at > :last_run`?
+@options
+insert, yang sama sekali tak terdeteksi polling
+update, yang tak pernah mengubah updated_at
+* delete: log mencatatnya, scan tak pernah melihatnya
+@why
+Query polling hanya melihat baris yang masih ada. Write-ahead log mencatat setiap insert, update, dan delete yang ter-commit secara berurutan, sehingga delete menjadi event, bukan keheningan.
+:::
+
 ## @lesson Mengonsumsi event CDC secara aman dan benar
 Sebuah CDC consumer umumnya bertugas menyinkronkan data ke tabel replika target, seperti **tabel lakehouse** yang mencerminkan kondisi terkini (misalnya operasi Apache Iceberg `MERGE INTO`, Modul 2.2) atau indeks pencarian. Karena pengiriman pesan Kafka bersifat at-least-once dan consumer dapat mengalami crash atau rebalancing sewaktu-waktu, proses pengaplikasian event ke tabel target **wajib bersifat idempoten dan kebal terhadap perubahan urutan pesan (order-safe)**. Fungsi `apply_events` pada lab modul ini mendemonstrasikan pola arsitektur esensial tersebut:
 
@@ -324,6 +394,39 @@ Praktik operasional terbaik: simpan seluruh aliran **raw event log** ke storage 
 > 4. Jalankan pengujian di terminal (jika dependensi PostgreSQL aktif):
 >    `pytest labs/mod-3-2/test_cdc.py -v`
 > 5. **Indikator Sukses:** Seluruh pengujian CDC lulus (atau dilewati secara anggun jika service database lokal belum aktif), mengonfirmasi replikasi state yang idempoten dan bebas bug kebangkitan baris yang telah dihapus.
+
+:::drill python Terapkan hanya event yang lebih baru
+Sebuah konsumen CDC menjaga replika sebuah tabel. Tulis `apply_events(events)`: tiap event adalah dictionary `{"key": ..., "lsn": angka, "value": ...}`. Kembalikan replika sebagai dictionary `{key: value}`. Untuk tiap key simpan hanya event dengan `lsn` **tertinggi**; event dengan `lsn` lebih lama (atau sama) dari yang sudah diterapkan dilewati, walaupun datang belakangan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("apply_events") ## Definisikan apply_events(events).
+apply_events([{"key": 1, "lsn": 10, "value": "a"}, {"key": 1, "lsn": 20, "value": "b"}]) == {1: "b"} ## Perubahan yang lebih baru menang.
+apply_events([{"key": 1, "lsn": 20, "value": "b"}, {"key": 1, "lsn": 10, "value": "a"}]) == {1: "b"} ## Datang tidak berurutan: event lama dilewati.
+apply_events([{"key": 1, "lsn": 5, "value": "x"}, {"key": 1, "lsn": 5, "value": "x"}]) == {1: "x"} ## Duplikat hasil replay tidak mengubah apa pun.
+apply_events([{"key": 1, "lsn": 1, "value": "a"}, {"key": 2, "lsn": 2, "value": "b"}]) == {1: "a", 2: "b"} ## Key saling independen.
+@hint
+Simpan dua dictionary: `latest_lsn` dan `replica`. Terapkan event hanya jika `lsn > latest_lsn.get(key, -1)`.
+@solution
+def apply_events(events):
+    latest_lsn = {}
+    replica = {}
+    for e in events:
+        if e["lsn"] > latest_lsn.get(e["key"], -1):
+            latest_lsn[e["key"]] = e["lsn"]
+            replica[e["key"]] = e["value"]
+    return replica
+:::
+
+:::ask Mengapa replika dikunci dengan primary key dan mengingat posisi terakhir yang diterapkan per key?
+@options
+* replay dan event terlambat tak menimpa data baru
+konsumen tak pernah perlu meng-commit offset
+topic bisa dikompaksi sampai nol rekaman
+@why
+Pengiriman bersifat at-least-once dan konsumen restart serta rebalance, jadi event yang sama bisa datang dua kali atau terlambat. Melewati apa pun yang tidak lebih baru membuat penerapan event idempoten.
+:::
 
 ## @lab Lab: mini Kafka, broker Kafka nyata, dan CDC dari WAL PostgreSQL nyata
 Lab ini terbagi ke dalam tiga tingkatan yang dapat diuji secara terpisah: Bagian A membangun implementasi mini Kafka in-memory untuk menguasai semantik dasar commit log. Bagian B berinteraksi langsung dengan broker Kafka/Redpanda nyata (producer dengan idempotensi, consumer dengan manual offset commit, serta kalkulasi metrik lag). Bagian C mendecode aliran replikasi biner PostgreSQL nyata dan mengonsumsi event CDC ke dalam tabel replika yang idempoten terhadap replay dan pengacakan urutan event.

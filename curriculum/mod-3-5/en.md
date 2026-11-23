@@ -41,6 +41,15 @@ Everything in the old checklist applies: idempotence, retries, backfills, data q
 >
 > **You should see:** scores of `0.67` for `refund`, `0.13` for `shipping` and `0.0` for `warranty` on the first question; all `0.0` on the second (a retriever always returns *something* ranked first, so a minimum score is part of the pipeline). With the stale index the retrieved text still says `14` although the source now says 30: the answer is wrong and nothing failed. Only after the rebuild does it say `30`. Sync is the data engineer's job.
 
+:::ask A RAG chatbot gives wrong answers about the refund policy. The model is fine. Where should the data engineer look first?
+@options
+a bigger model with many more parameters
+* the offline pipeline: extraction, chunking, freshness
+the colour and the font of the chat window
+@why
+Most RAG failures in production come from the offline part: a broken table extracted as nonsense, a chunk that lost its context, or an index that still holds last year's policy.
+:::
+
 ## @lesson Embeddings and similarity
 An **embedding** is a list of numbers (a vector) that a model produces for a piece of text, so that texts with similar meaning get vectors that point in similar directions. Real embedding models have a few hundred to a few thousand dimensions (384, 768, 1,536, 3,072 are common). Search then becomes geometry: embed the question, find the stored vectors nearest to it.
 
@@ -60,6 +69,29 @@ A vector of 1,536 numbers stored as 4-byte floats is 6,144 bytes. Ten million ch
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k "TestEmbed or TestContentHash" -v`
 > 4. **Success Indicator:** All 9 tests report `PASSED` in milliseconds in pure Python, validating deterministic L2 unit vectors and whitespace-invariant hashing.
+
+:::drill python How close are two vectors?
+Write `cosine(a, b)`: `a` and `b` are lists of numbers of the same length. Return the cosine similarity: the dot product divided by the product of the two vector lengths (norms). Vectors pointing the same way give 1, perpendicular ones 0, opposite ones −1.
+@starter
+import math
+# write your function below this line
+
+@check
+defines("cosine") ## Define cosine(a, b).
+abs(cosine([1, 0], [1, 0]) - 1) < 1e-9 ## The same direction: 1.
+abs(cosine([1, 0], [0, 1])) < 1e-9 ## Perpendicular: 0.
+abs(cosine([1, 0], [-1, 0]) + 1) < 1e-9 ## Opposite: −1.
+abs(cosine([1, 1], [5, 5]) - 1) < 1e-9 ## Length does not matter, only direction.
+@hint
+`dot = sum(x * y for x, y in zip(a, b))`, `norm_a = math.sqrt(sum(x * x for x in a))`, same for b, then `dot / (norm_a * norm_b)`.
+@solution
+import math
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    return dot / (norm_a * norm_b)
+:::
 
 ## @lesson Chunking and metadata
 You embed *chunks*, not documents. Embedding a whole 40-page manual produces a vector that is an average of everything, and retrieving 40 pages to answer one question fills the prompt with noise. Chunks that are too small lose their context ("It expires after 30 days" - what does?). Chunking is therefore a design decision with consequences for quality and for cost.
@@ -85,6 +117,31 @@ Filtering has a trap. If a system runs the approximate vector search first and f
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestChunking -v`
 > 4. **Success Indicator:** All 7 tests report `PASSED`, validating structure-aware chunking, heading context attachment, and overlap windows without tiny trailing fragments.
+
+:::drill python Cut a text into overlapping chunks
+Write `chunk_words(text, size, overlap)`: split the text into words, then return a list of chunks (each a string of words joined by one space). Every chunk has up to `size` words, and each chunk starts `size - overlap` words after the previous one. Stop when a chunk reaches the end of the text. An empty text gives `[]`.
+@starter
+# write your function below this line
+
+@check
+defines("chunk_words") ## Define chunk_words(text, size, overlap).
+chunk_words("a b c d e f", 3, 1) == ["a b c", "c d e", "e f"] ## Size 3, overlap 1: each chunk starts 2 words later.
+chunk_words("a b c d", 4, 0) == ["a b c d"] ## The whole text fits in one chunk.
+chunk_words("a b c d e", 2, 0) == ["a b", "c d", "e"] ## No overlap: plain cutting, the last chunk is shorter.
+chunk_words("", 3, 1) == [] ## Nothing to chunk.
+@hint
+`words = text.split()`; `step = size - overlap`; loop `start` over `range(0, len(words), step)`, take `words[start:start + size]`, and stop after the chunk that reaches the end.
+@solution
+def chunk_words(text, size, overlap):
+    words = text.split()
+    chunks = []
+    step = size - overlap
+    for start in range(0, len(words), step):
+        chunks.append(" ".join(words[start:start + size]))
+        if start + size >= len(words):
+            break
+    return chunks
+:::
 
 ## @part Storing, updating and evaluating
 
@@ -128,6 +185,15 @@ A dedicated vector database (Qdrant, Weaviate, Milvus, Pinecone and others) adds
 >    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
 > 4. **Success Indicator:** All 8 tests report `PASSED`, validating exact recall fraction calculation and HNSW graph index traversal in pgvector.
 
+:::ask At 20 million vectors an exact scan is too slow. What does an HNSW index trade for speed?
+@options
+correctness of each vector that is stored
+the ability to filter on metadata ever again
+* a little recall: it may miss a true neighbour
+@why
+HNSW walks a layered graph instead of comparing every vector, so it is approximate. Settings such as `ef_search` move the balance between recall and time; more links per vector cost more memory.
+:::
+
 ## @lesson Incremental pipelines: pay only for what changed
 The naive pipeline re-embeds the whole collection every night. It is simple, slow and expensive, and it hides the real problem: *the embedding call is the expensive step, so the pipeline must call it as rarely as possible.*
 
@@ -162,6 +228,31 @@ A vector is only meaningful together with the model that made it. Vectors from d
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-5/test_rag.py -k TestSync -v`
 > 4. **Success Indicator:** All 11 tests report `PASSED`, validating 0 embedding calls for unchanged text, 1 call for a single edited paragraph, and safe transactional rollback on failure.
+
+:::drill python Which chunks need a new embedding?
+Embedding is the expensive call, so only embed chunks that are new. Write `to_embed(stored_hashes, chunks)`: `stored_hashes` is a set of hashes already embedded, `chunks` is the document's new list of chunk texts. The hash of a chunk is `hashlib.sha256(" ".join(chunk.split()).encode()).hexdigest()`, so extra whitespace does not change it. Return the list of chunk texts whose hash is **not** in `stored_hashes`, in order.
+@starter
+import hashlib
+# write your function below this line
+
+@check
+defines("to_embed") ## Define to_embed(stored_hashes, chunks).
+to_embed(set(), ["a b", "c"]) == ["a b", "c"] ## Nothing stored: everything is new.
+to_embed({hashlib.sha256(b"a b").hexdigest()}, ["a b", "c"]) == ["c"] ## "a b" is already embedded: skip it.
+to_embed({hashlib.sha256(b"a b").hexdigest()}, ["a   b"]) == [] ## Extra spaces do not change the hash.
+to_embed(set(), []) == [] ## No chunks, no calls.
+@hint
+For each chunk, compute the hash of `" ".join(chunk.split())` and keep the chunk if the hash is not in `stored_hashes`.
+@solution
+import hashlib
+def to_embed(stored_hashes, chunks):
+    out = []
+    for chunk in chunks:
+        h = hashlib.sha256(" ".join(chunk.split()).encode()).hexdigest()
+        if h not in stored_hashes:
+            out.append(chunk)
+    return out
+:::
 
 ## @lesson Evaluating and operating a RAG data pipeline
 You cannot see whether retrieval works by looking at the chatbot's pleasant sentences. Build an **evaluation set**: a few hundred real or realistic questions, each labelled with the document (or passages) that answers it. The lab generates 116, one per document. Then measure:
@@ -272,6 +363,15 @@ ASOF LEFT JOIN tier_feed f
 > 🛠 **Try it (25 min, Python with DuckDB, needs your Lab 1.4 `warehouse.db`).** Attach it in DuckDB (`ATTACH 'warehouse.db' AS w (TYPE sqlite)`) and use `stg_orders` for customers that exist in `stg_customers`, all statuses, with `order_ts` cast to `TIMESTAMP`. For a prediction moment S, the population is every customer with at least one order before S, the label is "at least one order in the 7 days from S", and you build two versions of one feature: **point-in-time** (orders in the 14 days before S) and **leaky** (all orders in the data, before and after S). Pick the rule "predict yes when feature ≥ k" (k from 1 to 7) with the best accuracy at S = 2026-01-15, then apply that same k at S = 2026-01-22, where only the past exists, so both versions become the point-in-time count. Compare with always guessing the more common answer. Finally, with an as-of join on the tier feed (`stg_customers` signup rows plus `stg_customer_changes`), count the customers whose tier on 2026-01-15 differs from their latest tier.
 >
 > **You should see:** `808` customers at 2026-01-15 (`466` ordered again) and `915` at 2026-01-22; always guessing "yes" scores `57.7%` and `56.8%`. The leaky feature looks useful in training, `70.4%` with k = 3, and collapses to `44.7%` at the later date, worse than guessing. The point-in-time feature scores `57.7%` and `54.9%`: on this data the honest signal is weak, which is exactly what you need to know before anyone ships the model. `14` of the 808 customers had a different tier on 15 January than today, so joining the current tier would have leaked too. Measured with DuckDB 2.0.1.
+
+:::ask A churn model's training row for 15 January counts the customer's orders, including one placed on 20 January. What is wrong?
+@options
+* leakage: it uses information from after that day
+nothing: more orders always make a better feature
+the label is missing, so the row must be dropped
+@why
+A feature may only use what was known at the prediction moment. The model would look excellent in training and fail in production, where the future order does not exist yet.
+:::
 
 ## @lesson Dual-storage feature stores (Feast pattern), in-warehouse ML (BigQuery ML), and point-in-time ASOF verification {optional}
 

@@ -33,6 +33,15 @@ Prinsip penting arsitektur: jika sebuah keputusan bisnis masih dapat menunggu la
 >
 > **Seharusnya Anda melihat:** waktu pemrosesan: menit `40` berisi `21` event (lonjakan yang sebenarnya tidak pernah terjadi), dan hanya `40` menit yang punya data (celah 20 menit kosong); waktu event: setiap dari `60` menit berisi tepat `1` event. Tampilan waktu event itulah yang benar, dan sebuah window harus menunggu event yang terlambat untuk melihatnya.
 
+:::ask Setelah gangguan, sebuah pipeline mengejar dan memproses enam jam event dalam lima menit. Jika dikelompokkan menurut processing time, apa yang ditampilkan grafik per menit?
+@options
+garis datar, karena event tersebar merata
+* satu lonjakan: event lama dihitung sebagai sekarang
+tidak ada, karena event terlambat dibuang
+@why
+Processing time adalah saat sistemmu melihat event, bukan saat terjadinya. Mengelompokkan dengannya mengubah backlog menjadi lonjakan palsu. Event time menaruh setiap event di menit tempatnya yang sebenarnya.
+:::
+
 ## @lesson Windowing (jendela waktu)
 Operasi agregasi matematika (seperti `count`, `sum`, `avg`) pada aliran data streaming yang tidak terbatas (unbounded) membutuhkan batasan kelompok waktu yang terhingga, yang diwujudkan dalam bentuk **Window** berbasis event time:
 
@@ -52,6 +61,38 @@ Pada Bagian A lab praktikum, Anda akan mengimplementasikan fungsi `window_starts
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-3/test_windows.py -k TestWindowStarts -v`
 > 4. **Indikator Sukses:** Sebanyak 3 pengujian berstatus `PASSED`, memvalidasi bahwa tumbling window menghasilkan 1 start tunggal dan sliding window menghasilkan `size // slide` start yang tumpang tindih.
+
+:::drill python Window mana yang memuat event ini?
+Tulis `window_starts(ts, size, slide)`: `ts`, `size`, dan `slide` adalah bilangan bulat detik. Sebuah window mulai di setiap kelipatan `slide` dan berlangsung `size` detik, `[start, start + size)`. Kembalikan daftar terurut awal semua window yang memuat `ts`. Saat `size == slide` (tumbling) hasilnya tepat satu window.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("window_starts") ## Definisikan window_starts(ts, size, slide).
+window_starts(125, 60, 60) == [120] ## Tumbling: 125 dtk berada di window yang mulai pada 120.
+window_starts(125, 300, 60) == [0, 60, 120] ## Sliding 5 menit per 1 menit: window yang mulai pada 0, 60, 120 memuat 125 dtk (window sebelum 0 tidak ada).
+window_starts(600, 300, 60) == [360, 420, 480, 540, 600] ## 300/60 = 5 window memuat event biasa.
+window_starts(0, 60, 60) == [0] ## Event tepat di batas masuk ke window yang mulai di situ.
+@hint
+Mulai dari awal window terakhir `(ts // slide) * slide` dan mundur sebesar `slide` selama `start > ts - size` dan `start >= 0`; urutkan di akhir.
+@solution
+def window_starts(ts, size, slide):
+    starts = []
+    start = (ts // slide) * slide
+    while start >= 0 and start > ts - size:
+        starts.append(start)
+        start -= slide
+    return sorted(starts)
+:::
+
+:::ask Window geser 5 menit maju 1 menit tiap langkah. Dalam berapa window satu event dihitung?
+@options
+1: setiap event punya tepat satu waktu
+60: satu untuk tiap detik dari window
+* 5: ukuran dibagi langkah geser
+@why
+Tiap event masuk ke size / slide window geser, di sini 300 / 60 = 5. Window tumbling adalah kasus khusus ketika size sama dengan slide, sehingga tiap event masuk tepat satu window.
+:::
 
 ## @lesson Watermarks: kapan sebuah window dinyatakan selesai?
 **Watermark** adalah estimasi engine streaming tentang "seberapa jauh kemajuan event time telah tercapai": sebuah komitmen bahwa **event yang stempel waktunya lebih lama dari watermark diprediksi tidak akan tiba lagi**. Pada Apache Spark Structured Streaming, rumus perhitungannya didefinisikan sebagai:
@@ -199,6 +240,15 @@ Tanpa pemenuhan syarat ketiga, Anda hanya memiliki jaminan at-least-once dengan 
 >
 > **Seharusnya Anda melihat:** kedua run berakhir dengan state `{'a': 5, 'b': 2, 'c': 1}` karena checkpoint menyimpan kemajuannya. Sink yang menambahkan berisi `4` baris (batch 1 muncul dua kali: output terduplikasi), sink yang menimpa berisi `3`, satu per batch id. Sumber yang bisa diputar ulang, checkpoint, dan sink yang idempoten: Anda baru saja membangun tiga syarat untuk efek exactly-once.
 
+:::ask Sebuah agregasi streaming per window berjalan tanpa watermark. Apa yang terjadi pada state-nya selama berbulan-bulan?
+@options
+* tumbuh terus: event masih bisa datang kapan saja
+menyusut, karena window lama menutup sendiri
+tetap sama, karena state tersimpan di disk
+@why
+Watermark adalah yang memberi tahu Spark bahwa sebuah window tidak akan menerima event lagi, sehingga state-nya bisa dihapus. Tanpanya setiap window harus disimpan, sampai job kehabisan memori.
+:::
+
 ## @lesson Spark Structured Streaming dan Apache Flink
 **Apache Spark Structured Streaming** memandang aliran streaming sebagai sebuah tabel yang bertambah terus tanpa batas (unbounded table) dan menggunakan DataFrame dan SQL API deklaratif yang sama persis dengan mode batch. Logika transformasi batch Anda sering kali dapat dipindahkan ke streaming dengan sedikit adaptasi. Di balik layar, engine-nya bekerja dengan paradigma **micro-batch**: mengeksekusi serangkaian mini batch job secara berulang dan cepat terhadap data yang baru tiba. Arsitektur ini memberikan throughput data raksasa, toleransi kesalahan yang tangguh dari engine batch, serta latensi end-to-end berkisar antara hitungan detik hingga sub-detik.
 
@@ -249,6 +299,15 @@ Pola arsitektur streaming lainnya: **Stream-Static Joins** memperkaya data strea
 >    `pytest labs/mod-3-3/test_stream.py -v`
 > 4. **Indikator Sukses:** Pengujian berstatus `PASSED` (atau dilewati secara rapi jika runtime Java belum terpasang), membuktikan bahwa emisi window Spark Structured Streaming nyata identik 100% dengan hasil model Python Anda.
 
+:::ask Situasi mana yang mengarah ke Flink dan bukan Spark Structured Streaming?
+@options
+dasbor yang disegarkan tiap menit dengan SQL
+* aturan fraud butuh latensi milidetik dan timer
+tim yang sudah memakai Spark, sedikit berubah
+@why
+Structured Streaming bersifat micro-batch, cocok untuk kerja 'dalam semenit' dan memakai ulang keterampilan batch. Flink memproses rekaman demi rekaman, dengan keyed state dan timer, cocok untuk latensi sangat rendah dan logika stateful yang rumit.
+:::
+
 ## @lesson Mengoperasikan sistem streaming di produksi
 Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti berjalan, dan memiliki karakteristik kegagalan yang berbeda dari batch pipeline biasa:
 
@@ -263,6 +322,15 @@ Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti
 > 🛠 **Coba sendiri (10 menit, Python).** Sebuah job menerima 100 event per detik tetapi hanya mampu memproses 80. Simulasikan 600 detik, dengan `lag += arrived - processed` setiap detik, dan cetak lag-nya. Lalu turunkan input menjadi 50 per detik dan hitung berapa detik lagi sampai lag-nya mencapai nol (pemrosesan tetap 80, dan lag tidak bisa di bawah 0).
 >
 > **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Tidak ada yang perlu dibangunkan untuk job yang gagal, tetapi job yang sekadar lebih lambat dari inputnya adalah kegagalan yang tumbuh diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
+
+:::ask Laju input sebuah job streaming adalah 10.000 event per detik tetapi hanya memproses 8.000. Apa yang terjadi jika tidak ada yang bertindak?
+@options
+job memperlambat input agar sesuai dirinya
+Kafka langsung menghapus event yang berlebih
+* lag tumbuh tanpa batas sampai kamu men-scale
+@why
+Setiap detik backlog bertambah 2.000 event. Kafka menyimpan rekamannya, jadi awalnya tidak ada yang hilang, tetapi hasil makin tertinggal dari waktu nyata. Pantau lag dan durasi batch serta tambah kapasitas sebelum jadi masalah.
+:::
 
 ## @lesson Lambda vs. Kappa vs. unified lakehouse, PyFlink & Redpanda, stream join, dan real-time OLAP (Pinot, ClickHouse, Druid) {optional}
 

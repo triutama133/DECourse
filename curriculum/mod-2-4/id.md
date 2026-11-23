@@ -38,6 +38,28 @@ Dua ekosistem orkestrator yang paling dominan di industri adalah **Apache Airflo
 >
 > **Seharusnya Anda melihat:** dengan `retries=2`, `load` gagal dua kali (`warehouse busy`) dan berhasil pada percobaan ke-3, dan kelima task berakhir `success`. Dengan `retries=1`, `load` berakhir `failed`, `report` menjadi `skipped`, dan `extract`, `clean`, serta `audit` tetap `success`: `audit` tidak bergantung pada `load`, jadi kegagalan itu tidak menghentikannya. Loop kecil itulah inti setiap orkestrator: dependensi, retry, dan status untuk setiap task.
 
+:::drill python Task mana yang jalan lebih dulu?
+Tulis `run_order(deps)`: `deps` memetakan tiap task ke daftar task yang dibutuhkannya lebih dulu, misalnya `{"load": ["extract"], "extract": []}`. Kembalikan daftar semua task dalam urutan jalan yang valid. Jika beberapa task siap bersamaan, ambil menurut urutan abjad.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("run_order") ## Definisikan run_order(deps).
+run_order({"load": ["extract"], "extract": []}) == ["extract", "load"] ## extract harus sebelum load.
+run_order({"c": ["a", "b"], "b": ["a"], "a": []}) == ["a", "b", "c"] ## c butuh a dan b; b butuh a.
+run_order({"b": [], "a": [], "c": ["a"]}) == ["a", "b", "c"] ## a dan b sama-sama siap: urut abjad. c hanya menunggu a.
+run_order({}) == [] ## Tanpa task, tanpa urutan.
+@hint
+Ulangi: ambil setiap task yang belum selesai dan semua kebutuhannya sudah selesai; pilih yang pertama menurut abjad; tandai selesai.
+@solution
+def run_order(deps):
+    done = []
+    while len(done) < len(deps):
+        ready = sorted(t for t in deps if t not in done and all(d in done for d in deps[t]))
+        done.append(ready[0])
+    return done
+:::
+
 ## @lesson Konsep inti: runs, intervals, dan partitions
 Graf dependensi di orkestrator dimodelkan sebagai **DAG (Directed Acyclic Graph)**: node melambangkan task atau asset data, tanda panah melambangkan "berjalan setelah" atau "bergantung pada", dan sifat **acyclic** memastikan tidak ada lingkaran setan/rekursi tak berujung (no circular dependencies), sehingga urutan eksekusi selalu deterministik.
 
@@ -62,6 +84,27 @@ Aturan emas komunikasi antar-langkah: **alirkan referensi metadata, jangan alirk
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
 > 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi 30 partisi dari 2026-01-01 hingga 2026-01-30.
+
+:::drill python Interval data dari satu run harian
+Pipeline harian memproses hari **sebelumnya**. Tulis `interval_for(run_date)`: `run_date` adalah string seperti `"2026-01-06"`. Kembalikan tuple `(start, end)` berupa string: awal hari sebelumnya dan awal `run_date` itu sendiri.
+@starter
+from datetime import date, timedelta
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("interval_for") ## Definisikan interval_for(run_date).
+interval_for("2026-01-06") == ("2026-01-05", "2026-01-06") ## Run tanggal 6 Januari memproses 5 Januari.
+interval_for("2026-03-01") == ("2026-02-28", "2026-03-01") ## Melewati pergantian bulan dengan benar.
+interval_for("2026-01-01") == ("2025-12-31", "2026-01-01") ## Dan pergantian tahun.
+@hint
+`end = date.fromisoformat(run_date)`, `start = end - timedelta(days=1)`, lalu `.isoformat()` keduanya.
+@solution
+from datetime import date, timedelta
+def interval_for(run_date):
+    end = date.fromisoformat(run_date)
+    start = end - timedelta(days=1)
+    return (start.isoformat(), end.isoformat())
+:::
 
 ## @lesson Idempotensi dan backfill: aturan yang membuat segalanya aman
 Modul 0.2 telah mengenalkan konsepnya dan Modul 1.2 memperdalam tekniknya, namun di dalam orkestrator, idempotensi adalah syarat mutlak yang tidak bisa ditawar: **Setiap langkah dalam pipeline harus aman untuk dieksekusi berkali-kali untuk interval data yang sama tanpa mengubah hasil akhir.** Orkestrator melakukan retry otomatis, teknisi manusia sering kali menekan tombol trigger ulang, dan operasi backfill memproses ulang riwayat data; jika eksekusi ganda mengakibatkan metrik revenue berlipat ganda, maka bencana finansial hanya tinggal menunggu waktu.
@@ -158,6 +201,15 @@ Banyak organisasi memilih menggunakan managed service Airflow di cloud (seperti 
 
 > 🛠 **Coba sendiri (5 menit, pena dan kertas — pemeriksaan desain DAG).** Perhatikan `@dag` Airflow di atas. Mengapa pembacaan file atau query database harus berada *di dalam* `@task def extract()`, bukan di tingkat atas file di luar `@task`? Dan jika Anda menjalankan backfill `2026-01-01` sampai `2026-01-07`, nilai tanggal apa yang wajib dipakai `extract()` dan `load()` alih-alih `datetime.now()`?
 
+:::ask Di Airflow kamu menetapkan `retries=3` pada task yang menambahkan baris ke sebuah tabel. Apa yang harus benar agar retry aman?
+@options
+* task idempoten: dua kali memberi hasil yang sama
+scheduler di-restart di antara tiap percobaan
+task selalu berjalan di worker yang sama
+@why
+Retry menjalankan task lagi, mungkin setelah sebagian outputnya sudah tertulis. Jika task mengganti irisannya (hapus lalu masukkan, atau MERGE), pengulangan tidak berbahaya; append buta akan menggandakan baris.
+:::
+
 ## @lesson Dagster: pipeline sebagai asset
 **Dagster** bertolak dari paradigma yang sangat berbeda. Alih-alih bertanya "task mana yang harus berjalan dalam urutan apa?", Dagster bertanya: "**data asset apa yang seharusnya ada di sistem kita, dan apa dependensinya?**". Sebuah **asset** merepresentasikan tabel database, file data lake, atau model machine learning nyata; fungsi berdekorator `@asset` mendefinisikan komputasi logis untuk memproduksi asset tersebut (`@asset` adalah decorator Python dari `dagster` yang mendaftarkan fungsi ke dalam graf dependensi, sedangkan pewarisan `ConfigurableResource` mendefinisikan konfigurasi bertipe — seperti `Paths` — yang diinjeksikan otomatis sebagai argumen fungsi asset untuk dependency injection yang bersih). Relasi dependensi terbentuk langsung antar asset, sehingga orkestrator memahami secara tepat kapan suatu data usang (stale), asset hilir mana yang terdampak oleh perubahan hulu, dan partisi mana yang perlu dihitung ulang.
 
@@ -212,6 +264,15 @@ Dagster juga memiliki integrasi native yang luar biasa dengan dbt (setiap model 
 >    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
 > 6. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi integrasi asset check dan spesifikasi schedule 02:00 WIB berjalan sempurna.
 
+:::ask Apa beda pertanyaan awal Dagster dibanding Airflow?
+@options
+server mana yang menjalankan tiap skrip
+* aset data mana yang harus ada dan butuh apa
+berapa kali tiap task harus di-retry
+@why
+Dagster memodelkan data yang diinginkan (tabel, file, model) dan menurunkan eksekusi dari dependensinya. Airflow memodelkan task dan urutannya. Keduanya bisa menyatakan pipeline yang sama.
+:::
+
 ## @lesson Memilih dan mengoperasikan orchestrator
 Komparasi objektif antara kedua filosofi orkestrasi data:
 
@@ -241,6 +302,15 @@ Anti-pattern yang wajib dihindari: pemanggilan `now()` di dalam badan task; oper
 > 🛠 **Coba sendiri (10 menit, Python).** Sebuah job seharusnya berhasil setiap hari pukul 02:00. Run yang berhasil di Januari 2026 ada pada tanggal 1, 2, 4, 5, 8, 9, dan 10. Dengan `datetime.date` dan `timedelta`, tulis `missing_runs(success_dates, start, end)` yang mengembalikan hari-hari tanpa run yang berhasil, lalu cetak hari yang hilang antara 2026-01-01 dan 2026-01-10 serta rentang terpanjang hari hilang yang berturut-turut.
 >
 > **Seharusnya Anda melihat:** `2026-01-03`, `2026-01-06`, dan `2026-01-07`, dan rentang terpanjang `2` hari. Perhatikan bahwa tidak ada yang gagal di hari-hari itu: tidak ada yang berjalan sama sekali, jadi peringatan kegagalan tidak akan pernah berbunyi. Inilah peringatan "run yang hilang" dari daftar di atas.
+
+:::ask Sebuah tim baru harus memilih antara Airflow dan Dagster. Apa dasar pemilihan yang jujur?
+@options
+alat mana yang namanya lebih terkenal
+alat berfitur lebih sedikit karena lebih sederhana
+* keahlian tim, stack yang ada, dan bentuk kerja
+@why
+Tidak ada alat yang terbaik untuk semua kasus. Airflow paling luas dipakai; Dagster cocok untuk kerja yang sebagian besar menghasilkan tabel dan model. Pilih berdasarkan tim, stack yang ada, dan bentuk pekerjaannya.
+:::
 
 ## @lesson Stack orkestrasi lokal berbasis Docker Compose dan panduan aman backfill produksi
 
@@ -292,6 +362,15 @@ Perhatikan `condition: service_healthy`: `depends_on` biasa hanya menunggu prose
 > 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat `data/orders.csv` dengan `read_csv(..., all_varchar=true)`, simpan baris yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST(order_ts AS TIMESTAMP)`. Buat dua tabel kosong `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11, dan 12 ke keduanya, satu hari setiap kali, dengan menghitung pesanan yang tidak dibatalkan (bandingkan `lower(trim(status))`: file-nya menulisnya dengan tiga cara): ke tabel pertama dengan `INSERT` biasa, ke tabel kedua dengan `DELETE` hari itu lalu `INSERT`, dalam satu transaksi. Jalankan seluruh backfill untuk kedua kalinya, seperti setelah crash, dan cetak jumlah baris dan total pendapatan kedua tabel setelah setiap run.
 >
 > **Seharusnya Anda melihat:** setelah run pertama kedua tabel berisi `3` baris dan `100360000`. Setelah run kedua tabel `INSERT` biasa berisi `6` baris dan `200720000`, setiap hari terhitung dua kali, sedangkan tabel yang mengganti per hari tetap `3` dan `100360000`. (Jika hanya membandingkan `status <> 'cancelled'`, hasilnya `101925000`: pesanan yang ditulis `CANCELLED` atau `Cancelled` lolos sebagai pendapatan.) Tabel kedua itulah yang direkonsiliasi pada langkah 6 runbook. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
+
+:::ask Di file docker-compose, aplikasi punya `depends_on: postgres`. Mengapa saat start tetap bisa gagal dengan 'connection refused'?
+@options
+* depends_on menunggu start, bukan kesiapan layanan
+depends_on hanya bekerja untuk kontainer Python
+Postgres menolak koneksi dari kontainer lain
+@why
+Kontainer yang sudah start belum tentu layanan yang siap. Tambahkan healthcheck pada Postgres dan pakai `condition: service_healthy` agar aplikasi baru start setelah database menjawab.
+:::
 
 ## @lab Lab: pipeline harian di Dagster, diuji layaknya software
 Bangun pipeline pemrosesan data harian KopiKu sebagai rangkaian asset terkelola di Dagster: lakukan pembersihan data transaksi per partisi harian, hitung ringkasan pendapatan harian, buat laporan agregasi seluruh hari, pasang asset checks untuk menjamin kualitas data, tetapkan kebijakan retry, dan pasang penjadwalan berbasis zona waktu Asia/Jakarta. Suite pengujian akan mengeksekusi pipeline Anda menggunakan engine orkestrasi nyata terhadap direktori filesystem temporary.

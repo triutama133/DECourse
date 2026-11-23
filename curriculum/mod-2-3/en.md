@@ -48,6 +48,15 @@ The `{{ ... }}` is **Jinja**, a templating language dbt evaluates before running
 >
 > **You should see:** `mart_daily` depends on `fct_orders`, `fct_orders` on both staging models, and the staging models on nothing; the build order is the two `stg_` models (either order), then `fct_orders`, then `mart_daily`. After you add the circular reference, `graphlib.CycleError` names the loop (`mart_daily`, `stg_customers`, `fct_orders`). This is exactly what dbt does with `ref()`: it builds the DAG and refuses to run a cycle.
 
+:::ask In dbt, model `orders_clean` selects from `{{ ref('orders_raw') }}`. What does `ref` give you beyond the table name?
+@options
+a faster query, because ref caches the result
+* a dependency edge, so dbt builds raw first
+permission to write into the orders_raw table
+@why
+`ref` is how dbt learns the dependency graph. From the references alone it orders the runs, lets you run a model with its parents, and builds documentation and lineage.
+:::
+
 ## @lesson Project anatomy and the dbt commands
 A project is a folder:
 
@@ -396,6 +405,15 @@ A healthy workflow: develop in a personal schema, open a pull request, let CI ru
 > 3. Execute the snapshot in terminal:
 >    `dbt snapshot --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Success Indicator:** `OK snapshotted snapshots.customers_snapshot`, ready to capture city moves and tier changes when the second batch is loaded.
+
+:::ask A customer moves from Jakarta to Bandung. With a dbt snapshot (check strategy on `city`), what happens at the next run?
+@options
+the old row is overwritten with Bandung
+the run fails because the city has changed
+* the old row is closed and a new row is added
+@why
+A snapshot builds a Type 2 history: the previous version stays, with an end timestamp, and the new version starts. Overwriting would lose the fact that the customer once lived in Jakarta.
+:::
 
 ## @lesson Production dbt on cloud warehouses: incremental strategies, unit tests, model contracts, and Slim CI {optional}
 

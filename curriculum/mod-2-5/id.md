@@ -38,6 +38,15 @@ Dari mana asal rusaknya data? Sebagian besar masalah data berasal dari **perubah
 >
 > **Seharusnya Anda melihat:** `0` id kosong; `112` status buruk, `54` total buruk, `41` timestamp buruk; `35` salinan tambahan sebuah order id; `16` pesanan dengan pelanggan yang tidak dikenal; pesanan terbaru `2026-01-30T23:59:00`. Dimensi mana yang akan Anda lupakan seandainya tabel di atas tidak mencantumkannya?
 
+:::ask Setiap baris pesanan punya id tidak null dan tanggal valid, tetapi file kemarin berisi 3.000 baris padahal normalnya 30.000. Dimensi kualitas mana yang gagal?
+@options
+keunikan: beberapa id muncul berulang kali
+* kelengkapan: sebagian data tidak pernah datang
+validitas: tanggalnya bukan tanggal yang nyata
+@why
+Setiap baris valid, tetapi sepersepuluh data hilang. Pengecekan tingkat baris tidak bisa melihatnya; dibutuhkan pengecekan tingkat dataset yang membandingkan jumlah dengan yang normal.
+:::
+
 ## @lesson Pertahanan berlapis (defence in layers)
 Tidak ada satu jenis assertion pun yang mampu menangkap semua ragam cacat data. Oleh karena itu, arsitektur kualitas data dibangun menggunakan strategi **pertahanan berlapis (defence in layers)** dengan prinsip **shift left**: tangkap masalah sedekat mungkin dengan sumber asalnya sebelum mencemari lapisan data lakehouse berikutnya.
 
@@ -56,6 +65,15 @@ Dalam lab modul ini, Anda akan membangun layer 1 hingga 4 secara mandiri ke dala
 > 🛠 **Coba sendiri (15 menit, Python).** Tulis gerbang lapisan 2 untuk `data/orders.csv`: `gate(rows, max_reject_share)` memisahkan baris menjadi diterima dan ditolak (sebuah baris ditolak jika `total_idr` bukan bilangan bulat tidak negatif biasa atau `order_ts` bukan timestamp ISO yang sah) dan memunculkan `ValueError` jika porsi yang ditolak di atas `max_reject_share`. Jalankan dengan `0.05` dan dengan `0.02`. Lalu jalankan dua pemeriksaan gaya lapisan 3 pada baris yang *diterima*: salinan tambahan sebuah `order_id`, dan pesanan yang pelanggannya tidak ada di `data/customers.csv`.
 >
 > **Seharusnya Anda melihat:** `3539` diterima dan `95` ditolak (2,61%); gerbangnya lolos dengan `0.05` dan memunculkan error dengan `0.02`. Baris yang diterima masih berisi `34` salinan tambahan sebuah order id dan `16` pesanan dengan pelanggan yang tidak dikenal: gerbang yang melihat satu baris pada satu waktu tidak bisa melihatnya, itulah sebabnya lapisan berikutnya ada. Untuk setiap temuan dari ketiganya, apakah Anda akan memblokir, memberi peringatan, atau hanya mencatat?
+
+:::ask Mengapa 'shift left' membuat kualitas lebih murah?
+@options
+ia menghilangkan kebutuhan monitoring sama sekali
+ia memindah semua tes ke akhir agar jalan sekali
+* baris buruk dihentikan di sumber, tak menyebar
+@why
+Makin lambat masalah ditemukan, makin banyak tabel, laporan, dan keputusan yang tersentuh. Menangkapnya dekat sumber butuh satu perbaikan; menangkapnya di dasbor butuh pembersihan.
+:::
 
 ## @lesson Data contracts: tuliskan kesepakatan secara eksplisit
 **Data contract** adalah kesepakatan formal yang terikat versi antara **data producer** (misalnya tim backend checkout) dan **data consumers** (tim data platform dan analitik). Tanpa kontrak tertulis, tim backend dapat mengubah nama kolom `order_status` menjadi `status_code` sesuka hati dan baru menyadarinya seminggu kemudian saat menerima email kemarahan dari pimpinan bisnis. Dengan data contract, rencana perubahan tersebut wajib didiskusikan dan diuji otomatis di CI sebelum kode backend di-merge ke master.
@@ -105,6 +123,28 @@ Data contract bukan alat untuk saling melempar kesalahan, melainkan sarana untuk
 > 3. Uji keabsahan kontrak data di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
 > 4. **Indikator Sukses:** Seluruh tes `TestContractFile` berstatus `PASSED` membuktikan kontrak valid dan lengkap.
+
+:::drill python Periksa baris terhadap kontrak
+Sebuah kontrak menyebut field mana yang wajib dan tipe tiap field. Tulis `violations(row, contract)`: `contract` memetakan nama field ke tipe (misalnya `{"id": int, "email": str}`). Kembalikan daftar terurut nama field yang **tidak ada** di `row` atau **bertipe salah**. Baris yang patuh kontrak menghasilkan `[]`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("violations") ## Definisikan violations(row, contract).
+violations({"id": 1, "email": "a@b.c"}, {"id": int, "email": str}) == [] ## Baris valid tidak punya pelanggaran.
+violations({"id": "1", "email": "a@b.c"}, {"id": int, "email": str}) == ["id"] ## "1" adalah teks, kontrak meminta int.
+violations({"id": 1}, {"id": int, "email": str}) == ["email"] ## email tidak ada.
+violations({}, {"b": int, "a": str}) == ["a", "b"] ## Semua tidak ada; daftar terurut.
+@hint
+Untuk tiap `name, kind` di kontrak: itu pelanggaran jika `name not in row` atau `not isinstance(row[name], kind)`. Kembalikan `sorted(...)`.
+@solution
+def violations(row, contract):
+    bad = []
+    for name, kind in contract.items():
+        if name not in row or not isinstance(row[name], kind):
+            bad.append(name)
+    return sorted(bad)
+:::
 
 ## @lesson Ingestion gate: ketat di pintu masuk, karantina data yang gagal
 Di perbatasan gerbang penyerapan (ingestion boundary), terapkan validasi **secara ketat** terhadap spesifikasi kontrak data, dan alihkan setiap baris yang cacat ke **tabel karantina (quarantine)** lengkap beserta alasan spesifik kegagalannya (mengadopsi pola dari Modul 1.2). Sikap ketat di lapisan ini sangat disengaja: jika kontrak menetapkan bahwa `total_idr` bertipe integer, maka kemunculan nilai teks seperti `"Rp 1.250.000"` adalah pelanggaran kontrak yang harus dilaporkan kembali ke produsen, bukan sesuatu yang ditebak-tebak secara diam-diam. Proses parsing dan standardisasi untuk ketidakteraturan yang sudah dimaklumi adalah tugas eksplisit dari staging layer (Modul 2.3).
@@ -180,6 +220,46 @@ Panduan praktis lapangan:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Indikator Sukses:** Seluruh 6 tes `TestSmallChecks` berstatus `PASSED` mengonfirmasi keandalan deteksi statistik terhadap drift dan anomali.
 
+:::drill python Apakah datanya basi?
+Tulis `is_stale(latest, now, max_hours)`: `latest` dan `now` adalah objek `datetime`, `max_hours` sebuah angka. Kembalikan `True` jika data terbaru **lebih dari** `max_hours` jam umurnya, selain itu `False`.
+@starter
+from datetime import datetime
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("is_stale") ## Definisikan is_stale(latest, now, max_hours).
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 8), 24) == True ## Umur 26 jam, batas 24.
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 5), 24) == False ## Umur 23 jam, aman.
+is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 6), 24) == False ## Tepat 24 jam bukan lebih dari 24.
+@hint
+`(now - latest).total_seconds() / 3600 > max_hours`
+@solution
+from datetime import datetime
+def is_stale(latest, now, max_hours):
+    return (now - latest).total_seconds() / 3600 > max_hours
+:::
+
+:::drill python Cek volume yang tidak bisa ditipu pencilan
+Tulis `volume_ok(today, history, tolerance)`: `history` adalah daftar jumlah baris harian sebelumnya. Kembalikan `True` jika `today` berada dalam `tolerance` (pecahan seperti `0.5`) dari **median** riwayat, selain itu `False`. Pakai median, bukan rata-rata: satu gangguan di masa lalu tidak boleh menyembunyikan penurunan yang nyata.
+@starter
+import statistics
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("volume_ok") ## Definisikan volume_ok(today, history, tolerance).
+volume_ok(30000, [29000, 30000, 31000], 0.5) == True ## Dekat median 30000.
+volume_ok(3000, [29000, 30000, 31000], 0.5) == False ## Sepersepuluh normal: jauh di luar pita.
+volume_ok(3000, [29000, 30000, 31000, 100, 28000], 0.5) == False ## Satu gangguan lama (100) tidak boleh menyeret median turun.
+volume_ok(15000, [30000, 30000, 30000], 0.5) == True ## Tepat setengah adalah tepi pita, masih ok.
+@hint
+`m = statistics.median(history)`, lalu `abs(today - m) <= tolerance * m`.
+@solution
+import statistics
+def volume_ok(today, history, tolerance):
+    m = statistics.median(history)
+    return abs(today - m) <= tolerance * m
+:::
+
 ## @lesson Lineage, perkakas pendukung, dan level layanan (SLA)
 **Data Lineage** merekam jejak aliran data dari hulu ke hilir: dashboard eksekutif ini membaca data mart ini, yang dibangun dari model staging ini, yang bersumber dari tabel mentah ini, yang di-load oleh pipeline job ini. Lineage menjawab dua pertanyaan operasional paling kritis dalam insiden data: *Analisis Dampak (Impact Analysis)*: "Database sumber ini sedang offline, dashboard mana saja yang akan terdampak?" dan *Akar Masalah (Root Cause Analysis)*: "Angka pendapatan di laporan ini salah, dari baris data mana kesalahan ini bermula?". Orkestrator modern dan dbt memproduksi metadata lineage secara otomatis (Modul 2.3 dan 2.4), dan **OpenLineage** adalah standar terbuka universal untuk memancarkan metadata ini dalam bentuk event terstruktur:
 
@@ -201,6 +281,15 @@ Panduan praktis lapangan:
 >
 > **Seharusnya Anda melihat:** `downstream("raw_customers")` berisi `6` dataset (`stg_customers`, `fct_orders`, `mart_daily`, `mart_tier`, `dashboard_revenue`, `dashboard_loyalty`), `downstream("stg_orders")` berisi `5`, dan `upstream("dashboard_loyalty")` berisi `6` (`mart_tier`, `fct_orders`, `stg_orders`, `stg_customers`, `raw_orders`, `raw_customers`). Dua yang pertama adalah *analisis dampak*, yang ketiga *akar masalah*.
 
+:::ask Sebuah dasbor menampilkan angka yang salah. Pertanyaan mana yang paling cepat dijawab oleh lineage?
+@options
+* tabel dan job hulu mana yang menyuplainya
+analis mana yang pertama membuat dasbor
+berapa banyak baris yang tampil di dasbor
+@why
+Lineage mencatat bagaimana data mengalir dari tabel mentah lewat model ke dasbor. Dibaca mundur ia menunjuk tersangka; dibaca maju ia menunjukkan siapa yang terdampak saat sebuah tabel salah.
+:::
+
 ## @lesson Ketika sistem rusak: manajemen respons insiden
 Insiden cacat data pasti akan terjadi di lingkungan produksi suatu hari nanti. Hal yang membedakan tim rekayasa data matang dari tim amatir adalah cara mereka merespons insiden tersebut:
 
@@ -218,6 +307,15 @@ Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** u
 > 3. Uji perilaku orkestrasi di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.
+
+:::ask Pengguna melaporkan angka yang salah sebelum ada alert yang menyala. Apa yang pertama dilakukan tim yang matang dengan fakta itu?
+@options
+minta pengguna berhenti melaporkan masalah
+* celah deteksi: tambah pengecekan yang menangkapnya
+matikan dasbor selamanya agar aman
+@why
+Seberapa sering pengguna menemukan masalah sebelum kamu adalah ukuran deteksimu. Setiap insiden seperti itu harus berakhir dengan pengecekan atau monitor baru, agar kegagalan sama tertangkap otomatis lain kali.
+:::
 
 ## @part Metadata, privasi, dan master data
 
@@ -255,6 +353,27 @@ def mask_phone(phone):
 > Putuskan sendiri: saat dua email milik orang yang sama, apa arti "sama"; kota, tier, dan nomor telepon dari record mana yang bertahan; dan apa yang tidak boleh pernah muncul di output.
 > **Periksa:** `python3 labs/tryit/check.py 2.5-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
+:::drill python Pseudonimisasi dengan rahasia
+Tulis `pseudonymise(value, secret)`: keduanya string. Kembalikan HMAC-SHA256 heksadesimal dari value, berkunci secret (`hmac.new(key, message, "sha256").hexdigest()`; ubah kedua string ke byte UTF-8). Value dan secret yang sama harus selalu menghasilkan keluaran sama, dan secret berbeda menghasilkan keluaran berbeda.
+@starter
+import hmac
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("pseudonymise") ## Definisikan pseudonymise(value, secret).
+pseudonymise("a@b.c", "s1") == pseudonymise("a@b.c", "s1") ## Masukan sama, keluaran sama: kamu tetap bisa melakukan join.
+pseudonymise("a@b.c", "s1") != pseudonymise("a@b.c", "s2") ## Secret berbeda menghasilkan token berbeda.
+pseudonymise("a@b.c", "s1") != pseudonymise("x@y.z", "s1") ## Orang berbeda menghasilkan token berbeda.
+len(pseudonymise("a@b.c", "s1")) == 64 ## SHA-256 dalam heksa adalah 64 karakter.
+"a@b.c" not in pseudonymise("a@b.c", "s1") ## Nilai aslinya tidak terlihat.
+@hint
+`hmac.new(secret.encode(), value.encode(), "sha256").hexdigest()`
+@solution
+import hmac
+def pseudonymise(value, secret):
+    return hmac.new(secret.encode("utf-8"), value.encode("utf-8"), "sha256").hexdigest()
+:::
+
 ## @part Berkomunikasi tentang data
 
 ## @lesson Tulisan yang ditindaklanjuti orang: design doc, kabar insiden, dan post-mortem
@@ -280,6 +399,15 @@ Kursus menyediakan template (bahasa Inggris dan Indonesia) di `labs/shared/writi
 >
 > **Seharusnya Anda melihat:** draf itu lulus 6 pemeriksaan bagian dan gagal di 6 lainnya: terlalu pendek, `0` angka, tidak ada jam di kronologi, dampak yang tidak terukur, `0 of 2` tindak lanjut yang punya pemilik dan tanggal, dan kata-kata menyalahkan (`ceroboh`, `kesalahan manusia`, `salahnya`). Tulisan ulang Anda seharusnya diakhiri `Structure looks right`. Perbedaan kedua versi itulah yang pertama kali diperhatikan manajer perekrutan dalam tugas take-home.
 
+:::ask Pembuka pembaruan insiden mana yang paling berguna bagi manajer yang hanya membaca baris pertama?
+@options
+sejarah bagaimana pipeline pertama kali dibangun
+permintaan maaf dan daftar alat yang sudah dicoba
+* dampak dan keputusan: 'Pendapatan rendah 8%; selesai 14.00'
+@why
+Taruh jawaban di depan, dengan angka: apa yang terdampak, seberapa besar, dan apa langkah berikutnya. Detail dan cerita penyelidikan bisa menyusul di bawah untuk pembaca yang menginginkannya.
+:::
+
 ## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan depresiasi skema tanpa downtime
 
 Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah—bisa tolong cek?"*
@@ -302,6 +430,24 @@ Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingku
 > 🛠 **Coba sendiri (15 menit, SQL pada `warehouse.db` Lab 1.4 Anda).** Bagian Keuangan bilang "pendapatan per kota saat ini" terlalu tinggi. Query seorang rekan mengambil `customer_id` setiap baris lewat `customer_sk`, lalu menjoin `dim_customer` untuk kedua kalinya pada `customer_id` untuk membaca kotanya, dan lupa `is_current = 1`. Telusuri hop 3: hitung baris dan jumlahkan `line_total_idr` dari `fact_order_items` saja, lalu lewat join rekan tadi, lalu dengan tambahan `is_current = 1`. Cari tahu berapa pelanggan yang membuat selisihnya.
 >
 > **Seharusnya Anda melihat:** fakta saja berisi `7123` baris dan `1208770000`. Join rekan tadi berisi `8584` baris dan `1459220000`, sekitar 21% terlalu tinggi, dan tidak ada error sama sekali. Dengan `is_current = 1` kembali menjadi `7123` dan `1208770000`. Penyebabnya: `100` pelanggan punya lebih dari satu versi di dimensi SCD Type 2, jadi baris mereka terhitung sekali per versi. Diukur dengan warehouse referensi lab pada data bawaan kursus.
+
+:::ask Sebuah angka di dasbor tampak salah. Apa yang pertama kali disarankan penelusuran akar masalah lewat lineage?
+@options
+* mulai dari dasbor dan telusuri mundur
+jalankan ulang semua pipeline sampai angkanya berubah
+minta tim sumber menyatakan ulang bulan lalu
+@why
+Jangan menebak atau menjalankan ulang secara acak. Mulai dari gejala yang terlihat dan telusuri mundur lewat mart, model staging, dan tabel mentah; langkah pertama yang keluarannya sudah salah adalah tempat kesalahan masuk.
+:::
+
+:::ask Kamu harus mengganti kolom float `total_amount` dengan integer `total_idr` tanpa merusak dasbor mana pun. Urutan mana yang aman?
+@options
+hapus kolom lama dulu agar tak ada yang memakai
+* expand, migrasi pembaca, lalu contract
+ganti nama di tempat dan kabari semua sesudahnya
+@why
+Expand, migrate, contract menjaga kedua kolom tetap hidup selama pemindahan, sehingga tiap konsumen bisa beralih sesuai kecepatannya. Kolom lama dihapus hanya setelah tidak ada yang membacanya.
+:::
 
 ## @part Etika dan produk data
 
@@ -331,6 +477,15 @@ Dataset tanpa semua itu hanyalah file yang pernah dibuat seseorang; dengan semua
 >
 > **Seharusnya Anda melihat:** `1000` pelanggan. Kota dan tier saja memberi `26` kelompok, yang terkecil berisi `3` orang. Menambahkan bulan daftar membuat `80` pelanggan unik dan menaruh `353` di kelompok yang lebih kecil dari 5. Dengan tanggal daftar yang persis, `846` dari 1.000 pelanggan unik: siapa pun yang tahu kapan temannya mendaftar dan di mana ia tinggal bisa menemukan barisnya. Hanya rilis pertama yang mendekati 5-anonim, dan itu pun punya kelompok berisi 3. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
 
+:::ask Sebuah tabel tidak punya nama atau email, hanya kode pos, tanggal lahir, dan jenis kelamin. Apakah itu anonim?
+@options
+ya, karena tidak ada pengenal langsung yang tersisa
+ya, selama tabel disimpan dalam keadaan terenkripsi
+* belum tentu: quasi-identifier bisa menunjuk satu orang
+@why
+Kombinasi kolom biasa bisa unik bagi satu orang, dan menggabungkannya dengan dataset lain bisa mengungkap siapa dia. Menghapus nama paling jauh adalah pseudonimisasi, bukan anonimisasi.
+:::
+
 ## @part Bekerja dengan orang yang meminta data
 
 ## @lesson Menerjemahkan permintaan stakeholder menjadi kontrak data dan pohon KPI
@@ -355,6 +510,15 @@ Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan si
 > 🛠 **Coba sendiri (10 menit, kertas).** Seorang Direktur Marketing menulis: *"Boleh minta tabel pelanggan terbaik kita beserta omzetnya?"* Sebelum membaca lebih jauh, tulis setiap pertanyaan yang perlu dijawab sebelum Anda bisa menulis SQL-nya, lalu ajukan lima pertanyaan intake di atas pada permintaan ini. Kelompokkan pertanyaan Anda menurut tiga dokumen tadi: kebutuhan, KPI, dan grain.
 >
 > **Seharusnya Anda melihat:** minimal tiga ambiguitas. Yang biasa muncul: apa arti "terbaik" (belanja kotor, pendapatan bersih setelah diskon dan refund, atau seberapa sering memesan), dalam rentang waktu apa (seumur hidup, 90 hari terakhir, bulan ini), dan pada grain apa (satu baris per pelanggan, atau satu baris per pelanggan per bulan). Jawaban yang baik juga menanyakan status mana yang dihitung sebagai pendapatan dan apa yang akan *dilakukan* Marketing dengan daftar itu: kampanye win-back butuh pelanggan yang berbeda dari hadiah VIP.
+
+:::ask Seorang pemangku kepentingan meminta 'pelanggan aktif'. Apa yang sebaiknya kamu lakukan sebelum menulis SQL apa pun?
+@options
+* sepakati definisi tepat: periode apa, event apa
+bangun dengan definisi paling umum lalu lanjut
+minta anggaran yang lebih besar sebelum mulai
+@why
+Kebanyakan angka salah adalah ketidakcocokan definisi, bukan kesalahan kode. Menuliskan definisi, grain, dan periode bersama peminta, sebagai kontrak singkat, mencegah membangun hal yang tepat untuk pertanyaan yang salah.
+:::
 
 ## @lab Lab: membangun data quality gate
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
