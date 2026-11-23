@@ -37,7 +37,7 @@ print("Hello")
 print(150000)
 ```
 
-> **Where do I type this?** For a quick try: open your terminal, type `python3`, press Enter, and type `print("Hello")` at the `>>>` prompt. Python answers `Hello`. Leave with `exit()`. (Start here, step 4, explains the terminal, `>>>` and files side by side.)
+> **Where do I type this?** Right here: the practice box below runs Python in your browser, so there is nothing to install. Later, on your own computer, you will do the same in a terminal (Start here, step 4, shows it side by side). For now, just use the box.
 
 :::drill python Print a word
 Use `print()` to show the word `paid`. It is text, so it goes inside quotes.
@@ -63,7 +63,7 @@ status = "paid"
 print(total)        # shows 150000
 ```
 
-> **Where do I type this?** The same way: at the `>>>` prompt type the three lines, pressing Enter after each. `print(total)` shows `150000`. At `>>>` you can also type just `total` and Python shows its value; in a saved `.py` file nothing is shown unless you `print` it.
+> **Where do I type this?** In the practice boxes on this page, the same way. Try `print(total)` there: it shows `150000`. On your own computer you can later type the three lines at the terminal's `>>>` prompt, where typing just `total` also shows its value; in a saved `.py` file nothing is shown unless you `print` it.
 
 Read `total = 150000` as "**let the name `total` point at the value 150000**". The `=` sign is not the equals of mathematics; it is an *assignment*: do the right side first, then attach the name on the left to the result.
 
@@ -338,14 +338,14 @@ Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000
 > [!IMPORTANT]
 > **How to Work on Labs (Beginner Guide):**
 > - **The lab has two parts.** **Part A** is plain Python, no functions: after each of Lessons 1 to 4 you fill in a few variables in the file `labs/mod-0-0/practice.py` (replace each `None` with your own code). **Part B** starts after Lesson 5, which teaches functions (`def`): the file `labs/mod-0-0/basics.py` holds eleven functions to write. Do not read the whole chapter first; go back and forth between a lesson and its Practice Pause.
-> - **Where:** in the **Browser preview** on the Lab tab (nothing to install; use the Part A / Part B switch), or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The files are text files that you open in an editor (VS Code, or `code labs/mod-0-0/practice.py`), not commands: typing a file's name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause checks your work, and that run is the one that counts.
-> - **Trying the examples in the lessons:** type them at the Python prompt `>>>` in your terminal (type `python3` and press Enter to get there; leave with `exit()`), or in the browser preview. Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** ("Three places you type") shows all three with what each one looks like.
+> - **Where:** in the **Browser preview** on the Lab tab (nothing to install; use the Part A / Part B switch), or in your own terminal if you did Start here (the lab page shows the four setup commands, once). The files are text files that you open in an editor (VS Code, or `code labs/mod-0-0/practice.py`), not commands: typing a file's name in the terminal gives `Permission denied` or `command not found`. The `pytest ...` command under each pause (pytest runs the automatic checks; the **Run tests** button does the same) checks your work, and that run is the one that counts.
+> - **Trying the examples in the lessons:** type them in the practice boxes on the page, or at the Python prompt `>>>` in your terminal (type `python3` and press Enter; leave with `exit()`). Commands such as `cd`, `ls` and `pytest` go at the terminal's `$` prompt instead, never at `>>>`. Not sure which is which? **Start here, step 4** shows all three.
 
 > 💡 **Practice Pause 1 (Part A, Step 1):**
 > Open Part A of the lab: the file `labs/mod-0-0/practice.py` in your editor, or the **Part A** tab of the Browser preview on the Lab tab. Read the top of the file once, then find **Step 1**. It gives you `amount`, `row1` and `row2`, and two variables to fill in: replace each `None` with your own code.
 > 1. `formatted`: the amount written as text with dots, `Rp 1.250.000` (the f-string and `.replace` above).
 > 2. `two_totals`: the two totals in `row1` and `row2` added as **numbers**. Look back at the three wrong answers in the table: these totals are text, so convert them first.
-> Run the file to see your values: `python3 labs/mod-0-0/practice.py`. Then check Step 1: press **Run tests** in the preview, or in the terminal (once the one-time setup on the lab page is done):
+> Run the file to see your values: `python3 labs/mod-0-0/practice.py`. Then check Step 1: press **Run tests** in the preview, or in the terminal (after the one-time setup on the lab page):
 > `pytest labs/mod-0-0/test_practice.py -k Step1 -v`
 > You should see `Rp 1.250.000` and `240000`, and three passed checks. A check that fails says which variable is wrong, what it should be and what it is: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` just means you have not replaced the `None` yet. Then go on to Lesson 2.
 
@@ -1302,9 +1302,9 @@ texts = ["7", "3", "12"]
 ints = [int(text) for text in texts]
 :::
 
-### Ranking with sorted() and a key
+### Stretch (optional): ranking with sorted() and a key
 
-In data pipelines you often rank things (the customers who spent the most). `sorted(data, key=...)` takes a `key`: a small function that tells Python what to rank by. A one-line function written with `lambda` is often used: `lambda pair: pair[1]` means "given a pair, use its second item". To rank from biggest to smallest, add `reverse=True`. To break ties, let the key return a **tuple**: Python compares the first item first and looks at the second only when the first is equal. A minus sign in front of a number turns "biggest first" into "smallest first": `key=lambda pair: (-pair[1], pair[0])` ranks by total, biggest first, and for the same total by the smaller id first.
+This one is a stretch. If it feels like too much today, press **Show the solution** and move on: Module 1.2 teaches `lambda` step by step. In data pipelines you often rank things (the customers who spent the most). `sorted(data, key=...)` takes a `key`: a small function that tells Python what to rank by. A one-line function written with `lambda` is often used: `lambda pair: pair[1]` means "given a pair, use its second item". To rank from biggest to smallest, add `reverse=True`. To break ties, let the key return a **tuple**: Python compares the first item first and looks at the second only when the first is equal. A minus sign in front of a number turns "biggest first" into "smallest first": `key=lambda pair: (-pair[1], pair[0])` ranks by total, biggest first, and for the same total by the smaller id first.
 
 :::drill python Rank by total
 `pairs` holds `(customer_id, total)` tuples. Make `ranked` the pairs sorted by total, **biggest first**; when two totals are equal, the smaller customer id comes first.

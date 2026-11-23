@@ -41,6 +41,8 @@ Aturan main capstone:
 3. **Gunakan petunjuk bertingkat jika buntu:** Anda dapat meminta `--hint 1` (dorongan kecil), `--hint 2` (penjelasan konsep), atau `--hint 3` (bocoran teknis detail). Usahakan menganalisis masalah minimal 30 menit sebelum meminta bantuan petunjuk.
 4. **Pemeriksa menyerang pipeline Anda.** Pada langkah 3, 4, dan 5, sistem pengujian menjalankan server HTTP lokal yang menyuntikkan pemutusan koneksi soket mendadak, rate limit HTTP 429, pemadaman server 503, payload beracun, dan pembaruan rekaman CDC. Sistem produksi di dunia nyata menghadapi hal-hal ini setiap minggunya.
 
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-2`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-2/check.py ~/seismic --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+
 Siapkan workspace Anda:
 ```bash
 cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana

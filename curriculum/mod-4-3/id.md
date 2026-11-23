@@ -41,6 +41,8 @@ Aturan pengerjaan:
 3. **Gunakan petunjuk bertingkat jika mengalami kebuntuan:** Anda dapat meminta `--hint 1` (petunjuk halus), `--hint 2` (penjelasan konseptual), atau `--hint 3` (bocoran teknis mendalam). Usahakan menganalisis masalah sendiri minimal 30 menit sebelum meminta petunjuk.
 4. **Pemeriksa akan menyerang ketahanan engine Anda.** Pada langkah 3, 4, dan 5, rangkaian uji coba menginjeksikan event buatan yang terlambat, memutus proses secara mendadak, dan menguji matematika sliding window terhadap tolok ukur kebenaran data.
 
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-3`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-3/check.py ~/fleet --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+
 Langkah persiapan workspace Anda:
 ```bash
 cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana

@@ -27,6 +27,8 @@ Aturan main capstone:
 4. **Petunjuk bertingkat sesuai kebutuhan Anda.** Opsi `--hint 1` memberi senggolan arah (*nudge*), `--hint 2` menjelaskan model mental/konsepnya, dan `--hint 3` memberikan panduan teknis yang sangat mendalam. Berusahalah minimal 30 menit sebelum membuka level 1, dan buka level 3 hanya jika Anda sudah meneliti datanya sendiri. Proses menganalisis masalah adalah inti pembelajarannya.
 5. **Pemeriksa juga akan menguji ketahanan pipeline Anda.** Pada step 5, pemeriksa akan menjalankan kode Anda di atas beberapa skenario pengiriman yang sengaja dirusak: file yang sama dikirim dua kali, file dengan kolom yang diganti namanya, serta file dengan 40% data cacat. Pipeline di dunia nyata menghadapi insiden seperti ini setiap hari.
 
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-1`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-1/check.py ~/taxi --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+
 Persiapan awal (dijalankan satu kali):
 
 ```bash

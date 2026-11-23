@@ -49,11 +49,7 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 **Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah ditulis keras di kode; **rahasia** hanya dari environment (Modul 0.1).
 
-Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berjalan, tetapi mendokumentasikan maksud, membantu editor menangkap kesalahan, dan memungkinkan pemeriksa seperti `mypy` atau `pyright` menemukan bug sebelum kode dijalankan. Perhatikan bahwa `-> int | None` di atas memakai sintaks union Python 3.10+ ("mengembalikan integer atau `None`").
-
-**Dua potong sintaks yang akan Anda temui di Modul 1.2–1.7:**
-- **Kelas (`class Name:`)** membundel data dan fungsi menjadi objek yang mengingat. Akhir pelajaran ini menjelaskannya langkah demi langkah; model Pydantic di pelajaran berikutnya adalah kelas.
-- **Dekorator (`@name`)**: baris singkat tepat di atas `def` yang membungkus atau mendaftarkan fungsi/method dengan perilaku tambahan — misalnya `@field_validator` di Pydantic atau `@pytest.fixture` di tes.
+**Tiga potong sintaks Python baru mulai dari sini: class, type hint, dan decorator.** Ketiganya muncul di materi berikutnya, jadi mereka punya materi singkat sendiri tepat setelah ini (**Materi 2**). Tidak ada yang di materi ini yang membutuhkannya.
 
 > 🛠 **Coba sendiri (12 menit, di `etl_try.py`).** Tulis fungsi **murni** `parse_total(raw)` yang mengembalikan int, atau `None` jika teksnya bukan bilangan bulat yang tidak negatif (ia juga harus mengerti gaya `Rp 150.000`). Fungsi itu harus lulus:
 > `assert parse_total("150000") == 150000`
@@ -66,42 +62,6 @@ Terakhir, **type hint** (`def f(x: int) -> str`) tidak mengubah cara Python berj
 >
 > **Seharusnya Anda melihat:** tidak ada assertion error, dan `run("data/orders.csv")` mengembalikan `(3617, 17)`. Perhatikan bahwa Anda menguji `parse_total` tanpa file apa pun. Coba lakukan hal yang sama pada versi yang membuka file di dalam fungsinya, dan rasakan bedanya.
 
-### Kelas: objek yang mengingat
-
-Sebuah fungsi melupakan semuanya saat selesai. Kadang Anda butuh sesuatu yang **mengingat**: penghitung yang menyimpan totalnya, checkpoint yang tahu sampai mana sebuah run berjalan, cache yang menyimpan hasil. Untuk itu Python punya **kelas** (*class*). Kelas adalah resep untuk membuat **objek**. Setiap objek menyimpan datanya sendiri, dan punya fungsinya sendiri, yang disebut **method**.
-
-```python
-class RunningTotal:
-    def __init__(self):            # berjalan sekali, saat objek dibuat
-        self.total = 0             # `self` adalah objek ini; `self.total` adalah data yang diingatnya
-
-    def add(self, amount):         # sebuah method: fungsi milik objek
-        self.total = self.total + amount
-
-    def show(self):
-        return f"Rp {self.total:,}".replace(",", ".")
-```
-
-Bacalah dari atas ke bawah. `RunningTotal()` membuat objek baru dan menjalankan `__init__`, yang memberinya `total` bernilai 0. `a.add(150000)` menjalankan `add` dengan `self` adalah `a`, jadi ia mengubah total milik `a`, dan hanya milik `a`. Anda tidak pernah mengetik `self` saat memanggil method: Python yang memberikan objeknya. Di dalam kelas, `self.` adalah cara sebuah method mencapai data objek; tanpanya, `total` hanyalah variabel biasa yang hilang saat method selesai.
-
-```python
-a = RunningTotal()
-b = RunningTotal()
-a.add(150000)
-a.add(90000)
-b.add(25000)
-print(a.show(), b.show())          # Rp 240.000 Rp 25.000
-```
-
-Dua objek, dua total yang terpisah: itulah seluruh gagasannya. Dua hal yang salah pada percobaan pertama:
-- **Lupa `self.` saat mengisi data** (`counts = {}` alih-alih `self.counts = {}` di `__init__`). Datanya hilang, dan method berikutnya berhenti dengan `AttributeError: 'OrderTally' object has no attribute 'counts'`.
-- **Menulis dict langsung di bawah `class ...:`** alih-alih di `__init__`. Maka semua objek berbagi satu dict itu: jebakan yang sama dengan argumen bawaan mutable di Modul 0.0.
-
-Anda akan menulis kelas seperti ini: `Checkpoint` yang mengingat di mana sebuah run berhenti (Modul 1.6), penyimpanan key-value dengan kedaluwarsa (Modul 1.7), topic dengan offset (Modul 3.2). `OrderRow` milik Pydantic di pelajaran berikutnya juga sebuah kelas, tetapi di sana Anda hanya mendaftar field-nya.
-
-> 🛠 **Coba sendiri (12 menit, Python).** Tulis kelas `OrderTally` yang menghitung pesanan per status. `__init__(self)` memulai dict kosong di `self.counts`. `add(self, status)` menambah satu pada status itu (baris penghitung dari Modul 0.0, pada `self.counts`). `count(self, status)` mengembalikan berapa yang sudah ditambahkan untuk sebuah status, dan `0` untuk status yang belum pernah dilihatnya. Lalu buat dua tally: tambahkan `"paid"`, `"paid"`, dan `"cancelled"` ke yang pertama dan `"paid"` ke yang kedua, lalu cetak `first.count("paid")`, `first.count("cancelled")`, `second.count("paid")`, dan `second.count("refunded")`.
->
-> **Seharusnya Anda melihat:** `2`, `1`, `1`, dan `0`: setiap tally menyimpan hitungannya sendiri. Jika Anda menulis `counts = {}` tanpa `self.` di `__init__`, `add` pertama berhenti dengan `AttributeError: 'OrderTally' object has no attribute 'counts'`; tambahkan `self.` dan ia berfungsi.
 
 :::drill python Fungsi murni di jantung sebuah job
 Tulis `parse_total(raw)`: `raw` adalah teks dari CSV. Bisa berupa `"150000"` atau `"Rp 1.250.000"` (titik adalah pemisah ribuan). Kembalikan jumlahnya sebagai `int`. Jika teks bukan sebuah jumlah (misalnya `"abc"` atau string kosong), kembalikan `None` alih-alih melempar error.

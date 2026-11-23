@@ -74,7 +74,7 @@ menghapus kedua file
 `mv` memindah. Ketika tujuannya nama baru di folder yang sama, "memindah" file sama dengan **mengganti namanya**. Pakai `cp` ketika Anda ingin menyimpan yang asli.
 :::
 
-> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt`, `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt` dan `c.txt`.
+> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` mencetak teks, dan `>` mengirimnya ke sebuah file, bukan ke layar; Materi 3 menjelaskannya), `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt` dan `c.txt`.
 
 ### Melihat isi file
 
@@ -180,9 +180,9 @@ Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" b
 
 ### Bug diam-diam: encoding, akhir baris, permission
 
-**Encoding teks dan akhir baris** menyebabkan bug diam-diam. File teks adalah byte yang ditafsirkan lewat sebuah encoding; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris secara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
+**Encoding teks dan akhir baris** menyebabkan bug diam-diam. File teks adalah byte (**byte** adalah potongan terkecil yang disimpan komputer; satu huruf biasa adalah satu byte) yang ditafsirkan lewat sebuah encoding, aturan yang menyatakan byte mana berarti karakter apa; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris secara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
 
-**Permission.** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya (`-rwxr-xr-x`). `chmod +x script.sh` memungkinkan Anda menjalankan skrip langsung. Anda terutama akan menemui permission sebagai "Permission denied", yang berarti pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file itu.
+**Permission.** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya sebagai huruf (`-rwxr-xr-x`: `r` baca, `w` tulis, `x` jalankan; tiga kelompok berisi tiga, untuk pemilik, grup, dan lainnya). `chmod +x script.sh` memungkinkan Anda menjalankan skrip langsung. Anda terutama akan menemui permission sebagai "Permission denied", yang berarti pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file itu.
 
 :::ask Anda mendapat `Permission denied` saat menjalankan skrip yang baru diunduh. Langkah pertama yang benar?
 @options

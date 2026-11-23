@@ -18,7 +18,7 @@ Modules 0.1 and 0.3: terminal basics, Git, and the idea of a Python virtual envi
 ## @part Shell tools and scripts
 
 ## @lesson How a Unix program thinks: processes, streams and exit codes
-Everything you run is a **process**: a program with its own memory, a numeric id (PID), and three standard streams: **stdin** (input), **stdout** (output) and **stderr** (errors and diagnostics). Because commands only read and write streams of bytes, you can connect any command to any other with `|`. This is the design that makes the shell powerful: small programs, one job each, joined together.
+Every time you run a command, the computer starts a **process**: a running copy of a program. Picture a worker at a desk. It has its own notepad (its **memory**) and a badge number (its **PID**, the process id). It also has three standard channels to the outside world: **stdin**, where its input arrives; **stdout**, where its normal output goes; and **stderr**, where it reports errors, kept apart from the normal output. Every command reads text in and writes text out, so you can connect any command to any other with the **pipe** `|`: the output of one becomes the input of the next. Small tools, one job each, joined together: that is what makes the shell powerful.
 
 Every process ends with an **exit code**, a number from 0 to 255. By convention **0 means success** and anything else means failure. The shell stores the last one in `$?`:
 
@@ -40,18 +40,26 @@ both lines
 `grep -q` succeeds (exit code 0) only when it finds a match. It found none, so it exits 1: `&&` skips `echo FOUND`, and `||` runs `echo MISSING`. This is how scripts branch on success and failure.
 :::
 
-Some codes you will meet in the wild:
+The codes you will meet first:
 
 | Code | Meaning |
 |---|---|
 | 0 | Success |
 | 1 | General failure (what most programs use) |
 | 2 | Misuse of the command (bad arguments) |
-| 126 / 127 | Command found but not executable / command not found |
-| 137 | Killed with SIGKILL (128 + 9). In containers this usually means **out of memory** |
+| 127 | Command not found |
+
+:::advanced Later: more codes and commands to watch and stop programs
+You do not need these today. Lesson 7 uses code 137 again, with its story.
+
+| Code | Meaning |
+|---|---|
+| 126 | Command found but not executable |
+| 137 | Killed with SIGKILL (128 + 9: a **signal** is a message the system sends to a program). In containers this usually means **out of memory** |
 | 143 | Terminated with SIGTERM (128 + 15): a polite request to stop, e.g. from `docker stop` |
 
 Useful process commands: `ps aux` (list processes), `top` or `htop` (live view of CPU and memory), `kill <pid>` (send SIGTERM), `kill -9 <pid>` (SIGKILL, cannot be caught, use as a last resort), and `Ctrl+C` (send SIGINT to the foreground process).
+:::
 
 > 🛠 **Try it (8 min, terminal).** From the course folder, run each command and then `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Then save a script `job.sh` with the lines `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, run `bash job.sh` and check `echo $?`.
 >

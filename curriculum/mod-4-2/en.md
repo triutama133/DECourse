@@ -41,6 +41,8 @@ The rules of engagement:
 3. **Use tiered hints when stuck:** You can request `--hint 1` (a subtle nudge), `--hint 2` (conceptual explanation), or `--hint 3` (detailed technical hint). Try wrestling with the defect for at least 30 minutes before requesting a hint.
 4. **The checker attacks your pipeline.** In steps 3, 4, and 5, the verification harness spins up an ephemeral HTTP server that injects socket resets, HTTP 429 throttles, 503 service outages, toxic payloads, and CDC record updates. Real production systems encounter these every single week.
 
+**When a check fails, find out whose fault it is.** First run `python3 scripts/doctor.py mod-4-2`: it checks your computer (Python, tools, packages), not your code. If it is happy, rerun only the failing step, for example `python3 labs/mod-4-2/check.py ~/seismic --step 3`, and read the first line of the message: it names the file, the number or the behaviour that is wrong. A failure that mentions a missing command, a busy port or no space left is your laptop; a failure that names a number or a file you write is your code.
+
 Setup your workspace:
 ```bash
 cd ~/projects/DECourse          # run the setup from the course folder: the labs/ paths below live there

@@ -29,6 +29,8 @@ Cara kerja skrip pemeriksa agar Anda memahami alur pengujiannya:
 3. Sistem mengeksekusi DAG Anda menggunakan method **`dag.test()`** untuk serangkaian tanggal yang dipilih. Fungsi ini menjalankan seluruh task dalam satu proses Python lokal, tanpa memerlukan daemon scheduler yang berjalan di background, serta mematuhi konfigurasi retry. Sistem juga menetapkan variabel lingkungan `JOBS_INBOX`, `JOBS_WAREHOUSE`, dan `JOBS_QUARANTINE`.
 4. Sistem membandingkan data di warehouse dengan nilai kebenaran yang dihitung secara independen dari file mentah, kemudian menyerang ketahanan pipeline Anda: pengujian rerun, eksekusi tanggal dengan urutan terbalik, file yang sengaja dibuat terlambat beberapa detik, serta kiriman data yang 60% isinya berupa teks sampah.
 
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-4`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+
 Langkah persiapan workspace (hanya perlu dijalankan sekali):
 
 ```bash

@@ -74,7 +74,7 @@ deletes both files
 `mv` moves. When the destination is a new name in the same folder, "moving" a file is the same as **renaming** it. Use `cp` when you want to keep the original.
 :::
 
-> **On your computer, now:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt`, `cp a.txt b.txt`, `mv b.txt c.txt`, then `ls`. You should see `a.txt` and `c.txt`.
+> **On your computer, now:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` prints text, and `>` sends it into a file instead of the screen; Lesson 3 explains), `cp a.txt b.txt`, `mv b.txt c.txt`, then `ls`. You should see `a.txt` and `c.txt`.
 
 ### Look inside a file
 
@@ -180,9 +180,9 @@ The shell looks for the name in every folder of `PATH`, in order. "command not f
 
 ### Quiet bugs: encoding, line endings, permissions
 
-**Text encoding and line endings** cause quiet bugs. Text files are bytes interpreted through an encoding; use **UTF-8** everywhere and say so when opening files in code. Windows and Linux end lines differently (`\r\n` vs `\n`); a CSV created on Windows may leave an invisible `\r` at the end of the last column, which breaks comparisons that "look" identical.
+**Text encoding and line endings** cause quiet bugs. Text files are bytes (a **byte** is the smallest piece a computer stores; one plain letter is one byte) interpreted through an encoding, the rule that says which byte means which character; use **UTF-8** everywhere and say so when opening files in code. Windows and Linux end lines differently (`\r\n` vs `\n`); a CSV created on Windows may leave an invisible `\r` at the end of the last column, which breaks comparisons that "look" identical.
 
-**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them (`-rwxr-xr-x`). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file.
+**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them as letters (`-rwxr-xr-x`: `r` is read, `w` is write, `x` is run; three groups of three, for the owner, the group and everyone else). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file.
 
 :::ask You get `Permission denied` running a script you just downloaded. What is the right first move?
 @options

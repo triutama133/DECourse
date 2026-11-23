@@ -41,7 +41,7 @@ So companies copy the data into a **separate system built for analysis** (a data
 
 > **Tip:** When someone says "we need a data warehouse", the real need is almost always: "we need trustworthy numbers without slowing down the product." Keep that sentence in mind; it explains most design decisions in this course.
 
-> 🛠 **Try it (10 min, in Python).** Generate the data (`python3 labs/shared/shopgen.py --out data`) and read `data/orders.csv` with `csv.DictReader` from Module 0.0 to feel the difference between an **OLTP point lookup** and an **OLAP full scan**:
+> 🛠 **Try it (10 min, in Python).** Generate the data (you did this in Start here; if the `data/` folder is missing, run `python3 labs/shared/shopgen.py --out data` again from the course folder) and read `data/orders.csv` with `csv.DictReader` from Module 0.0 to feel the difference between an **OLTP point lookup** and an **OLAP full scan**:
 > 1. Walk the `3634` rows and build a dict `by_id` keyed by `order_id` (`by_id[row["order_id"]] = row`). How many duplicate keys overwrite an earlier row, leaving `len(by_id)` shorter than `3634`? Notice looking up `by_id["1001"]` touches **one** item instantly (OLTP).
 > 2. Now run a full scan across every row to count how many orders belong to each lowercase status (`counts[status] = counts.get(status, 0) + 1`, the counting line from Module 0.0). Notice it must touch **all** `3634` rows (OLAP).
 >

@@ -29,6 +29,8 @@ How the checker works, so that nothing surprises you:
 3. It runs your DAG with **`dag.test()`** for chosen dates. This executes all tasks of a run in one process, without a scheduler, and honours retries. It sets the environment variables `JOBS_INBOX`, `JOBS_WAREHOUSE` and `JOBS_QUARANTINE`.
 4. It compares the warehouse with answers it computes itself from the raw files, and it attacks your pipeline: reruns, a different order of days, a file that arrives a few seconds late, a delivery that is 60% garbage.
 
+**When a check fails, find out whose fault it is.** First run `python3 scripts/doctor.py mod-4-4`: it checks your computer (Python, tools, packages), not your code. If it is happy, rerun only the failing step, for example `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`, and read the first line of the message: it names the file, the number or the behaviour that is wrong. Add `--keep` to leave the checker's private `.check/` folder in place, so you can read the real logs and output of the failing step. A failure that mentions a missing command, a busy port or no space left is your laptop; a failure that names a number or a file you write is your code.
+
 Setup, once:
 
 ```bash

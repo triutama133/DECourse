@@ -28,6 +28,8 @@ The rules of the game:
 4. **Hints are levels, and you choose when.** `--hint 1` nudges, `--hint 2` explains the idea, `--hint 3` is almost the answer. Try for at least 30 minutes before you ask for level 1, and for level 3 only after you have already read the data yourself. Struggling is the point.
 5. **The checker also attacks your pipeline.** In step 5 it runs your code on deliveries it makes itself: the same file twice, a file with a renamed column, a file in which 40% of the rows are broken. Real pipelines meet such things on a normal Tuesday.
 
+**When a check fails, find out whose fault it is.** First run `python3 scripts/doctor.py mod-4-1`: it checks your computer (Python, tools, packages), not your code. If it is happy, rerun only the failing step, for example `python3 labs/mod-4-1/check.py ~/taxi --step 3`, and read the first line of the message: it names the file, the number or the behaviour that is wrong. Add `--keep` to leave the checker's private `.check/` folder in place, so you can read the real logs and output of the failing step. A failure that mentions a missing command, a busy port or no space left is your laptop; a failure that names a number or a file you write is your code.
+
 Setup, once:
 
 ```bash

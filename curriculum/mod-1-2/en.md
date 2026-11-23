@@ -49,11 +49,7 @@ For this module's lab everything is in one file to keep it readable, but the *se
 
 **Configuration** (paths, thresholds, hostnames) comes from arguments or environment variables, never hard-coded; **secrets** only from the environment (Module 0.1).
 
-Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, but they document intent, let editors catch mistakes, and let a checker such as `mypy` or `pyright` find bugs before you run the code. Notice `-> int | None` above uses Python 3.10+ union syntax ("returns either an integer or `None`").
-
-**Two pieces of syntax you will meet across Modules 1.2–1.7:**
-- **Classes (`class Name:`)** bundle data and functions into objects that remember. The end of this lesson explains them step by step; Pydantic's models in the next lesson are classes.
-- **Decorators (`@name`)**: a short line directly above a `def` that wraps or registers that function/method with extra behaviour — for example `@field_validator` in Pydantic or `@pytest.fixture` in tests.
+**Three pieces of Python syntax are new from here on: classes, type hints and decorators.** They appear in the next lessons, so they get their own short lesson right after this one (**Lesson 2**). Nothing in this lesson needs them.
 
 > 🛠 **Try it (12 min, in `etl_try.py`).** Write a **pure** function `parse_total(raw)` that returns an int, or `None` when the text is not a non-negative whole number (it should understand the `Rp 150.000` style too). It must pass:
 > `assert parse_total("150000") == 150000`
@@ -66,42 +62,6 @@ Finally, **type hints** (`def f(x: int) -> str`) do not change how Python runs, 
 >
 > **You should see:** no assertion error, and `run("data/orders.csv")` returns `(3617, 17)`. Notice that you tested `parse_total` without any file. Try to do the same with a version that opens the file inside the function and feel the difference.
 
-### Classes: objects that remember
-
-A function forgets everything when it finishes. Sometimes you need something that **remembers**: a counter that keeps its total, a checkpoint that knows how far a run got, a cache that holds results. For that, Python has **classes**. A class is a recipe for making **objects**. Each object keeps its own data, and has its own functions, called **methods**.
-
-```python
-class RunningTotal:
-    def __init__(self):            # runs once, when an object is made
-        self.total = 0             # `self` is this object; `self.total` is data it remembers
-
-    def add(self, amount):         # a method: a function that belongs to the object
-        self.total = self.total + amount
-
-    def show(self):
-        return f"Rp {self.total:,}".replace(",", ".")
-```
-
-Read it top to bottom. `RunningTotal()` makes a new object and runs `__init__`, which gives it a `total` of 0. `a.add(150000)` runs `add` with `self` being `a`, so it changes `a`'s total, and only `a`'s. You never type `self` when you call a method: Python passes the object for you. Inside the class, `self.` is how a method reaches the object's data; without it, `total` would be a plain variable that vanishes when the method ends.
-
-```python
-a = RunningTotal()
-b = RunningTotal()
-a.add(150000)
-a.add(90000)
-b.add(25000)
-print(a.show(), b.show())          # Rp 240.000 Rp 25.000
-```
-
-Two objects, two separate totals: that is the whole idea. Two things go wrong the first time:
-- **Forgetting `self.` when you set the data** (`counts = {}` instead of `self.counts = {}` in `__init__`). The data vanishes, and the next method stops with `AttributeError: 'OrderTally' object has no attribute 'counts'`.
-- **Writing the dict directly under `class ...:`** instead of in `__init__`. Then every object shares that one dict: the same trap as the mutable default argument in Module 0.0.
-
-You will write classes like these: a `Checkpoint` that remembers where a run stopped (Module 1.6), a key-value store with expiry (Module 1.7), a topic with offsets (Module 3.2). Pydantic's `OrderRow` in the next lesson is also a class, but there you only list its fields.
-
-> 🛠 **Try it (12 min, Python).** Write a class `OrderTally` that counts orders per status. `__init__(self)` starts an empty dict in `self.counts`. `add(self, status)` adds one to that status (the counting line from Module 0.0, on `self.counts`). `count(self, status)` returns how many were added for a status, and `0` for a status it has never seen. Then make two tallies: add `"paid"`, `"paid"` and `"cancelled"` to the first and `"paid"` to the second, and print `first.count("paid")`, `first.count("cancelled")`, `second.count("paid")` and `second.count("refunded")`.
->
-> **You should see:** `2`, `1`, `1` and `0`: each tally keeps its own counts. If you write `counts = {}` without `self.` in `__init__`, the first `add` stops with `AttributeError: 'OrderTally' object has no attribute 'counts'`; add `self.` and it works.
 
 :::drill python The pure function at the heart of a job
 Write `parse_total(raw)`: `raw` is text from a CSV. It may be `"150000"` or `"Rp 1.250.000"` (dots are thousands separators). Return the amount as an `int`. When the text is not an amount (for example `"abc"` or an empty string), return `None` instead of raising an error.

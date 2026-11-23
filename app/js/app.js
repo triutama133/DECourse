@@ -3487,6 +3487,9 @@ class DataForgeApp {
           </ul>
         </div>
 
+        <div class="card stack-sm"><h2>⚡ ${this.l("Cicipi dulu: 2 menit, tanpa memasang apa pun", "Taste it first: 2 minutes, nothing to install")}</h2>
+          <p>${this.l("Sebelum menyiapkan komputer, coba satu latihan kecil di browser ini: Anda menulis satu baris Python dan langsung melihat hasilnya. Sesudah itu, langkah-langkah di bawah menyiapkan komputer Anda sendiri, karena di sanalah pekerjaan sungguhan dilakukan.", "Before you set up your computer, try one tiny exercise right in this browser: you write one line of Python and see the result at once. After that, the steps below prepare your own computer, because that is where the real work happens.")}</p>
+          <div><button class="btn btn-primary" onclick="app.openLesson('mod-0-0', 0)">${this.l("Coba Materi 1 di browser", "Try Lesson 1 in the browser")} →</button></div></div>
         <div class="callout"><p>📖 ${this.l("Bertemu kata yang belum Anda kenal (terminal, query, idempoten...)? Buka <a href=\"#/glossary\">Glosarium</a>: arti setiap istilah dalam bahasa sehari-hari, dan materi yang mengajarkannya. Kata tebal di dalam materi juga bisa diklik.", "Meet a word you do not know (terminal, query, idempotent...)? Open the <a href=\"#/glossary\">Glossary</a>: what every term means in plain words, and the lesson that teaches it. Bold words inside lessons are clickable too.")}</p></div>
         ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
           <div class="grid cols-2">

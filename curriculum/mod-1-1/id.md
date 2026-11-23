@@ -18,7 +18,7 @@ Modul 0.1 dan 0.3: dasar terminal, Git, dan gagasan virtual environment Python. 
 ## @part Alat shell dan skrip
 
 ## @lesson Cara program Unix berpikir: proses, stream, dan exit code
-Segala yang Anda jalankan adalah sebuah **proses**: program dengan memorinya sendiri, id numerik (PID), dan tiga aliran standar: **stdin** (masukan), **stdout** (keluaran), dan **stderr** (error dan diagnostik). Karena perintah hanya membaca dan menulis aliran byte, Anda bisa menyambung perintah apa pun ke perintah lain dengan `|`. Inilah desain yang membuat shell kuat: program kecil, satu tugas masing-masing, disambung bersama.
+Setiap kali Anda menjalankan perintah, komputer memulai sebuah **proses**: salinan program yang sedang berjalan. Bayangkan seorang pekerja di mejanya. Ia punya buku catatan sendiri (**memori**-nya) dan nomor lencana (**PID**-nya, id proses). Ia juga punya tiga saluran standar ke dunia luar: **stdin**, tempat masukannya datang; **stdout**, tempat keluaran normalnya pergi; dan **stderr**, tempat ia melaporkan error, dipisahkan dari keluaran normal. Setiap perintah membaca teks masuk dan menulis teks keluar, sehingga Anda bisa menyambung perintah apa pun ke perintah lain dengan **pipe** `|`: keluaran yang satu menjadi masukan yang berikutnya. Alat kecil, satu tugas masing-masing, disambung bersama: itulah yang membuat shell kuat.
 
 Setiap proses berakhir dengan **exit code**, angka 0 sampai 255. Menurut konvensi **0 berarti sukses** dan selain itu berarti gagal. Shell menyimpan yang terakhir di `$?`:
 
@@ -40,18 +40,26 @@ kedua baris
 `grep -q` berhasil (exit code 0) hanya ketika menemukan kecocokan. Ia tidak menemukan apa pun, jadi keluar dengan 1: `&&` melewati `echo FOUND`, dan `||` menjalankan `echo MISSING`. Beginilah skrip bercabang berdasarkan berhasil dan gagal.
 :::
 
-Beberapa kode yang akan Anda temui:
+Kode yang akan Anda temui lebih dulu:
 
 | Kode | Arti |
 |---|---|
 | 0 | Sukses |
 | 1 | Kegagalan umum (yang dipakai kebanyakan program) |
 | 2 | Salah pakai perintah (argumen buruk) |
-| 126 / 127 | Perintah ditemukan tetapi tidak bisa dieksekusi / perintah tidak ditemukan |
-| 137 | Dimatikan dengan SIGKILL (128 + 9). Di container ini biasanya berarti **kehabisan memori** |
+| 127 | Perintah tidak ditemukan |
+
+:::advanced Nanti saja: kode lain dan perintah untuk memantau serta menghentikan program
+Anda tidak membutuhkannya hari ini. Materi 7 memakai kode 137 lagi, lengkap dengan ceritanya.
+
+| Kode | Arti |
+|---|---|
+| 126 | Perintah ditemukan tetapi tidak bisa dieksekusi |
+| 137 | Dimatikan dengan SIGKILL (128 + 9: **sinyal** adalah pesan yang dikirim sistem ke program). Di container ini biasanya berarti **kehabisan memori** |
 | 143 | Dihentikan dengan SIGTERM (128 + 15): permintaan sopan untuk berhenti, misalnya dari `docker stop` |
 
 Perintah proses yang berguna: `ps aux` (daftar proses), `top` atau `htop` (tampilan langsung CPU dan memori), `kill <pid>` (kirim SIGTERM), `kill -9 <pid>` (SIGKILL, tidak bisa ditangkap, pakai sebagai pilihan terakhir), dan `Ctrl+C` (kirim SIGINT ke proses latar depan).
+:::
 
 > 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus, jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, jalankan `bash job.sh` dan periksa `echo $?`.
 >

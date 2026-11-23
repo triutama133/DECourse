@@ -37,7 +37,7 @@ print("Halo")
 print(150000)
 ```
 
-> **Di mana saya mengetik ini?** Untuk mencoba cepat: buka terminal, ketik `python3`, tekan Enter, lalu ketik `print("Halo")` di prompt `>>>`. Python menjawab `Halo`. Keluar dengan `exit()`. (Mulai di sini, langkah 4, menjelaskan terminal, `>>>`, dan file secara berdampingan.)
+> **Di mana saya mengetik ini?** Di sini juga: kotak latihan di bawah menjalankan Python di browser Anda, jadi tidak ada yang perlu dipasang. Nanti, di komputer Anda sendiri, Anda akan melakukan hal yang sama di terminal (Mulai di sini, langkah 4, menunjukkannya berdampingan). Untuk sekarang, pakai saja kotaknya.
 
 :::drill python Cetak sebuah kata
 Pakai `print()` untuk menampilkan kata `paid`. Ini teks, jadi ditulis di dalam tanda kutip.
@@ -63,7 +63,7 @@ status = "paid"
 print(total)        # menampilkan 150000
 ```
 
-> **Di mana saya mengetik ini?** Dengan cara yang sama: di prompt `>>>` ketik ketiga barisnya, tekan Enter setelah masing-masing. `print(total)` menampilkan `150000`. Di `>>>` Anda juga bisa mengetik `total` saja dan Python menampilkan nilainya; di file `.py` yang disimpan tidak ada yang ditampilkan kecuali Anda `print`-nya.
+> **Di mana saya mengetik ini?** Di kotak latihan pada halaman ini, dengan cara yang sama. Coba `print(total)` di sana: ia menampilkan `150000`. Di komputer Anda sendiri nanti, Anda bisa mengetik ketiga baris itu di prompt `>>>` terminal, tempat mengetik `total` saja juga menampilkan nilainya; di file `.py` yang disimpan tidak ada yang ditampilkan kecuali Anda `print`-nya.
 
 Baca `total = 150000` sebagai "**biarkan nama `total` menunjuk ke nilai 150000**". Tanda `=` bukan tanda sama dengan dalam matematika; ia adalah *penugasan* (assignment): kerjakan sisi kanan dulu, lalu tempelkan nama di kiri pada hasilnya.
 
@@ -338,8 +338,8 @@ Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.2
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
 > - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Pelajaran 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Pelajaran 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
-> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda memeriksa pekerjaan Anda, dan run itulah yang dihitung.
-> - **Mencoba contoh di materi:** ketik di prompt Python `>>>` di terminal Anda (ketik `python3` lalu Enter untuk masuk; keluar dengan `exit()`), atau di pratinjau browser. Perintah seperti `cd`, `ls`, dan `pytest` diketik di prompt terminal `$`, tidak pernah di `>>>`. Ragu yang mana? **Mulai di sini, langkah 4** ("Tiga tempat Anda mengetik") menunjukkan ketiganya beserta tampilannya.
+> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda (pytest menjalankan pemeriksaan otomatis; tombol **Run tests** melakukan hal yang sama) memeriksa pekerjaan Anda, dan run itulah yang dihitung.
+> - **Mencoba contoh di materi:** ketik di kotak latihan pada halaman, atau di prompt Python `>>>` terminal Anda (ketik `python3` lalu Enter; keluar dengan `exit()`). Perintah seperti `cd`, `ls`, dan `pytest` justru diketik di prompt `$` terminal, tidak pernah di `>>>`. Tidak yakin yang mana? **Mulai di sini, langkah 4** menunjukkan ketiganya.
 
 > 💡 **Jeda Praktik 1 (Bagian A, Langkah 1):**
 > Buka Bagian A lab: file `labs/mod-0-0/practice.py` di editor Anda, atau tab **Bagian A** pada Pratinjau browser di tab Lab. Baca bagian atas file sekali, lalu cari **Langkah 1**. Ia memberi Anda `amount`, `row1`, dan `row2`, serta dua variabel untuk diisi: ganti setiap `None` dengan kode Anda sendiri.
@@ -1302,9 +1302,9 @@ texts = ["7", "3", "12"]
 ints = [int(text) for text in texts]
 :::
 
-### Meranking dengan sorted() dan key
+### Tantangan ekstra (opsional): meranking dengan sorted() dan key
 
-Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak). `sorted(data, key=...)` menerima `key`: fungsi kecil yang memberi tahu Python berdasarkan apa meranking. Fungsi satu baris yang ditulis dengan `lambda` sering dipakai: `lambda pair: pair[1]` berarti "diberi sebuah pasangan, pakai item keduanya". Untuk meranking dari terbesar ke terkecil, tambahkan `reverse=True`. Untuk memutus seri, biarkan key mengembalikan **tuple**: Python membandingkan item pertama lebih dulu dan melihat item kedua hanya ketika item pertama sama. Tanda minus di depan angka mengubah "terbesar dulu" menjadi "terkecil dulu": `key=lambda pair: (-pair[1], pair[0])` meranking berdasarkan total, terbesar dulu, dan untuk total yang sama id yang lebih kecil dulu.
+Ini tantangan ekstra. Jika terasa terlalu berat hari ini, tekan **Lihat jawaban** lalu lanjut: Modul 1.2 mengajarkan `lambda` selangkah demi selangkah. Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak). `sorted(data, key=...)` menerima `key`: fungsi kecil yang memberi tahu Python berdasarkan apa meranking. Fungsi satu baris yang ditulis dengan `lambda` sering dipakai: `lambda pair: pair[1]` berarti "diberi sebuah pasangan, pakai item keduanya". Untuk meranking dari terbesar ke terkecil, tambahkan `reverse=True`. Untuk memutus seri, biarkan key mengembalikan **tuple**: Python membandingkan item pertama lebih dulu dan melihat item kedua hanya ketika item pertama sama. Tanda minus di depan angka mengubah "terbesar dulu" menjadi "terkecil dulu": `key=lambda pair: (-pair[1], pair[0])` meranking berdasarkan total, terbesar dulu, dan untuk total yang sama id yang lebih kecil dulu.
 
 :::drill python Ranking berdasarkan total
 `pairs` berisi tuple `(customer_id, total)`. Buat `ranked` berisi pasangan yang diurutkan menurut total, **terbesar dulu**; ketika dua total sama, customer id yang lebih kecil didahulukan.
