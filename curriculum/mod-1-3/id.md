@@ -298,9 +298,9 @@ SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM d
 
 :::ask Bisakah Anda menulis `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` langsung?
 @options
-ya, itu cara standarnya
-* tidak: window dihitung setelah WHERE, jadi hitung di CTE atau subquery dan saring di luar
-hanya di SQLite
+ya, itu cara standar untuk menyaring
+* tidak: window berjalan setelah WHERE, jadi pakai CTE
+hanya di SQLite, engine lain menolaknya
 @why
 `WHERE` berjalan sebelum window function ada. Jadi pola portabelnya dua langkah: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery, dan DuckDB punya pintasan `QUALIFY`; PostgreSQL dan SQLite tidak.
 :::
@@ -393,9 +393,9 @@ Ada cara kedua untuk mendapat kelompok yang sama, yang dipakai contoh clickstrea
 
 :::ask Mengapa `date - row_number` sama untuk setiap hari dalam satu rangkaian?
 @options
-tanggal dan nomor baris tidak berhubungan
-database menyimpan rangkaian secara internal
-* keduanya naik tepat satu untuk setiap hari berikutnya dalam rangkaian, sehingga selisihnya tidak berubah
+tanggal dan nomor baris adalah angka yang tidak berhubungan
+database menyimpan setiap rangkaian secara internal
+* keduanya naik satu per hari, jadi selisihnya tetap konstan
 @why
 Dalam sebuah rangkaian setiap baris tepat satu hari setelah baris sebelumnya, jadi tanggal dan nomor baris tumbuh selaras. Celah membuat tanggal melompat lebih dari nomor baris, dan selisihnya berubah: island baru dimulai. Jika tanggal bisa berulang, deduplikasi dulu.
 :::
@@ -510,8 +510,8 @@ Hasilnya adalah gabungan semua putaran: 12 baris. Query berhenti ketika sebuah p
 :::ask Di data, parent kategori A adalah B dan parent B adalah A. Apa yang dilakukan `WITH RECURSIVE` yang tidak dilindungi?
 @options
 mengembalikan dua baris pertama lalu berhenti
-* tidak pernah berakhir: setiap putaran menemukan baris baru, jadi lindungi dengan batas kedalaman (`WHERE depth < 20`)
-langsung memunculkan error
+* tidak pernah berakhir: ia terus menemukan baris, jadi tambah batas kedalaman
+langsung memunculkan error tentang siklus
 @why
 Sebuah siklus berarti setiap putaran menghasilkan baris baru selamanya. Selalu batasi rekursinya: kondisi kedalaman di bagian rekursif (dan deteksi `CYCLE` di PostgreSQL).
 :::
@@ -689,9 +689,9 @@ Indeks komposit diurutkan menurut kolom **paling kiri** dulu, lalu berikutnya. F
 
 :::ask `status = 'done'` cocok dengan 99,8% baris. Apakah indeks pada `status` membantu query itu?
 @options
-ya, indeks mana pun selalu membantu
+ya: indeks mana pun selalu membantu query
 hanya jika indeksnya BRIN
-* tidak: planner dengan benar memilih pemindaian penuh, karena indeks akan mengunjungi hampir setiap baris juga; indeks berguna ketika filternya selektif
+* tidak: planner memindai, karena hampir setiap baris cocok
 @why
 Selektivitas penting. Indeks pada kolom yang satu nilainya mencakup hampir seluruh tabel tidak menghemat apa pun. Indeks parsial pada nilai yang jarang (`WHERE status = 'pending'`) adalah yang berguna.
 :::

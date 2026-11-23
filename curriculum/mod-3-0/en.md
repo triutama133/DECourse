@@ -63,8 +63,8 @@ Other limits: files can be appended to but not edited in the middle, so HDFS sui
 :::ask One terabyte is stored as 10 million tiny files of about 100 KB. What is the real problem for HDFS?
 @options
 the DataNodes run out of disk space
-the files cannot be replicated
-* the NameNode keeps one in-memory object per file and per block, so tens of millions of objects pressure its memory (the small-files problem)
+the files can not be replicated at all
+* the NameNode must keep an object for every file
 @why
 The NameNode holds the whole namespace in memory (about 150 bytes per object as a rule of thumb). The size of the bytes does not matter to it; the **number of objects** does. The fix is fewer, larger files (compaction, columnar formats such as Parquet).
 :::

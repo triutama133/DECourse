@@ -175,9 +175,9 @@ con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', RE
 
 :::ask File Parquet punya 50 kolom dan query Anda memakai 3 di antaranya. Apa yang dibaca engine?
 @options
-seluruh file
-hanya 3 baris pertama
-* terutama data ketiga kolom itu (ditambah footer), karena setiap kolom disimpan bersama
+seluruh file, semua 50 kolom
+hanya 3 baris pertama tabel
+* terutama ketiga kolom itu, ditambah footer
 @why
 Penyimpanan kolumnar menyimpan nilai setiap kolom bersama-sama, jadi membaca 3 dari 50 kolom membaca sekitar 3/50 data. Karena itu query analitik cepat di Parquet dan `SELECT *` adalah kebiasaan buruk pada tabel lebar.
 :::

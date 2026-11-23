@@ -99,9 +99,9 @@ print(compacted)
 
 :::ask A topic has 3 partitions and a consumer group of 4 consumers. How many consumers are idle?
 @options
-none, Kafka creates a fourth partition
-* one: a partition is read by at most one consumer of the group
-all four share every partition
+none: Kafka adds a fourth partition itself
+* one: each partition has at most one reader
+all four share every partition equally
 @why
 Within a consumer group each partition is assigned to exactly one consumer, so the group's parallelism is capped by the number of partitions. A fourth consumer has nothing to read until a consumer leaves or partitions are added.
 :::

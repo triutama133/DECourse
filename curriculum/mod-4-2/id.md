@@ -153,9 +153,9 @@ Atau kebalikannya:
 
 :::ask Run ingesti Anda mengambil 500 record, menulisnya, dan baru kemudian memajukan checkpoint. Ia crash tepat setelah menulis. Apa yang terjadi pada run berikutnya?
 @options
-500 record itu hilang
-ia menolak mulai
-* ia mengambil record yang sama lagi; load yang idempoten menyerap pengulangan itu, jadi tidak ada data yang hilang atau berlipat
+500 record itu hilang selamanya
+ia menolak mulai sampai Anda mereset
+* ia mengambilnya lagi dan load idempoten menyerapnya
 @why
 Checkpoint hanya boleh menggambarkan data yang tersimpan dengan aman. Crash di antara penulisan dan checkpoint hanya memakan pengambilan ulang, yang dibuat tidak berbahaya oleh load yang melakukan deduplikasi.
 :::
@@ -202,9 +202,9 @@ Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas
 
 :::ask API menjawab HTTP 429 dengan header `Retry-After: 30`. Apa yang Anda lakukan?
 @options
-* menunggu setidaknya 30 detik (tambahkan sedikit jitter), lalu mengulang, dengan batas jumlah percobaan
-mengulang seketika, secepat mungkin
-menyerah dan langsung menandai run gagal
+* tunggu 30 detik atau lebih, lalu ulangi, dengan batas
+ulangi seketika, secepat mungkin
+menyerah dan langsung menggagalkan run
 @why
 429 berarti "Anda meminta terlalu cepat", kegagalan sementara. Hormati `Retry-After`, tambahkan jitter agar banyak klien tidak kembali pada saat yang sama, dan batasi percobaan. Error seri-400 seperti 404 tidak sementara: mengulang tidak pernah memperbaikinya.
 :::

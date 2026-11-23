@@ -153,9 +153,9 @@ Or the inverse:
 
 :::ask Your ingestion run fetches 500 records, writes them, and only then moves the checkpoint. It crashes right after writing. What happens on the next run?
 @options
-the 500 records are lost
-it refuses to start
-* it fetches the same records again; the idempotent load absorbs the repeat, so no data is lost or doubled
+the 500 records are lost for good
+it refuses to start until you reset it
+* it refetches them and the idempotent load absorbs it
 @why
 A checkpoint may only describe data that is safely stored. Crashing between the write and the checkpoint costs a repeated fetch, which a deduplicating load makes harmless.
 :::
@@ -202,9 +202,9 @@ A common rookie mistake is issuing HTTP requests without an explicit timeout (e.
 
 :::ask The API answers HTTP 429 with a `Retry-After: 30` header. What do you do?
 @options
-* wait at least 30 seconds (add a little jitter), then retry, with a cap on attempts
+* wait 30 seconds or more, then retry, with a cap
 retry immediately, as fast as possible
-give up and mark the run failed at once
+give up and fail the run at once
 @why
 429 means "you are asking too fast", a transient failure. Respect `Retry-After`, add jitter so many clients do not return at the same instant, and cap the attempts. A 400-level error such as 404 is not transient: retrying never fixes it.
 :::

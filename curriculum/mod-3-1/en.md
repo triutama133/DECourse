@@ -174,9 +174,9 @@ print({p: len(rows) for p, rows in partitions.items()})
 
 :::ask A join key is NULL on 60% of the rows. After the shuffle, where do all those rows go?
 @options
-* to the same single partition, because every NULL hashes to the same value: one task does most of the work
-they are spread evenly over all partitions
-they are dropped by the join
+* all go to one partition: one task does the work
+they spread evenly over all partitions
+the join drops them before the shuffle
 @why
 Hash partitioning is deterministic: equal keys (including NULL) always go to the same place. A hot key therefore creates one overloaded task, while the other executors idle. Fixes: filter or handle the NULLs separately, broadcast the small side, or **salt** the hot key.
 :::

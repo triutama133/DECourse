@@ -62,9 +62,9 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 
 :::ask Sebuah id pelanggan adalah `00042` di tabel pelanggan. Anda membaca file pesanan dengan `pd.read_csv` bawaan (tanpa `dtype`). Seperti apa id itu di `orders`?
 @options
-`"00042"`, pandas membiarkannya apa adanya
-* `42`: pandas menebak angka dan nol di depannya hilang, sehingga merge padanya gagal atau salah cocok
-`NaN`
+`"00042"`: pandas menyimpannya persis seperti tertulis
+* `42`: pandas menebak angka, nolnya hilang
+`NaN`: pandas tidak bisa membaca nol di depan
 @why
 Sebuah file tidak punya tipe dan pandas **menebak**. Id adalah label, bukan kuantitas: baca sebagai teks dengan `dtype={"customer_id": "string"}` (atau `str`).
 :::
@@ -106,9 +106,9 @@ Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> cle
 
 :::ask Apa yang terjadi pada `df[df["a"] > 1]["b"] = 9`?
 @options
-* penugasan masuk ke salinan sementara dan hilang; pandas memberi peringatan
-ia mengisi `b` dengan 9 untuk baris yang `a > 1`
-ia memunculkan error
+* perubahan masuk ke salinan sementara dan hilang
+ia mengisi `b` dengan 9 di mana `a > 1`, seperti yang dimaksud
+ia memunculkan error dan menghentikan skrip
 @why
 Bagian pertama (`df[df["a"] > 1]`) mengembalikan salinan yang mungkin sementara, sehingga penugasan tidak pernah sampai ke `df`. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`.
 :::
@@ -195,9 +195,9 @@ Alat berguna terakhir adalah `pd.testing.assert_frame_equal(actual, expected)`: 
 
 :::ask Tabel pelanggan mencantumkan 30 pelanggan dua kali karena kesalahan. Anda menjalankan `orders.merge(customers, on="customer_id", how="left")` pada 1.911 pesanan. Apa yang Anda dapat?
 @options
-* lebih dari 1.911 baris: setiap pesanan pelanggan yang terduplikasi diulang, dan pendapatan terlalu tinggi, tanpa error
-1.911 baris, left join mempertahankan ukuran kiri
-error, karena key berulang
+* lebih dari 1.911 baris: duplikat mengulang pesanan, tanpa error
+1.911 baris: left join mempertahankan ukuran kiri
+error dimunculkan karena key berulang
 @why
 Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% terlalu tinggi. Pertahanannya satu argumen, `validate="m:1"`, yang memunculkan `MergeError` begitu sebuah key berulang di sisi kanan.
 :::

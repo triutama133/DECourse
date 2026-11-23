@@ -106,9 +106,9 @@ Practical points:
 
 :::ask Two writers commit to the same Iceberg table at the same moment. What keeps the table consistent?
 @options
-* each commit is one atomic swap of the metadata pointer; the second writer sees the pointer moved, re-checks and retries
-a lock held by the first writer for the whole job
-the data files are merged automatically
+* an atomic pointer swap, then the loser retries
+a lock held by the first writer all job long
+the data files merge automatically
 @why
 Iceberg uses **optimistic concurrency**: writers build their files without locking, then try to swap the table's pointer in one atomic step. If another commit won, the second writer validates against the new snapshot and retries. Readers always see one complete snapshot.
 :::
@@ -136,9 +136,9 @@ That last fact has a serious consequence. **A delete in a table format hides row
 
 :::ask You run a `DELETE` on an Iceberg table. Are the old rows gone from storage immediately?
 @options
-yes, the data files are erased at once
-only if the table is small
-* no: the delete creates a new snapshot; the old files stay until the old snapshots are expired and cleaned up
+yes: the data files are erased at once
+only if the table happens to be small
+* no: old files stay until the snapshots expire
 @why
 Time travel works because old snapshots still point to old files. A delete writes a new snapshot (and delete files or rewritten files); space is reclaimed only when snapshots **expire**. This is also why "deleted" personal data needs a real expiry and cleanup step.
 :::

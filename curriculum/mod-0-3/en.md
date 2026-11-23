@@ -120,9 +120,9 @@ An order can have several lines (so `order_id` repeats), and line number 1 exist
 
 :::ask What happens if you INSERT a customer with a customer_id that already exists?
 @options
-the old row is replaced silently
-two customers share the id
-* the database refuses: `UNIQUE constraint failed: customers.customer_id`
+the old row is replaced silently by the new one
+two customers end up sharing the same id
+* the database refuses: `UNIQUE constraint failed`
 @why
 A primary key must be unique, and the database enforces it. This is the point of keys: bad data is rejected at the door instead of being found later in a report.
 :::
@@ -913,9 +913,9 @@ Habits to adopt: always know the grain of each table; after a join, check `COUNT
 
 :::ask Two tables are joined and the row count is larger than you can explain. What do you do?
 @options
-carry on: more rows means more data
-* stop and find out why before continuing: a join on a key that is not unique repeats rows
-add DISTINCT to hide the repeats
+carry on: more rows just means more data
+* stop and find out why: a non-unique key repeats rows
+add DISTINCT so the repeats disappear
 @why
 A join on a key that is not unique on **both** sides multiplies rows (a many-to-many join even more). `DISTINCT` hides the symptom and can hide real repeated rows. Find the grain mismatch first.
 :::
@@ -1229,9 +1229,9 @@ INSERT INTO customers (customer_id, name, city, tier, signup_date) VALUES (11, '
 UPDATE customers SET tier = 'Gold';
 ```
 @options
-* sets the tier of EVERY customer, because there is no WHERE
-sets the tier of the first customer
-fails with an error
+* every customer changes: there is no WHERE
+only the first customer changes
+it fails with a syntax error
 @why
 Without a `WHERE`, an `UPDATE` touches every row. This is one of the most expensive typing mistakes in data work. Always write the `WHERE` first, check it with a `SELECT`, then change the data.
 :::
@@ -1289,9 +1289,9 @@ If the server crashes between the two updates, neither takes effect; money is ne
 
 :::ask You run BEGIN, then DELETE FROM orders WHERE status = 'cancelled', then ROLLBACK. How many orders are in the table now?
 @options
-16
-0
-* 18, as before: ROLLBACK undid the delete
+16 orders: the delete stayed
+0 orders: everything is gone
+* 18 orders: ROLLBACK undid the delete
 @why
 `ROLLBACK` undoes everything since `BEGIN`. The delete would have left 16 orders; the rollback brings back the original 18. `COMMIT` would have made the delete permanent.
 :::
@@ -1405,9 +1405,9 @@ CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 
 :::ask A view and a snapshot table (CREATE TABLE snap AS SELECT ...) were both made when a source table had 5 rows. Then one more row is inserted into the source. What do they show?
 @options
-* the view shows 6 rows; the snapshot still shows 5
-both show 6 rows
-both show 5 rows
+* the view shows 6 rows, the snapshot still 5
+both the view and the snapshot show 6 rows
+both the view and the snapshot show 5 rows
 @why
 A view stores the **query**, so it always reads the current data. A table created with `CREATE TABLE ... AS SELECT` (CTAS) stores a **snapshot** that does not change when the source does (and it loses the constraints of the original). PostgreSQL and warehouses also offer **materialized views**: stored results that are **stale until refreshed**.
 :::

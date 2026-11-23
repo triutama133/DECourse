@@ -89,8 +89,8 @@ Measures also differ in **additivity**: *additive* (quantity, revenue) can be su
 
 :::ask Which sentence is a good grain statement for a fact table?
 @options
-* "one row per order line: one product, in one order, at one price"
-"the sales table"
+"the sales table, all of it"
+* "one row per order line: one product, one price"
 "orders and customers and products"
 @why
 A grain says exactly **what one row means**. It decides which dimensions may sit on the row, what can be summed, and it can be tested: "no two rows share the same (order_id, line_no)". A table name or a list of subjects does not say what a row is.
@@ -98,9 +98,9 @@ A grain says exactly **what one row means**. It decides which dimensions may sit
 
 :::ask A `shipping_fee_idr` is stored once per order, but you copy it onto every order line. What goes wrong when you sum it?
 @options
-nothing, the total is the same
-* an order with three lines is counted three times: the fee belongs to the order grain, not the line grain
-the sum becomes NULL
+nothing: the total is the same
+* an order with three lines counts three times
+the sum becomes NULL because of the repeats
 @why
 Measures sum correctly only at (or above) their own grain. Copying a per-order value onto finer rows is the fan-out trap again: store it at the order grain, or allocate it across lines explicitly.
 :::
@@ -151,9 +151,9 @@ Modern columnar engines compress repeated values so well that wide tables are ch
 
 :::ask A wide pre-joined "one big table" is the only model, and a customer changes city. What is the problem?
 @options
-* the update touches every row of that customer across the whole table, the grain is hidden, and each team builds its own version
-nothing, storage is cheap
-the table becomes a star schema
+* every row of that customer changes and the grain hides
+nothing: storage is cheap, so it is fine
+the table becomes a proper star schema
 @why
 The trouble with a one big table as the **only** model is not size: it hides the grain, makes updates expensive, and invites every team to define things differently. Build it **from** the star as a convenience layer, not instead of it.
 :::
@@ -196,9 +196,9 @@ In the lab's data, 32 order lines belong to customers who do not exist in the cu
 
 :::ask An order arrives for a customer who is not in the customer extract yet. The fact table is joined to the dimension with an INNER JOIN. What happens to that order?
 @options
-it is kept and shown as Unknown
-* it silently vanishes from the report and the totals go down
-the join fails with an error
+it is kept and shown under Unknown
+* it silently vanishes and the totals go down
+the join stops with a clear error
 @why
 A fact row whose key matches no dimension row disappears in an inner join, with no error. The standard fix is an **unknown member** (for example key -1, "Unknown") that every orphan fact points at, so its revenue stays visible and countable.
 :::

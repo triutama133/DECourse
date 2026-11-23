@@ -90,9 +90,9 @@ Twenty-two items: seven models (four views, three tables, one of them incrementa
 
 :::ask What does `{{ ref('stg_orders') }}` give you that a hard-coded table name does not?
 @options
-* dbt learns the dependency (build order and lineage) and resolves the right schema for each environment
-nothing, it prints the same name
-it makes the query run faster
+* dbt learns the dependency and picks the schema
+nothing: it just prints the same table name
+it makes the query itself run faster
 @why
 `ref()` is how dbt builds its graph of models: it knows `fct_orders` needs `stg_orders` first, builds in the right order, skips children of a failed model, and points at the dev or prod schema automatically.
 :::
@@ -298,9 +298,9 @@ The 25th is now 2 orders and Rp 250,000 instead of 3 and Rp 400,000. An incremen
 
 :::ask Which column should the incremental watermark use: `order_date` (business time) or `_loaded_at` (ingestion time)?
 @options
-`order_date`: it is the date the order happened
-* `_loaded_at`: it says what is new to you, and late or updated rows have an old business date but a new ingestion time
-either one gives the same result
+`order_date`: it is when the order happened
+* `_loaded_at`: late or updated rows get a new one
+either one gives exactly the same result
 @why
 Business time says when something happened; ingestion time says what *arrived*. A refund for an old order arrives late: its `order_date` is old, its `_loaded_at` is new, so only the ingestion watermark sees it.
 :::

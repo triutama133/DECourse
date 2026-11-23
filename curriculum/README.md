@@ -57,6 +57,26 @@ Introduction paragraph.
 - [Label](https://url)
 ```
 
+## Interactive blocks inside lessons
+
+A lesson is normal Markdown plus a few blocks that the app turns into small interactive pieces. They are the "watch it, predict it, do it" part; the learner's real practice stays on their own computer (the Try it, the Practice Pause and the lab). Every block ends with a line that contains only `:::`.
+
+| Block | What it is |
+|---|---|
+| `:::ask Question` + `@options` (the right one starts with `* `) + `@why` | A "what will this print?" question. After two wrong answers the explanation is shown. |
+| `:::drill python Title` + `@starter`, `@check`, `@hint`, `@solution` (+ `@file name` for sample files) | A small exercise run in the browser's Pyodide. A check line is `python expression ## message`. Helpers: `calls("len")`, `uses("x")`, `defines("f")`, `has_node("If")`, `count_nodes("Assert")`, `printed_by(fn, ...)`, `raises_error(Exc, fn, ...)`, `rerun_with("name", value)` (run the learner's code on other data), `read_file("name")`, `out`, `code`. |
+| `:::drill sql Title` + `@data kopiku`, `@starter`, `@solution`, `@hint`, optional `@check` (`/regex/ ## message`, or `!/regex/` to forbid), `@ordered`, `@names`, `@verify` | A SQL exercise on a dataset of `app/js/playground.js`. The learner's **result** is compared with the solution's, on the dataset and again on a copy with extra rows and NULLs. `@verify` is a query run after the learner's statements (INSERT, CREATE, ALTER...). |
+| `:::trace Title` + `@code` (+ `@notes` lines `N \| text`, `@file`) | "Watch it run": the code is executed line by line and the variables are shown (like Python Tutor). A note is attached to a source line number. |
+| `:::sqlsteps Title` + `@data`, then `@stage Label`, the SQL, `@say` and a sentence | The same SQL question one clause at a time; rows that a stage drops are struck through. |
+
+Rules for authors:
+
+- **Different data than the lab.** A drill teaches the idea on its own numbers; the lab asks the learner to apply it. Never put a lab answer in a lesson.
+- **The first law:** the learner does it on their own computer. Pair interactive blocks with a terminal step; every passed drill already shows "Now do it on your own computer", and from Level 1 on it says the drill is a warm-up, not the proof.
+- **Both languages.** English and Indonesian must have the same blocks in the same order; code, checks, SQL and trace code are identical, only the words change (the build checks this).
+- **Verify by running.** `node scripts/verify_drills.js` (every solution passes, every starter fails, every trace note is on a line that runs) and `node scripts/verify_sql_drills.js` (the same for SQL, plus a wrong query is rejected and every animation stage runs). Both run in CI.
+- **Questions:** spread the right answer over the three positions and keep the options similar in length (`node scripts/asklen.js` reports both; today the right answer is the unique longest option in about 55% of the questions, with small margins, so write new ones with distractors of the same length).
+
 ## Standards for a module
 
 - **Lessons**: 1,500 to 2,800 words in total, at least five lessons. Explain the *why* before the *how*, include at least one measured number or worked example from the lab, and be honest about trade-offs. Say "check current prices" instead of quoting prices that change.

@@ -175,9 +175,9 @@ con.execute("""CREATE SECRET local_s3 (TYPE s3, KEY_ID 'test', SECRET 'test', RE
 
 :::ask A Parquet file has 50 columns and your query uses 3 of them. What does the engine read?
 @options
-the whole file
-only the first 3 rows
-* mainly the data of those 3 columns (plus the footer), because each column is stored together
+the whole file, all 50 columns
+only the first 3 rows of the table
+* mainly those 3 columns, plus the footer
 @why
 Columnar storage keeps each column's values together, so reading 3 of 50 columns reads about 3/50 of the data. This is why analytical queries are fast on Parquet and why `SELECT *` is a bad habit on wide tables.
 :::

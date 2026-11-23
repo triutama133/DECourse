@@ -180,9 +180,9 @@ print(len(moved), "of", len(keys), "keys moved")
 
 :::ask A consistent-hash ring has 4 nodes and gets a 5th. Roughly what share of the keys moves?
 @options
-about 80%, almost all of them
-* about 1/5 (20%): only the keys the new node takes over
-none
+about 80% of the keys, almost all
+* about 1/5 (20%) of the keys, the new node's share
+none of the keys at all
 @why
 On the ring each key belongs to the next node clockwise. A new node takes over only the keys between itself and its predecessor, about 1/N of the total. The lab measures modulo hashing moving 79.5% of the keys on the same change.
 :::
@@ -206,9 +206,9 @@ With `N` replicas, a write acknowledged by `W` of them, and a read that asks `R`
 
 :::ask With N = 3 replicas, is W = 1 and R = 1 safe (a read always sees the latest acknowledged write)?
 @options
-yes, one replica is enough
-only if the clock is accurate
-* no: 1 + 1 is not greater than 3, so a read can hit a replica the write never reached
+yes, one replica is plenty for a quorum
+only if the clocks are accurate enough
+* no: a read can hit a replica the write missed
 @why
 The write may have reached replica A; the read may ask replica B, which has not heard of it yet. With W = 2 and R = 2 any two replicas overlap in at least one, so a read always meets a replica holding the latest write.
 :::

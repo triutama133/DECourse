@@ -134,7 +134,7 @@ Design decisions of a gate:
 :::ask A row arrives with a negative order total. The contract says totals must be positive. What should the ingestion gate do?
 @options
 drop it silently so the report stays clean
-* quarantine the row with a reason, let the valid rows through, and count what was set aside
+* quarantine it with a reason and count it
 reject the whole file because of one row
 @why
 Strict at the door does not mean throwing the batch away or hiding the problem. A quarantine keeps the bad row with its reason, the pipeline continues, and a quality report says how many rows were set aside, so nothing disappears without a trace.

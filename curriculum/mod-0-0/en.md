@@ -1623,9 +1623,9 @@ make_label()
 print(label)
 ```
 @options
-Rp 500
-None
-* an error: NameError, `label` does not exist outside the function
+`Rp 500`, the function made it
+`None`, the function returned nothing
+* an error: `label` exists only inside the function
 @why
 `label` was created **inside** `make_label`, and it disappears when the function ends. The last line looks for `label` outside and Python stops with `NameError: name 'label' is not defined`. To get the value out, the function must `return` it.
 :::

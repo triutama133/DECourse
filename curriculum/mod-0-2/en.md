@@ -155,18 +155,18 @@ There is a sixth category worth naming: **infrastructure failures** (a server re
 
 :::ask Revenue doubled overnight. The cause: a job was retried after a timeout and loaded the same file twice. Which fix solves this kind of problem for good?
 @options
-delete the second copy by hand each morning
-run the job less often
-* give every record a stable key and make the load idempotent: running twice leaves the same result
+delete the second copy by hand every morning
+run the job less often so it fails less
+* stable record keys plus an idempotent load
 @why
 Duplicates come from retries, "at least once" delivery and overlapping sources, so they will keep coming. A stable key plus an idempotent load makes a repeat harmless instead of something you must remember to clean.
 :::
 
 :::ask A source team renames `total` to `total_amount` without telling you. Your job keeps running and fills the `total` column with nulls. Which defence catches this at the door?
 @options
-more memory for the job
-* validate the shape of the data when it arrives, and agree a data contract with the producer
-a bigger dashboard
+more memory for the job so it copes
+* validate the shape on arrival and agree a contract
+a bigger dashboard to spot it sooner
 @why
 This is **schema drift**, and it is dangerous because nothing crashes. Checking the columns and types on arrival turns a silent corruption into a loud, early failure.
 :::

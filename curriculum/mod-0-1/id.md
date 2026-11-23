@@ -43,9 +43,9 @@ Sebelum yang lain Anda perlu tahu **di folder mana Anda berdiri** dan **apa isin
 
 :::ask Anda berada di `~/kopiku/scripts`. Folder datanya `~/kopiku/data`. Anda menjalankan `head -5 data/orders.csv`. Apa yang terjadi?
 @options
-menampilkan lima baris pertama file pesanan
-menghapus lima baris pertama
-* error: `No such file or directory`, karena `data/` tidak ada di dalam `scripts/`
+lima baris pertama file pesanan ditampilkan
+lima baris pertama dihapus
+* error: `data/` tidak ada di dalam `scripts/`
 @why
 `data/orders.csv` adalah **path relatif**: shell mencarinya mulai dari folder tempat Anda berada, `scripts/`, dan di dalamnya tidak ada `data/`. File itu satu tingkat di atas. Jalankan `pwd` dan `ls` dulu, atau tulis path dari tempat Anda berdiri: `../data/orders.csv`.
 :::
@@ -114,9 +114,9 @@ Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka f
 
 :::ask Anda ingin menghapus folder `old_data/`. Apa kebiasaan paling aman?
 @options
-* jalankan `ls old_data` dulu, pastikan isinya seperti dugaan Anda, baru hapus
-langsung jalankan `rm -rf old_data`
-pindahkan ke tempat sampah dengan `rm`
+* jalankan `ls old_data` dulu, periksa, lalu hapus
+langsung `rm -rf old_data` dan berharap benar
+pakai `rm` supaya masuk tempat sampah
 @why
 Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` lebih dulu hanya butuh dua detik dan sudah menyelamatkan banyak orang dari hari yang buruk.
 :::
@@ -169,9 +169,9 @@ File yang namanya diawali titik (`.gitignore`, `.env`) **tersembunyi**; `ls -a` 
 
 :::ask Anda mengetik `pytest` dan shell menjawab `command not found`. Apa yang dikatakan itu?
 @options
-program pytest rusak
-Anda salah mengetik password
-* tidak ada folder di `PATH` Anda yang berisi program bernama `pytest`
+program pytest rusak di mesin ini
+Anda salah mengetik password-nya
+* tidak ada folder di `PATH` yang punya program bernama `pytest`
 @why
 Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" berarti tidak satu pun punya: belum terpasang, atau terpasang di tempat yang tidak ada di `PATH`. Mengaktifkan virtual environment Python (dua materi berikutnya) bekerja dengan menaruh foldernya di **depan** `PATH`.
 :::
@@ -186,7 +186,7 @@ Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" b
 
 :::ask Anda mendapat `Permission denied` saat menjalankan skrip yang baru diunduh. Langkah pertama yang benar?
 @options
-* lihat permission dengan `ls -l`, dan beri izin eksekusi dengan `chmod +x` bila skripnya milik Anda dan tepercaya
+* cek `ls -l`, lalu `chmod +x` bila skripnya milik Anda
 taruh `sudo` di depannya, supaya selalu berhasil
 hapus file lalu unduh lagi
 @why
@@ -230,18 +230,18 @@ id,customer,total,status
 
 :::ask Apa yang dicetak `cut -d, -f4 orders.csv` untuk file itu?
 @options
-seluruh file
-* kolom ke-4 yang dipisah koma, satu nilai per baris: `status`, `paid`, `cancelled`, `paid`
-hanya angkanya
+seluruh file, header dan semua kolom
+* kolom ke-4, satu nilai per baris, header ikut
+hanya angkanya, tanpa header
 @why
 `-d,` menyatakan pemisahnya koma, dan `-f4` memilih field ke-4. Field ke-4 pada header (`status`) ikut keluar, itulah sebabnya tahap berikutnya melewati baris pertama.
 :::
 
 :::ask Mengapa `sort` harus datang SEBELUM `uniq -c` dalam pipe?
 @options
-* `uniq -c` menghitung rangkaian baris sama yang **bersebelahan**, jadi nilai yang sama harus berdekatan dulu
-`uniq` hanya bekerja pada angka yang terurut
-supaya keluarannya lebih rapi
+`uniq` hanya bekerja pada angka terurut, bukan teks
+* `uniq -c` hanya menghitung baris sama yang bersebelahan
+itu membuat keluaran tampak lebih rapi, tidak lebih
 @why
 `uniq -c` hanya membandingkan sebuah baris dengan baris tepat sebelumnya. Untuk `paid, cancelled, paid` ia menghitung tiga kelompok berisi 1. Setelah `sort` ia melihat `cancelled, paid, paid` dan menghitung `1 cancelled` dan `2 paid`.
 :::
@@ -272,9 +272,9 @@ Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: A
 
 :::ask Anda menjalankan `sort orders.csv > orders.csv`. Apa yang terjadi pada datanya?
 @options
-file terurut di tempat
-* file dikosongkan: shell membuka file untuk ditulis (dan mengosongkannya) **sebelum** `sort` membacanya
-tidak ada, shell menolak
+file terurut di tempat, seperti yang Anda mau
+* file dikosongkan sebelum `sort` membacanya
+tidak terjadi apa-apa: shell menolak menjalankannya
 @why
 `>` mengosongkan file tujuan begitu perintah dimulai. `sort` lalu membaca file yang sudah kosong. Untuk mengurutkan sebuah file ke file lain, tulis ke nama yang **berbeda**: `sort orders.csv > sorted.csv`. (Mengalihkan ke file yang sedang dibaca menghancurkannya.)
 :::
@@ -330,9 +330,9 @@ print(which("pytest"))
 
 :::ask Proyek A butuh `pandas 1.5` dan proyek B butuh `pandas 2.2`. Keduanya dipasang ke satu Python global. Apa yang terjadi?
 @options
-kedua versi bekerja berdampingan
-pip menolak dan tidak memasang apa pun
-* memasang satu versi menggantikan yang lain, sehingga salah satu proyek rusak
+kedua versi bekerja berdampingan tanpa masalah
+pip menolak memasang dan tidak mengubah apa pun
+* memasang satu menggantikan yang lain: sebuah proyek rusak
 @why
 Satu instalasi Python menyimpan **satu** versi untuk setiap paket. Virtual environment memberi setiap proyek folder paket pribadinya sendiri, sehingga A dan B berhenti berebut.
 :::
@@ -446,9 +446,9 @@ Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah 
 
 :::ask Anda meng-commit `.env` berisi password, menyadarinya, dan menghapus file itu di commit berikutnya. Apakah password itu sudah aman?
 @options
-* tidak: ia masih ada di commit sebelumnya, dan siapa pun yang punya salinan repositori bisa membacanya
-ya, file-nya sudah hilang
-ya, karena commit tidak bisa dibaca
+* tidak: commit sebelumnya masih menyimpannya untuk siapa pun yang punya clone
+ya, file-nya sudah hilang dari folder
+ya, karena commit lama tidak bisa dibaca
 @why
 Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Commit lama masih berisinya. Anggap setiap secret yang ter-commit sudah terbuka: cabut dan ganti dulu (materi berikutnya).
 :::
@@ -482,8 +482,8 @@ Tebak: apa yang terjadi?
 
 :::ask `os.environ["DB_PASSWORD"]` dijalankan di mesin yang `DB_PASSWORD`-nya tidak pernah diatur. Apa yang terjadi?
 @options
-ia mengembalikan string kosong
-* ia berhenti dengan `KeyError`: keras dan cepat, dan itu bagus
+ia mengembalikan string kosong dan lanjut diam-diam
+* ia berhenti dengan `KeyError`: keras dan cepat
 ia mengembalikan password program lain
 @why
 Gagal seketika dan jelas lebih baik daripada berjalan setengah terkonfigurasi. `os.environ.get("REGION", "ap-southeast-1")` adalah versi untuk pengaturan yang **tidak berbahaya** dan punya nilai bawaan yang aman; jangan pernah memberi secret nilai bawaan.
@@ -528,8 +528,8 @@ Permintaan bantuan mana yang cepat dijawab?
 :::ask Pilih cara terbaik meminta bantuan untuk skrip yang gagal.
 @options
 tangkapan layar dan kata-kata "tidak jalan"
-* perintah persisnya, teks error lengkap sebagai teks, apa yang Anda harapkan, OS dan versi Python Anda, dan apa yang sudah Anda coba
-"tolong, mendesak"
+* perintah persisnya, teks error lengkap, OS Anda, apa yang dicoba
+"tolong, mendesak" tanpa rincian
 @why
 Orang menjawab pertanyaan yang tersusun baik dalam hitungan menit: mereka bisa mereproduksi masalahnya dan melihat error-nya. Tangkapan layar tidak bisa dicari atau disalin, dan pertanyaan yang kabur tidak bisa dijawab.
 :::

@@ -43,9 +43,9 @@ Before anything else you need to know **which folder you are standing in** and *
 
 :::ask You are in `~/kopiku/scripts`. The data folder is `~/kopiku/data`. You run `head -5 data/orders.csv`. What happens?
 @options
-it shows the first five lines of the orders file
-it deletes the first five lines
-* an error: `No such file or directory`, because `data/` is not inside `scripts/`
+the first five lines of the orders file are shown
+the first five lines are deleted
+* an error: `data/` is not inside `scripts/`
 @why
 `data/orders.csv` is a **relative path**: the shell looks for it starting from the folder you are in, `scripts/`, and there is no `data/` inside it. The file is one level up. Run `pwd` and `ls` first, or write the path from where you are: `../data/orders.csv`.
 :::
@@ -114,9 +114,9 @@ Together they answer "how many orders were cancelled?" without opening the file:
 
 :::ask You want to delete the folder `old_data/`. What is the safest habit?
 @options
-* run `ls old_data` first, check it is what you think, then delete it
-run `rm -rf old_data` straight away
-move it to the recycle bin with `rm`
+* run `ls old_data` first, check it, then delete
+run `rm -rf old_data` and hope it is right
+use `rm` so it goes to the recycle bin
 @why
 There is no recycle bin in the shell. Looking at **exactly the same path** with `ls` first costs two seconds and has saved many people a bad day.
 :::
@@ -169,9 +169,9 @@ Files whose names start with a dot (`.gitignore`, `.env`) are **hidden**; `ls -a
 
 :::ask You type `pytest` and the shell answers `command not found`. What does that tell you?
 @options
-the pytest program is broken
-you typed the wrong password
-* no folder on your `PATH` contains a program named `pytest`
+the pytest program is broken on this machine
+you typed the wrong password for it
+* no folder on `PATH` has a program called `pytest`
 @why
 The shell looks for the name in every folder of `PATH`, in order. "command not found" means none of them has it: not installed, or installed somewhere that is not on `PATH`. Activating a Python virtual environment (the lesson after next) works by putting its folder at the **front** of `PATH`.
 :::
@@ -186,7 +186,7 @@ The shell looks for the name in every folder of `PATH`, in order. "command not f
 
 :::ask You get `Permission denied` running a script you just downloaded. What is the right first move?
 @options
-* look at the permissions with `ls -l`, and give execute permission with `chmod +x` if the script is yours and trusted
+* check `ls -l`, then `chmod +x` if the script is yours
 put `sudo` in front, so it always works
 delete the file and download it again
 @why
@@ -230,18 +230,18 @@ id,customer,total,status
 
 :::ask What does `cut -d, -f4 orders.csv` print for that file?
 @options
-the whole file
-* the 4th comma-separated column, one value per line: `status`, `paid`, `cancelled`, `paid`
-only the numbers
+the whole file, header and all columns
+* the 4th column, one value per line, header included
+only the numbers, without the header
 @why
 `-d,` says the separator is a comma, and `-f4` picks the 4th field. The header's 4th field (`status`) comes out too, which is why the next stage skips the first line.
 :::
 
 :::ask Why must `sort` come BEFORE `uniq -c` in the pipe?
 @options
-* `uniq -c` counts runs of **neighbouring** equal lines, so equal values must be next to each other first
-`uniq` only works on sorted numbers
-it makes the output prettier
+`uniq` only works on sorted numbers, not text
+* `uniq -c` counts only neighbouring equal lines
+it makes the output look prettier, nothing more
 @why
 `uniq -c` only compares a line with the one just before it. For `paid, cancelled, paid` it would count three groups of 1. After `sort` it sees `cancelled, paid, paid` and counts `1 cancelled` and `2 paid`.
 :::
@@ -272,9 +272,9 @@ Notice the output also reveals messy real-world data: you will see `paid`, `PAID
 
 :::ask You run `sort orders.csv > orders.csv`. What happens to the data?
 @options
-the file is sorted in place
-* the file is emptied: the shell opens it for writing (and empties it) **before** `sort` reads it
-nothing, the shell refuses
+the file is sorted in place, as you wanted
+* the file is emptied before `sort` reads it
+nothing happens: the shell refuses to run it
 @why
 `>` truncates the target file as the command starts. `sort` then reads an already-empty file. To sort a file into another file, write to a **different** name: `sort orders.csv > sorted.csv`. (Redirecting onto the file you read from destroys it.)
 :::
@@ -330,9 +330,9 @@ print(which("pytest"))
 
 :::ask Project A needs `pandas 1.5` and project B needs `pandas 2.2`. Both are installed into the one global Python. What happens?
 @options
-both versions work side by side
-pip refuses and installs nothing
-* installing one version replaces the other, so one of the projects breaks
+both versions work side by side without trouble
+pip refuses to install and changes nothing
+* installing one replaces the other: a project breaks
 @why
 A Python installation holds **one** version of each package. A virtual environment gives every project its own private folder of packages, so A and B stop fighting.
 :::
@@ -442,9 +442,9 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 
 :::ask You committed `.env` with a password, noticed, and deleted the file in your next commit. Is the password safe now?
 @options
-* no: it still lives in the earlier commit, and anyone with a copy of the repository can read it
-yes, the file is gone
-yes, because commits can not be read
+* no: the earlier commit still holds it for anyone with a clone
+yes, the file is gone from the folder now
+yes, because old commits can not be read
 @why
 Deleting a file in a later commit only removes it from the latest snapshot. The old commit still contains it. Treat any committed secret as exposed: revoke and replace it first (next lesson).
 :::
@@ -476,8 +476,8 @@ region = os.environ.get("REGION", "ap-southeast-1")   # with a harmless default
 
 :::ask `os.environ["DB_PASSWORD"]` runs on a machine where `DB_PASSWORD` was never set. What happens?
 @options
-it returns an empty string
-* it stops with a `KeyError`: loud and early, which is good
+it returns an empty string and carries on quietly
+* it stops with a `KeyError`: loud and early
 it returns the password of another program
 @why
 Failing immediately and clearly beats running half-configured. `os.environ.get("REGION", "ap-southeast-1")` is the version for **harmless** settings that have a safe default; never give a secret a default.
@@ -522,8 +522,8 @@ Which help request gets answered fast?
 :::ask Pick the best way to ask for help with a failing script.
 @options
 a screenshot and the words "it does not work"
-* the exact command, the full error text as text, what you expected, your OS and Python version, and what you tried
-"please help, urgent"
+* the exact command, the full error text, your OS, what you tried
+"please help, it is urgent" with no details
 @why
 People answer well-formed questions in minutes: they can reproduce the problem and see the error. A screenshot cannot be searched or copied, and a vague question cannot be answered.
 :::

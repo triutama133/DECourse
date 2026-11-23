@@ -298,9 +298,9 @@ SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM d
 
 :::ask Can you write `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` directly?
 @options
-yes, it is the standard way
-* no: windows are computed after WHERE, so compute it in a CTE or subquery and filter outside
-only in SQLite
+yes, it is the standard way to filter
+* no: windows run after WHERE, so use a CTE
+only in SQLite, other engines refuse it
 @why
 `WHERE` runs before window functions exist. So the portable pattern is two steps: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery and DuckDB have the shortcut `QUALIFY`; PostgreSQL and SQLite do not.
 :::
@@ -393,9 +393,9 @@ There is a second way to get the same groups, the one the clickstream example us
 
 :::ask Why is `date - row_number` the same for every day of one streak?
 @options
-dates and row numbers are unrelated
-the database stores streaks internally
-* both go up by exactly one for each next day of a streak, so their difference does not change
+dates and row numbers are unrelated numbers
+the database stores each streak internally
+* both rise by one per day, so their gap stays constant
 @why
 In a streak every row is exactly one day after the previous row, so the date and the row number grow in lockstep. A gap makes the date jump more than the row number, and the difference changes: a new island starts. If a date can repeat, de-duplicate first.
 :::
@@ -510,8 +510,8 @@ The result is the union of all rounds: 12 rows. The query stops when a round fin
 :::ask In the data, category A's parent is B and B's parent is A. What does an unprotected `WITH RECURSIVE` do?
 @options
 returns the first two rows and stops
-* never ends: every round finds more rows, so protect it with a depth limit (`WHERE depth < 20`)
-raises an error at once
+* never ends: it keeps finding rows, so add a depth limit
+raises an error at once about the cycle
 @why
 A cycle means every round produces new rows forever. Always bound the recursion: a depth condition in the recursive part (and `CYCLE` detection in PostgreSQL).
 :::
@@ -689,9 +689,9 @@ A composite index is sorted by its **leftmost** column first, then the next. A f
 
 :::ask `status = 'done'` matches 99.8% of the rows. Will an index on `status` help that query?
 @options
-yes, any index always helps
+yes: any index always helps a query
 only if the index is a BRIN index
-* no: the planner correctly chooses a full scan, because the index would visit almost every row anyway; indexes pay off when the filter is selective
+* no: the planner scans, since nearly every row matches
 @why
 Selectivity matters. An index on a column where one value covers almost the whole table saves nothing. A partial index on the rare value (`WHERE status = 'pending'`) is the useful one.
 :::

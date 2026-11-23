@@ -158,9 +158,9 @@ Pada file data nyata, aturan ini menolak sekitar 1,2% baris, dan pemeriksa memba
 
 :::ask Sebuah perjalanan taksi punya waktu turun sebelum waktu naik. Menurut kontrak, apa yang Anda lakukan?
 @options
-* mengkarantinanya beserta alasan, dan menghitungnya di laporan kualitas
-membuangnya diam-diam
-memperbaikinya dengan menukar kedua waktu
+* karantina beserta alasan dan hitung
+buang diam-diam supaya tidak ada yang melihat
+perbaiki dengan menukar kedua waktu
 @why
 Kontrak menyatakan apa yang valid. Baris yang tidak bisa dipercaya disisihkan **beserta alasannya**, tidak ditebak dan tidak disembunyikan, sehingga laporan kualitas bisa menunjukkan persis apa yang ditolak dan mengapa.
 :::

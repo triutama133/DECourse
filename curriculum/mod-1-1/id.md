@@ -140,9 +140,9 @@ set -euo pipefail
 
 :::ask Sebuah pipeline adalah `zcat broken.gz | wc -l`. `zcat` gagal di tengah karena file rusak, `wc` tetap menghitung apa yang diterimanya. Tanpa `-o pipefail`, exit code apa yang dilaporkan pipeline?
 @options
-* 0, karena hanya tahap terakhir (`wc`) yang dihitung
-bukan nol, karena `zcat` gagal
-127
+* 0: hanya tahap terakhir (`wc`) yang dilaporkan
+bukan nol: `zcat` gagal, jadi pipeline juga
+127: perintah tidak ditemukan
 @why
 Secara default pipeline melaporkan exit code **tahap terakhirnya**. `wc -l` berhasil, jadi pipeline tampak baik-baik saja padahal datanya tidak lengkap. `set -o pipefail` membuat pipeline gagal jika **tahap mana pun** gagal.
 :::
@@ -151,9 +151,9 @@ Catatan: `-e` tidak terpicu di dalam kondisi `if`, di rantai `&&`/`||`, atau pad
 
 :::ask `file="my report.csv"` dan skrip menjalankan `wc -l $file` (tanpa tanda kutip). Apa yang diterima `wc`?
 @options
-satu argumen: `my report.csv`
-* dua argumen: `my` dan `report.csv`, sehingga ia mencari dua file yang tidak ada
-tidak ada, shell berhenti
+satu argumen: nama `my report.csv`
+* dua argumen: `my` dan `report.csv`
+tidak ada: shell berhenti sebelum menjalankannya
 @why
 Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `shellcheck` menandai persis kesalahan ini.
 :::
@@ -197,9 +197,9 @@ Baris pertama berjalan pukul 02.00 setiap hari. Ketahui kejutan-kejutan ini sebe
 
 :::ask Skrip Anda berjalan di terminal tetapi gagal di bawah cron dengan `python: command not found`. Apa penyebab yang paling mungkin?
 @options
-cron tidak mendukung Python
-jadwalnya salah
-* cron berjalan dengan environment kosong: `PATH` pendek dan tanpa virtual environment aktif
+cron tidak mendukung skrip Python
+ekspresi jadwalnya salah
+* cron punya environment kosong: `PATH` pendek, tanpa venv
 @why
 cron tidak memuat profil shell Anda. Pakai path absolut (`/opt/kopiku/venv/bin/python`), atur variabel di dalam skrip, dan alihkan output ke log (`>> log 2>&1`) supaya Anda bisa melihat apa yang terjadi.
 :::
@@ -270,9 +270,9 @@ Container bisa diberi batas: `docker run --memory 512m --cpus 1 ...`, atau di ko
 
 :::ask Job container berakhir dengan exit code **137** dan `OOMKilled: true`. Apa yang terjadi?
 @options
-skrip memunculkan error biasa dan mengembalikan 137
-* kernel membunuhnya (SIGKILL, 128 + 9) karena ia memakai memori melebihi batasnya
-ia dihentikan dengan sopan oleh `docker stop`
+skrip mengalami error biasa dan mengembalikan 137
+* kernel membunuhnya: ia melebihi batas memorinya
+`docker stop` memintanya berhenti dengan sopan
 @why
 137 = 128 + 9: proses menerima SIGKILL. Dalam container dengan batas memori ini adalah OOM killer. Penghentian sopan (`docker stop`) memberi 143 (128 + 15, SIGTERM). Obatnya adalah memproses sebagai stream atau potongan terbatas, bukan memuat semuanya sekaligus.
 :::

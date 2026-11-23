@@ -120,9 +120,9 @@ Sebuah pesanan bisa punya beberapa baris (jadi `order_id` berulang), dan nomor b
 
 :::ask Apa yang terjadi jika Anda INSERT pelanggan dengan customer_id yang sudah ada?
 @options
-baris lama diganti diam-diam
-dua pelanggan berbagi id
-* database menolak: `UNIQUE constraint failed: customers.customer_id`
+baris lama diganti diam-diam oleh yang baru
+dua pelanggan berakhir berbagi id yang sama
+* database menolak: `UNIQUE constraint failed`
 @why
 Primary key harus unik, dan database menegakkannya. Itulah gunanya key: data buruk ditolak di pintu, bukan ditemukan belakangan di laporan.
 :::
@@ -913,9 +913,9 @@ Kebiasaan yang perlu dipakai: selalu tahu grain setiap tabel; setelah join, band
 
 :::ask Dua tabel digabung dan jumlah barisnya lebih besar dari yang bisa Anda jelaskan. Apa yang Anda lakukan?
 @options
-lanjut saja: lebih banyak baris berarti lebih banyak data
-* berhenti dan cari tahu mengapa sebelum melanjutkan: join pada key yang tidak unik mengulang baris
-tambahkan DISTINCT untuk menyembunyikan pengulangan
+lanjut saja: lebih banyak baris hanya berarti lebih banyak data
+* berhenti dan cari tahu: key yang tidak unik mengulang baris
+tambahkan DISTINCT supaya pengulangan hilang
 @why
 Join pada key yang tidak unik di **kedua** sisi melipatgandakan baris (many-to-many lebih parah lagi). `DISTINCT` menyembunyikan gejalanya dan bisa menyembunyikan baris berulang yang nyata. Cari dulu ketidakcocokan grain-nya.
 :::
@@ -1229,9 +1229,9 @@ INSERT INTO customers (customer_id, name, city, tier, signup_date) VALUES (11, '
 UPDATE customers SET tier = 'Gold';
 ```
 @options
-* mengubah tier SETIAP pelanggan, karena tidak ada WHERE
-mengubah tier pelanggan pertama
-gagal dengan error
+* setiap pelanggan berubah: tidak ada WHERE
+hanya pelanggan pertama yang berubah
+ia gagal dengan error sintaks
 @why
 Tanpa `WHERE`, sebuah `UPDATE` menyentuh setiap baris. Ini salah satu kesalahan ketik termahal dalam pekerjaan data. Selalu tulis `WHERE` lebih dulu, periksa dengan `SELECT`, baru ubah datanya.
 :::
@@ -1289,9 +1289,9 @@ Jika server crash di antara dua update, tidak ada yang berlaku; uang tidak perna
 
 :::ask Anda menjalankan BEGIN, lalu DELETE FROM orders WHERE status = 'cancelled', lalu ROLLBACK. Berapa pesanan di tabel sekarang?
 @options
-16
-0
-* 18, seperti semula: ROLLBACK membatalkan penghapusan
+16 pesanan: penghapusan tetap
+0 pesanan: semuanya hilang
+* 18 pesanan: ROLLBACK membatalkan penghapusan
 @why
 `ROLLBACK` membatalkan semuanya sejak `BEGIN`. Penghapusan akan menyisakan 16 pesanan; rollback mengembalikan 18 yang semula. `COMMIT` akan membuat penghapusan permanen.
 :::
@@ -1405,9 +1405,9 @@ CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 
 :::ask Sebuah view dan tabel snapshot (CREATE TABLE snap AS SELECT ...) dibuat ketika tabel sumber punya 5 baris. Lalu satu baris lagi dimasukkan ke sumber. Apa yang ditampilkan keduanya?
 @options
-* view menampilkan 6 baris; snapshot masih menampilkan 5
-keduanya menampilkan 6 baris
-keduanya menampilkan 5 baris
+* view menampilkan 6 baris, snapshot masih 5
+view dan snapshot sama-sama menampilkan 6 baris
+view dan snapshot sama-sama menampilkan 5 baris
 @why
 View menyimpan **query-nya**, jadi ia selalu membaca data terkini. Tabel yang dibuat dengan `CREATE TABLE ... AS SELECT` (CTAS) menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (dan ia kehilangan constraint aslinya). PostgreSQL dan warehouse juga menawarkan **materialized view**: hasil tersimpan yang **basi sampai di-refresh**.
 :::

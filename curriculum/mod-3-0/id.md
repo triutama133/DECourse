@@ -63,8 +63,8 @@ Batasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HD
 :::ask Satu terabyte disimpan sebagai 10 juta file kecil sekitar 100 KB. Apa masalah sebenarnya bagi HDFS?
 @options
 DataNode kehabisan ruang disk
-file tidak bisa direplikasi
-* NameNode menyimpan satu objek di memori per file dan per block, sehingga puluhan juta objek menekan memorinya (masalah small-files)
+file sama sekali tidak bisa direplikasi
+* NameNode harus menyimpan objek untuk setiap file
 @why
 NameNode menyimpan seluruh namespace di memori (sekitar 150 byte per objek sebagai patokan). Ukuran byte tidak penting baginya; yang penting adalah **jumlah objek**. Perbaikannya adalah file yang lebih sedikit dan lebih besar (kompaksi, format kolumnar seperti Parquet).
 :::

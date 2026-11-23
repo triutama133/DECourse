@@ -106,9 +106,9 @@ Panduan implementasi praktis:
 
 :::ask Dua writer melakukan commit ke tabel Iceberg yang sama pada saat yang sama. Apa yang menjaga tabel tetap konsisten?
 @options
-* setiap commit adalah satu pertukaran atomik pointer metadata; writer kedua melihat pointer sudah bergeser, memeriksa ulang, dan mencoba lagi
-lock yang dipegang writer pertama selama seluruh job
-file data digabung otomatis
+* pertukaran pointer atomik, lalu yang kalah mencoba lagi
+lock yang dipegang writer pertama sepanjang job
+file data digabung secara otomatis
 @why
 Iceberg memakai **optimistic concurrency**: writer membangun file mereka tanpa lock, lalu mencoba menukar pointer tabel dalam satu langkah atomik. Jika commit lain menang, writer kedua memvalidasi terhadap snapshot baru dan mencoba lagi. Pembaca selalu melihat satu snapshot yang lengkap.
 :::
@@ -136,9 +136,9 @@ Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DEL
 
 :::ask Anda menjalankan `DELETE` pada tabel Iceberg. Apakah baris lama langsung hilang dari penyimpanan?
 @options
-ya, file data langsung dihapus
-hanya jika tabelnya kecil
-* tidak: delete membuat snapshot baru; file lama tetap ada sampai snapshot lama kedaluwarsa dan dibersihkan
+ya: file data langsung dihapus
+hanya jika tabelnya kebetulan kecil
+* tidak: file lama tetap ada sampai snapshot kedaluwarsa
 @why
 Time travel bekerja karena snapshot lama masih menunjuk ke file lama. Delete menulis snapshot baru (dan file delete atau file yang ditulis ulang); ruang baru dikembalikan ketika snapshot **kedaluwarsa**. Karena itu data pribadi yang "dihapus" butuh langkah kedaluwarsa dan pembersihan yang nyata.
 :::

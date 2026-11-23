@@ -228,9 +228,9 @@ Generator **habis dipakai** setelah satu putaran: `list(rows)` kedua tidak menem
 
 :::ask `rows = read_orders("missing.csv")` adalah fungsi generator. Di baris mana `FileNotFoundError` muncul?
 @options
-* nanti, ketika sesuatu pertama kali meminta baris (`next(rows)` atau loop `for`)
+* nanti, ketika sesuatu pertama kali meminta baris
 di baris yang memanggil `read_orders(...)`
-tidak pernah, generator menyembunyikan error
+tidak pernah: generator menelan error
 @why
 Kemalasan menyembunyikan error: memanggil fungsi tidak menjalankan apa-apa, jadi file baru dibuka ketika baris pertama diminta. Bug di generator muncul lebih lambat dan di tempat lain daripada tempat Anda membuatnya.
 :::

@@ -140,9 +140,9 @@ set -euo pipefail
 
 :::ask A pipeline is `zcat broken.gz | wc -l`. `zcat` fails halfway because the file is corrupt, `wc` still counts what it got. Without `-o pipefail`, what exit code does the pipeline report?
 @options
-* 0, because only the last stage (`wc`) counts
-non-zero, because `zcat` failed
-127
+* 0: only the last stage (`wc`) is reported
+non-zero: `zcat` failed, so the pipeline did
+127: the command was not found
 @why
 By default a pipeline reports the exit code of its **last** stage. `wc -l` succeeded, so the pipeline looks fine while the data is incomplete. `set -o pipefail` makes the pipeline fail if **any** stage fails.
 :::
@@ -151,9 +151,9 @@ Caveat: `-e` is not triggered inside `if` conditions, in `&&`/`||` chains, or in
 
 :::ask `file="my report.csv"` and the script runs `wc -l $file` (no quotes). What does `wc` receive?
 @options
-one argument: `my report.csv`
-* two arguments: `my` and `report.csv`, so it looks for two files that do not exist
-nothing, the shell stops
+one argument: the name `my report.csv`
+* two arguments: `my` and `report.csv`
+nothing: the shell stops before running it
 @why
 Unquoted, the shell splits the value at the space. Always write `"$file"`. `shellcheck` flags exactly this mistake.
 :::
@@ -197,9 +197,9 @@ The first line runs at 02:00 every day. Know these surprises before they cost yo
 
 :::ask Your script works in your terminal but fails under cron with `python: command not found`. What is the most likely cause?
 @options
-cron does not support Python
-the schedule is wrong
-* cron runs with a bare environment: a short `PATH` and no activated virtual environment
+cron does not support Python scripts
+the schedule expression is wrong
+* cron has a bare environment: short `PATH`, no venv
 @why
 cron does not load your shell profile. Use absolute paths (`/opt/kopiku/venv/bin/python`), set variables inside the script, and redirect output to a log (`>> log 2>&1`) so you can see what happened.
 :::
@@ -270,9 +270,9 @@ Containers can be given limits: `docker run --memory 512m --cpus 1 ...`, or in a
 
 :::ask A container job ends with exit code **137** and `OOMKilled: true`. What happened?
 @options
-the script raised a normal error and returned 137
-* the kernel killed it (SIGKILL, 128 + 9) because it used more memory than its limit
-it was stopped politely with `docker stop`
+the script hit a normal error and returned 137
+* the kernel killed it: it exceeded its memory limit
+`docker stop` asked it to stop politely
 @why
 137 = 128 + 9: the process received SIGKILL. In a container with a memory limit this is the OOM killer. A polite stop (`docker stop`) gives 143 (128 + 15, SIGTERM). The cure is to process in a stream or bounded chunks, not to load everything at once.
 :::

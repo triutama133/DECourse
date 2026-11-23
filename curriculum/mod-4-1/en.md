@@ -159,8 +159,8 @@ On the real file this rejects about 1.2% of the rows, and the checker compares y
 
 :::ask A taxi trip has a drop-off time before its pick-up time. Per the contract, what do you do?
 @options
-* quarantine it with a reason, and count it in the quality report
-drop it silently
+* quarantine it with a reason and count it
+drop it silently so nobody sees it
 fix it by swapping the two times
 @why
 The contract says what is valid. A row you cannot trust is set aside **with a reason**, not guessed at and not hidden, so the quality report can show exactly what was rejected and why.

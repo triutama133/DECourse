@@ -127,9 +127,9 @@ Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsu
 
 :::ask VPC Anda adalah `10.0.0.0/16`. Anda membaginya menjadi subnet `/20`. Berapa subnet yang Anda dapat?
 @options
-4
-* 16: setiap langkah dari /16 ke /20 menggandakan jumlahnya (2 x 2 x 2 x 2)
-256
+4 subnet, satu per langkah prefiks
+* 16 subnet: empat bit tambahan membuat 2 x 2 x 2 x 2
+256 subnet, satu per bit host
 @why
 `/20` punya 4 bit jaringan lebih banyak daripada `/16`, jadi ada 2^4 = 16 subnet, masing-masing 4.096 alamat (4.091 dapat dipakai di AWS, yang menyimpan 5). Ukuran sulit diubah kemudian, jadi rencanakan sebelum membangun.
 :::
@@ -230,9 +230,9 @@ Kuasai terminologi standar **FinOps**: *Showback* (menampilkan transparansi biay
 
 :::ask Pipeline di subnet privat membaca S3 sepanjang hari lewat NAT gateway, yang menagih per GB yang diproses. Jalur apa yang lebih murah dan lebih privat?
 @options
-NAT gateway yang lebih besar
-* **gateway endpoint** S3: rute di tabel rute subnet yang menjaga lalu lintas S3 tetap di jaringan AWS
-memindahkan data ke internet publik
+NAT gateway yang lebih besar dengan kapasitas lebih
+* gateway endpoint S3: rute yang melewati NAT
+kirim data lewat internet publik
 @why
 Gateway endpoint menambahkan rute ke S3 tanpa mengirim lalu lintas lewat NAT gateway, jadi tidak ada biaya pemrosesan NAT per GB dan lalu lintas tidak pernah meninggalkan jaringan AWS. Jalur jaringan adalah satu baris tagihan, bukan renungan belakangan.
 :::

@@ -62,9 +62,9 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 
 :::ask A customer id is `00042` in the customer table. You read the orders file with the default `pd.read_csv` (no `dtype`). What does the id look like in `orders`?
 @options
-`"00042"`, pandas keeps it as it is
-* `42`: pandas guessed a number and the leading zeros are gone, so a merge on it fails or mismatches
-`NaN`
+`"00042"`: pandas keeps it exactly as written
+* `42`: pandas guessed a number, the zeros are gone
+`NaN`: pandas cannot read a leading zero
 @why
 A file has no types and pandas **guesses**. An id is a label, not a quantity: read it as text with `dtype={"customer_id": "string"}` (or `str`).
 :::
@@ -106,9 +106,9 @@ A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure f
 
 :::ask What happens to `df[df["a"] > 1]["b"] = 9`?
 @options
-* the assignment goes to a temporary copy and is lost; pandas warns
-it sets `b` to 9 for the rows where `a > 1`
-it raises an error
+* the change goes to a temporary copy and is lost
+it sets `b` to 9 where `a > 1`, as intended
+it raises an error and stops the script
 @why
 The first part (`df[df["a"] > 1]`) returns a possibly temporary copy, so the assignment never reaches `df`. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`.
 :::
@@ -195,9 +195,9 @@ A last useful tool is `pd.testing.assert_frame_equal(actual, expected)`: it comp
 
 :::ask The customer table lists 30 customers twice by mistake. You run `orders.merge(customers, on="customer_id", how="left")` on 1,911 orders. What do you get?
 @options
-* more than 1,911 rows: every order of a duplicated customer is repeated, and revenue is overstated, with no error
-1,911 rows, a left join keeps the left size
-an error, because the keys repeat
+* more than 1,911 rows: duplicates repeat orders, with no error
+1,911 rows: a left join keeps the left size
+an error is raised because the keys repeat
 @why
 This is the fan-out trap from SQL. The course measured 2,187 rows and revenue 14.1% too high. The defence is one argument, `validate="m:1"`, which raises `MergeError` the moment a key repeats on the right-hand side.
 :::

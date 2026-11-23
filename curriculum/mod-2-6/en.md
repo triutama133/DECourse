@@ -101,9 +101,9 @@ The second saving comes from **columns**. In the lab, selecting only `total` fro
 
 :::ask A table has 3 micro-partitions. The zone maps for `order_date` say: P1 is Jan 1 to Jan 10, P2 is Jan 11 to Jan 20, P3 is Jan 21 to Jan 31. You query `WHERE order_date = '2026-01-15'`. How many partitions are scanned?
 @options
-all three
-none
-* one: only P2 can contain Jan 15; the others are pruned without being read
+all three partitions, to be safe
+none of them: the filter matches nothing
+* one: only P2 can hold Jan 15
 @why
 A zone map is the min/max of each column in each partition. The engine compares the filter with it and skips partitions that cannot match. The less your data's ranges overlap (good clustering), the more it can prune, and scan-priced warehouses charge less.
 :::
@@ -361,9 +361,9 @@ Embedded analytics is the hardest. It is **multi-tenant**: one set of tables ser
 
 :::ask You inherit a 3,000-line stored procedure that feeds the dashboards. What is the safest way to replace it?
 @options
-* the strangler fig: build the new pipeline beside it, move one output at a time, compare the numbers, and retire the old piece only when the new one matches
-rewrite everything in one go and switch over on a Friday
-never touch it
+* the strangler fig: replace it piece by piece, comparing
+rewrite everything in one go and switch on a Friday
+never touch it, since it works
 @why
 A big-bang rewrite has no way back and no proof. The strangler fig replaces the old system **piece by piece**, with both running side by side so the numbers can be compared, until the old code has nothing left to do.
 :::

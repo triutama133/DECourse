@@ -89,8 +89,8 @@ Ukuran numerik (measures) juga dibedakan berdasarkan **kemampuan penjumlahan (ad
 
 :::ask Kalimat mana yang merupakan pernyataan grain yang baik untuk tabel fakta?
 @options
-* "satu baris per baris pesanan: satu produk, dalam satu pesanan, dengan satu harga"
-"tabel penjualan"
+"tabel penjualan, seluruhnya"
+* "satu baris per baris pesanan: satu produk, satu harga"
 "pesanan dan pelanggan dan produk"
 @why
 Grain menyatakan dengan tepat **apa arti satu baris**. Ia menentukan dimensi mana yang boleh ada di baris, apa yang bisa dijumlahkan, dan ia bisa diuji: "tidak ada dua baris yang berbagi (order_id, line_no) yang sama". Nama tabel atau daftar subjek tidak menyatakan apa itu satu baris.
@@ -98,9 +98,9 @@ Grain menyatakan dengan tepat **apa arti satu baris**. Ia menentukan dimensi man
 
 :::ask `shipping_fee_idr` disimpan sekali per pesanan, tetapi Anda menyalinnya ke setiap baris pesanan. Apa yang salah ketika Anda menjumlahkannya?
 @options
-tidak ada, totalnya sama
-* pesanan dengan tiga baris dihitung tiga kali: ongkos itu milik grain pesanan, bukan grain baris
-jumlahnya menjadi NULL
+tidak ada: totalnya sama
+* pesanan dengan tiga baris dihitung tiga kali
+jumlahnya menjadi NULL karena pengulangan
 @why
 Ukuran hanya dijumlahkan dengan benar pada (atau di atas) grain-nya sendiri. Menyalin nilai per pesanan ke baris yang lebih halus adalah jebakan fan-out lagi: simpan pada grain pesanan, atau alokasikan ke baris-baris secara eksplisit.
 :::
@@ -151,9 +151,9 @@ Mesin database kolumnar modern (seperti DuckDB, BigQuery, Snowflake) mengompresi
 
 :::ask "Satu tabel besar" yang sudah di-join sebelumnya adalah satu-satunya model, dan seorang pelanggan pindah kota. Apa masalahnya?
 @options
-* pembaruan menyentuh setiap baris pelanggan itu di seluruh tabel, grain-nya tersembunyi, dan setiap tim membangun versinya sendiri
-tidak ada, penyimpanan murah
-tabelnya menjadi star schema
+* setiap baris pelanggan itu berubah dan grain tersembunyi
+tidak ada: penyimpanan murah, jadi tidak apa-apa
+tabelnya menjadi star schema yang benar
 @why
 Masalah satu tabel besar sebagai **satu-satunya** model bukan ukurannya: ia menyembunyikan grain, membuat pembaruan mahal, dan mengundang setiap tim mendefinisikan sesuatu secara berbeda. Bangun ia **dari** star sebagai lapisan kemudahan, bukan sebagai penggantinya.
 :::
@@ -196,9 +196,9 @@ Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terda
 
 :::ask Sebuah pesanan tiba untuk pelanggan yang belum ada di ekstrak pelanggan. Tabel fakta digabung ke dimensi dengan INNER JOIN. Apa yang terjadi pada pesanan itu?
 @options
-ia disimpan dan ditampilkan sebagai Unknown
-* ia hilang diam-diam dari laporan dan totalnya turun
-join gagal dengan error
+ia disimpan dan tampil sebagai Unknown
+* ia hilang diam-diam dan totalnya turun
+join berhenti dengan error yang jelas
 @why
 Baris fakta yang key-nya tidak cocok dengan baris dimensi mana pun lenyap dalam inner join, tanpa error. Perbaikan standarnya adalah **unknown member** (misalnya key -1, "Unknown") yang ditunjuk setiap fakta yatim, sehingga pendapatannya tetap terlihat dan terhitung.
 :::

@@ -180,9 +180,9 @@ print(len(moved), "of", len(keys), "keys moved")
 
 :::ask Cincin consistent-hash punya 4 node dan mendapat node ke-5. Kira-kira berapa bagian key yang pindah?
 @options
-sekitar 80%, hampir semuanya
-* sekitar 1/5 (20%): hanya key yang diambil alih node baru
-tidak ada
+sekitar 80% key, hampir semuanya
+* sekitar 1/5 (20%) key, bagian node baru
+tidak ada key sama sekali
 @why
 Di cincin, setiap key milik node berikutnya searah jarum jam. Node baru hanya mengambil alih key di antara dirinya dan pendahulunya, sekitar 1/N dari total. Lab mengukur modulo hashing memindahkan 79,5% key pada perubahan yang sama.
 :::
@@ -206,9 +206,9 @@ Dengan `N` replika, penulisan yang diakui oleh `W` di antaranya, dan pembacaan y
 
 :::ask Dengan N = 3 replika, apakah W = 1 dan R = 1 aman (pembacaan selalu melihat penulisan terakhir yang diakui)?
 @options
-ya, satu replika sudah cukup
-hanya jika jamnya akurat
-* tidak: 1 + 1 tidak lebih besar dari 3, jadi pembacaan bisa mengenai replika yang tidak pernah dicapai penulisan
+ya, satu replika sudah cukup untuk quorum
+hanya jika jamnya cukup akurat
+* tidak: pembacaan bisa mengenai replika yang terlewat penulisan
 @why
 Penulisan mungkin mencapai replika A; pembacaan mungkin bertanya ke replika B, yang belum mendengarnya. Dengan W = 2 dan R = 2 dua replika mana pun beririsan di setidaknya satu, jadi pembacaan selalu bertemu replika yang memegang penulisan terakhir.
 :::

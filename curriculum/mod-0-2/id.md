@@ -155,18 +155,18 @@ Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server rest
 
 :::ask Pendapatan berlipat dua semalam. Penyebabnya: sebuah job diulang setelah timeout dan memuat file yang sama dua kali. Perbaikan mana yang menyelesaikan masalah semacam ini untuk selamanya?
 @options
-menghapus salinan kedua dengan tangan setiap pagi
-menjalankan job lebih jarang
-* beri setiap record key yang stabil dan buat load-nya idempoten: menjalankan dua kali menghasilkan hasil yang sama
+hapus salinan kedua dengan tangan setiap pagi
+jalankan job lebih jarang supaya gagal lebih sedikit
+* key record yang stabil plus load yang idempoten
 @why
 Duplikat datang dari retry, pengiriman "at least once", dan sumber yang tumpang tindih, jadi mereka akan terus datang. Key yang stabil ditambah load yang idempoten membuat pengulangan tidak berbahaya alih-alih sesuatu yang harus Anda ingat untuk dibersihkan.
 :::
 
 :::ask Sebuah tim sumber mengganti nama `total` menjadi `total_amount` tanpa memberi tahu Anda. Job Anda tetap berjalan dan mengisi kolom `total` dengan null. Pertahanan mana yang menangkap ini di pintu?
 @options
-memori lebih besar untuk job
-* memvalidasi bentuk data saat tiba, dan menyepakati data contract dengan produsen
-dashboard yang lebih besar
+memori lebih besar untuk job agar sanggup
+* validasi bentuk saat tiba dan sepakati kontrak
+dashboard lebih besar untuk mendeteksinya lebih awal
 @why
 Ini **schema drift**, dan berbahaya karena tidak ada yang crash. Memeriksa kolom dan tipe saat data tiba mengubah kerusakan diam-diam menjadi kegagalan yang keras dan awal.
 :::

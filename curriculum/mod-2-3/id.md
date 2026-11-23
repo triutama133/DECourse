@@ -90,9 +90,9 @@ Dua puluh dua entitas dieksekusi: tujuh model (empat view, tiga tabel, salah sat
 
 :::ask Apa yang diberikan `{{ ref('stg_orders') }}` yang tidak diberikan nama tabel yang ditulis langsung?
 @options
-* dbt mempelajari dependensinya (urutan build dan lineage) dan menentukan schema yang tepat untuk setiap environment
-tidak ada, ia mencetak nama yang sama
-ia membuat query berjalan lebih cepat
+* dbt mempelajari dependensinya dan memilih schema
+tidak ada: ia hanya mencetak nama tabel yang sama
+ia membuat query itu sendiri berjalan lebih cepat
 @why
 `ref()` adalah cara dbt membangun graf model-nya: ia tahu `fct_orders` membutuhkan `stg_orders` lebih dulu, membangun dalam urutan yang benar, melewati anak dari model yang gagal, dan menunjuk ke schema dev atau prod secara otomatis.
 :::
@@ -298,9 +298,9 @@ Tanggal 25 sekarang 2 pesanan dan Rp 250.000, bukan 3 dan Rp 400.000. Model incr
 
 :::ask Kolom mana yang harus dipakai watermark incremental: `order_date` (waktu bisnis) atau `_loaded_at` (waktu masuk)?
 @options
-`order_date`: itu tanggal pesanan terjadi
-* `_loaded_at`: ia menunjukkan apa yang baru bagi Anda, dan baris yang terlambat atau diperbarui punya tanggal bisnis lama tetapi waktu masuk baru
-keduanya memberi hasil yang sama
+`order_date`: itu kapan pesanan terjadi
+* `_loaded_at`: baris yang terlambat atau diperbarui mendapat yang baru
+keduanya memberi hasil yang persis sama
 @why
 Waktu bisnis menyatakan kapan sesuatu terjadi; waktu masuk menyatakan apa yang *tiba*. Refund untuk pesanan lama datang terlambat: `order_date`-nya lama, `_loaded_at`-nya baru, sehingga hanya watermark waktu masuk yang melihatnya.
 :::

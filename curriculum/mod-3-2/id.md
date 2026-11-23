@@ -99,9 +99,9 @@ print(compacted)
 
 :::ask Sebuah topic punya 3 partisi dan consumer group berisi 4 consumer. Berapa consumer yang menganggur?
 @options
-tidak ada, Kafka membuat partisi keempat
-* satu: sebuah partisi dibaca paling banyak oleh satu consumer dalam group
-keempatnya berbagi setiap partisi
+tidak ada: Kafka menambah partisi keempat sendiri
+* satu: setiap partisi punya paling banyak satu pembaca
+keempatnya berbagi setiap partisi secara merata
 @why
 Dalam sebuah consumer group setiap partisi ditugaskan ke tepat satu consumer, jadi paralelisme group dibatasi jumlah partisi. Consumer keempat tidak punya apa pun untuk dibaca sampai sebuah consumer pergi atau partisi ditambah.
 :::

@@ -228,9 +228,9 @@ A generator is **used up** after one pass: the second `list(rows)` finds nothing
 
 :::ask `rows = read_orders("missing.csv")` is a generator function. On which line does the `FileNotFoundError` appear?
 @options
-* later, when something first asks for a row (`next(rows)` or a `for` loop)
+* later, when something first asks for a row
 on the line that calls `read_orders(...)`
-never, generators hide errors
+never: generators swallow errors
 @why
 Laziness hides errors: calling the function runs nothing, so the file is only opened when the first row is requested. A bug in a generator shows up later and somewhere else than where you created it.
 :::
