@@ -121,7 +121,7 @@ pakai `rm` supaya masuk tempat sampah
 Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` lebih dulu hanya butuh dua detik dan sudah menyelamatkan banyak orang dari hari yang buruk.
 :::
 
-**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti yang tertulis. Kalau Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker, dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak gesekan.
+**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti yang tertulis. Kalau Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker (alat yang mengemas program agar jalan di mana pun; Modul 1.1), dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak gesekan.
 
 > 💡 **Jeda Praktik 1 (Eksplorasi Perintah Terminal):**
 > Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang di direktori kursus ini dan coba perintah navigasi dasar:

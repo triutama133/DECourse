@@ -24,7 +24,7 @@ Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus s
 ## @lesson Cara program berjalan: nilai, variabel, dan tipe
 Program adalah daftar instruksi yang diikuti komputer **dari atas ke bawah, satu baris demi satu baris**. Tidak ada yang dilewati dan tidak ada yang terjadi "di latar belakang" kecuali Anda memintanya. Ini model mental yang paling berguna dalam pemrograman: saat Anda tersesat, letakkan jari di baris pertama lalu jalan ke bawah.
 
-Di sini Anda belajar dengan mengerjakan. Setiap gagasan kecil diikuti **latihan** singkat: Anda menulis beberapa baris, menekan **Jalankan & periksa**, dan pemeriksa memberi tahu persis apa yang masih salah. Buntu? Tekan **Petunjuk**, dan kalau masih buntu, **Lihat jawaban** lalu ketik ulang sendiri. Latihan ini menjalankan Python di browser Anda, jadi tidak ada yang perlu dipasang. Terminal Anda sendiri tetap tempat kerja yang sesungguhnya: **Coba sendiri** dan lab di akhir materi memakainya.
+Di sini Anda belajar dengan mengerjakan. Setiap gagasan kecil diikuti **latihan** singkat: Anda menulis beberapa baris, menekan **Jalankan & periksa**, dan pemeriksa memberi tahu persis apa yang masih salah. Buntu? Tekan **Petunjuk**, dan kalau masih buntu, **Lihat jawaban** lalu ketik ulang sendiri. Latihan ini menjalankan Python di browser Anda, jadi tidak ada yang perlu dipasang. Terminal Anda sendiri (jendela tempat mengetik perintah ke komputer; Mulai di sini, langkah 2 menunjukkannya) tetap tempat kerja yang sesungguhnya: **Coba sendiri** dan lab di akhir materi memakainya.
 
 ### Menampilkan nilai: print()
 
@@ -177,7 +177,7 @@ print(type(price_text))
 
 ### Mengapa tipe penting: bug pertama setiap pekerjaan data
 
-Semua yang masuk ke program Anda dari luar, file CSV, API web, formulir, datang sebagai **teks**. Ini dua pesanan KopiKu persis seperti Python membacanya dari file CSV:
+Semua yang masuk ke program Anda dari luar, file CSV (tabel dalam teks biasa), API web (cara meminta data dari program lain), formulir, datang sebagai **teks**. Ini dua pesanan KopiKu persis seperti Python membacanya dari file CSV:
 
 ```python
 row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
@@ -260,7 +260,7 @@ missing_total = None
 print(missing_total == 0)
 :::
 
-**Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi tipe pada setiap kolom (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet menyimpan tipe di samping datanya agar tidak ada yang menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga bertipe teks, diubah menjadi angka.
+**Di mana Anda akan bertemu ini lagi.** Di mana-mana: database memberi tipe pada setiap kolom (Modul 0.3); pipeline mengonversi dan memeriksa tipe sebelum memuat apa pun (Modul 1.2); format file seperti Parquet (format file modern untuk data analitik) menyimpan tipe di samping datanya agar tidak ada yang menebak (Modul 2.1). Tugas pemanasan pertama di simulator kerja persis ini: harga bertipe teks, diubah menjadi angka.
 
 > 🛠 **Coba sendiri (5 menit, Python di prompt `>>>`).** Di terminal ketik `python3`, lalu ketik (atau tempel) baris `row1` dan tekan Enter, kemudian baris `row2` dan tekan Enter: satu baris setiap kali. Jika Anda menempel keduanya sekaligus, prompt menampilkan `...`: Python menunggu akhir blok, jadi tekan Enter sekali lagi pada baris `...` yang kosong (bukan Ctrl+C, yang membatalkannya). Sebelum setiap pertanyaan di tabel, **tebak** jawabannya, lalu ketik kodenya dan bandingkan. Kemudian jawab tiga pertanyaan yang sama lagi dengan `int(...)` di sekitar setiap total.
 >
@@ -616,7 +616,7 @@ unique_ids = sorted(set(ids))
 
 ### File sungguhan: list berisi dictionary
 
-File data sungguhan biasanya berupa **list berisi dictionary**: list adalah file-nya, setiap dictionary adalah satu baris, key-nya adalah nama kolom. Ini tiga produk (setiap nilai berupa teks, seperti keluar dari file CSV) dan empat pertanyaan beserta jawabannya:
+File data sungguhan biasanya berupa **list berisi dictionary**: list adalah file-nya, setiap dictionary adalah satu baris, key-nya adalah nama kolom. Ini tiga produk (setiap nilai berupa teks, seperti keluar dari file CSV, tabel dalam teks biasa yang cara membacanya diajarkan di Materi 7) dan empat pertanyaan beserta jawabannya:
 
 ```python
 products = [
@@ -2066,7 +2066,7 @@ with open("report.txt", "w", encoding="utf-8") as f:
 
 ### import: kode yang ditulis orang lain
 
-**Import** membawa masuk kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas, pydantic) dipasang dengan `pip` ke dalam virtual environment Anda (Modul 0.1).
+**Import** membawa masuk kode yang ditulis orang lain. **Pustaka standar** (standard library) datang bersama Python dan tidak perlu dipasang: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Pustaka lain (pandas untuk tabel, pydantic untuk memeriksa data) dipasang dengan `pip` (pemasang Python) ke dalam virtual environment Anda (salinan pribadi Python untuk satu proyek; Modul 0.1).
 
 :::drill python Pakai pustaka standar
 Import modul `statistics` dan buat `average` berisi rata-rata `prices` dengan `statistics.mean(...)`.
@@ -2302,7 +2302,7 @@ Anda tidak akan mengingat semuanya setelah satu kali membaca, dan memang tidak s
 **Di mana gagasan-gagasan ini muncul dalam keseharian seorang data engineer.** Wajar bertanya apa hubungan latihan kecil ini dengan pekerjaannya. Hampir setiap tugas yang akan diberikan kepada Anda adalah gagasan-gagasan yang sama, hanya lebih besar:
 - **Tipe:** data datang sebagai teks; Anda memberi setiap nilai tipe yang benar sebelum hal lain, atau total keluar salah tanpa error.
 - **List dan dict:** sebuah file atau tabel adalah list berisi baris; setiap baris adalah dict dari kolom ke nilai.
-- **Menghitung dengan dict:** "berapa banyak per kota, per status, per hari" adalah pertanyaan paling umum dalam data; `GROUP BY` di SQL (Modul 0.3) adalah gagasan yang sama.
+- **Menghitung dengan dict:** "berapa banyak per kota, per status, per hari" adalah pertanyaan paling umum dalam data; SQL (bahasa untuk mengajukan pertanyaan ke database; Modul 0.3) melakukan hal yang sama dengan `GROUP BY` adalah gagasan yang sama.
 - **Set:** menghapus duplikat, dan bertanya "apakah kita sudah memuat ini?".
 - **if dan try/except:** memutuskan baris mana yang valid, dan menyisihkan yang buruk alih-alih crash atau membuangnya diam-diam.
 - **Fungsi dengan tes:** setiap langkah pipeline adalah fungsi, dan tesnya adalah cara Anda tahu ia masih bekerja setelah perubahan besok.

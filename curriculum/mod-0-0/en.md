@@ -24,7 +24,7 @@ None. You do not need to have written code before, and it does not matter if ear
 ## @lesson How a program runs: values, variables and types
 A program is a list of instructions that the computer follows **from the top to the bottom, one line at a time**. Nothing is skipped and nothing happens "in the background" unless you ask for it. This is the single most useful mental model in programming: when you are lost, put your finger on the first line and walk down.
 
-Here you learn by doing. Each small idea is followed by a short **drill**: you write a few lines, press **Run & check**, and the checker tells you exactly what is still wrong. Stuck? Press **Hint**, and if you are still stuck, **Show the solution** and then type it again yourself. The drills run Python in your browser, so there is nothing to install. Your own terminal is where the real work happens: the **Try it** and the lab at the end of the lesson use it.
+Here you learn by doing. Each small idea is followed by a short **drill**: you write a few lines, press **Run & check**, and the checker tells you exactly what is still wrong. Stuck? Press **Hint**, and if you are still stuck, **Show the solution** and then type it again yourself. The drills run Python in your browser, so there is nothing to install. Your own terminal (the window where you type commands to the computer; Start here, step 2 shows it) is where the real work happens: the **Try it** and the lab at the end of the lesson use it.
 
 ### Show a value: print()
 
@@ -177,7 +177,7 @@ print(type(price_text))
 
 ### Why types matter: the first bug of every data job
 
-Everything that comes into your program from outside, a CSV file, a web API, a form, comes in as **text**. Here are two KopiKu orders exactly as Python reads them from a CSV file:
+Everything that comes into your program from outside, a CSV file (a plain-text table), a web API (a way to ask another program for data), a form, comes in as **text**. Here are two KopiKu orders exactly as Python reads them from a CSV file:
 
 ```python
 row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
@@ -260,7 +260,7 @@ missing_total = None
 print(missing_total == 0)
 :::
 
-**Where you will meet this again.** Everywhere: a database gives every column a type (Module 0.3); a pipeline converts and checks types before it loads anything (Module 1.2); file formats such as Parquet store the type next to the data so nobody has to guess (Module 2.1). The first warm-up task in the job simulator is exactly this: prices typed as text, turned into numbers.
+**Where you will meet this again.** Everywhere: a database gives every column a type (Module 0.3); a pipeline converts and checks types before it loads anything (Module 1.2); file formats such as Parquet (a modern file format for analytics data) store the type next to the data so nobody has to guess (Module 2.1). The first warm-up task in the job simulator is exactly this: prices typed as text, turned into numbers.
 
 > 🛠 **Try it (5 min, Python at the `>>>` prompt).** In the terminal type `python3`, then type (or paste) the `row1` line and press Enter, then the `row2` line and press Enter: one line at a time. If you paste both at once, the prompt shows `...`: Python is waiting for the end of the block, so press Enter once more on the empty `...` line (not Ctrl+C, which cancels them). Before each of the three questions in the table, **predict** the answer, then type the code and compare. Then answer the same three questions again with `int(...)` around each total.
 >
@@ -616,7 +616,7 @@ unique_ids = sorted(set(ids))
 
 ### A real file: a list of dictionaries
 
-A real data file is therefore usually **a list of dictionaries**: the list is the file, each dictionary is a row, the keys are the column names. Here are three products (every value is text, as it comes out of a CSV file) and four questions with their answers:
+A real data file is therefore usually **a list of dictionaries**: the list is the file, each dictionary is a row, the keys are the column names. Here are three products (every value is text, as it comes out of a CSV file, a plain-text table that Lesson 7 teaches you to read) and four questions with their answers:
 
 ```python
 products = [
@@ -2066,7 +2066,7 @@ with open("report.txt", "w", encoding="utf-8") as f:
 
 ### import: code written by someone else
 
-An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas, pydantic) are installed with `pip` into your virtual environment (Module 0.1).
+An **import** brings in code written by someone else. The **standard library** ships with Python and needs no installation: `csv`, `json`, `pathlib`, `datetime`, `statistics`. Other libraries (pandas for tables, pydantic for checking data) are installed with `pip` (Python's installer) into your virtual environment (a private copy of Python for one project; Module 0.1).
 
 :::drill python Use the standard library
 Import the `statistics` module and make `average` the mean of `prices` with `statistics.mean(...)`.
@@ -2302,7 +2302,7 @@ You will not remember everything after one reading, and you are not supposed to.
 **Where these ideas show up in a data engineer's day.** It is fair to ask what these small exercises have to do with the job. Almost every task you will be given is these same ideas, only bigger:
 - **Types:** data arrives as text; you give each value its right type before anything else, or totals come out wrong without an error.
 - **Lists and dicts:** a file or a table is a list of rows; each row is a dict of column to value.
-- **Counting with a dict:** "how many per city, per status, per day" is the most common question in data; SQL's `GROUP BY` (Module 0.3) is the same idea.
+- **Counting with a dict:** "how many per city, per status, per day" is the most common question in data; SQL (the language for asking questions of a database; Module 0.3) does the same with `GROUP BY`.
 - **Sets:** removing duplicates, and asking "have we already loaded this?".
 - **if and try/except:** deciding which rows are valid, and setting the bad ones aside instead of crashing or silently dropping them.
 - **Functions with tests:** every step of a pipeline is a function, and its tests are how you know it still works after tomorrow's change.

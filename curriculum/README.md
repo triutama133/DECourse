@@ -83,6 +83,7 @@ Rules for authors:
 - **Lab**: a learner-edited file at the lab root, a `reference/` solution, and tests that use `labs/shared/labtools.py` so that `LAB_DIR=reference` runs them against the solution. The starter must fail, the reference must pass; `scripts/verify_labs.py` checks both. Prefer real tools over mocks and deterministic data (see `labs/shared/`).
 - **Chaos scenario**: a realistic production failure with a cause that the lab demonstrates, and a fix with several concrete steps.
 - **Quiz**: eight questions, four options each, with an explanation. The correct option must not be systematically the longest or the shortest: distractors should be plausible and similar in length. Run `quizlen.py`. The app shuffles the options.
+- **Teach before use**: a term a learner has not met must not appear unexplained. Add the term to `app/js/glossary-data.js` (both languages, plain words, the lesson that teaches it). The app then shows a box at the top of any lesson that uses a word before its teaching lesson, and makes the word clickable. The first time a word is needed in Level 0, also give it a short plain gloss in the sentence itself. `node scripts/test_glossary.js` checks that every glossary term really appears in the lesson it points to.
 - **Facts**: any claim about a tool's behaviour must be something you ran. If you could not run it, do not state it as fact.
 
 ## Lab proof codes

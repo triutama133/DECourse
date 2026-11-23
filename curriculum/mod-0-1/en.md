@@ -121,7 +121,7 @@ use `rm` so it goes to the recycle bin
 There is no recycle bin in the shell. Looking at **exactly the same path** with `ls` first costs two seconds and has saved many people a bad day.
 :::
 
-**Windows users.** Install WSL2 (`wsl --install` in an administrator PowerShell), then open "Ubuntu" from the Start menu. Inside it, everything in this course works exactly as written. If you stay in plain PowerShell, many commands have equivalents (`dir` for `ls`, `type` for `cat`, `Select-String` for `grep`) but tutorials, Docker and data tools will keep assuming a Linux shell, so WSL2 saves you a lot of friction.
+**Windows users.** Install WSL2 (`wsl --install` in an administrator PowerShell), then open "Ubuntu" from the Start menu. Inside it, everything in this course works exactly as written. If you stay in plain PowerShell, many commands have equivalents (`dir` for `ls`, `type` for `cat`, `Select-String` for `grep`) but tutorials, Docker (a tool that packages programs to run anywhere; Module 1.1) and data tools will keep assuming a Linux shell, so WSL2 saves you a lot of friction.
 
 > 💡 **Practice Pause 1 (Terminal Command Exploration):**
 > Do not just read the table above! Open your terminal right now in this course directory and try basic navigation commands:

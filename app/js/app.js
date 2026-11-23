@@ -2,6 +2,10 @@
 // Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
 
 const REPO_URL = "https://github.com/triutama133/DECourse";
+// ordinary English words that are also glossary terms: only count them as "used" when the lesson makes them bold
+// words the Start here page already explains before Lesson 1 (terminal, prompt, git clone): never "not yet taught"
+const GL_FROM_START = new Set(["terminal", "shell", "git", "repository", "path", "pip", "venv"]);
+const GL_STRICT = new Set(["list", "table", "index", "state", "image", "window", "topic", "offset", "chunk", "function", "import", "string", "integer", "loop", "path", "pipe", "commit", "query", "none", "schema", "batch", "streaming", "snapshot", "catalog", "asset", "grain", "lag", "exception", "variable", "database", "container", "transaction", "pipeline", "retry", "cap", "vector", "join", "null", "logging", "slice", "view", "label", "cache", "slot", "bucket", "producer-consumer", "incremental", "scheduler", "latency", "concurrency", "metadata", "staging", "constraint", "durability", "parameter", "spill", "recall", "compression", "connector", "reconciliation", "serialization", "cardinality", "quarantine", "table-format", "data-quality", "checkpoint", "pagination", "freshness", "lineage", "analyze"]);
 const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook", "glossary"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 // modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
@@ -132,7 +136,7 @@ class DataForgeApp {
     const main = document.getElementById("main-content");
     if (main && window.MutationObserver) {
       let pending = false;
-      new MutationObserver(() => { if (pending) return; pending = true; setTimeout(() => { pending = false; this.decorateGlossary(main); }, 60); }).observe(main, { childList: true, subtree: true });
+      new MutationObserver(() => { if (pending) return; pending = true; setTimeout(() => { pending = false; this.decorateGlossary(main); this.decorateForwardTerms(main); }, 60); }).observe(main, { childList: true, subtree: true });
     }
     document.addEventListener("click", (e) => {
       const term = e.target.closest && e.target.closest(".gl-term");
@@ -233,6 +237,98 @@ class DataForgeApp {
     this._glPop = pop;
   }
   closeGlossaryPop() { if (this._glPop) { this._glPop.remove(); this._glPop = null; } }
+
+  // Words a lesson uses before the course has taught them: a short box at the top says what they mean,
+  // and the words themselves are clickable where they appear. Computed from the glossary, so it stays true when lessons change.
+  glossaryOrder() {
+    const key = this.lang;
+    if (this._glOrder && this._glOrder.lang === key) return this._glOrder;
+    const items = [];
+    for (const L of CURRICULUM_DATA) for (const m of L.modules) (m.lessons || []).forEach((ls, i) => {
+      const raw = String(this.t(ls.body) || "").replace(/```[\s\S]*?```/g, " ").replace(/^:::(?:drill|ask|trace|sqlsteps)\b[\s\S]*?^:::\s*$/gm, " ");
+      items.push({ mod: m.id, idx: i, text: raw });
+    });
+    const pos = new Map(items.map((x, n) => [x.mod + ":" + x.idx, n]));
+    this._glOrder = { lang: key, items, pos };
+    return this._glOrder;
+  }
+  glossaryNames(g) {
+    const clean = (s) => String(s || "").toLowerCase().replace(/\s*\(.*\)$/, "").trim();
+    const combined = /,| and /.test(g.term.en);
+    const names = combined ? g.alias.filter((a) => a.length > 2) : [clean(g.term.en), clean(g.term.id)];
+    return names.filter((x, n, arr) => x.length > 2 && arr.indexOf(x) === n);
+  }
+  forwardTerms(modId, i) {
+    const cache = (this._fwdCache = this._fwdCache && this._fwdCache.lang === this.lang ? this._fwdCache : { lang: this.lang, map: {} }).map;
+    const ck = modId + ":" + i;
+    if (cache[ck]) return cache[ck];
+    const order = this.glossaryOrder();
+    const here = order.pos.get(ck);
+    const text = here == null ? "" : order.items[here].text;
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const out = [];
+    for (const g of window.GLOSSARY || []) {
+      const target = order.pos.get(g.mod + ":" + (g.lesson - 1));
+      if (target == null || here == null || here >= target || GL_FROM_START.has(g.id) || g.mod === modId) continue;   // same-module words are signposted by the lessons themselves
+      const strict = GL_STRICT.has(g.id);
+      let best = null;
+      for (const nm of this.glossaryNames(g)) {
+        const re = strict ? new RegExp("\\*\\*(?:[^*\\n]*[^A-Za-z0-9*\\n])?" + esc(nm) + "s?(?:[^A-Za-z0-9*\\n][^*\\n]*)?\\*\\*", "i") : new RegExp("(^|[^a-z0-9])" + esc(nm) + "s?([^a-z0-9]|$)", "i");
+        const m = re.exec(text);
+        if (m && (!best || m.index < best.index)) best = m;
+      }
+      // a word explained in the very sentence where it first appears, "word (its meaning)", needs no entry in the box
+      const glossed = best && /^\s*\(/.test(text.slice(best.index + best[0].length - 1));
+      const at = best && !glossed ? best.index : -1;
+      if (at >= 0) out.push({ g, at });
+    }
+    out.sort((a, b) => a.at - b.at);
+    cache[ck] = out.map((x) => x.g);
+    return cache[ck];
+  }
+  newWordsBox(modId, i) {
+    const items = this.forwardTerms(modId, i);
+    if (!items.length) return "";
+    const rows = items.map((g) => {
+      const m = CURRICULUM_DATA.flatMap((L) => L.modules).find((x) => x.id === g.mod);
+      return `<li><strong>${this.esc(g.term[this.lang])}</strong>: ${this.esc(g.def[this.lang])} <span class="muted small">(<a href="#/curriculum/${g.mod}/concepts/${g.lesson}">${this.l("dipelajari di", "taught in")} ${m ? m.number : ""}, ${this.l("materi", "lesson")} ${g.lesson}</a>)</span></li>`;
+    }).join("");
+    const n = items.length;
+    const head = this.l(`${n} kata di materi ini yang belum Anda pelajari`, `${n} word${n === 1 ? "" : "s"} in this lesson you have not learned yet`);
+    return `<details class="callout gl-preview"${n <= 4 ? " open" : ""}><summary>📖 ${head}</summary><p class="small muted">${this.l("Anda boleh lanjut membaca: kata-kata ini baru diajarkan di materi yang disebut. Artinya singkat ada di sini, dan kata itu bisa diklik saat muncul.", "Keep reading: these words are taught properly later, in the lesson named after each one. The short meaning is here, and the word is clickable where it appears.")}</p><ul>${rows}</ul></details>`;
+  }
+  // make the first use of each such word in the lesson clickable (text outside bold too)
+  decorateForwardTerms(root) {
+    const items = this._fwdSet || [];
+    if (!items.length || !root || !root.querySelector) return;
+    const scope = root.querySelector(".lesson-card");
+    if (!scope) return;
+    const skip = "h1,h2,h3,h4,button,a,summary,pre,code,textarea,script,style,.gl-term,.gl-pop,.gl-preview,.drill,.step-nav";
+    for (const g of items) {
+      if (GL_STRICT.has(g.id) || scope.querySelector(`.gl-term[data-gl="${g.id}"]`)) continue;
+      const names = this.glossaryNames(g).map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      if (!names.length) continue;
+      const re = new RegExp("(^|[^A-Za-z0-9])(" + names.join("|") + ")(s?)(?![A-Za-z0-9])", "i");
+      const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement && !n.parentElement.closest(skip) && n.parentElement.closest(".md")) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+      let node;
+      while ((node = walker.nextNode())) {
+        const m = re.exec(node.nodeValue);
+        if (!m) continue;
+        const start = m.index + m[1].length;
+        const word = m[2] + m[3];
+        const after = node.splitText(start);
+        after.splitText(word.length);
+        const span = document.createElement("span");
+        span.className = "gl-term";
+        span.setAttribute("data-gl", g.id);
+        span.setAttribute("tabindex", "0");
+        span.setAttribute("role", "button");
+        span.textContent = after.nodeValue;
+        after.parentNode.replaceChild(span, after);
+        break;
+      }
+    }
+  }
 
   // ---------- helpers ----------
   t(val) {
@@ -4085,6 +4181,7 @@ Hello from KopiKu</code></pre>
             </div>
           </div>
           ${ls.optional ? `<div class="callout optional-note"><strong>${this.l("Opsional pada putaran pertama.", "Optional on the first pass.")}</strong> ${this.l("Materi ini berguna untuk persiapan kerja dan wawancara, tetapi lab dan modul berikutnya tidak membutuhkannya. Jika Anda baru mulai, boleh lewati sekarang dan kembali sebelum mencari kerja.", "This lesson helps with job preparation and interviews, but the labs and later modules do not need it. If you are just starting, you may skip it now and come back before you look for a job.")}</div>` : ""}
+          ${(this._fwdSet = this.forwardTerms(mod.id, i), !steps || stepK === 0 ? this.newWordsBox(mod.id, i) : "")}
           ${!steps || stepK === 0 ? lessonAnims.map((anim) => this.renderLessonAnimation(anim)).join("") : ""}
           ${steps ? stepBody : this.md(this.lessonBody(ls), { modId: mod.id, lessonIdx: i }) + (hasLab ? this.lessonLabHtml(mod.id, i) : "")}
         </section>
