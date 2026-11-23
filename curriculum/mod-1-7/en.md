@@ -38,6 +38,15 @@ ACID (atomic, consistent, isolated, durable transactions) is the relational prom
 >
 > *Compare:* (a) key-value (latency), (b) document (shape of data), (c) time-series or wide-column (write volume), (d) graph, (e) search engine, (f) relational (correctness). Then write one sentence on what you give up when you leave SQL for (a).
 
+:::ask During a network partition a distributed database must choose. What are the two choices in the CAP theorem?
+@options
+speed or price, depending on the cloud provider
+* consistency (refuse) or availability (maybe stale)
+reading or writing, but never both
+@why
+When machines cannot talk to each other, the system either refuses requests that might return stale data (consistency) or answers with what it has (availability). Neither is free.
+:::
+
 ## @lesson Key-value stores: the simplest database
 A key-value store is a giant dictionary: you **set** a value under a **key** and **get** it back by that key. That is all. It looks too simple to be useful, but this is exactly why it is so fast: there is nothing to plan, parse or join. Examples: **Redis**, Memcached, and DynamoDB used in its simplest form.
 
@@ -150,6 +159,15 @@ You query with a document-shaped language: `{"customer.city": "Jakarta", "total"
 > `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
 > 5. Ensure all 9 tests pass (`9 passed`). Notice how secondary indexing reduces the scan count from thousands of documents down to only the matching hits.
 
+:::ask An order and its line items are always read together. In a document database, how should you store them?
+@options
+put each line in its own collection and join later
+store only a link and fetch the lines from a CSV
+* embed the lines in the order: one read, no join
+@why
+Embed data that belongs to the parent and is read with it. Reference (store an id) data that is shared or grows without limit, such as an unbounded list of comments.
+:::
+
 ## @lesson Wide-column and partitioned stores: scale by design
 Cassandra, ScyllaDB, DynamoDB, Bigtable and HBase are built to spread data over **many machines** and keep working when some fail. Despite the name "wide-column", the best way to understand them is the **primary key**, which has two parts:
 
@@ -259,6 +277,15 @@ The lesson to keep: a database family is a set of **optimisations for an access 
 >
 > **You should see:** `dark` giving positions `[1, 4]` (Toraja Dark and Mandheling Dark), `dark` and `250g` together giving the same two, and the path `['budi', 'siti', 'dewi', 'rina']`. You built, in about 15 lines, the core of a search engine and of a graph traversal.
 
+:::ask Which question is a graph database built for?
+@options
+* friends of friends of friends: hop by hop
+the total sales of each month for the last year
+the exact text of one saved web page
+@why
+A graph database makes following relationships the fast operation. In SQL each extra hop needs another self-join and soon gets slow. Monthly totals are an analytics job, and a stored page is a document.
+:::
+
 ## @lesson Choosing, and what a data engineer does with them
 A short decision guide, driven by how the data is read:
 
@@ -291,6 +318,33 @@ You can now answer the usual questions: "Why not MongoDB for everything?" (no jo
 > 2. Verify that all 36 tests pass cleanly without errors (`36 passed`).
 > 3. Generate your verification proof code for the learning portal by running:
 > `python3 scripts/prove.py mod-1-7`
+
+:::drill python Will a read see the latest write?
+A key is stored on `n` replicas. A write waits for `w` of them; a read asks `r` of them. The read is guaranteed to overlap the latest write only when `r + w > n`. Write `reads_see_latest(n, r, w)`: return `True` or `False`.
+@starter
+# write your function below this line
+
+@check
+defines("reads_see_latest") ## Define reads_see_latest(n, r, w).
+reads_see_latest(3, 2, 2) == True ## 2 + 2 > 3: the read and the write must share a replica.
+reads_see_latest(3, 1, 1) == False ## 1 + 1 is not more than 3: the read can miss the write.
+reads_see_latest(5, 3, 3) == True ## 6 > 5.
+reads_see_latest(3, 1, 3) == True ## Writing to all replicas: any single read is safe.
+@hint
+`return r + w > n`
+@solution
+def reads_see_latest(n, r, w):
+    return r + w > n
+:::
+
+:::ask Analysts want to run big reports on the production MongoDB that serves the app. What should the data engineer do?
+@options
+let them run the reports directly at night
+* copy the data to an analytical store via change feed
+give them the root password to be quick
+@why
+A scan over a production operational store competes with customers and often times out. Extract incrementally from the system's change feed and let analysts query a copy.
+:::
 
 ## @lab Lab: five database ideas in plain Python
 Build five small, deterministic models: a **key-value store** with TTL and LRU eviction, a **document store** with queries and indexes, a **consistent-hashing ring**, **quorum replication**, and a **wide-column table**. The tests (36) check each behaviour the lessons describe, including the numbers: the index that cuts a scan from 10,000 documents to 10, modulo hashing that moves 79.5% of the keys against 19.9% for the ring, and the quorum rule.

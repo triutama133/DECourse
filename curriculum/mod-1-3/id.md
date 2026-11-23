@@ -770,6 +770,15 @@ Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan 
 >
 > **Seharusnya Anda melihat:** `3` dibanding `3.5`; `1` dibanding `False`; NULL di awal dibanding NULL di akhir; sebuah baris sembarang `(1, 2)` dibanding `Binder Error`. Empat perbedaan diam-diam dalam empat baris: mana yang akan menipu Anda?
 
+:::ask Sebuah laporan mengurutkan pelanggan menurut `city`, yang punya beberapa NULL. Kamu memindahkan query dari SQLite ke PostgreSQL. Apa yang terjadi?
+@options
+PostgreSQL menolak mengurutkan kolom yang punya NULL
+tidak ada perubahan: semua engine mengurutkan NULL sama
+* baris NULL pindah dari atas ke bawah, tanpa error
+@why
+SQLite menaruh NULL di awal pada urutan naik; PostgreSQL, DuckDB, dan warehouse menaruhnya di akhir. Query berjalan di keduanya dan urutannya berbeda diam-diam, jadi tulis NULLS FIRST atau NULLS LAST saat urutan penting.
+:::
+
 ## @lesson Subtotal dan total akhir: GROUPING SETS, ROLLUP, dan CUBE
 Sebuah laporan sering butuh baris detail, subtotal, dan total akhir dalam satu tabel. Dengan `GROUP BY` biasa itu memerlukan satu query per tingkat, disambung dengan `UNION ALL` (tantangan k-29 melakukannya untuk satu baris total). SQL punya perluasan `GROUP BY` yang menghitung beberapa pengelompokan dalam **satu kali lewat** data:
 
@@ -810,6 +819,24 @@ GROUP BY ROLLUP (tier, city);
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.3-9 ~/practice` (file `rollup.py` Anda di `~/practice`). Ia menjalankan ketiga query Anda pada data KopiKu dan pada salinan yang diubah dengan kota baru, pelanggan tanpa kota, dan pesanan tanpa metode bayar, sehingga query yang hanya berhasil pada data hari ini akan gagal.
 
+:::ask `GROUP BY ROLLUP (tier, city)` menghasilkan pengelompokan apa saja?
+@options
+* (tier, city), lalu (tier), lalu total keseluruhan
+hanya (tier, city) dan (city), tanpa total
+semua kombinasi yang mungkin, seperti CUBE
+@why
+ROLLUP adalah hierarki detail, subtotal, total. Untuk (a, b) itu (a, b), (a), dan (). CUBE akan menambah (b) juga, dan GROUPING SETS memungkinkan kamu menyebut persis pengelompokan yang diinginkan.
+:::
+
+:::ask Di hasil ROLLUP sebuah baris punya NULL di `city`. Bagaimana membedakan baris subtotal dari pelanggan yang kotanya memang kosong?
+@options
+uji city IS NULL: itu hanya cocok dengan subtotal
+* pakai GROUPING(city): 1 berarti penanda rollup
+hitung NULL dan anggap yang pertama adalah asli
+@why
+NULL asli dan penanda rollup sama-sama tampil sebagai NULL. `GROUPING(kolom)` bernilai 1 untuk penanda dan 0 jika kolom ikut dikelompokkan. `IS NULL` cocok dengan keduanya.
+:::
+
 ## @lesson JSON di dalam SQL: membaca dan membangun data semi-terstruktur
 API, pelacak event, dan database aplikasi menyimpan JSON: kolom teks (atau JSON) yang tiap barisnya punya bentuk sendiri. Anda tidak perlu meninggalkan SQL untuk memakainya: SQLite, PostgreSQL, dan DuckDB semuanya bisa membaca dan membangun JSON. SQL Sandbox punya dataset untuk ini, `app_events`: tujuh event aplikasi, masing-masing dengan `payload` seperti `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
 
@@ -849,6 +876,15 @@ Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `-
 > 🛠 **Coba sendiri (25 menit, SQL Sandbox dengan dataset app_events).** Pilih dataset *Event aplikasi (payload JSON)* dan selesaikan **j-1** (ambil `user.id` dan `user.plan` dari payload), **j-2** (event per perangkat, dengan perangkat yang hilang ditampilkan sebagai `unknown`), **j-3** (satu baris per item beserta total barisnya), dan **j-4** (omzet per paket). Untuk j-3, pakai dulu join biasa lalu `LEFT JOIN`, dan hitung baris yang dikembalikan tiap versi. Lalu, di editor, coba `SELECT payload ->> '$.user.id' FROM events` dan `SELECT payload ->> '$.user.plan' FROM events` dan bandingkan tipe kolomnya.
 >
 > **Yang harus Anda lihat:** j-1 mengembalikan 7 baris dengan plan NULL untuk event 6; j-2 mengembalikan android 2, ios 2, unknown 2, web 1; j-3 mengembalikan 4 baris (event 1, 1, 3, dan 7), karena event 2, 4, 5, dan 6 tidak punya item; j-4 mengembalikan free 50000 dan pro 310000. Join biasa memberi 4 baris untuk j-3 dan `LEFT JOIN` memberi 8: 4 baris yang sama ditambah satu baris bernilai kosong untuk tiap event 2, 4, 5, dan 6.
+
+:::ask Kamu menghitung event dengan `FROM events e, json_each(e.payload, '$.items')` dan sebagian event hilang dari hasil. Mengapa?
+@options
+json_each menghapus baris yang sudah selesai dibacanya
+event yang punya item dihitung dua kali menurut definisi
+* event dengan array kosong atau tak ada menghasilkan nol baris
+@why
+Join biasa dengan json_each menghasilkan satu baris per elemen array, jadi event tanpa item tidak punya pasangan dan menghilang. Pakai LEFT JOIN saat menghitung event, bukan item.
+:::
 
 ## @part Performa dan wawancara
 
@@ -904,6 +940,15 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 > 🛠 **Coba sendiri (20 menit, Python dengan `sqlite3`).** Bangun tabel uji: 2.000 pelanggan dan 300.000 pesanan dengan `order_ts` acak antara 2025-07-01 dan 2026-06-30 (teks ISO), status acak (`paid` tiga kali lebih mungkin daripada `cancelled` atau `refunded`) dan nominal acak, lalu buat indeks `(status, order_ts, customer_id)` sebelum menjalankan `ANALYZE`. Jalankan `EXPLAIN QUERY PLAN` pada query lambat dan cepat di atas, lalu temukan baris untuk `orders` di masing-masing. Setelah itu ukur waktu keduanya dan pastikan totalnya sama.
 >
 > **Seharusnya Anda melihat:** plan yang lambat berbunyi `CORRELATED SCALAR SUBQUERY` dan `SCAN o`: scan penuh atas pesanan untuk setiap 2.000 pelanggan, karena fungsi pada `order_ts` dan `status` menyembunyikan kolomnya dari indeks. Plan yang cepat berbunyi `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Keduanya memberi total yang sama (`3192691000` pada data yang diukur di sini, `random.seed(7)`), dalam sekitar `31` sampai `33` detik versus `18` sampai `19` ms. Angka Anda akan sedikit berbeda dengan data acak Anda sendiri; selisihnya tidak. Diukur dengan SQLite 3.46.
+
+:::ask Klausa WHERE mana yang memungkinkan database memakai indeks pada `order_date`?
+@options
+* order_date >= '2026-01-01' AND order_date < '2027-01-01'
+strftime('%Y', order_date) = '2026'
+substr(order_date, 1, 4) = '2026'
+@why
+Predikat bersifat sargable jika mesin bisa langsung mencari di indeks. Fungsi yang membungkus kolom memaksanya menghitung fungsi itu untuk setiap baris. Rentang biasa pada kolom polos menjaga indeks tetap berguna.
+:::
 
 ## @part SQL Server dan T-SQL
 
@@ -963,6 +1008,15 @@ END;
 > 🛠 **Coba sendiri (30 menit, Docker dan `sqlcmd`).** Jalankan SQL Server seperti di atas dan salin datanya: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Buat database `kopiku` dan tabel `raw_orders` dengan enam kolom file itu, semuanya `NVARCHAR(50)`, lalu muat dengan `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Hitung baris yang `total_idr`-nya hanya angka (`NOT LIKE '%[^0-9]%'`) dan `order_ts`-nya bisa dikonversi dengan style 126. Jika jawabannya mengejutkan, cari tahu sebabnya sebelum lanjut. Lalu buat `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, lengkapi procedure di atas untuk pesanan yang tidak dibatalkan, dan jalankan untuk 10, 11, dan 12 Januari, dua kali. Terakhir, coba `LIMIT` dan `QUALIFY` pada `raw_orders`.
 >
 > **Seharusnya Anda melihat:** `3634` baris dimuat, tetapi `0` yang bersih: file-nya mengakhiri baris dengan `\r\n`, sehingga setiap `total_idr` menyimpan `\r` yang tak terlihat dan tidak ada total yang "hanya angka". Tambahkan `ROWTERMINATOR = '0x0d0a'`, muat ulang, dan Anda mendapat `3539`. Style 126 membaca `3593` timestamp dan style 103 sisanya, `41`. Setelah kedua run, `daily_revenue` berisi `3` hari dan `100360000` (`109`, `108`, dan `93` pesanan): menjalankan dua kali tidak mengubah apa pun. `LIMIT 3` gagal dengan `Incorrect syntax near '3'`, `QUALIFY` dengan `Incorrect syntax near 'ROW_NUMBER'`. Diukur pada SQL Server 2025 (17.0) di Docker. Hentikan sesudahnya dengan `docker rm -f mssql`; image-nya tetap ada sampai Anda menjalankan `docker rmi`.
+
+:::ask Di SQL Server dengan collation bawaan, `WHERE status <> 'cancelled'` dijalankan pada baris berisi 'Cancelled' dan 'CANCELLED'. Apa yang terjadi?
+@options
+keduanya dipertahankan, karena teksnya tidak persis sama
+* keduanya dikeluarkan: collation tak peka huruf besar
+query gagal dengan error collation
+@why
+Collation bawaan SQL Server tidak peka huruf besar-kecil (CI), jadi 'cancelled', 'Cancelled', dan 'CANCELLED' dianggap sama. PostgreSQL dan DuckDB membandingkan secara peka huruf, sehingga query yang sama menghitung berbeda di sana.
+:::
 
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.

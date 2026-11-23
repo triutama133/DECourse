@@ -50,6 +50,15 @@ A last principle: the source is **not under your control**. It may be slow, chan
 >
 > *Compare when you are done:* 1 is a file you pull (full, or incremental if the file only holds new rows); 2 is an event pushed to you (incremental by nature); 3 is a database you pull incrementally; 4 is an event stream: the app pushes into the log and your consumer pulls from it. This one has no checker: the answers above are the check.
 
+:::ask Why does a trustworthy ingestion job store the data exactly as received before cleaning it?
+@options
+because raw data takes less space than clean data
+* so you can reprocess if the cleaning was wrong
+because cleaning is not allowed in ingestion jobs
+@why
+'Raw first' is the ELT habit: land the original, then transform. If a rule had a bug, or late data arrives, you rerun from the raw copy instead of asking the source again.
+:::
+
 ## @lesson HTTP APIs in ten minutes
 
 > **In short:** A request is a method, a URL and headers; the answer is a status, headers and JSON. 2xx is fine, 4xx means your request is wrong (do not retry), 429 and 5xx mean try again later. Keep secrets out of code and always set a timeout.
@@ -97,6 +106,15 @@ You can do all of this with Python's standard library (`urllib.request`), as the
 >
 > **Check it:** keep the scripts of these exercises in one folder, for example `~/practice`, and run `python3 labs/tryit/check.py 1.6-2 ~/practice`. The checker starts its own copy of the practice API, so stop yours (Ctrl+C) first.
 
+:::ask An API call returns 404 for one order and 503 for another. What should the ingestion code do?
+@options
+retry both the same number of times
+stop at the first error and discard everything
+* retry the 503 (temporary), but not the 404
+@why
+4xx means the request itself is wrong (a 404 will not fix itself), so retrying wastes calls. 5xx and connection problems are usually temporary, and so is 429 after waiting the time the server asks for.
+:::
+
 ## @lesson Reading all the data: pagination, rate limits and retries
 
 > **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
@@ -133,6 +151,71 @@ In the lab you test all this against a **real HTTP server running on your comput
 > **You should see:** page 1 has ids 25 down to 16, and page 2 repeats 18, 17 and 16; the cursor script prints `28 28`; the rate-limit script prints `429 2.0` and then `200`.
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (it needs `cursor_all.py` and `limited.py`; stop your own practice API first). It also tries your `limited.py` against a server that asks for a different wait, so read the header instead of hard-coding the number.
+
+:::drill python Wait longer each time
+Retries use exponential backoff: wait 1 second after the first failure, then 2, 4, 8, and so on, never more than a cap. Write `backoff_delay(attempt, base, cap)` with `attempt` starting at 1: return `min(cap, base * 2 ** (attempt - 1))`.
+@starter
+# write your function below this line
+
+@check
+defines("backoff_delay") ## Define backoff_delay(attempt, base, cap).
+backoff_delay(1, 1, 30) == 1 ## The first wait is the base.
+backoff_delay(4, 1, 30) == 8 ## 1, 2, 4, 8.
+backoff_delay(6, 1, 30) == 30 ## 32 would be too long: the cap wins.
+backoff_delay(3, 5, 100) == 20 ## Another base: 5, 10, 20.
+@hint
+`return min(cap, base * 2 ** (attempt - 1))`
+@solution
+def backoff_delay(attempt, base, cap):
+    return min(cap, base * 2 ** (attempt - 1))
+:::
+
+:::drill python Read every page
+An API returns one page at a time: `get_page(cursor)` gives a dictionary `{"items": [...], "next": cursor_or_None}`. Start with the cursor `None`. Write `fetch_all(get_page)`: keep fetching until `next` is `None`, and return all items in order.
+@starter
+# write your function below this line
+
+@check
+defines("fetch_all") ## Define fetch_all(get_page).
+fetch_all(lambda c: {None: {"items": [1, 2], "next": "a"}, "a": {"items": [3], "next": None}}[c]) == [1, 2, 3] ## Two pages, in order.
+fetch_all(lambda c: {"items": [], "next": None}) == [] ## One empty page.
+fetch_all(lambda c: {None: {"items": [7], "next": "x"}, "x": {"items": [8], "next": "y"}, "y": {"items": [9, 10], "next": None}}[c]) == [7, 8, 9, 10] ## Three pages.
+@hint
+`cursor = None`, then loop: `page = get_page(cursor)`, add `page["items"]`, set `cursor = page["next"]`, stop when it is `None`.
+@solution
+def fetch_all(get_page):
+    items = []
+    cursor = None
+    while True:
+        page = get_page(cursor)
+        items.extend(page["items"])
+        cursor = page["next"]
+        if cursor is None:
+            return items
+:::
+
+:::ask You page through a live newest-first feed with `?offset=10&limit=10` while 3 new orders arrive. What can go wrong?
+@options
+* offsets shift, so some rows come back twice
+the API returns an empty page every time
+the new orders overwrite the old ones
+@why
+With offset pagination, new rows push older rows down the list, so the same row can appear at the end of one page and the start of the next. Cursor pagination avoids this.
+:::
+
+:::trace Offset pagination on a live feed
+@code
+feed = [5, 4, 3, 2, 1]
+page1 = feed[0:2]
+feed = [7, 6] + feed
+page2 = feed[2:4]
+print(page1 + page2)
+@notes
+2 | The first page (offset 0, limit 2) holds the two newest orders: 5 and 4.
+3 | Two new orders arrive. They go to the **front** of a newest-first feed and push every older order two places down.
+4 | The second page (offset 2) now points at 5 and 4 again, because they moved down by exactly the amount the offset moved.
+5 | It prints `[5, 4, 5, 4]`: orders 5 and 4 twice, and order 3 not read yet. A cursor ("everything older than order 4") would not have shifted.
+:::
 
 ## @lesson Incremental loads and checkpoints
 
@@ -319,6 +402,36 @@ Good landing habits:
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-5 ~/practice` tries `flat.py` on other records too.
 
+:::drill python What changed in the shape?
+Schema drift: the source changed its shape without telling you. Write `detect_drift(expected, record)`: `expected` maps a field name to its expected type (for example `{"id": int, "city": str}`); `record` is one incoming dictionary. Return a dictionary with three sorted lists: `"new"` (fields in the record but not expected), `"missing"` (expected fields not in the record), and `"type_changed"` (fields in both whose value is not of the expected type).
+@starter
+# write your function below this line
+
+@check
+defines("detect_drift") ## Define detect_drift(expected, record).
+detect_drift({"id": int}, {"id": 1}) == {"new": [], "missing": [], "type_changed": []} ## No drift.
+detect_drift({"id": int}, {"id": 1, "coupon": "X"}) == {"new": ["coupon"], "missing": [], "type_changed": []} ## A new field appeared.
+detect_drift({"id": int, "city": str}, {"id": 1}) == {"new": [], "missing": ["city"], "type_changed": []} ## A field disappeared.
+detect_drift({"id": int}, {"id": "1"}) == {"new": [], "missing": [], "type_changed": ["id"]} ## The number arrived as text.
+@hint
+Compare the sets of names for new and missing. For type changes: `not isinstance(record[name], expected[name])` for names in both.
+@solution
+def detect_drift(expected, record):
+    new = sorted(set(record) - set(expected))
+    missing = sorted(set(expected) - set(record))
+    changed = sorted(n for n in set(expected) & set(record) if not isinstance(record[n], expected[n]))
+    return {"new": new, "missing": missing, "type_changed": changed}
+:::
+
+:::ask Why add `_run_id`, `_source` and `_ingested_at` columns to every landed record?
+@options
+they make the file smaller on disk
+* they show which run brought a wrong number in
+they are required by the Parquet format
+@why
+Metadata on each record turns 'this number is wrong' into 'run 482 from the payments API at 02:10 produced it', so you can find and fix the run instead of guessing.
+:::
+
 ## @lesson Files, databases, and running it for real
 
 > **In short:** Files: wait until they are complete and record names and checksums. Databases: read from a replica and use an incremental column. Run it with counts, reconciliation and a deliberate backfill.
@@ -357,6 +470,15 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 > **You should see:** `3634 3599` in step 1 (35 duplicate rows, as the manifest says), then `3599` and `3599` in steps 2 and 3. Also compare with `wc -l data/orders.csv`: it shows 3635, because of the header line. Counting rows at every hop is the cheapest way to prove nothing was lost.
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (your script reads `data/orders.csv` relative to the folder it runs in).
+
+:::ask An ingestion job finishes 'successfully' every night but fetched zero records for three nights. What should have caught this?
+@options
+a longer timeout on every request
+running the job twice each night
+* alerts on volume and freshness, not only errors
+@why
+A job can succeed and still deliver nothing. Alerting on the number of records and on the age of the newest data catches a silent source failure that an exit code never shows.
+:::
 
 ## @lesson Webhook HMAC-SHA256 verification, differential extraction, S3 streaming, and declarative dlt {optional}
 
@@ -406,6 +528,27 @@ load_info = pipeline.run(kopiku_orders_source())
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
 
+:::drill python Is the webhook real?
+A service pushes events to your webhook and signs each body: the signature is the HMAC-SHA256 of the body, keyed with a shared secret, as hex. Write `verify_signature(body, secret, signature)`: all three are strings. Return `True` only when the signature matches. Compare with `hmac.compare_digest`, which is safe against timing attacks.
+@starter
+import hmac
+# write your function below this line
+
+@check
+defines("verify_signature") ## Define verify_signature(body, secret, signature).
+verify_signature("x", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == True ## A correct signature is accepted.
+verify_signature("x", "s", "0" * 64) == False ## A wrong signature is rejected.
+verify_signature("x!", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## The body was changed: rejected.
+verify_signature("x", "other", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## The wrong secret: rejected.
+@hint
+`expected = hmac.new(secret.encode(), body.encode(), "sha256").hexdigest()`, then `hmac.compare_digest(expected, signature)`.
+@solution
+import hmac
+def verify_signature(body, secret, signature):
+    expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), "sha256").hexdigest()
+    return hmac.compare_digest(expected, signature)
+:::
+
 ## @part Other ways data arrives
 
 ## @lesson Database drivers, file drops, EDI and data sharing {optional}
@@ -422,6 +565,15 @@ Chapter 7 of *Fundamentals of Data Engineering* lists the ways data reaches a pl
 > 🛠 **Try it (20 min, Python).** Write `parse_850(path)` that reads `labs/shared/edi/po_850.edi`, splits it into segments and elements, and returns the order number and date (from `BEG`), the lines (from each `PO1`: line number, quantity, unit, unit price, product code, line total) and the order total. Then make it check the file against itself: the number in `CTT` must equal the number of `PO1` lines, and the number in `SE` must equal the segments from `ST` to `SE`, both included. Run it on `po_850.edi` and on `po_850_broken.edi`.
 >
 > **You should see:** order `PO-2026-0042` dated `20260115` with three lines, `BEAN-ARABICA-1KG` `1700000`, `CUP-PAPER-12OZ` `60000` and `MILK-OAT-CASE` `1200000`, total `2960000`, and both checks passing (`3` lines, `7` segments). The broken file still parses without an error, but the cup line is gone: `2` lines found where `CTT` says `3`, and `6` segments where `SE` says `7`. Without the checks you would have loaded an order of `2900000` and nobody would know.
+
+:::ask In an EDI file, `PO*1001*20260105~` is one segment. What are the `*` and the `~`?
+@options
+* `*` separates elements; `~` ends the segment
+`*` ends the segment; `~` separates the elements
+both are comments that the reader ignores
+@why
+EDI is text made of segments that end in `~`, whose elements are separated by `*`. The first element names the kind of segment, here a purchase order.
+:::
 
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.

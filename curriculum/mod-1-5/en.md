@@ -46,6 +46,15 @@ Two habits to start with. First, **look before you change**: `df.head()`, `df.dt
 >
 > **You should see:** `(3634, 6)`; raw status counts that include variants such as `DELIVERED`, exactly `2080` rows with `delivered` in the exact-match count, and after lower-casing five statuses: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
 
+:::ask Why do pandas users almost never write a `for` loop over rows?
+@options
+* one whole-column call loops in compiled code
+pandas forbids loops of any kind
+loops give different answers from columns
+@why
+`df['quantity'] * df['unit_price_idr']` multiplies a million pairs in one call, in compiled code. A Python loop pays interpreter overhead on every single row.
+:::
+
 ## @lesson Loading a file correctly
 `pd.read_csv("orders.csv")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:
 
@@ -174,6 +183,35 @@ Check your aggregates against an independent calculation. The lab tests recomput
 > `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
 > When tests show PASSED, proceed to Lesson 5 on defensive table merges!
 
+:::drill python Total per group
+This is what `groupby(...).sum()` does. Write `group_sum(rows, key, value)`: `rows` is a list of dictionaries; return a dictionary that maps each value of the `key` field to the **sum** of the `value` field over its rows.
+@starter
+# write your function below this line
+
+@check
+defines("group_sum") ## Define group_sum(rows, key, value).
+group_sum([{"c": "ID", "r": 10}, {"c": "SG", "r": 5}, {"c": "ID", "r": 7}], "c", "r") == {"ID": 17, "SG": 5} ## Rows of the same country are added together.
+group_sum([], "c", "r") == {} ## No rows, no groups.
+group_sum([{"s": "a", "n": 1}], "s", "n") == {"a": 1} ## It works with any field names.
+@hint
+Keep a dictionary of totals: `totals[row[key]] = totals.get(row[key], 0) + row[value]`.
+@solution
+def group_sum(rows, key, value):
+    totals = {}
+    for row in rows:
+        totals[row[key]] = totals.get(row[key], 0) + row[value]
+    return totals
+:::
+
+:::ask A column has 10 rows, 2 of them missing. What do `count` and `size` return in a pandas groupby?
+@options
+both give 10, because they are the same
+* count gives 8 (non-missing), size gives 10 (rows)
+count gives 10 and size gives 8
+@why
+`count` skips missing values and `size` counts rows. They differ when there are gaps, so choose on purpose. `nunique` is `COUNT(DISTINCT ...)`.
+:::
+
 ## @lesson Joining tables without multiplying rows
 `orders.merge(customers, on="customer_id", how="left")` is `LEFT JOIN`. The `how` argument selects `inner`, `left`, `right` or `outer`, exactly as in SQL (Module 0.3), and the same trap applies: **the fan-out**. If the right-hand table has the same key twice, every matching left row is repeated.
 
@@ -211,6 +249,24 @@ This is the fan-out trap from SQL. The course measured 2,187 rows and revenue 14
 > `pytest labs/mod-1-5/test_lab.py -k "TestJoin" -v`
 > When tests show PASSED, your joins are fan-out protected! Proceed to Lesson 6 for memory optimization and Parquet.
 
+:::drill python How many rows after the join?
+An inner join gives one output row for **every matching pair**. Write `rows_after_join(left_keys, right_keys)`: both are lists of keys (one key per row). Return how many rows an inner join on the key produces.
+@starter
+# write your function below this line
+
+@check
+defines("rows_after_join") ## Define rows_after_join(left_keys, right_keys).
+rows_after_join([1, 2, 3], [1, 2, 3]) == 3 ## Unique keys on both sides: one row per key.
+rows_after_join([1, 2], [1, 1, 2]) == 3 ## Key 1 appears twice on the right: its left row is repeated, 2 + 1 rows.
+rows_after_join([1, 1], [1, 1]) == 4 ## 2 × 2 matching pairs: duplicates multiply.
+rows_after_join([1, 2], [9]) == 0 ## No key matches.
+@hint
+For each key on the left, count how many times it appears on the right: `right_keys.count(k)`, and add them up.
+@solution
+def rows_after_join(left_keys, right_keys):
+    return sum(right_keys.count(k) for k in left_keys)
+:::
+
 ## @lesson Memory, chunks and Parquet
 pandas keeps the entire table in RAM. How much RAM? More than the file. We generated an orders table of **1,000,000 rows** (a **47.7 MB** CSV) and read it with default settings: on pandas 3.0.6 it occupied **83 MB** in memory (1.75 times the file), and on pandas 2.2.3 **247 MB, 5.2 times the file**, because older pandas stores every text value as a separate Python object. Rule of thumb: **plan for 2 to 10 times the file size**, measure with `df.memory_usage(deep=True).sum()`, and check before you read a 20 GB export on a 16 GB laptop.
 
@@ -240,6 +296,34 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 > 2. Run the complete test suite in the terminal:
 > `pytest labs/mod-1-5/test_lab.py -v`
 > When all 35 tests show PASSED, your production pandas lab is 100% complete!
+
+:::drill python The mean of means is wrong
+You read a big file in chunks, and each chunk gives `(sum, count)`. Write `combined_mean(parts)`: `parts` is a list of `(sum, count)` pairs; return the mean of **all** the values together. An empty list gives `0`.
+@starter
+# write your function below this line
+
+@check
+defines("combined_mean") ## Define combined_mean(parts).
+combined_mean([(10, 2), (30, 2)]) == 10 ## 40 over 4 values.
+combined_mean([(10, 1), (100, 9)]) == 11 ## 110 over 10 values. The mean of the two chunk means would be 30: wrong.
+combined_mean([]) == 0 ## No chunks, no mean.
+@hint
+Add all the sums, add all the counts, divide once: `sum(s for s, _ in parts) / sum(c for _, c in parts)`.
+@solution
+def combined_mean(parts):
+    if not parts:
+        return 0
+    return sum(s for s, _ in parts) / sum(c for _, c in parts)
+:::
+
+:::ask A 40 GB CSV does not fit in memory, and you read it in chunks. Which calculation can you safely do chunk by chunk and then combine?
+@options
+a median, by taking the median of each chunk
+removing duplicates inside each chunk only
+* a sum or a count: the parts just add up
+@why
+Sums, counts, minimums and maximums combine cleanly. A mean needs sum and count combined first. Duplicates that fall in different chunks are missed if you de-duplicate each chunk alone.
+:::
 
 ## @lesson Modern single-node vectorized engines: Polars lazy execution and Apache Arrow zero-copy {optional}
 
@@ -290,6 +374,15 @@ arrow_tbl = result_df.to_arrow()
 > 🛠 **Try it (15 min, Python with `polars`, `pandas` and `pyarrow`).** Read `data/orders.csv` with pandas as text, keep the rows whose `total_idr` is all digits and make it an integer, repeat the rows 30 times (`pd.concat([df] * 30)`) and write them as 10 Parquet files `big/part-00.parquet` … `big/part-09.parquet`. Build a lazy plan with `pl.scan_parquet("big/*.parquet")`: keep `status == "delivered"` (that exact spelling, as in the first Try it of this module), group by `payment_method`, count the orders and sum `total_idr`, sort by the sum. Print `.explain()` before you collect, then collect with `engine="streaming"` and compare with the same thing in pandas.
 >
 > **You should see:** `107400` rows on disk. Inside the `Parquet SCAN` node the plan says `PROJECT 3/6 COLUMNS` and `SELECTION: col("status") == "delivered"`: the filter and the column list moved into the scan, so the other three columns are never read. Four payment methods, led by `cod` with `15600` orders and `5349150000`, exactly the counts and sums pandas gives. Measured with Polars 2.1.0 and pandas 3.1.1 on the course's default data.
+
+:::ask What does `pl.scan_parquet(...)` do that `pl.read_parquet(...)` does not?
+@options
+* it builds a plan, so it can skip what is unused
+it reads the file faster by ignoring the data
+it converts the file to CSV first
+@why
+`scan_*` is lazy: Polars looks at the whole chain, then reads only the needed columns and skips row groups whose statistics rule out the filter. `read_*` loads everything first.
+:::
 
 ## @lab Lab: clean and summarise a messy orders export
 Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops.

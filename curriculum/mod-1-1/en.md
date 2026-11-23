@@ -57,6 +57,38 @@ Useful process commands: `ps aux` (list processes), `top` or `htop` (live view o
 >
 > **You should see:** `0`, `1`, `2`, `1`, `7`; and for the script `start` and then exit code `1`. Remove `set -e` and run it again: the last line now prints too, and the exit code becomes `0`, a lie to every scheduler.
 
+:::drill python Which commands run?
+In the shell, `a && b && c` runs the next command only if the one before it **succeeded** (exit code 0). Write `commands_run(codes)`: `codes` is the list of exit codes the commands *would* return, in order. Return how many of them actually run.
+@starter
+# write your function below this line
+
+@check
+defines("commands_run") ## Define commands_run(codes).
+commands_run([0, 0, 0]) == 3 ## All succeed: all three run.
+commands_run([0, 1, 0]) == 2 ## The second runs and fails; the third is skipped.
+commands_run([1, 0, 0]) == 1 ## The first fails: nothing after it runs.
+commands_run([]) == 0 ## No commands, none run.
+@hint
+Count commands one by one. After a command whose code is not 0, stop.
+@solution
+def commands_run(codes):
+    ran = 0
+    for code in codes:
+        ran += 1
+        if code != 0:
+            break
+    return ran
+:::
+
+:::ask A script prints 'ERROR: file missing' and then ends normally, with exit code 0. What will cron or a CI system conclude?
+@options
+* the job succeeded, because only the exit code counts
+the job failed, because the word ERROR was printed
+nothing, because it ignores both text and codes
+@why
+Schedulers, CI and containers read the exit code, not the text. A script that prints an error and exits 0 reports success to every system around it. Use a non-zero exit code when something went wrong.
+:::
+
 ## @lesson The text-processing toolbox
 Most data on a server arrives as text. These tools let you inspect and summarise it in seconds, and they **stream**: they process one line at a time, so memory use stays flat even on a 50 GB file. Use them for exploration and for simple, robust jobs.
 
@@ -94,6 +126,39 @@ On the KopiKu data this prints `cancelled 362`, `delivered 2148`, `paid 374`, `r
 > 4. Count purchase events: `grep -c "purchase" data/events.ndjson`
 > Your data is ready! Proceed to Lesson 3 to slice JSON data with `jq`.
 
+:::drill python The uniq trap
+The shell command `uniq -c` collapses only **neighbouring** duplicates. Write `uniq_c(lines)`: return a list of `(count, line)` pairs, where each pair is a run of identical lines that sit next to each other.
+@starter
+# write your function below this line
+
+@check
+defines("uniq_c") ## Define uniq_c(lines).
+uniq_c(["a", "a", "b"]) == [(2, "a"), (1, "b")] ## The two neighbouring a lines become one pair.
+uniq_c(["a", "b", "a"]) == [(1, "a"), (1, "b"), (1, "a")] ## Not neighbours: a is NOT merged. This is why you `sort` first.
+uniq_c(sorted(["a", "b", "a"])) == [(2, "a"), (1, "b")] ## After sorting, the duplicates are neighbours.
+uniq_c([]) == [] ## Nothing in, nothing out.
+@hint
+Walk the lines. If a line equals the one before it, add 1 to the last count; otherwise start a new pair.
+@solution
+def uniq_c(lines):
+    out = []
+    for line in lines:
+        if out and out[-1][1] == line:
+            out[-1] = (out[-1][0] + 1, line)
+        else:
+            out.append((1, line))
+    return out
+:::
+
+:::ask You run `cut -d, -f4 orders.csv | uniq -c` on an unsorted file and the same status is listed three times. Why?
+@options
+the file has hidden characters in each of its rows
+* uniq merges only neighbours, so sort the column first
+uniq counts only the first 100 lines it sees
+@why
+`uniq` compares each line with the one just before it. Equal values that are far apart stay separate, so the usual pipeline is `sort | uniq -c`.
+:::
+
 ## @lesson jq: the same idea for JSON
 Click events and logs are usually **NDJSON**: one JSON object per line. `jq` is `awk` for JSON. The essentials:
 
@@ -123,6 +188,43 @@ When should you stop using shell tools? When the logic needs branching, state, r
 > 1. Extract compact event_id and event_type: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
 > 2. Test error-resilient parsing: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
 > Notice how damaged lines are skipped without crashing! Proceed to Lesson 4 to write safe shell scripts.
+
+:::drill python Skip the broken lines
+An events file has one JSON object per line, and some lines are cut off. `jq 'fromjson?'` skips the broken ones. Write `good_events(lines)`: return a list with the parsed object (dictionary) of every line that is valid JSON **and** is an object. Skip everything else without raising an error.
+@starter
+import json
+# write your function below this line
+
+@check
+defines("good_events") ## Define good_events(lines).
+good_events(['{"a": 1}', '{"a":', '{"b": 2}']) == [{"a": 1}, {"b": 2}] ## The cut-off line is skipped.
+good_events(["5", '"text"', "[1]"]) == [] ## Valid JSON, but not objects: skipped too.
+good_events([]) == [] ## No lines, no events.
+good_events(["", '{"x": null}']) == [{"x": None}] ## An empty line is skipped; null inside an object is fine.
+@hint
+`try: obj = json.loads(line)` and `except json.JSONDecodeError: continue`; keep it only if `isinstance(obj, dict)`.
+@solution
+import json
+def good_events(lines):
+    out = []
+    for line in lines:
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+:::
+
+:::ask When should you stop writing a shell pipeline and switch to Python?
+@options
+as soon as it has more than two stages in it
+never, since shell tools are always the faster ones
+* when you need branching, state, retries or unit tests
+@why
+A five-stage pipeline is a joy, but logic with branches, memory between lines, retries or tests belongs in code you can test. A 300-line Bash script is a liability.
+:::
 
 ## @lesson Writing scripts that fail loudly
 A script is just commands in a file. The first line, the **shebang**, names the interpreter: `#!/usr/bin/env bash`. Run it with `bash script.sh`, or `chmod +x script.sh && ./script.sh`.
@@ -213,6 +315,15 @@ That last point is why real pipelines move to an **orchestrator** such as Airflo
 >
 > **You should see:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` in the bare environment (your shell has both); and `1` from the second `flock` without any `second` printed: the lock is held, so the overlapping copy refuses to run.
 
+:::ask What does the cron line `*/15 * * * * /opt/kopiku/check_inbox.sh` do?
+@options
+* runs the script every 15 minutes, all day, every day
+runs the script once, at 15 minutes past midnight
+runs the script 15 times a day at random hours
+@why
+The five fields are minute, hour, day of month, month, day of week. `*/15` in the minute field means every 15th minute, and the stars mean every hour and every day.
+:::
+
 ## @lesson Containers: the same environment everywhere
 "It works on my machine" is the oldest problem in software. Your job depends on a specific Python version, libraries, system packages and file layout; the server has different ones. A **container** packages the application together with everything it needs to run, isolated from the host, so it behaves the same on your laptop, in CI and in production.
 
@@ -265,6 +376,24 @@ Other things you will use: **volumes and bind mounts** keep data outside the con
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
 > When all Dockerfile tests show PASSED, your container is production ready! Proceed to Lesson 7 to learn about memory limits & exit code 137.
 
+:::ask You start three containers from the same image. How many images exist?
+@options
+three: every container gets an image of its own
+* one: the containers are running copies made from it
+none, because an image disappears when it is run
+@why
+An image is a read-only template built once from a Dockerfile. A container is a running (or stopped) instance of it, and you can start as many as you like from the same image.
+:::
+
+:::ask Why do teams package a job in a container instead of just copying the script to the server?
+@options
+containers make the code itself run much faster
+containers mean that no server is needed anymore
+* the job carries its own Python and libraries
+@why
+A container packages the application with everything it needs, isolated from the host. That ends 'it works on my machine': laptop, test and production run the same environment.
+:::
+
 ## @lesson Resource limits and the job that dies with code 137
 Containers can be given limits: `docker run --memory 512m --cpus 1 ...`, or in an orchestrator's configuration. If a process in a container uses more memory than its limit, the Linux kernel's **OOM killer** terminates it with SIGKILL. You see exit code **137** and, in `docker inspect`, `"OOMKilled": true`. There is no Python traceback, because the process never got a chance to print one: from the inside it simply vanishes, which is why this failure confuses beginners.
 
@@ -292,6 +421,15 @@ Related limits to watch: **disk** (a full disk makes writes fail in odd ways, so
 > 2. Compare memory. In Python, write two functions that add up the valid totals of `data/orders.csv`: one first reads the whole file into a list (`list(csv.reader(...))`), the other adds row by row. Wrap each call in `tracemalloc` (`tracemalloc.start()` before, `tracemalloc.get_traced_memory()[1]` after, then `tracemalloc.stop()`) and print the peak in KiB.
 >
 > **You should see:** `137`, and a peak of about 1,500 KiB for the list version against about 50 KiB for the streaming one (roughly 30 times less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
+
+:::ask A container running a pandas job stops with exit code 137 and no Python error message. What most likely happened?
+@options
+* it went over its memory limit and the kernel killed it
+the Python code has a syntax error on its last line
+the schedule expression was written in the wrong way
+@why
+137 is 128 + 9: the process received SIGKILL. When a container exceeds its memory limit the OOM killer does that, so there is no traceback. Process in chunks or streams to keep memory flat.
+:::
 
 ## @lab Lab: a shell report and a container for a KopiKu job
 Part A: write a robust shell script that summarises the website events file, which contains broken lines and duplicates. Part B: package a small Python job into a good Docker image. Both are checked automatically.

@@ -46,6 +46,15 @@ Dua kebiasaan untuk dimulai. Pertama, **lihat sebelum mengubah**: `df.head()`, `
 >
 > **Seharusnya Anda melihat:** `(3634, 6)`; hitungan status mentah yang memuat varian seperti `DELIVERED`, tepat `2080` baris `delivered` pada hitungan yang persis sama, dan setelah huruf kecil lima status: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
 
+:::ask Mengapa pengguna pandas hampir tidak pernah menulis `for` loop atas baris?
+@options
+* satu panggilan kolom berulang dalam kode terkompilasi
+pandas melarang loop dalam bentuk apa pun
+loop memberi jawaban berbeda dari kolom
+@why
+`df['quantity'] * df['unit_price_idr']` mengalikan sejuta pasang dalam satu panggilan, dalam kode terkompilasi. Loop Python membayar overhead interpreter pada setiap baris.
+:::
+
 ## @lesson Memuat file dengan benar
 `pd.read_csv("orders.csv")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:
 
@@ -174,6 +183,35 @@ Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang s
 > `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 5 tentang penggabungan tabel defensif!
 
+:::drill python Total per kelompok
+Inilah yang dilakukan `groupby(...).sum()`. Tulis `group_sum(rows, key, value)`: `rows` adalah daftar dictionary; kembalikan dictionary yang memetakan tiap nilai field `key` ke **jumlah** field `value` atas barisnya.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("group_sum") ## Definisikan group_sum(rows, key, value).
+group_sum([{"c": "ID", "r": 10}, {"c": "SG", "r": 5}, {"c": "ID", "r": 7}], "c", "r") == {"ID": 17, "SG": 5} ## Baris dengan negara sama dijumlahkan.
+group_sum([], "c", "r") == {} ## Tanpa baris, tanpa kelompok.
+group_sum([{"s": "a", "n": 1}], "s", "n") == {"a": 1} ## Berlaku untuk nama field apa pun.
+@hint
+Simpan dictionary total: `totals[row[key]] = totals.get(row[key], 0) + row[value]`.
+@solution
+def group_sum(rows, key, value):
+    totals = {}
+    for row in rows:
+        totals[row[key]] = totals.get(row[key], 0) + row[value]
+    return totals
+:::
+
+:::ask Sebuah kolom punya 10 baris, 2 di antaranya kosong. Apa yang dikembalikan `count` dan `size` pada groupby pandas?
+@options
+keduanya memberi 10, karena keduanya sama saja
+* count memberi 8 (tak kosong), size memberi 10 (baris)
+count memberi 10 dan size memberi 8
+@why
+`count` melewati nilai kosong dan `size` menghitung baris. Keduanya berbeda saat ada celah, jadi pilih dengan sengaja. `nunique` adalah `COUNT(DISTINCT ...)`.
+:::
+
 ## @lesson Menggabungkan tabel tanpa melipatgandakan baris
 `orders.merge(customers, on="customer_id", how="left")` adalah `LEFT JOIN`. Argumen `how` memilih `inner`, `left`, `right`, atau `outer`, persis seperti di SQL (Modul 0.3), dan jebakan yang sama berlaku: **fan-out**. Jika tabel kanan punya kunci yang sama dua kali, setiap baris kiri yang cocok diulang.
 
@@ -211,6 +249,24 @@ Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% t
 > `pytest labs/mod-1-5/test_lab.py -k "TestJoin" -v`
 > Ketika tes PASSED, integritas join Anda terjamin aman! Lanjut ke Pelajaran 6 untuk optimasi memori dan format Parquet.
 
+:::drill python Berapa baris setelah join?
+Inner join menghasilkan satu baris keluaran untuk **setiap pasangan yang cocok**. Tulis `rows_after_join(left_keys, right_keys)`: keduanya adalah daftar kunci (satu kunci per baris). Kembalikan berapa baris yang dihasilkan inner join pada kunci itu.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("rows_after_join") ## Definisikan rows_after_join(left_keys, right_keys).
+rows_after_join([1, 2, 3], [1, 2, 3]) == 3 ## Kunci unik di kedua sisi: satu baris per kunci.
+rows_after_join([1, 2], [1, 1, 2]) == 3 ## Kunci 1 muncul dua kali di kanan: baris kirinya berulang, 2 + 1 baris.
+rows_after_join([1, 1], [1, 1]) == 4 ## 2 × 2 pasangan cocok: duplikat berlipat.
+rows_after_join([1, 2], [9]) == 0 ## Tidak ada kunci yang cocok.
+@hint
+Untuk tiap kunci di kiri, hitung berapa kali ia muncul di kanan: `right_keys.count(k)`, lalu jumlahkan.
+@solution
+def rows_after_join(left_keys, right_keys):
+    return sum(right_keys.count(k) for k in left_keys)
+:::
+
 ## @lesson Memori, chunk, dan Parquet
 pandas menyimpan seluruh tabel di RAM. Berapa banyak RAM? Lebih dari ukuran file. Kami membuat tabel pesanan **1.000.000 baris** (CSV **47,7 MB**) dan membacanya dengan pengaturan default: pada pandas 3.0.6 ia menempati **83 MB** di memori (1,75 kali file), dan pada pandas 2.2.3 **247 MB, 5,2 kali file**, karena pandas lama menyimpan setiap nilai teks sebagai objek Python tersendiri. Aturan praktis: **rencanakan 2 sampai 10 kali ukuran file**, ukur dengan `df.memory_usage(deep=True).sum()`, dan periksa sebelum membaca ekspor 20 GB di laptop 16 GB.
 
@@ -240,6 +296,34 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 > 2. Jalankan seluruh suite pengujian di terminal:
 > `pytest labs/mod-1-5/test_lab.py -v`
 > Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
+
+:::drill python Rata-rata dari rata-rata itu salah
+Kamu membaca file besar dalam chunk, dan tiap chunk menghasilkan `(sum, count)`. Tulis `combined_mean(parts)`: `parts` adalah daftar pasangan `(sum, count)`; kembalikan rata-rata dari **semua** nilai bersama-sama. Daftar kosong menghasilkan `0`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("combined_mean") ## Definisikan combined_mean(parts).
+combined_mean([(10, 2), (30, 2)]) == 10 ## 40 atas 4 nilai.
+combined_mean([(10, 1), (100, 9)]) == 11 ## 110 atas 10 nilai. Rata-rata dari dua rata-rata chunk adalah 30: salah.
+combined_mean([]) == 0 ## Tanpa chunk, tanpa rata-rata.
+@hint
+Jumlahkan semua sum, jumlahkan semua count, bagi sekali: `sum(s for s, _ in parts) / sum(c for _, c in parts)`.
+@solution
+def combined_mean(parts):
+    if not parts:
+        return 0
+    return sum(s for s, _ in parts) / sum(c for _, c in parts)
+:::
+
+:::ask CSV 40 GB tidak muat di memori, dan kamu membacanya per chunk. Perhitungan mana yang aman dilakukan per chunk lalu digabung?
+@options
+median, dengan mengambil median tiap chunk
+menghapus duplikat hanya di dalam tiap chunk
+* jumlah atau hitungan: hasil sebagian tinggal dijumlah
+@why
+Jumlah, hitungan, minimum, dan maksimum bisa digabung dengan bersih. Rata-rata butuh jumlah dan hitungan digabung dulu. Duplikat yang jatuh di chunk berbeda terlewat jika tiap chunk dideduplikasi sendiri.
+:::
 
 ## @lesson Engine vektorisasi satu-node modern: eksekusi lazy Polars dan zero-copy Apache Arrow {optional}
 
@@ -290,6 +374,15 @@ arrow_tbl = result_df.to_arrow()
 > 🛠 **Coba sendiri (15 menit, Python dengan `polars`, `pandas`, dan `pyarrow`).** Baca `data/orders.csv` dengan pandas sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka lalu jadikan integer, ulang barisnya 30 kali (`pd.concat([df] * 30)`), dan tulis sebagai 10 file Parquet `big/part-00.parquet` … `big/part-09.parquet`. Bangun rencana lazy dengan `pl.scan_parquet("big/*.parquet")`: simpan `status == "delivered"` (persis ejaan itu, seperti di Coba sendiri pertama modul ini), kelompokkan per `payment_method`, hitung pesanan dan jumlahkan `total_idr`, urutkan menurut jumlahnya. Cetak `.explain()` sebelum collect, lalu collect dengan `engine="streaming"` dan bandingkan dengan hal yang sama di pandas.
 >
 > **Seharusnya Anda melihat:** `107400` baris di disk. Di dalam node `Parquet SCAN` plan-nya menyebut `PROJECT 3/6 COLUMNS` dan `SELECTION: col("status") == "delivered"`: filter dan daftar kolom pindah ke dalam scan, jadi tiga kolom lainnya tidak pernah dibaca. Empat metode pembayaran, dipimpin `cod` dengan `15600` pesanan dan `5349150000`, persis sama dengan hitungan dan jumlah dari pandas. Diukur dengan Polars 2.1.0 dan pandas 3.1.1 pada data bawaan kursus.
+
+:::ask Apa yang dilakukan `pl.scan_parquet(...)` yang tidak dilakukan `pl.read_parquet(...)`?
+@options
+* ia membangun rencana, sehingga bagian tak terpakai dilewati
+ia membaca file lebih cepat dengan mengabaikan datanya
+ia mengubah file menjadi CSV terlebih dahulu
+@why
+`scan_*` bersifat lazy: Polars melihat seluruh rantai, lalu hanya membaca kolom yang dibutuhkan dan melewati row group yang statistiknya mengeliminasi filter. `read_*` memuat semuanya lebih dulu.
+:::
 
 ## @lab Lab: bersihkan dan ringkas ekspor pesanan yang berantakan
 Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.

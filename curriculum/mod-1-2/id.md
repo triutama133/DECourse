@@ -103,6 +103,36 @@ Anda akan menulis kelas seperti ini: `Checkpoint` yang mengingat di mana sebuah 
 >
 > **Seharusnya Anda melihat:** `2`, `1`, `1`, dan `0`: setiap tally menyimpan hitungannya sendiri. Jika Anda menulis `counts = {}` tanpa `self.` di `__init__`, `add` pertama berhenti dengan `AttributeError: 'OrderTally' object has no attribute 'counts'`; tambahkan `self.` dan ia berfungsi.
 
+:::drill python Fungsi murni di jantung sebuah job
+Tulis `parse_total(raw)`: `raw` adalah teks dari CSV. Bisa berupa `"150000"` atau `"Rp 1.250.000"` (titik adalah pemisah ribuan). Kembalikan jumlahnya sebagai `int`. Jika teks bukan sebuah jumlah (misalnya `"abc"` atau string kosong), kembalikan `None` alih-alih melempar error.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("parse_total") ## Definisikan parse_total(raw).
+parse_total("150000") == 150000 ## Angka biasa menjadi int.
+parse_total("Rp 1.250.000") == 1250000 ## Awalan dan titik dihapus.
+parse_total("abc") is None ## Bukan jumlah: None, tanpa crash.
+parse_total("") is None ## Teks kosong juga bukan jumlah.
+@hint
+Hapus `Rp`, spasi, dan titik; jika sisanya `.isdigit()`, kembalikan `int(...)`, jika tidak `None`.
+@solution
+def parse_total(raw):
+    cleaned = raw.replace("Rp", "").replace(" ", "").replace(".", "")
+    if cleaned.isdigit():
+        return int(cleaned)
+    return None
+:::
+
+:::ask Mengapa logika disimpan di fungsi murni dan akses file serta jaringan didorong ke tepi job?
+@options
+fungsi murni berjalan lebih cepat dari kode apa pun
+* fungsi murni bisa diuji dengan memanggilnya dengan nilai
+tepi adalah satu-satunya tempat Python mengizinkan I/O
+@why
+Fungsi murni menerima nilai dan mengembalikan nilai tanpa menyentuh hal lain, jadi tes hanyalah panggilan dan pemeriksaan. Membaca file, memanggil API, dan menulis database tetap di lapisan luar yang tipis.
+:::
+
 ## @lesson Validasi di batas dengan Pydantic
 Pipeline yang paling andal tidak mempercayai masukannya. Data melintasi sebuah **batas** (file, API, antrean) dan Anda mengubahnya dari "apa pun yang dihasilkan pengirim" menjadi "nilai yang bisa diandalkan kode saya". Lakukan sekali, di pintu; semua yang setelah pintu bisa mengasumsikan data bersih.
 
@@ -149,6 +179,38 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 > 3. Uji model Anda di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
 > Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 3 tentang streaming generator.
+
+:::drill python Mengapa baris ini ditolak?
+Tulis `reasons(row)`: `row` adalah dictionary dari CSV (semua teks). Kembalikan daftar alasan penolakan, dengan urutan ini: `"bad status"` jika `status` bukan salah satu dari `paid`, `cancelled`, `shipped`; `"bad total"` jika `total_idr` bukan bilangan bulat nol atau lebih. Baris yang baik menghasilkan `[]`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("reasons") ## Definisikan reasons(row).
+reasons({"status": "paid", "total_idr": "150000"}) == [] ## Baris yang baik tanpa alasan.
+reasons({"status": "teleported", "total_idr": "150000"}) == ["bad status"] ## Status tak dikenal.
+reasons({"status": "paid", "total_idr": "-5"}) == ["bad total"] ## Total negatif.
+reasons({"status": "x", "total_idr": "abc"}) == ["bad status", "bad total"] ## Kedua masalah, dengan urutan yang ditentukan.
+@hint
+Periksa status dengan `in`. Untuk total: `row["total_idr"].isdigit()` bernilai False untuk "-5" dan "abc".
+@solution
+def reasons(row):
+    out = []
+    if row["status"] not in ("paid", "cancelled", "shipped"):
+        out.append("bad status")
+    if not row["total_idr"].isdigit():
+        out.append("bad total")
+    return out
+:::
+
+:::ask Field JSON API `total` seharusnya angka tetapi datang sebagai teks "150000". Kapan validasi strict lebih baik?
+@options
+untuk file CSV, tempat semua nilai memang berupa teks
+tidak pernah: mode lax selalu pilihan yang aman dipakai
+* untuk sumber bertipe seperti JSON API, bukan CSV
+@why
+CSV hanya berisi teks, jadi koersi lax ('150000' menjadi 150000) memang yang kamu mau. JSON API sudah punya angka, jadi string di sana berarti ada yang rusak di hulu, dan mode strict menolaknya.
+:::
 
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
@@ -453,6 +515,37 @@ Baris log tunggal yang paling berguna di pipeline mana pun adalah **ringkasan ek
 >
 > **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan. Di lab Anda, periksa baris log ringkasan dengan `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
+:::drill python Ringkasan run
+Baris log paling berguna dari sebuah job adalah ringkasan run-nya. Tulis `run_summary(outcomes)`: `outcomes` adalah daftar berisi satu kata per baris masukan: `"valid"`, `"duplicate"`, atau `"invalid"`. Kembalikan dictionary dengan kunci `read`, `valid`, `duplicates`, dan `invalid` berisi jumlahnya.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("run_summary") ## Definisikan run_summary(outcomes).
+run_summary(["valid", "valid", "duplicate", "invalid"]) == {"read": 4, "valid": 2, "duplicates": 1, "invalid": 1} ## Empat baris dibaca, dibagi menurut hasil.
+run_summary([]) == {"read": 0, "valid": 0, "duplicates": 0, "invalid": 0} ## Masukan kosong tetap menghasilkan keempat kunci.
+run_summary(["invalid"] * 3)["read"] == 3 ## read menghitung setiap baris.
+@hint
+`read` adalah `len(outcomes)`; yang lain adalah `outcomes.count("valid")` dan seterusnya.
+@solution
+def run_summary(outcomes):
+    return {
+        "read": len(outcomes),
+        "valid": outcomes.count("valid"),
+        "duplicates": outcomes.count("duplicate"),
+        "invalid": outcomes.count("invalid"),
+    }
+:::
+
+:::ask Ringkasan run semalam: read=100000, invalid=200. Malam ini: read=100000, invalid=30000. Bagaimana membacanya dengan baik?
+@options
+* ada yang berubah di hulu, jadi lihat alasan baris yang ditolak
+job malam ini lebih cepat, jadi angkanya pasti wajar
+logging rusak dan sebaiknya dimatikan dulu untuk sementara
+@why
+Hitungan yang melonjak antar malam sering menjadi tanda pertama perubahan di hulu, misalnya format baru atau field yang diganti nama. Ringkasan run adalah monitoring termurahmu, jadi selidiki alasannya.
+:::
+
 ## @lesson Menguji kode data dengan pytest
 Tes adalah cara Anda mengubah kode tanpa takut. Untuk job data, tes juga mendokumentasikan, dalam bentuk yang bisa dijalankan, apa arti "benar". **pytest** adalah alat standar: taruh fungsi bernama `test_*` di file bernama `test_*.py` dan jalankan `pytest`.
 
@@ -494,6 +587,15 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
 > Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 7 untuk memilih perkakas yang tepat.
 
+:::ask Kamu punya satu aturan untuk diuji (total bisa 'Rp 1.250.000' atau '150000') dengan banyak contoh masukan. Fitur pytest mana yang cocok?
+@options
+fixture yang menghapus semua file tes yang ada
+* parametrize: satu isi tes dijalankan atas daftar kasus
+tes yang berulang sampai akhirnya berhasil lolos
+@why
+`pytest.mark.parametrize` menjalankan isi tes yang sama sekali per kasus dan melaporkan tiap kasus terpisah, cocok untuk aturan data berantakan dengan banyak contoh.
+:::
+
 ## @lesson Perkakas, dependensi, dan kapan Python adalah alat yang tepat
 **Pin dependensi Anda.** `requirements.txt` dengan versi pasti atau berbatas (`pydantic>=2.5,<3`) membuat build dapat diulang; lock file (`uv`, `pip-tools`, `poetry`) membuatnya dapat diulang secara persis. Instalasi tanpa pin yang menarik versi mayor baru semalam adalah penyebab klasik "kemarin masih jalan".
 
@@ -506,6 +608,15 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 > 🛠 **Coba sendiri (10 menit, terminal).** Di virtual environment yang baru, jalankan `pip install ruff`. Simpan `bad.py` berisi baris `import os`, `import json`, `x=1`, dan `print( x )`. Jalankan `ruff check bad.py`, lalu `ruff check --fix bad.py`, lalu `ruff format bad.py` dan lihat file-nya. Terakhir jalankan `pip freeze > requirements.txt` dan baca baris-baris pertamanya.
 >
 > **Seharusnya Anda melihat:** satu `F401` ("imported but unused") untuk `os` dan satu untuk `json`; perbaikannya menghapus kedua import itu; formatter mengubah sisanya menjadi `x = 1` dan `print(x)`; `requirements.txt` mencantumkan versi persis seperti `ruff==0.x.y`. Pemeriksaan mana yang Anda inginkan di setiap pull request?
+
+:::ask `pip install pydantic` tanpa pin menarik versi mayor baru semalam dan job rusak. Apa yang mencegahnya?
+@options
+memasang ulang library tersebut setiap pagi
+menghindari penggunaan library sama sekali
+* pin versinya, mis. pydantic>=2.5,<3
+@why
+Versi persis atau berbatas membuat build bisa diulang, dan lock file membuatnya persis sama. Tanpa pin, rilis baru bisa mengubah perilaku saat kamu tidur.
+:::
 
 ## @lesson I/O konkuren, pemuatan database massal, integration testing, dan pola live-coding {optional}
 
@@ -562,6 +673,36 @@ def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> l
 >
 > **Seharusnya Anda melihat:** sekitar `10.0` detik untuk loop (40 × 0,25 detik), sekitar `1.25` detik dengan 8 worker (5 gelombang berisi 8), dan sekitar `2.2` detik dengan throttle: request ke-40 baru boleh mulai setelah 39 × 0,05 = 1,95 detik, berapa pun ukuran pool-nya, lalu butuh 0,25 detik. Begitu API punya batas laju, throttle-lah yang menentukan kecepatan, bukan pool. Diukur dengan Python 3.14.
 
+:::drill python Berapa lama 400 panggilan API?
+Setiap panggilan API menunggu `latency_ms` milidetik. Dengan `workers` panggilan berjalan bersamaan, panggilan berjalan dalam putaran. Tulis `seconds_needed(calls, latency_ms, workers)`: kembalikan total waktu dalam detik (sebuah angka).
+@starter
+import math
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("seconds_needed") ## Definisikan seconds_needed(calls, latency_ms, workers).
+seconds_needed(400, 250, 1) == 100 ## Satu per satu: 400 × 0,25 dtk = 100 dtk.
+seconds_needed(400, 250, 20) == 5 ## 20 sekaligus: 20 putaran × 0,25 dtk = 5 dtk.
+seconds_needed(3, 1000, 2) == 2 ## 3 panggilan pada 2 worker butuh 2 putaran 1 dtk.
+seconds_needed(0, 250, 5) == 0 ## Tanpa panggilan, tanpa waktu.
+@hint
+`rounds = math.ceil(calls / workers)`, lalu `rounds * latency_ms / 1000`.
+@solution
+import math
+def seconds_needed(calls, latency_ms, workers):
+    rounds = math.ceil(calls / workers)
+    return rounds * latency_ms / 1000
+:::
+
+:::ask 400 endpoint API harus diambil. Mengapa tidak memulai 400 thread sekaligus?
+@options
+* API akan menjawab 429, jadi batasi worker dan lajunya
+thread hanya bisa dimulai sepuluh sekaligus saja
+400 thread selalu lebih lambat daripada satu thread
+@why
+Thread membantu karena kerjanya kebanyakan menunggu, tetapi konkurensi tanpa batas memicu rate limit dan menghabiskan koneksi. Pool terbatas dengan pembatasan laju memberi sebagian besar percepatan dengan aman.
+:::
+
 ## @part Bekerja dalam tim
 
 ## @lesson Pre-commit hook, virtual environment, dan pull request tim data Agile {optional}
@@ -604,6 +745,15 @@ Begitu Anda menjalankan `pip install pre-commit && pre-commit install`, Git menj
 > 🛠 **Coba sendiri (5 menit, terminal).** Di dalam repositori Git mana pun, lihat isi folder `.git/hooks/`. Tanpa pustaka tambahan sekalipun, Anda dapat membuat skrip shell `.git/hooks/pre-commit` (baris pertama `#!/bin/sh`, lalu `chmod +x .git/hooks/pre-commit`) berisi `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Jangan commit file data!" && exit 1 || exit 0`. Coba `git add` sebuah file `.csv` bayangan lalu commit, kemudian lakukan hal yang sama dengan file `.txt`.
 >
 > **Seharusnya Anda melihat:** commit `.csv` berhenti: hook mencetak nama file dan `ERROR: Jangan commit file data!`, dan `echo $?` tepat setelah `git commit` menampilkan `1`. Commit `.txt` berhasil. Jika tidak terjadi apa-apa, periksa `chmod +x`: tanpanya Git melewati hook dan hanya mencetak `hint:` bahwa hook diabaikan karena tidak bisa dieksekusi. Diukur dengan Git 2.53.
+
+:::ask Apa yang perlu ada di deskripsi pull request seorang data engineer tetapi tidak dibutuhkan pengembang UI?
+@options
+tangkapan layar tombol yang sudah selesai dibuat
+* bukti data: grain, jumlah baris, dan cek sebelum/sesudah
+nama semua orang yang me-review kode itu tahun lalu
+@why
+Peninjau tidak bisa melihat data dari membaca kode. Deskripsi harus menyebut grain dan kontrak tabel, menunjukkan hitungan atau contoh keluaran, dan menjelaskan bagaimana perubahan dicek.
+:::
 
 ## @lab Lab: ETL tervalidasi, streaming, dan idempoten
 Bangun versi produksi dari job pembersihan di Modul 0.2. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.

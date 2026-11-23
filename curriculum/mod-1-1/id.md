@@ -57,6 +57,38 @@ Perintah proses yang berguna: `ps aux` (daftar proses), `top` atau `htop` (tampi
 >
 > **Seharusnya Anda melihat:** `0`, `1`, `2`, `1`, `7`; dan untuk skripnya `start` lalu exit code `1`. Hapus `set -e` dan jalankan lagi: baris terakhir kini ikut tercetak, dan exit code-nya menjadi `0`, sebuah kebohongan kepada setiap penjadwal.
 
+:::drill python Perintah mana yang jalan?
+Di shell, `a && b && c` menjalankan perintah berikutnya hanya jika yang sebelumnya **berhasil** (exit code 0). Tulis `commands_run(codes)`: `codes` adalah daftar exit code yang *akan* dikembalikan tiap perintah, berurutan. Kembalikan berapa banyak yang benar-benar dijalankan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("commands_run") ## Definisikan commands_run(codes).
+commands_run([0, 0, 0]) == 3 ## Semua berhasil: ketiganya jalan.
+commands_run([0, 1, 0]) == 2 ## Yang kedua jalan dan gagal; yang ketiga dilewati.
+commands_run([1, 0, 0]) == 1 ## Yang pertama gagal: tidak ada setelahnya yang jalan.
+commands_run([]) == 0 ## Tanpa perintah, tidak ada yang jalan.
+@hint
+Hitung perintah satu per satu. Setelah perintah yang kodenya bukan 0, berhenti.
+@solution
+def commands_run(codes):
+    ran = 0
+    for code in codes:
+        ran += 1
+        if code != 0:
+            break
+    return ran
+:::
+
+:::ask Sebuah skrip mencetak 'ERROR: file missing' lalu selesai normal dengan exit code 0. Apa kesimpulan cron atau sistem CI?
+@options
+* job berhasil, karena yang dihitung hanya exit code
+job gagal, karena kata ERROR dicetak oleh skrip
+tidak ada, karena ia abaikan teks dan kode
+@why
+Scheduler, CI, dan container membaca exit code, bukan teksnya. Skrip yang mencetak error lalu keluar 0 melaporkan sukses ke semua sistem di sekitarnya. Pakai exit code bukan nol saat ada yang salah.
+:::
+
 ## @lesson Perkakas pengolah teks
 Sebagian besar data di server datang sebagai teks. Alat-alat ini memungkinkan Anda memeriksa dan meringkasnya dalam hitungan detik, dan mereka **streaming**: memproses satu baris sekali waktu, sehingga pemakaian memori tetap datar bahkan pada file 50 GB. Pakai untuk eksplorasi dan untuk job sederhana yang tangguh.
 
@@ -94,6 +126,39 @@ Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `re
 > 4. Hitung event bertipe purchase: `grep -c "purchase" data/events.ndjson`
 > Data Anda sudah siap! Lanjut ke Pelajaran 3 untuk membedah data JSON dengan `jq`.
 
+:::drill python Jebakan uniq
+Perintah shell `uniq -c` hanya menggabungkan duplikat yang **bertetangga**. Tulis `uniq_c(lines)`: kembalikan daftar pasangan `(count, line)`, tiap pasangan adalah deretan baris identik yang berdampingan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("uniq_c") ## Definisikan uniq_c(lines).
+uniq_c(["a", "a", "b"]) == [(2, "a"), (1, "b")] ## Dua baris a yang bertetangga menjadi satu pasangan.
+uniq_c(["a", "b", "a"]) == [(1, "a"), (1, "b"), (1, "a")] ## Tidak bertetangga: a TIDAK digabung. Karena itu kamu `sort` dulu.
+uniq_c(sorted(["a", "b", "a"])) == [(2, "a"), (1, "b")] ## Setelah diurutkan, duplikat menjadi bertetangga.
+uniq_c([]) == [] ## Tidak ada masukan, tidak ada keluaran.
+@hint
+Telusuri baris-barisnya. Jika sebuah baris sama dengan sebelumnya, tambah 1 pada hitungan terakhir; jika tidak, mulai pasangan baru.
+@solution
+def uniq_c(lines):
+    out = []
+    for line in lines:
+        if out and out[-1][1] == line:
+            out[-1] = (out[-1][0] + 1, line)
+        else:
+            out.append((1, line))
+    return out
+:::
+
+:::ask Kamu menjalankan `cut -d, -f4 orders.csv | uniq -c` pada file tak terurut dan status yang sama muncul tiga kali. Mengapa?
+@options
+file berisi karakter tersembunyi di setiap barisnya
+* uniq hanya menggabung tetangga, jadi urutkan kolomnya dulu
+uniq hanya menghitung 100 baris pertama yang dilihat
+@why
+`uniq` membandingkan tiap baris dengan baris tepat sebelumnya. Nilai sama yang berjauhan tetap terpisah, jadi pipeline yang lazim adalah `sort | uniq -c`.
+:::
+
 ## @lesson jq: gagasan yang sama untuk JSON
 Event klik dan log biasanya berupa **NDJSON**: satu objek JSON per baris. `jq` adalah `awk` untuk JSON. Hal pokoknya:
 
@@ -123,6 +188,43 @@ Kapan berhenti memakai alat shell? Ketika logikanya butuh percabangan, state, re
 > 1. Ambil event_id dan event_type ringkas: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
 > 2. Uji parsing defensif yang menahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
 > Perhatikan bagaimana baris buruk diabaikan tanpa membuat proses crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
+
+:::drill python Lewati baris yang rusak
+Sebuah file event berisi satu objek JSON per baris, dan sebagian baris terpotong. `jq 'fromjson?'` melewati yang rusak. Tulis `good_events(lines)`: kembalikan daftar objek hasil parse (dictionary) dari setiap baris yang JSON-nya valid **dan** berupa objek. Lewati yang lain tanpa melempar error.
+@starter
+import json
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("good_events") ## Definisikan good_events(lines).
+good_events(['{"a": 1}', '{"a":', '{"b": 2}']) == [{"a": 1}, {"b": 2}] ## Baris yang terpotong dilewati.
+good_events(["5", '"text"', "[1]"]) == [] ## JSON valid, tetapi bukan objek: dilewati juga.
+good_events([]) == [] ## Tanpa baris, tanpa event.
+good_events(["", '{"x": null}']) == [{"x": None}] ## Baris kosong dilewati; null di dalam objek tidak masalah.
+@hint
+`try: obj = json.loads(line)` dan `except json.JSONDecodeError: continue`; simpan hanya jika `isinstance(obj, dict)`.
+@solution
+import json
+def good_events(lines):
+    out = []
+    for line in lines:
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+:::
+
+:::ask Kapan sebaiknya berhenti menulis pipeline shell dan pindah ke Python?
+@options
+begitu pipeline punya lebih dari dua tahap saja
+tidak pernah, karena alat shell selalu lebih cepat
+* saat butuh percabangan, state, retry, atau unit test
+@why
+Pipeline lima tahap itu menyenangkan, tetapi logika dengan cabang, ingatan antar baris, retry, atau tes sebaiknya ada di kode yang bisa diuji. Skrip Bash 300 baris adalah beban.
+:::
 
 ## @lesson Menulis skrip yang gagal dengan jelas
 Skrip hanyalah perintah dalam sebuah file. Baris pertama, **shebang**, menyebut interpreternya: `#!/usr/bin/env bash`. Jalankan dengan `bash script.sh`, atau `chmod +x script.sh && ./script.sh`.
@@ -213,6 +315,15 @@ Poin terakhir itulah alasan pipeline sungguhan pindah ke **orchestrator** sepert
 >
 > **Seharusnya Anda melihat:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` di environment kosong (shell Anda punya keduanya); dan `1` dari `flock` kedua tanpa `second` tercetak: kuncinya sedang dipegang, jadi salinan yang tumpang tindih menolak berjalan.
 
+:::ask Apa yang dilakukan baris cron `*/15 * * * * /opt/kopiku/check_inbox.sh`?
+@options
+* menjalankan skrip tiap 15 menit, sepanjang hari, setiap hari
+menjalankan skrip sekali, pada menit ke-15 lewat tengah malam
+menjalankan skrip 15 kali sehari pada jam acak
+@why
+Lima field-nya adalah menit, jam, tanggal, bulan, hari dalam seminggu. `*/15` pada field menit berarti tiap menit ke-15, dan bintang berarti setiap jam dan setiap hari.
+:::
+
 ## @lesson Container: lingkungan yang sama di mana-mana
 "Di mesin saya jalan" adalah masalah tertua dalam perangkat lunak. Job Anda bergantung pada versi Python tertentu, library, paket sistem, dan tata letak file; server punya yang berbeda. **Container** mengemas aplikasi bersama semua yang dibutuhkannya untuk berjalan, terisolasi dari host, sehingga berperilaku sama di laptop Anda, di CI, dan di produksi.
 
@@ -265,6 +376,24 @@ Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar 
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
 > Jika semua tes Dockerfile PASSED, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
 
+:::ask Kamu memulai tiga container dari image yang sama. Berapa image yang ada?
+@options
+tiga: setiap container punya image sendiri-sendiri
+* satu: container hanya salinan berjalannya
+nol, karena image hilang begitu ia dijalankan
+@why
+Image adalah templat read-only yang dibangun sekali dari Dockerfile. Container adalah instans yang berjalan (atau berhenti) darinya, dan kamu bisa memulai sebanyak yang kamu mau dari image yang sama.
+:::
+
+:::ask Mengapa tim mengemas job dalam container, bukan sekadar menyalin skrip ke server?
+@options
+container membuat kodenya sendiri berjalan jauh lebih cepat
+container berarti tidak ada server yang dibutuhkan lagi
+* job membawa Python dan library-nya sendiri
+@why
+Container mengemas aplikasi beserta semua kebutuhannya, terisolasi dari host. Itu mengakhiri 'di komputerku jalan': laptop, uji, dan produksi memakai lingkungan yang sama.
+:::
+
 ## @lesson Batas sumber daya dan job yang mati dengan kode 137
 Container bisa diberi batas: `docker run --memory 512m --cpus 1 ...`, atau di konfigurasi orchestrator. Jika sebuah proses di container memakai memori melebihi batasnya, **OOM killer** kernel Linux mematikannya dengan SIGKILL. Anda melihat exit code **137** dan, di `docker inspect`, `"OOMKilled": true`. Tidak ada traceback Python, karena proses tidak sempat mencetaknya: dari dalam ia hanya lenyap, itulah sebabnya kegagalan ini membingungkan pemula.
 
@@ -292,6 +421,15 @@ Batas terkait yang perlu dipantau: **disk** (disk penuh membuat penulisan gagal 
 > 2. Bandingkan memori. Di Python, tulis dua fungsi yang menjumlahkan total yang valid dari `data/orders.csv`: satu membaca seluruh file ke list dulu (`list(csv.reader(...))`), yang lain menjumlahkan baris demi baris. Bungkus setiap pemanggilan dengan `tracemalloc` (`tracemalloc.start()` sebelumnya, `tracemalloc.get_traced_memory()[1]` sesudahnya, lalu `tracemalloc.stop()`) dan cetak puncaknya dalam KiB.
 >
 > **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dibanding sekitar 50 KiB untuk versi streaming (kira-kira 30 kali lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
+
+:::ask Sebuah container yang menjalankan job pandas berhenti dengan exit code 137 tanpa pesan error Python. Apa yang paling mungkin terjadi?
+@options
+* melebihi batas memorinya dan kernel mematikannya
+kode Python punya syntax error di baris terakhirnya
+ekspresi jadwalnya ditulis dengan cara yang salah
+@why
+137 adalah 128 + 9: proses menerima SIGKILL. Saat container melewati batas memori, OOM killer melakukannya, sehingga tidak ada traceback. Proses dalam chunk atau stream agar memori tetap datar.
+:::
 
 ## @lab Lab: laporan shell dan container untuk job KopiKu
 Bagian A: tulis skrip shell yang tangguh untuk meringkas file event website, yang berisi baris rusak dan duplikat. Bagian B: kemas job Python kecil menjadi image Docker yang baik. Keduanya diperiksa otomatis.

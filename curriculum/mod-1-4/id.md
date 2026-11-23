@@ -62,6 +62,15 @@ Tingkat fisik berbeda antar-engine lebih jauh daripada yang dikira kebanyakan or
 >
 > **Seharusnya Anda melihat:** dengan constraint, **8** baris tersimpan dan 3 ditolak: `FOREIGN KEY constraint failed` (pesanan 102 untuk pelanggan yang tidak ada), `UNIQUE constraint failed: order_items.order_id, order_items.product_id` (produk yang sama dua kali dalam satu pesanan), dan `CHECK constraint failed: qty > 0`. Tanpa `PRAGMA`, **9** tersimpan: SQLite tidak menegakkan foreign key kecuali Anda menyalakannya, jadi pesanan yatim itu masuk diam-diam. Tanpa constraint, kesebelasnya tersimpan, dan itulah keadaan normal di warehouse. Diukur dengan SQLite 3.46; versi lama memakai kata-kata pesan yang sedikit berbeda.
 
+:::ask Apa yang membuat star schema lebih mudah bagi analis dibanding database aplikasi yang ternormalisasi?
+@options
+ia menyimpan tiap fakta di banyak tabel kecil untuk hemat ruang
+ia menghilangkan kebutuhan menulis JOIN sama sekali
+* satu tabel fakta dengan beberapa dimensi kecil
+@why
+Sebuah pertanyaan menjadi satu tabel fakta plus beberapa dimensi, dengan definisi yang sama bagi setiap analis: lebih sedikit join, lebih sedikit kesalahan, dan dua dasbor yang sepakat.
+:::
+
 ## @lesson Grain: kalimat paling krusial dalam pemodelan data
 **Grain** adalah satu kalimat tunggal yang mendefinisikan apa makna tepat dari satu baris di dalam tabel fakta. Untuk KopiKu: *"satu baris mewakili satu item dalam pesanan: satu produk, dalam satu pesanan, pada satu harga tertentu."* Segala keputusan teknis selanjutnya diturunkan dari kalimat ini.
 
@@ -378,6 +387,15 @@ Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh 
 > `python3 labs/mod-1-4/test_lab.py -v`
 > Ketika ke-13 unit test berstatus PASSED (OK), star schema KopiKu Anda telah memenuhi standar enterprise!
 
+:::ask Tes grain pada tabel fakta ber-grain 'satu baris per item pesanan' memeriksa apa?
+@options
+* bahwa kunci alami unik dan jumlah barisnya cocok
+bahwa setiap kolom berisi setidaknya satu NULL
+bahwa dimensi punya lebih banyak baris daripada fakta
+@why
+Mencampur grain adalah bug pemodelan paling umum. Jika kunci alami tidak unik atau jumlahnya berbeda dari sumber, baris terduplikasi atau hilang, dan setiap penjumlahan menjadi salah.
+:::
+
 ## @lesson Cara lain memodelkan: Inmon, Data Vault, dan satu tabel besar
 > **Intinya:** Star schema bukan satu-satunya desain. **Inmon** menyimpan warehouse ternormalisasi untuk seluruh perusahaan lalu membangun star schema darinya. **Data Vault** memecah data menjadi hub, link, dan satellite agar banyak sumber yang terus berubah bisa dimuat paralel dan setiap nilai lama tetap tersimpan. **Satu tabel besar** (one big table) menggabungkan semuanya di awal demi kecepatan. Masing-masing menyelesaikan masalah yang berbeda, dan perusahaan besar sering memadukannya.
 
@@ -413,6 +431,35 @@ hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: sidik jari atribut
 > `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
 > Hash persis seperti kode di atas: business key di-trim dan dijadikan huruf besar; key link adalah `CUSTOMER|ORDER`; `hash_diff` adalah `CITY|TIER`, keduanya di-trim dan dijadikan huruf besar. Pikirkan arti "pertama kali terlihat" saat event datang tidak berurutan, dan apa yang harus ditinggalkan di satellite oleh pelanggan yang pindah ke Bandung lalu kembali ke Jakarta.
 > **Periksa:** `python3 labs/tryit/check.py 1.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
+
+:::drill python Kunci sama, hash sama
+Sebuah hub Data Vault dikunci oleh hash dari **business key**. Kunci harus menghasilkan hash yang sama bagaimanapun cara mengetiknya. Tulis `dv_hash(text)`: hapus spasi di kedua ujung, ubah teks menjadi huruf besar, lalu kembalikan hash SHA-256 sebagai string heksadesimal 64 karakter.
+@starter
+import hashlib
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("dv_hash") ## Definisikan dv_hash(text).
+dv_hash("c-001") == dv_hash("  C-001 ") ## Huruf besar-kecil dan spasi di ujung tidak mengubah hash.
+dv_hash("c-001") != dv_hash("c-002") ## Kunci berbeda menghasilkan hash berbeda.
+len(dv_hash("c-001")) == 64 ## SHA-256 dalam heksa adalah 64 karakter.
+dv_hash("c-001") == hashlib.sha256(b"C-001").hexdigest() ## Itu adalah SHA-256 dari teks bersih "C-001".
+@hint
+`hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()`
+@solution
+import hashlib
+def dv_hash(text):
+    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
+:::
+
+:::ask Apa isi tabel hub di Data Vault?
+@options
+semua atribut deskriptif milik pelanggan tersebut
+* hanya business key, hash-nya, waktu muat, dan sumbernya
+hubungan banyak-ke-banyak antara dua tabel
+@why
+Hub sengaja dibuat tipis: business key, hash key, kapan pertama terlihat, dan asalnya. Deskripsi ada di satellite dan hubungan ada di link.
+:::
 
 ## @part Memakai model: dashboard
 
@@ -452,6 +499,37 @@ Buka `http://localhost:3001`, buat akun admin, lalu pakai **Add your data** (ata
 
 :::advanced Model yang sama di Power BI (tidak dijalankan kursus: butuh Windows)
 Di Power BI Desktop langkah-langkahnya punya nama lain. **Get data** memuat tabel (misalnya keempat tabel yang diekspor ke CSV, masing-masing satu `SELECT *`). **Model view** adalah tempat Anda menggambar relasi, dari kunci setiap dimensi ke kunci yang cocok di tabel fakta (satu ke banyak). **Measure** ditulis dalam DAX, misalnya `Revenue = SUM(fact_order_items[line_total_idr])` dan `Avg order value = DIVIDE([Revenue], DISTINCTCOUNT(fact_order_items[order_id]))`; `DIVIDE` mengembalikan kosong, bukan error, ketika pembaginya nol. Panduan pemodelan Microsoft sendiri adalah star schema dari modul ini: ia menyarankan setiap tabel model menjadi tabel dimensi atau tabel fakta dan menulis "avoid mixing the two types together for a single table". Aturan grain, riwayat, dan rekonsiliasi di atas berlaku tanpa perubahan.
+:::
+
+:::drill python Nilai pesanan rata-rata pada grain yang benar
+Tabel fakta punya satu baris per **item** pesanan: tiap item adalah `(order_id, amount)`. "Nilai pesanan rata-rata" adalah total pendapatan dibagi jumlah **pesanan**, bukan jumlah item. Tulis `avg_order_value(lines)`; untuk daftar kosong kembalikan `0`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("avg_order_value") ## Definisikan avg_order_value(lines).
+avg_order_value([("o1", 10), ("o1", 20), ("o2", 30)]) == 30 ## Total 60 atas 2 pesanan (bukan 3 item): 30.
+avg_order_value([("o1", 50)]) == 50 ## Satu pesanan, satu item.
+avg_order_value([("a", 10), ("b", 10), ("c", 10), ("c", 10)]) == 40 / 3 ## 40 atas 3 pesanan.
+avg_order_value([]) == 0 ## Tidak ada yang dirata-ratakan.
+@hint
+`sum(amount for _, amount in lines)` dibagi jumlah id pesanan yang berbeda (`len({o for o, _ in lines})`).
+@solution
+def avg_order_value(lines):
+    if not lines:
+        return 0
+    total = sum(amount for _, amount in lines)
+    orders = len({order_id for order_id, _ in lines})
+    return total / orders
+:::
+
+:::ask Sebuah dasbor menampilkan 'nilai pesanan rata-rata' yang dihitung sebagai rata-rata `line_total_idr` pada fakta item pesanan. Apa yang salah?
+@options
+tidak ada: item dan pesanan adalah hal yang sama
+seharusnya memakai tabel dimensi sebagai gantinya
+* ia merata-ratakan item, bukan pesanan: terlalu kecil
+@why
+Fakta punya satu baris per item pesanan. Nilai pesanan rata-rata adalah pendapatan dibagi jumlah pesanan; merata-ratakan total item menghasilkan item rata-rata, yang lebih rendah saat pesanan punya beberapa item.
 :::
 
 ## @lab Lab: membangun star schema KopiKu

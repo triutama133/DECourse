@@ -38,6 +38,15 @@ ACID (transaksi atomik, konsisten, terisolasi, tahan lama) adalah janji relasion
 >
 > *Bandingkan:* (a) key-value (latensi), (b) dokumen (bentuk data), (c) time-series atau wide-column (volume tulis), (d) graf, (e) mesin pencari, (f) relasional (kebenaran). Lalu tulis satu kalimat tentang apa yang Anda korbankan saat meninggalkan SQL untuk (a).
 
+:::ask Saat terjadi partisi jaringan, database terdistribusi harus memilih. Apa dua pilihan dalam teorema CAP?
+@options
+kecepatan atau harga, tergantung penyedia cloud
+* konsistensi (menolak) atau ketersediaan (mungkin basi)
+membaca atau menulis, tetapi tidak pernah keduanya
+@why
+Saat mesin tidak bisa saling berkomunikasi, sistem menolak permintaan yang mungkin mengembalikan data basi (konsistensi) atau menjawab dengan apa yang ia punya (ketersediaan). Keduanya tidak gratis.
+:::
+
 ## @lesson Key-value store: database paling sederhana
 Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah sebuah **key** dan **get** kembali lewat key itu. Itu saja. Tampaknya terlalu sederhana untuk berguna, tetapi justru itu yang membuatnya sangat cepat: tidak ada yang perlu direncanakan, diurai, atau di-join. Contoh: **Redis**, Memcached, dan DynamoDB dalam bentuk paling sederhananya.
 
@@ -150,6 +159,15 @@ Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "t
 > `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
 > 5. Pastikan ke-9 pengujian lulus (`9 passed`). Perhatikan bagaimana pembuatan index memangkas jumlah dokumen yang dipindai dari ribuan menjadi hanya yang cocok.
 
+:::ask Sebuah pesanan dan item-itemnya selalu dibaca bersamaan. Di database dokumen, bagaimana sebaiknya menyimpannya?
+@options
+taruh tiap item di koleksinya sendiri dan join belakangan
+simpan hanya tautan dan ambil item dari sebuah CSV
+* sematkan item di dalam pesanan: sekali baca, tanpa join
+@why
+Sematkan data yang milik induk dan dibaca bersamanya. Referensikan (simpan id) data yang dibagi atau tumbuh tanpa batas, seperti daftar komentar yang tidak terbatas.
+:::
+
 ## @lesson Wide-column dan store berpartisi: skala sejak desain
 Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data ke **banyak mesin** dan tetap bekerja saat sebagian gagal. Meski bernama "wide-column", cara terbaik memahaminya adalah lewat **primary key**, yang punya dua bagian:
 
@@ -259,6 +277,15 @@ Pelajaran untuk disimpan: sebuah keluarga database adalah kumpulan **optimasi un
 >
 > **Seharusnya Anda melihat:** `dark` menghasilkan posisi `[1, 4]` (Toraja Dark dan Mandheling Dark), `dark` dan `250g` bersama-sama menghasilkan dua yang sama, dan jalur `['budi', 'siti', 'dewi', 'rina']`. Dalam sekitar 15 baris, Anda sudah membangun inti sebuah mesin pencari dan penelusuran graf.
 
+:::ask Pertanyaan mana yang cocok untuk database graf?
+@options
+* teman dari teman dari teman: lompatan demi lompatan
+total penjualan tiap bulan selama setahun terakhir
+teks persis dari satu halaman web yang tersimpan
+@why
+Database graf menjadikan penelusuran relasi sebagai operasi yang cepat. Di SQL setiap lompatan tambahan butuh self-join lagi dan cepat melambat. Total bulanan adalah kerja analitik, dan halaman tersimpan adalah dokumen.
+:::
+
 ## @lesson Memilih, dan apa yang dilakukan data engineer dengannya
 Panduan keputusan singkat, didorong oleh cara data dibaca:
 
@@ -291,6 +318,33 @@ Kini Anda bisa menjawab pertanyaan yang lazim: "Mengapa tidak MongoDB untuk semu
 > 2. Pastikan ke-36 pengujian lulus sempurna tanpa kesalahan (`36 passed`).
 > 3. Hasilkan kode bukti resmi untuk disalin ke portal pembelajaran dengan menjalankan perintah:
 > `python3 scripts/prove.py mod-1-7`
+
+:::drill python Apakah pembacaan melihat tulisan terbaru?
+Sebuah kunci disimpan di `n` replika. Sebuah penulisan menunggu `w` di antaranya; sebuah pembacaan menanyakan `r` di antaranya. Pembacaan dijamin beririsan dengan penulisan terbaru hanya jika `r + w > n`. Tulis `reads_see_latest(n, r, w)`: kembalikan `True` atau `False`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("reads_see_latest") ## Definisikan reads_see_latest(n, r, w).
+reads_see_latest(3, 2, 2) == True ## 2 + 2 > 3: pembacaan dan penulisan pasti berbagi satu replika.
+reads_see_latest(3, 1, 1) == False ## 1 + 1 tidak lebih dari 3: pembacaan bisa melewatkan penulisan.
+reads_see_latest(5, 3, 3) == True ## 6 > 5.
+reads_see_latest(3, 1, 3) == True ## Menulis ke semua replika: satu pembacaan pun aman.
+@hint
+`return r + w > n`
+@solution
+def reads_see_latest(n, r, w):
+    return r + w > n
+:::
+
+:::ask Analis ingin menjalankan laporan besar pada MongoDB produksi yang melayani aplikasi. Apa yang sebaiknya dilakukan data engineer?
+@options
+membiarkan mereka menjalankan laporan langsung pada malam hari
+* menyalin data ke penyimpanan analitik, memakai change feed
+memberi mereka password root agar cepat
+@why
+Pemindaian atas penyimpanan operasional produksi bersaing dengan pelanggan dan sering kena timeout. Ekstrak secara inkremental dari change feed sistem dan biarkan analis menanyai salinannya.
+:::
 
 ## @lab Lab: lima gagasan database dalam Python murni
 Bangun lima model kecil yang deterministik: **key-value store** dengan TTL dan eviction LRU, **document store** dengan query dan index, **cincin consistent hashing**, **replikasi quorum**, dan **tabel wide-column**. Tesnya (36) memeriksa setiap perilaku yang dijelaskan pelajaran, termasuk angkanya: index yang memangkas pemindaian dari 10.000 dokumen menjadi 10, modulo hashing yang memindahkan 79,5% key dibanding 19,9% untuk cincin, dan aturan quorum.

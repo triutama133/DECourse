@@ -62,6 +62,15 @@ The physical level differs more between engines than most people expect. An appl
 >
 > **You should see:** with constraints, **8** rows stored and 3 refused: `FOREIGN KEY constraint failed` (order 102 for a customer who does not exist), `UNIQUE constraint failed: order_items.order_id, order_items.product_id` (the same product twice in one order) and `CHECK constraint failed: qty > 0`. Without the `PRAGMA`, **9** are stored: SQLite does not enforce foreign keys unless you switch them on, so the orphan order slips in silently. With no constraints, all **11** are stored, which is the normal situation in a warehouse. Measured with SQLite 3.46; older versions word the messages slightly differently.
 
+:::ask What makes a star schema easier for analysts than the normalised application database?
+@options
+it stores each fact in many tiny tables to save space
+it removes the need to ever write a JOIN
+* a fact table with a few small dimensions
+@why
+A question becomes a fact table plus a few dimensions, with the same definitions for every analyst: fewer joins, fewer mistakes, and two dashboards that agree.
+:::
+
 ## @lesson The grain: the most important sentence in the model
 The **grain** is a single sentence that says what one row of a fact table means. For KopiKu: *"one row per order line: one product, in one order, at one price."* Everything else follows from it.
 
@@ -378,6 +387,15 @@ Common mistakes to avoid: mixing grains; putting descriptive text in the fact ta
 > `python3 labs/mod-1-4/test_lab.py -v`
 > When all 13 unit tests show PASSED (OK), your KopiKu star schema meets enterprise standards!
 
+:::ask A grain test on a fact table whose grain is 'one row per order line' checks what?
+@options
+* that the natural key is unique and counts match
+that every column contains at least one NULL
+that dimensions have more rows than the fact
+@why
+Mixing grains is the most common modelling bug. If the natural key is not unique or the counts differ from the source, rows were duplicated or lost, and every sum is wrong.
+:::
+
 ## @lesson Other ways to model: Inmon, Data Vault and one big table
 > **In short:** The star schema is not the only design. **Inmon** keeps a normalised company-wide warehouse and builds star schemas from it. **Data Vault** splits data into hubs, links and satellites so that many changing sources can be loaded in parallel and every past value is kept. **One big table** joins everything in advance for speed. Each solves a different problem, and large companies often combine them.
 
@@ -413,6 +431,35 @@ hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: a fingerprint of the attr
 > `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
 > Hash exactly as in the code above: business keys trimmed and upper-cased; the link key is `CUSTOMER|ORDER`; `hash_diff` is `CITY|TIER`, both trimmed and upper-cased. Think about what "first seen" means when events arrive out of order, and what a customer who moves to Bandung and later back to Jakarta should leave in the satellite.
 > Check it: `python3 labs/tryit/check.py 1.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
+
+:::drill python The same key, the same hash
+A Data Vault hub is keyed by a hash of the **business key**. The key must hash to the same value however it was typed. Write `dv_hash(text)`: remove spaces at both ends, make the text upper case, then return the SHA-256 hash as a 64-character hexadecimal string.
+@starter
+import hashlib
+# write your function below this line
+
+@check
+defines("dv_hash") ## Define dv_hash(text).
+dv_hash("c-001") == dv_hash("  C-001 ") ## Case and surrounding spaces do not change the hash.
+dv_hash("c-001") != dv_hash("c-002") ## A different key gives a different hash.
+len(dv_hash("c-001")) == 64 ## SHA-256 in hex is 64 characters.
+dv_hash("c-001") == hashlib.sha256(b"C-001").hexdigest() ## It is the SHA-256 of the cleaned text "C-001".
+@hint
+`hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()`
+@solution
+import hashlib
+def dv_hash(text):
+    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
+:::
+
+:::ask What does a Data Vault hub table hold?
+@options
+all the descriptive attributes of the customer
+* just the business key, a hash, a time, a source
+a many-to-many relationship between two tables
+@why
+A hub is kept deliberately thin: the business key, a hash key, when it was first seen and where it came from. Descriptions live in satellites and relationships in links.
+:::
 
 ## @part Using the model: dashboards
 
@@ -452,6 +499,37 @@ Open `http://localhost:3001`, create the admin account, then use **Add your data
 
 :::advanced The same model in Power BI (not run by the course: it needs Windows)
 In Power BI Desktop the steps have different names. **Get data** loads the tables (for example the four tables exported to CSV, one `SELECT *` each). **Model view** is where you draw the relationships, from each dimension's key to the matching key in the fact table (one to many). **Measures** are written in DAX, for example `Revenue = SUM(fact_order_items[line_total_idr])` and `Avg order value = DIVIDE([Revenue], DISTINCTCOUNT(fact_order_items[order_id]))`; `DIVIDE` returns blank instead of an error when the divisor is zero. Microsoft's own modelling guidance is the star schema from this module: it recommends that each model table is either a dimension table or a fact table and says to "avoid mixing the two types together for a single table". The grain, history and reconciliation rules above apply unchanged.
+:::
+
+:::drill python Average order value at the right grain
+The fact table has one row per order **line**: each line is `(order_id, amount)`. "Average order value" is the total revenue divided by the number of **orders**, not lines. Write `avg_order_value(lines)`; for an empty list return `0`.
+@starter
+# write your function below this line
+
+@check
+defines("avg_order_value") ## Define avg_order_value(lines).
+avg_order_value([("o1", 10), ("o1", 20), ("o2", 30)]) == 30 ## 60 in total over 2 orders (not 3 lines): 30.
+avg_order_value([("o1", 50)]) == 50 ## One order, one line.
+avg_order_value([("a", 10), ("b", 10), ("c", 10), ("c", 10)]) == 40 / 3 ## 40 over 3 orders.
+avg_order_value([]) == 0 ## Nothing to average.
+@hint
+`sum(amount for _, amount in lines)` divided by the number of distinct order ids (`len({o for o, _ in lines})`).
+@solution
+def avg_order_value(lines):
+    if not lines:
+        return 0
+    total = sum(amount for _, amount in lines)
+    orders = len({order_id for order_id, _ in lines})
+    return total / orders
+:::
+
+:::ask A dashboard shows 'average order value' computed as the average of `line_total_idr` on the order-line fact table. What is wrong?
+@options
+nothing: lines and orders are the same thing
+it should have used the dimension table instead
+* it averages lines, not orders: too small
+@why
+The fact has one row per order line. Average order value is revenue divided by the number of orders; averaging line totals gives the average line, which is lower whenever orders have several lines.
 :::
 
 ## @lab Lab: build the KopiKu star schema

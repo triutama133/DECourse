@@ -770,6 +770,15 @@ The sandbox practice challenges **k-16 to k-23** (text, number, date functions a
 >
 > **You should see:** `3` against `3.5`; `1` against `False`; NULL first against NULL last; an arbitrary row `(1, 2)` against a `Binder Error`. Four silent differences in four lines: which one would have fooled you?
 
+:::ask A report sorts customers by `city`, which has some NULLs. You move the query from SQLite to PostgreSQL. What happens?
+@options
+PostgreSQL refuses to sort a column that has NULLs
+nothing changes: every engine sorts NULLs the same way
+* the NULL rows move from the top to the bottom, with no error
+@why
+SQLite puts NULLs first in ascending order; PostgreSQL, DuckDB and the warehouses put them last. The query runs in both and the order silently differs, so write NULLS FIRST or NULLS LAST when order matters.
+:::
+
 ## @lesson Subtotals and grand totals: GROUPING SETS, ROLLUP and CUBE
 A report often needs detail rows, subtotals and a grand total in one table. With a plain `GROUP BY` that takes one query per level, glued together with `UNION ALL` (challenge k-29 does it for a single total row). SQL has an extension of `GROUP BY` that computes several groupings in **one pass** over the data:
 
@@ -810,6 +819,24 @@ GROUP BY ROLLUP (tier, city);
 >
 > **Check it:** `python3 labs/tryit/check.py 1.3-9 ~/practice` (your `rollup.py` in `~/practice`). It runs your three queries on the KopiKu data and on a changed copy with a new city, a customer with no city and an order with no payment method, so a query that only works on today's data fails.
 
+:::ask `GROUP BY ROLLUP (tier, city)` returns which groupings?
+@options
+* (tier, city), then (tier), then the grand total
+(tier, city) and (city) only, with no total
+every possible combination, like CUBE
+@why
+ROLLUP is the hierarchy detail, subtotal, total. For (a, b) that is (a, b), (a) and (). CUBE would add (b) as well, and GROUPING SETS lets you list exactly the groupings you want.
+:::
+
+:::ask In a ROLLUP result a row has NULL in `city`. How do you tell a subtotal row from a customer whose city is really missing?
+@options
+test city IS NULL: it matches only subtotals
+* use GROUPING(city): 1 means a rolled-up placeholder
+count the NULLs and assume the first one is real
+@why
+Real NULLs and rollup placeholders both show NULL. `GROUPING(column)` returns 1 for a placeholder and 0 when the column took part in the grouping. `IS NULL` matches both kinds.
+:::
+
 ## @lesson JSON inside SQL: reading and building semi-structured data
 APIs, event trackers and application databases store JSON: a text (or JSON) column where each row has its own shape. You do not have to leave SQL to use it: SQLite, PostgreSQL and DuckDB all read and build JSON. The SQL Sandbox has a dataset for this, `app_events`: seven app events, each with a `payload` such as `{"user": {"id": 7, "plan": "pro"}, "action": "checkout", "items": [{"sku": "A1", "qty": 2, "price": 50000}], "device": "ios"}`.
 
@@ -849,6 +876,15 @@ Two differences deserve a second look. `qty * price` works in SQLite because `->
 > 🛠 **Try it (25 min, SQL Sandbox with the app_events dataset).** Choose the dataset *App events (JSON payloads)* and solve **j-1** (pull `user.id` and `user.plan` out of the payload), **j-2** (events per device, with a missing device shown as `unknown`), **j-3** (one row per item with its line total) and **j-4** (revenue per plan). For j-3, first use a plain join and then a `LEFT JOIN`, and count the rows each version returns. Then, in the editor, try `SELECT payload ->> '$.user.id' FROM events` and `SELECT payload ->> '$.user.plan' FROM events` and compare the column types.
 >
 > **You should see:** j-1 returns 7 rows with a NULL plan for event 6; j-2 returns android 2, ios 2, unknown 2, web 1; j-3 returns 4 rows (events 1, 1, 3 and 7), because events 2, 4, 5 and 6 have no items; j-4 returns free 50000 and pro 310000. The plain join gives 4 rows for j-3 and the `LEFT JOIN` gives 8: the same 4 plus one row with empty values for each of events 2, 4, 5 and 6.
+
+:::ask You count events with `FROM events e, json_each(e.payload, '$.items')` and some events vanish from the result. Why?
+@options
+json_each deletes rows that it has already read
+events with items are counted twice by definition
+* an event with an empty array gives zero rows
+@why
+A plain join with json_each yields one row per array element, so an event with no items has nothing to join to and disappears. Use a LEFT JOIN when you are counting events rather than line items.
+:::
 
 ## @part Performance and interviews
 
@@ -904,6 +940,15 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 > 🛠 **Try it (20 min, Python with `sqlite3`).** Build a test table: 2,000 customers and 300,000 orders with random `order_ts` between 2025-07-01 and 2026-06-30 (ISO text), random statuses (`paid` three times as likely as `cancelled` or `refunded`) and amounts, and create the index `(status, order_ts, customer_id)` before running `ANALYZE`. Run `EXPLAIN QUERY PLAN` on the slow and fast queries above and find the line for `orders` in each. Then time both and check that they return the same total.
 >
 > **You should see:** the slow plan reads `CORRELATED SCALAR SUBQUERY` and `SCAN o`: a full scan of the orders for each of the 2,000 customers, because the functions on `order_ts` and `status` hide the columns from the index. The fast plan reads `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Both return the same total (`3192691000` on the data measured here, `random.seed(7)`), in about `31` to `33` seconds versus `18` to `19` ms. Your numbers will differ a little with your own random data; the gap will not. Measured with SQLite 3.46.
+
+:::ask Which WHERE clause lets the database use an index on `order_date`?
+@options
+* order_date >= '2026-01-01' AND order_date < '2027-01-01'
+strftime('%Y', order_date) = '2026'
+substr(order_date, 1, 4) = '2026'
+@why
+A predicate is sargable when the engine can seek in the index directly. A function wrapped around the column forces it to compute the function for every row. A plain range on the bare column keeps the index usable.
+:::
 
 ## @part SQL Server and T-SQL
 
@@ -963,6 +1008,15 @@ END;
 > 🛠 **Try it (30 min, Docker and `sqlcmd`).** Start SQL Server as above and copy the data in: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Create a database `kopiku` and a table `raw_orders` with the six columns of the file, all `NVARCHAR(50)`, and load it with `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Count the rows whose `total_idr` is all digits (`NOT LIKE '%[^0-9]%'`) and whose `order_ts` converts with style 126. If the answer surprises you, find out why before going on. Then create `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, finish the procedure above for orders that are not cancelled, and run it for 10, 11 and 12 January, twice. Finally, try `LIMIT` and `QUALIFY` on `raw_orders`.
 >
 > **You should see:** `3634` rows loaded, but `0` clean ones: the file ends its lines with `\r\n`, so every `total_idr` kept an invisible `\r` and no total is "all digits". Add `ROWTERMINATOR = '0x0d0a'`, reload, and you get `3539`. Style 126 reads `3593` timestamps and style 103 the other `41`. After both runs `daily_revenue` has `3` days and `100360000` (`109`, `108` and `93` orders): running twice changed nothing. `LIMIT 3` fails with `Incorrect syntax near '3'`, `QUALIFY` with `Incorrect syntax near 'ROW_NUMBER'`. Measured on SQL Server 2025 (17.0) in Docker. Stop it afterwards with `docker rm -f mssql`; the image stays until you `docker rmi` it.
+
+:::ask In SQL Server with its default collation, `WHERE status <> 'cancelled'` is run on rows holding 'Cancelled' and 'CANCELLED'. What happens?
+@options
+both are kept, because the text is not an exact match
+* both are excluded: the collation ignores case
+the query fails with a collation error
+@why
+SQL Server's default collation is case-insensitive (CI), so 'cancelled', 'Cancelled' and 'CANCELLED' are all equal. PostgreSQL and DuckDB compare case-sensitively, so the same query counts differently there.
+:::
 
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.

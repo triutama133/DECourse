@@ -103,6 +103,36 @@ You will write classes like these: a `Checkpoint` that remembers where a run sto
 >
 > **You should see:** `2`, `1`, `1` and `0`: each tally keeps its own counts. If you write `counts = {}` without `self.` in `__init__`, the first `add` stops with `AttributeError: 'OrderTally' object has no attribute 'counts'`; add `self.` and it works.
 
+:::drill python The pure function at the heart of a job
+Write `parse_total(raw)`: `raw` is text from a CSV. It may be `"150000"` or `"Rp 1.250.000"` (dots are thousands separators). Return the amount as an `int`. When the text is not an amount (for example `"abc"` or an empty string), return `None` instead of raising an error.
+@starter
+# write your function below this line
+
+@check
+defines("parse_total") ## Define parse_total(raw).
+parse_total("150000") == 150000 ## Plain digits become an int.
+parse_total("Rp 1.250.000") == 1250000 ## The prefix and the dots are removed.
+parse_total("abc") is None ## Not an amount: None, no crash.
+parse_total("") is None ## Empty text is not an amount either.
+@hint
+Remove `Rp`, spaces and dots; if what is left `.isdigit()`, return `int(...)`, else `None`.
+@solution
+def parse_total(raw):
+    cleaned = raw.replace("Rp", "").replace(" ", "").replace(".", "")
+    if cleaned.isdigit():
+        return int(cleaned)
+    return None
+:::
+
+:::ask Why keep the logic in pure functions and push file and network access to the edges of the job?
+@options
+pure functions run faster than any other code can
+* pure functions can be tested by calling them with values
+the edges are the only place where Python allows I/O
+@why
+A pure function takes values and returns values and touches nothing else, so a test is just a call and a check. Reading files, calling APIs and writing databases stay in a thin outer layer.
+:::
+
 ## @lesson Validate at the boundary with Pydantic
 The most reliable pipelines distrust their inputs. Data crosses a **boundary** (a file, an API, a queue) and you convert it from "whatever the sender produced" to "a value my code can rely on". Do this once, at the door; everything after the door can then assume clean data.
 
@@ -149,6 +179,38 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 > 3. Test your model in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
 > When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 3 on streaming generators.
+
+:::drill python Why was this row rejected?
+Write `reasons(row)`: `row` is a dictionary from a CSV (all text). Return a list of reject reasons, in this order: `"bad status"` if `status` is not one of `paid`, `cancelled`, `shipped`; `"bad total"` if `total_idr` is not a whole number of zero or more. A good row gives `[]`.
+@starter
+# write your function below this line
+
+@check
+defines("reasons") ## Define reasons(row).
+reasons({"status": "paid", "total_idr": "150000"}) == [] ## A good row has no reasons.
+reasons({"status": "teleported", "total_idr": "150000"}) == ["bad status"] ## An unknown status.
+reasons({"status": "paid", "total_idr": "-5"}) == ["bad total"] ## A negative total.
+reasons({"status": "x", "total_idr": "abc"}) == ["bad status", "bad total"] ## Both problems, in the stated order.
+@hint
+Check the status with `in`. For the total: `row["total_idr"].isdigit()` is False for "-5" and for "abc".
+@solution
+def reasons(row):
+    out = []
+    if row["status"] not in ("paid", "cancelled", "shipped"):
+        out.append("bad status")
+    if not row["total_idr"].isdigit():
+        out.append("bad total")
+    return out
+:::
+
+:::ask A JSON API field `total` should be a number but arrives as the text "150000". When is strict validation the better choice?
+@options
+for CSV files, where every single value is text anyway
+never: lax mode is always the safe choice to use
+* for typed sources like JSON APIs, not for CSV
+@why
+CSV has only text, so lax coercion ('150000' becomes 150000) is what you want. A JSON API already has numbers, so a string there means something upstream broke, and strict mode refuses it.
+:::
 
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
@@ -453,6 +515,37 @@ The most useful single log line in any pipeline is the **run summary**: how many
 >
 > **You should see:** a line like `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, then an ERROR (54 of 3,634 is about 1.5%) and `echo $?` printing `1`. The same run with `print` would have no time, no level and no way to be filtered or alerted on. In your lab, check your summary log line with `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
+:::drill python The run summary
+The most useful log line of a job is its run summary. Write `run_summary(outcomes)`: `outcomes` is a list with one word per input row: `"valid"`, `"duplicate"` or `"invalid"`. Return a dictionary with the keys `read`, `valid`, `duplicates` and `invalid`, holding the counts.
+@starter
+# write your function below this line
+
+@check
+defines("run_summary") ## Define run_summary(outcomes).
+run_summary(["valid", "valid", "duplicate", "invalid"]) == {"read": 4, "valid": 2, "duplicates": 1, "invalid": 1} ## Four rows read, split by outcome.
+run_summary([]) == {"read": 0, "valid": 0, "duplicates": 0, "invalid": 0} ## An empty input still gives all four keys.
+run_summary(["invalid"] * 3)["read"] == 3 ## read counts every row.
+@hint
+`read` is `len(outcomes)`; the others are `outcomes.count("valid")` and so on.
+@solution
+def run_summary(outcomes):
+    return {
+        "read": len(outcomes),
+        "valid": outcomes.count("valid"),
+        "duplicates": outcomes.count("duplicate"),
+        "invalid": outcomes.count("invalid"),
+    }
+:::
+
+:::ask Last night's run summary said read=100000, invalid=200. Tonight it says read=100000, invalid=30000. What is the best reading?
+@options
+* something upstream changed: read the reject reasons
+tonight's job is faster, so the numbers must be fine
+logging is broken and should be turned off for now
+@why
+Counts that jump between nights are often the first sign of an upstream change, such as a new format or a renamed field. A run summary is your cheapest monitoring, so investigate the reasons.
+:::
+
 ## @lesson Testing data code with pytest
 Tests are how you change code without fear. For data jobs they also document, in executable form, what "correct" means. **pytest** is the standard tool: put functions named `test_*` in files named `test_*.py` and run `pytest`.
 
@@ -494,6 +587,15 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
 > When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 7 on choosing the right tools.
 
+:::ask You have one rule to test (a total may be 'Rp 1.250.000' or '150000') with many example inputs. Which pytest feature fits?
+@options
+a fixture that deletes all of the test files
+* parametrize: one test body, many cases
+a test that loops until it finally passes
+@why
+`pytest.mark.parametrize` runs the same test body once per case and reports each case separately, which suits messy-data rules with many examples.
+:::
+
 ## @lesson Tooling, dependencies and when Python is the right tool
 **Pin your dependencies.** `requirements.txt` with exact or bounded versions (`pydantic>=2.5,<3`) makes builds repeatable; a lock file (`uv`, `pip-tools`, `poetry`) makes them exactly repeatable. An unpinned install that pulls a new major version overnight is a classic cause of "it worked yesterday".
 
@@ -506,6 +608,15 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 > 🛠 **Try it (10 min, terminal).** In a fresh virtual environment run `pip install ruff`. Save `bad.py` with the lines `import os`, `import json`, `x=1` and `print( x )`. Run `ruff check bad.py`, then `ruff check --fix bad.py`, then `ruff format bad.py` and look at the file. Finally run `pip freeze > requirements.txt` and read its first lines.
 >
 > **You should see:** one `F401` ("imported but unused") for `os` and one for `json`; the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
+
+:::ask An unpinned `pip install pydantic` pulls a new major version overnight and the job breaks. What prevents this?
+@options
+installing the library again every morning
+avoiding the use of any libraries at all
+* pin the versions, e.g. pydantic>=2.5,<3
+@why
+Exact or bounded versions make builds repeatable, and a lock file makes them exactly repeatable. Without pins, a new release can change behaviour while you sleep.
+:::
 
 ## @lesson Concurrent I/O, bulk database loading, integration testing, and live-coding patterns {optional}
 
@@ -562,6 +673,36 @@ def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> l
 >
 > **You should see:** about `10.0` s for the loop (40 × 0.25 s), about `1.25` s with 8 workers (5 waves of 8), and about `2.2` s with the throttle: the 40th request may not start before 39 × 0.05 = 1.95 s, whatever the pool size, and then takes its 0.25 s. The throttle, not the pool, sets the speed once the API has a rate limit. Measured with Python 3.14.
 
+:::drill python How long do 400 API calls take?
+Each API call takes `latency_ms` milliseconds of waiting. With `workers` calls running at the same time, they go in rounds. Write `seconds_needed(calls, latency_ms, workers)`: return the total time in seconds (a number).
+@starter
+import math
+# write your function below this line
+
+@check
+defines("seconds_needed") ## Define seconds_needed(calls, latency_ms, workers).
+seconds_needed(400, 250, 1) == 100 ## One by one: 400 × 0.25 s = 100 s.
+seconds_needed(400, 250, 20) == 5 ## 20 at a time: 20 rounds × 0.25 s = 5 s.
+seconds_needed(3, 1000, 2) == 2 ## 3 calls on 2 workers need 2 rounds of 1 s.
+seconds_needed(0, 250, 5) == 0 ## No calls, no time.
+@hint
+`rounds = math.ceil(calls / workers)`, then `rounds * latency_ms / 1000`.
+@solution
+import math
+def seconds_needed(calls, latency_ms, workers):
+    rounds = math.ceil(calls / workers)
+    return rounds * latency_ms / 1000
+:::
+
+:::ask 400 API endpoints must be fetched. Why not start 400 threads at once?
+@options
+* the API would answer 429: bound the workers
+threads can only ever be started ten at a time
+400 threads always run slower than a single one
+@why
+Threads help because the work is mostly waiting, but unlimited concurrency triggers rate limits and exhausts connections. A bounded pool with rate limiting gets most of the speed-up safely.
+:::
+
 ## @part Working on a team
 
 ## @lesson Pre-commit hooks, virtual environments, and Agile data team pull requests {optional}
@@ -604,6 +745,15 @@ Once you run `pip install pre-commit && pre-commit install`, Git runs those seve
 > 🛠 **Try it (5 min, terminal).** Inside any Git repo, inspect `.git/hooks/`. Even without installing third-party tools, you can create an executable `.git/hooks/pre-commit` shell script (first line `#!/bin/sh`, then `chmod +x .git/hooks/pre-commit`) that runs `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Do not commit data files!" && exit 1 || exit 0`. Try `git add` on a dummy `.csv` file and commit it, then do the same with a `.txt` file.
 >
 > **You should see:** the `.csv` commit stops: the hook prints the file name and `ERROR: Do not commit data files!`, and `echo $?` right after `git commit` shows `1`. The `.txt` commit goes through. If nothing happens, check `chmod +x`: without it Git skips the hook and only prints a `hint:` that it was ignored because it is not executable. Measured with Git 2.53.
+
+:::ask What belongs in a data engineer's pull request description that a UI developer's does not need?
+@options
+a screenshot of the finished button on the page
+* data proof: the grain, counts and a before/after
+the names of everyone who reviewed it last year
+@why
+A reviewer cannot see data by reading code. The description should state the table's grain and contract, show counts or sample output, and say how the change was checked.
+:::
 
 ## @lab Lab: a validated, streaming, idempotent ETL
 Build the production version of the cleaning job from Module 0.2. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.

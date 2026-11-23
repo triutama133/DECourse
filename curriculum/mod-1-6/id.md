@@ -49,6 +49,15 @@ Satu prinsip terakhir: sumber **tidak berada di bawah kendali Anda**. Ia bisa la
 >
 > *Bandingkan setelah selesai:* 1 adalah file yang Anda tarik (penuh, atau inkremental jika file hanya berisi baris baru); 2 adalah event yang didorong ke Anda (inkremental secara alami); 3 adalah database yang Anda tarik secara inkremental; 4 adalah aliran event: aplikasi mendorong ke log dan consumer Anda menariknya dari sana. Latihan ini tidak punya pemeriksa: jawaban di atas itulah pemeriksaannya.
 
+:::ask Mengapa job ingestion yang tepercaya menyimpan data persis seperti diterima sebelum membersihkannya?
+@options
+karena data mentah memakai ruang lebih kecil dari data bersih
+* agar bisa diproses ulang jika aturan pembersihannya salah
+karena pembersihan tidak boleh ada di job ingestion
+@why
+'Raw first' adalah kebiasaan ELT: simpan yang asli, lalu transformasikan. Jika sebuah aturan salah, atau data terlambat tiba, kamu menjalankan ulang dari salinan mentah tanpa meminta ke sumber lagi.
+:::
+
 ## @lesson API HTTP dalam sepuluh menit
 > **Intinya:** Sebuah request terdiri dari metode, URL, dan header; jawabannya berupa status, header, dan JSON. 2xx berarti beres, 4xx berarti request Anda salah (jangan diulang), 429 dan 5xx berarti coba lagi nanti. Jauhkan rahasia dari kode dan selalu pasang timeout.
 API HTTP bekerja seperti halaman web untuk program. Anda mengirim **request** (metode seperti GET, sebuah URL, header, dan kadang body) dan menerima **response** (status code, header, dan body, biasanya JSON).
@@ -95,6 +104,15 @@ Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), 
 >
 > **Periksa:** simpan skrip-skrip latihan ini dalam satu folder, misalnya `~/practice`, dan jalankan `python3 labs/tryit/check.py 1.6-2 ~/practice`. Pemeriksa menjalankan salinan API latihannya sendiri, jadi hentikan milik Anda (Ctrl+C) lebih dulu.
 
+:::ask Sebuah panggilan API mengembalikan 404 untuk satu pesanan dan 503 untuk yang lain. Apa yang harus dilakukan kode ingestion?
+@options
+coba ulang keduanya dengan jumlah yang sama
+berhenti pada error pertama dan buang semuanya
+* retry 503 (sementara), tetapi 404 jangan
+@why
+4xx berarti permintaannya sendiri salah (404 tidak akan membaik sendiri), jadi retry hanya membuang panggilan. 5xx dan masalah koneksi biasanya sementara, begitu juga 429 setelah menunggu selama yang diminta server.
+:::
+
 ## @lesson Membaca semua data: pagination, rate limit, dan retry
 > **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
 API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
@@ -130,6 +148,71 @@ Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di 
 > **Seharusnya Anda melihat:** halaman 1 berisi id 25 turun sampai 16, dan halaman 2 mengulang 18, 17, dan 16; skrip cursor mencetak `28 28`; skrip rate limit mencetak `429 2.0` lalu `200`.
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (perlu `cursor_all.py` dan `limited.py`; hentikan dulu API latihan Anda sendiri). Pemeriksa juga mencoba `limited.py` Anda pada server yang meminta waktu tunggu berbeda, jadi baca header-nya, jangan menulis angkanya langsung di kode.
+
+:::drill python Tunggu lebih lama tiap kali
+Retry memakai exponential backoff: tunggu 1 detik setelah kegagalan pertama, lalu 2, 4, 8, dan seterusnya, tidak pernah melebihi batas. Tulis `backoff_delay(attempt, base, cap)` dengan `attempt` mulai dari 1: kembalikan `min(cap, base * 2 ** (attempt - 1))`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("backoff_delay") ## Definisikan backoff_delay(attempt, base, cap).
+backoff_delay(1, 1, 30) == 1 ## Tunggu pertama adalah base.
+backoff_delay(4, 1, 30) == 8 ## 1, 2, 4, 8.
+backoff_delay(6, 1, 30) == 30 ## 32 terlalu lama: batas yang menang.
+backoff_delay(3, 5, 100) == 20 ## Base lain: 5, 10, 20.
+@hint
+`return min(cap, base * 2 ** (attempt - 1))`
+@solution
+def backoff_delay(attempt, base, cap):
+    return min(cap, base * 2 ** (attempt - 1))
+:::
+
+:::drill python Baca setiap halaman
+Sebuah API mengembalikan satu halaman sekali ambil: `get_page(cursor)` menghasilkan dictionary `{"items": [...], "next": cursor_atau_None}`. Mulai dengan cursor `None`. Tulis `fetch_all(get_page)`: terus ambil sampai `next` bernilai `None`, dan kembalikan semua item secara berurutan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("fetch_all") ## Definisikan fetch_all(get_page).
+fetch_all(lambda c: {None: {"items": [1, 2], "next": "a"}, "a": {"items": [3], "next": None}}[c]) == [1, 2, 3] ## Dua halaman, berurutan.
+fetch_all(lambda c: {"items": [], "next": None}) == [] ## Satu halaman kosong.
+fetch_all(lambda c: {None: {"items": [7], "next": "x"}, "x": {"items": [8], "next": "y"}, "y": {"items": [9, 10], "next": None}}[c]) == [7, 8, 9, 10] ## Tiga halaman.
+@hint
+`cursor = None`, lalu ulangi: `page = get_page(cursor)`, tambahkan `page["items"]`, set `cursor = page["next"]`, berhenti saat nilainya `None`.
+@solution
+def fetch_all(get_page):
+    items = []
+    cursor = None
+    while True:
+        page = get_page(cursor)
+        items.extend(page["items"])
+        cursor = page["next"]
+        if cursor is None:
+            return items
+:::
+
+:::ask Kamu membaca feed terbaru-dulu yang hidup dengan `?offset=10&limit=10` saat 3 pesanan baru masuk. Apa yang bisa salah?
+@options
+* offset bergeser, sehingga sebagian baris terambil dua kali
+API selalu mengembalikan halaman kosong setiap kali
+pesanan baru menimpa pesanan yang lama
+@why
+Dengan paginasi offset, baris baru mendorong baris lama ke bawah daftar, sehingga baris yang sama bisa muncul di akhir satu halaman dan awal halaman berikutnya. Paginasi cursor menghindarinya.
+:::
+
+:::trace Paginasi offset pada feed yang hidup
+@code
+feed = [5, 4, 3, 2, 1]
+page1 = feed[0:2]
+feed = [7, 6] + feed
+page2 = feed[2:4]
+print(page1 + page2)
+@notes
+2 | Halaman pertama (offset 0, limit 2) berisi dua pesanan terbaru: 5 dan 4.
+3 | Dua pesanan baru masuk. Mereka ditaruh di **depan** feed terbaru-dulu dan mendorong semua pesanan lama dua tempat ke bawah.
+4 | Halaman kedua (offset 2) kini menunjuk 5 dan 4 lagi, karena keduanya turun sebanyak offset yang maju.
+5 | Mencetak `[5, 4, 5, 4]`: pesanan 5 dan 4 dua kali, dan pesanan 3 belum terbaca. Sebuah cursor ("semua yang lebih lama dari pesanan 4") tidak akan bergeser.
+:::
 
 ## @lesson Pemuatan inkremental dan checkpoint
 > **Intinya:** Checkpoint menyatakan sejauh mana Anda sudah sampai. Tulis datanya dulu, baru checkpoint-nya, dan buat pemuatannya aman diulang (ganti atau hapus duplikat), agar crash hanya berarti mengulang, bukan kehilangan data.
@@ -314,6 +397,36 @@ Kebiasaan landing yang baik:
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-5 ~/practice` juga mencoba `flat.py` pada record lain.
 
+:::drill python Apa yang berubah pada bentuknya?
+Schema drift: sumber mengubah bentuk datanya tanpa memberi tahu. Tulis `detect_drift(expected, record)`: `expected` memetakan nama field ke tipe yang diharapkan (misalnya `{"id": int, "city": str}`); `record` adalah satu dictionary masuk. Kembalikan dictionary dengan tiga daftar terurut: `"new"` (field ada di record tetapi tak diharapkan), `"missing"` (field diharapkan tetapi tak ada di record), dan `"type_changed"` (field di keduanya yang nilainya bukan bertipe yang diharapkan).
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("detect_drift") ## Definisikan detect_drift(expected, record).
+detect_drift({"id": int}, {"id": 1}) == {"new": [], "missing": [], "type_changed": []} ## Tidak ada drift.
+detect_drift({"id": int}, {"id": 1, "coupon": "X"}) == {"new": ["coupon"], "missing": [], "type_changed": []} ## Field baru muncul.
+detect_drift({"id": int, "city": str}, {"id": 1}) == {"new": [], "missing": ["city"], "type_changed": []} ## Sebuah field hilang.
+detect_drift({"id": int}, {"id": "1"}) == {"new": [], "missing": [], "type_changed": ["id"]} ## Angka datang sebagai teks.
+@hint
+Bandingkan himpunan nama untuk new dan missing. Untuk perubahan tipe: `not isinstance(record[name], expected[name])` untuk nama di keduanya.
+@solution
+def detect_drift(expected, record):
+    new = sorted(set(record) - set(expected))
+    missing = sorted(set(expected) - set(record))
+    changed = sorted(n for n in set(expected) & set(record) if not isinstance(record[n], expected[n]))
+    return {"new": new, "missing": missing, "type_changed": changed}
+:::
+
+:::ask Mengapa menambahkan kolom `_run_id`, `_source`, dan `_ingested_at` pada setiap rekaman yang didaratkan?
+@options
+kolom itu membuat file lebih kecil di disk
+* kolom itu menunjukkan run mana yang membawa angka salah
+kolom itu diwajibkan oleh format Parquet
+@why
+Metadata pada tiap rekaman mengubah 'angka ini salah' menjadi 'run 482 dari API pembayaran pukul 02.10 yang menghasilkannya', sehingga kamu bisa menemukan dan memperbaiki run itu, bukan menebak.
+:::
+
 ## @lesson File, database, dan menjalankannya sungguhan
 > **Intinya:** File: tunggu sampai lengkap dan catat nama serta checksum-nya. Database: baca dari replika dan pakai kolom inkremental. Jalankan dengan hitungan, rekonsiliasi, dan backfill yang disengaja.
 **File.** Mitra menjatuhkan file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau ("file pukul 06:00 belum datang").
@@ -351,6 +464,15 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 > **Seharusnya Anda melihat:** `3634 3599` di langkah 1 (35 baris duplikat, sesuai manifest), lalu `3599` dan `3599` di langkah 2 dan 3. Bandingkan juga dengan `wc -l data/orders.csv`: hasilnya 3635, karena ada baris header. Menghitung baris di setiap perpindahan adalah cara termurah untuk membuktikan tidak ada yang hilang.
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (skrip Anda membaca `data/orders.csv` relatif terhadap folder tempat ia dijalankan).
+
+:::ask Sebuah job ingestion selesai 'sukses' tiap malam tetapi mengambil nol rekaman selama tiga malam. Apa yang seharusnya menangkap ini?
+@options
+timeout yang lebih panjang pada setiap permintaan
+menjalankan job dua kali tiap malam
+* alert pada volume dan kesegaran, bukan hanya pada error
+@why
+Sebuah job bisa sukses namun tidak menghasilkan apa-apa. Alert pada jumlah rekaman dan umur data terbaru menangkap kegagalan sumber yang diam, yang tidak pernah terlihat oleh exit code.
+:::
 
 ## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif {optional}
 
@@ -400,6 +522,27 @@ load_info = pipeline.run(kopiku_orders_source())
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
 
+:::drill python Apakah webhook ini asli?
+Sebuah layanan mendorong event ke webhook-mu dan menandatangani tiap body: tanda tangannya adalah HMAC-SHA256 dari body, berkunci rahasia bersama, dalam heksa. Tulis `verify_signature(body, secret, signature)`: ketiganya string. Kembalikan `True` hanya jika tanda tangan cocok. Bandingkan dengan `hmac.compare_digest`, yang aman dari serangan timing.
+@starter
+import hmac
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("verify_signature") ## Definisikan verify_signature(body, secret, signature).
+verify_signature("x", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == True ## Tanda tangan yang benar diterima.
+verify_signature("x", "s", "0" * 64) == False ## Tanda tangan yang salah ditolak.
+verify_signature("x!", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## Body diubah: ditolak.
+verify_signature("x", "other", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## Rahasia yang salah: ditolak.
+@hint
+`expected = hmac.new(secret.encode(), body.encode(), "sha256").hexdigest()`, lalu `hmac.compare_digest(expected, signature)`.
+@solution
+import hmac
+def verify_signature(body, secret, signature):
+    expected = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), "sha256").hexdigest()
+    return hmac.compare_digest(expected, signature)
+:::
+
 ## @part Cara lain data tiba
 
 ## @lesson Driver database, file drop, EDI, dan data sharing {optional}
@@ -416,6 +559,15 @@ Bab 7 *Fundamentals of Data Engineering* mendaftar cara-cara data sampai ke sebu
 > 🛠 **Coba sendiri (20 menit, Python).** Tulis `parse_850(path)` yang membaca `labs/shared/edi/po_850.edi`, memecahnya menjadi segmen dan elemen, lalu mengembalikan nomor dan tanggal pesanan (dari `BEG`), baris-barisnya (dari setiap `PO1`: nomor baris, jumlah, satuan, harga satuan, kode produk, total baris), dan total pesanan. Lalu buat ia memeriksa file terhadap dirinya sendiri: angka di `CTT` harus sama dengan jumlah baris `PO1`, dan angka di `SE` harus sama dengan jumlah segmen dari `ST` sampai `SE`, keduanya ikut dihitung. Jalankan pada `po_850.edi` dan pada `po_850_broken.edi`.
 >
 > **Seharusnya Anda melihat:** pesanan `PO-2026-0042` bertanggal `20260115` dengan tiga baris, `BEAN-ARABICA-1KG` `1700000`, `CUP-PAPER-12OZ` `60000`, dan `MILK-OAT-CASE` `1200000`, total `2960000`, dan kedua pemeriksaan lulus (`3` baris, `7` segmen). File yang rusak tetap bisa di-parse tanpa error, tetapi baris gelas hilang: `2` baris ditemukan padahal `CTT` bilang `3`, dan `6` segmen padahal `SE` bilang `7`. Tanpa pemeriksaan itu Anda akan memuat pesanan senilai `2900000` dan tidak ada yang tahu.
+
+:::ask Dalam file EDI, `PO*1001*20260105~` adalah satu segmen. Apa fungsi `*` dan `~`?
+@options
+* `*` memisahkan elemen di dalam segmen; `~` mengakhiri segmen
+`*` mengakhiri segmen; `~` memisahkan elemen-elemennya
+keduanya komentar yang diabaikan pembaca
+@why
+EDI adalah teks yang terdiri dari segmen yang berakhir dengan `~`, dengan elemen dipisahkan `*`. Elemen pertama menyebut jenis segmen, di sini purchase order.
+:::
 
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.
