@@ -69,49 +69,109 @@ Skills that matter, roughly in the order this course teaches them: SQL, Python, 
 >
 > *Compare:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Then write two sentences: which of these tasks would be yours at a five-person company, and which would you not want to do alone?
 
-## @lesson The big picture: the lifecycle, the undercurrents, and the people
-> **In short:** Every data engineering job, whatever its tools, moves data through five stages: generation, storage, ingestion, transformation and serving. Six "undercurrents" run under all five: security, data management, DataOps, data architecture, orchestration and software engineering. What you build should fit how far along the company is with data. Most of the job is working with the people on either side of you.
+## @lesson The big picture: five stops, six habits and the people
+> **In short:** Every data engineering job moves data through five stops: it is born (generation), it rests (storage), it is collected (ingestion), it is cleaned and shaped (transformation) and it is handed to people (serving). Six habits run underneath all five stops: security, data management, DataOps, data architecture, orchestration and software engineering. Most of the job is the people on either side of you.
 
-This map comes from *Fundamentals of Data Engineering* by Joe Reis and Matt Housley. It helps when the list of tools feels endless: every tool you will meet fits somewhere on it.
+Tools change every year, but this map does not. Whatever you meet later in the course, whether it is SQL, Parquet, Spark, Kafka or dbt, it sits on one of five stops. The map comes from the book *Fundamentals of Data Engineering* by Joe Reis and Matt Housley.
 
-**The five stages** (this course teaches them in roughly this order):
+### The five stops, as a coffee bean's journey
 
-- **Generation.** Data is born in systems you usually do not own: the app's database, a payment provider, a phone, a log. Their owners can change them without asking you. (Module 1.6, 3.2)
-- **Storage.** Where data rests at every step: files, databases, warehouses, lakehouse tables. (Modules 1.7, 2.1, 2.2, 2.6)
-- **Ingestion.** Copying data from the sources to your platform. This is where most breakages start: sources go down, slow you down, or change shape. (Modules 1.6, 3.2)
-- **Transformation.** Turning raw records into tables people can trust: right types, one row per thing, clear definitions. (Modules 0.3, 1.3, 1.4, 2.3)
-- **Serving.** Handing the result to the people and programs that use it: dashboards, analysts, machine-learning models, other applications. (Modules 2.6, 3.5)
+A coffee bean travels from a farm to your cup. Data travels the same way, in five stops. KopiKu sells specialty beans online, so follow its data:
 
-**The six undercurrents** are not stages; they are habits you need in every stage. Security (who may see what), data management (quality, definitions, privacy), DataOps (automating, testing and watching pipelines), data architecture (choosing how the pieces fit), orchestration (running steps in the right order) and software engineering (code that others can read, test and change). This is why job postings ask a data engineer for skills that sound like DevOps or software engineering: they are part of the job.
+| Stop | The coffee bean | KopiKu's data | What usually goes wrong |
+|---|---|---|---|
+| **1. Generation** | grown on a farm, by someone else | the website writes a row when a customer taps "Pay"; a payment provider sends a receipt | the owners change it without telling you |
+| **2. Storage** | waits in a warehouse | files, databases and warehouse tables where the data rests between steps | a disk fills up, or nobody knows which copy is the right one |
+| **3. Ingestion** | a truck collects it | a nightly job copies the new orders from the shop's database to your platform | the source is down, slow, or has changed shape |
+| **4. Transformation** | roasted and blended | raw rows become a clean table: the right types, one row per order, one clear meaning of "revenue" | two teams calculate "revenue" in two ways |
+| **5. Serving** | brewed and poured | the founder's dashboard, an analyst's question, a prediction model | the number arrives late, or wrong |
 
-## @lesson Data maturity, engineer types, and working with people
-The book describes three stages of *data maturity*. A good design for one stage is a bad design for another.
+The modules of this course walk along the same road: generation and ingestion (Modules 1.6 and 3.2), storage (1.7, 2.1, 2.2 and 2.6), transformation (0.3, 1.3, 1.4 and 2.3) and serving (2.6 and 3.5).
 
-| Stage | What it looks like | What usually works |
-|---|---|---|
-| **1. Starting with data** | Spreadsheets and CSV exports, no warehouse, leaders want a few reliable numbers | Ready-made tools: a managed loader, a simple warehouse or DuckDB, a few clean tables |
-| **2. Scaling with data** | Many sources, reports that break when a source changes, teams with different "revenue" numbers | Tests, agreed definitions, data contracts, an orchestrator, modeled tables |
-| **3. Leading with data** | Data is part of the product: recommendations, fraud checks, self-service for many teams | Custom systems where they give an edge, such as streaming, plus strong governance |
+:::ask The founder says: "The dashboard shows zero revenue for yesterday, but I can see yesterday's orders in the shop's own database." Which stop do you check first?
+@options
+generation: customers may have stopped paying yesterday
+* ingestion: last night's copy of the orders may not have run
+serving: the founder may be looking at the wrong screen
+@why
+The orders exist at the source (generation worked), so the number was lost on the way. The first suspect is the truck: the job that collects the orders and carries them to the platform. A silent failure there leaves the dashboard empty while the shop looks perfectly fine.
+:::
 
-The book also names two kinds of data engineer. **Type A** (A for *abstraction*) uses ready-made services and avoids building what can be bought. **Type B** (B for *build*) builds custom systems. Type A engineers are useful at every stage; Type B engineers mostly pay off at stages 2 and 3. The classic mistake is a stage-1 company building a stage-3 platform: months of work on clusters before anyone sees a single useful number.
+### Six habits under every stop
+
+These are not extra stops. They are habits you need at *every* stop, and each one is really a question you keep asking:
+
+- **Security**: who may see this? A customer's phone number should not be visible to every intern.
+- **Data management**: is this number right, and are we allowed to keep it? (Quality, clear definitions, privacy.)
+- **DataOps**: will we know when it breaks? Automatic tests and alarms, like a smoke detector in the kitchen.
+- **Data architecture**: how do the pieces fit together, and can we change one without breaking the rest?
+- **Orchestration**: in what order, and at what time? Like a kitchen: the milk must be steamed before it is poured. An **orchestrator** is a program that runs your jobs in the right order and tells you when one fails (Module 2.4).
+- **Software engineering**: can someone else read, test and change this code next year?
+
+This is why job posts for data engineers sound like DevOps or software engineering jobs: these habits are part of the work.
+
+:::ask Someone asks: "Can the new intern read the customers' phone numbers in the analytics table?" Which habit is this question about?
+@options
+software engineering, which keeps the code readable
+security, which decides who may see what
+* orchestration, which decides the order in which jobs run
+@why
+"Who may see what" is security. Orchestration is about the order and timing of jobs, and software engineering is about code that others can read and change. A good data engineer asks the security question at every stop, not only at the end.
+:::
+
+The next lesson is about two things that matter just as much as tools: how big a company's data work should be, and the people you will work with every day.
+
+## @lesson How much data work fits a company, and who you work with
+The same design can be right for one company and a mistake for another. Imagine three coffee businesses that all ask you for "a dashboard":
+
+| Stage | The business | What it asks for | What usually fits |
+|---|---|---|---|
+| **1. Starting with data** | a street cart with a tablet and a spreadsheet of sales | a few numbers the owner can trust | ready-made tools: a service that copies the data for you, a small analysis database that runs on one laptop (DuckDB), a few clean tables |
+| **2. Scaling with data** | five cafés and an online shop; reports break when a source changes; two teams quote two different "revenue" numbers | one agreed meaning for each number, and reports that do not break | tests, agreed definitions, **data contracts** (a written promise about which columns will stay stable, Module 2.5), an orchestrator (Module 2.4), well-designed tables |
+| **3. Leading with data** | a chain with an app that recommends drinks and checks payments for fraud: data is part of the product | answers in seconds, for millions of customers | custom systems where they give an edge, such as **streaming** (processing events as they happen, Module 3.3), plus strong **governance** (rules about who may use which data) |
+
+The book calls these stages of *data maturity*. The classic mistake is a stage-1 company building a stage-3 platform: months of work on clusters of servers before anyone sees one useful number.
+
+The book also names two kinds of data engineer, and a coffee machine explains them. **Type A** (A for *abstraction*) buys a ready-made machine and avoids building what can be bought. **Type B** (B for *build*) builds a custom machine because nothing on the market fits. Type A engineers are useful at every stage; Type B engineers mostly pay off at stages 2 and 3.
+
+:::ask A one-person café with a single spreadsheet asks you to set up a cluster of servers for real-time streaming. What is the most useful first move?
+@options
+* ask which decision the number supports, then pick the simplest tool
+build the cluster now, since the café will surely grow into it
+refuse the job, because a spreadsheet can never be improved
+@why
+A stage-1 company needs a few trusted numbers quickly. Ask what decision they will make with the number and how often they look at it, then pick the simplest tool that serves it. Building for a future stage 3 wastes months and delivers nothing useful today.
+:::
 
 ### The people on either side of you
-In the TalentHub job database, 64% of the 1,130 data engineering postings mention communication or stakeholders. That is more than mention Spark (46%) and almost as many as mention Python (69%). The book puts it plainly: data teams rarely fail because of technology.
 
-- **Upstream: the people who produce the data**, usually application engineers. To them, the database exists to run the app; your reports are a side effect. When they break your pipeline, a complaint does nothing. Explain what breaks downstream and who depends on it, and agree in writing which columns they will keep stable (a *data contract*, Module 2.5).
+In the TalentHub job database, 64% of the 1,130 data engineering postings mention communication or *stakeholders* (people who ask for, use or are affected by your data work). That is more than mention Spark (46%) and almost as many as mention Python (69%). The book puts it plainly: data teams rarely fail because of technology.
+
+- **Upstream: the people who produce the data**, usually application engineers. To them the database exists to run the app, and your reports are a side effect. When they break your pipeline, a complaint does nothing. Explain what breaks downstream and who depends on it, and agree in writing which columns they will keep stable (a data contract, Module 2.5).
 - **Downstream: the people who use the data:** analysts, data scientists, managers. They often ask for a solution they have heard of ("we need a real-time dashboard") instead of the problem they have. Ask about the decision instead: *What will you do when this number changes, and how quickly do you need to act?* If the answer is "we look at it in the Monday meeting", a reliable daily job beats a streaming system.
+
+:::ask An analyst says: "We need a real-time dashboard." What is the most useful reply?
+@options
+"Real-time is expensive and complicated, so my answer is no."
+* "Which decision will you make with it, and how fast?"
+"Which streaming tool would you like me to build it with?"
+@why
+People often ask for a solution they have heard of. Asking about the decision turns it back into the real problem. If the answer is "we look at it in the Monday meeting", a reliable daily job beats a streaming system. Refusing or picking tools skips the conversation that matters.
+:::
 
 > 🛠 **Try it (10 min, paper and the simulator).** First open the maturity simulator at the top of this page and find, for each stage, the choice it calls right-sized. Its costs are a rough teaching model, not measured prices: use it to see the shape of the trade-off. Then write a three-line scoping note for KopiKu from what this module has told you about it: (1) its maturity stage, and the fact that told you; (2) who produces the orders data and who uses the revenue number; (3) Type A or Type B, and the one question you would ask the CEO before deciding.
 >
 > **You should see:** stage 1: one website database, the founder asking first questions, nothing to analyse with yet. The website (and whoever builds it) produces the orders; the founder uses the revenue number. Type A, after asking something like "what will you decide with this number, and how often?". If your question was about tools rather than the decision, try again.
 
-**Two more distinctions from the book.** First, the **data engineering lifecycle** is only part of the wider **data lifecycle** of a business. The five stages describe what engineers build: generation, storage, ingestion, transformation, serving. The business also decides how long data must be kept, who may see it, when it must be archived and when it must be deleted, often because a law or a contract says so. Those decisions are made by legal, finance or security, not by you, but you are the one who has to carry them out in every copy of the data: the raw files, the warehouse, the backups and the exports (Module 2.5 shows how hard a single "delete this customer" can be).
+### Two more ideas from the book
 
-Second, data engineers face **inward** or **outward**. **Internal-facing** engineers build for the company itself: pipelines, a warehouse, dashboards and reports for analysts and managers. That is most data engineering jobs, and it is what this course trains first. **External-facing** engineers build data systems that customers use inside the product: a sales dashboard inside an app, recommendations on a website, an event pipeline behind a feature. The same skills apply, but the requirements are stricter: many more users at once, answers in under a second, and a mistake is seen by customers instead of a colleague (Module 2.6 compares the two). Many jobs mix both, so ask in an interview which one the role leans towards.
+**1. The wider data lifecycle.** The five stops describe what engineers build. The business also decides how long data must be kept, who may see it, when it must be archived and when it must be deleted, often because a law or a contract says so. Legal, finance or security make those decisions, not you. But you are the one who has to carry them out in every copy of the data: the raw files, the warehouse, the backups and the exports (Module 2.5 shows how hard a single "delete this customer" can be).
 
-> 🛠 **Try it (10 min, pen and paper).** For each KopiKu task, write *internal* or *external*, and either the lifecycle stage it belongs to or "wider data lifecycle" if the decision comes from outside engineering: (1) a weekly revenue dashboard for the founder; (2) a "your sales this month" page inside the app KopiKu sells to café owners; (3) "customers who bought Gayo also bought…" on the website; (4) a nightly copy of the orders database into the warehouse; (5) deleting a customer's personal data when they close their account; (6) suppose finance says order records must be kept for ten years: setting that up.
+**2. Inward or outward.** **Internal-facing** engineers build for the company itself: pipelines, a warehouse, dashboards and reports for analysts and managers. That is most data engineering jobs, and it is what this course trains first. **External-facing** engineers build data systems that customers use inside the product: a sales dashboard inside an app, recommendations on a website, an event pipeline behind a feature. The same skills apply, but the demands are stricter: many more users at once, answers in under a second, and a mistake is seen by customers instead of a colleague (Module 2.6 compares the two). Many jobs mix both, so ask in an interview which one the role leans towards.
+
+> 🛠 **Try it (10 min, pen and paper).** For each KopiKu task, write *internal* or *external*, and either the lifecycle stop it belongs to or "wider data lifecycle" if the decision comes from outside engineering: (1) a weekly revenue dashboard for the founder; (2) a "your sales this month" page inside the app KopiKu sells to café owners; (3) "customers who bought Gayo also bought…" on the website; (4) a nightly copy of the orders database into the warehouse; (5) deleting a customer's personal data when they close their account; (6) suppose finance says order records must be kept for ten years:
 >
-> **You should see:** (1) internal, serving; (2) external, serving (customer-facing analytics); (3) external, serving, built on transformation; (4) internal, ingestion into storage; (5) wider data lifecycle: the rule comes from privacy law and the company's policy, and engineering carries it out in every copy; (6) wider data lifecycle as well: finance sets the period, and engineering turns it into storage lifecycle rules (Module 3.4). If you put (5) or (6) under a single stage, notice that they touch every stage at once.
+> **You should see:** (1) internal, serving; (2) external, serving (customer-facing analytics); (3) external, serving, built on transformation; (4) internal, ingestion into storage; (5) wider data lifecycle: the rule comes from privacy law and the company's policy, and engineering carries it out in every copy; (6) wider data lifecycle as well: finance sets the period, and engineering turns it into storage lifecycle rules (Module 3.4). If you put (5) or (6) under a single stop, notice that they touch every stop at once.
 
 ## @part The data you will work with
 

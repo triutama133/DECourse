@@ -69,49 +69,109 @@ Keterampilan yang penting, kira-kira sesuai urutan kursus ini: SQL, Python, comm
 >
 > *Bandingkan:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Lalu tulis dua kalimat: tugas mana yang akan menjadi tugas Anda di perusahaan berisi lima orang, dan mana yang tidak ingin Anda kerjakan sendirian?
 
-## @lesson Gambaran besar: siklus hidup, undercurrents, dan orang-orangnya
-> **Intinya:** Setiap pekerjaan data engineering, apa pun alatnya, memindahkan data melalui lima tahap: generation, storage, ingestion, transformation, dan serving. Enam "undercurrents" mengalir di bawah kelimanya: security, data management, DataOps, data architecture, orchestration, dan software engineering. Apa yang Anda bangun harus sesuai dengan sejauh mana perusahaan sudah memakai data. Sebagian besar pekerjaannya adalah bekerja sama dengan orang-orang di kedua sisi Anda.
+## @lesson Gambaran besar: lima perhentian, enam kebiasaan, dan orang-orangnya
+> **Intinya:** Setiap pekerjaan data engineering memindahkan data melewati lima perhentian: data lahir (generation), diam menyimpan (storage), dikumpulkan (ingestion), dibersihkan dan dibentuk (transformation), lalu diserahkan kepada orang (serving). Enam kebiasaan berjalan di bawah kelimanya: keamanan, manajemen data, DataOps, arsitektur data, orkestrasi, dan software engineering. Sebagian besar pekerjaan adalah soal orang-orang di kiri dan kanan Anda.
 
-Peta ini berasal dari buku *Fundamentals of Data Engineering* karya Joe Reis dan Matt Housley. Peta ini membantu saat daftar alat terasa tak ada habisnya: setiap alat yang akan Anda temui punya tempat di dalamnya.
+Alat berganti tiap tahun, tetapi peta ini tidak. Apa pun yang Anda temui nanti di kursus ini, entah SQL, Parquet, Spark, Kafka, atau dbt, ia berada di salah satu dari lima perhentian. Peta ini berasal dari buku *Fundamentals of Data Engineering* karya Joe Reis dan Matt Housley.
 
-**Lima tahapnya** (kursus ini mengajarkannya kira-kira dengan urutan ini):
+### Lima perhentian, sebagai perjalanan biji kopi
 
-- **Generation.** Data lahir di sistem yang biasanya bukan milik Anda: database aplikasi, penyedia pembayaran, ponsel, log. Pemiliknya bisa mengubahnya tanpa bertanya kepada Anda. (Modul 1.6, 3.2)
-- **Storage.** Tempat data disimpan di setiap langkah: file, database, warehouse, tabel lakehouse. (Modul 1.7, 2.1, 2.2, 2.6)
-- **Ingestion.** Menyalin data dari sumber ke platform Anda. Di sinilah sebagian besar kerusakan bermula: sumber mati, memperlambat Anda, atau berubah bentuk. (Modul 1.6, 3.2)
-- **Transformation.** Mengubah record mentah menjadi tabel yang bisa dipercaya: tipe yang benar, satu baris per hal, definisi yang jelas. (Modul 0.3, 1.3, 1.4, 2.3)
-- **Serving.** Menyerahkan hasilnya kepada orang dan program yang memakainya: dashboard, analis, model machine learning, aplikasi lain. (Modul 2.6, 3.5)
+Biji kopi bepergian dari kebun sampai ke cangkir Anda. Data bepergian dengan cara yang sama, dalam lima perhentian. KopiKu menjual biji kopi spesialti secara online, jadi ikuti datanya:
 
-**Enam undercurrents** bukanlah tahap; mereka adalah kebiasaan yang Anda perlukan di setiap tahap. Security (siapa boleh melihat apa), data management (kualitas, definisi, privasi), DataOps (mengotomatiskan, menguji, dan mengawasi pipeline), data architecture (memilih bagaimana bagian-bagiannya tersusun), orchestration (menjalankan langkah dengan urutan yang benar), dan software engineering (kode yang bisa dibaca, diuji, dan diubah orang lain). Inilah sebabnya lowongan kerja meminta data engineer menguasai keahlian yang terdengar seperti DevOps atau software engineering: keahlian itu memang bagian dari pekerjaannya.
+| Perhentian | Biji kopi | Data KopiKu | Yang biasanya salah |
+|---|---|---|---|
+| **1. Generation** | ditanam di kebun, oleh orang lain | situs web menulis satu baris saat pelanggan menekan "Bayar"; penyedia pembayaran mengirim bukti | pemiliknya mengubahnya tanpa memberi tahu Anda |
+| **2. Storage** | menunggu di gudang | file, database, dan tabel warehouse tempat data beristirahat di antara langkah | disk penuh, atau tak ada yang tahu salinan mana yang benar |
+| **3. Ingestion** | dijemput truk | job malam yang menyalin pesanan baru dari database toko ke platform Anda | sumber mati, lambat, atau bentuknya berubah |
+| **4. Transformation** | disangrai dan diracik | baris mentah menjadi tabel bersih: tipe yang benar, satu baris per pesanan, satu arti yang jelas untuk "pendapatan" | dua tim menghitung "pendapatan" dengan dua cara |
+| **5. Serving** | diseduh dan dituang | dasbor pendiri, pertanyaan seorang analis, model prediksi | angkanya datang terlambat, atau salah |
 
-## @lesson Kematangan data, tipe engineer, dan bekerja dengan tim
-Buku ini menggambarkan tiga tahap *kematangan data* (data maturity). Desain yang baik untuk satu tahap bisa menjadi desain yang buruk untuk tahap lain.
+Modul-modul kursus ini menyusuri jalan yang sama: generation dan ingestion (Modul 1.6 dan 3.2), storage (1.7, 2.1, 2.2, dan 2.6), transformation (0.3, 1.3, 1.4, dan 2.3), dan serving (2.6 dan 3.5).
 
-| Tahap | Seperti apa | Apa yang biasanya berhasil |
-|---|---|---|
-| **1. Memulai dengan data** | Spreadsheet dan ekspor CSV, belum ada warehouse, pimpinan ingin beberapa angka yang andal | Alat siap pakai: loader terkelola, warehouse sederhana atau DuckDB, beberapa tabel yang bersih |
-| **2. Berkembang dengan data** | Banyak sumber, laporan rusak saat sumber berubah, tiap tim punya angka "revenue" berbeda | Tes, definisi yang disepakati, data contract, orkestrator, tabel yang dimodelkan |
-| **3. Memimpin dengan data** | Data menjadi bagian dari produk: rekomendasi, deteksi fraud, self-service untuk banyak tim | Sistem custom di bagian yang memberi keunggulan, misalnya streaming, plus tata kelola yang kuat |
+:::ask Sang pendiri berkata: "Dasbor menunjukkan pendapatan nol untuk kemarin, padahal saya melihat pesanan kemarin di database toko." Perhentian mana yang Anda periksa lebih dulu?
+@options
+generation: pelanggan mungkin berhenti membayar kemarin
+* ingestion: penyalinan pesanan semalam mungkin tidak berjalan
+serving: pendiri mungkin melihat layar yang salah
+@why
+Pesanannya ada di sumber (generation berhasil), jadi angkanya hilang di tengah jalan. Tersangka pertama adalah truknya: job yang mengumpulkan pesanan dan membawanya ke platform. Kegagalan diam-diam di sana membuat dasbor kosong sementara toko tampak baik-baik saja.
+:::
 
-Buku ini juga menyebut dua jenis data engineer. **Tipe A** (A untuk *abstraction*) memakai layanan siap pakai dan tidak membangun apa yang bisa dibeli. **Tipe B** (B untuk *build*) membangun sistem custom. Engineer Tipe A berguna di setiap tahap; engineer Tipe B kebanyakan baru terbayar di tahap 2 dan 3. Kesalahan klasiknya adalah perusahaan tahap 1 membangun platform tahap 3: berbulan-bulan mengerjakan klaster sebelum ada satu pun angka yang berguna.
+### Enam kebiasaan di bawah setiap perhentian
 
-### Orang-orang di kedua sisi Anda
-Di database lowongan TalentHub, 64% dari 1.130 lowongan data engineering menyebut komunikasi atau stakeholder. Jumlah itu lebih banyak daripada yang menyebut Spark (46%) dan hampir sama dengan yang menyebut Python (69%). Buku ini mengatakannya dengan lugas: tim data jarang gagal karena teknologi.
+Ini bukan perhentian tambahan. Ini kebiasaan yang Anda perlukan di *setiap* perhentian, dan masing-masing sebenarnya adalah pertanyaan yang terus Anda ajukan:
 
-- **Hulu: orang yang menghasilkan data**, biasanya engineer aplikasi. Bagi mereka, database ada untuk menjalankan aplikasi; laporan Anda hanyalah efek samping. Saat mereka merusak pipeline Anda, mengeluh tidak ada gunanya. Jelaskan apa yang rusak di hilir dan siapa yang bergantung padanya, lalu sepakati secara tertulis kolom mana yang akan mereka jaga tetap stabil (sebuah *data contract*, Modul 2.5).
-- **Hilir: orang yang memakai data:** analis, data scientist, manajer. Mereka sering meminta solusi yang pernah mereka dengar ("kita butuh dashboard real-time") alih-alih masalah yang sebenarnya mereka hadapi. Tanyakan tentang keputusannya: *Apa yang akan Anda lakukan saat angka ini berubah, dan seberapa cepat Anda perlu bertindak?* Jika jawabannya "kami melihatnya di rapat Senin", job harian yang andal mengalahkan sistem streaming.
+- **Keamanan**: siapa yang boleh melihat ini? Nomor telepon pelanggan tidak boleh terlihat oleh setiap anak magang.
+- **Manajemen data**: apakah angka ini benar, dan apakah kita boleh menyimpannya? (Kualitas, definisi yang jelas, privasi.)
+- **DataOps**: apakah kita akan tahu saat ini rusak? Tes dan alarm otomatis, seperti alat pendeteksi asap di dapur.
+- **Arsitektur data**: bagaimana bagian-bagiannya saling cocok, dan bisakah satu diganti tanpa merusak yang lain?
+- **Orkestrasi**: dalam urutan apa, dan pada jam berapa? Seperti dapur: susu harus dikukus sebelum dituang. **Orchestrator** adalah program yang menjalankan job Anda dalam urutan yang benar dan memberi tahu saat ada yang gagal (Modul 2.4).
+- **Software engineering**: bisakah orang lain membaca, menguji, dan mengubah kode ini tahun depan?
 
-> 🛠 **Coba sendiri (10 menit, kertas dan simulator).** Pertama buka simulator kematangan di bagian atas halaman ini dan temukan, untuk setiap tahap, pilihan yang disebutnya pas ukurannya. Biayanya adalah model pengajaran kasar, bukan harga yang diukur: pakai untuk melihat bentuk trade-off-nya. Lalu tulis catatan scoping tiga baris untuk KopiKu dari apa yang sudah diceritakan modul ini: (1) tahap kematangannya, dan fakta yang memberi tahu Anda; (2) siapa yang menghasilkan data pesanan dan siapa yang memakai angka revenue; (3) Tipe A atau Tipe B, dan satu pertanyaan yang akan Anda ajukan kepada CEO sebelum memutuskan.
+Itulah sebabnya lowongan data engineer terdengar seperti pekerjaan DevOps atau software engineering: kebiasaan-kebiasaan ini bagian dari pekerjaannya.
+
+:::ask Seseorang bertanya: "Bolehkah anak magang baru membaca nomor telepon pelanggan di tabel analitik?" Pertanyaan ini tentang kebiasaan yang mana?
+@options
+software engineering, yang menjaga kode tetap terbaca
+keamanan, yang menentukan siapa boleh melihat apa
+* orkestrasi, yang menentukan urutan job berjalan
+@why
+"Siapa boleh melihat apa" adalah keamanan. Orkestrasi soal urutan dan waktu job, dan software engineering soal kode yang bisa dibaca dan diubah orang lain. Data engineer yang baik mengajukan pertanyaan keamanan di setiap perhentian, bukan hanya di akhir.
+:::
+
+Materi berikutnya membahas dua hal yang sama pentingnya dengan alat: seberapa besar pekerjaan data sebuah perusahaan seharusnya, dan orang-orang yang akan Anda ajak bekerja setiap hari.
+
+## @lesson Seberapa besar pekerjaan data yang cocok untuk sebuah perusahaan, dan dengan siapa Anda bekerja
+Rancangan yang sama bisa tepat untuk satu perusahaan dan keliru untuk yang lain. Bayangkan tiga bisnis kopi yang semuanya meminta Anda membuat "sebuah dasbor":
+
+| Tahap | Bisnisnya | Yang diminta | Yang biasanya cocok |
+|---|---|---|---|
+| **1. Mulai dengan data** | gerobak kopi dengan tablet dan spreadsheet penjualan | beberapa angka yang bisa dipercaya pemiliknya | alat siap pakai: layanan yang menyalin data untuk Anda, database analisis kecil yang berjalan di satu laptop (DuckDB), beberapa tabel bersih |
+| **2. Berkembang dengan data** | lima kafe dan toko online; laporan rusak saat sumber berubah; dua tim menyebut dua angka "pendapatan" yang berbeda | satu arti yang disepakati untuk setiap angka, dan laporan yang tidak rusak | tes, definisi yang disepakati, **data contract** (janji tertulis tentang kolom mana yang akan tetap stabil, Modul 2.5), orchestrator (Modul 2.4), tabel yang dirancang baik |
+| **3. Memimpin dengan data** | jaringan dengan aplikasi yang merekomendasikan minuman dan memeriksa pembayaran untuk penipuan: data adalah bagian dari produk | jawaban dalam hitungan detik, untuk jutaan pelanggan | sistem khusus di tempat yang memberi keunggulan, seperti **streaming** (memproses event saat terjadi, Modul 3.3), ditambah **governance** yang kuat (aturan tentang siapa boleh memakai data apa) |
+
+Buku itu menyebut ini tahap-tahap *kematangan data*. Kesalahan klasik adalah perusahaan tahap 1 yang membangun platform tahap 3: berbulan-bulan mengerjakan klaster server sebelum ada yang melihat satu angka berguna.
+
+Buku itu juga menyebut dua jenis data engineer, dan mesin kopi menjelaskannya. **Tipe A** (A untuk *abstraction*) membeli mesin siap pakai dan menghindari membangun apa yang bisa dibeli. **Tipe B** (B untuk *build*) membangun mesin khusus karena tak ada di pasaran yang cocok. Engineer Tipe A berguna di setiap tahap; Tipe B kebanyakan berguna pada tahap 2 dan 3.
+
+:::ask Sebuah kafe satu orang dengan satu spreadsheet meminta Anda memasang klaster server untuk streaming real-time. Apa langkah pertama yang paling berguna?
+@options
+* tanyakan keputusan yang didukung angka itu, lalu pilih alat paling sederhana
+bangun klasternya sekarang, karena kafe pasti akan tumbuh ke sana
+tolak pekerjaannya, karena spreadsheet tidak akan pernah bisa diperbaiki
+@why
+Perusahaan tahap 1 butuh beberapa angka tepercaya dengan cepat. Tanyakan keputusan apa yang akan mereka buat dengan angka itu dan seberapa sering mereka melihatnya, lalu pilih alat paling sederhana yang melayaninya. Membangun untuk tahap 3 di masa depan menghabiskan berbulan-bulan dan tidak menghasilkan apa pun hari ini.
+:::
+
+### Orang-orang di kiri dan kanan Anda
+
+Di database lowongan TalentHub, 64% dari 1.130 lowongan data engineering menyebut komunikasi atau *stakeholder* (orang yang meminta, memakai, atau terdampak pekerjaan data Anda). Itu lebih banyak daripada yang menyebut Spark (46%) dan hampir sebanyak yang menyebut Python (69%). Buku itu menyatakannya terang-terangan: tim data jarang gagal karena teknologi.
+
+- **Hulu: orang yang menghasilkan data**, biasanya application engineer. Bagi mereka database ada untuk menjalankan aplikasi, dan laporan Anda adalah efek samping. Saat mereka merusak pipeline Anda, keluhan tidak menghasilkan apa-apa. Jelaskan apa yang rusak di hilir dan siapa yang bergantung padanya, dan sepakati tertulis kolom mana yang akan mereka jaga stabil (sebuah data contract, Modul 2.5).
+- **Hilir: orang yang memakai data:** analis, data scientist, manajer. Mereka sering meminta solusi yang pernah mereka dengar ("kami butuh dasbor real-time") alih-alih masalah yang mereka punya. Tanyakan tentang keputusannya: *Apa yang akan Anda lakukan saat angka ini berubah, dan seberapa cepat Anda perlu bertindak?* Jika jawabannya "kami melihatnya di rapat Senin", job harian yang andal mengalahkan sistem streaming.
+
+:::ask Seorang analis berkata: "Kami butuh dasbor real-time." Apa balasan yang paling berguna?
+@options
+"Real-time itu mahal dan rumit, jadi jawaban saya tidak."
+* "Keputusan apa yang akan Anda ambil dengannya, dan seberapa cepat?"
+"Alat streaming mana yang Anda inginkan untuk membangunnya?"
+@why
+Orang sering meminta solusi yang pernah mereka dengar. Bertanya tentang keputusan mengembalikannya ke masalah yang sebenarnya. Jika jawabannya "kami melihatnya di rapat Senin", job harian yang andal mengalahkan sistem streaming. Menolak atau memilih alat melewati percakapan yang penting.
+:::
+
+> 🛠 **Coba sendiri (10 menit, kertas dan simulator).** Pertama buka simulator kematangan di bagian atas halaman ini dan temukan, untuk setiap tahap, pilihan yang disebutnya berukuran tepat. Biayanya adalah model pengajaran kasar, bukan harga terukur: pakai untuk melihat bentuk trade-off-nya. Lalu tulis catatan cakupan tiga baris untuk KopiKu dari apa yang sudah modul ini ceritakan tentangnya: (1) tahap kematangannya, dan fakta yang memberi tahu Anda; (2) siapa yang menghasilkan data pesanan dan siapa yang memakai angka pendapatan; (3) Tipe A atau Tipe B, dan satu pertanyaan yang akan Anda ajukan kepada CEO sebelum memutuskan.
 >
-> **Seharusnya Anda melihat:** tahap 1: satu database website, founder mengajukan pertanyaan pertama, belum ada apa pun untuk analisis. Website (dan siapa pun yang membangunnya) menghasilkan pesanan; founder memakai angka revenue. Tipe A, setelah bertanya sesuatu seperti "keputusan apa yang akan Anda ambil dengan angka ini, dan seberapa sering?". Jika pertanyaan Anda tentang alat, bukan tentang keputusannya, coba lagi.
+> **Seharusnya Anda melihat:** tahap 1: satu database situs web, sang pendiri mengajukan pertanyaan pertama, belum ada yang bisa dianalisis. Situs web (dan siapa pun yang membangunnya) menghasilkan pesanan; sang pendiri memakai angka pendapatan. Tipe A, setelah bertanya sesuatu seperti "apa yang akan Anda putuskan dengan angka ini, dan seberapa sering?". Jika pertanyaan Anda tentang alat, bukan keputusan, coba lagi.
 
-**Dua pembedaan lagi dari buku ini.** Pertama, **siklus hidup data engineering** hanyalah bagian dari **siklus hidup data** yang lebih luas di sebuah bisnis. Kelima tahap menggambarkan apa yang dibangun engineer: generasi, penyimpanan, ingesti, transformasi, penyajian. Bisnis juga memutuskan berapa lama data harus disimpan, siapa yang boleh melihatnya, kapan harus diarsipkan, dan kapan harus dihapus, sering kali karena undang-undang atau kontrak mewajibkannya. Keputusan itu dibuat oleh bagian hukum, keuangan, atau keamanan, bukan oleh Anda, tetapi Andalah yang harus menjalankannya di setiap salinan data: file raw, warehouse, backup, dan ekspor (Modul 2.5 menunjukkan betapa sulitnya satu permintaan "hapus pelanggan ini").
+### Dua gagasan lagi dari buku
 
-Kedua, data engineer menghadap **ke dalam** atau **ke luar**. Engineer yang **menghadap ke dalam** (*internal-facing*) membangun untuk perusahaannya sendiri: pipeline, warehouse, dashboard, dan laporan untuk analis dan manajer. Itulah sebagian besar pekerjaan data engineering, dan itulah yang dilatih kursus ini lebih dulu. Engineer yang **menghadap ke luar** (*external-facing*) membangun sistem data yang dipakai pelanggan di dalam produk: dashboard penjualan di dalam aplikasi, rekomendasi di situs web, pipeline event di balik sebuah fitur. Keterampilannya sama, tetapi tuntutannya lebih ketat: jauh lebih banyak pengguna sekaligus, jawaban di bawah satu detik, dan sebuah kesalahan dilihat pelanggan, bukan rekan kerja (Modul 2.6 membandingkan keduanya). Banyak pekerjaan mencampur keduanya, jadi tanyakan saat wawancara ke arah mana peran itu condong.
+**1. Siklus hidup data yang lebih luas.** Kelima perhentian menggambarkan apa yang dibangun engineer. Bisnis juga memutuskan berapa lama data harus disimpan, siapa boleh melihatnya, kapan harus diarsipkan dan kapan harus dihapus, sering kali karena hukum atau kontrak mengatakannya. Bagian hukum, keuangan, atau keamanan yang memutuskannya, bukan Anda. Tetapi Andalah yang harus menjalankannya di setiap salinan data: file mentah, warehouse, cadangan, dan ekspor (Modul 2.5 menunjukkan betapa sulitnya satu perintah "hapus pelanggan ini").
 
-> 🛠 **Coba sendiri (10 menit, pena dan kertas).** Untuk setiap tugas KopiKu, tulis *internal* atau *eksternal*, dan tahap siklus hidup tempatnya atau "siklus hidup data yang lebih luas" jika keputusannya datang dari luar engineering: (1) dashboard pendapatan mingguan untuk pendiri; (2) halaman "penjualan Anda bulan ini" di dalam aplikasi yang dijual KopiKu kepada pemilik kafe; (3) "pelanggan yang membeli Gayo juga membeli…" di situs web; (4) salinan malam hari database pesanan ke warehouse; (5) menghapus data pribadi pelanggan ketika ia menutup akunnya; (6) misalkan bagian keuangan menyatakan catatan pesanan harus disimpan sepuluh tahun: menyiapkan hal itu.
+**2. Menghadap ke dalam atau ke luar.** Engineer **internal-facing** membangun untuk perusahaan itu sendiri: pipeline, warehouse, dasbor dan laporan untuk analis dan manajer. Itu sebagian besar pekerjaan data engineering, dan itulah yang dilatih kursus ini lebih dulu. Engineer **external-facing** membangun sistem data yang dipakai pelanggan di dalam produk: dasbor penjualan di dalam aplikasi, rekomendasi di situs web, pipeline event di balik sebuah fitur. Keterampilannya sama, tetapi tuntutannya lebih ketat: jauh lebih banyak pengguna sekaligus, jawaban dalam waktu kurang dari satu detik, dan kesalahan dilihat pelanggan, bukan rekan kerja (Modul 2.6 membandingkan keduanya). Banyak pekerjaan mencampur keduanya, jadi tanyakan saat wawancara mana yang lebih condong dipilih peran itu.
+
+> 🛠 **Coba sendiri (10 menit, pena dan kertas).** Untuk setiap tugas KopiKu, tulis *internal* atau *external*, dan perhentian siklus hidup tempatnya berada atau "siklus hidup data yang lebih luas" jika keputusannya datang dari luar engineering: (1) dasbor pendapatan mingguan untuk sang pendiri; (2) halaman "penjualan Anda bulan ini" di dalam aplikasi yang dijual KopiKu kepada pemilik kafe; (3) "pelanggan yang membeli Gayo juga membeli…" di situs web; (4) salinan malam dari database pesanan ke warehouse; (5) menghapus data pribadi pelanggan saat mereka menutup akun; (6) anggap bagian keuangan menyatakan catatan pesanan harus disimpan sepuluh tahun:
 >
-> **Seharusnya Anda melihat:** (1) internal, penyajian; (2) eksternal, penyajian (analitik untuk pelanggan); (3) eksternal, penyajian, dibangun di atas transformasi; (4) internal, ingesti ke penyimpanan; (5) siklus hidup data yang lebih luas: aturannya datang dari undang-undang privasi dan kebijakan perusahaan, dan engineering menjalankannya di setiap salinan; (6) juga siklus hidup data yang lebih luas: keuangan menentukan jangka waktunya, dan engineering mengubahnya menjadi aturan lifecycle penyimpanan (Modul 3.4). Jika Anda menaruh (5) atau (6) di bawah satu tahap saja, perhatikan bahwa keduanya menyentuh setiap tahap sekaligus.
+> **Seharusnya Anda melihat:** (1) internal, serving; (2) external, serving (analitik untuk pelanggan); (3) external, serving, dibangun di atas transformation; (4) internal, ingestion ke storage; (5) siklus hidup data yang lebih luas: aturannya datang dari hukum privasi dan kebijakan perusahaan, dan engineering menjalankannya di setiap salinan; (6) juga siklus hidup data yang lebih luas: bagian keuangan menetapkan periodenya, dan engineering mengubahnya menjadi aturan siklus hidup penyimpanan (Modul 3.4). Jika Anda menaruh (5) atau (6) di satu perhentian saja, perhatikan bahwa keduanya menyentuh setiap perhentian sekaligus.
 
 ## @part Data yang akan Anda kerjakan
 
