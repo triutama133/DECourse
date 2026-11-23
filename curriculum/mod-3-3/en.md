@@ -218,7 +218,7 @@ An aggregation over time must **remember** things between events: the running co
 | With a watermark (10 minutes) | about 40 (stays flat) | 15 KB |
 | Without a watermark | 1,187 (grows linearly, without limit) | 277 KB, and growing |
 
-At production scale (millions of keys, months of data) the second row ends in executor out-of-memory failures or a state store that grows until the job dies (this module's chaos lab). Large state can be kept on disk with a **RocksDB state store** (an option in Spark 3.2 and later; Flink uses RocksDB for keyed state too).
+At production scale (millions of keys, months of data) the second row ends in executor out-of-memory failures or a state store that grows until the job dies (this module's chaos lab). Large state can be kept on disk with a **RocksDB state store** (RocksDB is a fast storage engine that keeps data on the machine's own disk instead of in memory; an option in Spark 3.2 and later; Flink uses RocksDB for keyed state too).
 
 **State must survive failures.** Streaming jobs run for weeks, and machines fail. Spark writes a **checkpoint** to durable storage: the **offsets** it has processed from the source, the **state** of every operator, and metadata. On restart with the same checkpoint location, the job resumes exactly where it stopped, with its windows intact. The lab's tests demonstrate both sides:
 
