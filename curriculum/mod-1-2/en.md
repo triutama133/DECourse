@@ -133,6 +133,404 @@ the edges are the only place where Python allows I/O
 A pure function takes values and returns values and touches nothing else, so a test is just a call and a check. Reading files, calling APIs and writing databases stay in a thin outer layer.
 :::
 
+## @lesson Classes, type hints and decorators: the three things the next lesson reads
+In the next lesson you will meet code like `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)` and `@field_validator("status")`. They look strange until you know three small ideas: a **class**, a **type hint** and a **decorator**. Each one is only a few lines. You do not need to be an expert: you need to be able to read them, and to write the simple forms yourself.
+
+### Class: a blueprint for things that have data and actions
+
+**Why:** a dictionary holds the data of one order, and a function does something with it, but they are separate and nothing keeps them together. A **class** bundles the data and the actions into one thing.
+
+```python
+class Order:
+    def __init__(self, order_id, total):
+        self.order_id = order_id
+        self.total = total
+
+    def is_big(self):
+        return self.total >= 100000
+
+order = Order(1001, 150000)
+print(order.total)       # 150000
+print(order.is_big())    # True
+```
+
+The words, one by one:
+
+- A **class** is a blueprint. `Order` describes what every order has and can do.
+- An **object** (also called an **instance**) is one thing made from the blueprint. `Order(1001, 150000)` makes one.
+- `__init__` runs once, when the object is made. It stores the starting data.
+- `self` means "this object". `self.total = total` writes the value onto the object, so each object keeps its own data.
+- An **attribute** is a piece of data on an object (`order.total`). A **method** is a function inside the class (`order.is_big()`).
+
+Watch two objects keep their own data:
+
+:::trace Two orders, two sets of data
+@code
+class Order:
+    def __init__(self, order_id, total):
+        self.order_id = order_id
+        self.total = total
+
+    def is_big(self):
+        return self.total >= 100000
+
+a = Order(1, 150000)
+b = Order(2, 20000)
+print(a.is_big(), b.is_big())
+@notes
+1 | `class Order:` only describes the blueprint. Nothing is made yet.
+9 | `Order(1, 150000)` makes an object. Python runs `__init__` with `self` pointing at the new object, and stores 1 and 150000 on it.
+10 | A second, separate object with its own data: 2 and 20000.
+11 | `a.is_big()` runs the method on object `a`, so `self.total` is 150000: True. For `b` it is 20000: False.
+:::
+
+:::ask In `self.total = total`, what does `self` stand for?
+@options
+* the one object being made or used right now
+the class `Order` itself, shared by all orders
+a special variable that Python fills with the total
+@why
+`self` is the object the method is working on. Because each object has its own `self`, `a.total` and `b.total` are different values even though both come from the same class.
+:::
+
+:::drill python A cart that remembers
+Write a class `Cart` with a method `add(price)` that remembers the price, and a method `total()` that returns the sum of everything added (0 for a new cart). Two carts must **not** share their items.
+@starter
+# write your class below this line
+
+@check
+defines("Cart") ## Define class Cart.
+(lambda c: (c.add(10), c.add(5), c.total())[-1])(Cart()) == 15 ## 10 + 5.
+Cart().total() == 0 ## A new cart is empty.
+(lambda a, b: (a.add(7), b.total())[-1])(Cart(), Cart()) == 0 ## Another cart does not see the item.
+(lambda c: (c.add(1), c.add(1), c.total())[-1])(Cart()) == 2 ## The same price twice counts twice.
+@hint
+In `__init__` write `self.items = []`. `add` does `self.items.append(price)`; `total` returns `sum(self.items)`.
+@solution
+class Cart:
+    def __init__(self):
+        self.items = []
+
+    def add(self, price):
+        self.items.append(price)
+
+    def total(self):
+        return sum(self.items)
+:::
+
+### Type hints: labels that say what a value should be
+
+**Why:** when you read `def add_tax(price, rate)`, you have to guess whether `price` is a number or text. A **type hint** says it: `price: int`.
+
+```python
+def add_tax(price: int, rate: float = 0.11) -> int:
+    return int(price * (1 + rate))
+```
+
+`price: int` means "price should be a whole number"; `-> int` means "this function returns a whole number". Other hints you will see: `list[str]` (a list of texts), `dict[str, int]` (text keys, whole-number values), `int | None` (a whole number or nothing) and `Literal["paid", "shipped"]` (only one of these exact values).
+
+The most important fact: **Python itself does not check hints.** `add_tax("abc")` still runs and fails later in an ugly way. The hints are read by your editor and by libraries such as Pydantic, which *do* check data against them. That is the whole idea of the next lesson.
+
+:::ask What happens when you run `def f(x: int): return x` and then call `f("hello")`?
+@options
+Python stops with a TypeError before the function runs
+it converts "hello" into a number first
+* it runs and returns "hello": Python does not enforce hints
+@why
+Hints are labels. Python ignores them when it runs your code. A tool such as Pydantic (or an editor) reads them and does the checking for you.
+:::
+
+:::drill python Write the hints
+Write `add_tax(price, rate)` with the hints `price: int`, `rate: float` and `-> int`. It returns the price plus tax, as a whole number: `add_tax(100000, 0.11)` is `111000`. `rate` has the default `0.11`.
+@starter
+# write your function below this line
+
+@check
+defines("add_tax") ## Define add_tax.
+add_tax(100000, 0.11) == 111000 ## 100000 plus 11%.
+add_tax(100000) == 111000 ## The default rate is 0.11.
+add_tax(200, 0.5) == 300 ## Another rate.
+add_tax.__annotations__ == {"price": int, "rate": float, "return": int} ## The three hints are written.
+@hint
+`def add_tax(price: int, rate: float = 0.11) -> int:` and `return round(price * (1 + rate))`.
+@solution
+def add_tax(price: int, rate: float = 0.11) -> int:
+    return round(price * (1 + rate))
+:::
+
+### Dataclass: a class that writes the boring parts for you
+
+Many classes only hold data. The standard library can write `__init__` for you, from the type hints:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Order:
+    order_id: int
+    total: int
+
+o = Order(1001, 150000)
+print(o)                     # Order(order_id=1001, total=150000)
+print(o == Order(1001, 150000))   # True
+```
+
+The line `@dataclass` is a decorator (next section). It gives the class an `__init__`, a readable printout and `==` for free. Pydantic's `BaseModel` goes further: it also **checks** the data against the hints.
+
+:::drill python A dataclass
+Write a dataclass `Product` with two fields: `name` (a text) and `price` (a whole number). `Product("tea", 5000) == Product("tea", 5000)` must be `True`.
+@starter
+from dataclasses import dataclass
+# write your class below this line
+
+@check
+defines("Product") ## Define class Product.
+Product("tea", 5000).price == 5000 ## It stores the price.
+Product("tea", 5000) == Product("tea", 5000) ## Same fields: equal.
+(Product("tea", 5000) == Product("tea", 6000)) == False ## Different price: not equal.
+uses("dataclass") ## You used @dataclass.
+@hint
+Put `@dataclass` on the line above `class Product:` and write `name: str` and `price: int` inside.
+@solution
+from dataclasses import dataclass
+
+@dataclass
+class Product:
+    name: str
+    price: int
+:::
+
+### Decorator: a label that wraps a function
+
+**Why:** sometimes you want to add the same extra behaviour to many functions: check the input, count the calls, retry on failure. A **decorator** does that without changing each function. A line `@name` above a `def` means: "hand this function to `name`, and use what it gives back instead".
+
+```python
+def shout(fn):
+    def wrapper(*args):
+        return fn(*args).upper()
+    return wrapper
+
+@shout
+def greet(name):
+    return "hello " + name
+
+print(greet("sari"))   # HELLO SARI
+```
+
+Watch what `@shout` really does:
+
+:::trace A decorator wraps a function
+@code
+def shout(fn):
+    def wrapper(*args):
+        return fn(*args).upper()
+    return wrapper
+
+@shout
+def greet(name):
+    return "hello " + name
+
+print(greet("sari"))
+@notes
+1 | `shout` is a function that takes another function, `fn`.
+2 | Inside it builds a new function, `wrapper`. It will call `fn` and then make the result upper case.
+4 | `shout` hands back the wrapper, not the original.
+6 | The `@shout` line means `greet = shout(greet)`: the name `greet` now points at the **wrapper**.
+10 | Calling `greet("sari")` runs the wrapper, which runs the original `greet`, then makes it upper case: HELLO SARI.
+:::
+
+In the next lessons you will mostly **use** decorators other people wrote: `@field_validator(...)` and `@classmethod` in Pydantic, `@pytest.fixture` and `@pytest.mark.parametrize` in tests, `@task` and `@dag` in Airflow. Writing your own is a skill you will use now and then.
+
+:::ask In the code `@field_validator("status")` above a method, what does the `@` line do?
+@options
+it makes the method run twice, once for each status
+* it hands the method to field_validator, which registers it as a check for the field
+it turns the method into a comment so Python ignores it
+@why
+A decorator receives the function underneath and returns something to use in its place. Pydantic's decorator remembers your method and calls it when it validates the field `status`.
+:::
+
+:::drill python Write a decorator
+Write a decorator `twice(fn)`: the new function calls `fn` two times with the same arguments and returns **a list of the two results**. So `twice(lambda x: x + 1)(5)` is `[6, 6]`.
+@starter
+# write your decorator below this line
+
+@check
+defines("twice") ## Define twice(fn).
+twice(lambda x: x + 1)(5) == [6, 6] ## Called twice, both results.
+twice(lambda a, b: a * b)(3, 4) == [12, 12] ## Several arguments pass through.
+(lambda c: (twice(lambda: c.append(1))(), len(c))[1])([]) == 2 ## The function really ran twice.
+@hint
+Inside `twice`, define `wrapper(*args)` that returns `[fn(*args), fn(*args)]`, then `return wrapper`.
+@solution
+def twice(fn):
+    def wrapper(*args):
+        return [fn(*args), fn(*args)]
+    return wrapper
+:::
+
+### Now read the code from the next lesson
+
+You can already read each line of this example:
+
+```python
+class OrderRow(BaseModel):                 # a class that extends BaseModel (it inherits its abilities)
+    order_id: int = Field(gt=0)            # attribute with a type hint, and a rule: greater than 0
+    status: Literal["paid", "shipped"]     # a hint: only these two values are allowed
+```
+
+`class OrderRow(BaseModel)` means "OrderRow is a new class that **inherits** everything BaseModel can do, and adds its own fields". That one sentence is all the inheritance you need for this course.
+
+> 🛠 **Try it (10 min, Python).** On your own computer: create `shapes.py` with a dataclass `Order` (fields `order_id: int` and `total: int`), a function `shout(fn)` like the one above, and two lines at the bottom that print an order and call a decorated function. Run `python3 shapes.py`.
+>
+> **You should see:** the order printed as `Order(order_id=1001, total=150000)` and the decorated function's result in upper case. If you see `NameError: name 'dataclass' is not defined`, you forgot `from dataclasses import dataclass`.
+
+## @lesson Functions are values: lambda, sorting keys and recursion
+A function in Python is a value like a number or a text. You can store it in a variable, put it in a list, and hand it to another function. That one fact explains `sorted(..., key=...)`, `lambda`, decorators (the last lesson) and a lot of data-engineering code. This lesson also shows **recursion**: a function that calls itself, which is how you walk through data of unknown depth, such as nested JSON or a folder tree.
+
+### Handing a function to a function
+
+```python
+def total_of(order):
+    return order["total"]
+
+orders = [{"id": 1, "total": 50}, {"id": 2, "total": 90}]
+print(sorted(orders, key=total_of))   # smallest total first
+```
+
+`key=total_of` hands over the function itself (no brackets: you are not calling it). `sorted` calls it once for every order to get the value to sort by.
+
+### lambda: a small function without a name
+
+For a one-line function used once, `lambda` saves the `def`:
+
+```python
+sorted(orders, key=lambda order: order["total"], reverse=True)   # biggest total first
+max(orders, key=lambda order: order["total"])["id"]              # the id of the biggest order
+```
+
+`lambda order: order["total"]` means "given `order`, return `order["total"]`". A lambda can hold only one expression. When you need more, write a normal `def`.
+
+:::ask What does `sorted(words, key=len)` do?
+@options
+sorts the words alphabetically
+counts how many words there are and returns that number
+* sorts the words from the shortest to the longest
+@why
+`key=len` hands the function `len` to `sorted`, which calls it on every word to get a number to sort by. The words are ordered by that number: their length.
+:::
+
+:::drill python Sort with a key
+Write `by_total(orders)`: `orders` is a list of dictionaries with `id` and `total`. Return the list of **ids**, ordered by `total` from the biggest to the smallest. (Use `sorted` with a `key=`.)
+@starter
+# write your function below this line
+
+@check
+defines("by_total") ## Define by_total(orders).
+by_total([{"id": 1, "total": 50}, {"id": 2, "total": 90}]) == [2, 1] ## Biggest first.
+by_total([]) == [] ## No orders.
+by_total([{"id": 7, "total": 5}]) == [7] ## One order.
+calls("sorted") ## You used sorted(...).
+@hint
+`sorted(orders, key=lambda o: o["total"], reverse=True)`, then take the ids.
+@solution
+def by_total(orders):
+    ordered = sorted(orders, key=lambda o: o["total"], reverse=True)
+    return [o["id"] for o in ordered]
+:::
+
+:::drill python A list of functions
+Write `apply_all(funcs, x)`: `funcs` is a list of functions. Return a list with the result of calling each function on `x`, in order. `apply_all([abs, str], -3)` is `[3, "-3"]`.
+@starter
+# write your function below this line
+
+@check
+defines("apply_all") ## Define apply_all(funcs, x).
+apply_all([abs, str], -3) == [3, "-3"] ## Two functions.
+apply_all([], 5) == [] ## No functions.
+apply_all([lambda v: v + 1, lambda v: v * 2], 10) == [11, 20] ## Lambdas work too.
+@hint
+`[fn(x) for fn in funcs]`: a function is a value you can loop over and call.
+@solution
+def apply_all(funcs, x):
+    return [fn(x) for fn in funcs]
+:::
+
+### Recursion: a function that calls itself
+
+Some data has no fixed depth: a JSON document with objects inside objects, a folder with folders inside folders. A loop does not know how many levels to go down. A **recursive** function solves a small piece and calls itself for the smaller rest.
+
+(`isinstance(x, list)` asks "is `x` a list?". The `sum(... for item in x)` part is like a list comprehension without the square brackets.) Every recursive function needs two parts:
+
+1. a **base case**: when to stop, with a plain answer (a number is its own sum);
+2. a **recursive case**: break the problem into smaller pieces, call yourself on each, and combine the answers.
+
+```python
+def total(x):
+    if isinstance(x, list):                  # recursive case: a list of smaller things
+        return sum(total(item) for item in x)
+    return x                                  # base case: a plain number
+```
+
+Watch it go down and come back up:
+
+:::trace Recursion on a nested list
+@code
+def total(x):
+    if isinstance(x, list):
+        return sum(total(item) for item in x)
+    return x
+
+print(total([1, [2, 3]]))
+@notes
+2 | A list is not a plain number, so we take the recursive case.
+3 | For each item we call `total` again: first 1 (a number: the base case returns 1), then `[2, 3]` (a list again: another round that adds 2 and 3 to make 5).
+4 | The base case: a plain number is its own total. Without it the function would call itself forever.
+6 | The answer: 1 + 5 = 6.
+:::
+
+:::ask A recursive function has no base case. What happens when you call it?
+@options
+* it keeps calling itself until Python stops it with a RecursionError
+it returns None because there is nothing to do
+it runs once and then stops by itself
+@why
+Every call makes another call, so the calls pile up until Python reaches its limit (about 1,000 levels) and raises `RecursionError`. The base case is what ends the chain.
+:::
+
+:::drill python Find a key anywhere
+Write `find_values(data, key)`: `data` is a nested structure of dictionaries and lists (like parsed JSON). Return a list of the values of **every** dictionary entry whose key is `key`, wherever it is, in the order found.
+@starter
+# write your function below this line
+
+@check
+defines("find_values") ## Define find_values(data, key).
+find_values({"a": 1, "b": {"a": 2}}, "a") == [1, 2] ## The key appears at two levels.
+find_values([{"id": 1}, {"id": 2, "x": [{"id": 3}]}], "id") == [1, 2, 3] ## Inside lists inside dictionaries.
+find_values({"a": 1}, "zzz") == [] ## The key never appears.
+find_values(5, "a") == [] ## A plain value has nothing to find.
+@hint
+If `data` is a dictionary: for each `k, v` add `v` when `k == key`, and recurse into `v`. If it is a list: recurse into each item. Otherwise return an empty list.
+@solution
+def find_values(data, key):
+    found = []
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k == key:
+                found.append(v)
+            found.extend(find_values(v, key))
+    elif isinstance(data, list):
+        for item in data:
+            found.extend(find_values(item, key))
+    return found
+:::
+
+Recursion is the right tool for trees. For a plain flat list, a `for` loop is simpler and cannot hit the depth limit, so use the loop there.
+
+> 🛠 **Try it (10 min, Python).** On your own computer, in a file `nested.py`, paste a small nested dictionary (a fake order with `customer` and `items`, each item a dictionary), then write `find_values` and print every `sku` in it. Run `python3 nested.py`.
+>
+> **You should see:** the list of all `sku` values, wherever they sit. If you see `RecursionError`, a recursive call is not getting smaller data: check your base case.
+
 ## @lesson Validate at the boundary with Pydantic
 The most reliable pipelines distrust their inputs. Data crosses a **boundary** (a file, an API, a queue) and you convert it from "whatever the sender produced" to "a value my code can rely on". Do this once, at the door; everything after the door can then assume clean data.
 
@@ -178,7 +576,7 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 > 2. Complete the `OrderRow` class and `validate(row: dict)` function. Add validators to clean Rupiah text (`"Rp 1.250.000"` -> `1250000`), normalize status with lowercase/strip, and support both ISO and `DD/MM/YYYY` timestamps.
 > 3. Test your model in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
-> When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 3 on streaming generators.
+> When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 5 on streaming generators.
 
 :::drill python Why was this row rejected?
 Write `reasons(row)`: `row` is a dictionary from a CSV (all text). Return a list of reject reasons, in this order: `"bad status"` if `status` is not one of `paid`, `cancelled`, `shipped`; `"bad total"` if `total_idr` is not a whole number of zero or more. A good row gives `[]`.
@@ -356,7 +754,7 @@ def good_totals(rows):
 > 2. Implement a lazy generator using `with open(path, newline="", encoding="utf-8") as f:` and `csv.DictReader(f)` with `yield from` (never convert it to `list(csv.DictReader(f))`).
 > 3. Test memory consumption and generator laziness in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
-> When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 4 on retries and idempotency.
+> When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 6 on retries and idempotency.
 
 ## @part Making it reliable
 
@@ -492,7 +890,7 @@ def retry(fn, attempts=3):
 > 2. Use atomic writes (write to temporary `.tmp` files then swap with `os.replace`), track duplicate `order_id` using a set, stream clean records to `output_path` (sorted-key NDJSON), and route failed rows to `quarantine_path` capturing the rejection reason.
 > 3. Test the pipeline in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
-> When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 5 & 6 on logging (`TestLogging`) and testing.
+> When all TestRun tests are PASSED, your pipeline is idempotent and resilient against bad data! Proceed to Lessons 7 & 8 on logging (`TestLogging`) and testing.
 
 ## @lesson Logging and run summaries
 `print` is for scripts; **`logging`** is for jobs. It adds timestamps, severity levels and routing (to a file, to the console, to a collector), and lets whoever runs your job choose how much to see without editing code.
@@ -585,7 +983,7 @@ Keep tests fast and independent of the network and the clock. A test suite that 
 > `pytest labs/mod-1-2/test_lab.py -v`
 > 3. Try running the script directly from terminal on KopiKu data:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
-> When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 7 on choosing the right tools.
+> When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 9 on choosing the right tools.
 
 :::ask You have one rule to test (a total may be 'Rp 1.250.000' or '150000') with many example inputs. Which pytest feature fits?
 @options

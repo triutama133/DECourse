@@ -978,3 +978,262 @@ def walk(tree):
         else:
             yield name
 :::
+
+## @challenge p01 | 6 | Proyek mini
+:::drill python Proyek: tagihan kedai kopi
+KopiKu butuh kasir. Tulis dua fungsi. `bill(order, menu)`: `order` adalah list nama item, `menu` memetakan nama ke harganya dalam rupiah. Kembalikan `{"subtotal": ..., "discount": ..., "total": ...}`. Bila subtotal **120.000 atau lebih**, diskonnya 10% dari subtotal (bilangan bulat, dibulatkan ke bawah); selain itu 0. Item yang tidak ada di menu melempar `ValueError`. `best_seller(orders)`: `orders` adalah list pesanan (masing-masing list nama); kembalikan nama yang paling sering terjual dari semuanya (seri: nama pertama menurut abjad), atau `None` bila tak ada yang terjual.
+@starter
+# tulis kedua fungsimu di bawah baris ini
+
+@check
+defines("bill") ## Definisikan bill(order, menu).
+bill(["kopi", "kopi", "teh"], {"kopi": 25000, "teh": 15000}) == {"subtotal": 65000, "discount": 0, "total": 65000} ## Pesanan kecil: tanpa diskon.
+bill(["kopi"] * 4 + ["roti"], {"kopi": 25000, "roti": 20000}) == {"subtotal": 120000, "discount": 12000, "total": 108000} ## Tepat 120.000: diskon berlaku.
+bill([], {"kopi": 25000}) == {"subtotal": 0, "discount": 0, "total": 0} ## Pesanan kosong.
+raises_error(ValueError, bill, ["latte"], {"kopi": 25000}) == True ## Tidak ada di menu.
+best_seller([["kopi", "teh"], ["kopi"], ["teh", "teh", "roti"]]) == "teh" ## teh 3, kopi 2, roti 1.
+best_seller([["b"], ["a"]]) == "a" ## Seri: urut abjad.
+best_seller([]) is None ## Tak ada yang terjual.
+@hint
+Untuk `bill`: cari tiap nama di menu (lempar `ValueError` sendiri bila tak ada), jumlahkan, lalu `discount = subtotal // 10` hanya bila `subtotal >= 120000`. Untuk `best_seller`: hitung tiap nama di tiap pesanan dengan dictionary, lalu ambil yang terbaik dengan `min(counts, key=lambda k: (-counts[k], k))`.
+@solution
+def bill(order, menu):
+    subtotal = 0
+    for name in order:
+        if name not in menu:
+            raise ValueError("not on the menu: " + name)
+        subtotal += menu[name]
+    discount = subtotal // 10 if subtotal >= 120000 else 0
+    return {"subtotal": subtotal, "discount": discount, "total": subtotal - discount}
+
+def best_seller(orders):
+    counts = {}
+    for order in orders:
+        for name in order:
+            counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return None
+    return min(counts, key=lambda k: (-counts[k], k))
+:::
+
+## @challenge p02 | 6 | Proyek mini
+:::drill python Proyek: detektif kata
+Analisis sepotong teks. `clean_words(text)`: kembalikan kata-kata dalam huruf kecil, dengan tanda baca ini dibuang dari ujung tiap kata: `. , ! ? ; : " ' ( )`. Lewati hasil kosong. `top_words(text, n)`: `n` kata bersih yang paling sering, yang terbanyak dulu (seri: yang pertama menurut abjad). `longest_word(text)`: kata bersih terpanjang (yang pertama bila seri), atau `""` bila tak ada kata.
+@starter
+# tulis ketiga fungsimu di bawah baris ini
+
+@check
+defines("clean_words") ## Definisikan clean_words(text).
+clean_words('Hello, World! "Hello"') == ["hello", "world", "hello"] ## Tanda baca dan huruf kapital hilang.
+clean_words("  ... ") == [] ## Hanya tanda baca: tanpa kata.
+top_words("a b a c b a", 2) == ["a", "b"] ## a 3, b 2, c 1.
+top_words("x y", 5) == ["x", "y"] ## Meminta lebih banyak dari yang ada; seri urut abjad.
+longest_word("I love coffee, really!") == "coffee" ## Kata terpanjang.
+longest_word("cat dog") == "cat" ## Seri: yang pertama.
+longest_word("") == "" ## Tanpa kata.
+@hint
+`word.strip('.,!?;:"\'()').lower()` membersihkan satu kata. Bangun `top_words` dan `longest_word` di atas `clean_words`.
+@solution
+def clean_words(text):
+    words = [w.strip('.,!?;:"\'()').lower() for w in text.split()]
+    return [w for w in words if w]
+
+def top_words(text, n):
+    counts = {}
+    for w in clean_words(text):
+        counts[w] = counts.get(w, 0) + 1
+    return sorted(counts, key=lambda k: (-counts[k], k))[:n]
+
+def longest_word(text):
+    words = clean_words(text)
+    return max(words, key=len) if words else ""
+:::
+
+## @challenge p03 | 6 | Proyek mini
+:::drill python Proyek: penganalisis log
+Sebuah server menulis baris seperti `2026-01-05 10:03:12 ERROR payment failed`. Tulis `parse_line(line)`: kembalikan `(date, time, level, message)`, atau `None` bila baris punya kurang dari empat bagian atau level-nya bukan `INFO`, `WARN`, atau `ERROR`. Tulis `summarize(lines)`: dictionary `{"INFO": n, "WARN": n, "ERROR": n, "bad": n}` yang menghitung baris-barisnya. Tulis `error_rate(lines)`: jumlah error dibagi jumlah baris yang **baik** (0 bila tak ada).
+@starter
+# tulis ketiga fungsimu di bawah baris ini
+
+@check
+defines("parse_line") ## Definisikan parse_line(line).
+parse_line("2026-01-05 10:03:12 ERROR payment failed") == ("2026-01-05", "10:03:12", "ERROR", "payment failed") ## Pesan tetap berisi spasinya.
+parse_line("2026-01-05 10:03:12 DEBUG hi") is None ## Level tidak diizinkan.
+parse_line("garbage") is None ## Bagian terlalu sedikit.
+summarize(["2026-01-05 10:00:00 INFO ok", "2026-01-05 10:00:01 ERROR no", "oops", "2026-01-05 10:00:02 INFO ok"]) == {"INFO": 2, "WARN": 0, "ERROR": 1, "bad": 1} ## Hitungan per level, dan satu baris buruk.
+error_rate(["2026-01-05 10:00:00 INFO a", "2026-01-05 10:00:01 ERROR b", "x y"]) == 0.5 ## 1 error dari 2 baris baik (baris buruk tidak dihitung).
+error_rate([]) == 0 ## Tanpa baris.
+@hint
+`line.split(" ", 3)` menghasilkan paling banyak empat bagian, sehingga pesan tetap berisi spasinya. Bangun `summarize` dan `error_rate` di atas `parse_line`.
+@solution
+def parse_line(line):
+    parts = line.split(" ", 3)
+    if len(parts) < 4 or parts[2] not in ("INFO", "WARN", "ERROR"):
+        return None
+    return tuple(parts)
+
+def summarize(lines):
+    out = {"INFO": 0, "WARN": 0, "ERROR": 0, "bad": 0}
+    for line in lines:
+        parsed = parse_line(line)
+        if parsed is None:
+            out["bad"] += 1
+        else:
+            out[parsed[2]] += 1
+    return out
+
+def error_rate(lines):
+    s = summarize(lines)
+    good = s["INFO"] + s["WARN"] + s["ERROR"]
+    return s["ERROR"] / good if good else 0
+:::
+
+## @challenge p04 | 6 | Proyek mini
+:::drill python Proyek: pemeriksa kata sandi
+Tulis `strength(pw)`: satu poin untuk masing-masing: minimal 8 karakter; huruf kecil; huruf besar; angka; simbol (karakter yang bukan huruf atau angka). Kata sandi `password`, `123456`, atau `qwerty` dalam huruf apa pun bernilai 0. Tulis `verdict(pw)`: `"weak"` untuk 0 sampai 2 poin, `"ok"` untuk 3 atau 4, `"strong"` untuk 5.
+@starter
+# tulis kedua fungsimu di bawah baris ini
+
+@check
+defines("strength") ## Definisikan strength(pw).
+strength("Kopi#2026x") == 5 ## Panjang, huruf kecil, huruf besar, angka, dan simbol.
+strength("abc") == 1 ## Hanya huruf kecil.
+strength("ABCDEFGH") == 2 ## 8 karakter dan huruf besar.
+strength("QWERTY") == 0 ## Kata sandi umum bernilai 0, dalam huruf apa pun.
+verdict("abc") == "weak" ## 1 poin.
+verdict("Kopi2026") == "ok" ## 4 poin: panjang, kecil, besar, angka.
+verdict("Kopi#2026x") == "strong" ## 5 poin.
+@hint
+Tambahkan lima ujinya sebagai `+ (kondisi)` (True dihitung 1). Pakai `any(c.islower() for c in pw)` dan seterusnya; simbol adalah `not c.isalnum()`.
+@solution
+def strength(pw):
+    if pw.lower() in ("password", "123456", "qwerty"):
+        return 0
+    return (
+        (len(pw) >= 8)
+        + any(c.islower() for c in pw)
+        + any(c.isupper() for c in pw)
+        + any(c.isdigit() for c in pw)
+        + any(not c.isalnum() for c in pw)
+    )
+
+def verdict(pw):
+    s = strength(pw)
+    return "weak" if s <= 2 else "ok" if s <= 4 else "strong"
+:::
+
+## @challenge p05 | 6 | Proyek mini
+:::drill python Proyek: inventaris mungil
+Tulis class `Inventory`. `add(item, qty)` menambah stok. `remove(item, qty)` mengurangi stok, tetapi bila tidak cukup ia melempar `ValueError` dan **tidak mengubah apa pun**. `stock(item)` mengembalikan jumlahnya (0 bila tak pernah ditambah). `low_stock(limit)` mengembalikan list terurut item yang stoknya `limit` atau kurang.
+@starter
+# tulis class-mu di bawah baris ini
+
+@check
+defines("Inventory") ## Definisikan class Inventory.
+(lambda i: (i.add("tea", 5), i.add("tea", 3), i.stock("tea"))[-1])(Inventory()) == 8 ## Menambah dua kali.
+Inventory().stock("nothing") == 0 ## Tak pernah ditambah.
+(lambda i: (i.add("tea", 5), i.remove("tea", 2), i.stock("tea"))[-1])(Inventory()) == 3 ## Mengurangi.
+(lambda i: (i.add("tea", 1), raises_error(ValueError, i.remove, "tea", 5), i.stock("tea"))[-1])(Inventory()) == 1 ## Terlalu banyak: error, dan stok tidak berubah.
+(lambda i: (i.add("b", 1), i.add("a", 2), i.add("c", 50), i.low_stock(2))[-1])(Inventory()) == ["a", "b"] ## Stok rendah, terurut.
+@hint
+Simpan dictionary `self.items`. Di `remove`, periksa `self.stock(item) < qty` dan lempar error **sebelum** mengubah apa pun.
+@solution
+class Inventory:
+    def __init__(self):
+        self.items = {}
+
+    def add(self, item, qty):
+        self.items[item] = self.items.get(item, 0) + qty
+
+    def remove(self, item, qty):
+        if self.stock(item) < qty:
+            raise ValueError("not enough " + item)
+        self.items[item] -= qty
+
+    def stock(self, item):
+        return self.items.get(item, 0)
+
+    def low_stock(self, limit):
+        return sorted(name for name, qty in self.items.items() if qty <= limit)
+:::
+
+## @challenge p06 | 6 | Proyek mini
+:::drill python Proyek: pipeline versi mini
+Bangun job pembersih kecil untuk baris pesanan (semua nilai berupa teks). `clean_row(row)`: kembalikan `(clean, reason)`. Sebuah baris `bad_id` bila `order_id` bukan semuanya angka, lalu `bad_status` bila `status` (setelah di-trim dan dijadikan huruf kecil) bukan `paid`, `shipped`, atau `cancelled`, lalu `bad_total` bila `total_idr` (titik dan awalan `Rp` diperbolehkan) bukan bilangan bulat. Baris baik menghasilkan `({"order_id": int, "status": teks, "total_idr": int}, None)`; baris buruk menghasilkan `(None, reason)`. `run(rows)`: kembalikan `{"valid": [...], "rejected": [alasan], "duplicates": n}`; baris baik yang `order_id`-nya sudah pernah terlihat dihitung sebagai duplikat (tidak masuk `valid`, bukan penolakan).
+@starter
+# tulis kedua fungsimu di bawah baris ini
+
+@check
+defines("clean_row") ## Definisikan clean_row(row).
+clean_row({"order_id": "7", "status": " PAID ", "total_idr": "Rp 1.500"}) == ({"order_id": 7, "status": "paid", "total_idr": 1500}, None) ## Baris yang baik, sudah dibersihkan.
+clean_row({"order_id": "x", "status": "paid", "total_idr": "5"}) == (None, "bad_id") ## Bukan angka.
+clean_row({"order_id": "1", "status": "teleported", "total_idr": "5"}) == (None, "bad_status") ## Status tak dikenal.
+clean_row({"order_id": "1", "status": "paid", "total_idr": "abc"}) == (None, "bad_total") ## Bukan angka.
+run([{"order_id": "1", "status": "PAID", "total_idr": "Rp 1.500"}, {"order_id": "1", "status": "paid", "total_idr": "1500"}, {"order_id": "x", "status": "paid", "total_idr": "5"}, {"order_id": "2", "status": "teleported", "total_idr": "5"}, {"order_id": "3", "status": "shipped", "total_idr": "abc"}]) == {"valid": [{"order_id": 1, "status": "paid", "total_idr": 1500}], "rejected": ["bad_id", "bad_status", "bad_total"], "duplicates": 1} ## Lima baris: satu valid, satu duplikat, tiga ditolak.
+run([]) == {"valid": [], "rejected": [], "duplicates": 0} ## Tidak masuk, tidak keluar.
+@hint
+Kerjakan `clean_row` dulu dan ujilah. Di `run`, simpan set `seen` berisi id pesanan.
+@solution
+def clean_row(row):
+    if not row["order_id"].isdigit():
+        return None, "bad_id"
+    status = row["status"].strip().lower()
+    if status not in ("paid", "shipped", "cancelled"):
+        return None, "bad_status"
+    raw = row["total_idr"].replace("Rp", "").replace(" ", "").replace(".", "")
+    if not raw.isdigit():
+        return None, "bad_total"
+    return {"order_id": int(row["order_id"]), "status": status, "total_idr": int(raw)}, None
+
+def run(rows):
+    valid, rejected, seen, duplicates = [], [], set(), 0
+    for row in rows:
+        clean, reason = clean_row(row)
+        if reason:
+            rejected.append(reason)
+        elif clean["order_id"] in seen:
+            duplicates += 1
+        else:
+            seen.add(clean["order_id"])
+            valid.append(clean)
+    return {"valid": valid, "rejected": rejected, "duplicates": duplicates}
+:::
+
+## @challenge p07 | 6 | Proyek mini
+:::drill python Proyek: tebak angka
+Aturan permainan tebak angka, tanpa mengetik. `judge(secret, guess)`: kembalikan `"higher"` bila tebakan terlalu kecil, `"lower"` bila terlalu besar, `"correct"` bila benar. `play(secret, guesses)`: telusuri tebakan berurutan dan berhenti pada tebakan benar pertama; kembalikan `(won, tries)`. Bila tak ada yang benar, kembalikan `(False, len(guesses))`. `max_tries(low, high)`: jumlah tebakan terbanyak yang dibutuhkan pemain sempurna untuk rahasia antara `low` dan `high` (keduanya termasuk), dengan selalu menebak tengah: `k` terkecil dengan `2 ** k >= high - low + 1`.
+@starter
+# tulis ketiga fungsimu di bawah baris ini
+
+@check
+defines("judge") ## Definisikan judge(secret, guess).
+judge(50, 30) == "higher" ## 30 terlalu kecil: naikkan.
+judge(50, 80) == "lower" ## 80 terlalu besar: turunkan.
+judge(50, 50) == "correct" ## Benar.
+play(7, [3, 9, 7, 1]) == (True, 3) ## Berhenti pada tebakan ketiga.
+play(7, [1, 2]) == (False, 2) ## Tak pernah benar.
+play(7, []) == (False, 0) ## Tanpa tebakan.
+max_tries(1, 100) == 7 ## 2**7 = 128 adalah pangkat 2 pertama yang mencakup 100 angka.
+max_tries(1, 1) == 0 ## Hanya satu angka: tak perlu menebak.
+@hint
+Untuk `max_tries`, hitung `k` naik dari 0 selama `2 ** k < high - low + 1`. Untuk `play`, `enumerate(guesses, start=1)` memberi nomor percobaan.
+@solution
+def judge(secret, guess):
+    if guess < secret:
+        return "higher"
+    if guess > secret:
+        return "lower"
+    return "correct"
+
+def play(secret, guesses):
+    for tries, guess in enumerate(guesses, start=1):
+        if judge(secret, guess) == "correct":
+            return True, tries
+    return False, len(guesses)
+
+def max_tries(low, high):
+    k = 0
+    while 2 ** k < high - low + 1:
+        k += 1
+    return k
+:::

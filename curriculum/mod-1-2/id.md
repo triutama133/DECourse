@@ -133,6 +133,404 @@ tepi adalah satu-satunya tempat Python mengizinkan I/O
 Fungsi murni menerima nilai dan mengembalikan nilai tanpa menyentuh hal lain, jadi tes hanyalah panggilan dan pemeriksaan. Membaca file, memanggil API, dan menulis database tetap di lapisan luar yang tipis.
 :::
 
+## @lesson Class, type hint, dan decorator: tiga hal yang dibaca di materi berikutnya
+Di materi berikutnya Anda akan bertemu kode seperti `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)`, dan `@field_validator("status")`. Semuanya tampak aneh sampai Anda tahu tiga ide kecil: **class**, **type hint**, dan **decorator**. Masing-masing hanya beberapa baris. Anda tidak perlu menjadi ahli: Anda perlu bisa membacanya, dan menulis bentuk sederhananya sendiri.
+
+### Class: cetak biru untuk sesuatu yang punya data dan tindakan
+
+**Mengapa:** dictionary menyimpan data satu pesanan, dan fungsi melakukan sesuatu padanya, tetapi keduanya terpisah dan tidak ada yang menyatukannya. **Class** menyatukan data dan tindakan menjadi satu benda.
+
+```python
+class Order:
+    def __init__(self, order_id, total):
+        self.order_id = order_id
+        self.total = total
+
+    def is_big(self):
+        return self.total >= 100000
+
+order = Order(1001, 150000)
+print(order.total)       # 150000
+print(order.is_big())    # True
+```
+
+Istilahnya, satu per satu:
+
+- **Class** adalah cetak biru. `Order` menjelaskan apa yang dimiliki dan bisa dilakukan setiap pesanan.
+- **Object** (disebut juga **instance**) adalah satu benda yang dibuat dari cetak biru itu. `Order(1001, 150000)` membuat satu.
+- `__init__` berjalan sekali, saat object dibuat. Ia menyimpan data awal.
+- `self` berarti "object ini". `self.total = total` menulis nilainya ke object, sehingga tiap object menyimpan datanya sendiri.
+- **Attribute** adalah sepotong data pada object (`order.total`). **Method** adalah fungsi di dalam class (`order.is_big()`).
+
+Lihat dua object menyimpan data masing-masing:
+
+:::trace Dua pesanan, dua set data
+@code
+class Order:
+    def __init__(self, order_id, total):
+        self.order_id = order_id
+        self.total = total
+
+    def is_big(self):
+        return self.total >= 100000
+
+a = Order(1, 150000)
+b = Order(2, 20000)
+print(a.is_big(), b.is_big())
+@notes
+1 | `class Order:` hanya menjelaskan cetak birunya. Belum ada yang dibuat.
+9 | `Order(1, 150000)` membuat sebuah object. Python menjalankan `__init__` dengan `self` menunjuk object baru, dan menyimpan 1 dan 150000 di dalamnya.
+10 | Object kedua yang terpisah dengan datanya sendiri: 2 dan 20000.
+11 | `a.is_big()` menjalankan method pada object `a`, jadi `self.total` bernilai 150000: True. Untuk `b` nilainya 20000: False.
+:::
+
+:::ask Pada `self.total = total`, apa yang diwakili `self`?
+@options
+* satu object yang sedang dibuat atau dipakai saat ini
+class `Order` itu sendiri, yang dipakai bersama semua pesanan
+variabel khusus yang diisi Python dengan nilai total
+@why
+`self` adalah object yang sedang dikerjakan method. Karena tiap object punya `self` sendiri, `a.total` dan `b.total` bernilai berbeda walau keduanya berasal dari class yang sama.
+:::
+
+:::drill python Keranjang yang mengingat
+Tulis class `Cart` dengan method `add(price)` yang mengingat harga, dan method `total()` yang mengembalikan jumlah semua yang ditambahkan (0 untuk keranjang baru). Dua keranjang **tidak boleh** berbagi isinya.
+@starter
+# tulis class-mu di bawah baris ini
+
+@check
+defines("Cart") ## Definisikan class Cart.
+(lambda c: (c.add(10), c.add(5), c.total())[-1])(Cart()) == 15 ## 10 + 5.
+Cart().total() == 0 ## Keranjang baru kosong.
+(lambda a, b: (a.add(7), b.total())[-1])(Cart(), Cart()) == 0 ## Keranjang lain tidak melihat item itu.
+(lambda c: (c.add(1), c.add(1), c.total())[-1])(Cart()) == 2 ## Harga sama dua kali dihitung dua kali.
+@hint
+Di `__init__` tulis `self.items = []`. `add` melakukan `self.items.append(price)`; `total` mengembalikan `sum(self.items)`.
+@solution
+class Cart:
+    def __init__(self):
+        self.items = []
+
+    def add(self, price):
+        self.items.append(price)
+
+    def total(self):
+        return sum(self.items)
+:::
+
+### Type hint: label yang menyatakan nilai itu seharusnya apa
+
+**Mengapa:** saat membaca `def add_tax(price, rate)`, Anda harus menebak apakah `price` angka atau teks. **Type hint** menyatakannya: `price: int`.
+
+```python
+def add_tax(price: int, rate: float = 0.11) -> int:
+    return int(price * (1 + rate))
+```
+
+`price: int` berarti "price seharusnya bilangan bulat"; `-> int` berarti "fungsi ini mengembalikan bilangan bulat". Hint lain yang akan Anda lihat: `list[str]` (list berisi teks), `dict[str, int]` (kunci teks, nilai bilangan bulat), `int | None` (bilangan bulat atau tidak ada) dan `Literal["paid", "shipped"]` (hanya salah satu nilai persis ini).
+
+Fakta terpenting: **Python sendiri tidak memeriksa hint.** `add_tax("abc")` tetap berjalan dan gagal belakangan dengan cara yang jelek. Hint dibaca editor dan library seperti Pydantic, yang *memang* memeriksa data terhadapnya. Itulah seluruh ide materi berikutnya.
+
+:::ask Apa yang terjadi bila Anda menjalankan `def f(x: int): return x` lalu memanggil `f("hello")`?
+@options
+Python berhenti dengan TypeError sebelum fungsi berjalan
+ia mengubah "hello" menjadi angka lebih dulu
+* ia berjalan dan mengembalikan "hello": Python tidak menegakkan hint
+@why
+Hint adalah label. Python mengabaikannya saat menjalankan kodemu. Alat seperti Pydantic (atau editor) membacanya dan melakukan pemeriksaannya untukmu.
+:::
+
+:::drill python Tulis hint-nya
+Tulis `add_tax(price, rate)` dengan hint `price: int`, `rate: float`, dan `-> int`. Ia mengembalikan harga ditambah pajak, sebagai bilangan bulat: `add_tax(100000, 0.11)` adalah `111000`. `rate` punya default `0.11`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("add_tax") ## Definisikan add_tax.
+add_tax(100000, 0.11) == 111000 ## 100000 ditambah 11%.
+add_tax(100000) == 111000 ## Rate default adalah 0.11.
+add_tax(200, 0.5) == 300 ## Rate lain.
+add_tax.__annotations__ == {"price": int, "rate": float, "return": int} ## Ketiga hint tertulis.
+@hint
+`def add_tax(price: int, rate: float = 0.11) -> int:` dan `return round(price * (1 + rate))`.
+@solution
+def add_tax(price: int, rate: float = 0.11) -> int:
+    return round(price * (1 + rate))
+:::
+
+### Dataclass: class yang menuliskan bagian membosankan untukmu
+
+Banyak class hanya menyimpan data. Library standar bisa menulis `__init__` untukmu dari type hint:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Order:
+    order_id: int
+    total: int
+
+o = Order(1001, 150000)
+print(o)                     # Order(order_id=1001, total=150000)
+print(o == Order(1001, 150000))   # True
+```
+
+Baris `@dataclass` adalah sebuah decorator (bagian berikutnya). Ia memberi class sebuah `__init__`, tampilan cetak yang terbaca, dan `==` secara gratis. `BaseModel` milik Pydantic melangkah lebih jauh: ia juga **memeriksa** data terhadap hint.
+
+:::drill python Sebuah dataclass
+Tulis dataclass `Product` dengan dua field: `name` (teks) dan `price` (bilangan bulat). `Product("tea", 5000) == Product("tea", 5000)` harus `True`.
+@starter
+from dataclasses import dataclass
+# tulis class-mu di bawah baris ini
+
+@check
+defines("Product") ## Definisikan class Product.
+Product("tea", 5000).price == 5000 ## Ia menyimpan harganya.
+Product("tea", 5000) == Product("tea", 5000) ## Field sama: sama.
+(Product("tea", 5000) == Product("tea", 6000)) == False ## Harga berbeda: tidak sama.
+uses("dataclass") ## Kamu memakai @dataclass.
+@hint
+Taruh `@dataclass` di baris di atas `class Product:` dan tulis `name: str` dan `price: int` di dalamnya.
+@solution
+from dataclasses import dataclass
+
+@dataclass
+class Product:
+    name: str
+    price: int
+:::
+
+### Decorator: label yang membungkus sebuah fungsi
+
+**Mengapa:** kadang Anda ingin menambahkan perilaku ekstra yang sama ke banyak fungsi: memeriksa masukan, menghitung pemanggilan, mengulang saat gagal. **Decorator** melakukannya tanpa mengubah tiap fungsi. Baris `@nama` di atas sebuah `def` berarti: "serahkan fungsi ini ke `nama`, dan pakai apa yang dikembalikannya sebagai gantinya".
+
+```python
+def shout(fn):
+    def wrapper(*args):
+        return fn(*args).upper()
+    return wrapper
+
+@shout
+def greet(name):
+    return "hello " + name
+
+print(greet("sari"))   # HELLO SARI
+```
+
+Lihat apa sebenarnya yang dilakukan `@shout`:
+
+:::trace Decorator membungkus sebuah fungsi
+@code
+def shout(fn):
+    def wrapper(*args):
+        return fn(*args).upper()
+    return wrapper
+
+@shout
+def greet(name):
+    return "hello " + name
+
+print(greet("sari"))
+@notes
+1 | `shout` adalah fungsi yang menerima fungsi lain, `fn`.
+2 | Di dalamnya ia membuat fungsi baru, `wrapper`. Ia akan memanggil `fn` lalu mengubah hasilnya menjadi huruf besar.
+4 | `shout` mengembalikan wrapper, bukan yang asli.
+6 | Baris `@shout` berarti `greet = shout(greet)`: nama `greet` kini menunjuk **wrapper**.
+10 | Memanggil `greet("sari")` menjalankan wrapper, yang menjalankan `greet` asli, lalu mengubahnya menjadi huruf besar: HELLO SARI.
+:::
+
+Di materi-materi berikutnya Anda kebanyakan akan **memakai** decorator buatan orang lain: `@field_validator(...)` dan `@classmethod` di Pydantic, `@pytest.fixture` dan `@pytest.mark.parametrize` di tes, `@task` dan `@dag` di Airflow. Menulis sendiri adalah keterampilan yang akan Anda pakai sesekali.
+
+:::ask Pada kode `@field_validator("status")` di atas sebuah method, apa yang dilakukan baris `@` itu?
+@options
+ia membuat method berjalan dua kali, sekali untuk tiap status
+* ia menyerahkan method ke field_validator, yang mendaftarkannya sebagai pemeriksaan untuk field itu
+ia mengubah method menjadi komentar sehingga Python mengabaikannya
+@why
+Decorator menerima fungsi di bawahnya dan mengembalikan sesuatu untuk dipakai sebagai gantinya. Decorator Pydantic mengingat method-mu dan memanggilnya saat memvalidasi field `status`.
+:::
+
+:::drill python Tulis sebuah decorator
+Tulis decorator `twice(fn)`: fungsi baru memanggil `fn` dua kali dengan argumen yang sama dan mengembalikan **list berisi kedua hasilnya**. Jadi `twice(lambda x: x + 1)(5)` adalah `[6, 6]`.
+@starter
+# tulis decorator-mu di bawah baris ini
+
+@check
+defines("twice") ## Definisikan twice(fn).
+twice(lambda x: x + 1)(5) == [6, 6] ## Dipanggil dua kali, kedua hasil.
+twice(lambda a, b: a * b)(3, 4) == [12, 12] ## Beberapa argumen diteruskan.
+(lambda c: (twice(lambda: c.append(1))(), len(c))[1])([]) == 2 ## Fungsinya benar-benar berjalan dua kali.
+@hint
+Di dalam `twice`, definisikan `wrapper(*args)` yang mengembalikan `[fn(*args), fn(*args)]`, lalu `return wrapper`.
+@solution
+def twice(fn):
+    def wrapper(*args):
+        return [fn(*args), fn(*args)]
+    return wrapper
+:::
+
+### Sekarang baca kode dari materi berikutnya
+
+Anda sudah bisa membaca setiap baris contoh ini:
+
+```python
+class OrderRow(BaseModel):                 # class yang memperluas BaseModel (ia mewarisi kemampuannya)
+    order_id: int = Field(gt=0)            # attribute dengan type hint, dan aturan: lebih besar dari 0
+    status: Literal["paid", "shipped"]     # hint: hanya dua nilai ini yang diizinkan
+```
+
+`class OrderRow(BaseModel)` berarti "OrderRow adalah class baru yang **mewarisi** semua yang bisa dilakukan BaseModel, dan menambahkan field-nya sendiri". Satu kalimat itu sudah semua pewarisan yang Anda perlukan di kursus ini.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Di komputer Anda sendiri: buat `shapes.py` berisi dataclass `Order` (field `order_id: int` dan `total: int`), fungsi `shout(fn)` seperti di atas, dan dua baris di bagian bawah yang mencetak sebuah order dan memanggil fungsi yang di-decorate. Jalankan `python3 shapes.py`.
+>
+> **Yang harus Anda lihat:** order tercetak sebagai `Order(order_id=1001, total=150000)` dan hasil fungsi ber-decorator dalam huruf besar. Jika muncul `NameError: name 'dataclass' is not defined`, Anda lupa `from dataclasses import dataclass`.
+
+## @lesson Fungsi adalah nilai: lambda, kunci pengurutan, dan rekursi
+Fungsi di Python adalah nilai seperti angka atau teks. Anda bisa menyimpannya di variabel, memasukkannya ke list, dan menyerahkannya ke fungsi lain. Satu fakta itu menjelaskan `sorted(..., key=...)`, `lambda`, decorator (materi sebelumnya), dan banyak kode data engineering. Materi ini juga menunjukkan **rekursi**: fungsi yang memanggil dirinya sendiri, cara menelusuri data berkedalaman tak tentu, seperti JSON bersarang atau pohon folder.
+
+### Menyerahkan fungsi ke fungsi
+
+```python
+def total_of(order):
+    return order["total"]
+
+orders = [{"id": 1, "total": 50}, {"id": 2, "total": 90}]
+print(sorted(orders, key=total_of))   # total terkecil lebih dulu
+```
+
+`key=total_of` menyerahkan fungsinya itu sendiri (tanpa kurung: Anda tidak memanggilnya). `sorted` memanggilnya sekali untuk tiap pesanan guna mendapat nilai pengurutan.
+
+### lambda: fungsi kecil tanpa nama
+
+Untuk fungsi satu baris yang dipakai sekali, `lambda` menghemat `def`:
+
+```python
+sorted(orders, key=lambda order: order["total"], reverse=True)   # total terbesar dulu
+max(orders, key=lambda order: order["total"])["id"]              # id pesanan terbesar
+```
+
+`lambda order: order["total"]` berarti "diberi `order`, kembalikan `order["total"]`". Sebuah lambda hanya bisa berisi satu ekspresi. Bila perlu lebih, tulis `def` biasa.
+
+:::ask Apa yang dilakukan `sorted(words, key=len)`?
+@options
+mengurutkan kata menurut abjad
+menghitung ada berapa kata lalu mengembalikan angka itu
+* mengurutkan kata dari yang terpendek ke terpanjang
+@why
+`key=len` menyerahkan fungsi `len` ke `sorted`, yang memanggilnya pada tiap kata untuk mendapat angka pengurutan. Kata diurutkan menurut angka itu: panjangnya.
+:::
+
+:::drill python Urutkan dengan key
+Tulis `by_total(orders)`: `orders` adalah list dictionary berisi `id` dan `total`. Kembalikan list **id**, diurutkan menurut `total` dari terbesar ke terkecil. (Pakai `sorted` dengan `key=`.)
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("by_total") ## Definisikan by_total(orders).
+by_total([{"id": 1, "total": 50}, {"id": 2, "total": 90}]) == [2, 1] ## Terbesar dulu.
+by_total([]) == [] ## Tanpa pesanan.
+by_total([{"id": 7, "total": 5}]) == [7] ## Satu pesanan.
+calls("sorted") ## Kamu memakai sorted(...).
+@hint
+`sorted(orders, key=lambda o: o["total"], reverse=True)`, lalu ambil id-nya.
+@solution
+def by_total(orders):
+    ordered = sorted(orders, key=lambda o: o["total"], reverse=True)
+    return [o["id"] for o in ordered]
+:::
+
+:::drill python Sebuah list fungsi
+Tulis `apply_all(funcs, x)`: `funcs` adalah list fungsi. Kembalikan list berisi hasil pemanggilan tiap fungsi pada `x`, berurutan. `apply_all([abs, str], -3)` adalah `[3, "-3"]`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("apply_all") ## Definisikan apply_all(funcs, x).
+apply_all([abs, str], -3) == [3, "-3"] ## Dua fungsi.
+apply_all([], 5) == [] ## Tanpa fungsi.
+apply_all([lambda v: v + 1, lambda v: v * 2], 10) == [11, 20] ## Lambda juga bisa.
+@hint
+`[fn(x) for fn in funcs]`: fungsi adalah nilai yang bisa Anda ulangi dan panggil.
+@solution
+def apply_all(funcs, x):
+    return [fn(x) for fn in funcs]
+:::
+
+### Rekursi: fungsi yang memanggil dirinya sendiri
+
+Sebagian data tidak punya kedalaman tetap: dokumen JSON dengan objek di dalam objek, folder dengan folder di dalam folder. Loop tidak tahu berapa tingkat yang harus ditempuh. Fungsi **rekursif** menyelesaikan satu potongan kecil dan memanggil dirinya untuk sisa yang lebih kecil.
+
+(`isinstance(x, list)` bertanya "apakah `x` sebuah list?". Bagian `sum(... for item in x)` mirip list comprehension tanpa kurung siku.) Setiap fungsi rekursif butuh dua bagian:
+
+1. **base case**: kapan berhenti, dengan jawaban sederhana (sebuah angka adalah jumlahnya sendiri);
+2. **recursive case**: pecah masalah menjadi potongan lebih kecil, panggil diri sendiri pada tiap potongan, dan gabungkan jawabannya.
+
+```python
+def total(x):
+    if isinstance(x, list):                  # recursive case: list berisi hal-hal yang lebih kecil
+        return sum(total(item) for item in x)
+    return x                                  # base case: angka biasa
+```
+
+Lihat ia turun lalu naik kembali:
+
+:::trace Rekursi pada list bersarang
+@code
+def total(x):
+    if isinstance(x, list):
+        return sum(total(item) for item in x)
+    return x
+
+print(total([1, [2, 3]]))
+@notes
+2 | List bukan angka biasa, jadi kita ambil recursive case.
+3 | Untuk tiap item kita panggil `total` lagi: pertama 1 (sebuah angka: base case mengembalikan 1), lalu `[2, 3]` (list lagi: putaran lain yang menjumlahkan 2 dan 3 menjadi 5).
+4 | Base case: angka biasa adalah totalnya sendiri. Tanpa ini fungsi akan memanggil dirinya selamanya.
+6 | Jawabannya: 1 + 5 = 6.
+:::
+
+:::ask Sebuah fungsi rekursif tidak punya base case. Apa yang terjadi saat dipanggil?
+@options
+* ia terus memanggil dirinya sampai Python menghentikannya dengan RecursionError
+ia mengembalikan None karena tidak ada yang dikerjakan
+ia berjalan sekali lalu berhenti sendiri
+@why
+Setiap panggilan membuat panggilan lain, sehingga panggilan menumpuk sampai Python mencapai batasnya (sekitar 1.000 tingkat) dan melempar `RecursionError`. Base case-lah yang mengakhiri rantai itu.
+:::
+
+:::drill python Temukan sebuah key di mana saja
+Tulis `find_values(data, key)`: `data` adalah struktur bersarang berisi dictionary dan list (seperti JSON yang sudah di-parse). Kembalikan list nilai dari **setiap** entri dictionary yang kuncinya `key`, di mana pun letaknya, sesuai urutan ditemukan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("find_values") ## Definisikan find_values(data, key).
+find_values({"a": 1, "b": {"a": 2}}, "a") == [1, 2] ## Key muncul di dua tingkat.
+find_values([{"id": 1}, {"id": 2, "x": [{"id": 3}]}], "id") == [1, 2, 3] ## Di dalam list di dalam dictionary.
+find_values({"a": 1}, "zzz") == [] ## Key tidak pernah muncul.
+find_values(5, "a") == [] ## Nilai biasa tidak punya apa-apa untuk dicari.
+@hint
+Jika `data` dictionary: untuk tiap `k, v` tambahkan `v` bila `k == key`, dan rekursi ke `v`. Jika list: rekursi ke tiap item. Selain itu kembalikan list kosong.
+@solution
+def find_values(data, key):
+    found = []
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k == key:
+                found.append(v)
+            found.extend(find_values(v, key))
+    elif isinstance(data, list):
+        for item in data:
+            found.extend(find_values(item, key))
+    return found
+:::
+
+Rekursi adalah alat yang tepat untuk pohon. Untuk list datar biasa, loop `for` lebih sederhana dan tidak bisa menabrak batas kedalaman, jadi pakai loop di sana.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Di komputer Anda sendiri, dalam file `nested.py`, tempel sebuah dictionary bersarang kecil (pesanan palsu dengan `customer` dan `items`, tiap item berupa dictionary), lalu tulis `find_values` dan cetak setiap `sku` di dalamnya. Jalankan `python3 nested.py`.
+>
+> **Yang harus Anda lihat:** list semua nilai `sku`, di mana pun letaknya. Jika muncul `RecursionError`, sebuah panggilan rekursif tidak mendapat data yang lebih kecil: periksa base case-mu.
+
 ## @lesson Validasi di batas dengan Pydantic
 Pipeline yang paling andal tidak mempercayai masukannya. Data melintasi sebuah **batas** (file, API, antrean) dan Anda mengubahnya dari "apa pun yang dihasilkan pengirim" menjadi "nilai yang bisa diandalkan kode saya". Lakukan sekali, di pintu; semua yang setelah pintu bisa mengasumsikan data bersih.
 
@@ -178,7 +576,7 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 > 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
 > 3. Uji model Anda di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
-> Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 3 tentang streaming generator.
+> Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 5 tentang streaming generator.
 
 :::drill python Mengapa baris ini ditolak?
 Tulis `reasons(row)`: `row` adalah dictionary dari CSV (semua teks). Kembalikan daftar alasan penolakan, dengan urutan ini: `"bad status"` jika `status` bukan salah satu dari `paid`, `cancelled`, `shipped`; `"bad total"` jika `total_idr` bukan bilangan bulat nol atau lebih. Baris yang baik menghasilkan `[]`.
@@ -356,7 +754,7 @@ def good_totals(rows):
 > 2. Terapkan generator malas menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
 > 3. Uji konsumsi memori dan sifat generator di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
-> Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 4 tentang retry dan idempotensi.
+> Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 6 tentang retry dan idempotensi.
 
 ## @part Membuatnya andal
 
@@ -492,7 +890,7 @@ def retry(fn, attempts=3):
 > 2. Gunakan penulisan atomik (tulis ke file sementara `.tmp` lalu tukar dengan `os.replace`), lacak duplikat `order_id` menggunakan set, kirim data bersih ke `output_path` (format NDJSON dengan kunci terurut), dan kirim baris gagal ke `quarantine_path` mencatat alasan penolakannya.
 > 3. Uji pipeline di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
-> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 5 & 6 untuk logging (`TestLogging`) dan testing.
+> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 7 & 8 untuk logging (`TestLogging`) dan testing.
 
 ## @lesson Logging dan ringkasan eksekusi
 `print` untuk skrip; **`logging`** untuk job. Ia menambah stempel waktu, tingkat keparahan, dan perutean (ke file, ke konsol, ke pengumpul), dan membiarkan siapa pun yang menjalankan job memilih seberapa banyak yang ingin dilihat tanpa mengubah kode.
@@ -585,7 +983,7 @@ Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjala
 > `pytest labs/mod-1-2/test_lab.py -v`
 > 3. Coba jalankan skrip langsung lewat terminal pada data KopiKu:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
-> Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 7 untuk memilih perkakas yang tepat.
+> Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 9 untuk memilih perkakas yang tepat.
 
 :::ask Kamu punya satu aturan untuk diuji (total bisa 'Rp 1.250.000' atau '150000') dengan banyak contoh masukan. Fitur pytest mana yang cocok?
 @options

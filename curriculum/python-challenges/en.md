@@ -980,3 +980,262 @@ def walk(tree):
         else:
             yield name
 :::
+
+## @challenge p01 | 6 | Mini-projects
+:::drill python Project: the coffee shop bill
+KopiKu needs a till. Write two functions. `bill(order, menu)`: `order` is a list of item names, `menu` maps a name to its price in rupiah. Return `{"subtotal": ..., "discount": ..., "total": ...}`. When the subtotal is **120,000 or more**, the discount is 10% of it (a whole number, rounded down); otherwise 0. An item that is not on the menu raises `ValueError`. `best_seller(orders)`: `orders` is a list of orders (each a list of names); return the name sold most often over all of them (a tie goes to the alphabetically first name), or `None` if nothing was sold.
+@starter
+# write your two functions below this line
+
+@check
+defines("bill") ## Define bill(order, menu).
+bill(["kopi", "kopi", "teh"], {"kopi": 25000, "teh": 15000}) == {"subtotal": 65000, "discount": 0, "total": 65000} ## A small order: no discount.
+bill(["kopi"] * 4 + ["roti"], {"kopi": 25000, "roti": 20000}) == {"subtotal": 120000, "discount": 12000, "total": 108000} ## Exactly 120,000: the discount applies.
+bill([], {"kopi": 25000}) == {"subtotal": 0, "discount": 0, "total": 0} ## An empty order.
+raises_error(ValueError, bill, ["latte"], {"kopi": 25000}) == True ## Not on the menu.
+best_seller([["kopi", "teh"], ["kopi"], ["teh", "teh", "roti"]]) == "teh" ## teh 3, kopi 2, roti 1.
+best_seller([["b"], ["a"]]) == "a" ## A tie: alphabetical.
+best_seller([]) is None ## Nothing sold.
+@hint
+For `bill`: look each name up in the menu (let a missing one raise `ValueError` yourself), add up, then `discount = subtotal // 10` only when `subtotal >= 120000`. For `best_seller`: count every name in every order with a dictionary, then take the best with `min(counts, key=lambda k: (-counts[k], k))`.
+@solution
+def bill(order, menu):
+    subtotal = 0
+    for name in order:
+        if name not in menu:
+            raise ValueError("not on the menu: " + name)
+        subtotal += menu[name]
+    discount = subtotal // 10 if subtotal >= 120000 else 0
+    return {"subtotal": subtotal, "discount": discount, "total": subtotal - discount}
+
+def best_seller(orders):
+    counts = {}
+    for order in orders:
+        for name in order:
+            counts[name] = counts.get(name, 0) + 1
+    if not counts:
+        return None
+    return min(counts, key=lambda k: (-counts[k], k))
+:::
+
+## @challenge p02 | 6 | Mini-projects
+:::drill python Project: the word detective
+Analyse a piece of text. `clean_words(text)`: return the words in lower case, with these punctuation marks removed from the ends of each word: `. , ! ? ; : " ' ( )`. Skip empty results. `top_words(text, n)`: the `n` most common cleaned words, most common first (a tie goes to the alphabetically first). `longest_word(text)`: the longest cleaned word (the first one if there is a tie), or `""` for no words.
+@starter
+# write your three functions below this line
+
+@check
+defines("clean_words") ## Define clean_words(text).
+clean_words('Hello, World! "Hello"') == ["hello", "world", "hello"] ## Punctuation and capitals are gone.
+clean_words("  ... ") == [] ## Only punctuation: no words.
+top_words("a b a c b a", 2) == ["a", "b"] ## a 3, b 2, c 1.
+top_words("x y", 5) == ["x", "y"] ## Asking for more than exist; tie is alphabetical.
+longest_word("I love coffee, really!") == "coffee" ## The longest word.
+longest_word("cat dog") == "cat" ## A tie: the first one.
+longest_word("") == "" ## No words.
+@hint
+`word.strip('.,!?;:"\'()').lower()` cleans one word. Build `top_words` and `longest_word` on top of `clean_words`.
+@solution
+def clean_words(text):
+    words = [w.strip('.,!?;:"\'()').lower() for w in text.split()]
+    return [w for w in words if w]
+
+def top_words(text, n):
+    counts = {}
+    for w in clean_words(text):
+        counts[w] = counts.get(w, 0) + 1
+    return sorted(counts, key=lambda k: (-counts[k], k))[:n]
+
+def longest_word(text):
+    words = clean_words(text)
+    return max(words, key=len) if words else ""
+:::
+
+## @challenge p03 | 6 | Mini-projects
+:::drill python Project: the log analyser
+A server writes lines like `2026-01-05 10:03:12 ERROR payment failed`. Write `parse_line(line)`: return `(date, time, level, message)`, or `None` if the line has fewer than four parts or the level is not `INFO`, `WARN` or `ERROR`. Write `summarize(lines)`: a dictionary `{"INFO": n, "WARN": n, "ERROR": n, "bad": n}` counting the lines. Write `error_rate(lines)`: errors divided by the number of **good** lines (0 when there are none).
+@starter
+# write your three functions below this line
+
+@check
+defines("parse_line") ## Define parse_line(line).
+parse_line("2026-01-05 10:03:12 ERROR payment failed") == ("2026-01-05", "10:03:12", "ERROR", "payment failed") ## The message keeps its spaces.
+parse_line("2026-01-05 10:03:12 DEBUG hi") is None ## Not an allowed level.
+parse_line("garbage") is None ## Too few parts.
+summarize(["2026-01-05 10:00:00 INFO ok", "2026-01-05 10:00:01 ERROR no", "oops", "2026-01-05 10:00:02 INFO ok"]) == {"INFO": 2, "WARN": 0, "ERROR": 1, "bad": 1} ## Counts per level, and one bad line.
+error_rate(["2026-01-05 10:00:00 INFO a", "2026-01-05 10:00:01 ERROR b", "x y"]) == 0.5 ## 1 error in 2 good lines (the bad line does not count).
+error_rate([]) == 0 ## No lines.
+@hint
+`line.split(" ", 3)` gives at most four parts, so the message keeps its spaces. Build `summarize` and `error_rate` on `parse_line`.
+@solution
+def parse_line(line):
+    parts = line.split(" ", 3)
+    if len(parts) < 4 or parts[2] not in ("INFO", "WARN", "ERROR"):
+        return None
+    return tuple(parts)
+
+def summarize(lines):
+    out = {"INFO": 0, "WARN": 0, "ERROR": 0, "bad": 0}
+    for line in lines:
+        parsed = parse_line(line)
+        if parsed is None:
+            out["bad"] += 1
+        else:
+            out[parsed[2]] += 1
+    return out
+
+def error_rate(lines):
+    s = summarize(lines)
+    good = s["INFO"] + s["WARN"] + s["ERROR"]
+    return s["ERROR"] / good if good else 0
+:::
+
+## @challenge p04 | 6 | Mini-projects
+:::drill python Project: the password checker
+Write `strength(pw)`: one point each for: at least 8 characters; a lower-case letter; an upper-case letter; a digit; a symbol (a character that is not a letter or digit). A password that is `password`, `123456` or `qwerty` in any case scores 0. Write `verdict(pw)`: `"weak"` for 0 to 2 points, `"ok"` for 3 or 4, `"strong"` for 5.
+@starter
+# write your two functions below this line
+
+@check
+defines("strength") ## Define strength(pw).
+strength("Kopi#2026x") == 5 ## Long, lower, upper, digit and symbol.
+strength("abc") == 1 ## Only a lower-case letter.
+strength("ABCDEFGH") == 2 ## 8 characters and upper case.
+strength("QWERTY") == 0 ## A common password scores 0, in any case.
+verdict("abc") == "weak" ## 1 point.
+verdict("Kopi2026") == "ok" ## 4 points: length, lower, upper, digit.
+verdict("Kopi#2026x") == "strong" ## 5 points.
+@hint
+Add the five tests as `+ (condition)` (a True counts as 1). Use `any(c.islower() for c in pw)` and so on; a symbol is `not c.isalnum()`.
+@solution
+def strength(pw):
+    if pw.lower() in ("password", "123456", "qwerty"):
+        return 0
+    return (
+        (len(pw) >= 8)
+        + any(c.islower() for c in pw)
+        + any(c.isupper() for c in pw)
+        + any(c.isdigit() for c in pw)
+        + any(not c.isalnum() for c in pw)
+    )
+
+def verdict(pw):
+    s = strength(pw)
+    return "weak" if s <= 2 else "ok" if s <= 4 else "strong"
+:::
+
+## @challenge p05 | 6 | Mini-projects
+:::drill python Project: a tiny inventory
+Write a class `Inventory`. `add(item, qty)` adds stock. `remove(item, qty)` takes stock away, but if there is not enough it raises `ValueError` and **changes nothing**. `stock(item)` returns how many there are (0 if never added). `low_stock(limit)` returns the sorted list of items whose stock is `limit` or less.
+@starter
+# write your class below this line
+
+@check
+defines("Inventory") ## Define class Inventory.
+(lambda i: (i.add("tea", 5), i.add("tea", 3), i.stock("tea"))[-1])(Inventory()) == 8 ## Adding twice.
+Inventory().stock("nothing") == 0 ## Never added.
+(lambda i: (i.add("tea", 5), i.remove("tea", 2), i.stock("tea"))[-1])(Inventory()) == 3 ## Removing.
+(lambda i: (i.add("tea", 1), raises_error(ValueError, i.remove, "tea", 5), i.stock("tea"))[-1])(Inventory()) == 1 ## Too much: error, and the stock is unchanged.
+(lambda i: (i.add("b", 1), i.add("a", 2), i.add("c", 50), i.low_stock(2))[-1])(Inventory()) == ["a", "b"] ## Low stock, sorted.
+@hint
+Keep a dictionary `self.items`. In `remove`, check `self.stock(item) < qty` and raise **before** changing anything.
+@solution
+class Inventory:
+    def __init__(self):
+        self.items = {}
+
+    def add(self, item, qty):
+        self.items[item] = self.items.get(item, 0) + qty
+
+    def remove(self, item, qty):
+        if self.stock(item) < qty:
+            raise ValueError("not enough " + item)
+        self.items[item] -= qty
+
+    def stock(self, item):
+        return self.items.get(item, 0)
+
+    def low_stock(self, limit):
+        return sorted(name for name, qty in self.items.items() if qty <= limit)
+:::
+
+## @challenge p06 | 6 | Mini-projects
+:::drill python Project: a pipeline in miniature
+Build a small cleaning job for order rows (all values are text). `clean_row(row)`: return `(clean, reason)`. A row is `bad_id` if `order_id` is not all digits, then `bad_status` if the trimmed lower-case `status` is not `paid`, `shipped` or `cancelled`, then `bad_total` if `total_idr` (dots and a leading `Rp` allowed) is not a whole number. A good row gives `({"order_id": int, "status": text, "total_idr": int}, None)`; a bad one gives `(None, reason)`. `run(rows)`: return `{"valid": [...], "rejected": [reasons], "duplicates": n}`; a good row whose `order_id` was already seen counts as a duplicate (kept out of `valid`, not a rejection).
+@starter
+# write your two functions below this line
+
+@check
+defines("clean_row") ## Define clean_row(row).
+clean_row({"order_id": "7", "status": " PAID ", "total_idr": "Rp 1.500"}) == ({"order_id": 7, "status": "paid", "total_idr": 1500}, None) ## A good row, cleaned.
+clean_row({"order_id": "x", "status": "paid", "total_idr": "5"}) == (None, "bad_id") ## Not digits.
+clean_row({"order_id": "1", "status": "teleported", "total_idr": "5"}) == (None, "bad_status") ## Unknown status.
+clean_row({"order_id": "1", "status": "paid", "total_idr": "abc"}) == (None, "bad_total") ## Not a number.
+run([{"order_id": "1", "status": "PAID", "total_idr": "Rp 1.500"}, {"order_id": "1", "status": "paid", "total_idr": "1500"}, {"order_id": "x", "status": "paid", "total_idr": "5"}, {"order_id": "2", "status": "teleported", "total_idr": "5"}, {"order_id": "3", "status": "shipped", "total_idr": "abc"}]) == {"valid": [{"order_id": 1, "status": "paid", "total_idr": 1500}], "rejected": ["bad_id", "bad_status", "bad_total"], "duplicates": 1} ## Five rows: one valid, one duplicate, three rejected.
+run([]) == {"valid": [], "rejected": [], "duplicates": 0} ## Nothing in, nothing out.
+@hint
+Do `clean_row` first and test it. In `run`, keep a `seen` set of order ids.
+@solution
+def clean_row(row):
+    if not row["order_id"].isdigit():
+        return None, "bad_id"
+    status = row["status"].strip().lower()
+    if status not in ("paid", "shipped", "cancelled"):
+        return None, "bad_status"
+    raw = row["total_idr"].replace("Rp", "").replace(" ", "").replace(".", "")
+    if not raw.isdigit():
+        return None, "bad_total"
+    return {"order_id": int(row["order_id"]), "status": status, "total_idr": int(raw)}, None
+
+def run(rows):
+    valid, rejected, seen, duplicates = [], [], set(), 0
+    for row in rows:
+        clean, reason = clean_row(row)
+        if reason:
+            rejected.append(reason)
+        elif clean["order_id"] in seen:
+            duplicates += 1
+        else:
+            seen.add(clean["order_id"])
+            valid.append(clean)
+    return {"valid": valid, "rejected": rejected, "duplicates": duplicates}
+:::
+
+## @challenge p07 | 6 | Mini-projects
+:::drill python Project: guess the number
+The rules of a guessing game, without typing. `judge(secret, guess)`: return `"higher"` if the guess is too low, `"lower"` if it is too high, `"correct"` if it is right. `play(secret, guesses)`: go through the guesses in order and stop at the first correct one; return `(won, tries)`. If none is correct, return `(False, len(guesses))`. `max_tries(low, high)`: the most guesses a perfect player needs for a secret between `low` and `high` (both included), by always guessing the middle: the smallest `k` with `2 ** k >= high - low + 1`.
+@starter
+# write your three functions below this line
+
+@check
+defines("judge") ## Define judge(secret, guess).
+judge(50, 30) == "higher" ## 30 is too low: go higher.
+judge(50, 80) == "lower" ## 80 is too high: go lower.
+judge(50, 50) == "correct" ## Right.
+play(7, [3, 9, 7, 1]) == (True, 3) ## Stops at the third guess.
+play(7, [1, 2]) == (False, 2) ## Never right.
+play(7, []) == (False, 0) ## No guesses.
+max_tries(1, 100) == 7 ## 2**7 = 128 is the first power of 2 that covers 100 numbers.
+max_tries(1, 1) == 0 ## Only one number: no guess needed.
+@hint
+For `max_tries`, count `k` up from 0 while `2 ** k < high - low + 1`. For `play`, `enumerate(guesses, start=1)` gives the try number.
+@solution
+def judge(secret, guess):
+    if guess < secret:
+        return "higher"
+    if guess > secret:
+        return "lower"
+    return "correct"
+
+def play(secret, guesses):
+    for tries, guess in enumerate(guesses, start=1):
+        if judge(secret, guess) == "correct":
+            return True, tries
+    return False, len(guesses)
+
+def max_tries(low, high):
+    k = 0
+    while 2 ** k < high - low + 1:
+        k += 1
+    return k
+:::
