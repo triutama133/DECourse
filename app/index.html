@@ -33,6 +33,10 @@
 
       <div class="header-tools">
         <div id="header-gamification" class="gamification-bar" aria-label="Learning streak and XP"></div>
+        <button class="icon-btn" id="glossary-btn" onclick="app.go('glossary')" aria-label="Glossary" title="Glossary">
+          <span aria-hidden="true">📖</span>
+          <span class="icon-btn-label" id="glossary-btn-label">Glossary</span>
+        </button>
         <button class="icon-btn" id="search-btn" onclick="app.openSearch()" aria-label="Search the course (Ctrl+K)" title="Ctrl+K">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg>
           <span class="icon-btn-label" id="search-btn-label">Search</span>
@@ -104,11 +108,12 @@
   <script src="js/job-sim-data.js?v=1"></script>
   <script src="js/diagrams.js?v=39"></script>
   <script src="js/job-career-data.js?v=2"></script>
+  <script src="js/glossary-data.js?v=1"></script>
   <script src="js/lesson-steps.js?v=5"></script>
   <script src="js/lesson-lab.js?v=1"></script>
   <script src="js/drill-parse.js?v=5"></script>
   <script src="js/sql-drill.js?v=1"></script>
-  <script src="js/app.js?v=91"></script>
+  <script src="js/app.js?v=92"></script>
   <script src="js/job-sim-warmup.js?v=1"></script>
   <script src="js/job-career.js?v=3"></script>
   <script src="js/interview-sim-data.js?v=2"></script>

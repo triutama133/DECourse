@@ -1381,3 +1381,16 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .sql-tables-body { margin-top: 6px; }
 .drill-local { border-left: 3px solid var(--primary); }
 .drill-local p { margin: 4px 0; }
+
+/* glossary */
+.gl-search { width: 100%; max-width: 520px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+.gl-letter { margin: 14px 0 0; font-size: 15px; color: var(--text-muted); }
+.gl-card { padding: 12px 16px; }
+.gl-card h3 { margin: 0 0 4px; font-size: 16px; }
+.gl-card p { margin: 4px 0; }
+.gl-focus { outline: 2px solid var(--primary); outline-offset: 2px; }
+.gl-term { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.gl-term:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 3px; }
+.gl-pop { position: absolute; z-index: 60; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 14px; }
+.gl-pop p { margin: 4px 0 6px; }
+.gl-pop a { font-size: 13px; }

@@ -2,7 +2,7 @@
 // Hash routing (#/curriculum/mod-1-3/lab), bilingual ID/EN, progress stored in localStorage.
 
 const REPO_URL = "https://github.com/triutama133/DECourse";
-const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook"];
+const VIEWS = ["start", "roadmap", "curriculum", "job-sim", "interview", "portfolio", "cv-builder", "playground", "readiness", "remote-playbook", "glossary"];
 const MODULE_TABS = ["concepts", "lab", "chaos", "quiz"];
 // modules with a local chaos drill in scripts/chaos_drill.py (its self-test checks this list)
 const CHAOS_DRILL_MODULES = ["mod-0-0", "mod-0-2", "mod-0-3", "mod-1-2", "mod-1-4", "mod-1-5", "mod-3-3", "mod-3-5"];
@@ -128,8 +128,111 @@ class DataForgeApp {
     this.renderChrome();
     window.addEventListener("hashchange", () => this.readHash(true));
     document.addEventListener("keydown", (e) => this.globalKey(e));
+    // glossary: bold terms in lessons become clickable (a MutationObserver covers every way a lesson is drawn)
+    const main = document.getElementById("main-content");
+    if (main && window.MutationObserver) {
+      let pending = false;
+      new MutationObserver(() => { if (pending) return; pending = true; setTimeout(() => { pending = false; this.decorateGlossary(main); }, 60); }).observe(main, { childList: true, subtree: true });
+    }
+    document.addEventListener("click", (e) => {
+      const term = e.target.closest && e.target.closest(".gl-term");
+      if (term) { e.preventDefault(); this.glossaryPop(term); return; }
+      if (!(e.target.closest && e.target.closest(".gl-pop"))) this.closeGlossaryPop();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.closeGlossaryPop();
+      else if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("gl-term")) { e.preventDefault(); this.glossaryPop(e.target); }
+    });
+    window.addEventListener("hashchange", () => this.closeGlossaryPop());
     this.readHash();
   }
+
+
+  // ---------- glossary ----------
+  glossaryMatches(q) {
+    const tokens = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+    const list = (window.GLOSSARY || []).slice().sort((a, b) => a.term[this.lang].localeCompare(b.term[this.lang], this.lang));
+    if (!tokens.length) return list;
+    return list.filter((g) => {
+      const hay = (g.term.en + " " + g.term.id + " " + g.alias.join(" ") + " " + g.def[this.lang]).toLowerCase();
+      return tokens.every((t) => hay.includes(t));
+    });
+  }
+  glossaryLessonLink(g) {
+    const m = CURRICULUM_DATA.flatMap((L) => L.modules).find((x) => x.id === g.mod);
+    const lesson = m && m.lessons[g.lesson - 1];
+    if (!lesson) return "";
+    return `<a href="#/curriculum/${g.mod}/concepts/${g.lesson}">${this.l("Pelajari di", "Learn it in")} ${m.number}, ${this.l("materi", "lesson")} ${g.lesson}: ${this.esc(this.t(lesson.title))}</a>`;
+  }
+  glossaryListHtml(items) {
+    if (!items.length) return `<p class="muted">${this.l("Tidak ada istilah yang cocok. Coba kata lain, atau tekan Ctrl+K untuk mencari di seluruh materi.", "No term matches. Try another word, or press Ctrl+K to search every lesson.")}</p>`;
+    let letter = "";
+    return items.map((g) => {
+      const first = g.term[this.lang].charAt(0).toUpperCase();
+      const head = first !== letter ? `<h2 class="gl-letter">${this.esc(first)}</h2>` : "";
+      letter = first;
+      const other = this.lang === "en" ? g.term.id : g.term.en;
+      return `${head}<article class="card gl-card" id="gl-${g.id}"><h3>${this.esc(g.term[this.lang])}${other && other !== g.term[this.lang] ? ` <span class="muted small">· ${this.esc(other)}</span>` : ""}</h3><p>${this.esc(g.def[this.lang])}</p><p class="small">${this.glossaryLessonLink(g)}</p></article>`;
+    }).join("");
+  }
+  renderGlossaryView() {
+    const n = (window.GLOSSARY || []).length;
+    return `<div class="stack">
+      <div class="card stack-sm">
+        <h1>📖 ${this.l("Glosarium", "Glossary")}</h1>
+        <p class="muted" style="max-width:720px">${this.l(`${n} istilah dengan arti singkat dalam bahasa sehari-hari, dan materi yang mengajarkannya. Kata tebal di dalam materi juga bisa diklik untuk melihat artinya.`, `${n} terms in plain words, each with the lesson that teaches it. Bold words inside lessons are clickable too, to show their meaning.`)}</p>
+        <input id="gl-q" class="gl-search" type="search" autocomplete="off" placeholder="${this.l("Cari istilah, mis. idempoten, partition, join", "Find a term, e.g. idempotent, partition, join")}" aria-label="${this.l("Cari istilah", "Find a term")}" oninput="app.glossarySearch(this.value)" value="${this.esc(this._glQuery || "")}">
+      </div>
+      <div id="gl-list" class="stack-sm">${this.glossaryListHtml(this.glossaryMatches(this._glQuery))}</div>
+    </div>`;
+  }
+  glossarySearch(q) {
+    this._glQuery = q;
+    const box = document.getElementById("gl-list");
+    if (box) box.innerHTML = this.glossaryListHtml(this.glossaryMatches(q));
+  }
+  afterGlossaryRender() {
+    const id = this.glossaryFocus;
+    if (!id) return;
+    const el = document.getElementById("gl-" + id);
+    if (el) { el.classList.add("gl-focus"); setTimeout(() => el.scrollIntoView({ block: "center" }), 30); }
+  }
+  // Bold words in a lesson that are glossary terms become clickable: a small card with the meaning.
+  glossaryIndex() {
+    if (this._glIdx) return this._glIdx;
+    const idx = new Map();
+    for (const g of window.GLOSSARY || []) for (const a of g.alias) if (!idx.has(a)) idx.set(a, g);
+    this._glIdx = idx;
+    return idx;
+  }
+  decorateGlossary(root) {
+    const idx = this.glossaryIndex();
+    if (!idx.size || !root || !root.querySelectorAll) return;
+    root.querySelectorAll(".md strong:not([data-gl])").forEach((el) => {
+      if (el.closest("h1,h2,h3,h4,button,a,summary,.gl-pop")) return;
+      const key = el.textContent.trim().toLowerCase().replace(/[.,:;]+$/, "");
+      const g = idx.get(key) || idx.get(key.replace(/s$/, ""));
+      el.setAttribute("data-gl", g ? g.id : "");
+      if (g) { el.classList.add("gl-term"); el.setAttribute("tabindex", "0"); el.setAttribute("role", "button"); }
+    });
+  }
+  glossaryPop(el) {
+    this.closeGlossaryPop();
+    const g = (window.GLOSSARY || []).find((x) => x.id === el.getAttribute("data-gl"));
+    if (!g) return;
+    const pop = document.createElement("div");
+    pop.className = "gl-pop";
+    pop.setAttribute("role", "dialog");
+    pop.innerHTML = `<strong>${this.esc(g.term[this.lang])}</strong><p>${this.esc(g.def[this.lang])}</p><a href="#/glossary/${g.id}">${this.l("Buka di glosarium", "Open in the glossary")}</a>`;
+    document.body.appendChild(pop);
+    const r = el.getBoundingClientRect();
+    const w = Math.min(320, window.innerWidth - 24);
+    pop.style.width = w + "px";
+    pop.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + window.scrollX)) + "px";
+    pop.style.top = (r.bottom + window.scrollY + 6) + "px";
+    this._glPop = pop;
+  }
+  closeGlossaryPop() { if (this._glPop) { this._glPop.remove(); this._glPop = null; } }
 
   // ---------- helpers ----------
   t(val) {
@@ -532,6 +635,7 @@ class DataForgeApp {
       const n = parseInt(parts[3], 10);
       this.activeLessonIdx = this.activeModuleTab === "concepts" && n >= 1 ? n - 1 : null;
     }
+    if (view === "glossary") { this.glossaryFocus = parts[1] || null; if (this.glossaryFocus) this._glQuery = ""; }
     if (view === "interview") {
       if (parts[1] === "loop") this.activeInterviewMode = "loop";
       else if (INTERVIEW_TABS.includes(parts[1])) { this.activeInterviewMode = "arena"; this.activeInterviewTab = parts[1]; }
@@ -778,9 +882,11 @@ class DataForgeApp {
       "portfolio": this.tr("navPortfolio"), "cv-builder": this.tr("navCvBuilder"), "playground": this.tr("navPlayground"),
       "readiness": this.tr("navReadiness"), "remote-playbook": this.tr("navRemote")
     };
-    document.getElementById("nav").innerHTML = VIEWS.map((v) =>
+    document.getElementById("nav").innerHTML = VIEWS.filter((v) => v !== "glossary").map((v) =>
       `<button class="${v === this.currentView ? "active" : ""}"${v === this.currentView ? ' aria-current="page"' : ""} onclick="app.go('${v}')">${this.esc(labels[v])}</button>`).join("");
     document.getElementById("search-btn-label").textContent = this.l("Cari", "Search");
+    const glBtn = document.getElementById("glossary-btn-label");
+    if (glBtn) { glBtn.textContent = this.l("Istilah", "Glossary"); document.getElementById("glossary-btn").setAttribute("aria-label", this.l("Glosarium: arti setiap istilah", "Glossary: what every term means")); }
     document.getElementById("search-btn").setAttribute("aria-label", this.l("Cari di seluruh kursus (Ctrl+K)", "Search the course (Ctrl+K)"));
     document.getElementById("menu-toggle").setAttribute("aria-label", this.l("Menu", "Menu"));
     document.getElementById("footer-note").textContent = this.l("Progres tersimpan hanya di browser ini.", "Progress is stored only in this browser.");
@@ -1036,7 +1142,8 @@ class DataForgeApp {
       "cv-builder": () => this.renderCvBuilderView(),
       "playground": () => this.renderPlaygroundView(),
       "readiness": () => this.renderReadinessView(),
-      "remote-playbook": () => this.renderRemotePlaybookView()
+      "remote-playbook": () => this.renderRemotePlaybookView(),
+      "glossary": () => this.renderGlossaryView()
     };
     container.innerHTML = views[this.currentView]();
     // entrance motion only when the learner arrives somewhere new: renderView also runs on every quiz answer,
@@ -1046,6 +1153,7 @@ class DataForgeApp {
       this._lastMountKey = mountKey;
       this.choreographViewMount(container);
     }
+    if (this.currentView === "glossary") this.afterGlossaryRender();
     if (this.currentView === "playground") this.afterPlaygroundRender();
     if (this.currentView === "curriculum") {
       // keep the open lesson visible inside the sticky sidebar, without moving the page itself
@@ -1498,6 +1606,7 @@ class DataForgeApp {
       if (m.chaosLab) idx.push({ mod: m.id, kind: "chaos", i: 0, title: this.t(m.chaosLab.title), modTitle: mt,
         text: this.stripMd([m.chaosLab.scenario, m.chaosLab.breakageReason, m.chaosLab.fixGuide, m.chaosLab.defensivePattern].map((x) => this.t(x)).join(" ")) });
     }
+    for (const g of window.GLOSSARY || []) idx.push({ mod: g.mod, kind: "glossary", i: g.lesson - 1, gid: g.id, title: g.term[this.lang], modTitle: this.l("Glosarium", "Glossary"), text: g.def[this.lang] + " " + g.alias.join(" ") });
     idx.forEach((e) => { e.hayTitle = (e.title + " " + e.modTitle).toLowerCase(); e.hay = e.text.toLowerCase(); });
     this._searchIdx[this.lang] = idx;
     return idx;
@@ -1532,6 +1641,7 @@ class DataForgeApp {
         score += Math.min(5, e.hay.split(t).length - 1);
       }
       if (e.kind === "module") score += 1;
+      if (e.kind === "glossary" && tokens.every((t) => e.title.toLowerCase().includes(t))) score += 12;
       hits.push({ e, score });
     }
     hits.sort((a, b) => b.score - a.score);
@@ -1541,13 +1651,13 @@ class DataForgeApp {
       for (const t of tokens) out = out.replace(new RegExp(this.esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
       return out;
     };
-    const kindLabel = { module: this.l("Modul", "Module"), lesson: this.l("Materi", "Lesson"), chaos: "Chaos" };
+    const kindLabel = { module: this.l("Modul", "Module"), lesson: this.l("Materi", "Lesson"), chaos: "Chaos", glossary: "📖" };
     box.innerHTML = this._hits.length ? this._hits.map((e, n) => {
       const pos = Math.max(0, e.hay.indexOf(tokens[0]));
       const snippet = e.text.slice(Math.max(0, pos - 50), pos + 130);
       return `<button class="search-hit${n === 0 ? " sel" : ""}" role="option" data-n="${n}" onclick="app.openHit(${n})">
         <div class="t">${mark(e.title)}</div><div class="m">${kindLabel[e.kind]} · ${this.esc(e.modTitle)}</div>
-        ${e.kind === "module" ? "" : `<div class="s">…${mark(snippet)}…</div>`}</button>`;
+        ${e.kind === "module" ? "" : `<div class="s">${e.kind === "glossary" ? "" : "…"}${mark(snippet)}${e.kind === "glossary" ? "" : "…"}</div>`}</button>`;
     }).join("") : `<p class="muted small" style="padding:12px 16px">${this.l("Tidak ada hasil. Coba kata lain atau ejaan bahasa Inggris.", "No results. Try another word.")}</p>`;
   }
   searchKey(e) {
@@ -1565,7 +1675,8 @@ class DataForgeApp {
     const e = (this._hits || [])[n];
     if (!e) return;
     this.closeSearch();
-    if (e.kind === "lesson") this.openLesson(e.mod, e.i);
+    if (e.kind === "glossary") this.go("glossary", e.gid);
+    else if (e.kind === "lesson") this.openLesson(e.mod, e.i);
     else this.go("curriculum", e.mod, e.kind === "chaos" ? "chaos" : "concepts");
   }
 
@@ -3173,6 +3284,7 @@ class DataForgeApp {
           </ul>
         </div>
 
+        <div class="callout"><p>📖 ${this.l("Bertemu kata yang belum Anda kenal (terminal, query, idempoten...)? Buka <a href=\"#/glossary\">Glosarium</a>: arti setiap istilah dalam bahasa sehari-hari, dan materi yang mengajarkannya. Kata tebal di dalam materi juga bisa diklik.", "Meet a word you do not know (terminal, query, idempotent...)? Open the <a href=\"#/glossary\">Glossary</a>: what every term means in plain words, and the lesson that teaches it. Bold words inside lessons are clickable too.")}</p></div>
         ${step(1, this.l("Pilih tempat Anda bekerja", "Choose where you work"), `
           <div class="grid cols-2">
             <div class="well stack-sm">

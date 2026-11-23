@@ -38,6 +38,9 @@ jobs:
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 
+      - name: Glossary points at real lessons that use the term
+        run: node scripts/test_glossary.js
+
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js
