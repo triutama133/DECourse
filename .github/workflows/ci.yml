@@ -66,6 +66,9 @@ jobs:
       - name: Verify every SQL Sandbox challenge (real SQLite engine)
         run: node scripts/verify_sandbox.js
 
+      - name: Verify Job Career, Interview Sim, Live SQL Arena, and app helpers
+        run: node scripts/verify_simulators.js
+
       - name: Check Python and JavaScript hash rules agree
         run: |
           python3 scripts/prove.py --hashes > /tmp/py_hashes.json

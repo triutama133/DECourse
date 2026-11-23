@@ -2,7 +2,7 @@
 
 A self-study data engineering course that runs in your browser: a curriculum with hands-on labs and "chaos" scenarios, a SQL sandbox with auto-checked challenges, interview practice, portfolio blueprints and a resume builder. UI languages: Indonesian and English.
 
-> **Status:** 23 modules are complete in both **English and Indonesian** (curriculum, labs, chaos scenarios, and quizzes). The Level 4 capstones 4.1 to 4.3 are complete in both languages; 4.4 (Airflow) is English only so far.
+> **Status:** All 27 modules (Levels 0 to 4, including the 4.4 Airflow capstone) are complete in both **English and Indonesian** (curriculum, interactive steps/drills, labs, chaos scenarios, and quizzes).
 > 
 > 💡 **New to Data Engineering?** Read the [Beginner Walkthrough / Panduan Belajar Pemula](WALKTHROUGH.md) for a complete zero-to-pro study guide and learning loop.
 
@@ -46,9 +46,10 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 | **Curriculum** | 5 levels, 27 modules and 212 lessons, about 70 weeks at the suggested pace. Each module has 5 to 12 short lessons (16 of them marked optional for a first pass), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and a 6 to 13 question quiz with explanations (80% to pass). |
 | **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
 | **Python Lab** | 51 Python challenges in six levels (basics, collections, functions and errors, data patterns, objects and recursion, and seven small mini-projects), each checked automatically in the browser, in English and Indonesian. A spaced **warm-up** brings back challenges you solved days ago and asks you to rebuild them from an empty file, for muscle memory. Source: `curriculum/python-challenges/`; `node scripts/build-challenges.js` generates the app data. It sits beside the SQL Sandbox under *Practice Lab*. |
-| **Glossary** | 183 terms in plain words (English and Indonesian), each linked to the lesson that teaches it. Open it from the header, from Ctrl+K, or by clicking a bold term inside a lesson. `node scripts/test_glossary.js` checks every entry against its lesson. |
-| **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and 58 challenges whose results are checked against a reference query (`node scripts/verify_sandbox.js` runs every solution on the same engine). SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
-| **Interview Sim** | System-design scenarios, SQL problems and incident drills. Sample answers are reference material, not graded. |
+| **Glossary** | 289 terms in plain words (English and Indonesian), each linked to the lesson that teaches it. Open it from the header, from Ctrl+K, or by clicking a bold term inside a lesson. `node scripts/test_glossary.js` checks every entry against its lesson. |
+| **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and 59 challenges whose results are checked against a reference query (`node scripts/verify_sandbox.js` runs every solution on the same engine). SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
+| **Job Career Mode** | Story-driven job simulator across 4 companies (board postings, recruiter pitches, Day-1 onboarding, slack/terminal missions) verified against local `scripts/job_sim.py` gates. |
+| **Interview Sim** | Interactive 3-round **Panel Loop Simulator** (SQL whiteboards, architecture diagrams, incident alerts, follow-up probes, Hiring Committee scorecard) plus 7 practice drills including live SQLite WASM execution & hostile-data grading in SQL Arena. |
 | **Portfolio** | Capstone blueprints with an ADR and interview-defense notes each. These are plans to build yourself, not finished projects. |
 | **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
 | **Job Readiness Dashboard** | Overall readiness score, 6 competency domain matrices, hiring checklist, next action steps, and exportable PDF report. |

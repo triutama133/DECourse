@@ -1557,7 +1557,11 @@ GROUP BY customer_id;`
     app_events: `
       INSERT INTO events VALUES
         (8,'2026-03-05 10:00:00','{"user":{"id":12,"plan":"pro"},"action":"checkout","items":[{"sku":"D4","qty":2,"price":10000},{"sku":"A1","qty":1,"price":50000}],"device":"web"}'),
-        (9,'2026-03-05 10:30:00','{"user":{"id":13},"action":"view","device":null}');`
+        (9,'2026-03-05 10:30:00','{"user":{"id":13},"action":"view","device":null}');`,
+    late_orders: `
+      INSERT INTO raw_orders VALUES
+        (6,'2026-01-24','refunded',100000,'2026-01-26 23:30:00'),
+        (7,'2026-01-27','delivered',95000,'2026-01-26 23:30:00');`
   },
 
   // Compare as unordered sets of rows (numbers rounded), ignoring column names.

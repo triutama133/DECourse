@@ -59,14 +59,21 @@
     try { return m ? new RegExp(m[1], m[2] || "i") : new RegExp(text, "i"); } catch (e) { return null; }
   }
 
+  function stripComments(sql) {
+    return String(sql || "").replace(/'(?:''|[^'])*'|"(?:""|[^"])*"|--[^\n]*|\/\*[\s\S]*?\*\//g, (m) =>
+      m[0] === "'" || m[0] === '"' ? m : " "
+    );
+  }
+
   function grade(SQL, ctx, drill, learnerSql) {
     const verify = drill.verify || "";
     const mine = runOn(SQL, ctx, learnerSql, verify, "");
     if (!mine.ok) return { ok: false, kind: "error", error: mine.error };
+    const cleanSql = stripComments(learnerSql);
     for (const c of drill.checks || []) {   // @check lines: /regex/ ## message (the query must contain this), or !/regex/ ## message (it must NOT)
       const negative = c.expr.startsWith("!");
       const re = regexOf(negative ? c.expr.slice(1) : c.expr);
-      if (re && re.test(learnerSql) === negative) return { ok: false, kind: "need", msg: c.msg, result: mine.has ? { columns: mine.columns, rows: mine.rows } : null };
+      if (re && re.test(cleanSql) === negative) return { ok: false, kind: "need", msg: c.msg, result: mine.has ? { columns: mine.columns, rows: mine.rows } : null };
     }
     if (!mine.has) return { ok: false, kind: "empty" };
     const ref = runOn(SQL, ctx, drill.solution, verify, "");

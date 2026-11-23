@@ -22,7 +22,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_py_done", "df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense", "df_interview_sim"]);
+const STUDY_KEYS = new Set(["df_py_done", "df_sql_done", "df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense", "df_interview_sim"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -64,8 +64,10 @@ class DataForgeApp {
     this.solvedChallenges = readStore("df_solved_challenges", []);
     this.playgroundTab = "sql";
     this.pyDone = readStore("df_py_done", {});            // Python challenges: {id: {first, last, times}} for the muscle-memory warm-up
+    this.sqlDone = readStore("df_sql_done", {});          // SQL Sandbox challenges: {id: {first, last, times}} for spaced recall
     this.pyChalId = readStore("df_py_sel", null);
     this.pyWarm = null;
+    this.sqlWarm = null;
     this.resumeEdited = readStore("df_resume_edited", false);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
     this.lessonsDone = readStore("df_lessons_done", {}) || {};
@@ -164,22 +166,24 @@ class DataForgeApp {
   switchLabTab(tab) { this.go("playground", tab); }
   pyChallenges() { return window.PY_CHALLENGES || []; }
   pySolved(id) { const d = this.drillsDone[`pychal:0:${id}`]; return Boolean(d && d.passed); }
-  pyRecordDone(id) {
+  _spacedRecord(doneMap, storeKey, id) {
     const now = Date.now();
-    const rec = this.pyDone[id] || { first: now, times: 0 };
+    const rec = doneMap[id] || { first: now, times: 0 };
     rec.last = now;
     rec.times = (rec.times || 0) + 1;
-    this.pyDone[id] = rec;
-    writeStore("df_py_done", this.pyDone);
+    doneMap[id] = rec;
+    writeStore(storeKey, doneMap);
   }
-  // a solved challenge is due again after 1, 3, 7, 21, 60 days: the more often you got it right, the longer the wait
-  pyDue() {
+  // A solved challenge is due again after 1, 3, 7, 21, 60 days: the more often it is solved, the longer the wait.
+  _spacedDue(items, doneMap) {
     const days = [1, 3, 7, 21, 60];
     const now = Date.now();
-    return this.pyChallenges()
-      .filter((c) => this.pyDone[c.id] && now - this.pyDone[c.id].last >= days[Math.min(this.pyDone[c.id].times - 1, days.length - 1)] * 86400000)
-      .sort((a, b) => this.pyDone[a.id].last - this.pyDone[b.id].last);
+    return items
+      .filter((c) => doneMap[c.id] && now - doneMap[c.id].last >= days[Math.min((doneMap[c.id].times || 1) - 1, days.length - 1)] * 86400000)
+      .sort((a, b) => doneMap[a.id].last - doneMap[b.id].last);
   }
+  pyRecordDone(id) { this._spacedRecord(this.pyDone, "df_py_done", id); }
+  pyDue() { return this._spacedDue(this.pyChallenges(), this.pyDone); }
   pySelect(id) { this.pyChalId = id; this.pyWarm = null; writeStore("df_py_sel", id); this.renderView(); window.scrollTo(0, 0); }
   pyStartWarm() {
     let list = this.pyDue();
@@ -1014,7 +1018,8 @@ class DataForgeApp {
     const head = groups.length
       ? this.l(`${groups.filter((g) => g.pass === g.total).length} dari ${lab.groups.length} kelompok tes lulus. Baca pesan dari baris paling bawah: baris berawalan <code>E</code> atau pesan pendek menyebut apa yang salah.`, `${groups.filter((g) => g.pass === g.total).length} of ${lab.groups.length} test groups pass. Read the message from the bottom line; it says what went wrong.`)
       : this.l("Tes belum berjalan. Biasanya ada kesalahan penulisan (syntax). Baca pesan di bawah.", "The tests did not run. Usually there is a typing slip (syntax). Read the message below.");
-    say(`<div class="feedback info">${head}</div>${chips ? `<ul class="bl-groups">${chips}</ul>` : ""}<pre class="pad-out pad-err">${this.esc(detail.trimEnd())}</pre>`);
+    const detailText = detail.trimEnd();
+    say(`<div class="feedback info">${head}</div>${this.pyFriendlyError(detailText)}${chips ? `<ul class="bl-groups">${chips}</ul>` : ""}<pre class="pad-out pad-err">${this.esc(detailText)}</pre>`);
   }
 
   // Which test groups prove each lesson's lab checkpoint (only where the browser lab can check it).
@@ -1211,6 +1216,12 @@ class DataForgeApp {
     // warm-up tasks (<story>-w1..w3) are small Level 0 exercises: they count, but far less than a real mission
     const jobSimCount = Object.keys(this.jobSimProofs || {}).filter((k) => !/-w\d$/.test(k)).length;
     const warmupCount = Object.keys(this.jobSimProofs || {}).filter((k) => /-w\d$/.test(k)).length;
+    const jobGateCount = Object.keys(this.jobSimGates || {}).length;
+    const jobCareerOffers = Object.values(readStore("df_job_career", {}) || {}).filter((s) => s && (s.stage === "day1" || s.stage === "desk")).length;
+    const pyChalCount = Object.keys(this.pyDone || {}).length;
+    const drillCount = Object.values(this.drillsDone || {}).filter((x) => x && x.passed).length;
+    const interviewPassCount = Object.values(readStore("df_interview_sim", {}) || {}).filter((s) => s && typeof s.bestScore === "number" && s.bestScore >= 70).length;
+    const sqlArenaPassCount = Object.keys(this.interviewDrafts || {}).filter((k) => k.startsWith("sql_pass:") && this.interviewDrafts[k]).length;
     const sqlCount = (this.solvedChallenges || []).length;
     const bugCount = Object.values(this.bugState || {}).filter((x) => x && x.solved).length;
     const defCount = Object.values(this.defenseState || {}).filter((x) => x && x.solved).length;
@@ -1219,7 +1230,7 @@ class DataForgeApp {
       return m && this.quizScores[id].best >= Math.ceil(m.quiz.length * 0.8);
     }).length;
 
-    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (jobSimCount * 200) + (warmupCount * 60) + (sqlCount * 30) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80);
+    const xp = (readLessons * 15) + (tryItCount * 35) + (proofCount * 150) + (chaosCount * 120) + (portCount * 300) + (jobSimCount * 200) + (warmupCount * 60) + (sqlCount * 30) + (pyChalCount * 20) + (bugCount * 50) + (defCount * 50) + (quizPassedCount * 80) + (interviewPassCount * 150) + (sqlArenaPassCount * 40) + (jobCareerOffers * 120);
 
     let leagueName = this.l("Rookie DE", "Rookie DE");
     let leagueIcon = "🛡️";
@@ -1241,7 +1252,7 @@ class DataForgeApp {
       { label: this.l("Lulus 1 Tantangan SQL atau Silent Bug", "Solve 1 Hostile SQL or Silent Bug Drill"), cur: Math.min(1, sqlCount + bugCount), max: 1, xp: "+50 XP", link: "#/playground" }
     ];
 
-    return { xp, streakDays: this.streakDays || 0, leagueName, leagueIcon, badges, quests, readLessons, tryItCount, proofCount, chaosCount, portCount, sqlCount };
+    return { xp, streakDays: this.streakDays || 0, leagueName, leagueIcon, badges, quests, readLessons, tryItCount, proofCount, chaosCount, portCount, sqlCount, pyChalCount, drillCount, jobCareerOffers, jobGateCount, interviewPassCount, sqlArenaPassCount };
   }
 
   renderRingProgress(pct, size = 44, strokeColor = "var(--accent)") {
@@ -1883,7 +1894,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_py_done", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_drills", "df_drill_code", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_py_done", "df_sql_done", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_drills", "df_drill_code", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d[a-z]?$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -1935,9 +1946,11 @@ class DataForgeApp {
         if (d.df_bl_runs && typeof d.df_bl_runs === "object" && !Array.isArray(d.df_bl_runs)) writeStore("df_bl_runs", d.df_bl_runs);
         if (d.df_bl_best && typeof d.df_bl_best === "object" && !Array.isArray(d.df_bl_best)) writeStore("df_bl_best", d.df_bl_best);
         if (d.df_bl_groups && typeof d.df_bl_groups === "object" && !Array.isArray(d.df_bl_groups)) writeStore("df_bl_groups", d.df_bl_groups);
-        if (d.df_drills && typeof d.df_drills === "object" && !Array.isArray(d.df_drills)) writeStore("df_drills", d.df_drills);
-        if (d.df_drill_code && typeof d.df_drill_code === "object" && !Array.isArray(d.df_drill_code)) writeStore("df_drill_code", d.df_drill_code);
         const objOf = (v) => v && typeof v === "object" && !Array.isArray(v);
+        if (objOf(d.df_py_done)) { this.pyDone = d.df_py_done; writeStore("df_py_done", this.pyDone); }
+        if (objOf(d.df_sql_done)) { this.sqlDone = d.df_sql_done; writeStore("df_sql_done", this.sqlDone); }
+        if (objOf(d.df_drills)) { this.drillsDone = d.df_drills; writeStore("df_drills", this.drillsDone); }
+        if (objOf(d.df_drill_code)) { this.drillCode = d.df_drill_code; writeStore("df_drill_code", this.drillCode); }
         if (objOf(d.df_job_sim_proofs)) { this.jobSimProofs = d.df_job_sim_proofs; writeStore("df_job_sim_proofs", this.jobSimProofs); }
         if (objOf(d.df_job_sim_gates)) { this.jobSimGates = d.df_job_sim_gates; writeStore("df_job_sim_gates", this.jobSimGates); }
         if (objOf(d.df_pr_proofs)) { this.prProofs = d.df_pr_proofs; writeStore("df_pr_proofs", this.prProofs); }
@@ -2447,11 +2460,33 @@ class DataForgeApp {
     say(`<div class="feedback info">${loading["loading-python"]}</div>`);
     w.postMessage({ type: "drill", id, code: ta.value, checks: d.checks.map((c) => [c.expr, c.msg]), files: d.files || {} });
   }
+  pyFriendlyError(err) {
+    const lines = String(err || "").split("\n").map((s) => s.trim()).filter(Boolean);
+    const last = [...lines].reverse().find((l) => /^(?:E\s+)?[A-Za-z_]\w*(?:Error|Exception):/.test(l)) || lines[lines.length - 1] || "";
+    if (!last) return "";
+    const rules = [
+      [/^(?:IndentationError|TabError):/i, this.l("Spasi di awal baris (indentasi) tidak rata, atau tercampur dengan Tab. Pastikan semua baris di dalam blok memiliki spasi yang sama.", "Leading spaces (indentation) do not line up, or tabs and spaces are mixed. Align every line inside a block cleanly.")],
+      [/^SyntaxError:/i, this.l("Python berhenti membaca karena salah ketik struktur: periksa titik dua `:` di akhir `if`/`for`/`def`, tanda kutip berpasangan, atau tanda kurung yang belum ditutup.", "Python stopped reading at a structure typo: check the colon `:` at the end of `if`/`for`/`def`, matching quotes, or unclosed brackets.")],
+      [/^NameError:/i, this.l("Nama variabel atau fungsi belum pernah didefinisikan sebelum baris ini, atau salah eja huruf besar/kecil. Ingat tanda teks harus memakai tanda kutip.", "This variable or function name has not been defined before this line, or has a capitalization typo. Text values also need quotes.")],
+      [/^TypeError:.*(?:str|concatenate|unsupported operand)/i, this.l("Anda mencampur tipe data (misalnya teks `str` dengan angka `int`), atau memakai nilai `None` seolah-olah angka/list. Cek tipe nilainya dengan `type(...)`.", "You mixed incompatible types (for example `str` text and `int` numbers), or treated `None` as a number/list. Inspect values with `type(...)`.")],
+      [/^TypeError:/i, this.l("Tipe nilai yang diberikan ke fungsi atau operator tidak cocok (atau jumlah argumen pemanggilan fungsi tidak sesuai definisinya).", "The value type passed to a function or operator does not match (or the number of arguments differs from the function definition).")],
+      [/^ValueError:/i, this.l("Tipenya benar (misalnya teks), tetapi isinya tidak bisa diubah (contoh: `int(\"abc\")` atau format tanggal tidak cocok). Validasi atau tangani baris kotor dulu.", "The type is valid (such as text), but its contents cannot be parsed (for example `int(\"abc\")` or an unexpected date format). Validate or handle bad rows first.")],
+      [/^KeyError:/i, this.l("Key tidak ditemukan di dictionary. Periksa ejaan key-nya, atau pakai `.get(key, default)` bila key tersebut kadang tidak ada.", "That key does not exist in the dictionary. Check the spelling, or use `.get(key, default)` when a key may be missing.")],
+      [/^IndexError:/i, this.l("Posisi list di luar jangkauan (misalnya meminta indeks ke-3 pada list berisi 2 item, atau memanggil indeks pada list kosong `[]`).", "The list index is out of range (for example reading position 3 of a 2-item list, or indexing an empty `[]` list).")],
+      [/^AttributeError:/i, this.l("Nilai tersebut tidak punya method itu—sering terjadi saat nilainya ternyata `None` atau bertipe lain dari perkiraan (misalnya `.strip()` pada angka).", "That value does not have that method—often because the variable actually holds `None` or a different type than expected (like `.strip()` on an `int`).")],
+      [/^ZeroDivisionError:/i, this.l("Pembagian dengan nol (`0`). Tambahkan penjaga `if count == 0:` sebelum membagi.", "Division by zero (`0`). Guard with `if count == 0:` before dividing.")],
+      [/^FileNotFoundError:/i, this.l("File tidak ditemukan di jalur tersebut. Periksa ejaan nama file dan folder tempat Anda berdiri (`pwd`, `ls`).", "That file was not found at the path given. Check the filename spelling and your current folder (`pwd`, `ls`).")]
+    ];
+    const bare = last.replace(/^E\s+/, "");   // pytest prefixes its error lines with "E   "
+    const hit = rules.find(([re]) => re.test(bare));
+    if (!hit) return "";
+    return `<div class="callout neutral small" style="margin:6px 0"><strong>🔎 ${this.l("Baca baris terakhir traceback", "Read the bottom traceback line")}:</strong> <code>${this.esc(last.replace(/^E\s+/, ""))}</code><div style="margin-top:4px">${this.inline(hit[1])}</div></div>`;
+  }
   drillResult(box, key, d, r) {
     const out = box.querySelector(".drill-out");
     const printed = r.output && r.output.trim() ? `<div><div class="small muted">${this.l("Yang dicetak kode Anda:", "What your code printed:")}</div><pre class="pad-out">${this.esc(r.output.trimEnd())}</pre></div>` : "";
     if (r.error) {
-      out.innerHTML = `<div class="feedback bad">${this.l("Kode Anda berhenti karena error. Baca baris paling bawah: itu yang salah.", "Your code stopped with an error. Read the last line: it says what went wrong.")}</div><pre class="pad-out pad-err">${this.esc(r.error)}</pre>${printed}`;
+      out.innerHTML = `<div class="feedback bad">${this.l("Kode Anda berhenti karena error. Baca baris paling bawah: itu yang salah.", "Your code stopped with an error. Read the last line: it says what went wrong.")}</div>${this.pyFriendlyError(r.error)}<pre class="pad-out pad-err">${this.esc(r.error)}</pre>${printed}`;
       return;
     }
     const failed = r.results.filter((x) => !x.ok);
@@ -4969,12 +5004,14 @@ Hello from KopiKu</code></pre>
 
   copyScorecard(btn) {
     const g = this.computeGamificationStats();
+    const totalSql = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) ? SQL_PLAYGROUND.challenges.length : 59;
+    const totalPy = (window.PY_CHALLENGES || []).length || 51;
     const text = [
       `⚡ DataForge Verified Engineering Scorecard`,
       `• Rank: ${g.leagueIcon} ${g.leagueName} (${g.xp.toLocaleString()} XP · 🔥 ${g.streakDays}d Streak)`,
       `• Modules Completed: ${this.completedModules.length}/27`,
       `• Local proofs: ${g.proofCount} DF1 Labs · ${g.tryItCount} TRY1 Checks · ${g.chaosCount} CHAOS1 Drills · ${g.portCount} PORT1 Git Repos`,
-      `• Hostile SQL Sandbox Solved: ${g.sqlCount}/59`
+      `• Practice & Simulators: ${g.sqlCount}/${totalSql} SQL Sandbox · ${g.sqlArenaPassCount}/4 SQL Arena · ${g.pyChalCount}/${totalPy} PyLab · ${g.jobCareerOffers}/4 Career Offers · ${g.interviewPassCount}/3 Panel Loops`
     ].join("\n");
     this.copyText(text, btn);
   }
@@ -6129,16 +6166,25 @@ Hello from KopiKu</code></pre>
     const ds = P.datasets[sb.datasetKey];
     const challenge = P.challenges.find((c) => c.id === sb.challengeId);
     const forDataset = P.challenges.filter((c) => c.dataset === sb.datasetKey);
+    const sqlDueCount = this.sqlDue().length;
+    const sqlTriedCount = P.challenges.filter((c) => this.sqlDone && this.sqlDone[c.id]).length;
+    const sqlWarmBanner = this.sqlWarm
+      ? `<div class="callout"><strong>🔁 ${this.l("Pemanasan Memori SQL", "SQL Cold-Recall Warm-up")} ${this.sqlWarm.pos + 1} / ${this.sqlWarm.ids.length}</strong> ${this.l("Tulis query ini lagi dari editor kosong tanpa melihat jawaban lama. Mengingat tanpa menyontek mengunci pola grain dan JOIN.", "Write this query again from an empty editor without peeking. Recalling from scratch locks in grain and JOIN muscle memory.")}
+          <div class="row" style="margin-top:8px"><button class="btn btn-sm btn-primary" onclick="app.sqlWarmNext()">${this.sqlWarm.pos + 1 >= this.sqlWarm.ids.length ? this.l("Selesai pemanasan", "Finish warm-up") : this.l("Berikutnya", "Next")} →</button></div></div>`
+      : "";
     return `
       <div class="stack">
         ${this.labTabs("sql")}
-        <div class="card row between">
+        <div class="card row between" style="flex-wrap:wrap;gap:12px">
           <div><h1>${t.playgroundTitle}</h1><p class="sub">${t.playgroundSubtitle}</p></div>
-          <div class="row"><label class="label" for="pg-dataset-select">${t.datasetLabel}</label>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <button class="btn btn-sm ${sqlDueCount ? "btn-primary" : "btn-quiet"}" onclick="app.sqlStartWarm()" ${sqlTriedCount ? "" : "disabled"} title="${this.l("Tulis ulang 3 query yang pernah Anda selesaikan dari editor kosong", "Rebuild 3 solved SQL challenges from an empty editor")}">🔁 ${this.l("Pemanasan", "Warm-up")}${sqlDueCount ? ` (${sqlDueCount} ${this.l("jatuh tempo", "due")})` : ""}</button>
+            <label class="label" for="pg-dataset-select">${t.datasetLabel}</label>
             <select id="pg-dataset-select" onchange="app.changeDataset(this.value)">
               ${Object.keys(P.datasets).map((k) => `<option value="${k}" ${k === sb.datasetKey ? "selected" : ""}>${this.esc(this.t(P.datasets[k].name))}</option>`).join("")}
             </select></div>
         </div>
+        ${sqlWarmBanner}
         <div class="split">
           <aside class="stack-sm">
             <div class="card stack-sm">
@@ -6161,7 +6207,7 @@ Hello from KopiKu</code></pre>
             ${challenge ? (() => {
               const attempts = this.sqlAttempts[challenge.id] || 0;
               const isSolved = this.solvedChallenges.includes(challenge.id);
-              const canShowSolution = isSolved || attempts >= 5;
+              const canShowSolution = (!this.sqlWarm && isSolved) || attempts >= 5;
               return `
               <div class="card stack-sm">
                 <div class="row between">
@@ -6223,11 +6269,37 @@ Hello from KopiKu</code></pre>
     if (tables) tables.innerHTML = SQL_PLAYGROUND.tables().map((tb) => `<div style="margin-top:6px"><b>${this.esc(tb.name)}</b>(${tb.cols.map((c) => this.esc(c)).join(", ")})</div>`).join("");
   }
 
+  sqlDue() { return this._spacedDue((window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) || [], this.sqlDone || {}); }
+  sqlStartWarm() {
+    const all = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) || [];
+    let list = this.sqlDue();
+    if (!list.length) list = all.filter((c) => this.sqlDone && this.sqlDone[c.id]).sort((a, b) => this.sqlDone[a.id].last - this.sqlDone[b.id].last);
+    const ids = list.slice(0, 3).map((c) => c.id);
+    if (!ids.length) return;
+    this.sqlWarm = { ids, pos: 0 };
+    this.sqlWarmOpen();
+  }
+  async sqlWarmOpen() {
+    const id = this.sqlWarm.ids[this.sqlWarm.pos];
+    const ch = SQL_PLAYGROUND.challenges.find((c) => c.id === id);
+    if (!ch) { this.sqlWarm = null; return; }
+    this.sandbox = { ...this.sandbox, challengeId: id, datasetKey: ch.dataset, hintOpen: false, solutionOpen: false, draft: "" };
+    this.renderView();
+    window.scrollTo(0, 0);
+  }
+  sqlWarmNext() {
+    if (!this.sqlWarm) return;
+    this.sqlWarm.pos += 1;
+    if (this.sqlWarm.pos >= this.sqlWarm.ids.length) { this.sqlWarm = null; this.renderView(); window.scrollTo(0, 0); return; }
+    this.sqlWarmOpen();
+  }
   async changeDataset(key) {
+    this.sqlWarm = null;
     this.sandbox = { ...this.sandbox, datasetKey: key, challengeId: null, hintOpen: false, solutionOpen: false, draft: "" };
     this.renderView();
   }
   async selectChallenge(id) {
+    this.sqlWarm = null;
     const sb = this.sandbox;
     sb.challengeId = id;
     sb.hintOpen = false; sb.solutionOpen = false; sb.draft = "";
@@ -6347,6 +6419,7 @@ Hello from KopiKu</code></pre>
         writeStore("df_solved_challenges", this.solvedChallenges);
         this.renderChrome();
       }
+      if (challenge) this._spacedRecord(this.sqlDone, "df_sql_done", challenge.id);
     }
     else if (r.reason === "error") msg = this.l("Query punya error; perbaiki dulu.", "Your query has an error; fix it first.");
     else if (r.reason === "empty") msg = this.l("Query tidak menghasilkan baris. Tulis SELECT.", "Your query returned no rows. Write a SELECT.");
@@ -6362,10 +6435,12 @@ Hello from KopiKu</code></pre>
 
   // ================= JOB READINESS DASHBOARD =================
   renderReadinessView() {
+    const g = this.computeGamificationStats();
     const totalModules = CURRICULUM_DATA.reduce((n, lvl) => n + lvl.modules.length, 0);
     const completedCount = this.completedModules.length;
     const solvedSqlCount = this.solvedChallenges.length;
-    const totalSqlCount = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) ? SQL_PLAYGROUND.challenges.length : 36;
+    const totalSqlCount = (window.SQL_PLAYGROUND && SQL_PLAYGROUND.challenges) ? SQL_PLAYGROUND.challenges.length : 59;
+    const totalPyCount = (window.PY_CHALLENGES || []).length || 51;
     
     // Quiz stats
     const quizModIds = Object.keys(this.quizScores);
@@ -6494,6 +6569,14 @@ Hello from KopiKu</code></pre>
         done: isResumeDone
       },
       {
+        label: this.l("Menyelesaikan ≥ 10 tantangan Python Lab & menguji SQL Arena secara live", "Solve ≥ 10 Python Lab challenges & pass ≥ 1 live SQL Arena problem"),
+        done: g.pyChalCount >= 10 && g.sqlArenaPassCount >= 1
+      },
+      {
+        label: this.l("Lolos ≥ 1 kontrak Job Career Mode & ≥ 1 Loop Wawancara Panel (≥ 70/100)", "Reach Day-1/Desk in Job Career Mode & pass ≥ 1 Panel Interview Loop (≥ 70/100)"),
+        done: g.jobCareerOffers >= 1 && g.interviewPassCount >= 1
+      },
+      {
         label: this.l("Memahami strategi kontrak remote internasional (W-8BEN, tarif USD)", "International remote contract strategy (W-8BEN, USD day rates)"),
         done: completedCount >= 12
       }
@@ -6527,6 +6610,14 @@ Hello from KopiKu</code></pre>
               <button class="btn btn-primary" onclick="app.go('roadmap')">${this.l("Buka Roadmap", "Open Roadmap")}</button>
             </div>
           </div>
+        </div>
+
+        <!-- Active Practice & Simulators Strip -->
+        <div class="grid cols-4">
+          <div class="card tight"><div class="small muted">🐍 ${this.l("Lab Python", "Python Lab")}</div><div style="font-size:22px;font-weight:700;margin-top:4px">${g.pyChalCount} / ${totalPyCount}</div><div class="small muted">${g.drillCount} ${this.l("latihan materi", "lesson drills")}</div></div>
+          <div class="card tight"><div class="small muted">🗄️ ${this.l("SQL Sandbox + Arena", "SQL Sandbox + Arena")}</div><div style="font-size:22px;font-weight:700;margin-top:4px">${solvedSqlCount}/${totalSqlCount} · ${g.sqlArenaPassCount}/4</div><div class="small muted">${this.l("teruji mutasi hostil", "hostile-data verified")}</div></div>
+          <div class="card tight"><div class="small muted">💼 ${this.l("Mode Karir Kerja", "Job Career Mode")}</div><div style="font-size:22px;font-weight:700;margin-top:4px">${g.jobCareerOffers} / 4</div><div class="small muted">${g.jobGateCount} ${this.l("misi lokal lolos", "local missions")}</div></div>
+          <div class="card tight"><div class="small muted">🎬 ${this.l("Loop Wawancara Panel", "Panel Interview Loops")}</div><div style="font-size:22px;font-weight:700;margin-top:4px">${g.interviewPassCount} / 3</div><div class="small muted">${this.l("skor komite ≥ 70/100", "committee ≥ 70/100")}</div></div>
         </div>
 
         <!-- Score and the next steps, side by side -->
