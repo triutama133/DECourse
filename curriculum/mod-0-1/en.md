@@ -485,6 +485,50 @@ Failing immediately and clearly beats running half-configured. `os.environ.get("
 
 For local work, put variables in a file named `.env` that is listed in `.gitignore`, and load it with your shell (`set -a; source .env; set +a`) or a library such as `python-dotenv`. In production the platform injects them from a secrets manager. Commit a `.env.example` with fake values so teammates know which variables exist.
 
+### Why a variable "disappears"
+
+An environment variable belongs to the **terminal window** where you set it, and to the programs you start from that window. `export DB_PASSWORD=secret` in one terminal does nothing in a second terminal, and closing the window forgets it. This is why teams keep variables in a `.env` file, and why the course asks you to repeat the setup lines (and any `export`) in every new terminal.
+
+:::ask You run `export DB_PASSWORD=secret` in terminal 1, then open terminal 2 and run `python3 job.py`, which reads `os.environ["DB_PASSWORD"]`. What happens?
+@options
+it works, because the whole computer now knows the password
+* it stops with a `KeyError`: the variable belongs to terminal 1 only
+it asks you to type the password in terminal 2
+@why
+An exported variable lives in that one terminal window and in the programs started from it. A new window starts without it. Put the line in a `.env` file you load again, or repeat the `export`.
+:::
+
+### Settings files: YAML in two minutes
+
+Many tools you will meet (Docker Compose, dbt, Airflow, GitHub Actions) read their settings from **YAML** files. YAML is plain text with a few rules:
+
+```yaml
+database:
+  host: localhost
+  port: 5432
+tags:
+  - kopiku
+  - daily
+```
+
+- `name: value` is one setting. A dash `-` starts one item of a list.
+- **Indentation shows what belongs inside what.** `host` and `port` are indented under `database`, so they are *inside* it. Use spaces, never tabs, and the same number of spaces for settings at the same level.
+- Most YAML errors are one space too many or too few. If a tool says "mapping values are not allowed here", look at the indentation first.
+
+:::ask In this file, is `port` inside `database`?
+```yaml
+database:
+  host: localhost
+port: 5432
+```
+@options
+yes, because it comes right after `host`
+yes, because both values are written the same way
+* no: it sits at the left edge, so it is a separate setting next to `database`
+@why
+Only indentation decides. `host` is pushed in under `database`, but `port` starts at the left edge again, so it belongs to the top level. To put it inside, indent it by the same two spaces as `host`.
+:::
+
 Predict the order of the emergency steps:
 
 :::ask An API key was pushed to a public repository. What is the FIRST thing to do?

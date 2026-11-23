@@ -3602,7 +3602,7 @@ Hello from KopiKu</code></pre>
 
         ${step(6, this.l("Opsional: jalankan situs ini di komputer Anda", "Optional: run this site on your computer"), `
           ${cmd("python3 server.py")}
-          <p class="small muted">${this.l("Lalu buka http://localhost:3000. Progres Anda disimpan di browser; gunakan Ekspor progres di bawah halaman untuk membuat cadangan.", "Then open http://localhost:3000. Your progress is stored in the browser; use Export progress in the page footer to make a backup.")}</p>`)}
+          <p class="small muted">${this.l("Lalu buka http://localhost:3000. (localhost berarti komputer Anda sendiri; 3000 adalah port, pintu bernomor tempat server kursus ini mendengarkan.) Progres Anda disimpan di browser; gunakan Ekspor progres di bawah halaman untuk membuat cadangan.", "Then open http://localhost:3000. (localhost means your own computer; 3000 is the port, the numbered door the course server listens on.) Your progress is stored in the browser; use Export progress in the page footer to make a backup.")}</p>`)}
 
         ${step(7, this.l("Mulai belajar", "Start learning"), `
           <p>${this.l("Setiap modul memiliki empat bagian, dikerjakan berurutan: <strong>Materi</strong> (baca), <strong>Lab</strong> (tulis kode sampai tes hijau), <strong>Chaos</strong> (pelajari kegagalan produksi nyata), dan <strong>Kuis</strong> (lulus dengan 80%).", "Every module has four parts, done in order: <strong>Lessons</strong> (read), <strong>Lab</strong> (write code until the tests pass), <strong>Chaos</strong> (study a real production failure), and <strong>Quiz</strong> (pass at 80%).")}</p>

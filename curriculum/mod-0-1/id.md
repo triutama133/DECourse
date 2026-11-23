@@ -491,6 +491,50 @@ Gagal seketika dan jelas lebih baik daripada berjalan setengah terkonfigurasi. `
 
 Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.gitignore`, lalu muat dengan shell (`set -a; source .env; set +a`) atau library seperti `python-dotenv`. Di produksi, platform menyuntikkannya dari secrets manager. Commit sebuah `.env.example` berisi nilai palsu agar rekan tim tahu variabel apa saja yang ada.
 
+### Mengapa sebuah variabel "menghilang"
+
+Environment variable milik **jendela terminal** tempat Anda mengaturnya, dan milik program yang Anda mulai dari jendela itu. `export DB_PASSWORD=secret` di satu terminal tidak berpengaruh di terminal kedua, dan menutup jendela membuatnya terlupakan. Itulah sebabnya tim menyimpan variabel di file `.env`, dan mengapa kursus ini meminta Anda mengulang baris persiapan (dan setiap `export`) di setiap terminal baru.
+
+:::ask Anda menjalankan `export DB_PASSWORD=secret` di terminal 1, lalu membuka terminal 2 dan menjalankan `python3 job.py` yang membaca `os.environ["DB_PASSWORD"]`. Apa yang terjadi?
+@options
+berhasil, karena seluruh komputer kini tahu kata sandinya
+* berhenti dengan `KeyError`: variabelnya hanya milik terminal 1
+program meminta Anda mengetik kata sandi di terminal 2
+@why
+Variabel yang di-export hidup di satu jendela terminal itu dan di program yang dimulai darinya. Jendela baru mulai tanpa variabel itu. Taruh barisnya di file `.env` yang Anda muat lagi, atau ulangi `export`-nya.
+:::
+
+### File pengaturan: YAML dalam dua menit
+
+Banyak alat yang akan Anda temui (Docker Compose, dbt, Airflow, GitHub Actions) membaca pengaturannya dari file **YAML**. YAML adalah teks biasa dengan beberapa aturan:
+
+```yaml
+database:
+  host: localhost
+  port: 5432
+tags:
+  - kopiku
+  - daily
+```
+
+- `nama: nilai` adalah satu pengaturan. Tanda hubung `-` memulai satu item list.
+- **Indentasi menunjukkan apa yang berada di dalam apa.** `host` dan `port` menjorok di bawah `database`, jadi keduanya *di dalam*nya. Pakai spasi, jangan pernah tab, dan jumlah spasi yang sama untuk pengaturan pada tingkat yang sama.
+- Kebanyakan error YAML adalah kelebihan atau kekurangan satu spasi. Jika alat berkata "mapping values are not allowed here", periksa indentasinya dulu.
+
+:::ask Pada file ini, apakah `port` berada di dalam `database`?
+```yaml
+database:
+  host: localhost
+port: 5432
+```
+@options
+ya, karena ia berada tepat setelah `host`
+ya, karena kedua nilainya ditulis dengan cara yang sama
+* tidak: ia berada di tepi kiri, jadi ia pengaturan terpisah di samping `database`
+@why
+Hanya indentasi yang menentukan. `host` menjorok di bawah `database`, tetapi `port` mulai lagi dari tepi kiri, jadi ia milik tingkat teratas. Untuk memasukkannya, jorokkan sebanyak dua spasi yang sama seperti `host`.
+:::
+
 Tebak urutan langkah daruratnya:
 
 :::ask Sebuah API key di-push ke repositori publik. Apa hal PERTAMA yang dilakukan?
