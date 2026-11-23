@@ -73,6 +73,21 @@ kopiku_dbt/
   macros/                fungsi Jinja modular yang dapat digunakan berulang
 ```
 
+Tiga hal sederhana yang perlu diketahui tentang file-file ini sebelum menjalankan apa pun:
+
+- File `.yml` adalah **YAML**: indentasi menunjukkan apa yang berada di dalam apa (Modul 0.1, materi 6 memuat aturannya).
+- `dbt_project.yml` menyatakan *apa* yang dibangun; `profiles.yml` menyatakan *di mana* membangunnya (file atau server database mana, dan kata sandinya). Profil itu disimpan di luar Git karena bisa memuat rahasia.
+- Lab memberi tahu dbt di mana database berada lewat **environment variable** (`export KOPIKU_DB=...`). Variabel itu milik jendela terminal tempat Anda mengetiknya, jadi atur lagi di setiap terminal baru. Jika dbt tak bisa menemukan database, jalankan `echo $KOPIKU_DB` lebih dulu.
+
+:::ask Anda mengatur `export KOPIKU_DB=...` dan `dbt run` berhasil. Besok paginya Anda membuka terminal baru dan `dbt run` berkata tak bisa menemukan database. Apa yang Anda periksa lebih dulu?
+@options
+pasang ulang dbt, karena instalasinya mungkin rusak
+tulis ulang model SQL, karena pasti salah
+* jalankan `echo $KOPIKU_DB`: variabelnya mungkin belum diatur di terminal baru
+@why
+Tidak ada yang berubah di proyekmu semalam; hanya terminalnya. Variabel yang di-export hidup di satu jendela terminal, jadi jendela baru mulai tanpa variabel itu. Periksa dengan `echo`, atur lagi, lalu coba lagi.
+:::
+
 Dua fungsi utama yang menghubungkan kode SQL ke dalam grafik DAG:
 
 - **`source('raw', 'orders')`** merujuk ke tabel mentah yang tidak dibuat oleh dbt (dimuat oleh pipeline ingestion eksternal). Deklarasi tabel sumber di `sources.yml` mendokumentasikan skema, memusatkan nama tabel di satu tempat, dan memungkinkan dbt memeriksa keterbaruan data (**freshness check**).

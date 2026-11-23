@@ -73,6 +73,21 @@ kopiku_dbt/
   macros/                reusable Jinja functions
 ```
 
+Three plain things to know about these files before you run anything:
+
+- The `.yml` files are **YAML**: indentation shows what belongs inside what (Module 0.1, lesson 6 has the rules).
+- `dbt_project.yml` says *what* to build; `profiles.yml` says *where* to build it (which database file or server, and the password). The profile stays out of Git because it can hold secrets.
+- The lab tells dbt where the database is through an **environment variable** (`export KOPIKU_DB=...`). That variable belongs to the terminal window where you typed it, so set it again in every new terminal. If dbt cannot find the database, run `echo $KOPIKU_DB` first.
+
+:::ask You set `export KOPIKU_DB=...` and `dbt run` works. Next morning you open a new terminal and `dbt run` says it cannot find the database. What do you check first?
+@options
+reinstall dbt, because the installation is probably damaged
+rewrite the SQL models, because they must be wrong
+* run `echo $KOPIKU_DB`: the variable is probably unset in the new terminal
+@why
+Nothing in your project changed overnight; only the terminal did. An exported variable lives in one terminal window, so a new window starts without it. Check it with `echo`, set it again, and retry.
+:::
+
 Two functions connect SQL to the graph:
 
 - **`source('raw', 'orders')`** refers to a table dbt does not own (loaded by someone else). Declaring sources in `sources.yml` documents them, names them in one place, and lets dbt check their **freshness**.

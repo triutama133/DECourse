@@ -55,6 +55,34 @@ An **embedding** is a list of numbers (a vector) that a model produces for a pie
 
 The usual closeness measure is **cosine similarity**: the cosine of the angle between two vectors. It is 1 for the same direction, 0 for unrelated and −1 for opposite. If vectors are scaled to length 1 it equals the dot product, and pgvector offers it as a *distance*: `<=>` is cosine distance (1 − similarity), `<->` is Euclidean distance and `<#>` is negative inner product. The operator you query with must match the operator class of the index.
 
+### Vectors by hand: length and angle
+
+A **vector** is just a list of numbers. Two things about it are needed for similarity. Its **length** (also called its *norm*) is found like the diagonal of a rectangle: `[3, 4]` has length 5, because 3 squared plus 4 squared is 25, and the square root of 25 is 5. The **dot product** of two vectors multiplies the matching numbers and adds them up. Cosine similarity is the dot product divided by the two lengths, so that only the **direction** of the vectors matters, not how long they are. Follow one example:
+
+:::trace Cosine similarity of [3, 4] and [4, 3]
+@code
+a = [3, 4]
+b = [4, 3]
+dot = a[0] * b[0] + a[1] * b[1]
+length_a = (a[0] ** 2 + a[1] ** 2) ** 0.5
+length_b = (b[0] ** 2 + b[1] ** 2) ** 0.5
+print(dot / (length_a * length_b))
+@notes
+3 | The dot product: 3 × 4 + 4 × 3 = 24.
+4 | The length of `a`: the square root of 3² + 4² = 25, so 5.
+5 | The length of `b` is also 5.
+6 | 24 divided by 5 × 5 gives 0.96: the two vectors point in almost the same direction.
+:::
+
+:::ask The vectors `[1, 0]` and `[0, 1]` point in completely different directions (at a right angle). What is their cosine similarity?
+@options
+* 0, which means unrelated
+1, the highest possible score
+-1, which means exact opposites
+@why
+Their dot product is 1 × 0 + 0 × 1 = 0, so the cosine is 0 divided by the lengths: 0. A cosine of 1 means the same direction, 0 means unrelated, and -1 means opposite directions.
+:::
+
 ### The stand-in used in the lab
 
 A real model needs an API key or a download of hundreds of megabytes, and returns slightly different numbers across versions. To keep the lab offline and exactly reproducible, it uses a **hashing embedder**: every word is hashed to one of 256 positions, with a sign, and the counts are scaled to length 1. This captures *word overlap*, not meaning: "automobile" and "car" are unrelated to it, which a real model handles. Everything else in the module is identical for a real model: text goes in, a fixed-length unit vector comes out, and `embed` is the only function you would replace. The lab's hashing embedder takes a `model` name that changes the hashing, so two model names behave like two different incompatible real models. That is the point of the chaos scenario.

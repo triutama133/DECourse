@@ -61,6 +61,36 @@ Dua fitur menentukan bagaimana key-value store dipakai:
 
 Data engineer bertemu key-value store sebagai *lapisan penyajian* pipeline (feature store, pencarian real-time) dan sebagai cache yang membuat data pipeline tampak basi. Ingat bahwa cache adalah **salinan**: ketika sumber berubah, salinan itu salah sampai ia kedaluwarsa atau di-invalidasi.
 
+### Big-O dalam satu menit: mengapa pencarian di dictionary cepat
+
+Saat engineer berkata sebuah pencarian **O(1)**, artinya usahanya tidak bertambah seiring jumlah data: menemukan satu key butuh waktu hampir sama pada 10 key maupun 10 juta. **O(N)** berarti usahanya tumbuh seiring data: mencari di list satu item sekali waktu butuh waktu dua kali lipat untuk item dua kali lipat. Lihat keduanya:
+
+:::trace Satu per satu, atau langsung ke sasaran
+@code
+items = ["a", "b", "c", "d", "e"]
+steps = 0
+for x in items:
+    steps += 1
+    if x == "d":
+        break
+print(steps)
+table = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}
+print(table["d"])
+@notes
+4 | Mencari di list berarti melihat item satu demi satu, satu langkah masing-masing. Ini **O(N)**: dengan 5 item butuh 4 langkah, dengan sejuta item bisa sampai sejuta.
+7 | Pemindaian itu butuh 4 langkah untuk menemukan `"d"`.
+9 | Dictionary melompat langsung ke key lewat hash-nya, dalam sekitar satu langkah, sebesar apa pun ia. Ini **O(1)**, dan itulah mengapa key-value store cepat.
+:::
+
+:::ask Sebuah list berisi 1.000.000 id pelanggan dicari satu per satu untuk satu id. Apa yang kira-kira terjadi pada kerjanya bila list menjadi dua kali lipat?
+@options
+tetap sama, karena pencariannya O(1)
+kira-kira dikuadratkan, karena tiap id dibandingkan dengan semua yang lain
+* kira-kira menjadi dua kali lipat, karena kerja tumbuh seiring data (O(N))
+@why
+Mencari satu item sekali waktu melihat sekitar setengah dari item rata-rata, jadi item dua kali lipat berarti kerja dua kali lipat: O(N). Dictionary (atau indeks) menghindarinya dengan melompat langsung ke key.
+:::
+
 ### Lihat sendiri: eviction LRU dengan OrderedDict
 
 Kapasitas 2. Perhatikan key mana yang dibuang ketika cache penuh:

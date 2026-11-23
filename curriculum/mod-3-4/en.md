@@ -143,6 +143,50 @@ One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Ama
 
 **Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
 
+### Reading a network address: IP and CIDR in two minutes
+
+Every computer on a network has an **IP address**: four numbers from 0 to 255 separated by dots, like `10.0.37.5`. It works like a street address. A **CIDR block** names a whole *range* of addresses at once, for example `10.0.0.0/16`.
+
+The number after the slash says how many of the address's 32 bits are **locked** (each of the four numbers is 8 bits). `/16` locks the first two numbers (`10.0.`), so every address from `10.0.0.0` to `10.0.255.255` belongs to the block. The more bits are locked, the smaller the block: `/24` locks three numbers and holds 256 addresses, `/16` holds 65,536. The rule is **block size = 2 ** (32 − the number after the slash)**. A cloud network (a **VPC**) is one big block that you cut into smaller **subnets**.
+
+:::drill python How big is the block?
+Write `block_size(prefix)`: the number of addresses in a CIDR block whose number after the slash is `prefix`. `block_size(24)` is `256`.
+@starter
+# write your function below this line
+
+@check
+defines("block_size") ## Define block_size(prefix).
+block_size(24) == 256 ## A /24 locks 24 bits: 2 ** 8 = 256 addresses.
+block_size(16) == 65536 ## A /16: 2 ** 16.
+block_size(32) == 1 ## All 32 bits locked: exactly one address.
+block_size(20) == 4096 ## A /20: 2 ** 12.
+@hint
+`2 ** (32 - prefix)`
+@solution
+def block_size(prefix):
+    return 2 ** (32 - prefix)
+:::
+
+:::drill python Is this address inside the block?
+Write `in_block(ip, cidr)`: `True` if the address is inside the CIDR block. The standard library helps: `ipaddress.ip_address(...)` and `ipaddress.ip_network(...)` understand both texts, and `in` checks membership.
+@starter
+import ipaddress
+# write your function below this line
+
+@check
+defines("in_block") ## Define in_block(ip, cidr).
+in_block("10.0.37.5", "10.0.32.0/20") == True ## 10.0.32.0/20 covers 10.0.32.0 to 10.0.47.255.
+in_block("10.0.48.1", "10.0.32.0/20") == False ## 48 is past the end of that /20.
+in_block("10.0.1.1", "10.0.0.0/16") == True ## Inside the big block.
+in_block("192.168.0.1", "10.0.0.0/16") == False ## A different network.
+@hint
+`ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)`
+@solution
+import ipaddress
+def in_block(ip, cidr):
+    return ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)
+:::
+
 :::ask Your VPC is `10.0.0.0/16`. You split it into `/20` subnets. How many subnets do you get?
 @options
 4 subnets, one per step in the prefix

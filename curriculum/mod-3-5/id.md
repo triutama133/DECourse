@@ -55,6 +55,34 @@ Kebanyakan kegagalan RAG di produksi berasal dari bagian offline: tabel rusak ya
 
 Metrik kedekatan yang paling standar adalah **Cosine Similarity**: nilai kosinus dari sudut antara dua vektor. Bernilai 1 untuk vektor yang searah sempurna (makna identik), 0 untuk vektor yang saling tegak lurus (tidak berhubungan), dan −1 untuk vektor yang berlawanan arah. Jika seluruh vektor dinormalisasi sehingga memiliki panjang magnitudo tepat 1, cosine similarity bernilai identik dengan operasi dot product (perkalian titik). Di PostgreSQL ekstensi pgvector menyediakan operator metrik jarak: `<=>` untuk cosine distance (`1 - similarity`), `<->` untuk Euclidean distance (L2 distance), dan `<#>` untuk negative inner product. Operator yang Anda gunakan dalam query SQL wajib selaras dengan kelas operator indeks yang dibangun di tabel.
 
+### Vektor dengan tangan: panjang dan sudut
+
+**Vektor** hanyalah daftar angka. Dua hal tentangnya dibutuhkan untuk kemiripan. **Panjang**nya (disebut juga *norma*) dihitung seperti diagonal persegi panjang: `[3, 4]` berpanjang 5, karena 3 kuadrat ditambah 4 kuadrat adalah 25, dan akar kuadrat 25 adalah 5. **Dot product** dua vektor mengalikan angka-angka yang berpasangan lalu menjumlahkannya. Cosine similarity adalah dot product dibagi kedua panjang, sehingga hanya **arah** vektor yang penting, bukan seberapa panjang ia. Ikuti satu contoh:
+
+:::trace Cosine similarity dari [3, 4] dan [4, 3]
+@code
+a = [3, 4]
+b = [4, 3]
+dot = a[0] * b[0] + a[1] * b[1]
+length_a = (a[0] ** 2 + a[1] ** 2) ** 0.5
+length_b = (b[0] ** 2 + b[1] ** 2) ** 0.5
+print(dot / (length_a * length_b))
+@notes
+3 | Dot product: 3 × 4 + 4 × 3 = 24.
+4 | Panjang `a`: akar kuadrat dari 3² + 4² = 25, jadi 5.
+5 | Panjang `b` juga 5.
+6 | 24 dibagi 5 × 5 menghasilkan 0,96: kedua vektor menunjuk ke arah yang hampir sama.
+:::
+
+:::ask Vektor `[1, 0]` dan `[0, 1]` menunjuk ke arah yang sepenuhnya berbeda (siku-siku). Berapa cosine similarity-nya?
+@options
+* 0, yang berarti tidak berhubungan
+1, skor tertinggi yang mungkin
+-1, yang berarti persis berlawanan
+@why
+Dot product-nya 1 × 0 + 0 × 1 = 0, jadi cosine-nya 0 dibagi panjang-panjangnya: 0. Cosine 1 berarti arah yang sama, 0 berarti tidak berhubungan, dan -1 berarti arah berlawanan.
+:::
+
 ### Pendekatan Hashing Embedder pada Lab Modul Ini
 
 Model embedding produksi umumnya membutuhkan token API berbayar atau mengunduh bobot neural network ratusan megabyte, serta dapat menghasilkan angka desimal yang sedikit bergeser antar versi platform. Agar lab modul ini dapat dijalankan sepenuhnya secara offline, instan, dan deterministik 100%, sistem praktikum menggunakan **Hashing Embedder**: setiap kata di-hash ke dalam salah satu dari 256 posisi dimensi dengan bobot tanda arah, lalu vektor frekuensi dinormalisasi ke panjang 1. Model hashing ini merepresentasikan *tumpang tindih kata (lexical overlap)* dan bukan semantik murni: kata "mobil" dan "kendaraan" dianggap tidak berhubungan oleh hash ini, sesuatu yang dipahami oleh model embedding riil. Namun selain karakteristik semantiknya, seluruh aspek arsitektur rekayasa data di modul ini bekerja secara identik: teks masuk, vektor satuan panjang tetap keluar, dan fungsi `embed` adalah satu-satunya komponen yang akan Anda ganti saat beralih ke model produksi seperti OpenAI `text-embedding-3` atau model open-source Hugging Face. Hashing embedder di lab menerima parameter nama `model` yang mengubah seed algoritma hash, sehingga dua nama model berbeda bertindak persis seperti dua embedding model terpisah yang tidak kompatibel—fondasi penting dari skenario chaos modul ini.

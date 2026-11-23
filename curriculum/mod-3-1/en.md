@@ -322,6 +322,17 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 > 5. **Success Indicator:** All 5 tests report `PASSED`, verifying salting balances partition ratios to < 3 and AQE successfully triggers `SortMergeJoin(skew=true)` at runtime.
 
 ## @lesson Memory, UDFs, files and the rules of thumb
+**Two words first: JVM and garbage collection.** The **JVM** (Java Virtual Machine) is the engine that runs Java and Scala programs. Spark is written in Scala, so every executor is a JVM process with its own slice of memory. The JVM cleans that memory by itself: **garbage collection (GC)** finds objects nobody uses any more and frees them. While it works, the program can pause. A job that creates millions of small objects may spend more time in GC than in your logic, and in the Spark UI you will see "GC time" climb. That is why Spark prefers compact binary data over millions of Java objects, and why Python UDFs hurt: every row is turned into objects and back.
+
+:::ask The Spark UI shows an executor spending 40% of its time in garbage collection. What does that suggest?
+@options
+the network between the executors is too slow
+* it creates or holds too many small objects: use less memory per row, or avoid row-by-row Python
+the cluster has too few executors for the number of partitions
+@why
+GC time is time spent freeing memory instead of doing your work. A high share points at memory pressure: many small objects, too much cached data, or heavy serialisation such as Python UDFs. The network and the executor count show up in other metrics, not in GC time.
+:::
+
 **Executor memory** is split into **execution memory** (shuffles, joins, sorts, aggregations) and **storage memory** (cached data), which share a unified region and can borrow from each other, plus **overhead** for the JVM and PySpark. When execution needs more memory than it has, Spark **spills** to disk (slow but survives); when even that fails, the executor is killed (out of memory). Signs: "Spill (memory/disk)" in the UI, long GC pauses, `OOMKilled` containers (Module 1.1). Remedies: fewer, larger-memory executors for memory-hungry tasks; more partitions (smaller per-task data); fixing skew (the real cause of most OOMs); and not collecting large results to the driver.
 
 **Python UDFs are slow.** A user-defined function written in Python forces every row to be serialised out of the JVM, processed by a Python process, and serialised back. Prefer built-in functions (`F.when`, `F.regexp_replace`, `F.date_trunc`, and hundreds more), which run inside the optimised JVM and can be pushed down. If you truly need Python logic, use a **pandas UDF** (vectorised, using Arrow to move batches) rather than a row-at-a-time UDF.

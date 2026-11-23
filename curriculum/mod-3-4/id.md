@@ -143,6 +143,50 @@ Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsu
 
 **Tagging Resources.** Konfigurasikan blok `default_tags` pada provider AWS agar setiap resource otomatis disematkan tag `Project`, `Environment`, `Owner`, dan `CostCenter`. Tagging inilah yang menjadi kunci transparansi biaya pada materi FinOps berikutnya.
 
+### Membaca alamat jaringan: IP dan CIDR dalam dua menit
+
+Setiap komputer di jaringan punya **alamat IP**: empat angka dari 0 sampai 255 yang dipisah titik, seperti `10.0.37.5`. Ia bekerja seperti alamat jalan. **Blok CIDR** menyebut sekaligus seluruh *rentang* alamat, misalnya `10.0.0.0/16`.
+
+Angka setelah garis miring menyatakan berapa dari 32 bit alamat itu yang **terkunci** (tiap angka dari keempatnya adalah 8 bit). `/16` mengunci dua angka pertama (`10.0.`), jadi semua alamat dari `10.0.0.0` sampai `10.0.255.255` masuk blok itu. Makin banyak bit terkunci, makin kecil blok: `/24` mengunci tiga angka dan memuat 256 alamat, `/16` memuat 65.536. Aturannya **ukuran blok = 2 ** (32 − angka setelah garis miring)**. Jaringan cloud (sebuah **VPC**) adalah satu blok besar yang Anda potong menjadi **subnet** yang lebih kecil.
+
+:::drill python Seberapa besar bloknya?
+Tulis `block_size(prefix)`: jumlah alamat dalam blok CIDR yang angka setelah garis miringnya `prefix`. `block_size(24)` adalah `256`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("block_size") ## Definisikan block_size(prefix).
+block_size(24) == 256 ## /24 mengunci 24 bit: 2 ** 8 = 256 alamat.
+block_size(16) == 65536 ## /16: 2 ** 16.
+block_size(32) == 1 ## Semua 32 bit terkunci: tepat satu alamat.
+block_size(20) == 4096 ## /20: 2 ** 12.
+@hint
+`2 ** (32 - prefix)`
+@solution
+def block_size(prefix):
+    return 2 ** (32 - prefix)
+:::
+
+:::drill python Apakah alamat ini ada di dalam blok?
+Tulis `in_block(ip, cidr)`: `True` bila alamat berada di dalam blok CIDR. Library standar membantu: `ipaddress.ip_address(...)` dan `ipaddress.ip_network(...)` memahami kedua teks itu, dan `in` memeriksa keanggotaan.
+@starter
+import ipaddress
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("in_block") ## Definisikan in_block(ip, cidr).
+in_block("10.0.37.5", "10.0.32.0/20") == True ## 10.0.32.0/20 mencakup 10.0.32.0 sampai 10.0.47.255.
+in_block("10.0.48.1", "10.0.32.0/20") == False ## 48 melewati ujung /20 itu.
+in_block("10.0.1.1", "10.0.0.0/16") == True ## Di dalam blok besar.
+in_block("192.168.0.1", "10.0.0.0/16") == False ## Jaringan lain.
+@hint
+`ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)`
+@solution
+import ipaddress
+def in_block(ip, cidr):
+    return ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)
+:::
+
 :::ask VPC Anda adalah `10.0.0.0/16`. Anda membaginya menjadi subnet `/20`. Berapa subnet yang Anda dapat?
 @options
 4 subnet, satu per langkah prefiks

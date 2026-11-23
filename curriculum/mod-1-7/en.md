@@ -61,6 +61,36 @@ Two features define how key-value stores are used:
 
 A data engineer meets key-value stores as the *serving layer* of pipelines (feature stores, real-time lookups) and as caches that make a pipeline's data appear stale. Remember that a cache is a **copy**: when the source changes, the copy is wrong until it expires or is invalidated.
 
+### Big-O in one minute: why a dictionary lookup is fast
+
+When engineers say a lookup is **O(1)**, they mean the effort does not grow with the amount of data: finding one key takes about the same time with 10 keys or 10 million. **O(N)** means the effort grows in step with the data: searching a list one item at a time takes twice as long for twice as many items. Watch both:
+
+:::trace One by one, or straight to it
+@code
+items = ["a", "b", "c", "d", "e"]
+steps = 0
+for x in items:
+    steps += 1
+    if x == "d":
+        break
+print(steps)
+table = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}
+print(table["d"])
+@notes
+4 | Searching a list means looking at the items in turn, one step each. This is **O(N)**: with 5 items it took 4 steps, with a million items it could take up to a million.
+7 | The scan needed 4 steps to find `"d"`.
+9 | A dictionary jumps straight to the key through its hash, in about one step, however large it is. This is **O(1)**, and it is why key-value stores are fast.
+:::
+
+:::ask A list of 1,000,000 customer ids is searched one by one for a single id. About what happens to the work if the list doubles?
+@options
+it stays the same, because the search is O(1)
+it roughly squares, because each id is compared with every other
+* it roughly doubles, because the work grows with the data (O(N))
+@why
+Searching one item at a time looks at about half the items on average, so twice the items means about twice the work: O(N). A dictionary (or an index) avoids that by jumping straight to the key.
+:::
+
 ### See it: LRU eviction with an OrderedDict
 
 Capacity 2. Watch which key is thrown out when the cache is full:
