@@ -1398,3 +1398,4 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .gl-preview summary { cursor: pointer; font-weight: 600; }
 .gl-preview ul { margin: 6px 0 0; padding-left: 18px; }
 .gl-preview li { margin: 4px 0; }
+.lab-tabs { align-self: flex-start; }

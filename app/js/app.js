@@ -22,7 +22,7 @@ function readStore(key, fallback) {
   }
 }
 // Saving any of these means the learner studied today, so they move the 🔥 streak (opening the site does not).
-const STUDY_KEYS = new Set(["df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense", "df_interview_sim"]);
+const STUDY_KEYS = new Set(["df_py_done", "df_lessons_done", "df_tryit_done", "df_quiz_scores", "df_bl_runs", "df_sql_attempts", "df_solved_challenges", "df_chaos_done", "df_proofs", "df_explain", "df_chaos_proofs", "df_portfolio_proofs", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_bug_drills", "df_active_recall", "df_interview_drafts", "df_stakeholder_defense", "df_interview_sim"]);
 function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -62,6 +62,10 @@ class DataForgeApp {
     this.completedModules = readStore("df_completed_modules", []);
     this.quizScores = readStore("df_quiz_scores", {});
     this.solvedChallenges = readStore("df_solved_challenges", []);
+    this.playgroundTab = "sql";
+    this.pyDone = readStore("df_py_done", {});            // Python challenges: {id: {first, last, times}} for the muscle-memory warm-up
+    this.pyChalId = readStore("df_py_sel", null);
+    this.pyWarm = null;
     this.resumeEdited = readStore("df_resume_edited", false);
     this.resumeData = readStore("df_resume_data", null) || JSON.parse(JSON.stringify(CV_DATA.sampleResume));
     this.lessonsDone = readStore("df_lessons_done", {}) || {};
@@ -151,6 +155,107 @@ class DataForgeApp {
     this.readHash();
   }
 
+
+  // ---------- Python Lab: challenges with hidden-style checks, and a spaced warm-up for muscle memory ----------
+  labTabs(active) {
+    const b = (tab, label) => `<button role="tab" aria-selected="${active === tab}" class="${active === tab ? "active" : ""}" onclick="app.switchLabTab('${tab}')">${label}</button>`;
+    return `<div class="segmented lab-tabs" role="tablist" aria-label="${this.l("Jenis lab", "Lab type")}">${b("sql", "🗄 SQL")}${b("python", "🐍 Python")}</div>`;
+  }
+  switchLabTab(tab) { this.go("playground", tab); }
+  pyChallenges() { return window.PY_CHALLENGES || []; }
+  pySolved(id) { const d = this.drillsDone[`pychal:0:${id}`]; return Boolean(d && d.passed); }
+  pyRecordDone(id) {
+    const now = Date.now();
+    const rec = this.pyDone[id] || { first: now, times: 0 };
+    rec.last = now;
+    rec.times = (rec.times || 0) + 1;
+    this.pyDone[id] = rec;
+    writeStore("df_py_done", this.pyDone);
+  }
+  // a solved challenge is due again after 1, 3, 7, 21, 60 days: the more often you got it right, the longer the wait
+  pyDue() {
+    const days = [1, 3, 7, 21, 60];
+    const now = Date.now();
+    return this.pyChallenges()
+      .filter((c) => this.pyDone[c.id] && now - this.pyDone[c.id].last >= days[Math.min(this.pyDone[c.id].times - 1, days.length - 1)] * 86400000)
+      .sort((a, b) => this.pyDone[a.id].last - this.pyDone[b.id].last);
+  }
+  pySelect(id) { this.pyChalId = id; this.pyWarm = null; writeStore("df_py_sel", id); this.renderView(); window.scrollTo(0, 0); }
+  pyStartWarm() {
+    let list = this.pyDue();
+    if (!list.length) list = this.pyChallenges().filter((c) => this.pyDone[c.id]).sort((a, b) => this.pyDone[a.id].last - this.pyDone[b.id].last);
+    const ids = list.slice(0, 3).map((c) => c.id);
+    if (!ids.length) return;
+    this.pyWarm = { ids, pos: 0 };
+    this.pyWarmOpen();
+  }
+  pyWarmOpen() {
+    const id = this.pyWarm.ids[this.pyWarm.pos];
+    this.pyChalId = id;
+    delete this.drillCode[`pychal:0:${id}`];          // start from the empty starter: write it again from memory
+    writeStore("df_drill_code", this.drillCode);
+    this.renderView();
+    window.scrollTo(0, 0);
+  }
+  pyWarmNext() {
+    if (!this.pyWarm) return;
+    this.pyWarm.pos += 1;
+    if (this.pyWarm.pos >= this.pyWarm.ids.length) { this.pyWarm = null; this.renderView(); window.scrollTo(0, 0); return; }
+    this.pyWarmOpen();
+  }
+  pyNext() {
+    const all = this.pyChallenges();
+    const i = all.findIndex((c) => c.id === this.pyChalId);
+    const after = all.slice(i + 1).concat(all.slice(0, i + 1));
+    const next = after.find((c) => !this.pySolved(c.id)) || after[0];
+    if (next) this.pySelect(next.id);
+  }
+  renderPythonLab() {
+    const all = this.pyChallenges();
+    if (!all.length) return `<div class="card">${this.l("Tantangan belum dimuat.", "The challenges have not loaded.")}</div>`;
+    if (!this.pyChalId || !all.some((c) => c.id === this.pyChalId)) this.pyChalId = (all.find((c) => !this.pySolved(c.id)) || all[0]).id;
+    const cur = all.find((c) => c.id === this.pyChalId);
+    const solved = all.filter((c) => this.pySolved(c.id)).length;
+    const due = this.pyDue().length;
+    const tried = all.filter((c) => this.pyDone[c.id]).length;
+    const levels = [...new Set(all.map((c) => c.level))];
+    const list = levels.map((lv) => {
+      const items = all.filter((c) => c.level === lv);
+      return `<div class="label" style="padding:6px 2px 0">${this.l("Tingkat", "Level")} ${lv}: ${this.esc(items[0].topic[this.lang])} <span class="muted">(${items.filter((c) => this.pySolved(c.id)).length}/${items.length})</span></div>` +
+        items.map((c) => {
+          const d = window.DrillParse.parse(c.block[this.lang]);
+          return `<button class="item ${c.id === this.pyChalId ? "active" : ""}" onclick="app.pySelect('${c.id}')"><div class="item-title">${this.pySolved(c.id) ? `<span style="color:var(--green);font-weight:bold;margin-right:5px">✓</span>` : ""}${this.esc(d.title)}</div></button>`;
+        }).join("");
+    }).join("");
+    const warm = this.pyWarm
+      ? `<div class="callout"><strong>🔁 ${this.l("Pemanasan", "Warm-up")} ${this.pyWarm.pos + 1} / ${this.pyWarm.ids.length}</strong> ${this.l("Tulis lagi dari kosong, tanpa melihat jawaban lama. Membangunnya lagi dari ingatan itulah yang membuatnya melekat.", "Write it again from an empty file, without peeking at the old answer. Rebuilding it from memory is what makes it stick.")}
+          <div class="row" style="margin-top:8px"><button class="btn btn-sm btn-primary" onclick="app.pyWarmNext()">${this.pyWarm.pos + 1 >= this.pyWarm.ids.length ? this.l("Selesai pemanasan", "Finish warm-up") : this.l("Berikutnya", "Next")} →</button></div></div>`
+      : "";
+    const rec = this.pyDone[cur.id];
+    const history = rec ? `<p class="small muted">${this.l("Sudah benar", "Solved")} ${rec.times}× · ${this.l("terakhir", "last")} ${new Date(rec.last).toLocaleDateString(this.lang === "id" ? "id-ID" : "en-GB")}</p>` : "";
+    return `<div class="stack">
+      ${this.labTabs("python")}
+      <div class="card stack-sm">
+        <div class="row between" style="flex-wrap:wrap">
+          <div><h1>🐍 ${this.l("Lab Python", "Python Lab")}</h1><p class="sub">${this.l("Tantangan kecil dengan pemeriksaan otomatis, dari dasar sampai pola data nyata. Kerjakan, lalu ulangi dari ingatan, dan jarimu akan hafal.", "Small challenges with automatic checks, from basics to real data patterns. Solve them, then rebuild them from memory, and your fingers will know.")}</p></div>
+          <div class="row">
+            <span class="chip chip-blue">${solved}/${all.length} ${this.l("selesai", "solved")}</span>
+            <button class="btn btn-sm ${due ? "btn-primary" : "btn-quiet"}" onclick="app.pyStartWarm()" ${tried ? "" : "disabled"} title="${this.l("Tulis ulang 3 tantangan yang sudah lama tidak kamu kerjakan", "Rebuild 3 challenges you have not touched for a while")}">🔁 ${this.l("Pemanasan", "Warm-up")}${due ? ` (${due} ${this.l("jatuh tempo", "due")})` : ""}</button>
+          </div>
+        </div>
+        <p class="small muted">${this.l("Pertama kali: kerjakan di sini (Python berjalan di browser). Kebiasaan kerja sungguhan tetap di terminalmu: salin soalnya ke file .py dan jalankan sendiri.", "First time through: solve it here (Python runs in your browser). The real working habit is still your own terminal: copy a task into a .py file and run it yourself.")}</p>
+      </div>
+      <div class="split">
+        <aside class="stack-sm">${list}</aside>
+        <section class="stack">
+          ${warm}
+          ${this.renderDrill(cur.block[this.lang], { modId: "pychal", lessonIdx: 0 }, cur.id)}
+          ${history}
+          <div class="row"><button class="btn btn-quiet" onclick="app.pyNext()">${this.l("Tantangan berikutnya", "Next challenge")} →</button></div>
+        </section>
+      </div>
+    </div>`;
+  }
 
   // ---------- glossary ----------
   glossaryMatches(q) {
@@ -731,6 +836,7 @@ class DataForgeApp {
       const n = parseInt(parts[3], 10);
       this.activeLessonIdx = this.activeModuleTab === "concepts" && n >= 1 ? n - 1 : null;
     }
+    if (view === "playground") this.playgroundTab = parts[1] === "python" ? "python" : (parts[1] === "sql" ? "sql" : this.playgroundTab);
     if (view === "glossary") { this.glossaryFocus = parts[1] || null; if (this.glossaryFocus) this._glQuery = ""; }
     if (view === "interview") {
       if (parts[1] === "loop") this.activeInterviewMode = "loop";
@@ -1777,7 +1883,7 @@ class DataForgeApp {
   }
 
   exportProgress() {
-    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_drills", "df_drill_code", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
+    const keys = ["df_completed_modules", "df_quiz_scores", "df_solved_challenges", "df_py_done", "df_resume_edited", "df_resume_data", "df_lang", "df_theme", "df_browser_labs", "df_bl_runs", "df_bl_best", "df_bl_groups", "df_drills", "df_drill_code", "df_proofs", "df_explain", "df_lessons_done", "df_tryit_done", "df_chaos_done", "df_module_notes", "df_sql_attempts", "df_interview_drafts", "df_bug_drills", "df_active_recall", "df_chaos_proofs", "df_portfolio_proofs", "df_stakeholder_defense", "df_saved_tips", "df_streak", "df_career_path", "df_job_sim_proofs", "df_job_sim_gates", "df_pr_proofs", "df_job_career", "df_interview_sim"];
     try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^df_bl_mod-\d-\d[a-z]?$/.test(k)) keys.push(k); } } catch (e) { /* storage unavailable */ }
     const data = { format: "dataforge-progress", version: 1, exportedAt: new Date().toISOString() };
     keys.forEach((k) => { const v = readStore(k, undefined); if (v !== undefined) data[k] = v; });
@@ -2353,6 +2459,7 @@ class DataForgeApp {
       const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
       this.drillsDone[key] = { passed: new Date().toISOString() };
       writeStore("df_drills", this.drillsDone);
+      if (key.startsWith("pychal:")) this.pyRecordDone(key.split(":")[2]);
       out.innerHTML = `<div class="feedback ok">✓ ${this.l("Benar! Semua pemeriksaan lulus.", "Correct! Every check passes.")}</div>${printed}${this.drillLocalBox(d)}`;
       if (first) this.drillRefreshNav();
       return;
@@ -6012,6 +6119,7 @@ Hello from KopiKu</code></pre>
 
   // ================= SQL SANDBOX =================
   renderPlaygroundView() {
+    if (this.playgroundTab === "python") return this.renderPythonLab();
     const t = window.TRANSLATIONS[this.lang] || window.TRANSLATIONS.id;
     const sb = this.sandbox;
     const P = SQL_PLAYGROUND;
@@ -6020,6 +6128,7 @@ Hello from KopiKu</code></pre>
     const forDataset = P.challenges.filter((c) => c.dataset === sb.datasetKey);
     return `
       <div class="stack">
+        ${this.labTabs("sql")}
         <div class="card row between">
           <div><h1>${t.playgroundTitle}</h1><p class="sub">${t.playgroundSubtitle}</p></div>
           <div class="row"><label class="label" for="pg-dataset-select">${t.datasetLabel}</label>
@@ -6090,6 +6199,7 @@ Hello from KopiKu</code></pre>
   }
 
   async afterPlaygroundRender() {
+    if (this.playgroundTab === "python") { this.warmPython(); return; }
     const sb = this.sandbox;
     const editor = document.getElementById("pg-sql-editor");
     editor.value = sb.draft || "";

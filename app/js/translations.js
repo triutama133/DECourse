@@ -10,7 +10,7 @@ window.TRANSLATIONS = {
     navInterview: "Simulasi Interview",
     navPortfolio: "Portofolio",
     navCvBuilder: "ATS Resume",
-    navPlayground: "SQL Sandbox",
+    navPlayground: "Lab Latihan",
     navReadiness: "Kesiapan Kerja",
     navRemote: "Karir Remote",
 
@@ -107,7 +107,7 @@ window.TRANSLATIONS = {
     navInterview: "Interview Sim",
     navPortfolio: "Portfolios",
     navCvBuilder: "ATS Resume",
-    navPlayground: "SQL Sandbox",
+    navPlayground: "Practice Lab",
     navReadiness: "Job Readiness",
     navRemote: "Remote Career",
 

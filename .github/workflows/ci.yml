@@ -35,6 +35,9 @@ jobs:
       - name: Per-lesson lab pieces lose nothing
         run: node scripts/test_lesson_lab.js
 
+      - name: Python challenges are in sync and valid in both languages
+        run: node scripts/build-challenges.js --check
+
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 

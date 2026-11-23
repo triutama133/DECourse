@@ -77,6 +77,10 @@ Rules for authors:
 - **Verify by running.** `node scripts/verify_drills.js` (every solution passes, every starter fails, every trace note is on a line that runs) and `node scripts/verify_sql_drills.js` (the same for SQL, plus a wrong query is rejected and every animation stage runs). Both run in CI.
 - **Questions:** spread the right answer over the three positions and keep the options similar in length (`node scripts/asklen.js` reports both; today the right answer is the unique longest option in about 55% of the questions, with small margins, so write new ones with distractors of the same length).
 
+## Python challenges
+
+`curriculum/python-challenges/en.md` and `id.md` hold the Python Lab challenges: one `## @challenge <id> | <level 1-5> | <topic>` line, then one `:::drill python` block (same format as in lessons). The two files must list the same ids in the same order. Run `node scripts/build-challenges.js` to regenerate `app/js/py-challenges-data.js` (CI checks it is in sync), and `node scripts/verify_drills.js` to prove that every solution passes and every starter fails, in the real Python engine.
+
 ## Standards for a module
 
 - **Lessons**: 1,500 to 2,800 words in total, at least five lessons. Explain the *why* before the *how*, include at least one measured number or worked example from the lab, and be honest about trade-offs. Say "check current prices" instead of quoting prices that change.

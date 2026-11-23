@@ -39,6 +39,19 @@ vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'app/js/curriculum-data.js'),
       });
     }
   });
+  // the Python challenges (curriculum/python-challenges): the solution passes every check, the starter fails
+  const sbc = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../app/js/py-challenges-data.js'), 'utf8'), sbc);
+  for (const c of sbc.window.PY_CHALLENGES) for (const lang of ['en', 'id']) {
+    const d = DrillParse.parse(c.block[lang]);
+    const w = `challenge ${c.id} (${lang}) "${d && d.title}"`;
+    n++;
+    const sol = run(d.solution, d.checks, d.files);
+    if (sol.error) fail(w, 'the solution stops with an error: ' + sol.error.split('\n').pop());
+    else sol.results.forEach((r, i) => { if (!r.ok) fail(w, `the solution fails check ${i + 1}: ${d.checks[i].expr}`); });
+    const st = run(d.starter, d.checks, d.files);
+    if (!st.error && st.results.every((r) => r.ok)) fail(w, 'the starter already passes every check');
+  }
   // "watch it run" animations: the code must run, and must not stop with an error unless the title says it should
   for (const level of sb.window.CURRICULUM_DATA) for (const mod of level.modules) mod.lessons.forEach((ls, li) => {
     for (const lang of ['en', 'id']) {
