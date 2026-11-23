@@ -112,42 +112,26 @@ the passwords of the users of your cloud
 Without state, Terraform could not tell 'create this' from 'this already exists'. It compares your code, the state and reality to build the plan. Keep it in a shared, locked, access-controlled place.
 :::
 
-## @lesson Securing the lakehouse
-The lab builds the storage layer of the lakehouse from Module 2.2, with four protections that every company that holds customer data expects.
+## @lesson Cloud networking in plain words: addresses, doors and walls
+> **In short:** A cloud network is like an apartment building. Every machine has an address (IP) and numbered doors (ports). The building has floors (subnets), a front door to the street, rules about who may knock (firewall rules) and a bill for the traffic that leaves. If you can read those five ideas, the rest of this module, and every cloud diagram you will ever see, stops looking like noise.
 
-**1. Block public access.** Breaches like "customer files found in an open bucket" are mostly configuration mistakes. `aws_s3_bucket_public_access_block` with all four flags `true` makes it impossible for a later policy or **ACL** (Access Control List, legacy per-object/bucket permission rules) to expose the bucket, whatever someone writes in a hurry.
+Your pipelines run on machines in the cloud. They read from a database, write to a bucket, call an API. **Networking** decides who can reach what, and what that traffic costs. Do not memorise terms: keep the building in your head.
 
-**2. Encrypt, with a key you control.** S3 provides **SSE** (Server-Side Encryption) by default, encrypting bytes on disk with a key AWS manages. Using **KMS** (AWS Key Management Service) with a customer-managed key you own adds an access layer (the reader needs permission on the key as well as on the data), an audit trail of every use, and the ability to revoke access centrally. Turn on **key rotation** so that a leaked old key is limited in time.
-
-**3. Least privilege.** An IAM policy lists who may do which *actions* on which *resources*, optionally under *conditions*. The mistake you will see in every real code base is `"Action": "s3:*", "Resource": "*"`, written once "to make it work" and never removed. A pipeline that only needs to read and write the curated layers should receive exactly that:
-
-| Statement | Actions | Resource |
+| In the building | In the cloud | What it is |
 |---|---|---|
-| Read/write curated data | `s3:GetObject`, `s3:PutObject` | `bucket/silver/*`, `bucket/gold/*` |
-| List the bucket | `s3:ListBucket` | the bucket, only when `s3:prefix` matches `silver/*` or `gold/*` |
+| the whole building | **VPC** (Virtual Private Cloud) | your private network inside a cloud region |
+| a street address | **IP address** | the number that names one machine |
+| the numbered doors of one flat | **port** | which program on that machine you are knocking for |
+| a floor | **subnet** | a slice of the building's addresses, public or private |
+| the front door to the street | **internet gateway** | the way in and out for public subnets |
+| a service door for deliveries out | **NAT gateway** | lets private machines start requests to the internet, while nothing outside can start one to them |
+| the guard's list at a door | **security group** | rules saying who may knock on which door |
 
-The pipeline cannot delete, cannot touch `raw/` or other teams' prefixes, and cannot rewrite the bucket policy. If its credentials leak, the damage is bounded by what you wrote here. Writing the policy is only half the work: test it. The lab asserts "no wildcard actions, no delete, no `*` resource" against the planned JSON.
-
-**4. Lifecycle rules.** Raw data is written once and read rarely. A lifecycle rule moves objects under `raw/` to a cheaper storage class after a number of days, and a second rule aborts **incomplete multipart uploads** after 7 days. (A failed large upload leaves invisible parts that you pay for until someone removes them. This is a classic silent cost.)
-
-### Testing infrastructure before it exists
-
-How do you test code that creates cloud resources, without creating them? In layers, cheapest first:
-
-1. `fmt -check` and `validate`: seconds, no cloud.
-2. **Static policy scanners** (tfsec/Trivy, Checkov, OPA/Conftest) that flag public buckets, missing encryption and wildcard IAM.
-3. **Plan-based tests**: run `terraform plan -out=plan` then `terraform show -json plan` and assert on the JSON. This is what the lab does, and it works offline because the provider is configured with fake credentials and skip flags.
-4. Apply in a throwaway sandbox account, check with the real API, destroy. Slower and costs money, so reserve it for modules you share widely.
-
-One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Amazon Resource Name: AWS's globally unique identifier format `arn:aws:service:region:account:resource`). If you write `aws_s3_bucket.lakehouse.arn`, that value is *known only after apply*, so the planned policy JSON is not visible and the reviewer sees "(known after apply)" instead of the permissions. Building the ARN from the bucket **name** (`arn:aws:s3:::${local.bucket_name}`) makes the entire policy readable at plan time. Design your configuration so that the security-relevant facts are visible in the plan.
-
-**Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
-
-### Reading a network address: IP and CIDR in two minutes
+### Addresses: IP and CIDR in two minutes
 
 Every computer on a network has an **IP address**: four numbers from 0 to 255 separated by dots, like `10.0.37.5`. It works like a street address. A **CIDR block** names a whole *range* of addresses at once, for example `10.0.0.0/16`.
 
-The number after the slash says how many of the address's 32 bits are **locked** (each of the four numbers is 8 bits). `/16` locks the first two numbers (`10.0.`), so every address from `10.0.0.0` to `10.0.255.255` belongs to the block. The more bits are locked, the smaller the block: `/24` locks three numbers and holds 256 addresses, `/16` holds 65,536. The rule is **block size = 2 ** (32 − the number after the slash)**. A cloud network (a **VPC**) is one big block that you cut into smaller **subnets**.
+The number after the slash says how many of the address's 32 bits are **locked** (each of the four numbers is 8 bits). `/16` locks the first two numbers (`10.0.`), so every address from `10.0.0.0` to `10.0.255.255` belongs to the block. The more bits are locked, the smaller the block: `/24` locks three numbers and holds 256 addresses, `/16` holds 65,536. The rule is **block size = 2 ** (32 − the number after the slash)**. A VPC is one big block that you cut into smaller **subnets**.
 
 :::drill python How big is the block?
 Write `block_size(prefix)`: the number of addresses in a CIDR block whose number after the slash is `prefix`. `block_size(24)` is `256`.
@@ -186,6 +170,100 @@ import ipaddress
 def in_block(ip, cidr):
     return ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)
 :::
+
+### Ports: the numbered doors
+
+An IP address finds the machine. A **port** (a number from 0 to 65535) finds the *program* on it. A web server listens at port 80 or 443, PostgreSQL at 5432, Kafka at 9092, and the course site on your own computer at 3000. You write both together: `10.0.1.5:5432`. **localhost** (the address `127.0.0.1`) always means "this same computer".
+
+Two programs cannot listen at the same door. If you start a database and see "port already in use", something else is already listening there: stop it or pick another port.
+
+### Public and private subnets, and the NAT gateway
+
+A **public subnet** has a route to the internet gateway, so machines in it can be reached from the internet if a firewall rule allows it. A **private subnet** has no such route: nothing on the internet can even try to reach it. Databases, warehouse compute and pipeline workers belong in private subnets.
+
+But a private job still needs to download a library or call an API. A **NAT gateway** (network address translation) solves that: the private machine starts the request, the NAT gateway sends it out and brings the answer back, and nothing outside can start a conversation with the private machine. It is convenient, and it is **billed by the hour and by the gigabyte** that passes through it (Lesson 7 of this module shows how large that bill can get). For S3 traffic there is a cheaper way, the gateway endpoint, which keeps the data on the cloud's own network.
+
+### Firewall rules: who may knock on which door
+
+A **security group** is a list of **allow** rules attached to a machine: "accept traffic from this address range on this port". Anything not allowed is refused, so a new group lets nothing in. Reading a rule is just the two checks you already know: is the sender's address inside the block, and is it the right port?
+
+:::drill python Is this knock allowed?
+Write `allowed(rules, ip, port)`: `rules` is a list of `(cidr, port)` pairs, each an **allow** rule. Return `True` only when some rule's block contains `ip` **and** its port equals `port`. With no matching rule the answer is `False` (anything not allowed is refused).
+@starter
+import ipaddress
+# write your function below this line
+
+@check
+defines("allowed") ## Define allowed(rules, ip, port).
+allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 5432) == True ## A machine inside the VPC knocks on the database port.
+allowed([("10.0.0.0/16", 5432)], "10.1.0.1", 5432) == False ## An address outside the block.
+allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 22) == False ## The right address, the wrong door.
+allowed([], "10.0.3.7", 5432) == False ## No rules: nothing is allowed.
+allowed([("0.0.0.0/0", 5432)], "203.0.113.9", 5432) == True ## 0.0.0.0/0 is the whole internet: the dangerous rule.
+@hint
+`any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)`
+@solution
+import ipaddress
+def allowed(rules, ip, port):
+    return any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)
+:::
+
+:::ask A security group has the rule "allow 0.0.0.0/0 on port 5432" and the database port is 5432. Who can now try to connect to the database?
+@options
+only machines in your own VPC, because 0.0.0.0 means "this network"
+* anyone on the internet: this is the network version of a public bucket
+nobody, because a database port is always blocked by default
+@why
+`0.0.0.0/0` is the CIDR block of every address on the internet. A rule that allows it on a database port opens the door to everyone. The safe version names your own subnet, for example `10.0.0.0/16`, and nothing broader.
+:::
+
+### Regions and zones
+
+A cloud **region** is a city, such as Jakarta or Singapore. Inside it sit several **availability zones**, separate buildings with their own power and network. Spreading a service over zones survives the loss of one building. But traffic that crosses zones, or leaves the region, is charged per gigabyte. For a cluster that shuffles terabytes a day, this "invisible" bill becomes real money.
+
+:::ask A private pipeline worker must download a library from the internet, but no one on the internet may be able to open a connection to the worker. What does it need?
+@options
+a public subnet with a rule allowing 0.0.0.0/0 on every port
+a bigger CIDR block, so that the worker has more addresses
+* a NAT gateway: the worker starts the request, and nothing outside can start one
+@why
+A NAT gateway gives a private machine a way out without a way in. A public subnet with open rules would let anyone try to connect. A bigger block changes how many addresses exist, not who can reach the worker.
+:::
+
+> 🛠 **Try it (10 min, terminal).** See a port with your own eyes. In the course folder, start the course site in one terminal: `python3 server.py`. In a second terminal run `curl -I http://localhost:3000`. Then stop the server with Ctrl+C in the first terminal and run the same `curl` again.
+>
+> **You should see:** the first time, a line beginning `HTTP/1.0 200 OK` (the program at door 3000 answered). The second time, `curl: (7) Failed to connect to localhost port 3000 ...` (the exact words depend on your curl version, sometimes "Connection refused"): nothing is listening at that door any more. If you see `Address already in use` when starting the server, another program already holds port 3000.
+
+## @lesson Securing the lakehouse
+The lab builds the storage layer of the lakehouse from Module 2.2, with four protections that every company that holds customer data expects.
+
+**1. Block public access.** Breaches like "customer files found in an open bucket" are mostly configuration mistakes. `aws_s3_bucket_public_access_block` with all four flags `true` makes it impossible for a later policy or **ACL** (Access Control List, legacy per-object/bucket permission rules) to expose the bucket, whatever someone writes in a hurry.
+
+**2. Encrypt, with a key you control.** S3 provides **SSE** (Server-Side Encryption) by default, encrypting bytes on disk with a key AWS manages. Using **KMS** (AWS Key Management Service) with a customer-managed key you own adds an access layer (the reader needs permission on the key as well as on the data), an audit trail of every use, and the ability to revoke access centrally. Turn on **key rotation** so that a leaked old key is limited in time.
+
+**3. Least privilege.** An IAM policy lists who may do which *actions* on which *resources*, optionally under *conditions*. The mistake you will see in every real code base is `"Action": "s3:*", "Resource": "*"`, written once "to make it work" and never removed. A pipeline that only needs to read and write the curated layers should receive exactly that:
+
+| Statement | Actions | Resource |
+|---|---|---|
+| Read/write curated data | `s3:GetObject`, `s3:PutObject` | `bucket/silver/*`, `bucket/gold/*` |
+| List the bucket | `s3:ListBucket` | the bucket, only when `s3:prefix` matches `silver/*` or `gold/*` |
+
+The pipeline cannot delete, cannot touch `raw/` or other teams' prefixes, and cannot rewrite the bucket policy. If its credentials leak, the damage is bounded by what you wrote here. Writing the policy is only half the work: test it. The lab asserts "no wildcard actions, no delete, no `*` resource" against the planned JSON.
+
+**4. Lifecycle rules.** Raw data is written once and read rarely. A lifecycle rule moves objects under `raw/` to a cheaper storage class after a number of days, and a second rule aborts **incomplete multipart uploads** after 7 days. (A failed large upload leaves invisible parts that you pay for until someone removes them. This is a classic silent cost.)
+
+### Testing infrastructure before it exists
+
+How do you test code that creates cloud resources, without creating them? In layers, cheapest first:
+
+1. `fmt -check` and `validate`: seconds, no cloud.
+2. **Static policy scanners** (tfsec/Trivy, Checkov, OPA/Conftest) that flag public buckets, missing encryption and wildcard IAM.
+3. **Plan-based tests**: run `terraform plan -out=plan` then `terraform show -json plan` and assert on the JSON. This is what the lab does, and it works offline because the provider is configured with fake credentials and skip flags.
+4. Apply in a throwaway sandbox account, check with the real API, destroy. Slower and costs money, so reserve it for modules you share widely.
+
+One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Amazon Resource Name: AWS's globally unique identifier format `arn:aws:service:region:account:resource`). If you write `aws_s3_bucket.lakehouse.arn`, that value is *known only after apply*, so the planned policy JSON is not visible and the reviewer sees "(known after apply)" instead of the permissions. Building the ARN from the bucket **name** (`arn:aws:s3:::${local.bucket_name}`) makes the entire policy readable at plan time. Design your configuration so that the security-relevant facts are visible in the plan.
+
+**Tags** belong here too. With `default_tags` on the provider, every resource gets `Project`, `Environment`, `Owner` and `CostCenter` automatically, and the lab checks it. Tags are how the invoice becomes understandable in the next lesson.
 
 :::ask Your VPC is `10.0.0.0/16`. You split it into `/20` subnets. How many subnets do you get?
 @options

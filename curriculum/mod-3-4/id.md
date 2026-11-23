@@ -112,42 +112,26 @@ kata sandi para pengguna cloud-mu
 Tanpa state, Terraform tidak bisa membedakan 'buat ini' dari 'ini sudah ada'. Ia membandingkan kodemu, state, dan kenyataan untuk membangun plan. Simpan di tempat bersama yang terkunci dan akses-terkontrol.
 :::
 
-## @lesson Mengamankan data lakehouse
-Lab modul ini memandu Anda membangun lapisan penyimpanan lakehouse dari Modul 2.2 menggunakan Terraform, dengan empat pilar pengamanan wajib standar enterprise:
+## @lesson Jaringan cloud dalam bahasa sederhana: alamat, pintu, dan dinding
+> **Intinya:** Jaringan cloud itu seperti sebuah gedung apartemen. Setiap mesin punya alamat (IP) dan pintu bernomor (port). Gedung punya lantai (subnet), pintu depan ke jalan, aturan siapa yang boleh mengetuk (aturan firewall), dan tagihan untuk lalu lintas yang keluar. Jika Anda bisa membaca kelima gagasan itu, sisa modul ini, dan setiap diagram cloud yang akan Anda lihat, berhenti terlihat seperti derau.
 
-**1. Blokir Akses Publik (Block Public Access).** Kebocoran data pelanggan akibat bucket yang terbuka bebas di internet umumnya berakar dari kelalaian konfigurasi manual. Mendeklarasikan resource `aws_s3_bucket_public_access_block` dengan keempat parameter disetel ke `true` secara permanen mencegah bucket terekspos ke publik, apa pun kebijakan **ACL** (Access Control List, daftar aturan akses lama) atau policy yang mungkin ditulis seseorang secara tergesa-gesa di masa depan.
+Pipeline Anda berjalan di mesin-mesin di cloud. Ia membaca dari database, menulis ke bucket, memanggil API. **Jaringan** menentukan siapa bisa menjangkau apa, dan berapa biaya lalu lintas itu. Jangan menghafal istilah: simpan gedungnya di kepala.
 
-**2. Enkripsi Terkelola Mandiri (Customer-Managed KMS Encryption).** Secara default S3 menjalankan **SSE** (Server-Side Encryption, enkripsi sisi server otomatis sebelum disimpan ke disk) memakai kunci bawaan AWS. Menggunakan kunci **KMS (Key Management Service)** milik organisasi Anda sendiri menambahkan lapisan proteksi ganda: pembaca data wajib memiliki izin pada data bucket sekaligus izin dekripsi pada kunci KMS, mencatat jejak audit akses di CloudTrail, serta memungkinkan pencabutan izin secara instan dari satu titik pusat. Aktifkan fitur **rotasi kunci otomatis (key rotation)** agar risiko kebocoran kunci lama terisolasi dalam rentang waktu tertentu.
-
-**3. Hak Akses Paling Minimal (Least Privilege).** Kebijakan IAM policy mendefinisikan siapa yang boleh mengeksekusi *tindakan apa (Action)* pada *resource mana (Resource)*, dan dalam *kondisi apa (Condition)*. Kesalahan fatal yang kerap dijumpai di korporat adalah penyematan izin sapu jagat `"Action": "s3:*", "Resource": "*"` yang dibuat demi alasan "agar cepat jalan" dan tidak pernah diperbaiki. Sebuah pipeline pemrosesan data kurasi yang hanya bertugas membaca dan menulis layer silver dan gold wajib menerima izin yang presisi:
-
-| Pernyataan Izin (Statement) | Tindakan yang Diizinkan (Actions) | Target Resource |
+| Di gedung | Di cloud | Apa itu |
 |---|---|---|
-| Baca dan tulis data kurasi | `s3:GetObject`, `s3:PutObject` | `bucket/silver/*`, `bucket/gold/*` |
-| Listing isi direktori bucket | `s3:ListBucket` | bucket, dibatasi hanya jika kondisi `s3:prefix` cocok dengan `silver/*` atau `gold/*` |
+| seluruh gedung | **VPC** (Virtual Private Cloud) | jaringan privat Anda di dalam sebuah region cloud |
+| alamat jalan | **alamat IP** | angka yang menamai satu mesin |
+| pintu-pintu bernomor satu unit | **port** | program mana pada mesin itu yang Anda ketuk |
+| satu lantai | **subnet** | irisan alamat gedung, publik atau privat |
+| pintu depan ke jalan | **internet gateway** | jalan masuk dan keluar untuk subnet publik |
+| pintu layanan untuk kiriman keluar | **NAT gateway** | membuat mesin privat bisa memulai permintaan ke internet, sementara tak ada dari luar yang bisa memulainya ke mereka |
+| daftar penjaga di sebuah pintu | **security group** | aturan tentang siapa boleh mengetuk pintu yang mana |
 
-Pipeline tersebut sama sekali tidak diizinkan menghapus data (no delete), tidak dapat menyentuh direktori `raw/` mentah atau folder tim lain, dan tidak dapat mengubah bucket policy. Jika token kredensial pipeline bocor, dampak kerusakannya terisolasi ketat. Menulis policy hanyalah separuh tugas: uji policy tersebut secara otomatis! Pengujian lab memvalidasi bahwa tidak ada aksi wildcard `*`, tidak ada izin delete, dan tidak ada target resource global `*` di dalam artefak plan JSON.
-
-**4. Aturan Daur Hidup Penyimpanan (Lifecycle Rules).** Data mentah umumnya ditulis sekali dan jarang dibaca kembali setelah lewat beberapa minggu. Lifecycle rule secara otomatis memindahkan objek di direktori `raw/` ke kelas penyimpanan dingin (colder storage) yang lebih murah setelah durasi hari tertentu, serta membatalkan **multipart upload yang tidak tuntas (incomplete multipart uploads)** setelah 7 hari. (Proses upload file raksasa yang gagal di tengah jalan meninggalkan serpihan part tersembunyi yang terus memakan biaya penyimpanan bulanan tanpa disadari).
-
-### Menguji Kode Infrastruktur Sebelum Provisi Fisik
-
-Bagaimana cara menguji kode infrastruktur tanpa perlu membayar sewa cloud dan tanpa membuat resource fisik? Terapkan strategi pengujian berlapis:
-
-1. `terraform fmt -check` dan `terraform validate`: verifikasi sintaksis instan tanpa akses internet.
-2. **Static Policy Scanners** (seperti Trivy/tfsec, Checkov, OPA/Conftest): memindai celah keamanan seperti bucket terbuka publik, ketiadaan enkripsi, atau wildcard IAM.
-3. **Plan-Based Automated Tests**: jalankan `terraform plan -out=plan` lalu ekstrak ke format JSON via `terraform show -json plan` dan jalankan assertions menggunakan pytest. Inilah metodologi yang diterapkan pada lab modul ini, berjalan sepenuhnya offline menggunakan dummy credentials.
-4. Uji provisi fisik di akun sandbox sekali pakai (throwaway environment), jalankan integrasi test, lalu hancurkan via `terraform destroy`.
-
-Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsung ke atribut `aws_s3_bucket.lakehouse.arn` (**ARN** = *Amazon Resource Name*, alamat pengenal unik global AWS seperti `arn:aws:service:region:account:resource`), nilai ARN tersebut berstatus *baru diketahui setelah apply (known after apply)*, sehingga isi JSON policy tidak dapat dibaca oleh reviewer pada tahap plan dan hanya menampilkan teks `(known after apply)`. Namun jika Anda mengonstruksi string ARN langsung dari nama bucket (`arn:aws:s3:::${local.bucket_name}`), keseluruhan detail teks kebijakan keamanan dapat dievaluasi secara transparan pada tahap plan review. Desainlah konfigurasi Terraform Anda agar fakta keamanan selalu terlihat jelas saat code review.
-
-**Tagging Resources.** Konfigurasikan blok `default_tags` pada provider AWS agar setiap resource otomatis disematkan tag `Project`, `Environment`, `Owner`, dan `CostCenter`. Tagging inilah yang menjadi kunci transparansi biaya pada materi FinOps berikutnya.
-
-### Membaca alamat jaringan: IP dan CIDR dalam dua menit
+### Alamat: IP dan CIDR dalam dua menit
 
 Setiap komputer di jaringan punya **alamat IP**: empat angka dari 0 sampai 255 yang dipisah titik, seperti `10.0.37.5`. Ia bekerja seperti alamat jalan. **Blok CIDR** menyebut sekaligus seluruh *rentang* alamat, misalnya `10.0.0.0/16`.
 
-Angka setelah garis miring menyatakan berapa dari 32 bit alamat itu yang **terkunci** (tiap angka dari keempatnya adalah 8 bit). `/16` mengunci dua angka pertama (`10.0.`), jadi semua alamat dari `10.0.0.0` sampai `10.0.255.255` masuk blok itu. Makin banyak bit terkunci, makin kecil blok: `/24` mengunci tiga angka dan memuat 256 alamat, `/16` memuat 65.536. Aturannya **ukuran blok = 2 ** (32 − angka setelah garis miring)**. Jaringan cloud (sebuah **VPC**) adalah satu blok besar yang Anda potong menjadi **subnet** yang lebih kecil.
+Angka setelah garis miring menyatakan berapa dari 32 bit alamat itu yang **terkunci** (tiap angka dari keempatnya adalah 8 bit). `/16` mengunci dua angka pertama (`10.0.`), jadi semua alamat dari `10.0.0.0` sampai `10.0.255.255` masuk blok itu. Makin banyak bit terkunci, makin kecil blok: `/24` mengunci tiga angka dan memuat 256 alamat, `/16` memuat 65.536. Aturannya **ukuran blok = 2 ** (32 − angka setelah garis miring)**. Sebuah VPC adalah satu blok besar yang Anda potong menjadi **subnet** yang lebih kecil.
 
 :::drill python Seberapa besar bloknya?
 Tulis `block_size(prefix)`: jumlah alamat dalam blok CIDR yang angka setelah garis miringnya `prefix`. `block_size(24)` adalah `256`.
@@ -186,6 +170,100 @@ import ipaddress
 def in_block(ip, cidr):
     return ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)
 :::
+
+### Port: pintu-pintu bernomor
+
+Alamat IP menemukan mesinnya. **Port** (angka dari 0 sampai 65535) menemukan *program* di dalamnya. Server web mendengarkan di port 80 atau 443, PostgreSQL di 5432, Kafka di 9092, dan situs kursus di komputer Anda sendiri di 3000. Keduanya ditulis bersama: `10.0.1.5:5432`. **localhost** (alamat `127.0.0.1`) selalu berarti "komputer yang sama ini".
+
+Dua program tidak bisa mendengarkan di pintu yang sama. Jika Anda menyalakan database dan melihat "port already in use", sudah ada yang mendengarkan di sana: hentikan itu atau pilih port lain.
+
+### Subnet publik dan privat, dan NAT gateway
+
+**Subnet publik** punya rute ke internet gateway, jadi mesin di dalamnya bisa dijangkau dari internet bila aturan firewall mengizinkan. **Subnet privat** tidak punya rute seperti itu: tak ada di internet yang bahkan bisa mencoba menjangkaunya. Database, compute warehouse, dan worker pipeline sebaiknya berada di subnet privat.
+
+Tetapi job privat tetap perlu mengunduh library atau memanggil API. **NAT gateway** (network address translation) menyelesaikannya: mesin privat memulai permintaan, NAT gateway mengirimnya keluar dan membawa jawabannya kembali, dan tak ada dari luar yang bisa memulai percakapan dengan mesin privat itu. Ia nyaman, dan **ditagih per jam dan per gigabyte** yang melewatinya (Materi 7 modul ini menunjukkan seberapa besar tagihan itu bisa menjadi). Untuk lalu lintas S3 ada cara yang lebih murah, gateway endpoint, yang menjaga data tetap di jaringan milik cloud itu sendiri.
+
+### Aturan firewall: siapa boleh mengetuk pintu yang mana
+
+**Security group** adalah daftar aturan **izin** yang dipasang pada sebuah mesin: "terima lalu lintas dari rentang alamat ini pada port ini". Apa pun yang tidak diizinkan ditolak, jadi group baru tidak membiarkan apa pun masuk. Membaca sebuah aturan hanyalah dua pemeriksaan yang sudah Anda kenal: apakah alamat pengirim ada di dalam blok, dan apakah portnya benar?
+
+:::drill python Apakah ketukan ini diizinkan?
+Tulis `allowed(rules, ip, port)`: `rules` adalah list pasangan `(cidr, port)`, masing-masing sebuah aturan **izin**. Kembalikan `True` hanya bila ada aturan yang bloknya memuat `ip` **dan** portnya sama dengan `port`. Tanpa aturan yang cocok jawabannya `False` (apa pun yang tidak diizinkan ditolak).
+@starter
+import ipaddress
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("allowed") ## Definisikan allowed(rules, ip, port).
+allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 5432) == True ## Mesin di dalam VPC mengetuk port database.
+allowed([("10.0.0.0/16", 5432)], "10.1.0.1", 5432) == False ## Alamat di luar blok.
+allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 22) == False ## Alamat yang benar, pintu yang salah.
+allowed([], "10.0.3.7", 5432) == False ## Tanpa aturan: tidak ada yang diizinkan.
+allowed([("0.0.0.0/0", 5432)], "203.0.113.9", 5432) == True ## 0.0.0.0/0 adalah seluruh internet: aturan yang berbahaya.
+@hint
+`any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)`
+@solution
+import ipaddress
+def allowed(rules, ip, port):
+    return any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)
+:::
+
+:::ask Sebuah security group punya aturan "izinkan 0.0.0.0/0 pada port 5432" dan port database adalah 5432. Siapa yang kini bisa mencoba terhubung ke database?
+@options
+hanya mesin di VPC Anda sendiri, karena 0.0.0.0 berarti "jaringan ini"
+* siapa pun di internet: ini versi jaringan dari bucket publik
+tak seorang pun, karena port database selalu diblokir secara bawaan
+@why
+`0.0.0.0/0` adalah blok CIDR dari setiap alamat di internet. Aturan yang mengizinkannya pada port database membuka pintu untuk semua orang. Versi aman menyebut subnet Anda sendiri, misalnya `10.0.0.0/16`, dan tidak lebih luas.
+:::
+
+### Region dan zona
+
+**Region** cloud adalah sebuah kota, seperti Jakarta atau Singapura. Di dalamnya ada beberapa **availability zone**, gedung-gedung terpisah dengan listrik dan jaringannya sendiri. Menyebar layanan di beberapa zona bertahan dari hilangnya satu gedung. Tetapi lalu lintas yang melintasi zona, atau keluar dari region, ditagih per gigabyte. Untuk klaster yang mengacak terabyte per hari, tagihan yang "tak terlihat" ini menjadi uang sungguhan.
+
+:::ask Sebuah worker pipeline privat harus mengunduh library dari internet, tetapi tak seorang pun di internet boleh bisa membuka koneksi ke worker itu. Apa yang dibutuhkannya?
+@options
+subnet publik dengan aturan yang mengizinkan 0.0.0.0/0 pada semua port
+blok CIDR yang lebih besar, agar worker punya lebih banyak alamat
+* NAT gateway: worker memulai permintaan, dan tak ada dari luar yang bisa memulainya
+@why
+NAT gateway memberi mesin privat jalan keluar tanpa jalan masuk. Subnet publik dengan aturan terbuka membiarkan siapa pun mencoba terhubung. Blok yang lebih besar mengubah berapa banyak alamat yang ada, bukan siapa yang bisa menjangkau worker.
+:::
+
+> 🛠 **Coba sendiri (10 menit, terminal).** Lihat sebuah port dengan mata Anda sendiri. Di folder kursus, nyalakan situs kursus di satu terminal: `python3 server.py`. Di terminal kedua jalankan `curl -I http://localhost:3000`. Lalu hentikan server dengan Ctrl+C di terminal pertama dan jalankan `curl` yang sama lagi.
+>
+> **Seharusnya Anda melihat:** pertama kali, baris yang diawali `HTTP/1.0 200 OK` (program di pintu 3000 menjawab). Kedua kalinya, `curl: (7) Failed to connect to localhost port 3000 ...` (kata-kata persisnya bergantung versi curl, kadang "Connection refused"): tak ada lagi yang mendengarkan di pintu itu. Jika muncul `Address already in use` saat menyalakan server, program lain sudah memegang port 3000.
+
+## @lesson Mengamankan data lakehouse
+Lab modul ini memandu Anda membangun lapisan penyimpanan lakehouse dari Modul 2.2 menggunakan Terraform, dengan empat pilar pengamanan wajib standar enterprise:
+
+**1. Blokir Akses Publik (Block Public Access).** Kebocoran data pelanggan akibat bucket yang terbuka bebas di internet umumnya berakar dari kelalaian konfigurasi manual. Mendeklarasikan resource `aws_s3_bucket_public_access_block` dengan keempat parameter disetel ke `true` secara permanen mencegah bucket terekspos ke publik, apa pun kebijakan **ACL** (Access Control List, daftar aturan akses lama) atau policy yang mungkin ditulis seseorang secara tergesa-gesa di masa depan.
+
+**2. Enkripsi Terkelola Mandiri (Customer-Managed KMS Encryption).** Secara default S3 menjalankan **SSE** (Server-Side Encryption, enkripsi sisi server otomatis sebelum disimpan ke disk) memakai kunci bawaan AWS. Menggunakan kunci **KMS (Key Management Service)** milik organisasi Anda sendiri menambahkan lapisan proteksi ganda: pembaca data wajib memiliki izin pada data bucket sekaligus izin dekripsi pada kunci KMS, mencatat jejak audit akses di CloudTrail, serta memungkinkan pencabutan izin secara instan dari satu titik pusat. Aktifkan fitur **rotasi kunci otomatis (key rotation)** agar risiko kebocoran kunci lama terisolasi dalam rentang waktu tertentu.
+
+**3. Hak Akses Paling Minimal (Least Privilege).** Kebijakan IAM policy mendefinisikan siapa yang boleh mengeksekusi *tindakan apa (Action)* pada *resource mana (Resource)*, dan dalam *kondisi apa (Condition)*. Kesalahan fatal yang kerap dijumpai di korporat adalah penyematan izin sapu jagat `"Action": "s3:*", "Resource": "*"` yang dibuat demi alasan "agar cepat jalan" dan tidak pernah diperbaiki. Sebuah pipeline pemrosesan data kurasi yang hanya bertugas membaca dan menulis layer silver dan gold wajib menerima izin yang presisi:
+
+| Pernyataan Izin (Statement) | Tindakan yang Diizinkan (Actions) | Target Resource |
+|---|---|---|
+| Baca dan tulis data kurasi | `s3:GetObject`, `s3:PutObject` | `bucket/silver/*`, `bucket/gold/*` |
+| Listing isi direktori bucket | `s3:ListBucket` | bucket, dibatasi hanya jika kondisi `s3:prefix` cocok dengan `silver/*` atau `gold/*` |
+
+Pipeline tersebut sama sekali tidak diizinkan menghapus data (no delete), tidak dapat menyentuh direktori `raw/` mentah atau folder tim lain, dan tidak dapat mengubah bucket policy. Jika token kredensial pipeline bocor, dampak kerusakannya terisolasi ketat. Menulis policy hanyalah separuh tugas: uji policy tersebut secara otomatis! Pengujian lab memvalidasi bahwa tidak ada aksi wildcard `*`, tidak ada izin delete, dan tidak ada target resource global `*` di dalam artefak plan JSON.
+
+**4. Aturan Daur Hidup Penyimpanan (Lifecycle Rules).** Data mentah umumnya ditulis sekali dan jarang dibaca kembali setelah lewat beberapa minggu. Lifecycle rule secara otomatis memindahkan objek di direktori `raw/` ke kelas penyimpanan dingin (colder storage) yang lebih murah setelah durasi hari tertentu, serta membatalkan **multipart upload yang tidak tuntas (incomplete multipart uploads)** setelah 7 hari. (Proses upload file raksasa yang gagal di tengah jalan meninggalkan serpihan part tersembunyi yang terus memakan biaya penyimpanan bulanan tanpa disadari).
+
+### Menguji Kode Infrastruktur Sebelum Provisi Fisik
+
+Bagaimana cara menguji kode infrastruktur tanpa perlu membayar sewa cloud dan tanpa membuat resource fisik? Terapkan strategi pengujian berlapis:
+
+1. `terraform fmt -check` dan `terraform validate`: verifikasi sintaksis instan tanpa akses internet.
+2. **Static Policy Scanners** (seperti Trivy/tfsec, Checkov, OPA/Conftest): memindai celah keamanan seperti bucket terbuka publik, ketiadaan enkripsi, atau wildcard IAM.
+3. **Plan-Based Automated Tests**: jalankan `terraform plan -out=plan` lalu ekstrak ke format JSON via `terraform show -json plan` dan jalankan assertions menggunakan pytest. Inilah metodologi yang diterapkan pada lab modul ini, berjalan sepenuhnya offline menggunakan dummy credentials.
+4. Uji provisi fisik di akun sandbox sekali pakai (throwaway environment), jalankan integrasi test, lalu hancurkan via `terraform destroy`.
+
+Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsung ke atribut `aws_s3_bucket.lakehouse.arn` (**ARN** = *Amazon Resource Name*, alamat pengenal unik global AWS seperti `arn:aws:service:region:account:resource`), nilai ARN tersebut berstatus *baru diketahui setelah apply (known after apply)*, sehingga isi JSON policy tidak dapat dibaca oleh reviewer pada tahap plan dan hanya menampilkan teks `(known after apply)`. Namun jika Anda mengonstruksi string ARN langsung dari nama bucket (`arn:aws:s3:::${local.bucket_name}`), keseluruhan detail teks kebijakan keamanan dapat dievaluasi secara transparan pada tahap plan review. Desainlah konfigurasi Terraform Anda agar fakta keamanan selalu terlihat jelas saat code review.
+
+**Tagging Resources.** Konfigurasikan blok `default_tags` pada provider AWS agar setiap resource otomatis disematkan tag `Project`, `Environment`, `Owner`, dan `CostCenter`. Tagging inilah yang menjadi kunci transparansi biaya pada materi FinOps berikutnya.
 
 :::ask VPC Anda adalah `10.0.0.0/16`. Anda membaginya menjadi subnet `/20`. Berapa subnet yang Anda dapat?
 @options
