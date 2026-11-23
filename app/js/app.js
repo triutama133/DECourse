@@ -2460,27 +2460,14 @@ class DataForgeApp {
     say(`<div class="feedback info">${loading["loading-python"]}</div>`);
     w.postMessage({ type: "drill", id, code: ta.value, checks: d.checks.map((c) => [c.expr, c.msg]), files: d.files || {} });
   }
+  // Plain-words help under a Python error: it reads the details of the last traceback line (the missing name, the key, the types)
+  // through app/js/error-hints.js and says what it most likely means and what to check.
   pyFriendlyError(err) {
-    const lines = String(err || "").split("\n").map((s) => s.trim()).filter(Boolean);
-    const last = [...lines].reverse().find((l) => /^(?:E\s+)?[A-Za-z_]\w*(?:Error|Exception):/.test(l)) || lines[lines.length - 1] || "";
-    if (!last) return "";
-    const rules = [
-      [/^(?:IndentationError|TabError):/i, this.l("Spasi di awal baris (indentasi) tidak rata, atau tercampur dengan Tab. Pastikan semua baris di dalam blok memiliki spasi yang sama.", "Leading spaces (indentation) do not line up, or tabs and spaces are mixed. Align every line inside a block cleanly.")],
-      [/^SyntaxError:/i, this.l("Python berhenti membaca karena salah ketik struktur: periksa titik dua `:` di akhir `if`/`for`/`def`, tanda kutip berpasangan, atau tanda kurung yang belum ditutup.", "Python stopped reading at a structure typo: check the colon `:` at the end of `if`/`for`/`def`, matching quotes, or unclosed brackets.")],
-      [/^NameError:/i, this.l("Nama variabel atau fungsi belum pernah didefinisikan sebelum baris ini, atau salah eja huruf besar/kecil. Ingat tanda teks harus memakai tanda kutip.", "This variable or function name has not been defined before this line, or has a capitalization typo. Text values also need quotes.")],
-      [/^TypeError:.*(?:str|concatenate|unsupported operand)/i, this.l("Anda mencampur tipe data (misalnya teks `str` dengan angka `int`), atau memakai nilai `None` seolah-olah angka/list. Cek tipe nilainya dengan `type(...)`.", "You mixed incompatible types (for example `str` text and `int` numbers), or treated `None` as a number/list. Inspect values with `type(...)`.")],
-      [/^TypeError:/i, this.l("Tipe nilai yang diberikan ke fungsi atau operator tidak cocok (atau jumlah argumen pemanggilan fungsi tidak sesuai definisinya).", "The value type passed to a function or operator does not match (or the number of arguments differs from the function definition).")],
-      [/^ValueError:/i, this.l("Tipenya benar (misalnya teks), tetapi isinya tidak bisa diubah (contoh: `int(\"abc\")` atau format tanggal tidak cocok). Validasi atau tangani baris kotor dulu.", "The type is valid (such as text), but its contents cannot be parsed (for example `int(\"abc\")` or an unexpected date format). Validate or handle bad rows first.")],
-      [/^KeyError:/i, this.l("Key tidak ditemukan di dictionary. Periksa ejaan key-nya, atau pakai `.get(key, default)` bila key tersebut kadang tidak ada.", "That key does not exist in the dictionary. Check the spelling, or use `.get(key, default)` when a key may be missing.")],
-      [/^IndexError:/i, this.l("Posisi list di luar jangkauan (misalnya meminta indeks ke-3 pada list berisi 2 item, atau memanggil indeks pada list kosong `[]`).", "The list index is out of range (for example reading position 3 of a 2-item list, or indexing an empty `[]` list).")],
-      [/^AttributeError:/i, this.l("Nilai tersebut tidak punya method itu—sering terjadi saat nilainya ternyata `None` atau bertipe lain dari perkiraan (misalnya `.strip()` pada angka).", "That value does not have that method—often because the variable actually holds `None` or a different type than expected (like `.strip()` on an `int`).")],
-      [/^ZeroDivisionError:/i, this.l("Pembagian dengan nol (`0`). Tambahkan penjaga `if count == 0:` sebelum membagi.", "Division by zero (`0`). Guard with `if count == 0:` before dividing.")],
-      [/^FileNotFoundError:/i, this.l("File tidak ditemukan di jalur tersebut. Periksa ejaan nama file dan folder tempat Anda berdiri (`pwd`, `ls`).", "That file was not found at the path given. Check the filename spelling and your current folder (`pwd`, `ls`).")]
-    ];
-    const bare = last.replace(/^E\s+/, "");   // pytest prefixes its error lines with "E   "
-    const hit = rules.find(([re]) => re.test(bare));
-    if (!hit) return "";
-    return `<div class="callout neutral small" style="margin:6px 0"><strong>🔎 ${this.l("Baca baris terakhir traceback", "Read the bottom traceback line")}:</strong> <code>${this.esc(last.replace(/^E\s+/, ""))}</code><div style="margin-top:4px">${this.inline(hit[1])}</div></div>`;
+    const hint = window.PyErrorHints && window.PyErrorHints.explain(err, this.lang);
+    if (!hint) return "";
+    const [meaning, ...checks] = hint.tips;
+    const list = checks.length ? `<div class="small muted" style="margin-top:4px">${this.l("Yang bisa dicoba:", "What to try:")}</div><ul style="margin:2px 0 0 18px">${checks.map((x) => `<li>${this.inline(x)}</li>`).join("")}</ul>` : "";
+    return `<div class="callout neutral small" style="margin:6px 0"><strong>🔎 ${this.l("Arti error ini", "What this error says")}:</strong> <code>${this.esc(hint.line)}</code><div style="margin-top:4px">${this.inline(meaning)}</div>${list}</div>`;
   }
   drillResult(box, key, d, r) {
     const out = box.querySelector(".drill-out");
@@ -2500,7 +2487,7 @@ class DataForgeApp {
       return;
     }
     const n = r.results.length;
-    out.innerHTML = `<div class="feedback info"><strong>${this.l(`${n - failed.length} dari ${n} pemeriksaan lulus.`, `${n - failed.length} of ${n} checks pass.`)}</strong> ${this.inline(failed[0].msg || this.l("Belum tepat.", "Not quite yet."))}</div>${printed}`;
+    out.innerHTML = `<div class="feedback info"><strong>${this.l(`${n - failed.length} dari ${n} pemeriksaan lulus.`, `${n - failed.length} of ${n} checks pass.`)}</strong> ${this.inline(failed[0].msg || this.l("Belum tepat.", "Not quite yet."))}</div>${failed[0].err ? this.pyFriendlyError(failed[0].err) : ""}${printed}`;
   }
 
   // ---------- the Python pad: run a snippet in the browser, next to the terminal route ----------

@@ -23,7 +23,7 @@ async function boot() {
     if (!res.ok) throw new Error("Could not load " + w);
     py.unpackArchive(await res.arrayBuffer(), "zip", { extractDir: site });
   }
-  const runner = await (await fetch(new URL("browser-lab-runner.py", self.location.href).href)).text();
+  const runner = await (await fetch(new URL("browser-lab-runner.py?v=2", self.location.href).href)).text();
   py.runPython(runner);
   return py;
 }

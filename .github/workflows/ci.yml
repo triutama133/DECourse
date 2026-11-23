@@ -38,6 +38,9 @@ jobs:
       - name: Python challenges are in sync and valid in both languages
         run: node scripts/build-challenges.js --check
 
+      - name: Plain-words error help recognises real Python errors
+        run: node scripts/test_error_hints.js
+
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 

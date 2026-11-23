@@ -188,11 +188,13 @@ def check_drill(code, checks, files=None):
         scope.update({"out": output.strip(), "code": code, "calls": calls, "uses": uses, "defines": defines, "has_node": has, "count_nodes": count, "printed_by": capture, "raises_error": raises, "rerun_with": rerun, "ns": ns})
         scope["read_file"] = lambda name: open(os.path.join("/drill", name), encoding="utf-8", newline="").read()
         for expression, message in checks:
+            err = ""
             try:
                 ok = bool(eval(expression, scope))
-            except Exception:  # noqa: BLE001 - a missing variable or a wrong type means the check is not met
+            except Exception as exc:  # noqa: BLE001 - a missing variable or a wrong type means the check is not met
                 ok = False
-            results.append({"ok": ok, "msg": message})
+                err = f"{type(exc).__name__}: {exc}"   # kept, so the page can explain WHY the check could not run
+            results.append({"ok": ok, "msg": message, "err": err})
     return json.dumps({"output": output, "error": error, "results": results})
 
 
