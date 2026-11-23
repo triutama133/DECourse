@@ -43,6 +43,15 @@ Expect roughly 15 to 25 hours in total. Each full run of your pipeline writes ab
 >
 > **You should see:** `fetch_data.py` prints `ok` for the Parquet file and for the zone lookup. The checker prints the title `== Step 1: profile the raw data (profile.json)`, one line `FAIL  profile.json exists in your workspace` with a short hint, and `0 passed, 1 failed`. Hint 1 only points at DuckDB (`DESCRIBE`, `SELECT count(*)`): it nudges, it does not answer. This red-then-green loop is how you will work for the next hours.
 
+:::ask In this capstone, what does the checker look at to judge your pipeline?
+@options
+your code style and the length of your script
+which libraries you chose to import
+* only the results: files, numbers, behaviour
+@why
+You get a contract, real data and a checker. How you build it is up to you (DuckDB or pandas, one script or many); the checker looks at the files your pipeline writes, the numbers inside them, and how it behaves when something goes wrong.
+:::
+
 ## @lesson Meet the data
 The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip as a monthly Parquet file (public data of the City of New York). We use **January 2024**: one file of about 50 MB with almost three million trips and 19 columns. The checker verifies the SHA-256 hash of your download, so everybody works on identical bytes.
 
@@ -82,6 +91,43 @@ No duplicates exist in the real file, but a partner can send the same file twice
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
 > 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw data profiling matches reference truth.
 
+:::drill python What is wrong with this trip?
+Real data has trips that end before they start. (A warm-up on made-up rules, not the capstone's contract.) Write `trip_problem(pickup, dropoff)`: both are ISO text such as `"2024-01-05 10:00:00"`. Return `"ends_before_start"` if the dropoff is before the pickup, `"zero_length"` if they are the same second, `"over_24h"` if the trip lasts more than 24 hours, otherwise `"ok"`. Check the problems in that order.
+@starter
+from datetime import datetime
+# write your function below this line
+
+@check
+defines("trip_problem") ## Define trip_problem(pickup, dropoff).
+trip_problem("2024-01-05 10:00:00", "2024-01-05 10:30:00") == "ok" ## A normal half hour trip.
+trip_problem("2024-01-05 10:00:00", "2024-01-05 09:00:00") == "ends_before_start" ## Dropoff is an hour before pickup.
+trip_problem("2024-01-05 10:00:00", "2024-01-05 10:00:00") == "zero_length" ## The same second.
+trip_problem("2024-01-05 10:00:00", "2024-01-06 10:00:01") == "over_24h" ## One second more than a day.
+trip_problem("2024-01-05 10:00:00", "2024-01-06 10:00:00") == "ok" ## Exactly 24 hours is not more than 24 hours.
+@hint
+Parse both with `datetime.fromisoformat(...)`, subtract, and compare the difference with `timedelta(0)` and `timedelta(hours=24)`.
+@solution
+from datetime import datetime, timedelta
+def trip_problem(pickup, dropoff):
+    delta = datetime.fromisoformat(dropoff) - datetime.fromisoformat(pickup)
+    if delta < timedelta(0):
+        return "ends_before_start"
+    if delta == timedelta(0):
+        return "zero_length"
+    if delta > timedelta(hours=24):
+        return "over_24h"
+    return "ok"
+:::
+
+:::ask The January file contains trips from December 2002 and February 2024. What should your pipeline do with them?
+@options
+* reject them with a reason, and count them
+quietly change their dates to January
+delete them without keeping any record
+@why
+Rows that break a rule are quarantined with a reason, so a person can look again later. Fixing them silently or deleting them leaves nothing to explain a revenue difference months afterwards.
+:::
+
 ## @lesson Your toolbox: DuckDB and a few lines of Python
 The checker does not care which tools you use. We suggest **DuckDB**, because it reads Parquet and CSV directly, handles millions of rows in seconds on a laptop (the whole reference pipeline runs in about 4 seconds), and writes the Parquet and `.duckdb` files the contract asks for. Everything below is a generic reminder, tested on this very file, not a solution. Module 2.1 covers DuckDB in depth.
 
@@ -116,6 +162,37 @@ Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to r
 > 🛠 **Try it (20 min, Python).** Practise the one-line patterns on the real file, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. With DuckDB, print: (1) trips per day of the week with `isodow(tpep_pickup_datetime)` for pickups in January 2024 only; (2) how many rows have a pickup outside January 2024; (3) how many rows have a dropoff that is not after the pickup, using `date_diff('second', ...)`. Finally check that `hash('a', 1) = hash('a', 1)` is true and `hash('a', 1) = hash('a', 2)` is false.
 >
 > **You should see:** (1) Monday to Sunday: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` rows outside January; (3) `870` rows whose duration is zero or negative; and the two hash comparisons give `True` and `False`. Each of these is a possible rule in your cleaning step: you now know how big each problem is before you decide what to do about it.
+
+:::drill python The first rule that fails
+A row gets the **first** rule it breaks. (A warm-up on made-up rules.) Write `first_failure(row, rules)`: `rules` is an ordered list of `(name, broken)` pairs, where `broken(row)` is a function that returns `True` when the row breaks that rule. Return the name of the first rule the row breaks, or `None` if it breaks none.
+@starter
+# write your function below this line
+
+@check
+defines("first_failure") ## Define first_failure(row, rules).
+first_failure(5, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) is None ## 5 breaks neither rule.
+first_failure(-3, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) == "negative" ## It breaks the first rule.
+first_failure(0, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) == "zero" ## It breaks only the second rule.
+first_failure(-1, [("any", lambda r: True), ("negative", lambda r: r < 0)]) == "any" ## Both rules are broken: the first one wins.
+first_failure(1, []) is None ## No rules, nothing fails.
+@hint
+Loop over the rules in order; return the name as soon as `broken(row)` is true. After the loop, return `None`.
+@solution
+def first_failure(row, rules):
+    for name, broken in rules:
+        if broken(row):
+            return name
+    return None
+:::
+
+:::ask In SQL, `CASE WHEN fare < 0 THEN 'negative' WHEN fare = 0 THEN 'zero' ELSE 'ok' END` gets a row with fare = -5. What does it return?
+@options
+'negative' and 'ok', one per matching branch
+* 'negative': CASE stops at the first true WHEN
+'ok', because only ELSE is checked last
+@why
+A CASE expression returns the result of the first WHEN that is true and goes no further. That is exactly how the capstone gives a row only the first rule it breaks, so each rejected row is counted once.
+:::
 
 ## @lesson The contract
 This lesson is the specification. Read it fully before step 2; the checker follows it to the letter.
@@ -173,6 +250,35 @@ The contract says what is valid. A row you cannot trust is set aside **with a re
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 2`
 > 4. **Success Indicator:** All step 2 checks report `PASS`, validating clean data schemas, quarantine integrity, and row reconciliation `rows_in - duplicates = clean + rejected`.
 
+:::drill python The quality gate
+A delivery is refused when too much of it is rejected. (A warm-up on made-up numbers.) Write `gate_exit_code(total, rejected, max_rate)`: return `2` (refuse) when `total` is `0`, or when `rejected / total` is **above** `max_rate`; otherwise return `0`.
+@starter
+# write your function below this line
+
+@check
+defines("gate_exit_code") ## Define gate_exit_code(total, rejected, max_rate).
+gate_exit_code(1000, 12, 0.05) == 0 ## 1.2% rejected: fine.
+gate_exit_code(1000, 60, 0.05) == 2 ## 6% is above the 5% limit: refuse.
+gate_exit_code(1000, 50, 0.05) == 0 ## Exactly 5% is not above the limit.
+gate_exit_code(0, 0, 0.05) == 2 ## An empty delivery is refused (and no division by zero).
+@hint
+Check `total == 0` first. Then compare `rejected / total > max_rate`.
+@solution
+def gate_exit_code(total, rejected, max_rate):
+    if total == 0:
+        return 2
+    return 2 if rejected / total > max_rate else 0
+:::
+
+:::ask A delivery is refused by a quality gate (exit code 2). What must be true of the OUT folder afterwards?
+@options
+it holds the half-written new files for debugging
+it is emptied so nothing stale is left
+* it is exactly as before: not one byte changed
+@why
+A refused delivery must change nothing. Compute everything the decision needs first (columns, row count, reject rate), decide, and only then start writing, so a failed run cannot damage a good output.
+:::
+
 ## @lesson Designing it so that it survives
 The checker's step 5 is where most real pipelines fail, so design for it from the beginning instead of patching it on.
 
@@ -194,6 +300,24 @@ The checker's step 5 is where most real pipelines fail, so design for it from th
 > 3. Run the step 3 check in terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, confirming table creation, foreign key references, and fact table row counts.
+
+:::ask Why write the new output into a temporary folder next to OUT and swap it in at the end?
+@options
+* a crash never leaves half-old, half-new data
+temporary folders are faster to write than the real one
+it removes the need to handle duplicates
+@why
+A rename is a single step, so readers see either the complete old output or the complete new one. This is atomicity: the pipeline never exposes a half-written state.
+:::
+
+:::ask Running the same delivery twice must give the same result as once. What is the simplest design for that?
+@options
+append the new rows to whatever is already there
+* rebuild the whole output from the input every time
+keep a counter and skip every second run
+@why
+If the output is a pure function of the delivery, a repeat cannot add anything. Appending is where duplicates come from; rebuilding from scratch is the cheapest way to be idempotent.
+:::
 
 ## @lab Lab: five steps to a pipeline you can trust
 Build `pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your pipeline on the real January file and on broken deliveries, and compares the results with answers it computes independently from the raw data.

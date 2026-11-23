@@ -55,6 +55,15 @@ cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `events_seed.jsonl` dengan hash yang cocok. Pemeriksa mencetak `--- Step 1: Raw stream profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, dan `Summary: 0 passed, 1 failed`. Di file itu, baris kedua sudah punya `event_time` yang lebih awal daripada baris pertama. Itulah yang harus ditangani watermark di capstone ini.
 
+:::ask Apa yang diverifikasi checker stream tentang event yang tak berurutan?
+@options
+bahwa event diproses sesuai urutan kedatangannya
+* bahwa window event-time benar walau event terlambat
+bahwa event tak berurutan semuanya dibuang
+@why
+Jitter seluler mengacak urutan event, jadi checker menguji hasil: agregat event-time yang benar, watermark yang tak pernah mundur, dead-letter queue untuk data yang terlalu terlambat, dan pemulihan yang bersih.
+:::
+
 ## @lesson Semantik waktu: Event time, processing time & aliran data tidak berurutan
 Dalam pemrosesan batch tradisional, waktu bersifat statis: file memuat data historis kemarin, dan Anda menjalankan kueri SQL atas seluruh snapshot tersebut. Dalam pemrosesan stream, waktu bersifat mengalir dan memiliki banyak dimensi. Terdapat tiga konsep waktu yang fundamental:
 
@@ -104,6 +113,15 @@ Karena perangkat seluler mengalami fluktuasi latensi jaringan (network jitter), 
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
 > 4. **Indikator Sukses:** Seluruh 7 metrik berstatus `PASS`, memvalidasi ekstraksi profiling event stream Anda cocok 100% dengan data acuan.
 
+:::ask Sebuah taksi menempelkan kartu pukul 08.02.30, tetapi event tiba di server pukul 08.15. Dengan window 5 menit menurut event time, di mana ia berada?
+@options
+di window [08.15, 08.20), saat server melihatnya
+di window baru yang dibuat khusus untuk event terlambat
+* di window [08.00, 08.05), saat kejadian sebenarnya
+@why
+Event time adalah saat kejadian itu terjadi. Hanya pengelompokan dengannya yang memberi metrik benar; pengelompokan menurut waktu tiba akan menampilkan lonjakan palsu pukul 08.15 dan kosong pukul 08.00.
+:::
+
 ## @lesson Tumbling event-time window & penyimpanan analitik DuckDB
 Saat aliran event masuk secara kontinu, langkah struktural pertama adalah mengelompokkan timestamp ke dalam interval berbatas dan mendefinisikan tabel target di warehouse.
 
@@ -140,6 +158,33 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 > 3. Jalankan pemeriksaan langkah 2 di terminal:
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema DuckDB, pengelompokan tumbling window, dan pemancaran metrik agregasi.
+
+:::drill python Window lima menit yang mana?
+Window tumbling berukuran `size` detik mulai di setiap kelipatan `size`. Tulis `tumbling_start(ts, size)`: kembalikan awal window yang memuat detik `ts`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("tumbling_start") ## Definisikan tumbling_start(ts, size).
+tumbling_start(150, 300) == 0 ## 150 dtk ada di window pertama [0, 300).
+tumbling_start(300, 300) == 300 ## Event tepat di batas memulai window berikutnya.
+tumbling_start(1704067250, 300) == 1704067200 ## Timestamp Unix nyata dibulatkan ke bawah ke tanda 5 menit.
+tumbling_start(59, 60) == 0 ## Window satu menit.
+@hint
+Bulatkan `ts` ke bawah ke kelipatan `size`: `ts - ts % size`, atau `ts // size * size`.
+@solution
+def tumbling_start(ts, size):
+    return ts // size * size
+:::
+
+:::ask Mengapa tabel windowed_metrics menyimpan window_start dan window_end sekaligus?
+@options
+* agar tiap baris menyebut irisan waktunya
+karena database mewajibkan dua kolom waktu
+untuk membuat tabel dua kali lebih besar
+@why
+Sebuah metrik baru bermakna bersama irisan waktunya. Menyimpan kedua ujung membuat tiap baris menjelaskan dirinya sendiri dan memudahkan memeriksa bahwa window tidak tumpang tindih atau berlubang.
+:::
 
 ## @lesson Watermark, toleransi keterlambatan & DLQ Late Data
 Jika kita mengelompokkan data berdasarkan event time, muncul dilema arsitektur kritis: **berapa lama engine streaming harus menunggu sebelum menyatakan sebuah window selesai dan memancarkan hasilnya?**
@@ -192,6 +237,55 @@ Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu pe
 > 3. Jalankan pemeriksaan langkah 3 di terminal:
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi penanganan event out-of-order berjalan benar dan event late dikarantina tanpa merusak metrik window.
+
+:::drill python Majukan watermark
+Watermark out-of-orderness terbatas tertinggal dari event terbaru sebesar jeda `D`, dan **tidak pernah mundur**. Tulis `advance_watermark(w, event_time, delay)`: `w` adalah watermark saat ini (atau `None` di awal). Kembalikan `max(w, event_time - delay)`; bila `w` adalah `None`, kembalikan `event_time - delay`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("advance_watermark") ## Definisikan advance_watermark(w, event_time, delay).
+advance_watermark(None, 100, 30) == 70 ## Event pertama menetapkan watermark.
+advance_watermark(70, 250, 30) == 220 ## Event yang lebih baru memajukannya.
+advance_watermark(220, 190, 30) == 220 ## Event lebih lama (tak berurutan) tidak boleh memundurkannya.
+advance_watermark(220, 250, 30) == 220 ## Kandidat yang sama memberi watermark yang sama.
+@hint
+`candidate = event_time - delay`; jika `w is None` kembalikan itu, selain itu `return max(w, candidate)`.
+@solution
+def advance_watermark(w, event_time, delay):
+    candidate = event_time - delay
+    if w is None:
+        return candidate
+    return max(w, candidate)
+:::
+
+:::drill python Terlambat untuk window-nya?
+Window tumbling **tertutup** begitu watermark mencapai ujungnya. Event yang window-nya sudah tertutup terlalu terlambat dan masuk dead-letter queue. Tulis `is_too_late(event_time, size, watermark)`: kembalikan `True` bila ujung window event itu sama dengan atau sebelum watermark.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("is_too_late") ## Definisikan is_too_late(event_time, size, watermark).
+is_too_late(150, 300, 100) == False ## Window [0, 300) masih terbuka: watermark 100.
+is_too_late(150, 300, 300) == True ## Watermark mencapai ujung window.
+is_too_late(450, 300, 300) == False ## Event ini milik [300, 600), yang terbuka.
+is_too_late(299, 300, 1000) == True ## Window yang sudah lama tertutup.
+@hint
+Ujung window adalah `(event_time // size + 1) * size`. Bandingkan dengan watermark: `end <= watermark`.
+@solution
+def is_too_late(event_time, size, watermark):
+    end = (event_time // size + 1) * size
+    return end <= watermark
+:::
+
+:::ask Sebuah event tak berurutan tiba dengan timestamp lebih lama dari event terbaru sejauh ini. Apa yang terjadi pada watermark?
+@options
+ia mundur ke timestamp yang lebih lama
+* tidak ada: ia hanya pernah maju
+ia diatur ulang ke nol dan mulai lagi
+@why
+W = max(W_sebelumnya, t_event - D), jadi kandidat yang lebih kecil tidak mengubah apa pun. Jika watermark bisa mundur, window yang sudah dinyatakan lengkap akan terbuka lagi.
+:::
 
 ## @lesson Consumer offset, checkpointing & idempotensi analitik
 Engine streaming beroperasi terus-menerus tanpa henti. Gangguan perangkat keras, restart kontainer, dan pembaruan sistem operasi adalah keniscayaan di lingkungan produksi. Engine yang tangguh harus mampu bertahan dari crash dengan semantik **exactly-once processing** di lapisan database.
@@ -266,6 +360,15 @@ Jika Anda menyimpan offset dulu dan crash saat memproses, batch itu terlewat sel
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa crash mendadak di tengah pemrosesan dapat dipulihkan tanpa duplikasi dan tanpa kehilangan event.
 
+:::ask Bagaimana pemroses stream menyimpan checkpoint agar crash tidak pernah meninggalkan file setengah tertulis?
+@options
+menimpa offsets.json langsung, baris demi baris
+menyimpan offset hanya di memori
+* tulis file .tmp, lalu rename menimpa yang lama
+@why
+Rename bersifat atomik: pembaca atau proses pemulihan melihat checkpoint lama yang lengkap atau yang baru yang lengkap, tidak pernah buffer yang setengah tertulis.
+:::
+
 ## @lesson Sliding window (`k_min .. k_max`) & penggusuran parsial
 Arsitektur streaming real-time juga membutuhkan metrik yang diperhalus secara kontinu seiring berjalannya waktu (misalnya rata-rata tarif 5 menit terakhir yang diperbarui setiap 60 detik):
 
@@ -287,6 +390,15 @@ Rentang nilai integer `k` bergerak dari:
 Untuk `L = 300 detik` dan `S = 60 detik`, setiap event masuk ke tepat `(300 / 60) = 5` window yang saling tumpang-tindih! Logika akumulator Anda harus memperbarui kelima bucket tersebut secara simultan.
 
 - **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
+
+:::ask Dengan window 300 detik yang bergeser tiap 60 detik, dalam berapa window satu event biasa berada?
+@options
+* 5: ukuran window dibagi langkah geser
+1: setiap event punya satu timestamp
+300: satu untuk tiap detik dari window
+@why
+Event pada waktu t berada di setiap window yang mulai pada kelipatan slide S dengan k*S <= t < k*S + L. Untuk L = 300 dan S = 60 itu 300 / 60 = 5 window.
+:::
 
 ## @lab Lab: lima langkah membangun engine streaming produksi
 Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat pelajaran pertama) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.

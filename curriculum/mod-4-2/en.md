@@ -55,6 +55,15 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 >
 > **You should see:** `fetch_data.py` reports `earthquakes_seed.json` with a matching hash. The checker prints `--- Step 1: Raw data profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, and `Summary: 0 passed, 1 failed`; hint 1 tells you to load the seed file with `json.load()` and look at the properties and geometry of the features. Nothing more: the work is yours.
 
+:::ask In this capstone the verification suite 'attacks' your pipeline. What does it check?
+@options
+whether your code looks tidy to a reviewer
+how many lines your pipeline has
+* observable behaviour: schema, resuming, no duplicates
+@why
+Nobody grades style. The suite checks outcomes: the exact DuckDB schema, a clean resume after the server cuts the connection mid-sync, rate-limit handling, and reconciled counts.
+:::
+
 ## @lesson Meet the data: USGS Earthquake Hazards API
 The **United States Geological Survey (USGS)** operates the Earthquake Hazards Program, providing open real-time and historical seismic data worldwide. Their public API endpoint returns GeoJSON feeds:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`
@@ -99,6 +108,24 @@ GeoJSON Feature Collection
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
 > 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw seismic profiling matches reference truth.
 
+:::drill python Longitude first, then latitude
+GeoJSON stores coordinates as `[longitude, latitude, depth]`, the opposite of how people say "lat, long". Write `to_event(feature)`: `feature` is a dictionary like `{"id": "x1", "geometry": {"coordinates": [139.2, 37.5, 10.0]}}`. Return a dictionary with the keys `id`, `longitude`, `latitude` and `depth_km`.
+@starter
+# write your function below this line
+
+@check
+defines("to_event") ## Define to_event(feature).
+to_event({"id": "x1", "geometry": {"coordinates": [139.2, 37.5, 10.0]}}) == {"id": "x1", "longitude": 139.2, "latitude": 37.5, "depth_km": 10.0} ## Position 0 is longitude, 1 is latitude, 2 is depth.
+to_event({"id": "y", "geometry": {"coordinates": [-70.0, -33.4, 80.5]}})["latitude"] == -33.4 ## A negative latitude (southern hemisphere).
+to_event({"id": "z", "geometry": {"coordinates": [0, 0, 0]}}) == {"id": "z", "longitude": 0, "latitude": 0, "depth_km": 0} ## Zeros are valid values.
+@hint
+`lon, lat, depth = feature["geometry"]["coordinates"]`
+@solution
+def to_event(feature):
+    lon, lat, depth = feature["geometry"]["coordinates"]
+    return {"id": feature["id"], "longitude": lon, "latitude": lat, "depth_km": depth}
+:::
+
 ## @lesson Baseline ingestion contract: pagination, coordinates & DuckDB storage
 Before adding retries or dead-letter routing, get the **core ingestion contract** right cleanly from API page to analytical table:
 
@@ -112,6 +139,15 @@ Before adding retries or dead-letter routing, get the **core ingestion contract*
 > 3. Run the step 2 check in terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
 > 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, geographic coordinate bounds, and API pagination.
+
+:::ask How does the baseline ingestion know it has read the last page?
+@options
+* the features list that comes back is empty
+the API prints the word 'done' at the end
+the offset reaches 1,000 pages
+@why
+Page through with limit and a 1-based offset, advancing by the length of each page, until a page returns no features. Never assume a page count: data can change between runs.
+:::
 
 ## @lesson Stateful checkpointing & crash-safe storage
 An incremental pipeline is defined by its ability to ingest **only what is new since the last run**, while safely resuming after an unexpected termination.
@@ -167,6 +203,37 @@ A checkpoint may only describe data that is safely stored. Crashing between the 
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, proving mid-flight socket drops do not advance checkpoints prematurely and subsequent runs produce zero loss and zero duplicates.
 
+:::drill python The watermark never goes backwards
+After each page, the pipeline keeps the largest `updated` time it has **committed**. Write `next_watermark(current, updated_values)`: `current` is the stored number (or `None` for a first run) and `updated_values` is a list of the `updated` numbers just committed. Return the new watermark: the largest of all of them, never lower than `current`.
+@starter
+# write your function below this line
+
+@check
+defines("next_watermark") ## Define next_watermark(current, updated_values).
+next_watermark(None, [5, 9, 7]) == 9 ## A first run: the largest value.
+next_watermark(10, [5, 9, 7]) == 10 ## All values are older: the watermark stays at 10.
+next_watermark(10, [12, 11]) == 12 ## Newer data moves it forward.
+next_watermark(10, []) == 10 ## A page with nothing new changes nothing.
+next_watermark(None, []) is None ## A first run with no data: still no watermark.
+@hint
+Put `current` (if it is not `None`) and all the values in one list; return `max(...)`, or `None` when the list is empty.
+@solution
+def next_watermark(current, updated_values):
+    candidates = list(updated_values)
+    if current is not None:
+        candidates.append(current)
+    return max(candidates) if candidates else None
+:::
+
+:::ask The extractor wrote page 3 to the file, and the machine crashed before state.json was updated. On restart it re-fetches page 3. What protects you from duplicates?
+@options
+nothing: duplicates are unavoidable in this design
+* an upsert by event id, and data before state
+deleting state.json after every run
+@why
+The checkpoint is written only after the data is durably stored, and writes are upserts keyed by event id, so a replayed page replaces the same rows instead of adding them again.
+:::
+
 ## @lesson Network resilience: Backoff, Jitter & Rate Limits
 In distributed systems, networks are fundamentally unreliable (Fallacies of Distributed Computing #1: *The network is reliable*). A production data pipeline must survive transient disruptions without human intervention.
 
@@ -216,6 +283,35 @@ give up and fail the run at once
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
 > 4. **Success Indicator:** All step 4 checks report `PASS`, confirming orderly backoff during rate limits and upstream outages.
 
+:::drill python How long to wait?
+After a failure the pipeline waits before trying again. Write `retry_wait(attempt, base, retry_after)`: `attempt` counts from 0. If the server sent a `Retry-After` number of seconds (`retry_after` is not `None`), wait **exactly that long**. Otherwise use exponential backoff: `base * 2 ** attempt`.
+@starter
+# write your function below this line
+
+@check
+defines("retry_wait") ## Define retry_wait(attempt, base, retry_after).
+retry_wait(0, 1, None) == 1 ## The first wait is the base.
+retry_wait(3, 1, None) == 8 ## 1, 2, 4, 8.
+retry_wait(2, 1, 30) == 30 ## The server asked for 30 seconds: obey it.
+retry_wait(1, 5, None) == 10 ## Another base: 5, 10, 20...
+@hint
+`if retry_after is not None: return retry_after`, otherwise `return base * 2 ** attempt`.
+@solution
+def retry_wait(attempt, base, retry_after):
+    if retry_after is not None:
+        return retry_after
+    return base * 2 ** attempt
+:::
+
+:::ask Why add a small random jitter (about ±10%) to the wait before a retry?
+@options
+so the wait becomes shorter on average
+so the server can tell the requests apart
+* so workers do not all retry at once
+@why
+Without jitter, clients that failed together retry together and hit the server in a wave again. A small random offset spreads them out.
+:::
+
 ## @lesson The Dead-Letter Queue (DLQ) & Historical Backfills
 In production, upstream schemas mutate and sensor data gets corrupted. If 1 record out of 10,000 contains `latitude = 999.0` or missing event IDs, what should your pipeline do?
 - **Option A (Fail the entire batch):** The pipeline crashes. Business dashboards go stale for 48 hours until an on-call engineer wakes up. (Unacceptable).
@@ -240,6 +336,59 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 **The Cardinal Rule of Backfills:** A backfill must load historical records into the analytical warehouse using the same upsert rules, **BUT IT MUST NEVER MODIFY OR REGRESS THE INCREMENTAL WATERMARK IN `state.json`!** If a December 2023 backfill rewrote `state.json`, your next hourly production run would think the current high-watermark is December 2023 and re-fetch an entire month of data redundantly.
 
 Finally, always implement strict **reconciliation counters**: at the conclusion of every sync session, verify the invariant that `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. If the numbers do not reconcile, a row was silently leaked in memory.
+
+:::drill python Route the record
+A record is **valid** only if it has a non-empty `id` and a `latitude` between -90 and 90 and a `longitude` between -180 and 180. Anything else goes to the dead-letter queue. Write `route(record)`: return `"valid"` or `"dlq"`.
+@starter
+# write your function below this line
+
+@check
+defines("route") ## Define route(record).
+route({"id": "a", "latitude": 10.0, "longitude": 20.0}) == "valid" ## A normal record.
+route({"id": "a", "latitude": 999.0, "longitude": 20.0}) == "dlq" ## Latitude out of range.
+route({"id": "", "latitude": 10.0, "longitude": 20.0}) == "dlq" ## An empty id.
+route({"latitude": 10.0, "longitude": 20.0}) == "dlq" ## A missing id.
+route({"id": "a", "latitude": -90, "longitude": 180}) == "valid" ## The edges of the range are valid.
+@hint
+Use `record.get("id")`. Check `-90 <= record["latitude"] <= 90` and the same for longitude with 180; a record that lacks them is also dlq.
+@solution
+def route(record):
+    if not record.get("id"):
+        return "dlq"
+    lat = record.get("latitude")
+    lon = record.get("longitude")
+    if lat is None or lon is None:
+        return "dlq"
+    if -90 <= lat <= 90 and -180 <= lon <= 180:
+        return "valid"
+    return "dlq"
+:::
+
+:::drill python Do the counts add up?
+At the end of a sync, every fetched record must be accounted for. Write `reconciles(fetched, valid, dlq)`: return `True` when `fetched == valid + dlq`, otherwise `False`.
+@starter
+# write your function below this line
+
+@check
+defines("reconciles") ## Define reconciles(fetched, valid, dlq).
+reconciles(100, 97, 3) == True ## Every record is accounted for.
+reconciles(100, 97, 2) == False ## One record leaked.
+reconciles(0, 0, 0) == True ## An empty sync is fine.
+@hint
+`return fetched == valid + dlq`
+@solution
+def reconciles(fetched, valid, dlq):
+    return fetched == valid + dlq
+:::
+
+:::ask A backfill loads December 2023 records. What must it never do?
+@options
+* move the incremental watermark in state.json backwards
+use the same upsert rules as the normal run
+write its records into the analytical table
+@why
+A backfill may fill history using the same upsert rules, but if it rewrote the watermark the next hourly run would think it has to re-fetch everything from December.
+:::
 
 ## @lab Lab: five steps to a resilient incremental ingestion pipeline
 Build `pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your pipeline on real USGS seismic events, simulates connection drops, triggers HTTP 429 throttles, injects toxic payloads, and tests historical backfill isolation.

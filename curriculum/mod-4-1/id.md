@@ -42,6 +42,15 @@ Alokasikan waktu sekitar 15 hingga 25 jam secara keseluruhan. Setiap eksekusi pe
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` mencetak `ok` untuk file Parquet dan untuk zone lookup. Pemeriksa mencetak judul `== Step 1: profile the raw data (profile.json)`, satu baris `FAIL  profile.json exists in your workspace` dengan petunjuk singkat, dan `0 passed, 1 failed`. Petunjuk 1 hanya mengarah ke DuckDB (`DESCRIBE`, `SELECT count(*)`): ia mendorong, tidak menjawab. Putaran merah-lalu-hijau inilah cara Anda bekerja selama beberapa jam ke depan.
 
+:::ask Di capstone ini, apa yang dilihat checker untuk menilai pipeline-mu?
+@options
+gaya kodemu dan panjang skripmu
+library mana yang kamu pilih untuk diimpor
+* hanya hasilnya: file, angka, dan perilakunya
+@why
+Kamu mendapat kontrak, data nyata, dan checker. Cara membangunnya terserah kamu (DuckDB atau pandas, satu skrip atau banyak); checker melihat file yang ditulis pipeline-mu, angka di dalamnya, dan perilakunya saat ada yang salah.
+:::
+
 ## @lesson Mengenal datanya
 **NYC Taxi and Limousine Commission (TLC)** menerbitkan setiap rekaman perjalanan taksi kuning sebagai file bulanan berformat Parquet (data publik resmi Kota New York). Kita menggunakan data **Januari 2024**: satu file berukuran sekitar 50 MB yang memuat hampir tiga juta perjalanan dengan 19 kolom. Skrip pemeriksa memverifikasi hash SHA-256 dari file unduhan Anda, sehingga setiap peserta bekerja di atas data biner yang identik.
 
@@ -81,6 +90,43 @@ File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dap
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan pemahaman profiling data mentah Anda cocok 100% dengan standar referensi.
 
+:::drill python Apa yang salah dengan perjalanan ini?
+Data nyata punya perjalanan yang selesai sebelum dimulai. (Latihan pemanasan dengan aturan karangan, bukan kontrak capstone.) Tulis `trip_problem(pickup, dropoff)`: keduanya teks ISO seperti `"2024-01-05 10:00:00"`. Kembalikan `"ends_before_start"` jika dropoff sebelum pickup, `"zero_length"` jika sama persis detiknya, `"over_24h"` jika perjalanan lebih dari 24 jam, selain itu `"ok"`. Periksa masalah dalam urutan itu.
+@starter
+from datetime import datetime
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("trip_problem") ## Definisikan trip_problem(pickup, dropoff).
+trip_problem("2024-01-05 10:00:00", "2024-01-05 10:30:00") == "ok" ## Perjalanan setengah jam yang normal.
+trip_problem("2024-01-05 10:00:00", "2024-01-05 09:00:00") == "ends_before_start" ## Dropoff satu jam sebelum pickup.
+trip_problem("2024-01-05 10:00:00", "2024-01-05 10:00:00") == "zero_length" ## Detik yang sama.
+trip_problem("2024-01-05 10:00:00", "2024-01-06 10:00:01") == "over_24h" ## Lebih satu detik dari sehari.
+trip_problem("2024-01-05 10:00:00", "2024-01-06 10:00:00") == "ok" ## Tepat 24 jam bukan lebih dari 24 jam.
+@hint
+Parse keduanya dengan `datetime.fromisoformat(...)`, kurangkan, lalu bandingkan selisihnya dengan `timedelta(0)` dan `timedelta(hours=24)`.
+@solution
+from datetime import datetime, timedelta
+def trip_problem(pickup, dropoff):
+    delta = datetime.fromisoformat(dropoff) - datetime.fromisoformat(pickup)
+    if delta < timedelta(0):
+        return "ends_before_start"
+    if delta == timedelta(0):
+        return "zero_length"
+    if delta > timedelta(hours=24):
+        return "over_24h"
+    return "ok"
+:::
+
+:::ask File Januari berisi perjalanan dari Desember 2002 dan Februari 2024. Apa yang sebaiknya dilakukan pipeline-mu?
+@options
+* menolaknya dengan alasan, lalu menghitungnya
+diam-diam mengubah tanggalnya menjadi Januari
+menghapusnya tanpa menyimpan catatan apa pun
+@why
+Baris yang melanggar aturan dikarantina dengan alasan, sehingga orang bisa melihatnya lagi nanti. Memperbaikinya diam-diam atau menghapusnya tidak menyisakan apa pun untuk menjelaskan selisih pendapatan berbulan-bulan kemudian.
+:::
+
 ## @lesson Kotak perkakas Anda: DuckDB dan beberapa baris Python
 Pemeriksa tidak membatasi perkakas apa yang Anda pakai. Kami menyarankan **DuckDB**, karena DuckDB dapat membaca Parquet dan CSV secara langsung, memproses jutaan baris dalam hitungan detik di satu laptop (seluruh pipeline referensi selesai dalam waktu sekitar 4 detik), serta mampu menulis berkas Parquet dan file database `.duckdb` yang disyaratkan kontrak. Penjelasan di bawah ini adalah penyegar konsep generik yang diuji langsung pada file ini, bukan jawaban kode utuh. Modul 2.1 membahas DuckDB secara mendalam.
 
@@ -115,6 +161,37 @@ Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `s
 > 🛠 **Coba sendiri (20 menit, Python).** Latih pola satu baris pada file aslinya, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. Dengan DuckDB, cetak: (1) jumlah perjalanan per hari dalam seminggu dengan `isodow(tpep_pickup_datetime)` untuk penjemputan di Januari 2024 saja; (2) berapa baris yang penjemputannya di luar Januari 2024; (3) berapa baris yang waktu turunnya tidak setelah waktu jemput, dengan `date_diff('second', ...)`. Terakhir, pastikan `hash('a', 1) = hash('a', 1)` bernilai benar dan `hash('a', 1) = hash('a', 2)` bernilai salah.
 >
 > **Seharusnya Anda melihat:** (1) Senin sampai Minggu: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` baris di luar Januari; (3) `870` baris yang durasinya nol atau negatif; dan kedua perbandingan hash memberi `True` dan `False`. Masing-masing bisa menjadi aturan di langkah pembersihan Anda: kini Anda tahu seberapa besar setiap masalah sebelum memutuskan apa yang dilakukan terhadapnya.
+
+:::drill python Aturan pertama yang gagal
+Sebuah baris mendapat aturan **pertama** yang dilanggarnya. (Latihan pemanasan dengan aturan karangan.) Tulis `first_failure(row, rules)`: `rules` adalah daftar berurutan pasangan `(name, broken)`, dengan `broken(row)` adalah fungsi yang mengembalikan `True` bila baris melanggar aturan itu. Kembalikan nama aturan pertama yang dilanggar baris, atau `None` jika tidak melanggar satu pun.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("first_failure") ## Definisikan first_failure(row, rules).
+first_failure(5, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) is None ## 5 tidak melanggar aturan mana pun.
+first_failure(-3, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) == "negative" ## Ia melanggar aturan pertama.
+first_failure(0, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) == "zero" ## Ia hanya melanggar aturan kedua.
+first_failure(-1, [("any", lambda r: True), ("negative", lambda r: r < 0)]) == "any" ## Kedua aturan dilanggar: yang pertama menang.
+first_failure(1, []) is None ## Tanpa aturan, tidak ada yang gagal.
+@hint
+Ulangi atas aturan secara berurutan; kembalikan namanya begitu `broken(row)` bernilai benar. Setelah loop, kembalikan `None`.
+@solution
+def first_failure(row, rules):
+    for name, broken in rules:
+        if broken(row):
+            return name
+    return None
+:::
+
+:::ask Di SQL, `CASE WHEN fare < 0 THEN 'negative' WHEN fare = 0 THEN 'zero' ELSE 'ok' END` menerima baris dengan fare = -5. Apa yang dikembalikannya?
+@options
+'negative' dan 'ok', satu untuk tiap cabang cocok
+* 'negative': CASE berhenti di WHEN pertama yang benar
+'ok', karena hanya ELSE yang diperiksa terakhir
+@why
+Ekspresi CASE mengembalikan hasil WHEN pertama yang benar dan tidak lanjut. Begitulah capstone memberi sebuah baris hanya aturan pertama yang dilanggarnya, sehingga tiap baris yang ditolak dihitung sekali.
+:::
 
 ## @lesson Kontrak teknis
 Bagian ini adalah spesifikasi teknis formal. Baca secara menyeluruh sebelum memulai step 2; skrip pemeriksa mengikuti kontrak ini secara persis.
@@ -172,6 +249,35 @@ Kontrak menyatakan apa yang valid. Baris yang tidak bisa dipercaya disisihkan **
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 2`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema data bersih, integritas data karantina, dan rekonsiliasi jumlah baris `rows_in - duplicates = clean + rejected`.
 
+:::drill python Gerbang kualitas
+Sebuah kiriman ditolak jika terlalu banyak bagiannya yang ditolak. (Latihan pemanasan dengan angka karangan.) Tulis `gate_exit_code(total, rejected, max_rate)`: kembalikan `2` (tolak) bila `total` adalah `0`, atau bila `rejected / total` **di atas** `max_rate`; selain itu kembalikan `0`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("gate_exit_code") ## Definisikan gate_exit_code(total, rejected, max_rate).
+gate_exit_code(1000, 12, 0.05) == 0 ## 1,2% ditolak: aman.
+gate_exit_code(1000, 60, 0.05) == 2 ## 6% di atas batas 5%: tolak.
+gate_exit_code(1000, 50, 0.05) == 0 ## Tepat 5% tidak di atas batas.
+gate_exit_code(0, 0, 0.05) == 2 ## Kiriman kosong ditolak (dan tanpa pembagian dengan nol).
+@hint
+Periksa `total == 0` dulu. Lalu bandingkan `rejected / total > max_rate`.
+@solution
+def gate_exit_code(total, rejected, max_rate):
+    if total == 0:
+        return 2
+    return 2 if rejected / total > max_rate else 0
+:::
+
+:::ask Sebuah kiriman ditolak oleh gerbang kualitas (exit code 2). Apa yang harus benar pada folder OUT sesudahnya?
+@options
+berisi file baru setengah jadi untuk keperluan debug
+dikosongkan agar tidak ada yang basi tersisa
+* persis seperti sebelumnya: tak satu byte pun berubah
+@why
+Kiriman yang ditolak tidak boleh mengubah apa pun. Hitung dulu semua yang dibutuhkan keputusan (kolom, jumlah baris, laju penolakan), putuskan, baru mulai menulis, sehingga run yang gagal tidak merusak keluaran yang baik.
+:::
+
 ## @lesson Merancang agar pipeline bertahan di produksi
 Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data gagal, oleh karena itu rancanglah ketahanan ini sejak awal arsitektur.
 
@@ -193,6 +299,24 @@ Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data
 > 3. Jalankan pemeriksaan langkah 3 di terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi pembuatan tabel dimensional, referensi foreign key, dan kesesuaian jumlah baris tabel fakta.
+
+:::ask Mengapa menulis keluaran baru ke folder sementara di samping OUT lalu menukarnya di akhir?
+@options
+* crash tak pernah meninggalkan data separuh lama separuh baru
+folder sementara lebih cepat ditulis daripada yang asli
+ini menghilangkan kebutuhan menangani duplikat
+@why
+Rename hanyalah satu langkah, jadi pembaca melihat keluaran lama yang lengkap atau yang baru yang lengkap. Inilah atomisitas: pipeline tidak pernah memperlihatkan keadaan setengah tertulis.
+:::
+
+:::ask Menjalankan kiriman yang sama dua kali harus memberi hasil sama seperti sekali. Apa rancangan paling sederhana untuk itu?
+@options
+menambahkan baris baru ke apa pun yang sudah ada
+* membangun ulang seluruh keluaran tiap kali
+menyimpan penghitung dan melewati setiap run kedua
+@why
+Jika keluaran adalah fungsi murni dari kiriman, pengulangan tidak bisa menambah apa pun. Append adalah sumber duplikat; membangun ulang dari awal adalah cara termurah untuk idempoten.
+:::
 
 ## @lab Lab: lima langkah menuju pipeline yang dapat dipercaya
 Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, lalu uji dengan skrip pemeriksa setelah menyelesaikan tiap langkah. Pemeriksa akan mengeksekusi pipeline Anda di atas file Januari asli dan beberapa file uji anomali, lalu membandingkannya dengan tolok ukur referensi.

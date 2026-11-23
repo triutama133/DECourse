@@ -48,6 +48,15 @@ Bantuan petunjuk tersedia dalam tiga level bertingkat (`--hint 1`, `2`, `3`). Lu
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. Pemeriksa mencetak `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace`, dan `0 passed, 1 failed`. Petunjuk 1 menyarankan membaca ketujuh file dengan `json` dan `collections`, menghitung lebih dulu, dan melihat baris-baris yang aneh dengan mata. Inbox berisi tujuh file, satu per hari, dan setiap baris adalah satu objek JSON.
 
+:::ask Bagaimana checker melihat DAG-mu?
+@options
+ia membaca file sebagai teks dan menghitung kata kunci
+* ia mengimpor DAG, memeriksanya, lalu menjalankannya
+ia hanya melihat tangkapan layar yang kamu unggah
+@why
+Checker memberi workspace-mu Airflow home pribadi, mengimpor file DAG, memeriksa jadwal, tanggal mulai, tugas, urutan, dan retry, lalu menjalankannya, termasuk kiriman terlambat dan rusak.
+:::
+
 ## @lesson Mengenal data pengiriman
 Setiap hari, tepat satu file pengiriman tiba di folder inbox: mulai dari `jobs_2026-03-01.jsonl` hingga `jobs_2026-03-07.jsonl`. Setiap baris mewakili satu postingan lowongan kerja dalam format objek JSON:
 
@@ -74,6 +83,52 @@ Pertanyaan yang wajib Anda selesaikan sebelum mulai menulis kode (langkah 1 pada
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan profiling kualitas data pengiriman Anda cocok 100% dengan nilai acuan.
 
+:::drill python Mengapa baris ini tak bisa dipakai?
+Tiap file harian berisi satu objek JSON per baris. (Latihan pemanasan pada file sensor karangan, bukan data capstone.) Tulis `line_status(line)`: kembalikan `"invalid_json"` jika baris bukan objek JSON; `"missing_field"` jika `sensor` atau `value` tidak ada atau kosong setelah di-trim; `"bad_date"` jika `day` bukan tanggal ISO `YYYY-MM-DD`; selain itu `"ok"`. Periksa dalam urutan itu.
+@starter
+import json
+from datetime import date
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("line_status") ## Definisikan line_status(line).
+line_status('{"sensor": "a1", "value": "5", "day": "2026-03-01"}') == "ok" ## Baris yang baik.
+line_status('{"sensor": "a1", "val') == "invalid_json" ## Terpotong di tengah.
+line_status('[1, 2]') == "invalid_json" ## JSON valid, tetapi bukan objek.
+line_status('{"sensor": "  ", "value": "5", "day": "2026-03-01"}') == "missing_field" ## Kosong setelah di-trim.
+line_status('{"sensor": "a1", "day": "2026-03-01"}') == "missing_field" ## Tidak ada value sama sekali.
+line_status('{"sensor": "a1", "value": "5", "day": "31/02/2026"}') == "bad_date" ## Bukan tanggal ISO.
+@hint
+`json.loads` di dalam `try`; periksa `isinstance(obj, dict)`; trim teks dengan `str(obj.get(f) or "").strip()`; untuk tanggal pakai `date.fromisoformat(...)` di dalam `try`.
+@solution
+import json
+from datetime import date
+def line_status(line):
+    try:
+        obj = json.loads(line)
+    except ValueError:
+        return "invalid_json"
+    if not isinstance(obj, dict):
+        return "invalid_json"
+    for field in ("sensor", "value"):
+        if not str(obj.get(field) or "").strip():
+            return "missing_field"
+    try:
+        date.fromisoformat(str(obj.get("day")))
+    except ValueError:
+        return "bad_date"
+    return "ok"
+:::
+
+:::ask Kiriman satu hari sebagian besar sampah (kebanyakan baris tak bisa dipakai). Apa yang sebaiknya dilakukan pipeline yang baik pada hari itu?
+@options
+memuat baris yang bisa di-parse dan diam saja
+menghapus semua hari sebelumnya agar konsisten
+* menolaknya dengan jelas dan mengarantina barisnya
+@why
+Kiriman yang kebanyakan tak terpakai biasanya berarti masalah di hulu. Menggagalkan task membuatnya terlihat, baris yang ditolak disimpan untuk diperiksa, dan data baik hari lain tidak tersentuh.
+:::
+
 ## @lesson Airflow dalam lima belas menit
 **Apache Airflow** adalah platform orkestrasi untuk mendefinisikan, menjadwalkan, dan memantau alur kerja data secara terprogram menggunakan bahasa Python. Anda merancang dependensi alur kerja; Airflow mengelola penjadwalannya, mengeksekusi task sesuai urutan, menangani retry otomatis saat terjadi error, mencatat setiap riwayat percobaan eksekusi, serta menyajikan visualisasinya melalui antarmuka web.
 
@@ -96,6 +151,15 @@ Dua prinsip utama yang jauh lebih krusial daripada sekadar operator Airflow: **j
 > 3. Jalankan pemeriksaan langkah 2 di terminal:
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 2`
 > 4. **Indikator Sukses:** Seluruh pemeriksaan konfigurasi DAG berstatus `PASS`, memastikan file DAG diimpor tanpa error dan top-level parsing tuntas dalam tempo cepat.
+
+:::ask Airflow mengimpor file DAG-mu berulang kali. Apa yang cocok berada di tingkat atas file itu?
+@options
+* hanya kode ringan: import dan DAG-nya sendiri
+koneksi database, dibuka sekali untuk semua task
+loop yang membaca seluruh inbox
+@why
+Tingkat atas berjalan setiap kali Airflow mem-parse file, bukan hanya saat task berjalan. Membuka koneksi atau membaca file di sana memperlambat scheduler dan bermasalah aneh; kerjakan itu di dalam task.
+:::
 
 ## @lesson Kontrak arsitektur teknis
 Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis menguji kepatuhan kode Anda terhadap kontrak ini secara ketat.
@@ -132,6 +196,15 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, membuktikan satu hari pemrosesan menghasilkan baris tabel dan metrik mart yang 100% akurat.
 
+:::ask File kiriman hari itu belum tiba saat `extract` berjalan. Apa yang sebaiknya dilakukan task?
+@options
+mengembalikan hasil kosong dan membiarkan run menjadi hijau
+* melempar exception, agar Airflow menunggu dan mencoba ulang
+membuat file kosong agar task berikutnya bisa jalan
+@why
+File yang hilang mungkin hanya terlambat. Melempar membuat Airflow mencoba ulang setelah jeda, dan file yang tiba beberapa detik kemudian terambil. Mengembalikan kosong memberi run hijau dan hari yang kosong.
+:::
+
 ## @lesson Merancang pipeline agar tahan banting
 **Seluruh operasi merupakan fungsi deterministik dari tanggal.** Jika sebuah task menanyakan "hari apa sekarang?" alih-alih "tanggal berapa run ini ditujukan?", menjalankan ulang jadwal masa lalu akan menghasilkan data yang salah. Setiap nama file, filter `WHERE`, dan path output di pipeline ini wajib dibangun berdasarkan parameter `ds`.
 
@@ -161,6 +234,34 @@ Orchestrator menjalankan ulang sesuatu: retry, backfill, clear manual. Setiap ta
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, memverifikasi bahwa rerun berulang kali dan urutan backfill acak tidak pernah melipatgandakan baris data.
 
+:::drill python Ganti harinya, jangan menambah
+Sebuah tabel berisi baris dari banyak hari. Retry tidak boleh menggandakan sebuah hari. Tulis `replace_day(table, ds, new_rows)`: `table` adalah daftar tuple `(day, value)`. Kembalikan daftar baru yang semua baris hari `ds`-nya **dihapus** lalu `new_rows` (daftar nilai) ditambahkan sebagai `(ds, value)`. Baris hari lain tetap seperti semula.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("replace_day") ## Definisikan replace_day(table, ds, new_rows).
+replace_day([], "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## Tabel kosong: hanya baris baru.
+replace_day([("d1", 9)], "d1", [1]) == [("d1", 1)] ## Baris lama d1 diganti, tidak dipertahankan.
+replace_day([("d0", 5), ("d1", 9)], "d1", [1]) == [("d0", 5), ("d1", 1)] ## Hari lain tidak disentuh.
+replace_day(replace_day([], "d1", [1, 2]), "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## Dijalankan dua kali memberi tabel sama: idempoten.
+@hint
+Pertahankan baris yang harinya bukan `ds`: `[r for r in table if r[0] != ds]`, lalu tambahkan `[(ds, v) for v in new_rows]`.
+@solution
+def replace_day(table, ds, new_rows):
+    kept = [row for row in table if row[0] != ds]
+    return kept + [(ds, value) for value in new_rows]
+:::
+
+:::ask Sebuah task bertanya 'tanggal berapa hari ini?' untuk menemukan file masukannya. Mengapa itu merusak run ulang hari-hari lama?
+@options
+tanggal tidak tersedia di dalam task Airflow
+Airflow melarang membaca file apa pun di dalam task
+* run ulang akan membaca file hari ini, bukan hari itu
+@why
+Setiap nama file, klausa WHERE, dan jalur keluaran harus dibangun dari tanggal run (`ds`), bukan dari jam. Maka menjalankan ulang 5 Maret memproses 5 Maret, selambat apa pun kamu menjalankannya.
+:::
+
 ## @lesson Cetak biru tugas teknis take-home 48 jam dan rubrik 10 poin manajer perekrutan
 
 Banyak proses rekrutmen data engineer menyertakan **tugas take-home**, sering dengan batas 48 jam, atau peninjauan repositori proyek (*DataTalksClub Data Engineering Zoomcamp* menilai proyek capstone-nya dengan rubrik peer-review). Peninjau hanya punya sedikit waktu untuk setiap kiriman, jadi mereka memeriksa kebersihan produksi lebih dulu: apakah bisa dijalankan dari clone baru, apakah ada tesnya, apakah aman dijalankan dua kali.
@@ -183,6 +284,15 @@ Sebelum Anda mengumpulkan tugas take-home atau proyek portofolio apa pun, periks
 > 🛠 **Coba sendiri (15 menit, terminal).** Buat repositori yang sengaja lemah: `git init`, `README.md` yang hanya berisi judul, dan `pipeline.py` yang membaca `/Users/budi/Desktop/data.csv` lalu mencetak `done`, dalam satu commit. Jalankan `python3 scripts/verify_portfolio.py proj-1 <folder itu>`. Lalu telusuri sepuluh baris rubrik di atas dan tandai masing-masing: apakah verifier memeriksanya, atau perlu orang yang membaca kodenya?
 >
 > **Seharusnya Anda melihat:** `Not yet: 7 check(s) failed`: kurang dari 3 commit, tidak ada `.gitignore`, tidak ada catatan keputusan di README, tidak ada workflow CI, tidak ada tes untuk kode Anda sendiri, tidak ada alat lakehouse, dan tidak ada dashboard. Baris 6, 7, 8, dan 10 punya pemeriksaan mesin, baris 4 dan 5 sebagian. Baris 1 (apakah berjalan dari clone baru?), 2 (apakah aman dijalankan dua kali?), 3 (ke mana baris rusak pergi?), dan 9 (apa yang dilaporkan sebuah run?) butuh peninjau yang membaca dan menjalankan kode Anda, itulah sebabnya tugas take-home butuh README dan design doc yang menjelaskannya.
+
+:::ask Seorang peninjau punya lima menit untuk proyek take-home-mu. Apa yang diperiksanya lebih dulu?
+@options
+* kebersihan: README, tes, run ulang aman, tanpa rahasia
+seberapa cerdas algoritmenya
+berapa banyak alat yang dipakai stack-nya
+@why
+Peninjau punya sedikit waktu per kiriman, jadi mereka mencari tanda bahwa kamu bisa dipercaya dengan produksi: README yang jelas, tes, run ulang yang aman, dan tidak ada rahasia di repositori.
+:::
 
 ## @lab Lab: lima langkah membangun pipeline produksi harian di Airflow
 Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan mengeksekusi DAG Anda pada file pengiriman riil serta file yang sengaja dirusak, lalu membandingkan isi database warehouse Anda dengan hasil perhitungan independen.

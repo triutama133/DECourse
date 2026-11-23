@@ -55,6 +55,15 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `earthquakes_seed.json` dengan hash yang cocok. Pemeriksa mencetak `--- Step 1: Raw data profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, dan `Summary: 0 passed, 1 failed`; petunjuk 1 menyuruh Anda memuat file seed dengan `json.load()` dan melihat properti serta geometri setiap feature. Tidak lebih: pekerjaannya milik Anda.
 
+:::ask Di capstone ini suite verifikasi 'menyerang' pipeline-mu. Apa yang diperiksanya?
+@options
+apakah kodemu tampak rapi bagi peninjau
+berapa banyak baris yang dimiliki pipeline-mu
+* perilaku teramati: skema, melanjutkan, tanpa duplikat
+@why
+Tidak ada yang menilai gaya. Suite memeriksa hasil: skema DuckDB yang tepat, melanjutkan dengan bersih setelah server memutus koneksi di tengah sinkronisasi, penanganan rate limit, dan hitungan yang cocok.
+:::
+
 ## @lesson Mengenal datanya: USGS Earthquake Hazards API
 **United States Geological Survey (USGS)** mengoperasikan Earthquake Hazards Program yang menyediakan data seismik gempa bumi global secara terbuka (public domain). Endpoint API publik mereka mengembalikan feed berformat GeoJSON:
 `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson`
@@ -99,6 +108,24 @@ GeoJSON Feature Collection
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, memvalidasi ekstraksi profiling data seismik Anda cocok 100% dengan data acuan.
 
+:::drill python Bujur dulu, lalu lintang
+GeoJSON menyimpan koordinat sebagai `[longitude, latitude, depth]`, kebalikan dari cara orang menyebut "lintang, bujur". Tulis `to_event(feature)`: `feature` adalah dictionary seperti `{"id": "x1", "geometry": {"coordinates": [139.2, 37.5, 10.0]}}`. Kembalikan dictionary dengan kunci `id`, `longitude`, `latitude`, dan `depth_km`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("to_event") ## Definisikan to_event(feature).
+to_event({"id": "x1", "geometry": {"coordinates": [139.2, 37.5, 10.0]}}) == {"id": "x1", "longitude": 139.2, "latitude": 37.5, "depth_km": 10.0} ## Posisi 0 adalah longitude, 1 latitude, 2 kedalaman.
+to_event({"id": "y", "geometry": {"coordinates": [-70.0, -33.4, 80.5]}})["latitude"] == -33.4 ## Latitude negatif (belahan selatan).
+to_event({"id": "z", "geometry": {"coordinates": [0, 0, 0]}}) == {"id": "z", "longitude": 0, "latitude": 0, "depth_km": 0} ## Nol adalah nilai yang sah.
+@hint
+`lon, lat, depth = feature["geometry"]["coordinates"]`
+@solution
+def to_event(feature):
+    lon, lat, depth = feature["geometry"]["coordinates"]
+    return {"id": feature["id"], "longitude": lon, "latitude": lat, "depth_km": depth}
+:::
+
 ## @lesson Kontrak ingesti baseline: paginasi, koordinat & penyimpanan DuckDB
 Sebelum menambahkan logika retry atau dead-letter routing, pastikan **kontrak ingesti inti** berjalan rapi dari halaman API ke tabel analitik:
 
@@ -112,6 +139,15 @@ Sebelum menambahkan logika retry atau dead-letter routing, pastikan **kontrak in
 > 3. Jalankan pemeriksaan langkah 2 di terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema tabel DuckDB, rentang koordinat geografis, dan ketepatan paginasi API.
+
+:::ask Bagaimana ingestion dasar tahu ia sudah membaca halaman terakhir?
+@options
+* daftar features yang kembali kosong
+API mencetak kata 'selesai' di akhir
+offset mencapai 1.000 halaman
+@why
+Telusuri dengan limit dan offset berbasis 1, maju sepanjang tiap halaman, sampai sebuah halaman tidak mengembalikan feature. Jangan mengandaikan jumlah halaman: data bisa berubah antar run.
+:::
 
 ## @lesson Checkpointing stateful & penyimpanan tahan crash
 Pipeline inkremental didefinisikan oleh kemampuannya mengekstrak **hanya data baru sejak eksekusi terakhir**, serta melanjutkan proses secara aman setelah proses dihentikan paksa.
@@ -167,6 +203,37 @@ Checkpoint hanya boleh menggambarkan data yang tersimpan dengan aman. Crash di a
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi bahwa pemutusan koneksi soket di tengah jalan tidak merusak watermark dan eksekusi lanjutan menghasilkan nol data hilang serta nol duplikasi.
 
+:::drill python Watermark tidak pernah mundur
+Setelah tiap halaman, pipeline menyimpan waktu `updated` terbesar yang sudah **di-commit**. Tulis `next_watermark(current, updated_values)`: `current` adalah angka tersimpan (atau `None` pada run pertama) dan `updated_values` adalah daftar angka `updated` yang baru di-commit. Kembalikan watermark baru: yang terbesar dari semuanya, tidak pernah lebih rendah dari `current`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("next_watermark") ## Definisikan next_watermark(current, updated_values).
+next_watermark(None, [5, 9, 7]) == 9 ## Run pertama: nilai terbesar.
+next_watermark(10, [5, 9, 7]) == 10 ## Semua nilai lebih lama: watermark tetap 10.
+next_watermark(10, [12, 11]) == 12 ## Data lebih baru memajukannya.
+next_watermark(10, []) == 10 ## Halaman tanpa data baru tidak mengubah apa pun.
+next_watermark(None, []) is None ## Run pertama tanpa data: tetap tanpa watermark.
+@hint
+Taruh `current` (jika bukan `None`) dan semua nilai dalam satu daftar; kembalikan `max(...)`, atau `None` bila daftar kosong.
+@solution
+def next_watermark(current, updated_values):
+    candidates = list(updated_values)
+    if current is not None:
+        candidates.append(current)
+    return max(candidates) if candidates else None
+:::
+
+:::ask Extractor menulis halaman 3 ke file, dan mesin crash sebelum state.json diperbarui. Saat restart ia mengambil ulang halaman 3. Apa yang melindungimu dari duplikat?
+@options
+tidak ada: duplikat tak terhindarkan pada rancangan ini
+* upsert menurut id event, data dulu baru state
+menghapus state.json setelah setiap run
+@why
+Checkpoint ditulis hanya setelah data tersimpan awet, dan penulisan berupa upsert berkunci id event, sehingga halaman yang diputar ulang menggantikan baris yang sama, bukan menambahnya lagi.
+:::
+
 ## @lesson Ketahanan jaringan: Backoff, Jitter & Rate Limits
 Dalam sistem terdistribusi, jaringan pada dasarnya tidak pernah dapat dipercaya 100% (*Fallacies of Distributed Computing #1: Jaringan selalu andal*). Pipeline data produksi wajib bertahan dari gangguan jaringan tanpa perlu bantuan manusia.
 
@@ -216,6 +283,35 @@ menyerah dan langsung menggagalkan run
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 4`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS`, membuktikan pipeline mundur secara tertib saat server mengalami throttling dan server outage.
 
+:::drill python Berapa lama menunggu?
+Setelah gagal, pipeline menunggu sebelum mencoba lagi. Tulis `retry_wait(attempt, base, retry_after)`: `attempt` dihitung dari 0. Jika server mengirim `Retry-After` dalam detik (`retry_after` bukan `None`), tunggu **persis selama itu**. Jika tidak, pakai exponential backoff: `base * 2 ** attempt`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("retry_wait") ## Definisikan retry_wait(attempt, base, retry_after).
+retry_wait(0, 1, None) == 1 ## Tunggu pertama adalah base.
+retry_wait(3, 1, None) == 8 ## 1, 2, 4, 8.
+retry_wait(2, 1, 30) == 30 ## Server meminta 30 detik: patuhi.
+retry_wait(1, 5, None) == 10 ## Base lain: 5, 10, 20...
+@hint
+`if retry_after is not None: return retry_after`, selain itu `return base * 2 ** attempt`.
+@solution
+def retry_wait(attempt, base, retry_after):
+    if retry_after is not None:
+        return retry_after
+    return base * 2 ** attempt
+:::
+
+:::ask Mengapa menambahkan jitter acak kecil (sekitar ±10%) pada waktu tunggu sebelum retry?
+@options
+agar waktu tunggu menjadi lebih pendek rata-rata
+agar server bisa membedakan permintaannya
+* agar worker tidak mencoba ulang bersamaan
+@why
+Tanpa jitter, klien yang gagal bersama akan mencoba ulang bersama dan menghantam server dalam gelombang lagi. Selisih acak kecil menyebarkan mereka.
+:::
+
 ## @lesson Dead-Letter Queue (DLQ) & Backfill Historis
 Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dapat rusak. Jika 1 rekaman dari 10.000 memuat `latitude = 999.0` atau kehilangan ID, apa yang harus dilakukan pipeline Anda?
 - **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama 48 jam sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
@@ -240,6 +336,59 @@ python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/stat
 **Aturan Emas Backfill:** Perintah backfill harus memuat data historis ke dalam warehouse menggunakan aturan upsert yang sama, **TETAPI SAMA SEKALI TIDAK BOLEH MENGUBAH ATAU MENGGESER WATERMARK DI `state.json`!** Jika proses backfill Desember 2023 mengubah `state.json`, eksekusi terjadwal berikutnya akan mengira watermark saat ini berada di bulan Desember 2023 dan menyedot ulang seluruh data berbulan-bulan secara mubazir.
 
 Terakhir, selalu terapkan perhitungan **rekonsiliasi** yang ketat: di akhir setiap sesi sinkronisasi, verifikasi hukum invariansi `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. Jika penjumlahan angka ini tidak cocok, berarti ada baris data yang bocor diam-diam di memori tanpa jejak audit.
+
+:::drill python Arahkan rekaman
+Sebuah rekaman **valid** hanya jika punya `id` tak kosong dan `latitude` antara -90 dan 90 dan `longitude` antara -180 dan 180. Selain itu masuk ke dead-letter queue. Tulis `route(record)`: kembalikan `"valid"` atau `"dlq"`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("route") ## Definisikan route(record).
+route({"id": "a", "latitude": 10.0, "longitude": 20.0}) == "valid" ## Rekaman normal.
+route({"id": "a", "latitude": 999.0, "longitude": 20.0}) == "dlq" ## Latitude di luar rentang.
+route({"id": "", "latitude": 10.0, "longitude": 20.0}) == "dlq" ## Id kosong.
+route({"latitude": 10.0, "longitude": 20.0}) == "dlq" ## Id tidak ada.
+route({"id": "a", "latitude": -90, "longitude": 180}) == "valid" ## Tepi rentang tetap valid.
+@hint
+Pakai `record.get("id")`. Periksa `-90 <= record["latitude"] <= 90` dan hal sama untuk longitude dengan 180; rekaman yang tak punya keduanya juga dlq.
+@solution
+def route(record):
+    if not record.get("id"):
+        return "dlq"
+    lat = record.get("latitude")
+    lon = record.get("longitude")
+    if lat is None or lon is None:
+        return "dlq"
+    if -90 <= lat <= 90 and -180 <= lon <= 180:
+        return "valid"
+    return "dlq"
+:::
+
+:::drill python Apakah hitungannya cocok?
+Di akhir sinkronisasi, setiap rekaman yang diambil harus terhitung. Tulis `reconciles(fetched, valid, dlq)`: kembalikan `True` bila `fetched == valid + dlq`, selain itu `False`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("reconciles") ## Definisikan reconciles(fetched, valid, dlq).
+reconciles(100, 97, 3) == True ## Setiap rekaman terhitung.
+reconciles(100, 97, 2) == False ## Satu rekaman bocor.
+reconciles(0, 0, 0) == True ## Sinkronisasi kosong tidak masalah.
+@hint
+`return fetched == valid + dlq`
+@solution
+def reconciles(fetched, valid, dlq):
+    return fetched == valid + dlq
+:::
+
+:::ask Sebuah backfill memuat rekaman Desember 2023. Apa yang tidak boleh dilakukannya?
+@options
+* memundurkan watermark inkremental di state.json
+memakai aturan upsert yang sama dengan run normal
+menulis rekamannya ke tabel analitik
+@why
+Backfill boleh mengisi riwayat dengan aturan upsert yang sama, tetapi jika ia menulis ulang watermark, run per jam berikutnya akan mengira harus mengambil ulang semuanya sejak Desember.
+:::
 
 ## @lab Lab: lima tahapan membangun pipeline yang dapat diandalkan
 Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi langkah, menggunakan alat pemeriksa setelah setiap tahap. Pemeriksa menjalankan pipeline Anda pada data nyata USGS, menyimulasikan pemutusan koneksi, memicu throttle HTTP 429, menyuntikkan data beracun, dan menguji isolasi backfill.

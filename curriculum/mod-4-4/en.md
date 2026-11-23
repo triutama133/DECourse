@@ -48,6 +48,15 @@ Hints come in three levels (`--hint 1`, `2`, `3`). Try for at least 30 minutes b
 >
 > **You should see:** `fetch_data.py` reports `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. The checker prints `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace` and `0 passed, 1 failed`. Hint 1 suggests reading the seven files with `json` and `collections`, counting first and looking at the odd lines by eye. The inbox holds seven files, one per day, and each line is one JSON object.
 
+:::ask How does the checker see your DAG?
+@options
+it reads the file as text and counts keywords
+* it imports the DAG and inspects it, then runs it
+it only looks at the screenshots you upload
+@why
+The checker gives your workspace a private Airflow home, imports the DAG file, inspects its schedule, start date, tasks, order and retries, then runs it, including late and broken deliveries.
+:::
+
 ## @lesson Meet the deliveries
 Every day one file arrives in the inbox: `jobs_2026-03-01.jsonl` to `jobs_2026-03-07.jsonl`. One line is one posting as a JSON object:
 
@@ -74,6 +83,52 @@ Questions to answer before you write any code (step 1 asks you for nine numbers 
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`
 > 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your delivery profiling matches reference truth.
 
+:::drill python Why is this line unusable?
+Each day's file has one JSON object per line. (A warm-up on a made-up sensor file, not the capstone's own data.) Write `line_status(line)`: return `"invalid_json"` if the line is not a JSON object; `"missing_field"` if `sensor` or `value` is missing or empty after trimming; `"bad_date"` if `day` is not an ISO date `YYYY-MM-DD`; otherwise `"ok"`. Check in that order.
+@starter
+import json
+from datetime import date
+# write your function below this line
+
+@check
+defines("line_status") ## Define line_status(line).
+line_status('{"sensor": "a1", "value": "5", "day": "2026-03-01"}') == "ok" ## A good line.
+line_status('{"sensor": "a1", "val') == "invalid_json" ## Cut in the middle.
+line_status('[1, 2]') == "invalid_json" ## Valid JSON, but not an object.
+line_status('{"sensor": "  ", "value": "5", "day": "2026-03-01"}') == "missing_field" ## Blank after trimming.
+line_status('{"sensor": "a1", "day": "2026-03-01"}') == "missing_field" ## No value at all.
+line_status('{"sensor": "a1", "value": "5", "day": "31/02/2026"}') == "bad_date" ## Not an ISO date.
+@hint
+`json.loads` inside `try`; check `isinstance(obj, dict)`; strip the text with `str(obj.get(f) or "").strip()`; for the date use `date.fromisoformat(...)` inside `try`.
+@solution
+import json
+from datetime import date
+def line_status(line):
+    try:
+        obj = json.loads(line)
+    except ValueError:
+        return "invalid_json"
+    if not isinstance(obj, dict):
+        return "invalid_json"
+    for field in ("sensor", "value"):
+        if not str(obj.get(field) or "").strip():
+            return "missing_field"
+    try:
+        date.fromisoformat(str(obj.get("day")))
+    except ValueError:
+        return "bad_date"
+    return "ok"
+:::
+
+:::ask One day's delivery is mostly garbage (most lines unusable). What should a good pipeline do with that day?
+@options
+load whatever lines parse and say nothing
+delete all earlier days to stay consistent
+* refuse it loudly and quarantine its lines
+@why
+A delivery that is mostly unusable usually means a problem upstream. Failing the task makes it visible, the rejected lines are kept for inspection, and good data from other days is untouched.
+:::
+
 ## @lesson Airflow in fifteen minutes
 **Apache Airflow** runs and watches workflows that you define in Python. You describe the work; Airflow schedules it, runs it in order, retries failures, records every attempt and shows it all in a web page.
 
@@ -96,6 +151,15 @@ Two habits that matter more than any operator: **make every task a function of i
 > 3. Run the step 2 check in terminal:
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 2`
 > 4. **Success Indicator:** All DAG configuration checks report `PASS`, ensuring the DAG file imports cleanly and top-level parsing finishes quickly.
+
+:::ask Airflow imports your DAG file again and again. What belongs at the top level of that file?
+@options
+* light code only: imports and the DAG itself
+a database connection, opened once for all tasks
+a loop that reads the whole inbox
+@why
+The top level runs every time Airflow parses the file, not only when a task runs. Opening connections or reading files there slows the scheduler and breaks in odd ways; do that work inside the tasks.
+:::
 
 ## @lesson The contract
 This lesson is the specification. The checker follows it to the letter.
@@ -132,6 +196,15 @@ This lesson is the specification. The checker follows it to the letter.
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, confirming a single-day run produces 100% accurate warehouse rows and mart metrics.
 
+:::ask The delivery file for the day has not arrived when `extract` runs. What should the task do?
+@options
+return an empty result and let the run turn green
+* raise an exception, so Airflow waits and retries
+create an empty file so the next task can run
+@why
+A missing file may just be late. Raising makes Airflow retry after the delay, and a file that arrives seconds later is picked up. Returning empty would give a green run and an empty day.
+:::
+
 ## @lesson Designing it so that it survives
 **Everything is a function of the date.** If a task asks "what is today?" instead of "which day is this run for?", rerunning an old day gives a wrong answer. Every file name, every `WHERE`, every output path in this pipeline is built from `ds`.
 
@@ -161,6 +234,34 @@ Orchestrators rerun things: retries, backfills, manual clears. Every task must b
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 4`
 > 4. **Success Indicator:** All step 4 checks report `PASS`, verifying repeated reruns and arbitrary backfill execution order never duplicate records.
 
+:::drill python Replace the day, never append
+A table holds rows from many days. A retry must not duplicate a day. Write `replace_day(table, ds, new_rows)`: `table` is a list of `(day, value)` tuples. Return a new list in which every row of day `ds` is **removed** and then the `new_rows` (a list of values) are added as `(ds, value)`. Rows of other days stay as they are.
+@starter
+# write your function below this line
+
+@check
+defines("replace_day") ## Define replace_day(table, ds, new_rows).
+replace_day([], "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## An empty table: just the new rows.
+replace_day([("d1", 9)], "d1", [1]) == [("d1", 1)] ## The old rows of d1 are replaced, not kept.
+replace_day([("d0", 5), ("d1", 9)], "d1", [1]) == [("d0", 5), ("d1", 1)] ## Another day is untouched.
+replace_day(replace_day([], "d1", [1, 2]), "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## Running twice gives the same table: idempotent.
+@hint
+Keep the rows whose day is not `ds`: `[r for r in table if r[0] != ds]`, then add `[(ds, v) for v in new_rows]`.
+@solution
+def replace_day(table, ds, new_rows):
+    kept = [row for row in table if row[0] != ds]
+    return kept + [(ds, value) for value in new_rows]
+:::
+
+:::ask A task asks 'what is today's date?' to find its input file. Why does that break reruns of old days?
+@options
+dates are not available inside Airflow tasks
+Airflow forbids reading any files in a task
+* a rerun would read today's file, not that day's
+@why
+Every file name, WHERE clause and output path must be built from the run's date (`ds`), not from the clock. Then rerunning 5 March processes 5 March, however late you run it.
+:::
+
 ## @lesson The 48-hour take-home assignment blueprint and the 10-point hiring manager rubric
 
 Many data engineering hiring processes include a **take-home assignment**, often with a 48-hour window, or a review of a project repository (the *DataTalksClub Data Engineering Zoomcamp* grades its capstone projects with a peer-review rubric). Reviewers have little time for each submission, so they check production hygiene first: does it run on a fresh clone, is it tested, is it safe to run twice.
@@ -183,6 +284,15 @@ Before you submit any take-home assignment or portfolio project, verify it again
 > 🛠 **Try it (15 min, terminal).** Make a deliberately weak repository: `git init`, a `README.md` with only a title, and a `pipeline.py` that reads `/Users/budi/Desktop/data.csv` and prints `done`, in one commit. Run `python3 scripts/verify_portfolio.py proj-1 <that folder>`. Then go through the ten rubric rows above and mark each one: did the verifier check it, or does it need a person to read the code?
 >
 > **You should see:** `Not yet: 7 check(s) failed`: fewer than 3 commits, no `.gitignore`, no decision record in the README, no CI workflow, no tests of your own code, no lakehouse tools, and no dashboard. Rows 6, 7, 8 and 10 have a machine check, and 4 and 5 partly. Rows 1 (does it run on a fresh clone?), 2 (is it safe to run twice?), 3 (where do bad rows go?) and 9 (what does a run report?) need a reviewer to read and run your code, which is why the take-home needs the README and design doc that explain them.
+
+:::ask A reviewer has five minutes for your take-home project. What do they check first?
+@options
+* hygiene: README, tests, safe reruns, no secrets
+how clever the algorithm is
+how many tools the stack uses
+@why
+Reviewers have little time per submission, so they scan for signs that you can be trusted with production: a clear README, tests, safe reruns and no secrets in the repository.
+:::
 
 ## @lab Lab: five steps to a pipeline Airflow can run every night
 Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your DAG on the real deliveries and on broken ones, and compares the warehouse with answers it computes independently.

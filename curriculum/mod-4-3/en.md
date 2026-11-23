@@ -55,6 +55,15 @@ cp labs/mod-4-3/starter/stream_processor.py ~/fleet/stream_processor.py
 >
 > **You should see:** `fetch_data.py` reports `events_seed.jsonl` with a matching hash. The checker prints `--- Step 1: Raw stream profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, and `Summary: 0 passed, 1 failed`. In the file, the second line already has an earlier `event_time` than the first. That is what the watermark in this capstone has to deal with.
 
+:::ask What does the stream checker verify about out-of-order events?
+@options
+that events are processed in the order they arrived
+* that event-time windows are right despite lateness
+that out-of-order events are all discarded
+@why
+Cellular jitter reorders events, so the checker tests outcomes: correct event-time aggregates, watermarks that never move backward, a dead-letter queue for too-late data, and a clean resume.
+:::
+
 ## @lesson Time semantics: Event time, processing time & out-of-order streams
 In batch processing, time is static: a file contains historical rows from yesterday, and you run a SQL query over the whole dataset. In stream processing, time is continuous and multifaceted. There are three distinct notions of time:
 
@@ -104,6 +113,15 @@ Because mobile devices experience variable network jitter, **346 events in this 
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 1`
 > 4. **Success Indicator:** All 7 metrics report `PASS`, confirming your raw stream profiling matches reference truth.
 
+:::ask A taxi taps its card at 08:02:30, but the event reaches the server at 08:15. With 5-minute windows by event time, where does it belong?
+@options
+in the [08:15, 08:20) window, when the server saw it
+in a new window made just for late events
+* in the [08:00, 08:05) window, when it really happened
+@why
+Event time is when the thing happened. Only grouping by it gives true metrics; grouping by arrival time would show a fake spike at 08:15 and nothing at 08:00.
+:::
+
 ## @lesson Tumbling event-time windows & DuckDB analytical storage
 When a continuous stream arrives, the first structural step is bucketing timestamps into bounded intervals and defining the destination warehouse table.
 
@@ -140,6 +158,33 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 > 3. Run the step 2 check in terminal:
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
 > 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, tumbling window grouping, and aggregate metric emission.
+
+:::drill python Which five-minute window?
+A tumbling window of `size` seconds starts at every multiple of `size`. Write `tumbling_start(ts, size)`: return the start of the window that contains the second `ts`.
+@starter
+# write your function below this line
+
+@check
+defines("tumbling_start") ## Define tumbling_start(ts, size).
+tumbling_start(150, 300) == 0 ## 150 s is inside the first window [0, 300).
+tumbling_start(300, 300) == 300 ## An event exactly on the boundary starts the next window.
+tumbling_start(1704067250, 300) == 1704067200 ## A real Unix timestamp rounds down to the 5-minute mark.
+tumbling_start(59, 60) == 0 ## One-minute windows.
+@hint
+Round `ts` down to a multiple of `size`: `ts - ts % size`, or `ts // size * size`.
+@solution
+def tumbling_start(ts, size):
+    return ts // size * size
+:::
+
+:::ask Why does the windowed_metrics table store both window_start and window_end?
+@options
+* so each row names the time slice it covers
+because the database requires two time columns
+to make the table twice as large
+@why
+A metric is only meaningful with its time slice. Storing both ends makes each row self-describing and makes it easy to check that windows do not overlap or leave gaps.
+:::
 
 ## @lesson Watermarks, allowed lateness & Late-Data DLQ
 If we aggregate by event time, a critical dilemma arises: **how long must the stream processor wait before declaring a window complete and emitting its metrics?**
@@ -192,6 +237,55 @@ Site reliability engineers can monitor DLQ arrival rates, alert when cellular to
 > 3. Run the step 3 check in terminal:
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, proving out-of-order events are absorbed correctly and late events are quarantined cleanly.
+
+:::drill python Move the watermark
+A bounded out-of-orderness watermark trails the newest event by a delay `D`, and **never moves backward**. Write `advance_watermark(w, event_time, delay)`: `w` is the current watermark (or `None` at the start). Return `max(w, event_time - delay)`; when `w` is `None`, return `event_time - delay`.
+@starter
+# write your function below this line
+
+@check
+defines("advance_watermark") ## Define advance_watermark(w, event_time, delay).
+advance_watermark(None, 100, 30) == 70 ## The first event sets the watermark.
+advance_watermark(70, 250, 30) == 220 ## A newer event moves it forward.
+advance_watermark(220, 190, 30) == 220 ## An older (out-of-order) event must not move it backward.
+advance_watermark(220, 250, 30) == 220 ## The same candidate gives the same watermark.
+@hint
+`candidate = event_time - delay`; if `w is None` return it, otherwise `return max(w, candidate)`.
+@solution
+def advance_watermark(w, event_time, delay):
+    candidate = event_time - delay
+    if w is None:
+        return candidate
+    return max(w, candidate)
+:::
+
+:::drill python Too late for its window?
+A tumbling window is **closed** once the watermark has reached its end. An event whose window is closed is too late and goes to the dead-letter queue. Write `is_too_late(event_time, size, watermark)`: return `True` when the event's window end is at or before the watermark.
+@starter
+# write your function below this line
+
+@check
+defines("is_too_late") ## Define is_too_late(event_time, size, watermark).
+is_too_late(150, 300, 100) == False ## The window [0, 300) is still open: the watermark is 100.
+is_too_late(150, 300, 300) == True ## The watermark reached the window's end.
+is_too_late(450, 300, 300) == False ## This event belongs to [300, 600), which is open.
+is_too_late(299, 300, 1000) == True ## A long-closed window.
+@hint
+The window end is `(event_time // size + 1) * size`. Compare it with the watermark: `end <= watermark`.
+@solution
+def is_too_late(event_time, size, watermark):
+    end = (event_time // size + 1) * size
+    return end <= watermark
+:::
+
+:::ask An out-of-order event arrives with a timestamp older than the newest event so far. What happens to the watermark?
+@options
+it moves back to the older timestamp
+* nothing: it only ever moves forward
+it resets to zero and starts again
+@why
+W = max(W_previous, t_event - D), so a smaller candidate changes nothing. If the watermark could go backward, windows already declared complete would reopen.
+:::
 
 ## @lesson Consumer offsets, checkpointing & analytical idempotency
 Streaming engines run continuously for months. Hardware failures, operating system kernel updates, and container restarts are guaranteed occurrences. A robust engine must survive crashes with **exactly-once processing semantics** at the storage layer.
@@ -266,6 +360,15 @@ If you save the offset first and crash while processing, the batch is skipped fo
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 4`
 > 4. **Success Indicator:** All step 4 checks report `PASS`, confirming mid-stream crash recovery resumes without duplicate records or data loss.
 
+:::ask How does a stream processor save its checkpoint so a crash never leaves a half-written file?
+@options
+overwrite offsets.json directly, line by line
+keep the offset only in memory
+* write a .tmp file, then rename it over the old one
+@why
+A rename is atomic: a reader or a recovering process sees either the complete old checkpoint or the complete new one, never a half-flushed buffer.
+:::
+
 ## @lesson Sliding windows (`k_min .. k_max`) & partial eviction
 Real-time streaming architectures also need continuous smoothed metrics over time (e.g., 5-minute moving average fare computed every 60 seconds):
 
@@ -287,6 +390,15 @@ The discrete window indices `k` range from:
 For `L = 300s` and `S = 60s`, an event falls into exactly `(300 / 60) = 5` overlapping windows! Your accumulator logic must update all 5 buckets simultaneously.
 
 - **Sliding windows (a known limitation):** an event is dead-lettered only when *all* of its windows are closed. If some are closed and some still open, the event updates the open ones and the closed windows silently miss it. Real engines count such partial drops in a metric; keep that in mind when you compare sliding results with a batch recount.
+
+:::ask With a 300-second window sliding every 60 seconds, in how many windows does one ordinary event fall?
+@options
+* 5: window size divided by the slide
+1: every event has one timestamp
+300: one for each second of the window
+@why
+An event at time t is in every window starting at a multiple of the slide S with k*S <= t < k*S + L. For L = 300 and S = 60 that is 300 / 60 = 5 windows.
+:::
 
 ## @lab Lab: five steps to a production streaming engine
 Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see the first lesson) and short streams it builds itself, with out-of-order and late events, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
