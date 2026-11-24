@@ -69,6 +69,21 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 
 `NaN` deserves a moment. In pandas a missing number is `NaN` (and a missing date `NaT`), and most aggregations **skip** it: `pd.Series([1, None, 3]).sum()` is 4.0 and `.mean()` is 2.0, not 1.33. That is usually what you want and sometimes a trap: a mean over a column that is 30% missing describes the other 70%. Always know how many are missing when you quote a number.
 
+### Messy Excel workbooks (.xlsx)
+
+Finance and operations teams rarely send tidy CSVs—they email `.xlsx` spreadsheets with a company title in the first three rows, multiple tabs, merged cells and a `"GRAND TOTAL"` footer row at the bottom. Use `pd.read_excel` (installs `openpyxl`) with explicit boundaries:
+
+```python
+budget = pd.read_excel(
+    "monthly_targets.xlsx",
+    sheet_name="Q1_Sales",
+    skiprows=3,
+    dtype={"branch_id": "string"},
+)
+```
+
+Always inspect `budget.head()` **and** `budget.tail()` so a `"TOTAL"` summary row never gets summed together with real branches. Convert `.xlsx` to Parquet once at the ingestion boundary so downstream jobs never parse spreadsheets again.
+
 :::ask A customer id is `00042` in the customer table. You read the orders file with the default `pd.read_csv` (no `dtype`). What does the id look like in `orders`?
 @options
 `"00042"`: pandas keeps it exactly as written
@@ -112,6 +127,63 @@ Cleaning is a short list of repeated moves. Each has a vectorised form:
 **Do not chain assignments.** `df[df["a"] > 1]["b"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df["b"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).
 
 A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure function from one frame to another, can be tested with a five-row frame, run again on tomorrow's file, and read by a colleague. A notebook with forty cells that must run in the right order cannot.
+
+### Time zones and time-series resampling
+
+**Why:** an app server logs a Jakarta checkout at `"2026-01-31 18:30:00"` in **UTC** (universal time). In **WIB (`UTC+7`, `Asia/Jakarta`)** that order happened at `"2026-02-01 01:30:00"`—**February**, not January. Treating UTC timestamps as local dates silently shifts late-night orders into the wrong month and breaks finance reconciliation.
+
+Two rules prevent almost every time-zone bug:
+1. **Store timestamps in UTC internally (`utc=True`),** and convert to the business **time zone** (`dt.tz_convert("Asia/Jakarta")`) only when bucketing into business days or reporting. If an incoming timestamp has no time zone attached (**naive**), attach its known source zone first with `dt.tz_localize("UTC")` (never guess).
+2. **Use `resample` for continuous time series:** a plain `groupby("date")` silently skips days with zero orders. Setting the timestamp as the index and running `df.set_index("order_ts").resample("D")["revenue_idr"].sum().fillna(0)` (**resampling**) guarantees one row for every calendar day (and works equally for hourly `"h"` or weekly `"W"` buckets).
+
+Watch how a UTC timestamp crosses midnight into the next calendar day in WIB:
+
+:::trace UTC midnight becomes tomorrow in WIB
+@code
+from datetime import datetime, timedelta, timezone
+
+wib = timezone(timedelta(hours=7))
+utc_ts = datetime(2026, 1, 31, 18, 30, tzinfo=timezone.utc)
+wib_ts = utc_ts.astimezone(wib)
+print(utc_ts.date(), "->", wib_ts.date())
+@notes
+3 | WIB (`Asia/Jakarta`) is fixed at `UTC+7` (no daylight saving changes).
+4 | The server recorded this order in UTC on 31 January at 18:30.
+5 | Converting to WIB shifts the clock forward 7 hours to `2026-02-01 01:30`.
+6 | The UTC date is January, but the Indonesian business date is already February!
+:::
+
+:::ask An order is logged at `2026-01-31 18:00:00 UTC`. Which business date in WIB (`UTC+7`) does it belong to?
+@options
+`2026-01-31`: the calendar date never changes
+* `2026-02-01`: adding 7 hours crosses midnight
+`2026-01-30`: WIB is seven hours behind UTC
+@why
+WIB (`Asia/Jakarta`) is `UTC+7`. Adding 7 hours to `18:00` on 31 January gives `01:00` on **1 February** (`2026-02-01`). Storing UTC and converting explicitly avoids month-end finance mismatches.
+:::
+
+:::drill python Convert a UTC timestamp to a WIB business date
+Write `wib_date(iso_utc)`: `iso_utc` is an ISO timestamp string in UTC such as `"2026-01-31T18:30:00Z"` or `"2026-01-31T10:00:00+00:00"`. Convert it to WIB (`UTC+7`) and return its date as `"YYYY-MM-DD"`.
+@starter
+from datetime import datetime, timedelta, timezone
+
+# write your function below this line
+
+@check
+defines("wib_date") ## Define wib_date(iso_utc).
+wib_date("2026-01-31T18:30:00Z") == "2026-02-01" ## 18:30 UTC + 7 hours crosses into February 1 in WIB.
+wib_date("2026-01-31T10:00:00+00:00") == "2026-01-31" ## 10:00 UTC + 7 hours is 17:00 WIB on the same day.
+wib_date("2026-03-01T17:00:00Z") == "2026-03-02" ## Exactly 17:00 UTC is midnight (00:00) the next day in WIB.
+@hint
+Replace `"Z"` with `"+00:00"`, parse with `datetime.fromisoformat(...)`, call `.astimezone(timezone(timedelta(hours=7)))`, and format with `.strftime("%Y-%m-%d")`.
+@solution
+from datetime import datetime, timedelta, timezone
+
+def wib_date(iso_utc):
+    dt = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+    wib = timezone(timedelta(hours=7))
+    return dt.astimezone(wib).strftime("%Y-%m-%d")
+:::
 
 :::ask What happens to `df[df["a"] > 1]["b"] = 9`?
 @options
@@ -157,6 +229,41 @@ df.groupby("country", as_index=False).agg(
 Each keyword becomes an output column, defined as `(column, function)`. Notice `nunique`: it is `COUNT(DISTINCT order_id)`. `count` counts non-missing values and `size` counts rows; they differ when there are missing values, so choose on purpose. `as_index=False` keeps the group key as a normal column, which is easier to merge, test and write out later.
 
 **Pivot tables** turn one column's values into columns: revenue by month (rows) and country (columns). `pivot_table(index=..., columns=..., values=..., aggfunc="sum", fill_value=0)` does it. The `fill_value=0` matters: a month with no sales in a country would otherwise be `NaN`, which charts and later sums treat differently from zero. Is "no sales" a zero or an unknown? Decide, then write it down.
+
+### Unpivoting wide tables: pd.melt()
+
+**Why:** spreadsheets made for humans often arrive **wide**: one column per month (`branch | Jan | Feb | Mar`). SQL and dbt cannot easily filter or sum across months when every month is a separate column name. **`melt`** (**unpivot**) does the exact reverse of `pivot_table`, turning wide columns back into tidy long rows (`branch | month | revenue_idr`):
+
+```python
+long_df = pd.melt(
+    wide_df,
+    id_vars=["branch"],
+    var_name="month",
+    value_name="revenue_idr",
+)
+```
+
+:::drill python Unpivot a wide spreadsheet
+This is what `pd.melt()` does under the hood. Write `unpivot(rows, id_col)`: `rows` is a list of wide dictionaries (every key other than `id_col` is a month column). Return a list of long dictionaries `{id_col: ..., "month": ..., "value": ...}` keeping the input order.
+@starter
+# write your function below this line
+
+@check
+defines("unpivot") ## Define unpivot(rows, id_col).
+unpivot([{"branch": "JKT", "Jan": 10, "Feb": 20}], "branch") == [{"branch": "JKT", "month": "Jan", "value": 10}, {"branch": "JKT", "month": "Feb", "value": 20}] ## One wide row becomes one long row per month column.
+unpivot([{"store": "BDG", "Q1": 5}], "store") == [{"store": "BDG", "month": "Q1", "value": 5}] ## Works with any id_col name.
+unpivot([], "branch") == [] ## Empty input returns an empty list.
+@hint
+Loop over each `row` in `rows`, then over `k, v` in `row.items()`; whenever `k != id_col`, append `{id_col: row[id_col], "month": k, "value": v}`.
+@solution
+def unpivot(rows, id_col):
+    out = []
+    for row in rows:
+        for k, v in row.items():
+            if k != id_col:
+                out.append({id_col: row[id_col], "month": k, "value": v})
+    return out
+:::
 
 **Windows without a window function.** SQL's `ROW_NUMBER`, running totals and `LAG` have direct equivalents once you sort and group:
 

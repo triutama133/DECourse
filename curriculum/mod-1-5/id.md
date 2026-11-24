@@ -69,6 +69,21 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 
 `NaN` perlu dibahas sebentar. Di pandas angka kosong adalah `NaN` (dan tanggal kosong `NaT`), dan sebagian besar agregasi **melewatinya**: `pd.Series([1, None, 3]).sum()` adalah 4.0 dan `.mean()` adalah 2.0, bukan 1.33. Biasanya itu yang Anda inginkan dan kadang jebakan: rata-rata atas kolom yang 30% kosong menggambarkan 70% sisanya. Selalu tahu berapa banyak yang kosong ketika Anda menyebut sebuah angka.
 
+### File Excel berantakan (.xlsx)
+
+Tim keuangan dan operasional jarang mengirim CSV yang rapi—mereka mengirim file `.xlsx` dengan judul perusahaan di tiga baris pertama, banyak tab, sel yang digabung (*merged cells*), dan baris penutup `"GRAND TOTAL"` di paling bawah. Pakai `pd.read_excel` (membutuhkan paket `openpyxl`) dengan batas yang eksplisit:
+
+```python
+budget = pd.read_excel(
+    "monthly_targets.xlsx",
+    sheet_name="Q1_Sales",
+    skiprows=3,
+    dtype={"branch_id": "string"},
+)
+```
+
+Selalu periksa `budget.head()` **dan** `budget.tail()` agar baris ringkasan `"TOTAL"` tidak ikut dijumlahkan bersama cabang asli. Ubah `.xlsx` ke Parquet sekali saja di gerbang ingesti agar pipeline hilir tidak pernah membaca spreadsheet lagi.
+
 :::ask Sebuah id pelanggan adalah `00042` di tabel pelanggan. Anda membaca file pesanan dengan `pd.read_csv` bawaan (tanpa `dtype`). Seperti apa id itu di `orders`?
 @options
 `"00042"`: pandas menyimpannya persis seperti tertulis
@@ -112,6 +127,63 @@ Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bent
 **Jangan merantai assignment.** `df[df["a"] > 1]["b"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df["b"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).
 
 Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> clean`, fungsi murni dari satu frame ke frame lain, bisa diuji dengan frame lima baris, dijalankan lagi pada file besok, dan dibaca rekan kerja. Notebook dengan empat puluh sel yang harus dijalankan dalam urutan yang benar tidak bisa.
+
+### Zona waktu dan resampling deret waktu
+
+**Mengapa:** server aplikasi mencatat pesanan kopi Jakarta pada `"2026-01-31 18:30:00"` dalam **UTC** (waktu universal). Dalam **WIB (`UTC+7`, `Asia/Jakarta`)**, pesanan itu terjadi pada `"2026-02-01 01:30:00"`—**Februari**, bukan Januari. Memperlakukan timestamp UTC sebagai tanggal lokal diam-diam menggeser pesanan malam ke bulan yang salah dan merusak rekonsiliasi keuangan.
+
+Dua aturan mencegah hampir semua bug zona waktu:
+1. **Simpan timestamp dalam UTC di dalam sistem (`utc=True`),** lalu ubah ke **zona waktu** bisnis (`dt.tz_convert("Asia/Jakarta")`) hanya saat mengelompokkan hari bisnis atau pelaporan. Jika timestamp masuk belum punya zona waktu (**naive**), pasang zona sumber aslinya dulu dengan `dt.tz_localize("UTC")` (jangan menebak).
+2. **Pakai `resample` untuk deret waktu berkesinambungan:** `groupby("date")` biasa diam-diam melewati hari tanpa pesanan. Menjadikan timestamp sebagai index lalu menjalankan `df.set_index("order_ts").resample("D")["revenue_idr"].sum().fillna(0)` (**resampling**) menjamin satu baris untuk setiap hari kalender (dan berlaku juga untuk per jam `"h"` atau per minggu `"W"`).
+
+Lihat bagaimana timestamp UTC melewati tengah malam ke hari berikutnya di WIB:
+
+:::trace Tengah malam UTC menjadi besok di WIB
+@code
+from datetime import datetime, timedelta, timezone
+
+wib = timezone(timedelta(hours=7))
+utc_ts = datetime(2026, 1, 31, 18, 30, tzinfo=timezone.utc)
+wib_ts = utc_ts.astimezone(wib)
+print(utc_ts.date(), "->", wib_ts.date())
+@notes
+3 | WIB (`Asia/Jakarta`) tetap di `UTC+7` (tanpa pergantian daylight saving).
+4 | Server mencatat pesanan ini dalam UTC pada 31 Januari pukul 18:30.
+5 | Konversi ke WIB memajukan jam 7 jam ke `2026-02-01 01:30`.
+6 | Tanggal UTC masih Januari, tetapi tanggal bisnis Indonesia sudah Februari!
+:::
+
+:::ask Sebuah pesanan dicatat pada `2026-01-31 18:00:00 UTC`. Tanggal bisnis WIB (`UTC+7`) manakah yang benar?
+@options
+`2026-01-31`: tanggal kalender tidak pernah berubah
+* `2026-02-01`: menambah 7 jam melewati tengah malam
+`2026-01-30`: WIB tertinggal tujuh jam dari UTC
+@why
+WIB (`Asia/Jakarta`) adalah `UTC+7`. Menambah 7 jam pada pukul `18:00` tanggal 31 Januari menghasilkan `01:00` tanggal **1 Februari** (`2026-02-01`). Menyimpan UTC lalu mengonversi secara eksplisit menghindari selisih tutup buku akhir bulan.
+:::
+
+:::drill python Ubah timestamp UTC menjadi tanggal bisnis WIB
+Tulis `wib_date(iso_utc)`: `iso_utc` adalah string timestamp ISO dalam UTC seperti `"2026-01-31T18:30:00Z"` atau `"2026-01-31T10:00:00+00:00"`. Ubah ke WIB (`UTC+7`) dan kembalikan tanggalnya dalam format `"YYYY-MM-DD"`.
+@starter
+from datetime import datetime, timedelta, timezone
+
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("wib_date") ## Definisikan wib_date(iso_utc).
+wib_date("2026-01-31T18:30:00Z") == "2026-02-01" ## 18:30 UTC + 7 jam melewati tengah malam ke 1 Februari WIB.
+wib_date("2026-01-31T10:00:00+00:00") == "2026-01-31" ## 10:00 UTC + 7 jam adalah 17:00 WIB di hari yang sama.
+wib_date("2026-03-01T17:00:00Z") == "2026-03-02" ## Tepat 17:00 UTC adalah pukul 00:00 hari berikutnya di WIB.
+@hint
+Ganti `"Z"` dengan `"+00:00"`, parse dengan `datetime.fromisoformat(...)`, panggil `.astimezone(timezone(timedelta(hours=7)))`, lalu format dengan `.strftime("%Y-%m-%d")`.
+@solution
+from datetime import datetime, timedelta, timezone
+
+def wib_date(iso_utc):
+    dt = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+    wib = timezone(timedelta(hours=7))
+    return dt.astimezone(wib).strftime("%Y-%m-%d")
+:::
 
 :::ask Apa yang terjadi pada `df[df["a"] > 1]["b"] = 9`?
 @options
@@ -157,6 +229,41 @@ df.groupby("country", as_index=False).agg(
 Setiap keyword menjadi kolom keluaran, didefinisikan sebagai `(kolom, fungsi)`. Perhatikan `nunique`: itu adalah `COUNT(DISTINCT order_id)`. `count` menghitung nilai yang tidak kosong dan `size` menghitung baris; keduanya berbeda ketika ada nilai kosong, jadi pilih dengan sengaja. `as_index=False` menjaga kunci kelompok sebagai kolom biasa, yang lebih mudah di-merge, diuji, dan ditulis nanti.
 
 **Pivot table** mengubah nilai satu kolom menjadi kolom: omset per bulan (baris) dan negara (kolom). `pivot_table(index=..., columns=..., values=..., aggfunc="sum", fill_value=0)` melakukannya. `fill_value=0` penting: bulan tanpa penjualan di suatu negara akan menjadi `NaN`, yang diperlakukan grafik dan penjumlahan berikutnya berbeda dari nol. Apakah "tidak ada penjualan" itu nol atau tidak diketahui? Putuskan, lalu tuliskan.
+
+### Membongkar tabel lebar (unpivot): pd.melt()
+
+**Mengapa:** spreadsheet buatan manusia sering datang dalam bentuk **lebar** (*wide*): satu kolom per bulan (`branch | Jan | Feb | Mar`). SQL dan dbt sulit menyaring atau menjumlahkan lintas bulan jika setiap bulan adalah nama kolom terpisah. **`melt`** (**unpivot**) melakukan kebalikan persis dari `pivot_table`, mengubah kolom lebar kembali menjadi baris panjang rapi (`branch | month | revenue_idr`):
+
+```python
+long_df = pd.melt(
+    wide_df,
+    id_vars=["branch"],
+    var_name="month",
+    value_name="revenue_idr",
+)
+```
+
+:::drill python Unpivot spreadsheet lebar
+Inilah yang dilakukan `pd.melt()` di balik layar. Tulis `unpivot(rows, id_col)`: `rows` adalah daftar dictionary lebar (setiap key selain `id_col` adalah kolom bulan). Kembalikan list berisi dictionary panjang `{id_col: ..., "month": ..., "value": ...}` sesuai urutan masukan.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("unpivot") ## Definisikan unpivot(rows, id_col).
+unpivot([{"branch": "JKT", "Jan": 10, "Feb": 20}], "branch") == [{"branch": "JKT", "month": "Jan", "value": 10}, {"branch": "JKT", "month": "Feb", "value": 20}] ## Satu baris lebar menjadi satu baris panjang per kolom bulan.
+unpivot([{"store": "BDG", "Q1": 5}], "store") == [{"store": "BDG", "month": "Q1", "value": 5}] ## Berlaku untuk nama id_col apa pun.
+unpivot([], "branch") == [] ## Masukan kosong mengembalikan list kosong.
+@hint
+Ulangi tiap `row` di `rows`, lalu tiap `k, v` di `row.items()`; setiap kali `k != id_col`, tambahkan `{id_col: row[id_col], "month": k, "value": v}`.
+@solution
+def unpivot(rows, id_col):
+    out = []
+    for row in rows:
+        for k, v in row.items():
+            if k != id_col:
+                out.append({id_col: row[id_col], "month": k, "value": v})
+    return out
+:::
 
 **Window tanpa fungsi window.** `ROW_NUMBER`, total berjalan, dan `LAG` di SQL punya padanan langsung setelah Anda mengurutkan dan mengelompokkan:
 

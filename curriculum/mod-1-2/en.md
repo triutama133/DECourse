@@ -570,6 +570,77 @@ never: lax mode is always the safe choice to use
 CSV has only text, so lax coercion ('150000' becomes 150000) is what you want. A JSON API already has numbers, so a string there means something upstream broke, and strict mode refuses it.
 :::
 
+### Pattern matching for messy text: regular expressions (regex)
+
+**Why:** real text columns are rarely tidy. Indonesian salaries arrive as `"Rp 8.000.000 - 12.000.000/Bulan"`, order notes hide codes like `"Paid ORD-2026-0042 today"`, and phone numbers mix spaces, dashes and `+62`. Chaining ten `.replace()` calls breaks the moment a new character appears. A **regular expression** (**regex**) describes the *shape* of the text you want instead of listing every exact character.
+
+A handful of building blocks is enough to read and write most data-engineering regexes (always write Python patterns as raw strings `r"..."` so backslashes stay untouched):
+
+| Symbol | Meaning | Example |
+|---|---|---|
+| `\d` | any single digit `0–9` | `r"\d+"` matches `"150000"` |
+| `\w` | any letter, digit or `_` | `r"\w+"` matches `"kopi_susu"` |
+| `\s` | any whitespace (space, tab, newline) | `r"\s+"` collapses extra spaces |
+| `+`, `*`, `?` | one or more, zero or more, optional (0 or 1) | `r"Rp\s*"` matches `"Rp"` and `"Rp "` |
+| `[...]` / `[^...]` | any character in set / **not** in set | `r"[^0-9]"` matches every non-digit |
+| `^` and `$` | start and end of the text | `r"^ORD-\d+$"` validates a full code |
+| `(...)` | capture group: extract just the inner piece | `r"ORD-(\d+)"` captures `"42"` |
+
+Three functions in Python's built-in `re` module do almost all the work:
+- `re.search(pattern, text)` finds the **first** match (returns a match object or `None`).
+- `re.findall(pattern, text)` returns a **list** of every match.
+- `re.sub(pattern, replacement, text)` replaces every match (SQL warehouses offer the same idea as `REGEXP_REPLACE`).
+
+Watch `re.sub` and `re.findall` clean messy text step by step:
+
+:::trace Clean and extract with regex
+@code
+import re
+
+raw_price = "Rp 8.500.000/bln"
+digits_only = re.sub(r"[^0-9]", "", raw_price)
+amount = int(digits_only)
+
+note = "Batch: ORD-104 and ORD-209"
+codes = re.findall(r"ORD-\d+", note)
+print(amount, codes)
+@notes
+4 | `[^0-9]` matches anything that is **not** a digit (`Rp`, spaces, dots, `/bln`), and `re.sub` removes them all.
+5 | Now `"8500000"` converts cleanly to an `int`.
+8 | `re.findall` scans the whole string and collects every `ORD-` followed by one or more digits.
+:::
+
+:::ask What does `re.findall(r"\d", "ORD-42")` return?
+@options
+* `['4', '2']`: `\d` matches one digit at a time
+`['42']`: `\d` always groups adjacent digits together
+`['ORD-42']`: `\d` matches the whole code string
+@why
+Without `+`, `\d` matches a **single** digit, so `"42"` becomes two matches `['4', '2']`. Add `+` (`r"\d+"`) to match one or more consecutive digits as `['42']`.
+:::
+
+:::drill python Extract order codes with regex
+Write `extract_codes(text)`: return a list of every order code matching `ORD-` followed by one or more digits (for example `"ORD-104"`). Use Python's `re` module.
+@starter
+import re
+
+# write your function below this line
+
+@check
+defines("extract_codes") ## Define extract_codes(text).
+calls("findall") ## Use re.findall(pattern, text).
+extract_codes("Paid ORD-104 and ORD-209 today") == ["ORD-104", "ORD-209"] ## Both codes should be extracted in order.
+extract_codes("No orders here") == [] ## No match returns an empty list.
+extract_codes("ORD-7! and ORD-9999.") == ["ORD-7", "ORD-9999"] ## Works with any number of digits and punctuation nearby.
+@hint
+`re.findall(r"ORD-\d+", text)` finds every occurrence of `ORD-` followed by one or more digits.
+@solution
+import re
+
+def extract_codes(text):
+    return re.findall(r"ORD-\d+", text)
+:::
+
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
 
@@ -959,7 +1030,7 @@ a test that loops until it finally passes
 
 **Automate the boring checks.** A formatter and linter (`ruff` does both) end style debates and catch real mistakes (unused variables, undefined names). A type checker (`mypy`, `pyright`) catches wrong-type bugs. Run them with your tests in CI, and optionally on each commit with `pre-commit`.
 
-**Performance in one paragraph.** CPython runs one thread of Python bytecode at a time (the **GIL**), so threads help for *waiting* work (many network calls, disk reads) but not for CPU-heavy work; for that use multiple processes (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) or, better, a vectorised engine. Measure before optimising (`cProfile`, or just timing): the slow part is rarely where you guess.
+**Performance in one paragraph.** CPython runs one thread of Python bytecode at a time (the **GIL**), so threads help for *waiting* work (many network calls, disk reads) but not for CPU-heavy work; for that use multiple processes (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) or, better, a vectorised engine. Measure before optimising—the slow part is rarely where you guess. Use `tracemalloc` (Lesson 5) for RAM, `timeit` for one function, and `python3 -m cProfile -s cumtime job.py` in your terminal to rank every function by cumulative CPU time before touching any code.
 
 **Choosing the right tool.** Plain Python is excellent for glue: calling APIs, validating records, moving and reshaping data of moderate size, orchestrating other tools. For **heavy aggregation, joins and analytics on large data**, SQL engines (DuckDB, Module 2.1; a warehouse, Module 2.3) and dataframe engines (Polars, Spark) are far faster and use memory far better than hand-written loops. A good data engineer writes the validation and plumbing in Python and pushes the heavy computation to the engine built for it.
 

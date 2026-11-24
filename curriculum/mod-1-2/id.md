@@ -570,6 +570,77 @@ tidak pernah: mode lax selalu pilihan yang aman dipakai
 CSV hanya berisi teks, jadi koersi lax ('150000' menjadi 150000) memang yang kamu mau. JSON API sudah punya angka, jadi string di sana berarti ada yang rusak di hulu, dan mode strict menolaknya.
 :::
 
+### Mencocokkan pola teks berantakan: regular expression (regex)
+
+**Mengapa:** kolom teks nyata jarang rapi. Gaji di Indonesia datang sebagai `"Rp 8.000.000 - 12.000.000/Bulan"`, catatan pesanan menyelipkan kode seperti `"Paid ORD-2026-0042 today"`, dan nomor telepon mencampur spasi, strip, serta `+62`. Merantai sepuluh `.replace()` langsung patah saat muncul karakter baru. **Regular expression** (**regex**) menggambarkan *bentuk* teks yang Anda cari alih-alih mendaftar tiap karakter persisnya.
+
+Segelintir balok dasar sudah cukup untuk membaca dan menulis sebagian besar regex data engineering (selalu tulis pola Python sebagai raw string `r"..."` agar garis miring terbalik tetap utuh):
+
+| Simbol | Arti | Contoh |
+|---|---|---|
+| `\d` | satu angka `0–9` | `r"\d+"` cocok dengan `"150000"` |
+| `\w` | satu huruf, angka, atau `_` | `r"\w+"` cocok dengan `"kopi_susu"` |
+| `\s` | spasi, tab, atau baris baru | `r"\s+"` merapikan spasi ganda |
+| `+`, `*`, `?` | satu atau lebih, nol atau lebih, opsional (0/1) | `r"Rp\s*"` cocok dengan `"Rp"` dan `"Rp "` |
+| `[...]` / `[^...]` | karakter dalam himpunan / **bukan** dalam himpunan | `r"[^0-9]"` cocok dengan tiap non-angka |
+| `^` dan `$` | awal dan akhir teks | `r"^ORD-\d+$"` memvalidasi kode penuh |
+| `(...)` | grup tangkap: ambil bagian dalamnya saja | `r"ORD-(\d+)"` menangkap `"42"` |
+
+Tiga fungsi pada modul bawaan `re` mengerjakan hampir semuanya:
+- `re.search(pattern, text)` mencari kecocokan **pertama** (mengembalikan objek match atau `None`).
+- `re.findall(pattern, text)` mengembalikan **list** berisi semua kecocokan.
+- `re.sub(pattern, replacement, text)` mengganti setiap kecocokan (di SQL warehouse padanannya adalah `REGEXP_REPLACE`).
+
+Lihat `re.sub` dan `re.findall` membersihkan teks berantakan langkah demi langkah:
+
+:::trace Bersihkan dan ekstrak dengan regex
+@code
+import re
+
+raw_price = "Rp 8.500.000/bln"
+digits_only = re.sub(r"[^0-9]", "", raw_price)
+amount = int(digits_only)
+
+note = "Batch: ORD-104 and ORD-209"
+codes = re.findall(r"ORD-\d+", note)
+print(amount, codes)
+@notes
+4 | `[^0-9]` cocok dengan apa pun yang **bukan** angka (`Rp`, spasi, titik, `/bln`), lalu `re.sub` menghapus semuanya.
+5 | Sekarang `"8500000"` berubah bersih menjadi `int`.
+8 | `re.findall` memindai seluruh teks dan mengumpulkan setiap `ORD-` yang diikuti satu atau lebih angka.
+:::
+
+:::ask Apa yang dikembalikan `re.findall(r"\d", "ORD-42")`?
+@options
+* `['4', '2']`: `\d` mencocokkan satu angka sekali waktu
+`['42']`: `\d` selalu menggabungkan angka bersebelahan
+`['ORD-42']`: `\d` mencocokkan seluruh kode pesanan
+@why
+Tanpa `+`, `\d` hanya mencocokkan **satu** angka, jadi `"42"` menjadi dua kecocokan `['4', '2']`. Tambahkan `+` (`r"\d+"`) untuk mencocokkan satu atau lebih angka berurutan sebagai `['42']`.
+:::
+
+:::drill python Ekstrak kode pesanan dengan regex
+Tulis `extract_codes(text)`: kembalikan list berisi setiap kode pesanan yang cocok dengan `ORD-` diikuti satu atau lebih angka (misalnya `"ORD-104"`). Pakai modul `re` bawaan Python.
+@starter
+import re
+
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("extract_codes") ## Definisikan extract_codes(text).
+calls("findall") ## Pakai re.findall(pattern, text).
+extract_codes("Paid ORD-104 and ORD-209 today") == ["ORD-104", "ORD-209"] ## Kedua kode harus diekstrak berurutan.
+extract_codes("No orders here") == [] ## Tanpa kecocokan mengembalikan list kosong.
+extract_codes("ORD-7! and ORD-9999.") == ["ORD-7", "ORD-9999"] ## Berlaku untuk panjang angka berapa pun dan tanda baca di sekitarnya.
+@hint
+`re.findall(r"ORD-\d+", text)` menemukan setiap kemunculan `ORD-` diikuti satu atau lebih angka.
+@solution
+import re
+
+def extract_codes(text):
+    return re.findall(r"ORD-\d+", text)
+:::
+
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
 
@@ -959,7 +1030,7 @@ tes yang berulang sampai akhirnya berhasil lolos
 
 **Otomatisasi pemeriksaan yang membosankan.** Formatter dan linter (`ruff` melakukan keduanya) mengakhiri debat gaya dan menangkap kesalahan nyata (variabel tak terpakai, nama tak terdefinisi). Pemeriksa tipe (`mypy`, `pyright`) menangkap bug salah tipe. Jalankan bersama tes Anda di CI, dan opsional di setiap commit dengan `pre-commit`.
 
-**Performa dalam satu paragraf.** CPython menjalankan satu thread bytecode Python sekali waktu (**GIL**), sehingga thread membantu untuk pekerjaan *menunggu* (banyak panggilan jaringan, pembacaan disk) tetapi tidak untuk pekerjaan berat CPU; untuk itu pakai banyak proses (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) atau, lebih baik, engine tervektorisasi. Ukur sebelum mengoptimalkan (`cProfile`, atau sekadar pengukuran waktu): bagian yang lambat jarang berada di tempat yang Anda tebak.
+**Performa dalam satu paragraf.** CPython menjalankan satu thread bytecode Python sekali waktu (**GIL**), sehingga thread membantu untuk pekerjaan *menunggu* (banyak panggilan jaringan, pembacaan disk) tetapi tidak untuk pekerjaan berat CPU; untuk itu pakai banyak proses (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) atau, lebih baik, engine tervektorisasi. Ukur sebelum mengoptimalkan—bagian yang lambat jarang berada di tempat yang Anda tebak. Pakai `tracemalloc` (Pelajaran 5) untuk RAM, `timeit` untuk satu fungsi, dan `python3 -m cProfile -s cumtime job.py` di terminal untuk mengurutkan tiap fungsi berdasarkan total waktu CPU sebelum mengubah kode apa pun.
 
 **Memilih alat yang tepat.** Python biasa sangat baik untuk perekat: memanggil API, memvalidasi record, memindah dan membentuk ulang data berukuran sedang, mengorkestrasi alat lain. Untuk **agregasi berat, join, dan analitik pada data besar**, engine SQL (DuckDB, Modul 2.1; warehouse, Modul 2.3) dan engine dataframe (Polars, Spark) jauh lebih cepat dan memakai memori jauh lebih baik daripada loop tulisan tangan. Data engineer yang baik menulis validasi dan perpipaan di Python dan mendorong komputasi berat ke engine yang dibangun untuknya.
 

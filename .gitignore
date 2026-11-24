@@ -42,3 +42,6 @@ plan-*
 labs/mod-4-1/data/
 labs/mod-4-4/data/
 data/jobs/
+
+# reference books and PDFs kept locally for reading; commercial copies must not be published
+books/
