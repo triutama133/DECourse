@@ -312,6 +312,189 @@ alat berfitur lebih sedikit karena lebih sederhana
 Tidak ada alat yang terbaik untuk semua kasus. Airflow paling luas dipakai; Dagster cocok untuk kerja yang sebagian besar menghasilkan tabel dan model. Pilih berdasarkan tim, stack yang ada, dan bentuk pekerjaannya.
 :::
 
+## @lesson Mengawasi pipeline Anda: log, metrik, dan alert
+> **Intinya:** Pipeline yang gagal dengan keras mudah diperbaiki. Yang berbahaya adalah yang gagal diam-diam, atau pelan-pelan, atau "sukses" dengan isi kosong. Monitoring adalah kebiasaan mengumpulkan tiga jenis bukti (log, metrik, dan alert) agar Anda tahu sebelum pengguna Anda tahu.
+
+Bayangkan sebuah dapur. **Buku catatan** merekam apa yang terjadi dan kapan ("10.03 oven mati"). **Termometer oven** dan total di mesin kasir adalah **metrik**: angka yang Anda baca dari waktu ke waktu ("seberapa panas tiap menit?"). **Detektor asap** adalah **alert**: aturan yang menepuk bahu Anda saat sesuatu butuh Anda sekarang. Pipeline data membutuhkan ketiganya.
+
+| Sinyal | Apa itu | Cocok untuk | Contoh di pipeline |
+|---|---|---|---|
+| **Log** | baris teks tentang satu kejadian | mencari tahu *persis apa* yang terjadi dalam satu run | `ERROR order 1007: total is not a number` |
+| **Metrik** | angka yang diukur berulang kali | melihat tren dan membandingkan hari ini dengan yang normal | baris dimuat, detik yang dipakai, kegagalan per hari |
+| **Alert** | aturan pada sebuah metrik yang memberi tahu orang | diberi tahu, bukan harus mengecek | "tidak ada data baru selama 6 jam" |
+
+### Apa yang diukur pada sebuah job data
+
+Empat angka menceritakan sebagian besar kisahnya, untuk hampir semua pipeline:
+
+1. **Apakah berhasil?** Jumlah dan laju kegagalan pada run-run terakhir.
+2. **Berapa lama?** Job yang tiba-tiba empat kali lebih lama memperingatkan Anda sebelum rusak.
+3. **Berapa banyak data yang berpindah?** Baris dibaca dan baris ditulis. Job yang "sukses" dan menulis nol baris adalah kegagalan yang diam.
+4. **Seberapa segar hasilnya?** Umur data terbaru (Modul 2.5 materi 5 membahas pemeriksaan pada datanya; materi ini mengawasi job-nya).
+
+Mulai dengan ringkasan biasa dari run-run terbaru:
+
+:::drill python Ringkas run-run terbaru
+Tulis `summarize_runs(runs)`: `runs` adalah list dictionary seperti `{"ok": True, "seconds": 12}`. Kembalikan dictionary dengan `runs` (berapa banyak), `failures` (berapa yang `ok`-nya false), `failure_rate` (kegagalan dibagi jumlah run, `0` bila tak ada run), dan `avg_seconds` (rata-rata `seconds`, `0` bila tak ada run).
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("summarize_runs") ## Definisikan summarize_runs(runs).
+summarize_runs([{"ok": True, "seconds": 10}, {"ok": False, "seconds": 30}]) == {"runs": 2, "failures": 1, "failure_rate": 0.5, "avg_seconds": 20} ## Satu kegagalan dari dua run, rata-rata 20 detik.
+summarize_runs([]) == {"runs": 0, "failures": 0, "failure_rate": 0, "avg_seconds": 0} ## Tanpa run: nol semua, dan tanpa pembagian dengan nol.
+summarize_runs([{"ok": True, "seconds": 4}] * 4)["failure_rate"] == 0 ## Semua baik: laju kegagalan 0.
+@hint
+Hitung dengan `sum(1 for r in runs if not r["ok"])`, dan jaga `if not runs:` sebelum membagi.
+@solution
+def summarize_runs(runs):
+    if not runs:
+        return {"runs": 0, "failures": 0, "failure_rate": 0, "avg_seconds": 0}
+    failures = sum(1 for r in runs if not r["ok"])
+    return {
+        "runs": len(runs),
+        "failures": failures,
+        "failure_rate": failures / len(runs),
+        "avg_seconds": sum(r["seconds"] for r in runs) / len(runs),
+    }
+:::
+
+:::ask Sebuah job malam berakhir dengan exit code 0 dan scheduler menampilkan "sukses", tetapi ia memuat 0 baris karena file sumbernya kosong. Sinyal mana yang akan menangkapnya?
+@options
+jumlah kegagalan, karena run ditandai sukses
+tingkat log, karena baris INFO selalu ditulis
+* volume: baris yang dimuat, dibandingkan dengan jumlah yang biasa
+@why
+Tidak ada yang gagal, jadi jumlah kegagalan tetap nol dan log tampak normal. Hanya metrik tentang datanya (baris yang ditulis, dibandingkan dengan malam yang normal) yang menunjukkan bahwa run itu tidak mengerjakan apa-apa. Itulah mengapa Anda mengawasi volume selain keberhasilan.
+:::
+
+### Lambat juga berarti rusak
+
+Run yang memakan 100 detik padahal biasanya 11 adalah gejala: data lebih banyak, kunci (lock), sumber yang lambat. Untuk menilai "lebih lambat dari biasa" pakai **median** durasi sebelumnya (nilai tengah), bukan rata-rata, agar satu run aneh di masa lalu tidak menyembunyikan perlambatan yang nyata.
+
+:::drill python Apakah run ini luar biasa lambat?
+Tulis `is_slow(seconds, history, factor)`: `history` adalah list durasi sebelumnya. Kembalikan `True` bila `seconds` **lebih dari** `factor` kali **median** history, selain itu `False`. Dengan history kosong kembalikan `False` (tak ada yang dibandingkan). Modul `statistics` punya `median`.
+@starter
+import statistics
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("is_slow") ## Definisikan is_slow(seconds, history, factor).
+is_slow(100, [10, 12, 11], 3) == True ## Mediannya 11, dan 100 lebih dari 3 × 11.
+is_slow(30, [10, 12, 11], 3) == False ## 30 di bawah 33.
+is_slow(33, [10, 12, 11], 3) == False ## Tepat 3 × 11 tidak lebih dari itu.
+is_slow(5, [], 2) == False ## Tanpa history: tak ada yang dibandingkan.
+is_slow(100, [10, 10, 10, 1000], 3) == True ## Satu run aneh 1000 tidak boleh menyembunyikan perlambatan: mediannya tetap 10.
+@hint
+`seconds > factor * statistics.median(history)`, setelah memeriksa `history` kosong.
+@solution
+import statistics
+def is_slow(seconds, history, factor):
+    if not history:
+        return False
+    return seconds > factor * statistics.median(history)
+:::
+
+### Alert yang tetap dipercaya orang
+
+Alert harus berarti "seseorang harus bertindak". Dua kebiasaan menjaganya tetap begitu. Pertama, beri alert untuk **gejala yang penting** (tak ada data segar, tiga kegagalan berturut-turut), bukan untuk setiap kejadian kecil. Kedua, beri job retry-nya dulu: task yang gagal sekali lalu berhasil pada retry bukan keadaan darurat. Alert yang berbunyi tiap malam tanpa sebab mengajari semua orang untuk mengabaikannya. Ini disebut **alert fatigue**, dan begitulah insiden nyata terlewat.
+
+Lihat aturan yang baru memberi alert setelah tiga kegagalan **berturut-turut**:
+
+:::trace Alert setelah tiga kegagalan berturut-turut
+@code
+results = [True, False, False, True, False, False, False]
+streak = 0
+for ok in results:
+    if ok:
+        streak = 0
+    else:
+        streak += 1
+    if streak >= 3:
+        print("ALERT")
+@notes
+5 | Sebuah sukses mengatur ulang deretan menjadi nol: satu run yang baik menghapus kekhawatiran.
+7 | Setiap kegagalan menambah satu pada deretan. Dua kegagalan pertama tidak pernah mencapai 3, karena sebuah sukses menyelanya.
+9 | Hanya tiga kegagalan terakhir berturut-turut yang mencapai 3: inilah saat sebuah alert dikirim.
+:::
+
+:::ask Scheduler Anda memanggil Anda setiap kali sebuah task gagal sekali, padahal retry memperbaiki 9 dari 10 kegagalan. Apa perubahan terbaik?
+@options
+* beri alert hanya bila task masih gagal setelah retry, atau gagal beberapa kali berturut-turut
+bisukan semua alert di malam hari, agar Anda bisa tidur
+naikkan retry menjadi dua puluh, supaya tak pernah memberi alert lagi
+@why
+Alert harus berarti seseorang perlu bertindak. Satu kegagalan yang diperbaiki retry bukan itu, dan alarm palsu terus-menerus melatih orang mengabaikan pager. Beri alert pada gejala yang tersisa setelah retry. Membisukan di malam hari menyembunyikan masalah nyata, dan retry tanpa akhir hanya menunda kabar buruk.
+:::
+
+:::drill python Alert setelah N kegagalan
+Tulis `alert_after(results, n)`: `results` adalah list boolean, yang tertua dulu, dengan `True` berarti run sukses. Kembalikan `True` hanya bila ada setidaknya `n` hasil dan **`n` hasil terakhir semuanya kegagalan**.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("alert_after") ## Definisikan alert_after(results, n).
+alert_after([True, False, False, False], 3) == True ## Tiga run terakhir semuanya gagal.
+alert_after([False, False, True, False], 3) == False ## Ada sukses di antara tiga terakhir.
+alert_after([False, False], 3) == False ## Hasil kurang dari tiga sejauh ini.
+alert_after([], 1) == False ## Tidak ada run sama sekali.
+alert_after([True, False], 1) == True ## n = 1: run terakhir gagal.
+@hint
+`len(results) >= n and not any(results[-n:])`
+@solution
+def alert_after(results, n):
+    return len(results) >= n and not any(results[-n:])
+:::
+
+### Metrik yang bisa dibaca dasbor
+
+Log untuk orang yang membaca satu run. Metrik untuk grafik. Cara umum menerbitkannya adalah format teks kecil yang dipakai **Prometheus**, program yang mengumpulkan metrik dengan membaca halaman berisi baris teks tiap beberapa detik; **Grafana** lalu menggambar grafiknya dan bisa mengirim alert. Setiap baris berisi nama, label opsional dalam kurung kurawal, dan sebuah angka:
+
+```text
+kopiku_rows_loaded{job="orders"} 3617
+kopiku_job_duration_seconds{job="orders"} 0.42
+```
+
+Airflow dan Dagster menampilkan riwayat run di layar mereka sendiri, dan Airflow juga bisa mengirim metriknya ke sistem seperti StatsD atau OpenTelemetry (periksa dokumentasi versi Anda). Skrip biasa bisa menulis baris-barisnya sendiri ke sebuah file di akhir run.
+
+:::drill python Tulis satu baris metrik
+Tulis `metric_line(name, value, labels)`: kembalikan teks satu metrik. Dengan label bentuknya `name{key="value",key2="value2"} angka`, dengan label **diurutkan menurut key**. Tanpa label cukup `name angka`. `metric_line("rows_loaded", 3617, {"job": "orders"})` adalah `rows_loaded{job="orders"} 3617`.
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("metric_line") ## Definisikan metric_line(name, value, labels).
+metric_line("rows_loaded", 3617, {"job": "orders"}) == 'rows_loaded{job="orders"} 3617' ## Satu label.
+metric_line("up", 1, {}) == "up 1" ## Tanpa label: tanpa kurung kurawal.
+metric_line("duration_seconds", 0.42, {"job": "orders", "env": "prod"}) == 'duration_seconds{env="prod",job="orders"} 0.42' ## Dua label, diurutkan menurut key.
+metric_line("x", 2, {"b": "1", "a": "2", "c": "3"}) == 'x{a="2",b="1",c="3"} 2' ## Label sebanyak apa pun.
+@hint
+`",".join(f'{k}="{labels[k]}"' for k in sorted(labels))` membangun bagian di dalam kurung.
+@solution
+def metric_line(name, value, labels):
+    if not labels:
+        return f"{name} {value}"
+    inner = ",".join(f'{k}="{labels[k]}"' for k in sorted(labels))
+    return f"{name}{{{inner}}} {value}"
+:::
+
+:::ask Pertanyaan mana yang membutuhkan metrik, bukan log?
+@options
+apa pesan error persis dari crash semalam?
+* bagaimana waktu run berubah selama 30 hari terakhir?
+baris input mana yang membuat parser gagal pada hari Selasa?
+@why
+Tren atas banyak run adalah angka yang diukur berulang kali: sebuah metrik, digambar sebagai grafik. Pesan error persis dan baris yang merusak parser adalah rincian satu kejadian, jadi tempatnya di log.
+:::
+
+### Pipeline Anda belum selesai sampai seseorang bisa melihatnya
+
+Sebelum menyebut sebuah job selesai, jawab lima pertanyaan: di mana lognya, tiga angka apa yang ia terbitkan (sukses, durasi, baris), apa yang dianggap terlalu lambat atau terlalu kosong, siapa yang menerima alert, dan apa yang pertama kali mereka lakukan (**runbook**, Modul 2.5 materi 7). Jika Anda tak bisa menjawab, job itu berjalan dalam gelap.
+
+> 🛠 **Coba sendiri (10 menit, Python).** Di komputer Anda sendiri, tulis `metrics_demo.py`: fungsi `run_job()` yang berpura-pura memuat 3617 baris (pakai `time.sleep(0.2)`), mengukur berapa lama ia berjalan, dan menulis tiga baris ke file `metrics.prom`: `kopiku_job_success{job="orders"} 1`, `kopiku_job_duration_seconds{job="orders"} <detik>`, dan `kopiku_rows_loaded{job="orders"} 3617`. Jalankan dua kali, lalu `cat metrics.prom` dan `grep success metrics.prom`.
+>
+> **Yang harus Anda lihat:** ketiga barisnya, dengan durasi mendekati `0.2` (misalnya `0.2012`). Setiap run menimpa file dengan nilai terbaru, jadi file selalu menunjukkan run terakhir. Sekarang ubah job agar melempar error sebelum menulis: file menyimpan angka lama, itulah mengapa sistem nyata juga mencatat *kapan* file ditulis (kesegaran).
+
 ## @lesson Stack orkestrasi lokal berbasis Docker Compose dan panduan aman backfill produksi
 
 Saat Anda mewarisi pipeline produksi pada 90 hari pertama bekerja (atau membangun proyek end-to-end seperti di *DataTalksClub Data Engineering Zoomcamp*), dua keterampilan operasional ini menjaga sistem Anda tetap reproducible dan mencegah gangguan fatal di produksi:

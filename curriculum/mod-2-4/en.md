@@ -312,6 +312,189 @@ the tool with fewer features, as it is simpler
 Neither tool is better in every case. Airflow is the most widely deployed; Dagster fits work that is mostly producing tables and models. Choose by team, existing stack and the shape of the work.
 :::
 
+## @lesson Watching your pipelines: logs, metrics and alerts
+> **In short:** A pipeline that fails loudly is easy to fix. The dangerous one fails quietly, or slowly, or "succeeds" with nothing in it. Monitoring is the habit of collecting three kinds of evidence (logs, metrics and alerts) so you find out before your users do.
+
+Think of a kitchen. The **logbook** records what happened and when ("10:03 the oven tripped"). The **oven thermometer** and the till total are **metrics**: numbers you read over time ("how hot was it every minute?"). The **smoke detector** is an **alert**: a rule that taps your shoulder when something needs you now. A data pipeline needs all three.
+
+| Signal | What it is | Good for | Example in a pipeline |
+|---|---|---|---|
+| **Logs** | text lines about single events | finding out *what exactly* happened in one run | `ERROR order 1007: total is not a number` |
+| **Metrics** | numbers, measured again and again | seeing trends and comparing today with normal | rows loaded, seconds taken, failures per day |
+| **Alerts** | a rule on a metric that notifies a person | being told, instead of having to look | "no new data for 6 hours" |
+
+### What to measure in a data job
+
+Four numbers tell you most of the story, for almost any pipeline:
+
+1. **Did it succeed?** The failure count and failure rate over the last runs.
+2. **How long did it take?** A job that suddenly takes four times longer is warning you before it breaks.
+3. **How much data moved?** Rows read and rows written. A job that "succeeds" and writes zero rows is the quiet failure.
+4. **How fresh is the result?** The age of the newest data (Module 2.5 lesson 5 covers checks on the data itself; this lesson watches the job).
+
+Start with a plain summary of the recent runs:
+
+:::drill python Summarise the recent runs
+Write `summarize_runs(runs)`: `runs` is a list of dictionaries like `{"ok": True, "seconds": 12}`. Return a dictionary with `runs` (how many), `failures` (how many had `ok` false), `failure_rate` (failures divided by runs, `0` when there are no runs) and `avg_seconds` (the mean of `seconds`, `0` when there are no runs).
+@starter
+# write your function below this line
+
+@check
+defines("summarize_runs") ## Define summarize_runs(runs).
+summarize_runs([{"ok": True, "seconds": 10}, {"ok": False, "seconds": 30}]) == {"runs": 2, "failures": 1, "failure_rate": 0.5, "avg_seconds": 20} ## One failure in two runs, 20 seconds on average.
+summarize_runs([]) == {"runs": 0, "failures": 0, "failure_rate": 0, "avg_seconds": 0} ## No runs: zeros, and no division by zero.
+summarize_runs([{"ok": True, "seconds": 4}] * 4)["failure_rate"] == 0 ## All good: a failure rate of 0.
+@hint
+Count with `sum(1 for r in runs if not r["ok"])`, and guard `if not runs:` before dividing.
+@solution
+def summarize_runs(runs):
+    if not runs:
+        return {"runs": 0, "failures": 0, "failure_rate": 0, "avg_seconds": 0}
+    failures = sum(1 for r in runs if not r["ok"])
+    return {
+        "runs": len(runs),
+        "failures": failures,
+        "failure_rate": failures / len(runs),
+        "avg_seconds": sum(r["seconds"] for r in runs) / len(runs),
+    }
+:::
+
+:::ask A nightly job ends with exit code 0 and the scheduler shows "success", but it loaded 0 rows because the source file was empty. Which signal would catch it?
+@options
+the failure count, because the run is marked as success
+the log level, because INFO lines are always written
+* the volume: rows loaded, compared with the usual number
+@why
+Nothing failed, so the failure count stays at zero and the log looks normal. Only a metric about the data (rows written, compared with a normal night) shows that the run did no real work. This is why you watch volume as well as success.
+:::
+
+### Slow is also broken
+
+A run that takes 100 seconds when it usually takes 11 is a symptom: more data, a lock, a slow source. To judge "slower than usual" use the **median** of the past durations (the middle value), not the mean, so that one old freak run does not hide a real slowdown.
+
+:::drill python Is this run unusually slow?
+Write `is_slow(seconds, history, factor)`: `history` is a list of past durations. Return `True` when `seconds` is **more than** `factor` times the **median** of the history, otherwise `False`. With an empty history return `False` (there is nothing to compare with). The `statistics` module has `median`.
+@starter
+import statistics
+# write your function below this line
+
+@check
+defines("is_slow") ## Define is_slow(seconds, history, factor).
+is_slow(100, [10, 12, 11], 3) == True ## The median is 11, and 100 is more than 3 × 11.
+is_slow(30, [10, 12, 11], 3) == False ## 30 is under 33.
+is_slow(33, [10, 12, 11], 3) == False ## Exactly 3 × 11 is not more than that.
+is_slow(5, [], 2) == False ## No history: nothing to compare with.
+is_slow(100, [10, 10, 10, 1000], 3) == True ## One freak run of 1000 must not hide the slowdown: the median is still 10.
+@hint
+`seconds > factor * statistics.median(history)`, after a check for an empty `history`.
+@solution
+import statistics
+def is_slow(seconds, history, factor):
+    if not history:
+        return False
+    return seconds > factor * statistics.median(history)
+:::
+
+### Alerts that people still trust
+
+An alert should mean "a person must act". Two habits keep it that way. First, alert on **symptoms that matter** (no fresh data, three failures in a row), not on every small event. Second, give the job its retries first: a task that fails once and succeeds on the retry is not an emergency. An alert that fires every night for nothing teaches everyone to ignore it. This is called **alert fatigue**, and it is how real incidents get missed.
+
+Watch a rule that alerts only after three failures **in a row**:
+
+:::trace Alert after three failures in a row
+@code
+results = [True, False, False, True, False, False, False]
+streak = 0
+for ok in results:
+    if ok:
+        streak = 0
+    else:
+        streak += 1
+    if streak >= 3:
+        print("ALERT")
+@notes
+5 | A success resets the streak to zero: one good run clears the worry.
+7 | Each failure adds one to the streak. The first two failures never reach 3, because a success interrupted them.
+9 | Only the last three failures in a row reach 3: this is the moment an alert would be sent.
+:::
+
+:::ask Your scheduler pages you every time a task fails once, but its retries fix 9 failures out of 10. What is the best change?
+@options
+* alert only when the task still fails after its retries, or fails several times in a row
+mute every alert during the night, so you can sleep
+raise the retries to twenty, so that it never alerts again
+@why
+An alert must mean that a person needs to act. A single failure that the retry fixes is not that, and constant false alarms train people to ignore the pager. Alert on the symptom that remains after retries. Muting at night hides real problems, and endless retries only delay the bad news.
+:::
+
+:::drill python Alert after N failures
+Write `alert_after(results, n)`: `results` is a list of booleans, oldest first, where `True` means the run succeeded. Return `True` only when there are at least `n` results and the **last `n` are all failures**.
+@starter
+# write your function below this line
+
+@check
+defines("alert_after") ## Define alert_after(results, n).
+alert_after([True, False, False, False], 3) == True ## The last three runs all failed.
+alert_after([False, False, True, False], 3) == False ## A success is among the last three.
+alert_after([False, False], 3) == False ## Fewer than three results so far.
+alert_after([], 1) == False ## No runs at all.
+alert_after([True, False], 1) == True ## n = 1: the last run failed.
+@hint
+`len(results) >= n and not any(results[-n:])`
+@solution
+def alert_after(results, n):
+    return len(results) >= n and not any(results[-n:])
+:::
+
+### Metrics a dashboard can read
+
+Logs are for people reading one run. Metrics are for charts. A common way to publish them is a tiny text format used by **Prometheus**, a program that collects metrics by reading a page of text lines every few seconds; **Grafana** then draws the charts and can send the alerts. Each line is a name, optional labels in curly brackets, and a number:
+
+```text
+kopiku_rows_loaded{job="orders"} 3617
+kopiku_job_duration_seconds{job="orders"} 0.42
+```
+
+Airflow and Dagster show run history in their own screens, and Airflow can also send its metrics to systems such as StatsD or OpenTelemetry (check your version's documentation). A plain script can write its own lines to a file at the end of a run.
+
+:::drill python Write one metric line
+Write `metric_line(name, value, labels)`: return the text of one metric. With labels it is `name{key="value",key2="value2"} number`, with the labels **sorted by key**. With no labels it is just `name number`. `metric_line("rows_loaded", 3617, {"job": "orders"})` is `rows_loaded{job="orders"} 3617`.
+@starter
+# write your function below this line
+
+@check
+defines("metric_line") ## Define metric_line(name, value, labels).
+metric_line("rows_loaded", 3617, {"job": "orders"}) == 'rows_loaded{job="orders"} 3617' ## One label.
+metric_line("up", 1, {}) == "up 1" ## No labels: no curly brackets.
+metric_line("duration_seconds", 0.42, {"job": "orders", "env": "prod"}) == 'duration_seconds{env="prod",job="orders"} 0.42' ## Two labels, sorted by key.
+metric_line("x", 2, {"b": "1", "a": "2", "c": "3"}) == 'x{a="2",b="1",c="3"} 2' ## Any number of labels.
+@hint
+`",".join(f'{k}="{labels[k]}"' for k in sorted(labels))` builds the part inside the brackets.
+@solution
+def metric_line(name, value, labels):
+    if not labels:
+        return f"{name} {value}"
+    inner = ",".join(f'{k}="{labels[k]}"' for k in sorted(labels))
+    return f"{name}{{{inner}}} {value}"
+:::
+
+:::ask Which question needs metrics rather than logs?
+@options
+what was the exact error message of last night's crash?
+* how did the run time change over the last 30 days?
+which input row made the parser fail on Tuesday?
+@why
+A trend over many runs is a number measured again and again: a metric, drawn as a chart. The exact error message and the row that broke the parser are details of one event, so they live in the logs.
+:::
+
+### Your pipeline is not done until someone can see it
+
+Before you call a job finished, answer five questions: where are its logs, which three numbers does it publish (success, duration, rows), what counts as too slow or too empty, who gets the alert, and what do they do first (the **runbook**, Module 2.5 lesson 7). If you cannot answer, the job is running blind.
+
+> 🛠 **Try it (10 min, Python).** On your own computer, write `metrics_demo.py`: a function `run_job()` that pretends to load 3617 rows (use `time.sleep(0.2)`), measures how long it took, and writes three lines to a file `metrics.prom`: `kopiku_job_success{job="orders"} 1`, `kopiku_job_duration_seconds{job="orders"} <seconds>` and `kopiku_rows_loaded{job="orders"} 3617`. Run it twice, then `cat metrics.prom` and `grep success metrics.prom`.
+>
+> **You should see:** the three lines, with a duration close to `0.2` (for example `0.2012`). Each run overwrites the file with the newest values, so the file always shows the last run. Now change the job to raise an error before writing: the file keeps the old numbers, which is why real systems also record *when* the file was written (freshness).
+
 ## @lesson Dockerized local orchestration stack and the safe production backfill runbook
 
 When you inherit a production pipeline in your first 90 days on the job (or build an end-to-end project like in the *DataTalksClub Data Engineering Zoomcamp*), two operational skills keep your systems reproducible and prevent catastrophic outages:

@@ -569,6 +569,84 @@ keduanya komentar yang diabaikan pembaca
 EDI adalah teks yang terdiri dari segmen yang berakhir dengan `~`, dengan elemen dipisahkan `*`. Elemen pertama menyebut jenis segmen, di sini purchase order.
 :::
 
+## @lesson Alat alur visual: Apache NiFi, Talend, dan SSIS {optional}
+Tidak semua pipeline ditulis sebagai kode. Sebagian tim menggambarnya: kotak-kotak di kanvas, disambung panah, tiap kotak mengerjakan satu tugas kecil. **Apache NiFi**, **Talend**, dan **SSIS** milik Microsoft adalah contohnya. Pada sampel pasar kerja di Modul 2.6, SSIS dan Talend disebut sekitar 6% dan 5% lowongan, kebanyakan di perusahaan yang lebih tua atau besar, jadi Anda bisa saja mewarisi salah satunya. Anda tak perlu menguasainya. Anda perlu bisa membacanya, dan tahu kapan menggambar mengalahkan menulis kode dan kapan tidak.
+
+### Gagasannya: processor di kanvas
+
+Di NiFi setiap kotak adalah sebuah **processor** dengan satu tugas: mengambil file, mengubah JSON menjadi CSV, menyaring, menulis ke database. Panah adalah **connection**, dan tiap connection adalah **antrean** kecil yang menampung item data yang menunggu kotak berikutnya. Sebuah processor melaporkan hasilnya lewat nama panah, biasanya **success** atau **failure**, dan Anda menggambar ke mana masing-masing pergi: sukses ke langkah berikutnya, kegagalan ke tempat yang bisa dilihat orang.
+
+Gagasan yang sama dalam kode adalah rantai fungsi. Versi kode itulah yang sudah Anda tulis; alat ini menambahkan kanvas, penjadwalan, dan catatan ke mana saja setiap item pernah pergi.
+
+:::drill python Sebuah alur dalam beberapa baris
+Tulis `run_flow(processors, records)`: `processors` adalah list fungsi, `records` list nilai. Setiap record melewati processor secara berurutan. Sebuah processor bisa mengembalikan record baru; mengembalikan `None` untuk **menyaring** record itu diam-diam; atau **melempar error**, yang mengirim record itu ke daftar gagal. Kembalikan `(done, failed)`: record yang lolos semua processor (menurut urutan masukan), dan record yang melempar error (sebagaimana keadaannya saat error terjadi, menurut urutan masukan).
+@starter
+# tulis fungsimu di bawah baris ini
+
+@check
+defines("run_flow") ## Definisikan run_flow(processors, records).
+run_flow([lambda r: r * 2, lambda r: r + 1], [1, 2]) == ([3, 5], []) ## Dua processor berturut-turut.
+run_flow([lambda r: r if r > 1 else None], [1, 2, 3]) == ([2, 3], []) ## None menyaring sebuah record, tanpa kegagalan.
+run_flow([lambda r: 10 // r], [1, 0, 5]) == ([10, 2], [0]) ## 10 // 0 melempar error: record itu masuk daftar gagal.
+run_flow([], [1, 2]) == ([1, 2], []) ## Tanpa processor: semuanya lolos.
+@hint
+Ulangi record-recordnya. Di dalamnya, `try:` ulangi processor-processornya; jika ada yang mengembalikan `None`, berhenti dengan record itu; `except Exception:` tambahkan nilai saat ini ke `failed`. Pakai bendera untuk tahu apakah record selesai.
+@solution
+def run_flow(processors, records):
+    done, failed = [], []
+    for record in records:
+        value = record
+        try:
+            dropped = False
+            for processor in processors:
+                value = processor(value)
+                if value is None:
+                    dropped = True
+                    break
+        except Exception:
+            failed.append(value)
+            continue
+        if not dropped:
+            done.append(value)
+    return done, failed
+:::
+
+### Apa yang dikuasai alat-alat ini
+
+- **Banyak konektor siap pakai.** Membaca dari folder FTP, antrean pesan, database, dan API adalah processor yang Anda seret, bukan kode yang Anda tulis.
+- **Melihat alurnya.** Rekan baru bisa mengikuti panahnya. Banyak alat juga mencatat **data provenance** (dari mana tiap item datang dan apa yang terjadi padanya) dan menerapkan **back pressure** (antrean penuh membuat kotak di hulu menunggu, bukan meluap).
+- **Versi pertama yang cepat** untuk tim dengan sedikit pengalaman pemrograman.
+
+### Di mana alat ini menyakitkan
+
+- **Review dan pengujian.** Alurnya disimpan sebagai file besar hasil generate, jadi memindah satu kotak bisa tampak seperti perubahan besar, dan pull request sulit dibaca. Menguji satu processor secara terpisah kikuk dibanding memanggil fungsi Python.
+- **Logika yang bukan garis lurus.** Percabangan berat, loop, dan aturan khusus jadi kusut di kanvas dan lebih singkat sebagai kode.
+- **Salin-tempel.** Tim menyalin alur dan mengubah satu detail, dan segera ada puluhan alur hampir identik tanpa satu tempat untuk memperbaiki bug.
+
+Kompromi yang lazim: biarkan alat mengerjakan **perpindahan** (mengumpulkan dan mengantar data antar sistem) dan simpan **logika bisnis** di kode atau SQL yang bisa diuji dan di-review (Modul 1.2 dan 2.3).
+
+:::ask Mengapa perubahan pada alur visual sering sulit di-review dalam pull request?
+@options
+alat visual tidak pernah menyimpan riwayat perubahannya
+* alurnya disimpan sebagai file besar hasil generate, jadi perubahan kecil bisa tampak besar
+reviewer tidak diizinkan membuka kanvas sebuah alur
+@why
+Kanvas adalah gambar untuk manusia, tetapi Git melihat file hasil generate di baliknya. Memindah satu kotak bisa menulis ulang banyak baris, sehingga reviewer tak bisa tahu apa yang sebenarnya berubah. Itulah mengapa banyak tim menyimpan logika yang teruji di kode dan membiarkan alat visual hanya memindahkan data.
+:::
+
+:::ask Sebuah tim harus mengumpulkan file dari sepuluh mitra berbeda (FTP, email, dan API) dan menaruhnya di satu folder, tanpa hitungan rumit. Pilihan mana yang paling masuk akal?
+@options
+alat alur visual, karena konektor siap pakainya tepat mengerjakan tugas ini
+klaster streaming, karena setiap pipeline harus real-time
+* tulis sepuluh program khusus terpisah, karena kode selalu lebih baik
+@why
+Mengumpulkan dan mengantar file adalah perpindahan, bukan logika, dan di situlah alat visual dengan banyak konektor menghemat waktu. Sepuluh program tulis tangan mengulang pekerjaan yang sama, dan klaster streaming jauh lebih dari yang dibutuhkan tugas ini.
+:::
+
+> 🛠 **Coba sendiri (15 menit, kertas).** Gambar job malam KopiKu sebagai kotak dan panah: baca `orders.csv`, buang baris dengan `total_idr` yang buruk, tambahkan kota pelanggan dari `customers.csv`, tulis ke tabel. Pada tiap kotak tuliskan panah mana untuk sukses dan mana untuk gagal, dan ke mana kegagalan pergi. Lalu tandai kotak mana yang lebih Anda sukai ditulis sebagai kode yang teruji.
+>
+> **Yang harus Anda lihat:** empat kotak berderet dengan panah kedua keluar dari kotak yang membuang baris, menunjuk ke tempat "baris ditolak" yang dibaca seseorang (Modul 2.5). Kotak yang menambah kota adalah perpindahan data; aturan yang menentukan apa itu total yang buruk milik kode yang teruji. Jika kegagalan menghilang begitu saja, tambahkan tempatnya: pipeline tanpa panah kegagalan kehilangan data secara diam-diam.
+
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.
 

@@ -575,6 +575,84 @@ both are comments that the reader ignores
 EDI is text made of segments that end in `~`, whose elements are separated by `*`. The first element names the kind of segment, here a purchase order.
 :::
 
+## @lesson Visual flow tools: Apache NiFi, Talend and SSIS {optional}
+Not every pipeline is written as code. Some teams draw it: boxes on a canvas, joined by arrows, each box doing one small job. **Apache NiFi**, **Talend** and Microsoft's **SSIS** are examples. In the job-market sample of Module 2.6, SSIS and Talend are named in roughly 6% and 5% of postings, mostly at older or larger companies, so you may well inherit one. You do not need to master them. You need to read them, and to know when drawing beats coding and when it does not.
+
+### The idea: processors on a canvas
+
+In NiFi each box is a **processor** with one job: fetch a file, convert JSON to CSV, filter, write to a database. Arrows are **connections**, and each connection is a small **queue** that holds the data items waiting for the next box. A processor reports a result by an arrow's name, usually **success** or **failure**, and you draw where each one goes: successes to the next step, failures to a place where someone can look at them.
+
+The same idea in code is a chain of functions. The code version is what you already write; the tool adds a canvas, scheduling and a record of where every item has been.
+
+:::drill python A flow in a few lines
+Write `run_flow(processors, records)`: `processors` is a list of functions, `records` a list of values. Each record goes through the processors in order. A processor can return a new record; return `None` to **filter** the record out silently; or **raise an error**, which sends that record to the failure list. Return `(done, failed)`: the records that came through all processors (in input order), and the records that raised an error (as they were when the error happened, in input order).
+@starter
+# write your function below this line
+
+@check
+defines("run_flow") ## Define run_flow(processors, records).
+run_flow([lambda r: r * 2, lambda r: r + 1], [1, 2]) == ([3, 5], []) ## Two processors in a row.
+run_flow([lambda r: r if r > 1 else None], [1, 2, 3]) == ([2, 3], []) ## None filters a record out, without a failure.
+run_flow([lambda r: 10 // r], [1, 0, 5]) == ([10, 2], [0]) ## 10 // 0 raises: that record goes to the failure list.
+run_flow([], [1, 2]) == ([1, 2], []) ## No processors: everything passes.
+@hint
+Loop over the records. Inside, `try:` loop over the processors; if one returns `None`, stop with that record; `except Exception:` append the current value to `failed`. Use a `for ... else` or a flag to know whether the record finished.
+@solution
+def run_flow(processors, records):
+    done, failed = [], []
+    for record in records:
+        value = record
+        try:
+            dropped = False
+            for processor in processors:
+                value = processor(value)
+                if value is None:
+                    dropped = True
+                    break
+        except Exception:
+            failed.append(value)
+            continue
+        if not dropped:
+            done.append(value)
+    return done, failed
+:::
+
+### What these tools are good at
+
+- **Many ready-made connectors.** Reading from an FTP folder, a message queue, a database and an API are processors you drag in, not code you write.
+- **Seeing the flow.** A new colleague can follow the arrows. Many tools also record **data provenance** (where each item came from and what happened to it) and apply **back pressure** (a full queue makes the upstream box wait instead of overflowing).
+- **Fast first versions** for teams without much programming experience.
+
+### Where they hurt
+
+- **Review and testing.** The flow is stored as a large generated file, so moving one box can look like a big change, and a pull request is hard to read. Testing one processor in isolation is awkward compared with calling a Python function.
+- **Logic that is not a straight line.** Heavy branching, loops and custom rules get tangled on a canvas and are shorter as code.
+- **Copy and paste.** Teams copy a flow and change a detail, and soon dozens of nearly identical flows exist with no single place to fix a bug.
+
+The usual compromise: let the tool do **movement** (collecting and delivering data between systems) and keep **business logic** in code or SQL that you can test and review (Modules 1.2 and 2.3).
+
+:::ask Why is a change to a visual flow often hard to review in a pull request?
+@options
+visual tools never keep any history of their changes
+* the flow is stored as a large generated file, so a small change can look big
+reviewers are not allowed to open the canvas of a flow
+@why
+The canvas is a picture for humans, but Git sees the generated file behind it. Moving one box can rewrite many lines, so a reviewer cannot tell what really changed. That is why many teams keep tested logic in code and let the visual tool only move data.
+:::
+
+:::ask A team must collect files from ten different partners (FTP, email and APIs) and drop them into one folder, with nothing complicated to compute. Which choice is most sensible?
+@options
+a visual flow tool, because ready-made connectors do exactly this job
+a streaming cluster, because every pipeline should be real-time
+* write ten separate custom programs, because code is always better
+@why
+Collecting and delivering files is movement, not logic, and that is where visual tools with many connectors save time. Ten hand-written programs repeat the same work, and a streaming cluster is far more than this job needs.
+:::
+
+> 🛠 **Try it (15 min, paper).** Draw the KopiKu nightly job as boxes and arrows: read `orders.csv`, drop rows with a bad `total_idr`, add the customer's city from `customers.csv`, write to a table. On each box write which arrow it has for success and which for failure, and say where the failures go. Then mark which boxes you would rather write as tested code.
+>
+> **You should see:** four boxes in a line with a second arrow leaving the box that drops rows, pointing to a "rejected rows" place that someone reads (Module 2.5). The box that adds the city is data movement; the rule that decides what a bad total is belongs in tested code. If failures just vanish, add the place for them: a pipeline without a failure arrow loses data silently.
+
 ## @lab Lab: ingest from a flaky API, safely
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
 
