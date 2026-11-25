@@ -45,3 +45,10 @@ data/jobs/
 
 # reference books and PDFs kept locally for reading; commercial copies must not be published
 books/
+
+# optional offline AI tutor: models are downloaded per machine (about 2 GB) and must never be committed
+*.gguf
+*.ggml
+*.safetensors
+.ollama/
+/models/

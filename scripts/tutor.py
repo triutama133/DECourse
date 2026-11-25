@@ -16,6 +16,7 @@ Use it:
     python3 scripts/tutor.py "what is a backfill?"  # one question
     python3 scripts/tutor.py --search "window function"   # NO model needed: just show the lessons that match
     python3 scripts/tutor.py --lang id "apa itu primary key?"
+    python3 scripts/tutor.py --check               # new machine? this tells you exactly what is missing
     python3 scripts/tutor.py --self-test
 
 Different model:  DF_TUTOR_MODEL=qwen2.5:7b python3 scripts/tutor.py   (smarter, slower)
@@ -119,6 +120,7 @@ def load_chunks(lang):
         body = raw.split("\n---", 1)[1] if raw.startswith("---") else raw
         lesson_no, lesson_title, section = 0, "", ""
         buf = []
+        in_lesson = False  # lab, chaos and quiz sections after a lesson are not part of it
 
         def flush():
             text = clean_lesson_text("\n".join(buf))
@@ -130,8 +132,14 @@ def load_chunks(lang):
                                "heading": head, "text": part, "kind": "lesson"})
 
         for line in body.split("\n"):
-            if line.startswith("## @lesson"):
+            if line.startswith("## @") and not line.startswith("## @lesson"):
                 flush(); buf = []
+                in_lesson = False
+            elif not in_lesson and not line.startswith("## @lesson"):
+                continue
+            elif line.startswith("## @lesson"):
+                flush(); buf = []
+                in_lesson = True
                 lesson_no += 1
                 lesson_title = re.sub(r"\{optional\}", "", line[len("## @lesson"):]).strip()
                 section = ""
@@ -283,6 +291,32 @@ def ask(question, idx, lang, history, k=3, out=sys.stdout):
 
 
 # ---------------------------------------------------------------- self-test (no real model needed)
+def check():
+    """A plain checklist for a new machine: is Ollama installed, running, and is the model downloaded?"""
+    import shutil
+    import platform
+    sysname = platform.system()
+    install = {"Linux": "curl -fsSL https://ollama.com/install.sh | sh", "Darwin": "brew install ollama   (or the installer from https://ollama.com/download)"}.get(sysname, "download the installer from https://ollama.com/download")
+    ok = True
+    found = shutil.which("ollama")
+    print(("OK   " if found else "MISS ") + "Ollama is installed" + (f" ({found})" if found else f".  Fix: {install}"))
+    ok &= bool(found)
+    try:
+        urllib.request.urlopen(HOST + "/api/version", timeout=3).read()
+        up = True
+    except (urllib.error.URLError, OSError):
+        up = False
+    print(("OK   " if up else "MISS ") + "The Ollama server is running" + ("." if up else ".  Fix: start the course with `npm start` and click Tutor in the page, or run `ollama serve` in another terminal."))
+    have = False
+    if up:
+        have = model_ready()[0]
+        print(("OK   " if have else "MISS ") + f"The model {MODEL} is downloaded" + ("." if have else f".  Fix (needs internet once, about 2 GB):  ollama pull {MODEL}"))
+    else:
+        print(f"SKIP The model {MODEL} cannot be checked until the server runs.")
+    print("\nReady: you can ask questions." if ok and up and have else "\nNot ready yet: follow the Fix lines above, top to bottom.")
+    return 0 if ok and up and have else 1
+
+
 def self_test():
     import threading
     from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -290,7 +324,7 @@ def self_test():
     bad = []
     idx = {l: Index(load_chunks(l)) for l in ("en", "id")}
     n_en, n_id = len(idx["en"].chunks), len(idx["id"].chunks)
-    if n_en < 1500 or abs(n_en - n_id) > n_en * 0.1:
+    if n_en < 1000 or abs(n_en - n_id) > n_en * 0.15:
         bad.append(f"chunk counts look wrong: en {n_en}, id {n_id}")
     cases = [
         ("en", "what is idempotent and why does a backfill need it", "mod-2-4"),
@@ -364,6 +398,8 @@ def main(argv):
         a = args[i]
         if a == "--self-test":
             return self_test()
+        if a == "--check":
+            return check()
         if a == "--lang" and i + 1 < len(args):
             lang = args[i + 1]; i += 1
         elif a == "--search":

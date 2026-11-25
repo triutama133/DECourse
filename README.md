@@ -31,22 +31,29 @@ No Git? Download the ZIP of this repository instead. Prefer not to install anyth
 
 **Proof that learners did the work themselves:** every lab ends with `python3 scripts/prove.py <module>` (for example `mod-0-2`; Lab 0.1 also needs the workspace path). It runs the lab's real tests on the learner's own computer and, only if all pass with none skipped, prints a short code such as `DF1:mod-0-2:8:v:3.12:linux:3f9a1c2e:b04d77a1:5c1e9b`. The learner pastes it into the lab page; the app checks that the tests are the course's current tests, that the work is not the reference solution or the untouched starter, and (for Lab 0.2) that it ran inside a venv. A module is marked complete automatically only when the quiz is passed **and** the proof is accepted (manual completion asks for confirmation). This is an honesty check, not security: anyone can read the scripts. `python3 scripts/test_proof.py` tests it end to end; `labs/proof.json` defines how each lab is proven.
 
-## Ask the course offline (optional tutor)
+## Ask the course offline (optional AI tutor)
 
-A small AI model that runs on your own computer and answers from the course itself, in English or Indonesian. It is a helper for when you are stuck, not a replacement for the lessons: it prints the lessons it used so you can read the real text, and it says so when the course does not cover your question. Nothing leaves your computer after the one-time download.
+A small AI model that runs on your own computer and answers from the course itself, in English or Indonesian. It is a helper for when you are stuck, not a replacement for the lessons: it shows the lessons it used so you can read the real text, and it says so when the course does not cover your question. After the one-time download nothing leaves your computer. It is **off by default** and you can turn it on and off at any time.
+
+**Turn it on and off in the course (easiest):** start the course with `npm start`, then click **🎓 Tutor** in the top bar. The first time it walks you through two steps:
+
+1. **Install Ollama once per computer** (the free program that runs the model). Windows and macOS: the installer from https://ollama.com/download. Linux: `curl -fsSL https://ollama.com/install.sh | sh`. Then close and reopen your terminal and start the course again.
+2. **Download the model once** (about 2 GB, needs internet): click **Download model** in the tutor panel, or run `ollama pull qwen2.5:3b`.
+
+After that, clicking **Tutor** starts the model for you (a green dot means it is ready) and **Turn tutor off** in the panel releases the memory and stops it. Closing the course also stops it. If Ollama was already running because you started it yourself (the Windows and macOS apps do this at login), the course leaves it running and only frees the model's memory.
+
+**Moving the course to another machine:** the model is not part of the repository (it is about 2 GB and listed in `.gitignore`), so every computer downloads it once. On the new machine, run `python3 scripts/tutor.py --check`: it prints what is installed and the exact command for anything missing, top to bottom, until it says "Ready". You need about 4 GB of free RAM and 2 GB of disk; no graphics card.
+
+**In a terminal instead** (no browser needed):
 
 ```bash
-# one time, needs internet (about 2 GB): install Ollama from https://ollama.com, then
-ollama serve                 # leave this running in a second terminal
-ollama pull qwen2.5:3b       # small enough for a normal laptop, no graphics card needed
-
-python3 scripts/tutor.py                          # chat, type exit to leave
+python3 scripts/tutor.py                          # chat, type exit to leave (needs `ollama serve` running)
 python3 scripts/tutor.py "what is a backfill?"    # one question
 python3 scripts/tutor.py --lang id "apa itu primary key?"
 python3 scripts/tutor.py --search "window function"   # no model needed: lists the matching lessons
 ```
 
-On a laptop CPU an answer takes about 5 to 15 seconds. With an AMD or Intel integrated graphics chip you can start the server with `OLLAMA_IGPU_ENABLE=1 ollama serve` (reading your question gets about twice as fast, writing the answer does not). A bigger model such as `DF_TUTOR_MODEL=qwen2.5:7b python3 scripts/tutor.py` is smarter but about twice as slow. Small models can still be wrong: when the tutor and a lesson disagree, trust the lesson. `python3 scripts/tutor.py --self-test` checks the search and the model connection without needing a model.
+On a laptop CPU an answer takes about 5 to 25 seconds. With an AMD or Intel integrated graphics chip, reading your question gets about twice as fast (writing the answer does not): start the course server with `OLLAMA_IGPU_ENABLE=1 npm start`, or run `OLLAMA_IGPU_ENABLE=1 ollama serve` yourself. A bigger model such as `DF_TUTOR_MODEL=qwen2.5:7b` (terminal) is smarter but about twice as slow. Small models can still be wrong: when the tutor and a lesson disagree, trust the lesson. `node scripts/test_tutor_js.js` and `python3 scripts/tutor.py --self-test` test the search and the start/stop switch without needing a model.
 
 ## Run it
 

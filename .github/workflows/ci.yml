@@ -47,6 +47,9 @@ jobs:
       - name: Glossary points at real lessons that use the term
         run: node scripts/test_glossary.js
 
+      - name: AI tutor switch (search in both languages, start/stop, refuses other computers)
+        run: node scripts/test_tutor_js.js
+
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js

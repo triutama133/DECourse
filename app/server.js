@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { spawn, spawnSync } = require('child_process');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = __dirname;
@@ -21,7 +22,65 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
+// ---- Optional offline AI tutor: the page cannot start programs, so these three endpoints start and stop `ollama serve`.
+// Only this app's own child process is ever stopped. Only same-machine pages may call them.
+const OLLAMA_BIN = process.env.OLLAMA_BIN || 'ollama';
+const OLLAMA_HOST = (process.env.OLLAMA_HOST || '127.0.0.1:11434').replace(/^https?:\/\//, '');
+let tutorChild = null;
+
+function sameMachine(req) {
+  const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
+  const okHost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+  const origin = req.headers.origin;
+  if (!origin) return okHost;
+  try { return okHost && new URL(origin).host === req.headers.host; } catch { return false; }
+}
+function sendJson(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=UTF-8', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(obj));
+}
+function ollamaUp() {
+  return new Promise((resolve) => {
+    const [h, p] = OLLAMA_HOST.split(':');
+    const r = http.get({ host: h, port: p || 11434, path: '/api/version', timeout: 1500 }, (x) => { x.resume(); resolve(x.statusCode === 200); });
+    r.on('error', () => resolve(false));
+    r.on('timeout', () => { r.destroy(); resolve(false); });
+  });
+}
+async function tutorStart(res, igpu) {
+  if (await ollamaUp()) return sendJson(res, 200, { ok: true, running: true, managed: Boolean(tutorChild), started: false });
+  const probe = spawnSync(OLLAMA_BIN, ['--version'], { timeout: 5000 });
+  if (probe.error) return sendJson(res, 200, { ok: false, error: 'not-installed' });
+  const origins = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`].join(',');
+  const env = { ...process.env, OLLAMA_HOST, OLLAMA_ORIGINS: [process.env.OLLAMA_ORIGINS, origins].filter(Boolean).join(',') };
+  if (igpu) env.OLLAMA_IGPU_ENABLE = '1';
+  tutorChild = spawn(OLLAMA_BIN, ['serve'], { env, stdio: 'ignore' });
+  tutorChild.on('exit', () => { tutorChild = null; });
+  tutorChild.on('error', () => { tutorChild = null; });
+  for (let i = 0; i < 40; i++) {
+    if (await ollamaUp()) return sendJson(res, 200, { ok: true, running: true, managed: true, started: true });
+    if (!tutorChild) break;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return sendJson(res, 200, { ok: false, error: 'did-not-start' });
+}
+function tutorStop(res) {
+  const had = Boolean(tutorChild);
+  if (tutorChild) { try { tutorChild.kill('SIGTERM'); } catch { /* already gone */ } tutorChild = null; }
+  sendJson(res, 200, { ok: true, stopped: had });
+}
+process.on('exit', () => { if (tutorChild) { try { tutorChild.kill('SIGTERM'); } catch { /* ignore */ } } });
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => process.exit(0));
+
 const server = http.createServer((req, res) => {
+  if (req.url.split('?')[0].startsWith('/api/tutor/')) {
+    const action = req.url.split('?')[0].slice('/api/tutor/'.length);
+    if (!sameMachine(req)) return sendJson(res, 403, { ok: false, error: 'forbidden' });
+    if (action === 'status' && req.method === 'GET') return ollamaUp().then((up) => sendJson(res, 200, { ok: true, running: up, managed: Boolean(tutorChild) }));
+    if (action === 'start' && req.method === 'POST') return tutorStart(res, /igpu=1/.test(req.url));
+    if (action === 'stop' && req.method === 'POST') return tutorStop(res);
+    return sendJson(res, 404, { ok: false, error: 'unknown' });
+  }
   let urlPath;
   try {
     urlPath = decodeURIComponent(req.url.split('?')[0]);
