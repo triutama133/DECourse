@@ -131,6 +131,9 @@ jobs:
       - name: Doctor recognises broken venvs, missing variables and the wrong folder
         run: python3 scripts/doctor.py --self-test
 
+      - name: Offline tutor finds the right lessons in both languages and talks to a model server
+        run: python3 scripts/tutor.py --self-test
+
       - name: Lab verifier tells a broken starter from an unfinished one
         run: python3 scripts/verify_labs.py --self-test
 

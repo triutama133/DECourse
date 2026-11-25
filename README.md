@@ -31,6 +31,23 @@ No Git? Download the ZIP of this repository instead. Prefer not to install anyth
 
 **Proof that learners did the work themselves:** every lab ends with `python3 scripts/prove.py <module>` (for example `mod-0-2`; Lab 0.1 also needs the workspace path). It runs the lab's real tests on the learner's own computer and, only if all pass with none skipped, prints a short code such as `DF1:mod-0-2:8:v:3.12:linux:3f9a1c2e:b04d77a1:5c1e9b`. The learner pastes it into the lab page; the app checks that the tests are the course's current tests, that the work is not the reference solution or the untouched starter, and (for Lab 0.2) that it ran inside a venv. A module is marked complete automatically only when the quiz is passed **and** the proof is accepted (manual completion asks for confirmation). This is an honesty check, not security: anyone can read the scripts. `python3 scripts/test_proof.py` tests it end to end; `labs/proof.json` defines how each lab is proven.
 
+## Ask the course offline (optional tutor)
+
+A small AI model that runs on your own computer and answers from the course itself, in English or Indonesian. It is a helper for when you are stuck, not a replacement for the lessons: it prints the lessons it used so you can read the real text, and it says so when the course does not cover your question. Nothing leaves your computer after the one-time download.
+
+```bash
+# one time, needs internet (about 2 GB): install Ollama from https://ollama.com, then
+ollama serve                 # leave this running in a second terminal
+ollama pull qwen2.5:3b       # small enough for a normal laptop, no graphics card needed
+
+python3 scripts/tutor.py                          # chat, type exit to leave
+python3 scripts/tutor.py "what is a backfill?"    # one question
+python3 scripts/tutor.py --lang id "apa itu primary key?"
+python3 scripts/tutor.py --search "window function"   # no model needed: lists the matching lessons
+```
+
+On a laptop CPU an answer takes about 5 to 15 seconds. With an AMD or Intel integrated graphics chip you can start the server with `OLLAMA_IGPU_ENABLE=1 ollama serve` (reading your question gets about twice as fast, writing the answer does not). A bigger model such as `DF_TUTOR_MODEL=qwen2.5:7b python3 scripts/tutor.py` is smarter but about twice as slow. Small models can still be wrong: when the tutor and a lesson disagree, trust the lesson. `python3 scripts/tutor.py --self-test` checks the search and the model connection without needing a model.
+
 ## Run it
 
 ```bash
