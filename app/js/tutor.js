@@ -146,7 +146,7 @@
   }
 
   function buildMessages(question, passages, lang, history) {
-    const ctx = passages.map(([, c]) => "[" + c.modTitle + ", lesson " + c.lesson + ": " + c.heading + "]\n" + c.text.slice(0, 1300)).join("\n\n");
+    const ctx = passages.map(([, c]) => "[" + c.modTitle + ", lesson " + c.lesson + ": " + c.heading + "]\n" + c.text.slice(0, 800)).join("\n\n");
     return [{ role: "system", content: systemPrompt(lang) }].concat((history || []).slice(-2),
       [{ role: "user", content: "COURSE EXCERPTS:\n" + ctx + "\n\nQUESTION: " + question }]);
   }
@@ -275,9 +275,9 @@
     if (!q || S.busy || S.phase !== "ready") return;
     S.busy = true;
     addMsg("user", fmt(q));
-    const bubble = addMsg("bot", "<span class='muted'>…</span>");
+    const bubble = addMsg("bot", "<span class='muted'>" + esc(L("Membaca materi kursus…", "Reading the course…")) + "</span>");
     const l = lang();
-    const passages = relevant(index().search(q, 3, focusLesson()));
+    const passages = relevant(index().search(q, 2, focusLesson()));
     if (!passages.length) {
       bubble.innerHTML = esc(L("Saya tidak menemukannya di kursus ini. Coba kata lain, atau buka Glosarium.", "I could not find that in the course. Try other words, or open the Glossary."));
       S.busy = false; render(); return;
@@ -348,10 +348,13 @@
       '<div class="tutor-log" id="tutor-log" aria-live="polite"></div>' +
       '<div class="tutor-ctx muted small" id="tutor-ctx"></div>' +
       '<form class="tutor-form" id="tutor-form"><input id="tutor-input" autocomplete="off" /><button class="btn btn-primary" id="tutor-send" type="submit"></button></form>' +
-      '<div class="tutor-foot"><span class="muted small" id="tutor-note"></span></div>';
+      '<div class="tutor-foot"><span class="muted small" id="tutor-note"></span>' +
+      '<label class="muted small tutor-igpu"><input type="checkbox" id="tutor-igpu"> <span id="tutor-igpu-l"></span></label></div>';
     document.body.appendChild(p);
     $("tutor-close").onclick = () => { S.open = false; render(); };
     $("tutor-off").onclick = turnOff;
+    $("tutor-igpu").checked = Boolean(store.get("df_tutor_igpu", false));
+    $("tutor-igpu").onchange = (e) => store.set("df_tutor_igpu", e.target.checked);
     $("tutor-form").onsubmit = (e) => {
       e.preventDefault();
       if (S.busy && S.abort) { S.abort.abort(); return; }
@@ -421,6 +424,7 @@
     $("tutor-ctx").textContent = ready && f ? L("Sedang membaca: Modul ", "Reading now: Module ") + modNo(f.mod) + L(", pelajaran ", ", lesson ") + f.lesson : "";
     $("tutor-note").textContent = L("Jawaban dari materi kursus. Model kecil bisa salah: percayai pelajarannya.", "Answers come from the course. A small model can be wrong: trust the lesson.");
     $("tutor-off").textContent = L("Matikan tutor", "Turn tutor off");
+    $("tutor-igpu-l").textContent = L("Pakai chip grafis (bisa lebih cepat; berlaku saat tutor dinyalakan berikutnya)", "Use the graphics chip (can be faster; applies the next time you turn the tutor on)");
     if (ready && !$("tutor-log").children.length) addMsg("bot", esc(L("Halo! Tanyakan apa saja tentang materi. Contoh: “apa itu backfill?”", "Hi! Ask me anything about the lessons. For example: “what is a backfill?”")));
   }
 

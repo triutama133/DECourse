@@ -221,7 +221,7 @@ def system_prompt(lang):
 
 
 def build_messages(question, passages, lang, history):
-    ctx = "\n\n".join(f"[{c['mod_title']}, lesson {c['lesson']}: {c['heading']}]\n{c['text'][:1300]}" for _, c in passages)
+    ctx = "\n\n".join(f"[{c['mod_title']}, lesson {c['lesson']}: {c['heading']}]\n{c['text'][:800]}" for _, c in passages)
     msgs = [{"role": "system", "content": system_prompt(lang)}]
     msgs += history[-2:]
     msgs.append({"role": "user", "content": f"COURSE EXCERPTS:\n{ctx}\n\nQUESTION: {question}"})
@@ -277,7 +277,7 @@ def show_sources(passages, lang):
     return f"\n{label}:\n" + "\n".join(out) if out else ""
 
 
-def ask(question, idx, lang, history, k=3, out=sys.stdout):
+def ask(question, idx, lang, history, k=2, out=sys.stdout):
     passages = idx.search(question if len(tokens(question)) >= 3 or not history else history[-2]["content"].split("QUESTION:")[-1] + " " + question, k)
     passages = [p for p in passages if p[0] >= 0.72 * passages[0][0]] if passages else passages  # drop weak matches
     if not passages:
@@ -392,7 +392,7 @@ def self_test():
 
 def main(argv):
     args, lang, search_only, question = argv[1:], None, False, []
-    k = 3
+    k = 2
     i = 0
     while i < len(args):
         a = args[i]
