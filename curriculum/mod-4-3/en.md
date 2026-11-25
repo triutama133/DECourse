@@ -16,7 +16,7 @@ why: In production data engineering, data arrives as a continuous, messy, and un
 Modules 0.1 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 2.1 (DuckDB and analytical storage), 3.2 (Kafka, Redpanda, and event logs), and 3.3 (Stream processing, windowing, and watermarks). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
-> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (atomic swaps & idempotency), **Module 2.1** (DuckDB table upserts), **Module 3.2** (consumer offsets & partitions), and **Module 3.3** (tumbling/sliding windows & monotonic watermarks). Every lesson now maps 1-to-1 to `check.py --step 1` through `--step 5`.
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (atomic swaps & idempotency), **Module 2.1** (DuckDB table upserts), **Module 3.2** (consumer offsets & partitions), and **Module 3.3** (tumbling/sliding windows & monotonic watermarks). Lessons 2–6 map 1-to-1 to `check.py --step 1` through `--step 5`.
 
 Every lab earlier in the course provided predefined test files, unit assertions, and guided boilerplate code. In this capstone, **you receive an architectural contract, realistic streaming telemetry, and an automated verification suite that stress-tests your stream processor.**
 
@@ -28,7 +28,7 @@ The verification harness does not evaluate stylistic choices; it verifies **obse
 - When configured for sliding windows (`--window-slide 60`), does every incoming event correctly update all overlapping window buckets?
 
 The rules of engagement:
-1. **Build it yourself.** Work in your own isolated directory (e.g. `~/fleet`) inside your virtual environment. Your workspace contains two files you create: `stream_processor.py` and `profile.json`.
+1. **Build it yourself.** Work in your own isolated directory (e.g. `~/fleet`) inside your virtual environment. Your workspace contains four files you create: `stream_processor.py`, `profile.json`, `DESIGN.md`, and `NOTES.md`.
 2. **Verify incrementally after each step:**
    ```bash
    python3 labs/mod-4-3/check.py ~/fleet --step 1
@@ -98,11 +98,11 @@ Our seed stream (`labs/mod-4-3/data/events_seed.jsonl`) consists of 1,000 determ
 ```json
 {
   "event_id": "evt_0001",
-  "vehicle_id": "taxi_29",
-  "event_time": 1704067266,
-  "zone_id": 186,
-  "fare_amount": 28.53,
-  "trip_distance": 5.48,
+  "vehicle_id": "taxi_08",
+  "event_time": 1704067318,
+  "zone_id": 161,
+  "fare_amount": 49.49,
+  "trip_distance": 3.32,
   "passenger_count": 1
 }
 ```
@@ -173,7 +173,7 @@ tumbling_start(300, 300) == 300 ## An event exactly on the boundary starts the n
 tumbling_start(1704067250, 300) == 1704067200 ## A real Unix timestamp rounds down to the 5-minute mark.
 tumbling_start(59, 60) == 0 ## One-minute windows.
 @hint
-Round `ts` down to a multiple of `size`: `ts - ts % size`, or `ts // size * size`.
+Use integer division by `size` to find which whole bucket index `ts` falls into, then multiply back by `size` (or subtract the remainder).
 @solution
 def tumbling_start(ts, size):
     return ts // size * size
@@ -216,6 +216,7 @@ Watermarks must **never move backward**, even when an out-of-order event arrives
 A window is defined by a half-open temporal interval `[t_start, t_end)`.
 - **Open Window:** While `t_end > W`, the window remains open in memory. Any event falling into this interval is aggregated into the window accumulator.
 - **Eviction / Closure:** When watermark advances such that `t_end <= W`, the window is closed. Its final aggregates are emitted to analytical storage (DuckDB), and its in-memory accumulator is evicted to reclaim RAM.
+- **End-of-Stream (EOF) Flush & UTC Timestamps:** Because this lab processes finite stream slices, at EOF your processor must also upsert all remaining still-open windows from `window_state` into DuckDB so current partial totals are queryable, while keeping those windows inside `open_windows` in `offsets.json` so a resumed run merges new events and cleanly overwrites the partial rows via upsert. Convert epoch seconds to naive UTC (`datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)`) when writing `window_start` and `window_end` to DuckDB so non-UTC machines (e.g., WIB UTC+7) match `epoch(window_start)`.
 
 ### 3. Out-of-Order vs. Late Data & Dead-Letter Queue (DLQ):
 It is crucial to distinguish **out-of-order events** from **late events**:
@@ -252,7 +253,7 @@ advance_watermark(70, 250, 30) == 220 ## A newer event moves it forward.
 advance_watermark(220, 190, 30) == 220 ## An older (out-of-order) event must not move it backward.
 advance_watermark(220, 250, 30) == 220 ## The same candidate gives the same watermark.
 @hint
-`candidate = event_time - delay`; if `w is None` return it, otherwise `return max(w, candidate)`.
+First compute the candidate watermark by subtracting `delay` from `event_time`. If there is no existing watermark yet, return the candidate directly; otherwise keep the larger of the previous watermark and the candidate.
 @solution
 def advance_watermark(w, event_time, delay):
     candidate = event_time - delay
@@ -273,7 +274,7 @@ is_too_late(150, 300, 300) == True ## The watermark reached the window's end.
 is_too_late(450, 300, 300) == False ## This event belongs to [300, 600), which is open.
 is_too_late(299, 300, 1000) == True ## A long-closed window.
 @hint
-The window end is `(event_time // size + 1) * size`. Compare it with the watermark: `end <= watermark`.
+Find the start of the event's tumbling window, add `size` to get its exclusive end boundary, and check whether the watermark has reached or passed that end.
 @solution
 def is_too_late(event_time, size, watermark):
     end = (event_time // size + 1) * size
@@ -283,7 +284,7 @@ def is_too_late(event_time, size, watermark):
 :::ask An out-of-order event arrives with a timestamp older than the newest event so far. What happens to the watermark?
 @options
 it moves back to the older timestamp
-* nothing: it only ever moves forward
+* nothing: it only moves forward
 it resets to zero and starts again
 @why
 W = max(W_previous, t_event - D), so a smaller candidate changes nothing. If the watermark could go backward, windows already declared complete would reopen.
@@ -311,7 +312,7 @@ Incoming Stream (JSONL / Kafka)
 ```
 
 ### 1. The Checkpoint Contract (`offsets.json`):
-To resume processing without reprocessing the entire stream from scratch, the processor tracks its consumption progress in a checkpoint state file:
+To resume processing without reprocessing the entire stream from scratch, the processor tracks its consumption progress in a checkpoint state file (`last_offset` is a **1-based line count**, `150` after reading 150 lines via `enumerate(lines, start=1)`; on resume, skip lines where `idx <= last_offset` and preserve `last_offset` if zero new lines arrive):
 ```json
 {
   "last_offset": 200,
@@ -332,7 +333,7 @@ To resume processing without reprocessing the entire stream from scratch, the pr
 ### 2. The In-Flight Accumulator Preservation Rule:
 A common architectural error in novice streaming systems is checkpointing *only* the offset integer (`last_offset: 200`) while ignoring in-memory window accumulators.
 If the processor terminates while a 5-minute window is halfway through accumulating, restarting with an empty in-memory state will split the window in two: the pre-crash trips were emitted with incomplete counts, and post-crash trips form a separate incomplete window!
-To guarantee exact stream continuity, a state checkpoint must serialize both the stream offset **and the open window accumulators (`open_windows`)**. On restart, open accumulators are restored into memory seamlessly.
+To guarantee exact stream continuity, a state checkpoint must serialize both the stream offset **and the open window accumulators (`open_windows`)**. At end-of-stream (EOF), upsert all remaining still-open windows from `window_state` into DuckDB so partial totals are queryable immediately, while **also** keeping them in `open_windows` in `offsets.json`. On restart, open accumulators are restored into memory seamlessly and later upserts cleanly overwrite the prior partial rows.
 
 ### 3. Atomic State Commit via POSIX Rename:
 Writing directly to `offsets.json` risks corrupting the file if the operating system crashes mid-write:
@@ -349,8 +350,8 @@ When an engine crashes and recovers, it may replay events from the last committe
 :::ask A stream consumer processes a batch and must save its offset. Which order survives a crash best?
 @options
 save the offset first, then process the batch
-* process and write the results, then save the offset
-the order does not matter
+* write the results first, then save offset
+either order works, since Kafka retries
 @why
 If you save the offset first and crash while processing, the batch is skipped forever. Saving it after the results are written means a crash only replays the batch, which an idempotent write absorbs. Same rule as checkpoints in the ingestion capstone.
 :::
@@ -403,14 +404,14 @@ An event at time t is in every window starting at a multiple of the slide S with
 :::
 
 ## @lab Lab: five steps to a production streaming engine
-Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see the first lesson) and short streams it builds itself, with out-of-order and late events, drops simulated mid-flight sockets, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
+Build `stream_processor.py` and `profile.json` in your own workspace, one step at a time, running the checker after each step. The checker feeds the seed stream (synthetic, see Lesson 2) and short streams it builds itself, with out-of-order and late events, drops/crashes mid-stream, verifies late-event DLQ routing, and asserts sliding window mathematical invariants.
 
 ### @steps
 1. **Setup.** Follow the setup instructions in Lesson 1 (create `~/fleet`, activate virtual environment, install requirements, run `fetch_data.py`, copy `starter/stream_processor.py`). Inspect `events_seed.jsonl` with Python or DuckDB.
 2. **Step 1: Raw stream profiling.** Profile the 1,000 seed events and write `profile.json` with 7 keys: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, and `busiest_zone_event_count`. Verify with `--step 1`.
-3. **Step 2: Baseline tumbling event-time windows.** Implement CLI argument parsing and tumbling window aggregation (`--window-size 300`, `--watermark-delay 120`). Aggregate `total_trips`, `total_passengers`, `total_fare`, and `avg_fare` into `<output-dir>/warehouse.duckdb` (table `windowed_metrics`). Ensure re-running the processor produces zero duplicate rows. Verify with `--step 2`.
-4. **Step 3: Watermark progression & late event DLQ.** Track monotonic watermark (`W = max(W, t - delay)`). Evict closed windows when `t_end <= W`. Quarantine late-arriving events that fall outside open windows into `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`. The checker also feeds a stream in which an out-of-order event would lower a careless watermark, and a stream in which the watermark lands exactly on the end of a window (a window is closed when `t_end <= W`, equal included). Verify with `--step 3`.
-5. **Step 4: Consumer offset checkpointing & recovery.** Save stream offsets and open window accumulators atomically to `--state-file` (`.tmp` + `os.replace`). The checker simulates a process crash after 150 events, resumes with the full stream, and verifies that the engine completes without duplicating or losing records. Verify with `--step 4`.
+3. **Step 2: Baseline tumbling event-time windows.** Implement CLI argument parsing and tumbling window aggregation (`--window-size 300`, `--watermark-delay 120`). Convert epoch seconds to naive UTC (`datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)`) when writing `window_start`/`window_end` into `<output-dir>/warehouse.duckdb` (table `windowed_metrics`) so non-UTC machines (e.g., WIB UTC+7) match `epoch(window_start)`. Aggregate `total_trips`, `total_passengers`, `total_fare`, and `avg_fare`, and upsert any remaining open windows at EOF so partial totals are queryable. Ensure re-running the processor produces zero duplicate rows. Verify with `--step 2`.
+4. **Step 3: Watermark progression & late event DLQ.** Track monotonic watermark (`W = max(W, t - delay)`). Evict closed windows when `t_end <= W`, and at EOF upsert remaining still-open windows from `window_state` into DuckDB while keeping them in `open_windows`. Quarantine late-arriving events that fall outside open windows into `<output-dir>/dlq/late_events.jsonl` with `error_code: "LATE_EVENT"`. The checker also feeds a stream in which an out-of-order event would lower a careless watermark, and a stream in which the watermark lands exactly on the end of a window (a window is closed when `t_end <= W`, equal included). Verify with `--step 3`.
+5. **Step 4: Consumer offset checkpointing & recovery.** Save 1-based `last_offset` (`150` after 150 lines, `enumerate(lines, start=1)`) and open window accumulators (`open_windows`) atomically to `--state-file` (`.tmp` + `os.replace`). At EOF, upsert still-open windows into DuckDB while keeping them in `open_windows` in `offsets.json` so a resumed run merges new events and overwrites partial rows cleanly via upsert. The checker simulates a process crash after 150 events, resumes with the full stream, and verifies that the engine completes without duplicating or losing records. Verify with `--step 4`.
 6. **Step 5: Sliding windows.** Add support for `--window-slide` (e.g., size 300s, slide 60s). Route each incoming event to all active overlapping window buckets. Verify that total aggregated trip and fare counts match the theoretical multi-window factor (`(size / slide) * raw`). Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-3 ~/fleet` to generate your proof code for the course app.
 
@@ -434,7 +435,7 @@ Build `stream_processor.py` and `profile.json` in your own workspace, one step a
 - You can explain how bounded watermarks allow out-of-order events while bounding memory consumption
 - You can explain why stream checkpoints must serialize in-flight window accumulators alongside consumer offsets
 - Your `NOTES.md` records your architectural reflections on the trade-offs between low latency and late data completeness
-- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design ~/fleet/DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash
@@ -462,15 +463,15 @@ Decouple event time from network arrival time in all real-time architectures. Al
 ## @quiz
 ### Why does grouping streaming telemetry by processing time produce dangerous analytical errors during mobile network disruptions?
 - [ ] Processing time requires specialized hardware acceleration that causes excessive battery drain on mobile vehicle devices
-- [x] Network latency bursts concentrate queued records into artificial spikes instead of their true physical occurrence times
 - [ ] Processing time forces analytical databases to lock tables exclusively and reject all concurrent analytical dashboard queries
+- [x] Network latency bursts concentrate queued records into artificial spikes instead of their true physical occurrence times
 - [ ] The JSON format strictly forbids timestamps generated by operating system clocks on Linux client vehicle containers
 
 > When mobile clients experience connectivity dead zones, they buffer events locally and transmit them in sudden bursts upon reconnecting. If grouped by processing time, all buffered events fall into the single arrival window, creating an artificial demand spike while falsely depicting earlier periods as empty.
 
 ### How does a bounded out-of-orderness watermark behave when an event arrives with a timestamp smaller than the highest timestamp previously observed?
-- [ ] The watermark resets backward to match the smaller timestamp and reopens previously evicted analytical window buckets
 - [x] The watermark remains strictly unchanged because watermarks are monotonic and can only advance forward to larger timestamps
+- [ ] The watermark resets backward to match the smaller timestamp and reopens previously evicted analytical window buckets
 - [ ] The processor crashes with an unhandled timestamp exception and purges all active consumer group offsets from the brokers
 - [ ] The watermark pauses the entire distributed streaming pipeline until an external human administrator confirms network health
 
@@ -478,9 +479,9 @@ Decouple event time from network arrival time in all real-time architectures. Al
 
 ### In event-time stream processing, what is the critical difference between an out-of-order event and a late event?
 - [ ] Out-of-order events arrive from cellular modems while late events are generated exclusively by fixed fiber-optic IoT sensor infrastructure
-- [x] An out-of-order event falls into an open window whose end exceeds the watermark, while a late event belongs to an already closed window
 - [ ] Out-of-order events are routed to a Dead-Letter Queue while late events are silently dropped without any audit log recording
 - [ ] Out-of-order events contain missing primary key identifiers while late events contain negative financial transaction amounts
+- [x] An out-of-order event falls into an open window whose end exceeds the watermark, while a late event belongs to an already closed window
 
 > An event is out of order if it arrives after events with higher timestamps, but its candidate window remains open (`t_end > W`). It is successfully aggregated. An event is late when its window has already closed (`t_end <= W`); because that window was already published, the late event is quarantined into a DLQ.
 
@@ -490,11 +491,11 @@ Decouple event time from network arrival time in all real-time architectures. Al
 - [ ] Exactly ten overlapping windows because each sliding window bucket requires a separate bidirectional pairing with adjacent bounds
 - [ ] Exactly zero windows until the high watermark advances past the upper boundary of the entire hourly analytical partition block
 
-> In sliding windows, the number of overlapping windows containing any timestamp is `(duration / slide)`. With duration 300s and slide 60s, `(300 / 60) = 5`. The event belongs to all five windows spanning `[1704067020, 1704067320)` through `[1704067260, 1704067560)`.
+> In sliding windows, the number of overlapping windows containing any timestamp is `(duration / slide)`. With duration 300s and slide 60s, `(300 / 60) = 5`. The event belongs to all five windows spanning `[1704066960, 1704067260)` through `[1704067200, 1704067500)`.
 
-### Why must a stream processor checkpoint its in-memory window accumulators alongside consumer stream offsets in state.json?
-- [ ] Because the DuckDB storage engine requires external JSON state files to recreate its internal columnar compression tables
+### Why must a stream processor checkpoint its in-memory window accumulators alongside consumer stream offsets in offsets.json?
 - [x] To prevent in-flight windows from splitting into incomplete fragments if the processor crashes and restarts before a window closes
+- [ ] Because the DuckDB storage engine requires external JSON state files to recreate its internal columnar compression tables
 - [ ] Because the Linux POSIX kernel automatically clears all analytical database tables whenever a running Python script exits abruptly
 - [ ] To encrypt the offset integers with a cryptographic signature that prevents unauthorized replay attacks on public cloud networks and gateways
 
@@ -502,17 +503,17 @@ Decouple event time from network arrival time in all real-time architectures. Al
 
 ### How does an analytical warehouse destination guarantee idempotency when a stream processor re-emits window aggregates after recovering from a crash?
 - [ ] By rejecting any subsequent incoming batch that contains timestamps identical to previously processed data with an HTTP error
-- [x] By defining a composite primary key on window boundaries and zone ID, deleting existing matching rows, and inserting updated records
 - [ ] By automatically shutting down the entire streaming pipeline whenever an emitted record contains an identical zone identifier
+- [x] By defining a composite primary key on window boundaries and zone ID, deleting existing matching rows, and inserting updated records
 - [ ] By saving all window metrics into unversioned append-only text logs and delegating deduplication to downstream business dashboard users
 
 > Idempotent storage writes ensure that replaying an event batch produces identical database state. By creating a composite primary key on `(window_start, window_end, zone_id)` and executing an upsert (staging table insert followed by atomic replace), re-emitted windows overwrite stale state without duplicating rows.
 
 ### Why is an atomic file swap pattern (writing to .tmp and using os.replace) required when persisting stream checkpoints to disk?
 - [ ] Because standard Python file write functions cannot serialize complex dictionary objects containing nested floating-point numerical values on disk
-- [x] Because writing directly to the target file leaves a corrupted, half-written JSON payload if the process is killed in the middle of a write
 - [ ] Because the POSIX operating system requires temporary file extensions before granting write permissions to user application processes
 - [ ] Because atomic renaming automatically synchronizes file contents across multiple physical server nodes in a distributed cloud cluster
+- [x] Because writing directly to the target file leaves a corrupted, half-written JSON payload if the process is killed in the middle of a write
 
 > If a server loses power or the operating system terminates a process mid-write, writing directly to `offsets.json` leaves the file truncated and corrupt, destroying state history. Writing to a `.tmp` file and executing `os.replace` guarantees an atomic rename: the file is always either the complete prior state or the complete new state.
 

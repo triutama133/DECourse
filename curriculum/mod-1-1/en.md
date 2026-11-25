@@ -13,20 +13,20 @@ why: Tutorials run everything on a laptop with 16 GB of RAM and a friendly termi
 - Write a Dockerfile that builds fast, runs as a non-root user and is reproducible, and diagnose a container killed for using too much memory
 
 ## @prereq
-Modules 0.1 and 0.3: terminal basics, Git, and the idea of a Python virtual environment. Docker is needed only for the optional runtime part of the lab; the checks do not require it.
+Modules 0.0 and 0.1: Python basics, terminal basics, Git, and the idea of a Python virtual environment. Install `jq` (e.g. `brew install jq` on macOS or `sudo apt install jq` on Debian/Ubuntu) for Lessons 3–4 and the lab, and `pytest` (`pip install pytest`) if you want to run `scripts/prove.py`. Docker is needed only for the optional runtime part of the lab; the checks do not require it.
 
 ## @part Shell tools and scripts
 
 ## @lesson How a Unix program thinks: processes, streams and exit codes
 Every time you run a command, the computer starts a **process**: a running copy of a program. Picture a worker at a desk. It has its own notepad (its **memory**) and a badge number (its **PID**, the process id). It also has three standard channels to the outside world: **stdin**, where its input arrives; **stdout**, where its normal output goes; and **stderr**, where it reports errors, kept apart from the normal output. Every command reads text in and writes text out, so you can connect any command to any other with the **pipe** `|`: the output of one becomes the input of the next. Small tools, one job each, joined together: that is what makes the shell powerful.
 
-Every process ends with an **exit code**, a number from 0 to 255. By convention **0 means success** and anything else means failure. The shell stores the last one in `$?`:
+Every process ends with an **exit code**, a number from 0 to 255. By convention **0 means success** and anything else means failure. The shell stores the last one in `$?` (if `data/orders.csv` is not generated yet, create the KopiKu sample files first with `python3 labs/shared/shopgen.py --out data`):
 
 ```bash
 grep -q "paid" data/orders.csv ; echo $?     # 0 if found, 1 if not found, 2 on error
 ```
 
-Exit codes are how schedulers, CI systems and containers decide whether your job worked. A script that prints "ERROR" and still exits 0 is a lie to every system around it. Two operators use exit codes directly: `a && b` runs `b` only if `a` succeeded, and `a || b` runs `b` only if `a` failed.
+Exit codes are how schedulers (such as **cron**, covered in Lesson 5), **CI** (Continuous Integration, which runs automated checks on your code) systems and containers decide whether your job worked. A script that prints "ERROR" and still exits 0 is a lie to every system around it. Two operators use exit codes directly: `a && b` runs `b` only if `a` succeeded, and `a || b` runs `b` only if `a` failed.
 
 :::ask What does this print if `data/orders.csv` does NOT contain the word `zzzz`?
 ```bash
@@ -61,7 +61,7 @@ You do not need these today. Lesson 7 uses code 137 again, with its story.
 Useful process commands: `ps aux` (list processes), `top` or `htop` (live view of CPU and memory), `kill <pid>` (send SIGTERM), `kill -9 <pid>` (SIGKILL, cannot be caught, use as a last resort), and `Ctrl+C` (send SIGINT to the foreground process).
 :::
 
-> 🛠 **Try it (8 min, terminal).** From the course folder, run each command and then `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Then save a script `job.sh` with the lines `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, run `bash job.sh` and check `echo $?`.
+> 🛠 **Try it (8 min, terminal).** From the course folder (run `python3 labs/shared/shopgen.py --out data` first if `data/orders.csv` is not there yet), run each command and then `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Then save a script `job.sh` with the lines `#!/bin/bash` (tells the system to run it with Bash), `set -e` (stop on the first failing command, both covered in full in Lesson 4), `echo start`, `false`, `echo never printed`; run `bash job.sh` and check `echo $?`. When you are done, clean up with `rm job.sh`.
 >
 > **You should see:** `0`, `1`, `2`, `1`, `7`; and for the script `start` and then exit code `1`. Remove `set -e` and run it again: the last line now prints too, and the exit code becomes `0`, a lie to every scheduler.
 
@@ -90,7 +90,7 @@ def commands_run(codes):
 
 :::ask A script prints 'ERROR: file missing' and then ends normally, with exit code 0. What will cron or a CI system conclude?
 @options
-* the job succeeded, because only the exit code counts
+* succeeded: only the exit code counts
 the job failed, because the word ERROR was printed
 nothing, because it ignores both text and codes
 @why
@@ -197,6 +197,8 @@ When should you stop using shell tools? When the logic needs branching, state, r
 > 2. Test error-resilient parsing: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
 > Notice how damaged lines are skipped without crashing! Proceed to Lesson 4 to write safe shell scripts.
 
+In Python's `json` module, `json.loads(line)` parses one JSON string and raises `json.JSONDecodeError` if the line is broken. Because valid JSON can also be a number, string, or list, check `isinstance(obj, dict)` when you only want JSON objects.
+
 :::drill python Skip the broken lines
 An events file has one JSON object per line, and some lines are cut off. `jq 'fromjson?'` skips the broken ones. Write `good_events(lines)`: return a list with the parsed object (dictionary) of every line that is valid JSON **and** is an object. Skip everything else without raising an error.
 @starter
@@ -210,7 +212,7 @@ good_events(["5", '"text"', "[1]"]) == [] ## Valid JSON, but not objects: skippe
 good_events([]) == [] ## No lines, no events.
 good_events(["", '{"x": null}']) == [{"x": None}] ## An empty line is skipped; null inside an object is fine.
 @hint
-`try: obj = json.loads(line)` and `except json.JSONDecodeError: continue`; keep it only if `isinstance(obj, dict)`.
+Loop over the lines and parse each one inside a `try` / `except` block that skips malformed JSON; keep the parsed result only when it is a dictionary.
 @solution
 import json
 def good_events(lines):
@@ -259,15 +261,6 @@ By default a pipeline reports the exit code of its **last** stage. `wc -l` succe
 
 Caveat: `-e` is not triggered inside `if` conditions, in `&&`/`||` chains, or in a command whose failure you test yourself. It is a safety net, not a substitute for thinking.
 
-:::ask `file="my report.csv"` and the script runs `wc -l $file` (no quotes). What does `wc` receive?
-@options
-one argument: the name `my report.csv`
-* two arguments: `my` and `report.csv`
-nothing: the shell stops before running it
-@why
-Unquoted, the shell splits the value at the space. Always write `"$file"`. `shellcheck` flags exactly this mistake.
-:::
-
 Habits that keep scripts reliable:
 
 - **Quote variables**: `"$file"`, not `$file`. Unquoted, a name with a space becomes two arguments.
@@ -278,10 +271,19 @@ Habits that keep scripts reliable:
 - **Make it idempotent**: run twice, same result. Use deterministic output paths and overwrite, or write by date partition.
 - **Lint it**: `shellcheck script.sh` finds most quoting and logic mistakes automatically. Run it in CI.
 
+:::ask `file="my report.csv"` and the script runs `wc -l $file` (no quotes). What does `wc` receive?
+@options
+one argument: the name `my report.csv`
+* two arguments: `my` and `report.csv`
+nothing: the shell stops before running it
+@why
+Unquoted, the shell splits the value at the space. Always write `"$file"`. `shellcheck` flags exactly this mistake.
+:::
+
 > 💡 **Practice Pause 3 (Build report.sh - Part A):**
 > Time to build Part A of this lab!
-> 1. Open `labs/mod-1-1/report.sh` in your text editor (remember: do not execute directly in bash without an input argument!).
-> 2. Apply strict mode `set -euo pipefail`, validate input argument `$1`, and build the metric summary pipeline using `jq`, `sort -u`, and `wc -l`.
+> 1. Open `labs/mod-1-1/report.sh` in your text editor and read its header comment, it specifies the 6 `key=value` output lines (`lines_total`, `malformed_lines`, `valid_events`, `unique_event_ids`, `distinct_users`, and `type.<event_type>`) plus using `mktemp` with `trap` for cleanup. When running it by hand, always pass an input file, e.g. `bash labs/mod-1-1/report.sh data/events.ndjson`.
+> 2. Apply strict mode `set -euo pipefail`, validate input argument `$1`, clean up any temporary file with `mktemp` and `trap`, and build the metric summary pipeline using `jq`, `sort -u`, and `wc -l`.
 > 3. Test your script in the terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
 > When all Part A tests are GREEN (PASSED), your professional Unix stream script is done! Proceed to Lesson 5 on Cron.
@@ -297,7 +299,7 @@ Habits that keep scripts reliable:
  */15 *  *   *   *   /opt/kopiku/check_inbox.sh
 ```
 
-The first line runs at 02:00 every day. Know these surprises before they cost you a night:
+The five fields are **minute** (`m`, 0–59), **hour** (`h`, 0–23), **day of month** (`dom`, 1–31), **month** (`mon`, 1–12), and **day of week** (`dow`, 0–7, where 0 and 7 are Sunday and `1-5` means Monday through Friday). A `*` means "every", `*/15` means "every 15th" (step syntax), and `a-b` means an inclusive range. So the first line runs at 02:00 every day, and the second runs every 15 minutes. Know these surprises before they cost you a night:
 
 - **Minimal environment.** cron does not load your shell profile. `PATH` is short, your virtual environment is not active, your environment variables are missing. Use absolute paths, set variables inside the script, and call `/opt/kopiku/venv/bin/python` directly.
 - **Silent output.** Output goes to email or nowhere. Redirect both streams to a log file (`>> log 2>&1`) so you can see what happened.
@@ -318,14 +320,14 @@ That last point is why real pipelines move to an **orchestrator** such as Airflo
 
 > 🛠 **Try it (10 min, terminal).** You cannot wait for midnight, so practise the three things that bite people.
 > 1. Write the five-field cron line for: every day at 02:30; every 15 minutes; 06:00 on weekdays only; midnight on the first day of each month.
-> 2. See what cron's bare environment looks like: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, then `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` in your own shell.
-> 3. Overlapping runs: in one terminal run `flock -n /tmp/demo.lock sleep 20`; in a second terminal run `flock -n /tmp/demo.lock echo second; echo $?`.
+> 2. See what cron's bare environment looks like: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, then `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` in your own shell (note: `VIRTUAL_ENV` is populated only when a Python virtual environment is active).
+> 3. Overlapping runs (Linux only; macOS does not ship `flock` by default): in one terminal run `flock -n /tmp/demo.lock sleep 20`; in a second terminal run `flock -n /tmp/demo.lock echo second; echo $?`.
 >
-> **You should see:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` in the bare environment (your shell has both); and `1` from the second `flock` without any `second` printed: the lock is held, so the overlapping copy refuses to run.
+> **You should see:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` in the bare environment (your shell has `HOME`, and `VIRTUAL_ENV` when a venv is active); and `1` from the second `flock` without any `second` printed: the lock is held, so the overlapping copy refuses to run.
 
 :::ask What does the cron line `*/15 * * * * /opt/kopiku/check_inbox.sh` do?
 @options
-* runs the script every 15 minutes, all day, every day
+* runs the script every 15 minutes, all day long
 runs the script once, at 15 minutes past midnight
 runs the script 15 times a day at random hours
 @why
@@ -378,7 +380,7 @@ Other things you will use: **volumes and bind mounts** keep data outside the con
 > 💡 **Practice Pause 4 (Optimize Dockerfile & .dockerignore - Part B):**
 > Time to package your job into a production-ready container:
 > 1. Open `labs/mod-1-1/Dockerfile` and `labs/mod-1-1/.dockerignore` in your text editor.
-> 2. Fix the Dockerfile: pin image `python:3.12-slim`, install dependencies before copying code, add non-root `USER appuser`, and use exec-form `ENTRYPOINT ["python", "etl.py"]`.
+> 2. Fix the Dockerfile: pin `FROM python:3.12-slim`, set `WORKDIR /app`, copy `app/requirements.txt` and run `pip install --no-cache-dir -r requirements.txt` (or set `PIP_NO_CACHE_DIR`) before copying `app/`, create and switch to a non-root user (`RUN useradd --create-home appuser` then `USER appuser`), and replace the starter's shell-form `CMD` with exec-form `ENTRYPOINT ["python", "etl.py"]` and `CMD ["/data/orders.csv"]`.
 > 3. Verify `.dockerignore` excludes `venv/`, `data/`, `.git/`, and `.env`.
 > 4. Test in the terminal:
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
@@ -387,7 +389,7 @@ Other things you will use: **volumes and bind mounts** keep data outside the con
 :::ask You start three containers from the same image. How many images exist?
 @options
 three: every container gets an image of its own
-* one: the containers are running copies made from it
+* one: the containers are running copies
 none, because an image disappears when it is run
 @why
 An image is a read-only template built once from a Dockerfile. A container is a running (or stopped) instance of it, and you can start as many as you like from the same image.
@@ -426,13 +428,13 @@ Related limits to watch: **disk** (a full disk makes writes fail in odd ways, so
 
 > 🛠 **Try it (10 min).**
 > 1. Exit code 137 is 128 + 9, the signal SIGKILL that kills a container over its memory limit. Prove it: `sleep 100 & kill -9 $!; wait $!; echo $?`.
-> 2. Compare memory. In Python, write two functions that add up the valid totals of `data/orders.csv`: one first reads the whole file into a list (`list(csv.reader(...))`), the other adds row by row. Wrap each call in `tracemalloc` (`tracemalloc.start()` before, `tracemalloc.get_traced_memory()[1]` after, then `tracemalloc.stop()`) and print the peak in KiB.
+> 2. Compare memory. In Python, write two functions that add up the valid totals of `data/orders.csv` (remember to strip any `"Rp "` prefix or commas and ignore negative or non-numeric totals): one first reads the whole file into a list (`list(csv.reader(...))`), the other adds row by row. Wrap each call in `tracemalloc` (`tracemalloc.start()` before, `tracemalloc.get_traced_memory()[1]` after, then `tracemalloc.stop()`) and print the peak in KiB.
 >
-> **You should see:** `137`, and a peak of about 1,500 KiB for the list version against about 50 KiB for the streaming one (roughly 30 times less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
+> **You should see:** `137`, and a peak of about 1,500 KiB for the list version against about 150–170 KiB for the streaming one (roughly 10× less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
 
 :::ask A container running a pandas job stops with exit code 137 and no Python error message. What most likely happened?
 @options
-* it went over its memory limit and the kernel killed it
+* it exceeded its memory limit and was killed
 the Python code has a syntax error on its last line
 the schedule expression was written in the wrong way
 @why
@@ -441,6 +443,8 @@ the schedule expression was written in the wrong way
 
 ## @lab Lab: a shell report and a container for a KopiKu job
 Part A: write a robust shell script that summarises the website events file, which contains broken lines and duplicates. Part B: package a small Python job into a good Docker image. Both are checked automatically.
+
+> **Already completed Practice Pauses 3 and 4?** You have already built and tested both parts, jump straight to **@verify** below (and optionally Step 7 if Docker is installed).
 
 ### @steps
 1. Generate the data if you have not already, and look at the events file before you write anything:
@@ -459,7 +463,7 @@ wc -l data/events.ndjson
 python3 labs/mod-1-1/test_lab.py TestReportScript -v
 ```
 
-5. Part B. Open `labs/mod-1-1/Dockerfile` and `.dockerignore`. The starter builds, but it breaks several good practices: an unpinned base image, no layer caching, root user, shell-form command, no ignore list. Fix each one using the lesson as your guide.
+5. Part B. Open `labs/mod-1-1/Dockerfile` and `.dockerignore`. The starter builds, but it breaks several good practices checked by `TestDockerfile`: an unpinned base image, missing `WORKDIR`, no layer caching, pip cache kept (`--no-cache-dir` / `PIP_NO_CACHE_DIR`), root user, shell-form command, no ignore list (`venv`, `data`, `.git`, `.env`), and keeping secrets out of the Dockerfile. Fix each one using the lesson as your guide.
 6. Run the Dockerfile checks:
 
 ```bash
@@ -483,17 +487,19 @@ docker run --rm --memory 64m -v "$PWD/data:/data:ro" kopiku-etl
 - labs/mod-1-1/test_lab.py :: The tests that check both parts :: test
 - labs/mod-1-1/reference/report.sh :: Reference solution for part A (try first!) :: reference
 - labs/mod-1-1/reference/Dockerfile :: Reference solution for part B :: reference
+- labs/mod-1-1/reference/.dockerignore :: Reference ignore list for part B :: reference
 
 ### @deliverables
 - `python3 labs/mod-1-1/test_lab.py` passes all tests
 - report.sh gives the right numbers on `data/events.ndjson` and fails with a non-zero exit code when given no file or a missing file
-- You can explain what each of the six fixes in your Dockerfile prevents
+- You can explain what each of the eight checks in `TestDockerfile` (Dockerfile and `.dockerignore`) prevents
 
 ### @verify
 Run both parts together from the repository root:
 
 ```bash
 python3 labs/mod-1-1/test_lab.py -v
+python3 scripts/prove.py mod-1-1    # requires pytest (pip install pytest)
 ```
 
 To compare with a known-good run: `LAB_DIR=reference python3 labs/mod-1-1/test_lab.py`.

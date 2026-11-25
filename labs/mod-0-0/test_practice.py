@@ -66,6 +66,8 @@ def run(**changes):
         pytest.fail("The marker line '# ===== END OF INPUTS =====' is missing from practice.py. Put it back: the checker needs it.", pytrace=False)
     inputs = {**DEFAULT, **changes}
     override = "".join(f"{name} = {value!r}\n" for name, value in inputs.items())
+    inject_line = source[:source.index(END_MARKER)].count("\n") + 1
+    injected = override.count("\n")
     source = source.replace(END_MARKER, override + END_MARKER, 1)
     lines = source.splitlines(keepends=True)
     headers = [i for i, line in enumerate(lines) if line.startswith(STEP_HEADER)]  # Step 1..4, then "Your results"
@@ -80,12 +82,18 @@ def run(**changes):
             with contextlib.redirect_stdout(io.StringIO()):  # the file prints its results; the checker does not need them
                 exec(compile(code, str(PATH), "exec"), namespace)
         except Exception as error:  # noqa: BLE001 - whatever the learner's code raised, show it kindly
-            line = next((f.lineno for f in reversed(traceback.extract_tb(error.__traceback__)) if f.filename == str(PATH)), None)
+            if isinstance(error, SyntaxError):
+                line, detail = error.lineno, error.msg
+            else:
+                line = next((f.lineno for f in reversed(traceback.extract_tb(error.__traceback__)) if f.filename == str(PATH)), None)
+                detail = error
+            if line is not None and line >= inject_line + injected:
+                line -= injected
             where = f" at line {line}" if line else ""
             if number == 0:
-                pytest.fail(f"The INPUTS part of practice.py stopped{where} with {type(error).__name__}: {error}", pytrace=False)
+                pytest.fail(f"The INPUTS part of practice.py stopped{where} with {type(error).__name__}: {detail}", pytrace=False)
             if number <= steps:
-                result.errors[number] = f"Your code for Step {number} stopped{where} of practice.py with {type(error).__name__}: {error}"
+                result.errors[number] = f"Your code for Step {number} stopped{where} of practice.py with {type(error).__name__}: {detail}"
     return result
 
 

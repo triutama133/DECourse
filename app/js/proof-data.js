@@ -17,8 +17,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-0",
   "argExample": null,
-  "tests": "9fba5f82",
-  "starter": "f4ecfd16",
+  "tests": "4428f69c",
+  "starter": "b706a7d1",
   "reference": "4a52686d"
  },
  "mod-0-2": {
@@ -28,7 +28,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-0-2",
   "argExample": null,
   "tests": "8a575c32",
-  "starter": "58ff283e",
+  "starter": "e486cc8e",
   "reference": "93679968"
  },
  "mod-0-1": {
@@ -37,7 +37,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-0-1 ~/kopiku",
   "argExample": "~/kopiku",
-  "tests": "1cf7884e",
+  "tests": "b7a89a72",
   "starter": "5648690a",
   "reference": "6bbd565a"
  },
@@ -48,7 +48,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-0-3",
   "argExample": null,
   "tests": "cb79ec77",
-  "starter": "6cd13368",
+  "starter": "61f07849",
   "reference": "c2df4d16"
  },
  "mod-1-1": {
@@ -57,9 +57,9 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-1",
   "argExample": null,
-  "tests": "362441e7",
+  "tests": "b06fd6e1",
   "starter": "4ef29b2a",
-  "reference": "e622f01f"
+  "reference": "ed35d2d9"
  },
  "mod-1-2": {
   "arg": null,
@@ -68,7 +68,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-1-2",
   "argExample": null,
   "tests": "3ec76c11",
-  "starter": "7899ee00",
+  "starter": "f26dd356",
   "reference": "c648b682"
  },
  "mod-1-3": {
@@ -78,7 +78,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-1-3",
   "argExample": null,
   "tests": "9406611d",
-  "starter": "22ccc349",
+  "starter": "d660b528",
   "reference": "4d1689f4"
  },
  "mod-1-4": {
@@ -87,7 +87,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-4",
   "argExample": null,
-  "tests": "0a31d3e3",
+  "tests": "e1012e9d",
   "starter": "479bbc4e",
   "reference": "d2ae8a70"
  },
@@ -118,8 +118,8 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-2-3",
   "argExample": null,
   "tests": "55b1936d",
-  "starter": "c83b8db7",
-  "reference": "f998317e"
+  "starter": "a98f22c0",
+  "reference": "609002df"
  },
  "mod-2-4": {
   "arg": null,
@@ -138,7 +138,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-2-5",
   "argExample": null,
   "tests": "bce94f80",
-  "starter": "62fbe336",
+  "starter": "b5d2db69",
   "reference": "b5fdf05a"
  },
  "mod-3-1": {
@@ -169,8 +169,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-3-3",
   "argExample": null,
-  "tests": "435c1d78",
-  "starter": "b07866a3",
+  "tests": "bdc47d62",
+  "starter": "ad07aef6",
   "reference": "24329ad4"
  },
  "mod-3-4": {
@@ -180,7 +180,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-3-4",
   "argExample": null,
   "tests": "af5f49bb",
-  "starter": "63a04fea",
+  "starter": "d5b5fb97",
   "reference": "0e564158"
  },
  "mod-3-5": {
@@ -200,7 +200,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-1-7",
   "argExample": null,
   "tests": "bd0049e7",
-  "starter": "065f00c5",
+  "starter": "3d36e209",
   "reference": "1a96bf18"
  },
  "mod-2-6": {
@@ -210,7 +210,7 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-2-6",
   "argExample": null,
   "tests": "1ac1ee5c",
-  "starter": "179ee3fd",
+  "starter": "9e425139",
   "reference": "ab0717ef"
  },
  "mod-1-5": {
@@ -229,8 +229,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-1-6",
   "argExample": null,
-  "tests": "bbfb6510",
-  "starter": "16cd8ac0",
+  "tests": "3c903db6",
+  "starter": "a7cb6405",
   "reference": "ac597a02"
  },
  "mod-4-1": {
@@ -249,8 +249,8 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-4-2 ~/seismic",
   "argExample": "~/seismic",
-  "tests": "7364dc00",
-  "starter": "1ec714c5",
+  "tests": "4aad3196",
+  "starter": "59e0be4b",
   "reference": "9c4110d5"
  },
  "mod-4-3": {
@@ -260,8 +260,8 @@ window.PROOF = {
   "command": "python3 scripts/prove.py mod-4-3 ~/fleet",
   "argExample": "~/fleet",
   "tests": "3225bcc8",
-  "starter": "eb350562",
-  "reference": "9d283c08"
+  "starter": "9e09fdc0",
+  "reference": "ba375966"
  },
  "mod-4-4": {
   "arg": "workspace",
@@ -269,7 +269,7 @@ window.PROOF = {
   "needsEnv": [],
   "command": "python3 scripts/prove.py mod-4-4 ~/airflow-lab",
   "argExample": "~/airflow-lab",
-  "tests": "c51f55d4",
+  "tests": "f241ee36",
   "starter": "0fb269a7",
   "reference": "a2c9a46c"
  }

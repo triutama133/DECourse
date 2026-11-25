@@ -4,4 +4,6 @@ version: 2
 #   stg_orders.order_id            unique, not_null
 #   stg_orders.status              accepted_values [paid, shipped, delivered, cancelled, refunded]
 #   stg_customers.customer_id      unique, not_null
+# Newer dbt wants generic test arguments nested:
+#   - accepted_values: {arguments: {values: [paid, shipped, delivered, cancelled, refunded]}}
 models: []

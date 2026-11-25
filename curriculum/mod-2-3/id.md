@@ -28,7 +28,7 @@ Modul 0.2 telah memperkenalkan pendekatan **ELT**: muat data mentah ke dalam sto
 - Mendukung pemisahan **lingkungan (environments)**, sehingga kode SQL yang sama persis dapat dibangun di skema pengembang lokal, lingkungan CI GitHub Actions, maupun lingkungan produksi;
 - Mengelola seluruh kode di dalam **sistem kontrol versi Git**: ditinjau melalui pull request, berversi, dan dapat direproduksi kapan saja.
 
-Hal yang *tidak* dilakukan oleh dbt: dbt tidak mengekstrak atau memuat data dari API/database sumber (alat terpisah seperti Airbyte atau Flink bertugas membawa data mentah masuk; Modul 2.4 akan mengorkestrasi keduanya) dan dbt tidak menyimpan data atau menghitung komputasi sendiri. dbt menerjemahkan kode Anda menjadi query SQL murni dan mengirimkannya ke mesin data warehouse Anda (Snowflake, BigQuery, PostgreSQL, DuckDB, dll melalui **adapter**). **dbt Core** adalah tool command-line sumber terbuka (open-source) yang kita gunakan di kursus ini; dbt Cloud menambahkan antarmuka web dan orkestrasi terkelola di atasnya.
+Hal yang *tidak* dilakukan oleh dbt: dbt tidak mengekstrak atau memuat data dari API/database sumber (alat terpisah bertugas membawa data mentah masuk; Modul 2.4 akan mengorkestrasi keduanya) dan dbt tidak menyimpan data atau menghitung komputasi sendiri. dbt menerjemahkan kode Anda menjadi query SQL murni dan mengirimkannya ke mesin data warehouse Anda (Snowflake, BigQuery, PostgreSQL, DuckDB, dll melalui **adapter**). **dbt Core** adalah tool command-line sumber terbuka (open-source) yang kita gunakan di kursus ini; dbt Cloud menambahkan antarmuka web dan orkestrasi terkelola di atasnya.
 
 Contoh satu model dbt utuh:
 
@@ -44,14 +44,14 @@ from {{ ref('stg_customers') }}
 
 Sintaks kurung kurawal ganda `{{ ... }}` adalah **Jinja**, bahasa templating yang dievaluasi oleh dbt sebelum SQL dikirim ke engine. Ada dua bentuk kurung Jinja yang dipakai di model dbt: `{{ ... }}` menghitung lalu mencetak ekspresi ke dalam SQL (seperti `{{ ref('stg_customers') }}` atau `{{ source(...) }}`), sedangkan `{% ... %}` menjalankan alur kontrol template seperti `{% if is_incremental() %}` (Pelajaran 5). Pemanggilan `ref('stg_customers')` menjalankan dua fungsi krusial: pertama, menerjemahkan nama tabel menjadi nama fisik yang sesuai dengan lingkungan saat ini (`dev_alice.stg_customers` atau `analytics.stg_customers`), dan kedua, mencatat dependensi ke dalam DAG sehingga dbt menjamin model `stg_customers` selesai dibangun sebelum `dim_customers` mulai dieksekusi.
 
-> 🛠 **Coba sendiri (10 menit, Python).** Tulis empat "model" sebagai string SQL di sebuah dict Python: `stg_orders` (`select * from raw.orders`), `stg_customers` (`select * from raw.customers`), `fct_orders` (join dari `{{ ref('stg_orders') }}` dan `{{ ref('stg_customers') }}`), dan `mart_daily` (sebuah `group by` atas `{{ ref('fct_orders') }}`). Ambil dependensi setiap model dengan `re.findall(r"ref\('(\w+)'\)", sql)`, cetak dict dependensinya, dan cetak urutan build dengan `graphlib.TopologicalSorter(graph).static_order()`. Lalu tambahkan `{{ ref('mart_daily') }}` di dalam `stg_customers` dan jalankan lagi.
+> 🛠 **Coba sendiri (10 menit, Python).** Tulis empat "model" sebagai string SQL di sebuah dict Python: `stg_orders` (`select * from raw.orders`), `stg_customers` (`select * from raw.customers`), `fct_orders` (join dari `{{ ref('stg_orders') }}` dan `{{ ref('stg_customers') }}`), dan `mart_daily` (sebuah `group by` atas `{{ ref('fct_orders') }}`). Ambil dependensi setiap model dengan `re.findall(r"ref\('(\w+)'\)", sql)`, cetak dict dependensinya, dan cetak urutan build dengan `list(graphlib.TopologicalSorter(graph).static_order())`. Lalu tambahkan `{{ ref('mart_daily') }}` di dalam `stg_customers` dan jalankan lagi.
 >
 > **Seharusnya Anda melihat:** `mart_daily` bergantung pada `fct_orders`, `fct_orders` pada kedua model staging, dan model staging tidak bergantung pada apa pun; urutan build-nya adalah kedua model `stg_` (urutan bebas), lalu `fct_orders`, lalu `mart_daily`. Setelah Anda menambahkan referensi melingkar, `graphlib.CycleError` menyebut putarannya (`mart_daily`, `stg_customers`, `fct_orders`). Persis inilah yang dilakukan dbt dengan `ref()`: ia membangun DAG dan menolak menjalankan siklus.
 
 :::ask Di dbt, model `orders_clean` memilih dari `{{ ref('orders_raw') }}`. Apa yang diberikan `ref` selain nama tabel?
 @options
 query lebih cepat, karena ref menyimpan cache
-* garis dependensi, jadi dbt membangun raw lebih dulu
+* garis dependensi agar raw dibangun dulu
 izin untuk menulis ke tabel orders_raw
 @why
 `ref` adalah cara dbt mengetahui graf dependensi. Dari referensi saja ia mengurutkan eksekusi, bisa menjalankan model beserta induknya, dan membangun dokumentasi serta lineage.
@@ -83,9 +83,9 @@ Tiga hal sederhana yang perlu diketahui tentang file-file ini sebelum menjalanka
 @options
 pasang ulang dbt, karena instalasinya mungkin rusak
 tulis ulang model SQL, karena pasti salah
-* jalankan `echo $KOPIKU_DB`: variabelnya mungkin belum diatur di terminal baru
+* cek `echo $KOPIKU_DB` apakah kosong
 @why
-Tidak ada yang berubah di proyekmu semalam; hanya terminalnya. Variabel yang di-export hidup di satu jendela terminal, jadi jendela baru mulai tanpa variabel itu. Periksa dengan `echo`, atur lagi, lalu coba lagi.
+Tidak ada yang berubah di proyek Anda semalam; hanya terminalnya. Variabel yang di-export hidup di satu jendela terminal, jadi jendela baru mulai tanpa variabel itu. Periksa dengan `echo`, atur lagi, lalu coba lagi.
 :::
 
 Dua fungsi utama yang menghubungkan kode SQL ke dalam grafik DAG:
@@ -99,7 +99,7 @@ Daftar perintah CLI dbt yang akan rutin Anda gunakan:
 |---|---|
 | `dbt run` | Membangun seluruh model (membuat view/tabel fisik di database) |
 | `dbt test` | Menjalankan seluruh pengujian kualitas data |
-| `dbt build` | Menjalankan model, tes, snapshot, dan seed **dalam urutan dependensi DAG**, otomatis melewati (skip) model turunan jika model induk gagal |
+| `dbt build` | Menjalankan model, tes, snapshot, dan seed (tabel referensi CSV statis kecil yang dimuat dbt) **dalam urutan dependensi DAG**, otomatis melewati (skip) model turunan jika model induk gagal |
 | `dbt compile` | Menerjemahkan template Jinja menjadi query SQL murni tanpa menjalankannya (`target/compiled/`) |
 | `dbt ls --select ...` | Menampilkan daftar model yang cocok dengan kriteria seleksi |
 | `dbt docs generate` | Menerbitkan website dokumentasi interaktif dan diagram lineage grafis |
@@ -110,7 +110,7 @@ Anda dapat memilih sub-grafik tertentu menggunakan argumen flag `--select`: `stg
 Done. PASS=21 WARN=1 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=22
 ```
 
-Dua puluh dua entitas dieksekusi: tujuh model (empat view, tiga tabel, salah satunya tabel inkremental), satu snapshot histori, dan empat belas pengujian data. Jika ada satu model yang gagal kompilasi atau tesnya bernilai error, perintah `dbt build` secara cerdas menandai model dan pengujian di hilirnya sebagai `SKIP`, sehingga data yang rusak tidak akan pernah mengalir mencemari lapisan data mart pelaporan.
+Dua puluh dua entitas pada proyek referensi: tujuh model (empat view, tiga tabel, salah satunya tabel inkremental), satu snapshot histori, dan empat belas pengujian data (jika hanya mengikuti daftar TODO di file starter, terbentuk 11 data test, `PASS=18 WARN=1`, `TOTAL=19`, dan menambahkan tiga cek `not_null` tambahan membawanya menjadi 14 test dan `TOTAL=22`). Jika ada satu model yang gagal kompilasi atau tesnya bernilai error, perintah `dbt build` secara cerdas menandai model dan pengujian di hilirnya sebagai `SKIP`, sehingga data yang rusak tidak akan pernah mengalir mencemari lapisan data mart pelaporan.
 
 :::ask Apa yang diberikan `{{ ref('stg_orders') }}` yang tidak diberikan nama tabel yang ditulis langsung?
 @options
@@ -122,14 +122,16 @@ ia membuat query itu sendiri berjalan lebih cepat
 :::
 
 > 💡 **Jeda Praktik 1 (Eksplorasi CLI & Struktur Proyek):**
-> 1. Aktifkan virtual environment Anda (yang dibuat di Modul 0.1, misalnya `source venv/bin/activate`).
+> 1. Dari folder kursus, aktifkan virtual environment Anda (yang dibuat di Modul 0.1, misalnya `source venv/bin/activate`) dan pasang dependensi lab jika belum:
+>    `python -m pip install -r labs/mod-2-3/requirements.txt`
 > 2. Siapkan data mentah KopiKu dan buat database DuckDB:
 >    `python3 labs/shared/shopgen.py --out data`
 >    `export KOPIKU_DB=$PWD/kopiku.duckdb`
 >    `python3 labs/mod-2-3/load_raw.py data $KOPIKU_DB`
 > 3. Pastikan dbt dapat membaca proyek dan menjangkau database:
 >    `dbt debug --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
-> 4. **Indikator Sukses:** baris terakhir berbunyi `All checks passed!`. (`dbt ls` masih akan berhenti dengan error kompilasi sampai Anda memperbaiki kerangka `models/marts/fct_daily_revenue.sql`: itu wajar. Pada proyek yang sudah selesai ia melaporkan `Found 7 models, 1 snapshot, 14 data tests, 5 sources`.)
+>    `dbt ls --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** `dbt debug` berakhir dengan `All checks passed!`, dan `dbt ls` menampilkan 7 kerangka model serta 5 source dengan bersih. Saat selesai, daftar TODO di file starter membuat 11 data test (`TOTAL=19`, `PASS=18 WARN=1`) dan 1 snapshot; menambahkan tiga cek `not_null` tambahan membawanya menjadi 14 data test (`TOTAL=22`).
 
 ## @lesson Arsitektur lapisan model dan strategi materialisasi
 Konvensi arsitektur yang telah terbukti keandalannya di ribuan perusahaan teknologi membagi model ke dalam tiga lapisan:
@@ -157,15 +159,19 @@ Konfigurasikan nilai bawaan per direktori di file `dbt_project.yml` (`staging: +
 with ranked as (
     select
         order_id::bigint as order_id,
+        customer_id::bigint as customer_id,
         coalesce(try_strptime(order_ts, '%Y-%m-%dT%H:%M:%S'),
                  try_strptime(order_ts, '%d/%m/%Y %H:%M')) as order_ts,
         lower(trim(status)) as status,
+        trim(payment_method) as payment_method,
         try_cast(replace(regexp_replace(total_idr, '^\s*[Rr][Pp]\s*', ''), '.', '') as bigint) as total_idr,
         _loaded_at,
         row_number() over (partition by order_id order by _loaded_at desc) as rn   -- versi terbaru menang (Modul 1.3)
     from {{ source('raw', 'orders') }}
 )
-select order_id, order_ts, cast(order_ts as date) as order_date, status, total_idr, _loaded_at
+select
+    order_id, customer_id, order_ts, cast(order_ts as date) as order_date,
+    status, payment_method, total_idr, _loaded_at
 from ranked
 where rn = 1 and order_ts is not null and total_idr > 0
 ```
@@ -181,12 +187,12 @@ incremental
 **View** hanyalah query tersimpan: murah dibangun dan selalu segar, tetapi setiap pembacaan membayar biaya penuh. **Table** menyimpan hasilnya (cepat dibaca, dibangun ulang di setiap run), dan tabel **incremental** hanya memproses data yang baru atau berubah.
 :::
 
-> 💡 **Jeda Praktik 2 (Membangun Model Staging):**
-> 1. Buka teks editor Anda (VS Code / Cursor), navigasikan ke file `labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql` dan `labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql` (jangan mengeksekusi file `.sql` langsung di bash terminal).
-> 2. Terapkan pembersihan data sesuai panduan materi: gunakan CTE `ranked` dengan `row_number() over (partition by order_id order by _loaded_at desc)` untuk mengambil baris versi terkini, serta standardisasi format string dan casting angka rupiah.
-> 3. Jalankan kompilasi dan materialisasi khusus untuk lapisan staging:
->    `dbt run --select staging --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
-> 4. **Indikator Sukses:** Log dbt menampilkan status `OK created sql view model main.stg_orders` dan `main.stg_customers` (empat view staging seluruhnya, bersama `stg_order_items` dan `stg_products`) tanpa syntax error.
+> 💡 **Jeda Praktik 2 (Membangun Model Staging & Mart Inti):**
+> 1. Buka teks editor Anda (VS Code / Cursor), lalu buka dan implementasikan keempat model staging di `labs/mod-2-3/kopiku_dbt/models/staging/`: `stg_orders.sql`, `stg_customers.sql`, `stg_order_items.sql`, dan `stg_products.sql` (ikuti komentar `-- TODO` di tiap file; gunakan CTE `ranked` dengan `row_number() over (partition by ... order by _loaded_at desc)` untuk `stg_orders` dan `stg_customers`, dan jangan mengeksekusi file `.sql` langsung di bash terminal).
+> 2. Implementasikan dua model mart non-inkremental di `labs/mod-2-3/kopiku_dbt/models/marts/`: `dim_customers.sql` dan `fct_order_items.sql` (biarkan `fct_daily_revenue.sql` untuk Pelajaran 5).
+> 3. Jalankan kompilasi dan materialisasi lapisan staging beserta kedua mart tersebut:
+>    `dbt run --exclude fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 4. **Indikator Sukses:** Log dbt menampilkan status `OK` untuk keempat view staging (`main.stg_orders`, `main.stg_customers`, `main.stg_order_items`, `main.stg_products`) dan kedua tabel mart (`main.dim_customers`, `main.fct_order_items`) tanpa syntax error.
 
 ## @part Kepercayaan dan perubahan
 
@@ -242,11 +248,12 @@ Tes ditulis untuk **menemukan kegagalan**: `unique` mencari nilai terduplikasi, 
 :::
 
 > 💡 **Jeda Praktik 3 (Pengujian Kualitas Data & Singular Tests):**
-> 1. Buka teks editor Anda, tinjau deklarasi tes di file `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` dan `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`. Perhatikan aturan `unique`, `not_null`, serta `relationships` dengan `config: { severity: warn }` pada customer.
-> 2. Buat file `labs/mod-2-3/kopiku_dbt/tests/assert_line_total_matches_qty_times_price.sql` (folder `tests/` hanya berisi README) dengan singular test dari pelajaran, agar tidak ada item pesanan yang totalnya berbeda dari kuantitas kali harga satuan.
-> 3. Setelah staging dan mart terbangun, build dan uji semuanya di terminal:
->    `dbt build --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
-> 4. **Indikator Sukses:** semua pengujian lulus kecuali tepat satu `WARN`: tes `relationships` melaporkan 32 baris (item pesanan yang pelanggannya tidak ada di daftar pelanggan) dan build tetap selesai.
+> 1. Pastikan keempat model staging beserta `dim_customers.sql` dan `fct_order_items.sql` dari Jeda Praktik 2 sudah diimplementasikan sebelum menjalankan pengujian.
+> 2. Di teks editor Anda, **tulis** definisi tes generic (mengikuti komentar `# TODO:` dan mengganti `models: []`) ke dalam `labs/mod-2-3/kopiku_dbt/models/staging/schema.yml` dan `labs/mod-2-3/kopiku_dbt/models/marts/schema.yml`, mencakup `unique`, `not_null`, `accepted_values`, serta aturan `relationships` dengan `config: { severity: warn }`.
+> 3. Buat file `labs/mod-2-3/kopiku_dbt/tests/assert_line_total_matches_qty_times_price.sql` (folder `tests/` hanya berisi README) dengan singular test dari pelajaran, agar tidak ada item pesanan yang totalnya berbeda dari kuantitas kali harga satuan.
+> 4. Build dan uji semuanya kecuali model inkremental yang belum dibuat:
+>    `dbt build --exclude fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
+> 5. **Indikator Sukses:** semua pengujian lulus kecuali tepat satu `WARN`: tes `relationships` melaporkan 32 baris (item pesanan yang pelanggannya tidak ada di daftar pelanggan) dan build tetap selesai.
 
 ## @lesson Model inkremental: titik rawan hilangnya kebenaran data
 Model berjenis tabel fisik membangun ulang seluruh isi data pada setiap kali dijalankan. Ketika tabel fakta telah mencapai miliaran baris transaksi, membangun ulang dari awal menjadi sangat lambat dan memboroskan biaya komputasi. **Model inkremental (incremental model)** hanya memproses data baru atau data yang berubah sejak proses terakhir dan menyisipkannya ke tabel yang sudah ada:
@@ -323,7 +330,7 @@ Tanggal 25 sekarang 2 pesanan dan Rp 250.000, bukan 3 dan Rp 400.000. Model incr
 :::ask Kolom mana yang harus dipakai watermark incremental: `order_date` (waktu bisnis) atau `_loaded_at` (waktu masuk)?
 @options
 `order_date`: itu kapan pesanan terjadi
-* `_loaded_at`: baris yang terlambat atau diperbarui mendapat yang baru
+* `_loaded_at`: baris telat dapat nilai baru
 keduanya memberi hasil yang persis sama
 @why
 Waktu bisnis menyatakan kapan sesuatu terjadi; waktu masuk menyatakan apa yang *tiba*. Refund untuk pesanan lama datang terlambat: `order_date`-nya lama, `_loaded_at`-nya baru, sehingga hanya watermark waktu masuk yang melihatnya.
@@ -340,7 +347,7 @@ Tampilkan `order_id` dan `order_date` baris mentah yang dimuat **setelah** `max_
 /_loaded_at/ ## Saring pada _loaded_at (waktu masuk).
 /max\s*\(/ ## Bandingkan dengan max_loaded_at terbaru dari daily_revenue: (SELECT MAX(max_loaded_at) FROM daily_revenue).
 @hint
-`WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)`
+Bandingkan `_loaded_at` di `raw_orders` dengan subquery skalar yang mengembalikan `MAX(max_loaded_at)` dari `daily_revenue`.
 @solution
 SELECT order_id, order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue);
 :::
@@ -357,7 +364,7 @@ Tampilkan nilai `order_date` yang **berbeda** yang punya baris dimuat setelah `m
 /distinct/ ## Setiap tanggal sekali: DISTINCT.
 /_loaded_at/ ## Saring pada _loaded_at, bukan order_date.
 @hint
-`SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date`
+Gunakan `SELECT DISTINCT order_date` dengan filter `_loaded_at` yang sama seperti latihan sebelumnya, lalu tambahkan `ORDER BY` di akhir.
 @solution
 SELECT DISTINCT order_date FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue) ORDER BY order_date;
 :::
@@ -373,7 +380,7 @@ Tampilkan satu angka, `missed_rows`: jumlah baris yang ditemukan watermark yang 
 /_loaded_at/ ## Hitung baris watermark yang benar (_loaded_at).
 /order_date\s*>/ ## Dan baris watermark yang salah (order_date > ...).
 @hint
-`SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;`
+Tulis dua subquery `SELECT COUNT(*)` pada `raw_orders`, satu disaring menurut `_loaded_at` dan satu menurut `order_date`, lalu kurangkan yang kedua dari yang pertama dengan alias `AS missed_rows`.
 @solution
 SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loaded_at) FROM daily_revenue)) - (SELECT COUNT(*) FROM raw_orders WHERE order_date > (SELECT MAX(order_date) FROM daily_revenue)) AS missed_rows;
 :::
@@ -381,10 +388,10 @@ SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loade
 > 💡 **Jeda Praktik 4 (Model Inkremental dengan Watermark Ingestion):**
 > 1. Buka teks editor Anda, buka file `labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql`.
 > 2. Konfigurasikan header model: `{{ config(materialized='incremental', unique_key='order_date', incremental_strategy='delete+insert') }}`.
-> 3. Tuliskan blok kondisional `{% if is_incremental() %}` dengan menyaring tanggal yang terdampak oleh `_loaded_at > (select max(max_loaded_at) from {{ this }})` (bukan memfilter `order_date`).
-> 4. Uji eksekusi awal di terminal:
+> 3. Deklarasikan `ref('stg_orders')` dan `ref('fct_order_items')` di luar blok `{% if is_incremental() %}` lalu saring tanggal yang terdampak oleh `_loaded_at > (select max(max_loaded_at) from {{ this }})` (bukan memfilter `order_date`).
+> 4. Uji eksekusi awal di terminal (dengan model staging, `dim_customers`, dan `fct_order_items` sudah terbangun):
 >    `dbt run --select +fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
-> 5. **Indikator Sukses:** `OK created sql incremental model main.fct_daily_revenue`. Perintah itu memilih model tersebut beserta semua yang menjadi dependensinya.
+> 5. **Indikator Sukses:** `OK created sql incremental model main.fct_daily_revenue`. Perintah itu memilih model tersebut beserta semua yang menjadi dependensinya. Setelah Anda menambahkan snapshot di Pelajaran 6 dan seluruh 13 tes `pytest` lulus, catat bukti penyelesaian Anda dengan `python3 scripts/prove.py mod-2-3`.
 
 ## @lesson Snapshots, macros, dan integrasi CI/CD
 **dbt Snapshots** menangkap histori perubahan dari tabel sumber yang ditimpa di tempat (in-place update), menghasilkan dimensi **Slowly Changing Dimension (SCD) Tipe 2** (Modul 1.4) secara otomatis tanpa penulisan query merge manual:
@@ -444,7 +451,7 @@ Model inkremental naif dengan `incremental_strategy='merge'` dan `unique_key='or
 | **`delete+insert`** | `BEGIN; DELETE FROM target WHERE id IN (...); INSERT INTO target SELECT ...; COMMIT;` | **Redshift & Snowflake** di mana dua langkah hapus-lalu-masukkan lebih cepat daripada join `MERGE` berat. | Pastikan filter `DELETE` menyertakan kolom kunci partisi/sort. |
 | **`microbatch`** *(dbt 1.9+)* | Memecah backfill deret waktu besar secara otomatis menjadi query batch jam/harian independen berdasarkan `event_time`. | Tabel clickstream / telemetri IoT bervolume raksasa di semua cloud warehouse. | Membatasi memori per batch secara otomatis dan memungkinkan retry hanya pada tanggal yang gagal saat backfill 365 hari. |
 
-**2. Kontrak Model Terpaksa (`contract: {enforced: true}`) & Unit Test dbt (`unit_tests:` di dbt 1.8+).**
+**2. Kontrak Model yang Ditegakkan (Enforced Model Contracts) (`contract: {enforced: true}`) & Unit Test dbt (`unit_tests:` di dbt 1.8+).**
 Tes skema (`not_null`, `unique`) baru berjalan *setelah* tabel selesai dibangun di atas data riil. **Model Contracts** menolak membangun tabel sejak waktu kompilasi/DDL jika nama atau tipe data kolom melenceng, sementara **dbt Unit Tests** memungkinkan Anda menguji logika bisnis SQL yang rumit (regex, `CASE WHEN`, window function) dalam hitungan detik menggunakan beberapa baris data tiruan (mock) di YAML tanpa memindai data warehouse berukuran terabyte:
 
 ```yaml
@@ -488,7 +495,7 @@ dbt build \
   --target ci_pr_${GITHUB_PR_NUMBER}
 ```
 
-> 🛠 **Coba sendiri (20 menit, project dbt Lab 2.3 Anda).** Setelah `dbt build` lulus, tambahkan `models/marts/unit_tests.yml` berisi unit test untuk `fct_daily_revenue`: beri `ref('stg_orders')` satu baris (sebuah `order_date` dan `_loaded_at`) dan `ref('fct_order_items')` empat baris pada tanggal itu: dua baris `delivered` dari satu pesanan (50.000 dan 20.000), satu pesanan `cancelled` (90.000), dan satu pesanan `refunded` (40.000). Harapkan satu baris dengan `orders: 1` dan `revenue_idr: 70000`. Jalankan `dbt test --select test_type:unit`. Lalu hapus `'refunded'` dari filter model dan jalankan lagi. Kembalikan filternya sesudahnya.
+> 🛠 **Coba sendiri (20 menit, project dbt Lab 2.3 Anda).** Setelah `dbt build` lulus, tambahkan `models/marts/unit_tests.yml` berisi unit test untuk `fct_daily_revenue`: beri `ref('stg_orders')` satu baris (sebuah `order_date` dan `_loaded_at`) dan `ref('fct_order_items')` empat baris pada tanggal itu: dua baris `delivered` dari satu pesanan (50.000 dan 20.000), satu pesanan `cancelled` (90.000), dan satu pesanan `refunded` (40.000). Harapkan satu baris dengan `orders: 1` dan `revenue_idr: 70000`. Jalankan `dbt test --select test_type:unit --profiles-dir .` dari folder `labs/mod-2-3/kopiku_dbt` (dengan `KOPIKU_DB` sudah di-export). Lalu hapus `'refunded'` dari filter model dan jalankan lagi. Kembalikan filternya sesudahnya.
 >
 > **Seharusnya Anda melihat:** pertama sebuah parsing error, karena modelnya incremental: dbt ingin tahu cabang mana yang diuji, jadi tambahkan `overrides: {macros: {is_incremental: false}}` ke test-nya. Lalu `PASS`. Dengan filter yang rusak, test gagal dan dbt mencetak selisihnya, `orders 1→2` dan `revenue_idr 70000→110000`, tanpa membaca satu baris pun dari data asli Anda. Diukur dengan dbt-core 1.12.7 dan dbt-duckdb 1.11.1.
 
@@ -496,6 +503,8 @@ dbt build \
 Anda dibekali database DuckDB berisi tabel-tabel mentah KopiKu (append-only, tidak rapi, dengan duplikasi data) dan proyek dbt dengan konfigurasi sumber yang sudah disiapkan serta kerangka model awal. Tugas Anda adalah melengkapi lapisan staging, data marts, model inkremental, rangkaian tes data, dan dbt snapshot. Unit test lab akan menjalankan perintah `dbt build`, lalu mensimulasikan **muatan data kedua (second load)** yang membawa pesanan baru, pembatalan pesanan masa lalu, dan mutasi pelanggan, kemudian menjalankan build kembali untuk memverifikasi bahwa tabel inkremental Anda menghasilkan angka yang identik dengan kalkulasi ulang penuh.
 
 ### @steps
+> **Sudah menyelesaikan Jeda Praktik 1–5?** Model, tes, dan snapshot Anda sudah siap, langsung lompat ke Langkah 6 untuk mensimulasikan pemuatan data kedua dan menjalankan rangkaian pengujian otomatis.
+
 1. Di terminal, masuk ke folder kursus dan aktifkan venv Anda (`cd ~/projects/DECourse`, lalu `source venv/bin/activate`; prompt diawali `(venv)`). Pasang dependensi yang diperlukan dan muat dataset mentah awal:
 
 ```bash
@@ -528,32 +537,36 @@ dbt build --profiles-dir .
 ```
 
    Pastikan seluruh tes berstatus PASS dengan tepat satu peringatan WARN untuk pelanggan yatim.
-6. Simulasikan pemuatan batch kedua dan jalankan build kembali. Kemudian bandingkan isi `fct_daily_revenue` dengan hasil rebuild penuh (`dbt run --select fct_daily_revenue --full-refresh`): kedua angka wajib identik tanpa selisih:
+6. Simulasikan pemuatan batch kedua dan jalankan build kembali. Pertama, query dan catat angka pada `fct_daily_revenue` (misalnya untuk `2026-01-25` dan `2026-01-31`), baru jalankan rebuild penuh (`dbt run --select fct_daily_revenue --full-refresh --profiles-dir .`, yang menimpa tabel di tempat) dan pastikan angkanya tetap identik tanpa selisih:
 
 ```bash
 python3 ../load_raw.py ../../../data $KOPIKU_DB --next
 dbt build --profiles-dir .
 ```
 
-7. Jalankan rangkaian pengujian otomatis pytest yang akan menguji seluruh skenario di atas di dalam database isolasi sementara yang bersih:
+7. Kembali ke folder kursus lalu jalankan rangkaian pengujian otomatis pytest yang akan menguji seluruh skenario di atas di dalam database isolasi sementara yang bersih:
 
 ```bash
+cd ../../..
 pytest labs/mod-2-3 -v
 ```
 
 > 💡 **Jeda Praktik 6 (Verifikasi Dua Siklus & Uji Rekonsiliasi):**
-> 1. Jalankan pengujian menyeluruh di terminal:
+> 1. Jalankan pengujian menyeluruh di terminal (dari folder kursus):
 >    `pytest labs/mod-2-3 -v`
 > 2. Pytest akan mengeksekusi build awal, memuat batch kedua (`load_raw.py --next`), menjalankan build kedua, dan memvalidasi rekonsiliasi angka revenue serta riwayat snapshot.
 > 3. **Indikator Sukses:** Seluruh 13 pengujian pytest berstatus `PASSED` (`TestFirstBuild` dan `TestSecondLoad` 100% lulus).
 
-8. Eksplorasi mandiri: simpan file `target/manifest.json` ke folder terpisah, modifikasi satu model staging, dan jalankan perintah `dbt ls --select state:modified+ --state <folder> --profiles-dir .` untuk melihat cara kerja seleksi Slim CI. Kemudian, coba sengaja rusak logika inkremental (filter pada `order_date` alih-alih `_loaded_at`), jalankan pytest kembali, dan amati unit test mana yang berhasil menangkap anomali tersebut.
+8. Eksplorasi mandiri: dari folder `labs/mod-2-3/kopiku_dbt` (atau dengan menambahkan `--project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`), simpan file `target/manifest.json` ke folder terpisah, modifikasi satu model staging, dan jalankan perintah `dbt ls --select state:modified+ --state <folder> --profiles-dir .` untuk melihat cara kerja seleksi Slim CI. Kemudian, coba sengaja rusak logika inkremental (filter pada `order_date` alih-alih `_loaded_at`), kembali ke folder kursus, jalankan `pytest labs/mod-2-3 -v` kembali, dan amati unit test mana yang berhasil menangkap anomali tersebut.
 
 ### @files
 - labs/mod-2-3/kopiku_dbt/dbt_project.yml :: Konfigurasi proyek dbt (disediakan) :: config
 - labs/mod-2-3/kopiku_dbt/models/sources.yml :: Deklarasi tabel sumber mentah (disediakan) :: config
 - labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql :: Kerangka model staging orders (lengkapi pembersihan data) :: starter
 - labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql :: Kerangka model staging customers (lengkapi) :: starter
+- labs/mod-2-3/kopiku_dbt/models/staging/stg_order_items.sql :: Kerangka model staging order items (lengkapi) :: starter
+- labs/mod-2-3/kopiku_dbt/models/staging/stg_products.sql :: Kerangka model staging products (lengkapi) :: starter
+- labs/mod-2-3/kopiku_dbt/models/marts/dim_customers.sql :: Kerangka model dimensi pelanggan dengan 'Unknown' untuk kota NULL :: starter
 - labs/mod-2-3/kopiku_dbt/models/marts/fct_order_items.sql :: Kerangka model mart order items: satu baris per item pesanan :: starter
 - labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql :: Kerangka model inkremental harian (bagian inti logika) :: starter
 - labs/mod-2-3/kopiku_dbt/models/staging/schema.yml :: File konfigurasi pengujian generic untuk staging :: starter
@@ -572,6 +585,7 @@ pytest labs/mod-2-3 -v
 ### @verify
 ```bash
 pytest labs/mod-2-3 -v        # Berlangsung sekitar 30 detik: mengeksekusi dua siklus build dbt
+python3 scripts/prove.py mod-2-3
 ```
 
 Jalankan pengujian terhadap solusi referensi pembanding: `LAB_DIR=reference pytest labs/mod-2-3 -v`.
@@ -592,7 +606,7 @@ Model tersebut lolos seluruh pengujian dbt karena pengujian yang dipasang hanya 
 2. Perbaiki histori data: jalankan `dbt run --select fct_daily_revenue --full-refresh` untuk merekonstruksi seluruh tanggal dari data mentah yang sudah bersih; informasikan ke tim keuangan bahwa data telah direvisi secara resmi.
 3. Tambahkan **tes rekonsiliasi otomatis** yang membandingkan output tabel inkremental dengan hasil kalkulasi ulang data mentah (atau sampel tanggal) dan jalankan pada setiap proses build pipeline.
 4. Jadwalkan eksekusi full refresh berkala sebagai jaring pengaman otomatis, dan pasang alert pemantauan jika terjadi perubahan nilai signifikan pada periode buku yang sudah ditutup.
-5. Dokumentasikan asumsi model inkremental dan batasan toleransi terhadap keterlambatan data secara transparan di dokumen ADR.
+5. Dokumentasikan logika inkremental model beserta asumsinya terhadap keterlambatan data secara transparan.
 
 ### @pattern
 Sebuah model inkremental hanya dapat dinyatakan benar jika mampu menangani data yang mengalami perubahan setelah pertama kali tiba. Pilihlah watermark berdasarkan waktu data *tiba* di sistem, dan selalu buktikan kebenaran kalkulasinya terhadap hasil rebuild penuh.

@@ -11,11 +11,11 @@
 
 -- w-1 [kopiku] Running total per customer
 -- Return customer_id, order_id, order_total and running_total: the cumulative sum of that customer's order_total, ordered by order_date then order_id.
--- Hint: Compute each order's total in a CTE, then SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id).
+-- Hint: Compute each order's total in a CTE, then SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW).
 
 -- w-2 [kopiku] Latest order per customer
 -- Return customer_id and the order_id of each customer's LATEST order (largest order_date).
--- Hint: ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC), then keep rank 1. This is also the de-duplication pattern.
+-- Hint: ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC) (use order_id DESC as tiebreaker), then keep rank 1. This is also the de-duplication pattern.
 
 -- w-3 [kopiku] Gap between orders (LAG)
 -- Return customer_id, order_id and days_since_prev: days since that customer's previous order (NULL for the first order).

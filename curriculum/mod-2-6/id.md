@@ -48,7 +48,7 @@ simpan data tanpa membayar apa pun untuknya
 * hentikan atau ubah compute tanpa memindah data
 jalankan query tanpa compute sama sekali
 @why
-Data tetap di object storage yang murah sementara compute adalah sekumpulan mesin yang kamu nyalakan, atur ukurannya, dan hentikan secara independen. Kamu bisa menambah warehouse besar untuk job berat lalu mematikannya.
+Data tetap di object storage yang murah sementara compute adalah sekumpulan mesin yang Anda nyalakan, atur ukurannya, dan hentikan secara independen. Anda bisa menambah warehouse besar untuk job berat lalu mematikannya.
 :::
 
 ## @lesson Cara data disimpan: micro-partition, zone map, dan pruning
@@ -104,9 +104,9 @@ CREATE TABLE analytics.fct_orders (
 )
 COMPOUND SORTKEY (order_date, status);
 ```
+:::
 
 Penghematan kedua datang dari **kolom**. Di lab, memilih hanya `total` dari tabel ter-cluster menagih **24.000 byte**, dibanding **158.041** untuk kelima kolom, karena penyimpanan kolumnar hanya membaca kolom yang Anda sebut. Terhadap tata letak acak, query satu kolom yang sama menagih 800.000 byte: 33 kali lebih banyak. `SELECT *` membuang keunggulan kolumnar.
-:::
 
 :::ask Sebuah tabel punya 3 micro-partisi. Zone map `order_date` menyatakan: P1 1 sampai 10 Jan, P2 11 sampai 20 Jan, P3 21 sampai 31 Jan. Anda menjalankan query `WHERE order_date = '2026-01-15'`. Berapa partisi yang dipindai?
 @options
@@ -122,8 +122,8 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 > 2. Implementasikan fungsi `build_micro_partitions(rows, target_rows, cluster_key=None)` untuk memotong baris data dan mencatat nilai min/max tiap kolom.
 > 3. Implementasikan fungsi `prune(partitions, column, low, high)` yang memangkas partisi berdasarkan zone map, serta fungsi `scan(...)` yang membaca kolom tertentu dari partisi terpilih.
 > 4. Uji di terminal:
->    `pytest labs/mod-2-6/test_lab.py -k "TestMicroPartitions or TestPrune or TestScan" -v`
-> 5. **Indikator Sukses:** Sebanyak 17 tes lulus mengonfirmasi bahwa kueri hanya menyentuh partisi yang relevan dan hanya membaca byte kolom yang diminta.
+>    `pytest labs/mod-2-6/test_lab.py -k "(TestMicroPartitions or TestPrune or TestScan) and not test_query_cost" -v`
+> 5. **Indikator Sukses:** Sebanyak 16 tes lulus mengonfirmasi bahwa kueri hanya menyentuh partisi yang relevan dan hanya membaca byte kolom yang diminta.
 
 ## @lesson Komputasi: kerja paralel, distribusi, dan join
 **MPP.** Warehouse menyebar tabel ke banyak node komputasi (Redshift menyebut unit pekerja per node **slice**), dan setiap node memindai bagiannya sendiri secara paralel; hasilnya digabung di koordinator (leader node Redshift). Lebih banyak node berarti lebih banyak paralelisme, sampai ada sesuatu yang harus dipindahkan antar node.
@@ -160,7 +160,7 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 >    `pytest labs/mod-2-6/test_lab.py -k "TestClusteringQuality or TestDistribution or TestJoinMovement" -v`
 > 5. **Indikator Sukses:** Sebanyak 13 tes lulus membuktikan bahwa join yang co-located dan replikasi dimensi kecil tidak memindahkan data lewat jaringan.
 
-:::ask Kamu melakukan join `orders` dan `customers` pada `customer_id` di warehouse MPP. Distribusi mana yang menghindari perpindahan data lewat jaringan?
+:::ask Anda melakukan join `orders` dan `customers` pada `customer_id` di warehouse MPP. Distribusi mana yang menghindari perpindahan data lewat jaringan?
 @options
 distribusikan kedua tabel EVEN, round-robin
 taruh orders di satu node dan customers di node lain
@@ -194,7 +194,7 @@ Penyimpanan juga ada biayanya. **Time travel** (mengkueri atau memulihkan data p
 :::drill python Berapa biaya satu query?
 BigQuery on-demand menagih berdasarkan byte yang diproses query. Tulis `query_cost(bytes_billed, price_per_tb)`: kembalikan biaya dalam dolar. Satu terabyte di sini adalah `1_000_000_000_000` byte.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("query_cost") ## Definisikan query_cost(bytes_billed, price_per_tb).
@@ -203,7 +203,7 @@ query_cost(500_000_000_000, 6) == 3 ## Setengah terabyte dengan $6 per TB berbia
 query_cost(0, 5) == 0 ## Query yang tidak membaca apa pun tidak berbiaya.
 query_cost(2_000_000_000, 5) == 0.01 ## 2 GB adalah 0,002 TB, jadi 0,002 × $5 = $0,01.
 @hint
-`bytes_billed / 1_000_000_000_000 * price_per_tb`
+Ubah `bytes_billed` ke terabyte dengan membaginya dengan `10^12` (`1_000_000_000_000`), lalu kalikan dengan `price_per_tb`.
 @solution
 def query_cost(bytes_billed, price_per_tb):
     return bytes_billed / 1_000_000_000_000 * price_per_tb
@@ -223,6 +223,8 @@ Praktik lain:
 - **Unloading** (`COPY INTO` ke bucket, `UNLOAD`, `EXPORT DATA`) menulis hasil query kembali ke object storage untuk sistem lain.
 
 Catat **dari mana setiap pemuatan berasal dan kapan**: nama file, id pemuatan, jumlah baris, dan baris yang ditolak. Merekonsiliasi jumlah antara sumber dan warehouse (Modul 2.5) adalah pemeriksaan kualitas data termurah yang ada.
+
+**Jaringan privat dan sumber on-premises.** Ketika cloud data factory atau layanan ingesti warehouse perlu menyalin tabel dari database di dalam jaringan privat perusahaan atau bank, jangan pernah membuka database tersebut ke internet publik. Sebagai gantinya, pasang **self-hosted integration runtime** (agen konektor jaringan privat) di dalam jaringan privat di dekat database tersebut agar ia terhubung keluar secara aman ke layanan cloud.
 
 :::advanced Bulk load produksi dan MERGE yang idempoten
 **SQL Produksi untuk Bulk-Load & `MERGE` Idempoten (Snowflake, BigQuery, Redshift).** Perhatikan bagaimana ketiga warehouse memuat file Parquet dari object storage secara paralel, dan bagaimana perintah `MERGE` **wajib** menyertakan filter pemangkas partisi pada tabel target (`t.order_date >= ...`) agar tidak memindai seluruh tabel fakta historis:
@@ -274,12 +276,12 @@ WHEN NOT MATCHED THEN
 
 > 💡 **Jeda Praktik 4 (Perencanaan File Bulk Load Paralel):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
-> 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` yang menyeimbangkan ukuran file ideal (`<= max_bytes`, dengan `min_bytes` sebagai panduan ukuran minimum) dan kelipatan slice komputasi.
+> 2. Implementasikan fungsi `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` untuk membagi file agar tiap file `<= max_bytes` dengan jumlah file kelipatan `slices` (`min_bytes` hanya bersifat informatif, jangan terapkan sebagai batas bawah keras).
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Indikator Sukses:** Keempat pengujian `TestLoadPlanning` berstatus `PASSED` membuktikan pembagian irisan file pemuatan optimal tanpa menimbulkan overhead file kecil.
 
-:::ask Kamu harus memuat 10 juta baris ke warehouse setiap malam. Jalur mana yang benar?
+:::ask Anda harus memuat 10 juta baris ke warehouse setiap malam. Jalur mana yang benar?
 @options
 * tulis file ke storage dan bulk load
 jalankan 10 juta INSERT satu baris
@@ -291,11 +293,11 @@ Warehouse dibangun untuk bulk load file berukuran wajar (sekitar 100 sampai 250 
 ## @lesson Konkurensi, tata kelola, dan memilih
 **Konkurensi.** Warehouse punya komputasi terbatas. Ketika query yang datang lebih banyak daripada yang bisa dijalankan sekaligus, sisanya **mengantre**. `simulate_queue` di lab memperlihatkannya: lima job 10 detik pada dua slot selesai pada detik 10, 10, 20, 20, dan 30, jadi pengguna terakhir menunggu 20 detik sebelum job-nya bahkan mulai. Obatnya sama di mana-mana: isolasi beban kerja pada komputasi terpisah (satu warehouse untuk ETL, satu untuk dashboard, satu untuk analis), pakai fitur multi-cluster atau auto-scaling untuk lonjakan, dan perpendek query berat dengan alat tata letak di atas. Isolasi juga membuat tagihan bisa dibebankan ke sebuah tim (Modul 3.4).
 
-**Tata kelola.** Data engineer mengatur akses, bukan hanya tabel. Bagian-bagian umumnya: **role** dengan hak akses yang diberikan kepada role, bukan kepada orang (hierarki role Snowflake, IAM BigQuery, grup dan role Redshift); **column masking** dan **row access policy** agar analis melihat email yang disamarkan atau hanya baris wilayahnya; **enkripsi** saat disimpan dan dikirim (warehouse menanganinya; Anda mengelola kebijakan key); dan **audit log** tentang siapa mengkueri apa. Data pribadi butuh perhatian ekstra (Modul 3.5, permintaan penghapusan).
+**Tata kelola.** Data engineer mengatur akses, bukan hanya tabel. Bagian-bagian umumnya: **role** dengan hak akses yang diberikan kepada role, bukan kepada orang (hierarki role Snowflake, IAM BigQuery, grup dan role Redshift); **column masking** dan **row access policy** agar analis melihat email yang disamarkan atau hanya baris wilayahnya; **enkripsi** saat disimpan dan dikirim (warehouse menanganinya; Anda mengelola kebijakan key); dan **audit log** tentang siapa mengkueri apa. Data pribadi butuh perhatian ekstra (Modul 2.5 dan 3.5, permintaan penghapusan).
 
 Dua fitur yang akan Anda dengar: **zero-copy cloning** (Snowflake) membuat salinan tabel atau database sebagai metadata, yang hanya memakan penyimpanan untuk perubahan, ideal untuk lingkungan uji; dan **secure data sharing** membiarkan akun lain mengkueri data Anda tanpa menyalin.
 
-:::advanced SQL tata kelola produksi, dan konvergensi warehouse dan lakehouse
+:::advanced SQL tata kelola produksi
 **SQL Tata Kelola Produksi: Dynamic Data Masking, Row-Level Security & Zero-Copy Clone.** Daripada memelihara dua tabel terpisah ("tabel disamarkan" dan "tabel asli"), cloud warehouse modern menegakkan penyamaran kolom PII dan isolasi baris multi-tenant langsung di kebijakan katalog:
 
 ```sql
@@ -327,6 +329,7 @@ CREATE DATABASE analytics_pr_482 CLONE analytics_prod;
 -- Jalankan dbt build --target pr_482 terhadap skala produksi nyata, lalu hapus setelah PR selesai:
 DROP DATABASE analytics_pr_482;
 ```
+:::
 
 **Memilih.** Tidak ada pemenang universal. Ringkasan yang adil:
 
@@ -348,12 +351,11 @@ Dalam praktik, pilihan sering ditentukan oleh penyedia cloud perusahaan dan kont
 | **3. Tabel Open Lakehouse** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Di dalam bucket S3/GCS/ADLS milik Anda dalam format terbuka **Apache Iceberg** | Katalog terbuka Iceberg (REST / Glue / Polaris / Unity) | **Keputusan pintu dua arah (reversible):** Spark, DuckDB, Trino, dan Flink bisa membaca file Parquet yang sama di tempatnya, tanpa salinan; seberapa dekat kecepatannya dengan native bergantung pada engine dan perawatan tabel (compaction), jadi ukurlah pada query Anda sendiri |
 
 Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai banyak partisi atau kolom; lihat partisi yang dipindai dan byte yang ditagih). "Bagaimana membuatnya lebih murah?" (filter pada kolom clustering atau partisi, pilih hanya kolom yang perlu, pra-agregasi). "Apa beda harga Snowflake dan BigQuery?" (waktu komputasi versus byte yang dipindai). "Mengapa ukuran file 100 hingga 250 MB?" (paralelisme tanpa overhead per file).
-:::
 
 > 💡 **Jeda Praktik 5 (Result Caching & Antrean Konkurensi):**
 > 1. Buka file `labs/mod-2-6/warehouse_lab.py` di teks editor Anda.
 > 2. Implementasikan class `ResultCache`: normalisasi spasi dan huruf kapital query SQL, simpan versi tabel, serta batalkan cache jika tabel dasar mengalami pembaruan.
-> 3. Implementasikan fungsi `simulate_queue(query_durations, slots)` untuk memodelkan waktu tuntas kueri yang bersaing dalam slot konkurensi.
+> 3. Implementasikan fungsi `simulate_queue(jobs, slots)` dengan `jobs` berupa daftar tuple `(name, duration_seconds)` yang mengembalikan `{name: (start, finish)}` untuk memodelkan kueri yang bersaing mendapatkan slot eksekusi.
 > 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Indikator Sukses:** Sebanyak 8 tes berstatus `PASSED` membuktikan keandalan invalidasi result cache dan akurasi simulasi antrean slot.
@@ -361,7 +363,7 @@ Pertanyaan yang kini bisa Anda jawab: "Mengapa query ini mahal?" (ia memindai ba
 :::drill python Antrean di warehouse
 Sebuah warehouse bisa menjalankan `slots` query sekaligus; sisanya menunggu. Tulis `finish_time(durations, slots)`: semua job tiba pada waktu 0 sesuai urutan yang diberikan. Tiap job mulai begitu ada slot kosong. Kembalikan waktu saat job **terakhir** selesai.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("finish_time") ## Definisikan finish_time(durations, slots).
@@ -403,7 +405,7 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 ```
 
-> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di `strangler_reverse_etl.py`, tulis `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Setiap pesanan punya `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` memetakan tanggal ke net revenue versi pipeline lama. Net revenue adalah gross dikurangi diskon dikurangi pajak, hanya dihitung untuk pesanan `paid`, `shipped`, dan `delivered`. Kembalikan dict berisi:
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Simpan di `~/practice/strangler_reverse_etl.py`, lalu tulis `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Setiap pesanan punya `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` memetakan tanggal ke net revenue versi pipeline lama. Net revenue adalah gross dikurangi diskon dikurangi pajak, hanya dihitung untuk pesanan `paid`, `shipped`, dan `delivered`. Kembalikan dict berisi:
 > `semantic_daily`: tanggal → net revenue, untuk setiap tanggal yang punya pesanan · `drift_report`: satu `{date, legacy_idr, semantic_idr, delta_idr}` per tanggal saat lama dan baru berbeda, urut tanggal, dengan `delta_idr = semantic - legacy` · `reverse_etl_payloads`: satu `{customer_id, net_ltv_idr, tier_action, idempotency_key}` per pelanggan yang layak dikirim, urut `customer_id`; `tier_action` adalah `VIP_UPGRADE` mulai 200000 ke atas, selain itu `STANDARD_SYNC`; key dibuat seperti kode di atas.
 > Data nyata itu berantakan: pikirkan bagaimana sebuah status bisa ditulis, tanggal mana yang mungkin dimiliki satu sisi tetapi tidak oleh sisi lain, dan pelanggan mana yang tidak boleh dikirim.
 > **Periksa:** `python3 labs/tryit/check.py 2.6-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
@@ -542,6 +544,7 @@ gcloud init
 ```
 
 **2. Buktikan Pemangkasan Kolom dengan `--dry_run` (Biaya $0, 0 Byte Ditagih).**
+Perintah `--dry_run` meminta planner BigQuery membaca header kolom Capacitor dan melaporkan jumlah byte persis yang *akan* ditagih, tanpa menjalankan query-nya:
 
 ```bash
 # Dry-run memilih HANYA 1 kolom (name) vs. SEMUA 5 kolom (SELECT *):
@@ -654,7 +657,7 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 - **External Table:** Nol biaya duplikasi storage di warehouse; cocok untuk arsip log dingin atau eksplorasi sesekali. Namun, perencanaan query lebih lambat dan optimasi clustering/BI Engine lebih terbatas (kecuali memakai **BigLake / tabel Iceberg**).
 - **Native Table + Mart Rollup Pra-Agregasi untuk BI:** Untuk dashboard eksekutif di Tableau atau Looker, simpan fakta atomik di tabel native terpartisi/terklaster, lalu bangun **Tabel Target Rollup** (`mart_daily_store_rollup` pada grain `(order_date, store_id, product_category)`). Mengarahkan Tableau ke rollup harian berisi 50.000 baris alih-alih tabel fakta 2 miliar baris berarti setiap filter membaca 40.000 kali lebih sedikit baris (2.000.000.000 / 50.000), dan di warehouse yang menagih per byte yang dipindai, tagihannya ikut menyusut.
 
-> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat baris `data/orders.csv` yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST`, lalu buat tabel fakta yang lebih besar dengan mengulangnya 300 kali (`CROSS JOIN range(300)`), berisi `order_date`, `payment_method`, `status` (diubah ke huruf kecil dan di-trim: file-nya menulisnya dengan beberapa cara), dan `total_idr`. Bangun rollup pada grain `(order_date, payment_method, status)` dengan `count(*)` dan `sum(total_idr)`. Jawab pertanyaan dashboard "pendapatan per metode pembayaran, bukan cancelled, 10 sampai 16 Januari" dari kedua tabel, pastikan jawabannya identik, dan ukur setiap query lima kali.
+> 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Buat `data/orders.csv` terlebih dahulu jika belum ada (`python3 labs/shared/shopgen.py --out data`). Muat baris `data/orders.csv` yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST`, lalu buat tabel fakta yang lebih besar dengan mengulangnya 300 kali (`CROSS JOIN range(300)`), berisi `order_date`, `payment_method`, `status` (diubah ke huruf kecil dan di-trim: file-nya menulisnya dengan beberapa cara), dan `total_idr`. Bangun rollup pada grain `(order_date, payment_method, status)` dengan `count(*)` dan `sum(total_idr)`. Jawab pertanyaan dashboard "pendapatan per metode pembayaran, bukan cancelled, 10 sampai 16 Januari" dari kedua tabel, pastikan jawabannya identik, dan ukur setiap query lima kali.
 >
 > **Seharusnya Anda melihat:** `1061700` baris fakta dan `557` baris rollup, empat total yang sama dari keduanya (`bank_transfer` pertama dengan `20436000000`), dan median sekitar `13` ms pada tabel fakta melawan `3` ms pada rollup. Di warehouse yang menagih per byte yang dipindai, selisih itu juga berupa uang, bukan hanya waktu. Rollup hanya berhasil karena setiap filter di dashboard adalah kolom pada grain-nya: minta pendapatan per pelanggan dan ia tidak bisa menjawab. Diukur dengan DuckDB 2.0.1 pada data bawaan kursus.
 
@@ -708,19 +711,21 @@ Paket SSIS adalah file `.dtsx`, yaitu XML: Anda bisa mencarinya dengan `grep` un
 Modelkan mekanisme modul ini dalam Python murni: micro-partition dengan zone map, pruning dan pemindaian, ukuran kualitas clustering, biaya query, gaya distribusi dan perpindahan data join, perencanaan bulk load, result cache, dan antrean query konkuren. Tesnya (42) memeriksa setiap aturan, dan memungkinkan Anda mereproduksi pengukuran kunci: query yang sama memindai 100 dari 100 partisi pada data acak dan sekitar 3 dari 100 pada data ter-cluster.
 
 ### @steps
-1. Baca `labs/mod-2-6/warehouse_lab.py` dari atas ke bawah. `value_bytes` sudah disediakan; yang lain punya docstring yang merupakan spesifikasi dan menyebut pelajarannya.
+> 💡 **Sudah menyelesaikan Jeda Praktik 1–5?** Implementasi Anda di `labs/mod-2-6/warehouse_lab.py` sudah siap, langsung lompat ke **Langkah 7 / Jeda Praktik 6** di bawah untuk menjalankan seluruh rangkaian tes dan menghasilkan token bukti Anda.
+
+1. Pasang pytest jika belum tersedia (`pip install -r labs/mod-2-6/requirements.txt`), lalu baca `labs/mod-2-6/warehouse_lab.py` dari atas ke bawah. `value_bytes` sudah disediakan; yang lain punya docstring yang merupakan spesifikasi dan menyebut pelajarannya.
 2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP fungsi:
 
 ```bash
 pytest labs/mod-2-6/test_lab.py -v
-pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # satu kelompok pada satu waktu
+pytest labs/mod-2-6/test_lab.py -v -k "(Prune or Scan) and not test_query_cost"   # satu kelompok pada satu waktu
 ```
 
 3. **Partisi dulu.** Tulis `build_micro_partitions` dan cetak `min` dan `max` kolom `order_date` untuk tiga partisi pertama pada tata letak acak dan yang ter-cluster. Katakan dengan lantang mengapa yang satu bisa dilewati dan yang lain tidak.
 4. **Scan dan biaya.** Setelah `scan` lulus, jalankan pada kedua tata letak dengan filter satu minggu dan dengan satu kolom dan lima kolom. Tulis keempat angka (partisi dipindai, byte ditagih) dalam tabel, dan hitung biaya dolarnya dengan `query_cost`.
 5. **Distribusi.** Tebak `join_rows_moved` untuk lima kombinasi distribusi sebelum Anda mengimplementasikannya, lalu bandingkan dengan tes.
 6. **Pemuatan, caching, dan antrean.** Rencanakan file untuk pemuatan 10 GiB pada 16 slice, lalu ubah jumlah slice menjadi 12 dan 20 dan tebak jumlah file.
-7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Verifikasi dan buktikan.** Jalankan seluruh rangkaian tes (`pytest labs/mod-2-6/test_lab.py -v`) di virtual environment Anda sendiri untuk memastikan seluruh 42 tes lulus, lalu jalankan `python3 scripts/prove.py mod-2-6` untuk menghasilkan kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 > 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
 > 1. Di terminal, jalankan seluruh rangkaian uji otomatis:

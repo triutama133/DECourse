@@ -34,6 +34,7 @@ How the checker works, so that nothing surprises you:
 Setup, once:
 
 ```bash
+cd ~/projects/DECourse                           # or the folder where you cloned the course
 python3 -m venv ~/airflow-lab/venv && source ~/airflow-lab/venv/bin/activate
 PYV=$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 pip install -r labs/mod-4-4/requirements.txt \
@@ -46,7 +47,7 @@ The `--constraint` file pins the versions Airflow was tested with; installing Ai
 
 Hints come in three levels (`--hint 1`, `2`, `3`). Try for at least 30 minutes before you ask. Struggling is how you learn to read Airflow's error messages, and you will read many of them at work.
 
-> 🛠 **Try it (30 min, terminal).** Do the setup above in `~/airflow-lab` (the Airflow install takes a few minutes; keep the constraint file). Before you write a DAG, run `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, then `--hint 1`. Then look inside `labs/mod-4-4/data/inbox/`: how many files are there, and what does one line of one file look like?
+> 🛠 **Try it (30 min, terminal).** Do the setup above in `~/airflow-lab` (the Airflow install takes a few minutes; keep the constraint file). Before you write a DAG, run `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, then `--step 1 --hint 1`. Then look inside `labs/mod-4-4/data/inbox/`: how many files are there, and what does one line of one file look like?
 >
 > **You should see:** `fetch_data.py` reports `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. The checker prints `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace` and `0 passed, 1 failed`. Hint 1 suggests reading the seven files with `json` and `collections`, counting first and looking at the odd lines by eye. The inbox holds seven files, one per day, and each line is one JSON object.
 
@@ -101,7 +102,7 @@ line_status('{"sensor": "  ", "value": "5", "day": "2026-03-01"}') == "missing_f
 line_status('{"sensor": "a1", "day": "2026-03-01"}') == "missing_field" ## No value at all.
 line_status('{"sensor": "a1", "value": "5", "day": "31/02/2026"}') == "bad_date" ## Not an ISO date.
 @hint
-`json.loads` inside `try`; check `isinstance(obj, dict)`; strip the text with `str(obj.get(f) or "").strip()`; for the date use `date.fromisoformat(...)` inside `try`.
+Check the rules in order: first parse JSON inside `try/except` and verify the parsed result is a dict; next verify both required fields exist and are non-empty after stripping whitespace; finally parse `"day"` with `date.fromisoformat` inside `try/except`.
 @solution
 import json
 from datetime import date
@@ -122,13 +123,13 @@ def line_status(line):
     return "ok"
 :::
 
-:::ask One day's delivery is mostly garbage (most lines unusable). What should a good pipeline do with that day?
+:::ask One day's delivery is mostly garbage (more than half unusable). What should the pipeline do with that day?
 @options
 load whatever lines parse and say nothing
 delete all earlier days to stay consistent
-* refuse it loudly and quarantine its lines
+* refuse it loudly without loading anything
 @why
-A delivery that is mostly unusable usually means a problem upstream. Failing the task makes it visible, the rejected lines are kept for inspection, and good data from other days is untouched.
+A delivery where more than half the lines fail points to an upstream bug. Failing `validate` before anything is written makes it visible and leaves earlier days untouched; individual bad lines are only quarantined on days that pass the 50% quality gate.
 :::
 
 ## @lesson Airflow in fifteen minutes
@@ -248,7 +249,7 @@ replace_day([("d1", 9)], "d1", [1]) == [("d1", 1)] ## The old rows of d1 are rep
 replace_day([("d0", 5), ("d1", 9)], "d1", [1]) == [("d0", 5), ("d1", 1)] ## Another day is untouched.
 replace_day(replace_day([], "d1", [1, 2]), "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## Running twice gives the same table: idempotent.
 @hint
-Keep the rows whose day is not `ds`: `[r for r in table if r[0] != ds]`, then add `[(ds, v) for v in new_rows]`.
+First filter `table` to keep only tuples whose day does not equal `ds`, then append a `(ds, value)` tuple for every value in `new_rows`.
 @solution
 def replace_day(table, ds, new_rows):
     kept = [row for row in table if row[0] != ds]
@@ -268,7 +269,7 @@ Every file name, WHERE clause and output path must be built from the run's date 
 
 Many data engineering hiring processes include a **take-home assignment**, often with a 48-hour window, or a review of a project repository (the *DataTalksClub Data Engineering Zoomcamp* grades its capstone projects with a peer-review rubric). Reviewers have little time for each submission, so they check production hygiene first: does it run on a fresh clone, is it tested, is it safe to run twice.
 
-Before you submit any take-home assignment or portfolio project, verify it against this **10-Point Hiring Manager & Zoomcamp Capstone Rubric** (and run `python3 scripts/verify_portfolio.py /path/to/your/repo` locally):
+Before you submit any take-home assignment or portfolio project, verify it against this **10-Point Hiring Manager & Zoomcamp Capstone Rubric** (and run `python3 scripts/verify_portfolio.py proj-1 /path/to/your/repo` locally):
 
 | # | Grading Criterion | What Rejects a Submission in 60 Seconds (❌) | What Gets You Fast-Tracked to Final Onsite (✅) |
 |---|---|---|---|
@@ -281,7 +282,7 @@ Before you submit any take-home assignment or portfolio project, verify it again
 | **7** | **Infrastructure as Code (IaC) & Secret Hygiene** | Manual cloud console clicks or hardcoded credentials in Python files. | Declarative Terraform (`main.tf`, `variables.tf`), `.env.example`, and `.pre-commit-config.yaml` secret scanning. |
 | **8** | **Continuous Integration (`.github/workflows/ci.yml`)** | No CI; broken code pushed directly to `main`. | GitHub Actions workflow running `ruff`, `pytest`, and `dbt build` on every Push / Pull Request. |
 | **9** | **Observability & Run Summary** | Silent execution (`print("done")`). | Structured JSON logs emitting `rows_read`, `rows_loaded`, `rows_quarantined`, `net_revenue_sum`, and `duration_ms`. |
-| **10** | **One-page design doc (`DESIGN.md`)** | A README that only lists libraries installed. | A concise `README.md` plus the one-page `DESIGN.md` from Module 2.5 (an ADR does the same job), explaining: **(a) Problem & Stakeholder KPIs**, **(b) Architecture Diagram & Grain**, **(c) Trade-offs Chosen**, and **(d) What Changes at 100× Scale**. |
+| **10** | **One-page design doc (`DESIGN.md`)** | A README that only lists libraries installed. | A concise `README.md` plus the one-page `DESIGN.md` from Module 2.5 (an **ADR, Architecture Decision Record** does the same job), explaining: **(a) Problem & Stakeholder KPIs**, **(b) Architecture Diagram & Grain**, **(c) Trade-offs Chosen**, and **(d) What Changes at 100× Scale**. |
 
 > 🛠 **Try it (15 min, terminal).** Make a deliberately weak repository: `git init`, a `README.md` with only a title, and a `pipeline.py` that reads `/Users/budi/Desktop/data.csv` and prints `done`, in one commit. Run `python3 scripts/verify_portfolio.py proj-1 <that folder>`. Then go through the ten rubric rows above and mark each one: did the verifier check it, or does it need a person to read the code?
 >
@@ -289,23 +290,23 @@ Before you submit any take-home assignment or portfolio project, verify it again
 
 :::ask A reviewer has five minutes for your take-home project. What do they check first?
 @options
-* hygiene: README, tests, safe reruns, no secrets
-how clever the algorithm is
-how many tools the stack uses
+* hygiene: README, tests, no secrets
+how clever and complex the algorithm is
+how many cloud tools the whole stack uses
 @why
 Reviewers have little time per submission, so they scan for signs that you can be trusted with production: a clear README, tests, safe reruns and no secrets in the repository.
 :::
 
 ## @lab Lab: five steps to a pipeline Airflow can run every night
-Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your DAG on the real deliveries and on broken ones, and compares the warehouse with answers it computes independently.
+Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a time, with the checker after each step. The checker runs your DAG on the seven deliveries and on broken ones, and compares the warehouse with answers it computes independently.
 
 ### @steps
 1. **Setup.** Follow the setup in the first lesson (virtual environment, install with the constraint file, `fetch_data.py`, copy the starter into your workspace). Open a delivery and read a hundred lines by eye.
 2. **Checker step 1: profile.** Create `profile.json` with nine keys, computed from all seven raw files: `files` (number of delivery files), `lines_total` (non-blank lines), `invalid_json_lines`, `lines_missing_required` (valid JSON but a required field is missing or empty), `lines_bad_date` (valid JSON, required fields present, `posted_at` not an ISO date), `distinct_sources` (among lines that are valid JSON), `busiest_source` (the `source` with the most such lines), `lines_with_salary` (valid JSON lines whose `salary_text` is a non-empty text), and `worst_day` (the file's date, like `2026-03-04`, with the highest share of unusable lines). Check: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`.
 3. **Checker step 2: the DAG file.** Write the DAG with the settings of the contract and the five tasks in a chain, even if the tasks do nothing yet (they may just return a value). Run `--step 2`; fix what the checker lists.
 4. **Checker step 3: one day.** Fill in the tasks so that one day goes through: validate, transform, load, mart. Try it yourself first with `dag.test()` for a single date, compare the row counts with the counts you found in step 1, then run `--step 3`.
-5. **Checker step 4: reruns and order.** The checker runs six days in a mixed order, including two repeats. Make sure your load replaces the rows of its date and your mart is rebuilt. Break it on purpose first (remove the delete, run the same day twice) and see what the table looks like. Run `--step 4`.
-6. **Checker step 5: survive.** A delivery arrives a few seconds late; a delivery of 5 March is mostly garbage. Make the first heal itself and the second fail without touching anything. Run `--step 5`.
+5. **Checker step 4: reruns and order.** The checker runs four distinct days across six runs in a mixed order, including two repeats. Make sure your load replaces the rows of its date and your mart is rebuilt. Break it on purpose first (remove the delete, run the same day twice) and see what the table looks like. Run `--step 4`.
+6. **Checker step 5: survive.** A delivery arrives a few seconds late; one day's delivery is mostly garbage. Make the first heal itself and the second fail without touching anything. Run `--step 5`.
 7. **Stuck?** Re-read the matching lesson, look at the data and at the Airflow error text, and only then ask: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3 --hint 1` (then 2, then 3).
 8. **Finish.** When `--step all` passes, run `python3 scripts/prove.py mod-4-4 ~/airflow-lab` for the proof code. Write `NOTES.md` in your workspace: three sentences about what surprised you in Airflow, and what you would monitor if this ran every night (for example the share of rejected lines per day and the age of the newest delivery).
 
@@ -319,7 +320,7 @@ Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a
 
 ### @files
 - labs/mod-4-4/starter/jobs_pipeline.py :: Your working file: copy it to your workspace and build the DAG there :: starter
-- labs/mod-4-4/check.py :: The checker: five steps, hints, proof :: test
+- labs/mod-4-4/check.py :: The checker: five steps and tiered hints :: test
 - labs/mod-4-4/fetch_data.py :: Generates the seven synthetic deliveries and verifies their hash :: config
 - labs/mod-4-4/requirements.txt :: Airflow 3.1.8 and DuckDB, with the install command :: config
 
@@ -329,7 +330,7 @@ Build `jobs_pipeline.py` and `profile.json` in your own workspace, one step at a
 - You can explain why `load` deletes and inserts in one transaction, and what would happen to a table that was appended to on every retry
 - You can explain why a missing file must raise instead of returning an empty result, and why a refused delivery must fail before anything is written
 - Your `NOTES.md` states what surprised you and what you would monitor every night
-- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design ~/airflow-lab/DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash

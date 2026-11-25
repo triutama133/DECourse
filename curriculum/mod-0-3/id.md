@@ -15,7 +15,7 @@ why: Tutorial memperlakukan SQL sebagai sintaks untuk dihafal pada tabel yang se
 - Mendefinisikan tabel dengan tipe dan constraint, mengubahnya dengan ALTER, dan menjelaskan beda view, tabel snapshot, dan materialized view
 
 ## @prereq
-Modul 0.1 dan 0.2 membantu. Anda bisa mengerjakan seluruh lab di browser (SQL Sandbox) atau dengan modul `sqlite3` bawaan Python; tidak perlu instalasi.
+Modul 0.1 dan 0.2 membantu. Anda bisa menguji dan menyusun query di **SQL Sandbox** browser kapan saja; untuk menyelesaikan modul dan membuat kode bukti penyelesaian, simpan 10 jawaban lab Anda di `labs/mod-0-3/answers.sql` lalu jalankan pemeriksa lokal memakai modul `sqlite3` bawaan Python (tidak perlu instalasi).
 
 ## @part Membaca tabel
 
@@ -72,11 +72,13 @@ SELECT name, price_idr FROM products;
 
 ### Grain: satu baris mewakili apa?
 
-Tanyakan pada setiap tabel, sebelum Anda mengquery-nya: **satu baris mewakili apa?** Itulah **grain** tabel tersebut. `orders` punya satu baris per pesanan, `order_items` satu baris per *baris produk* dalam pesanan. Hampir setiap angka salah dalam analitik datang dari melupakan grain, seperti yang akan Anda lihat di materi join. `COUNT(*)` menghitung baris, jadi cepat memberi tahu seberapa besar sebuah tabel:
+Tanyakan pada setiap tabel, sebelum Anda mengquery-nya: **satu baris mewakili apa?** Itulah **grain** tabel tersebut. `orders` punya satu baris per pesanan, `order_items` satu baris per *baris produk* dalam pesanan. Hampir setiap angka salah dalam analitik datang dari melupakan grain, seperti yang akan Anda lihat di pelajaran join. `COUNT(*)` menghitung baris, jadi cepat memberi tahu seberapa besar sebuah tabel:
 
 ```sql
 SELECT COUNT(*) FROM customers;    -- 10
 ```
+
+Pakai `AS` untuk memberi nama yang mudah dibaca pada kolom hasil hitungan (misalnya, `SELECT COUNT(*) AS total FROM customers;`).
 
 :::drill sql Berapa banyak baris?
 Hitung baris `order_items`. Beri kolomnya nama `lines`.
@@ -95,9 +97,9 @@ SELECT COUNT(*) AS lines FROM order_items;
 
 :::ask SATU baris order_items mewakili apa?
 @options
-satu pesanan
-satu produk di katalog
-* satu baris produk di dalam pesanan
+satu pesanan utuh
+satu produk di katalog produk
+* satu item dalam pesanan
 @why
 `order_items` punya satu baris per **baris produk** dalam sebuah pesanan: pesanan dengan tiga produk berbeda punya tiga baris. Karena itu barisnya lebih banyak (24) daripada `orders` (18).
 :::
@@ -122,7 +124,7 @@ Sebuah pesanan bisa punya beberapa baris (jadi `order_id` berulang), dan nomor b
 @options
 baris lama diganti diam-diam oleh yang baru
 dua pelanggan berakhir berbagi id yang sama
-* database menolak: `UNIQUE constraint failed`
+* gagal: `UNIQUE constraint failed`
 @why
 Primary key harus unik, dan database menegakkannya. Itulah gunanya key: data buruk ditolak di pintu, bukan ditemukan belakangan di laporan.
 :::
@@ -297,7 +299,7 @@ SELECT DISTINCT payment_method FROM orders;
 **Tanggal.** Database punya tipe tanggal, tetapi banyak data nyata menyimpan tanggal sebagai teks seperti `'2026-01-15'`. Format ISO (tahun-bulan-hari) istimewa karena urutan teks sama dengan urutan tanggal, itulah sebabnya `BETWEEN` bekerja padanya. Tanggal yang ditulis `15/01/2026` tidak terurut dan tidak terbanding dengan benar: normalkan sejak awal.
 
 > 💡 **Jeda Praktik 1 (SELECT & WHERE):**
-> Buka file `labs/mod-0-3/answers.sql` di editor Anda (atau buka SQL Sandbox di aplikasi web).
+> Buka file `labs/mod-0-3/answers.sql` di editor Anda (Anda boleh menguji query di **SQL Sandbox** browser lebih dulu, lalu simpan jawaban akhir Anda di `answers.sql`).
 > Kerjakan tantangan `-- k-1`: tulis query untuk mengembalikan kolom `name` dan `tier` dari tabel `customers` yang berdomisili di Jakarta (`WHERE city = 'Jakarta'`).
 > Uji query Anda di terminal:
 > `python3 labs/mod-0-3/check.py`
@@ -308,7 +310,7 @@ SELECT DISTINCT payment_method FROM orders;
 
 ### Membandingkan dengan NULL memberi "tidak diketahui"
 
-Aturannya: setiap perbandingan dengan NULL tidak memberi benar maupun salah, melainkan **UNKNOWN**, dan `WHERE` hanya menyimpan baris yang kondisinya *benar*. Lihat apa yang terjadi pada dua pelanggan tanpa kota:
+Aturannya, disebut **Logika Tiga Nilai** (benar, salah, atau tidak diketahui), adalah setiap perbandingan dengan NULL tidak memberi benar maupun salah, melainkan **UNKNOWN**, dan `WHERE` hanya menyimpan baris yang kondisinya *benar*. Lihat apa yang terjadi pada dua pelanggan tanpa kota:
 
 :::sqlsteps Ke mana baris NULL pergi?
 @data kopiku
@@ -410,10 +412,12 @@ Tampilkan `name` dan `city` setiap pelanggan, tetapi tampilkan `'Unknown'` sebag
 SELECT name, COALESCE(city, 'Unknown') AS city FROM customers;
 :::
 
-### Tempat lain NULL menggigit
+### Jebakan NULL lainnya
 
 - **Aritmetika menyebarkan NULL.** `price - discount` adalah NULL kalau `discount` NULL, sehingga total seluruh baris menghilang.
 - **`NOT IN` dengan NULL di dalam daftar tidak mengembalikan apa pun.** `x NOT IN (1, NULL)` tidak pernah benar, karena perbandingan dengan NULL adalah UNKNOWN untuk setiap baris. Ini bug produksi klasik ketika daftarnya datang dari subquery yang kebetulan berisi NULL.
+
+Pada pertanyaan di bawah, `(SELECT city FROM ...)` adalah **subquery**, query di dalam tanda kurung yang mengirimkan daftar kotanya ke `NOT IN` (subquery dibahas tuntas di Pelajaran 8).
 
 :::ask Apa yang dikembalikan query ini?
 ```sql
@@ -425,12 +429,12 @@ pelanggan yang kotanya bukan kota pelanggan Silver
 * tidak ada baris sama sekali
 3 baris
 @why
-Satu pelanggan Silver tidak punya kota, jadi daftar di `NOT IN` berisi NULL, dan `city NOT IN (..., NULL)` tidak pernah benar. Query ini mengembalikan **tidak ada**. Cara yang lebih aman untuk mengatakan "tidak ada di": `NOT EXISTS`, `EXCEPT`, atau anti-join LEFT JOIN di materi join.
+Satu pelanggan Silver tidak punya kota, jadi daftar di `NOT IN` berisi NULL, dan `city NOT IN (..., NULL)` tidak pernah benar. Query ini mengembalikan **tidak ada**. Cara yang lebih aman untuk mengatakan "tidak ada di": `NOT EXISTS`, `EXCEPT`, atau anti-join LEFT JOIN di pelajaran join.
 :::
 
 > **Peringatan:** Ketika hitungan atau jumlah tampak "agak rendah", curigai NULL sebelum mencurigai datanya. Tambahkan `OR col IS NULL`, atau `COALESCE`, dan lihat apakah angkanya bergerak.
 
-> 💡 **Jeda Praktik 2 (Jebakan Tiga Nilai Logika NULL):**
+> 💡 **Jeda Praktik 2 (Jebakan Logika Tiga Nilai NULL):**
 > Buka `labs/mod-0-3/answers.sql`, temukan penanda `-- k-4`.
 > Tulis query untuk mengambil nama semua pelanggan yang kotanya BUKAN Jakarta (`city <> 'Jakarta'`), tetapi INGAT menyertakan pelanggan yang kotanya tidak diketahui: tambahkan `OR city IS NULL`.
 > Uji di terminal:
@@ -444,7 +448,7 @@ Kolom nyata itu berantakan: nama dengan huruf campur, rasio yang harus dihitung,
 
 ### Fungsi teks
 
-`LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)`, `REPLACE(x, 'a', 'b')`, `SUBSTR(x, awal, panjang)` (posisi dimulai dari **1**, bukan 0), `INSTR(x, 'teks')` (posisi kecocokan pertama, 0 jika tidak ada), dan `||` untuk menyambung teks.
+`LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)` (menghapus spasi di awal/akhir), `REPLACE(x, 'a', 'b')` (mengganti setiap `'a'` menjadi `'b'`), `SUBSTR(x, awal, panjang)` (posisi dimulai dari **1**, bukan 0), `INSTR(x, 'teks')` (posisi kecocokan pertama, 0 jika tidak ada), dan `||` untuk menyambung teks.
 
 ```sql
 SELECT name, UPPER(name) AS shout, LENGTH(name) AS name_length FROM customers;
@@ -538,7 +542,7 @@ Kedua angka adalah bilangan bulat, jadi SQLite membagi sebagai bilangan bulat da
 :::
 
 :::drill sql Harga dalam ribuan
-Tampilkan `name` setiap produk dan harganya dalam ribuan rupiah, satu desimal, sebagai `price_k` (untuk 85000 menjadi 85.0). Waspadai pembagian bilangan bulat!
+Tampilkan `name` setiap produk dan harganya dalam ribuan rupiah, satu desimal, sebagai `price_k` (untuk 85000 menjadi `85.0`). Waspadai pembagian bilangan bulat!
 @data kopiku
 @names
 @starter
@@ -546,14 +550,14 @@ Tampilkan `name` setiap produk dan harganya dalam ribuan rupiah, satu desimal, s
 
 @check
 /round/ ## Pakai ROUND(..., 1).
-/1000\.0/ ## Bagi dengan 1000.0 (dengan .0), atau desimalnya hilang.
+/(?:1000\.0|\*\s*1\.0|cast\s*\()/ ## Bagi dengan 1000.0 (dengan .0), atau kalikan 1.0 / CAST ke desimal, atau desimalnya hilang.
 @hint
 `ROUND(price_idr / 1000.0, 1) AS price_k`
 @solution
 SELECT name, ROUND(price_idr / 1000.0, 1) AS price_k FROM products;
 :::
 
-KopiKu punya 2 pesanan batal dari 18. Di SQLite perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan yang salah `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Materi 8 menunjukkan `CASE WHEN` yang portabel). `SUM(status = 'cancelled') / COUNT(*)` menghasilkan **0** (pembagian bilangan bulat!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` menghasilkan **11.1**.
+KopiKu punya 2 pesanan batal dari 18. Di SQLite perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan yang salah `0`, dan `SUM(...)` menjumlahkan angka 1 dan 0 tersebut lintas baris (kita membahas `SUM` dan agregasi secara penuh di Pelajaran 5), jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). `SUM(status = 'cancelled') / COUNT(*)` menghasilkan **0** (pembagian bilangan bulat!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` menghasilkan **`11.1`**.
 
 :::drill sql Sebuah persentase
 Berapa persen dari semua pesanan yang `'cancelled'`? Tampilkan satu angka, dibulatkan satu desimal, sebagai `pct`.
@@ -565,14 +569,14 @@ Berapa persen dari semua pesanan yang `'cancelled'`? Tampilkan satu angka, dibul
 @check
 /100\.0/ ## Pakai 100.0 (dengan .0) agar pembagian mempertahankan desimalnya.
 @hint
-`SELECT ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1) AS pct FROM orders;` Anda harus melihat 11.1.
+`SELECT ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1) AS pct FROM orders;` Anda harus melihat `11.1`.
 @solution
 SELECT ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1) AS pct FROM orders;
 :::
 
 ### Tanggal
 
-SQLite tidak punya tipe tanggal sungguhan: tanggal adalah teks dalam format ISO `YYYY-MM-DD`, yang terurut dengan benar sebagai teks (`'2026-01-03' < '2026-01-10'`). Format seperti `10/1/2026` tidak: sebagai teks, `'10/1/2026' < '3/1/2026'` benar. Simpan tanggal dalam bentuk ISO, selalu. Fungsi SQLite-nya adalah `date(x, '+7 days')`, `strftime(format, x)`, dan `julianday(x)`:
+SQLite tidak punya tipe tanggal sungguhan: tanggal adalah teks dalam format ISO `YYYY-MM-DD`, yang terurut dengan benar sebagai teks (`'2026-01-03' < '2026-01-10'`). Format seperti `10/1/2026` tidak: sebagai teks, `'10/1/2026' < '3/1/2026'` benar. Simpan tanggal dalam bentuk ISO, selalu. Fungsi SQLite-nya adalah `date(x, '+7 days')`, `strftime(format, x)`, dan `julianday(x)` (mengubah tanggal menjadi hitungan hari sehingga pengurangan dua tanggal menghasilkan selisih harinya):
 
 ```sql
 SELECT date(order_date, '+7 days') FROM orders;     -- 2026-01-03 menjadi 2026-01-10
@@ -620,7 +624,7 @@ Dua jebakan, keduanya diperiksa pada SQLite, PostgreSQL, dan DuckDB. Pertama, `'
 **Satu aturan performa** yang dijelaskan Modul 1.3 dengan EXPLAIN: jangan membungkus kolom ber-indeks dengan fungsi di dalam `WHERE`. Pada tabel dengan indeks di `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` membuat SQLite **memindai seluruh tabel**, dan rentang yang setara `ts >= '2026-01-01' AND ts < '2026-02-01'` **mencari lewat indeks**.
 :::
 
-> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama), **k-17** (kota yang tidak diketahui), dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini. Catatan: SQLite menganggap perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan salah bernilai `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama) dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini (simpan **k-17** untuk setelah Pelajaran 5 membahas `GROUP BY`). Catatan: SQLite menganggap perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan salah bernilai `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
 >
 > **Seharusnya Anda melihat:** sandbox menyatakan Benar untuk setiap tantangan; percobaan k-18 yang salah menampilkan `0`, yang benar `11.1`.
 
@@ -789,13 +793,13 @@ Urutan logisnya: `FROM` dan `JOIN`, lalu `WHERE` (menyaring baris), `GROUP BY` (
 Waspadai juga pembagian bilangan bulat di sini: tulis `100.0 * part / total` untuk persentase.
 
 > 💡 **Jeda Praktik 3 (Agregasi GROUP BY & HAVING):**
-> Terapkan logika agregasi pada tiga tantangan di `labs/mod-0-3/answers.sql`:
+> Terapkan logika agregasi pada dua tantangan di `labs/mod-0-3/answers.sql`:
 > 1. `-- k-2`: hitung jumlah pesanan per status (`GROUP BY status`, lalu `COUNT(*)`).
 > 2. `-- k-3`: hitung nilai tiap pesanan (`SUM(qty * unit_price_idr)` dikelompokkan per `order_id`).
-> 3. `-- k-7`: cari pelanggan dengan minimal 2 pesanan berstatus delivered (`HAVING COUNT(*) >= 2`).
-> Uji ketiga query ini di terminal:
+> (Tantangan sandbox opsional setelah mengenal `GROUP BY`: **k-17**, kota yang tidak diketahui dengan `COALESCE`.)
+> Uji kedua query ini di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Jika k-2, k-3, dan k-7 PASS, Anda telah menguasai agregasi data! Lanjut ke Pelajaran 6 tentang Join.
+> Jika k-2 dan k-3 PASS, Anda telah menguasai agregasi data! Lanjut ke Pelajaran 6 tentang Join (tempat Anda juga akan mengerjakan `-- k-7`, yang menggabungkan `JOIN` dengan `HAVING`).
 
 ## @part Menggabungkan data
 
@@ -859,7 +863,7 @@ Tampilkan `name` setiap pelanggan dan berapa pesanannya, sebagai `orders`: pelan
 @check
 /left\s+join/ ## Pakai LEFT JOIN, supaya pelanggan tanpa pesanan tetap ada di hasil.
 /group\s+by/ ## Kelompokkan per pelanggan.
-/count\s*\(\s*o\./ ## Hitung kolom tabel orders (COUNT(o.order_id)), bukan COUNT(*): COUNT(*) akan menghitung baris kosong sebagai 1.
+/count\s*\(\s*(?:[\w.]+\.)?(?:order_id|customer_id|order_date|status|payment_method|shipping_fee_idr)\s*\)/ ## Hitung kolom tabel orders (COUNT(o.order_id)), bukan COUNT(*): COUNT(*) akan menghitung baris kosong sebagai 1.
 @hint
 `SELECT c.name, COUNT(o.order_id) AS orders FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id GROUP BY c.customer_id, c.name;`
 @solution
@@ -885,7 +889,7 @@ SELECT c.name FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_
 
 ### Jebakan fan-out
 
-Menggabungkan tabel pada satu grain dengan tabel pada grain yang lebih halus **mengulang** baris yang kasar. `orders` punya satu baris per pesanan, `order_items` satu per baris produk, jadi menggabungkannya menghasilkan satu baris per *baris produk*: 24 baris untuk 18 pesanan. Apa pun yang disimpan per pesanan (seperti ongkos kirim) sekarang diulang untuk setiap baris produk.
+Menggabungkan tabel pada satu grain dengan tabel pada grain yang lebih halus **mengulang** baris pada grain lebih kasar. `orders` punya satu baris per pesanan, `order_items` satu per baris produk, jadi menggabungkannya menghasilkan satu baris per *baris produk*: 24 baris untuk 18 pesanan. Apa pun yang disimpan per pesanan (seperti ongkos kirim) sekarang diulang untuk setiap baris produk.
 
 [[diagram:fanout]]
 
@@ -914,10 +918,10 @@ Kebiasaan yang perlu dipakai: selalu tahu grain setiap tabel; setelah join, band
 :::ask Dua tabel digabung dan jumlah barisnya lebih besar dari yang bisa Anda jelaskan. Apa yang Anda lakukan?
 @options
 lanjut saja: lebih banyak baris hanya berarti lebih banyak data
-* berhenti dan cari tahu: key yang tidak unik mengulang baris
+* cari penyebabnya: ada key yang berulang
 tambahkan DISTINCT supaya pengulangan hilang
 @why
-Join pada key yang tidak unik di **kedua** sisi melipatgandakan baris (many-to-many lebih parah lagi). `DISTINCT` menyembunyikan gejalanya dan bisa menyembunyikan baris berulang yang nyata. Cari dulu ketidakcocokan grain-nya.
+Join pada key yang tidak unik di **setidaknya satu** sisi melipatgandakan baris (many-to-many lebih parah lagi). `DISTINCT` menyembunyikan gejalanya dan bisa menyembunyikan baris berulang yang nyata. Cari dulu ketidakcocokan grain-nya.
 :::
 
 :::drill sql Jumlah tanpa fan-out
@@ -934,6 +938,15 @@ Berapa total ongkos kirim pesanan yang statusnya `'paid'` atau `'shipped'`? Tamp
 @solution
 SELECT SUM(shipping_fee_idr) AS shipping_total FROM orders WHERE status IN ('paid', 'shipped');
 :::
+
+Untuk menggabungkan tiga tabel, rangkai dua klausa `JOIN` berurutan, setiap `JOIN` terhubung ke tabel yang sudah ada di query:
+
+```sql
+SELECT c.name, o.order_id, i.qty
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+JOIN order_items i ON i.order_id = o.order_id;
+```
 
 :::drill sql Pendapatan per kota
 Untuk pesanan `'delivered'`, tampilkan setiap kota dan jumlah `qty * unit_price_idr` baris-barisnya, sebagai `revenue`. Kota NULL harus tampil sebagai `'Unknown'`. Anda butuh tiga tabel.
@@ -955,15 +968,16 @@ SELECT COALESCE(c.city, 'Unknown') AS city, SUM(i.qty * i.unit_price_idr) AS rev
 > Kerjakan tantangan penggabungan tabel di `labs/mod-0-3/answers.sql`:
 > 1. `-- k-5`: cari pelanggan yang belum pernah memesan (`LEFT JOIN orders` lalu `WHERE o.order_id IS NULL`).
 > 2. `-- k-6`: omset per kota untuk pesanan delivered, ubah kota NULL menjadi 'Unknown' dengan `COALESCE(c.city, 'Unknown')`.
-> 3. `-- k-8`: hitung total ongkir pesanan delivered tanpa terkena fan-out (jumlahkan kolom dari tabel `orders` saja!).
+> 3. `-- k-7`: cari pelanggan berulang dengan minimal 2 pesanan delivered (`JOIN customers` dengan `orders`, saring `WHERE o.status = 'delivered'`, kelompokkan per pelanggan, lalu saring dengan `HAVING COUNT(*) >= 2`).
+> 4. `-- k-8`: hitung total ongkir pesanan delivered tanpa terkena fan-out (jumlahkan kolom dari tabel `orders` saja!).
 > Uji di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Pastikan k-5, k-6, dan k-8 mencetak PASS! Lanjut ke Pelajaran 7 di bawah.
+> Pastikan k-5, k-6, k-7, dan k-8 mencetak PASS! Lanjut ke Pelajaran 7 di bawah.
 
 ## @lesson Cara lain menggabungkan data: self-join, CROSS JOIN, dan operasi himpunan
-Join menaruh tabel **berdampingan**: ia menambah kolom. Tiga alat lagi melengkapi gambarnya: tabel yang digabung dengan dirinya sendiri, setiap baris dipasangkan dengan setiap baris, dan **menumpuk** hasil satu di atas yang lain.
+Join menaruh tabel **berdampingan**: ia menambah kolom. Tiga alat lagi melengkapi gambarannya: tabel yang digabung dengan dirinya sendiri, setiap baris dipasangkan dengan setiap baris, dan **menumpuk** hasil satu di atas yang lain.
 
-### Self-join: tabel melawan dirinya sendiri
+### Self-join: tabel digabung dengan dirinya sendiri
 
 Untuk membandingkan baris dari tabel yang *sama*, gabungkan tabel itu dengan dirinya sendiri di bawah dua alias. Pasangan produk dengan roast yang sama:
 
@@ -976,7 +990,7 @@ JOIN products b ON a.roast = b.roast AND a.product_id < b.product_id;
 Ini menghasilkan 3 pasangan: (1, 4) medium, (2, 5) dark, dan (3, 6) light. Tanda `<` yang membuatnya benar: tanpanya setiap produk dipasangkan dengan dirinya sendiri dan setiap pasangan muncul dua kali (12 baris, bukan 3). Ingat pelajaran NULL: dua NULL tidak pernah sama, jadi baris dengan NULL di kolom join tidak cocok dengan apa pun.
 
 :::drill sql Pasangan dengan tier yang sama
-Tampilkan pasangan pelanggan yang punya `tier` sama: kedua namanya sebagai `customer_a` dan `customer_b`. Setiap pasangan harus muncul **sekali**, dan tidak ada yang dipasangkan dengan dirinya sendiri.
+Tampilkan pasangan pelanggan yang punya `tier` sama: kedua namanya sebagai `customer_a` dan `customer_b`. Taruh pelanggan dengan `customer_id` lebih kecil lebih dulu (`customer_a`), agar setiap pasangan muncul **sekali** dan tidak ada yang dipasangkan dengan dirinya sendiri.
 @data kopiku
 @names
 @starter
@@ -984,7 +998,7 @@ Tampilkan pasangan pelanggan yang punya `tier` sama: kedua namanya sebagai `cust
 
 @check
 /join/ ## Gabungkan tabel customers dengan dirinya sendiri (dua alias).
-/</ ## Pakai a.customer_id < b.customer_id agar setiap pasangan muncul sekali.
+/[<>]/ ## Pakai a.customer_id < b.customer_id (atau b.customer_id > a.customer_id) agar setiap pasangan muncul sekali.
 @hint
 `FROM customers a JOIN customers b ON a.tier = b.tier AND a.customer_id < b.customer_id`
 @solution
@@ -993,7 +1007,15 @@ SELECT a.name AS customer_a, b.name AS customer_b FROM customers a JOIN customer
 
 ### CROSS JOIN: setiap kombinasi
 
-`CROSS JOIN` tidak punya `ON`: setiap baris satu sisi dipasangkan dengan setiap baris sisi lain. Berguna untuk membangun **grid lengkap** kategori, supaya kombinasi tanpa data tetap muncul sebagai 0 alih-alih diam-diam lenyap (grafik dengan batang yang hilang adalah kebohongan karena menghilangkan). Lalu `LEFT JOIN` faktanya ke grid dan hitung kolom dari sisi *kanan* (`COUNT(o.order_id)`, bukan `COUNT(*)`, yang akan menghitung baris kosong sebagai 1).
+`CROSS JOIN` tidak punya `ON`: setiap baris satu sisi dipasangkan dengan setiap baris sisi lain. Berguna untuk membangun **grid lengkap** kategori, supaya kombinasi tanpa data tetap muncul sebagai 0 alih-alih diam-diam lenyap (grafik dengan batang yang hilang menyesatkan karena menyembunyikan data yang kosong). Lalu `LEFT JOIN` faktanya ke grid dan hitung kolom dari sisi *kanan* (`COUNT(o.order_id)`, bukan `COUNT(*)`, yang akan menghitung baris kosong sebagai 1).
+
+Anda bisa menaruh `SELECT` di dalam kurung pada `FROM`, disebut **derived table** (hasil query sementara yang diberi alias seperti `t` atau `p`), untuk melakukan cross-join pada nilai-nilai yang berbeda:
+
+```sql
+SELECT t.tier, p.payment_method
+FROM (SELECT DISTINCT tier FROM customers) t
+CROSS JOIN (SELECT DISTINCT payment_method FROM orders) p;
+```
 
 :::drill sql Setiap kombinasi
 Tampilkan setiap kombinasi `roast` produk dan `tier` pelanggan: dua kolom `roast` dan `tier`, setiap kombinasi sekali. Pakai `CROSS JOIN` pada nilai-nilai yang berbeda.
@@ -1023,6 +1045,16 @@ Operasi himpunan menumpuk hasil dua query. Kedua query harus mengembalikan jumla
 | `INTERSECT` | baris yang ada di keduanya | 2 (Gold, Silver) |
 | `EXCEPT` | baris pertama yang tidak ada di kedua | 1 (Bronze) |
 
+```sql
+SELECT tier FROM customers WHERE city = 'Jakarta'
+UNION
+SELECT tier FROM customers WHERE city = 'Bandung';   -- Gold, Bronze, Silver
+
+SELECT tier FROM customers WHERE city = 'Jakarta'
+EXCEPT
+SELECT tier FROM customers WHERE city = 'Bandung';   -- Bronze
+```
+
 :::ask Jakarta punya tier Gold, Bronze, dan Silver; Bandung punya Silver dan Gold. Operator mana yang hanya menyimpan baris yang ada di KEDUA hasil?
 @options
 UNION
@@ -1033,7 +1065,7 @@ EXCEPT
 :::
 
 :::drill sql Kota dari dua kelompok
-Tampilkan kota-kota yang berbeda dari pelanggan `'Gold'` **dan** pelanggan `'Silver'` bersama-sama, setiap kota sekali (satu kolom `city`). Pakai `UNION`.
+Tampilkan kota-kota yang berbeda dari pelanggan `'Gold'` **dan** pelanggan `'Silver'` bersama-sama, setiap kota sekali (satu kolom `city`). Kota yang tidak diketahui (`NULL`) bisa muncul sebagai salah satu baris. Pakai `UNION`.
 @data kopiku
 @names
 @starter
@@ -1145,7 +1177,7 @@ SELECT name FROM products WHERE price_idr > (SELECT AVG(price_idr) FROM products
 
 ### CTE: beri nama pada hasil antara
 
-**CTE** (common table expression, `WITH nama AS (...)`) memberi nama pada hasil antara, sehingga query panjang terbaca dari atas ke bawah seperti resep. Lihat satu query yang dibangun dalam dua langkah:
+**CTE** (common table expression, `WITH nama AS (...)`) memberi nama pada hasil antara, sehingga query panjang terbaca dari atas ke bawah seperti resep. Lihat satu query yang dibangun dalam tiga langkah:
 
 :::sqlsteps Query sebagai resep
 @data kopiku
@@ -1164,18 +1196,18 @@ Hanya pesanan besar yang tersisa.
 :::
 
 :::drill sql Tiga pesanan terbesar
-Memakai CTE bernama `line_totals` (satu baris per pesanan dengan `SUM(qty * unit_price_idr)` sebagai `order_total`), tampilkan **tiga pesanan dengan total terbesar**: `order_id` dan `order_total`, yang terbesar dulu.
+Memakai CTE bernama `order_totals` (satu baris per pesanan dengan `SUM(qty * unit_price_idr)` sebagai `order_total`), tampilkan **tiga pesanan dengan total terbesar**: `order_id` dan `order_total`, yang terbesar dulu.
 @data kopiku
 @ordered
 @starter
 -- tulis query Anda di bawah baris ini
 
 @check
-/with\s+line_totals/ ## Mulai dengan WITH line_totals AS (...).
+/with\s+order_totals/ ## Mulai dengan WITH order_totals AS (...).
 @hint
-`WITH line_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM line_totals ORDER BY order_total DESC LIMIT 3;`
+`WITH order_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM order_totals ORDER BY order_total DESC LIMIT 3;`
 @solution
-WITH line_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM line_totals ORDER BY order_total DESC LIMIT 3;
+WITH order_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM order_totals ORDER BY order_total DESC LIMIT 3;
 :::
 
 Pilih CTE daripada subquery bersarang dalam: lebih mudah dibaca, di-debug (pilih dari setiap langkah sendirian), dan ditinjau. Gaya penting karena orang lain akan memelihara SQL Anda. Taruh setiap klausa di barisnya sendiri, pakai alias yang jelas, jaga huruf kata kunci konsisten, dan tambahkan komentar yang menjelaskan *mengapa* sebuah filter ada ("kecualikan akun uji") bukan apa yang dilakukannya.
@@ -1184,14 +1216,15 @@ Pilih CTE daripada subquery bersarang dalam: lebih mudah dibaca, di-debug (pilih
 > Tuntaskan dua query terakhir di `labs/mod-0-3/answers.sql`:
 > 1. `-- k-9`: kelompokkan pesanan menjadi 'small', 'medium', dan 'large' menggunakan CTE `WITH ... AS` dan `CASE WHEN`.
 > 2. `-- k-10`: hitung persentase porsi tiap metode pembayaran menggunakan subquery skalar `(SELECT COUNT(*) FROM orders)`.
-> Sekarang uji seluruh 10 jawaban Anda di terminal:
+> Sekarang uji seluruh 10 jawaban Anda dan buat kode bukti penyelesaian di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Jika skor Anda **10/10 answers correct**, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 9 untuk DML & Transaksi.
+> `python3 scripts/prove.py mod-0-3`
+> Jika skor Anda `10/10 answers correct`, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 9 untuk DML & Transaksi.
 
 ## @part Mengubah dan mendefinisikan tabel
 
 ## @lesson Mengubah data dengan aman: DML, constraint, dan transaksi
-Selain membaca, SQL **mengubah** data. Tiga pernyataan melakukannya, dan masing-masing menuntut kehati-hatian.
+Selain membaca, SQL **mengubah** data memakai **DML** (Data Manipulation Language). Tiga pernyataan melakukannya, dan masing-masing menuntut kehati-hatian.
 
 ### INSERT, UPDATE, DELETE
 
@@ -1289,7 +1322,7 @@ Jika server crash di antara dua update, tidak ada yang berlaku; uang tidak perna
 
 :::ask Anda menjalankan BEGIN, lalu DELETE FROM orders WHERE status = 'cancelled', lalu ROLLBACK. Berapa pesanan di tabel sekarang?
 @options
-16 pesanan: penghapusan tetap
+16 pesanan: penghapusan tetap berlaku
 0 pesanan: semuanya hilang
 * 18 pesanan: ROLLBACK membatalkan penghapusan
 @why
@@ -1301,7 +1334,7 @@ Transaksi memberi jaminan **ACID**: *Atomicity* (semua atau tidak sama sekali), 
 
 **Indeks** adalah struktur pencarian terpisah yang membuat pencarian baris berdasarkan kolom menjadi cepat, seperti indeks sebuah buku. Ia mempercepat pembacaan dan sedikit memperlambat penulisan; Modul 1.3 kembali membahas kapan dan bagaimana membuatnya.
 
-**SQL punya dialek.** Inti di materi ini berjalan di mana-mana, tetapi fungsi tanggal, fungsi string, `LIMIT` versus `TOP`, dan fitur khusus berbeda antara SQLite (dipakai di sandbox kursus ini), PostgreSQL, MySQL, DuckDB, Snowflake, dan BigQuery. Ketika sesuatu gagal setelah menyalin query, periksa dialeknya lebih dulu.
+**SQL punya dialek.** Inti di pelajaran ini berjalan di mana-mana, tetapi fungsi tanggal, fungsi string, `LIMIT` versus `TOP`, dan fitur khusus berbeda antara SQLite (dipakai di sandbox kursus ini), PostgreSQL, MySQL, DuckDB, Snowflake, dan BigQuery. Ketika sesuatu gagal setelah menyalin query, periksa dialeknya lebih dulu.
 :::
 
 > 🛠 **Coba sendiri (8 menit, SQL Sandbox).** Transaksi memungkinkan Anda mencoba sebuah perubahan lalu menariknya kembali. Jalankan ini sebagai dua kali jalan terpisah: (1) `BEGIN; DELETE FROM orders WHERE status = 'cancelled'; SELECT COUNT(*) FROM orders;` lalu (2) `ROLLBACK; SELECT COUNT(*) FROM orders;`. Lalu latih kebiasaan aman: tulis dulu `SELECT COUNT(*) FROM orders WHERE status = 'cancelled'`, baru setelahnya `DELETE` dengan `WHERE` yang sama.
@@ -1327,7 +1360,7 @@ CREATE TABLE reviews (
 );
 ```
 
-Kami menjalankan tabel semacam ini dan setiap constraint menolak baris buruk: `stars` bernilai 9 gagal dengan `CHECK constraint failed`, `customer_id` yang hilang dengan `NOT NULL constraint failed`, dan ulasan kedua dari pelanggan yang sama untuk produk yang sama dengan `UNIQUE constraint failed`. Pilih tipe dengan sengaja: bilangan bulat `INTEGER`, teks `TEXT`, tanggal dan waktu sebagai tipe tanggal sungguhan di mesin yang punya (teks ISO di SQLite), dan **uang jangan pernah sebagai floating point**: di SQLite `0.1 + 0.2 = 0.3` itu **salah** (jumlahnya 0.30000000000000004). KopiKu menyimpan rupiah sebagai `INTEGER`.
+Di sini `REFERENCES customers (customer_id)` mendeklarasikan foreign key yang menunjuk ke `customers`, dan `DEFAULT CURRENT_TIMESTAMP` mengisi tanggal serta waktu UTC saat ini secara otomatis bila tidak diisi. Kami menjalankan tabel semacam ini dan setiap constraint menolak baris buruk: `stars` bernilai 9 gagal dengan `CHECK constraint failed`, `customer_id` yang hilang dengan `NOT NULL constraint failed`, dan ulasan kedua dari pelanggan yang sama untuk produk yang sama dengan `UNIQUE constraint failed`. Pilih tipe dengan sengaja: bilangan bulat `INTEGER`, teks `TEXT`, tanggal dan waktu sebagai tipe tanggal sungguhan di mesin yang punya (teks ISO di SQLite), dan **uang jangan pernah sebagai floating point**: di SQLite `0.1 + 0.2 = 0.3` itu **salah** (jumlahnya `0.30000000000000004`). KopiKu menyimpan rupiah sebagai `INTEGER`.
 
 :::drill sql Rancang sebuah tabel
 Buat tabel `tags` dengan tiga kolom: `tag_id` (INTEGER, primary key), `label` (TEXT, NOT NULL), dan `product_id` (INTEGER).
@@ -1375,7 +1408,7 @@ SELECT name, type FROM pragma_table_info('customers') ORDER BY cid
 ALTER TABLE customers ADD COLUMN email TEXT;
 :::
 
-Perubahan pada tabel bersama sebaiknya ditulis sebagai **skrip migrasi** kecil dan berurutan yang disimpan di version control, dijalankan dengan cara yang sama di setiap lingkungan, dan sebaiknya **kompatibel ke belakang** (menambah kolom nullable tidak merusak query yang ada; mengganti namanya merusak). Modul 3.2 kembali membahas perubahan skema di stream.
+Perubahan pada tabel bersama sebaiknya ditulis sebagai **skrip migrasi** kecil dan berurutan yang disimpan di version control, dijalankan dengan cara yang sama di setiap lingkungan, dan sebaiknya **kompatibel ke belakang** (menambah kolom **nullable**, kolom yang boleh berisi `NULL`, tidak merusak query yang ada; mengganti namanya merusak). Modul 3.2 kembali membahas perubahan skema di stream.
 
 ### View: nama untuk sebuah query
 
@@ -1385,7 +1418,7 @@ Perubahan pada tabel bersama sebaiknya ditulis sebagai **skrip migrasi** kecil d
 CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
 ```
 
-View menyimpan **query-nya, bukan datanya**. Kami membuat `v_gold` ketika cocok dengan 1 baris, memasukkan pelanggan Gold lain, dan view langsung mengembalikan 2 baris.
+View menyimpan **query-nya, bukan datanya**. Kami membuat `v_gold` ketika cocok dengan 2 baris (Budi Santoso dan Wulan Kusuma), memasukkan pelanggan Gold lain, dan view langsung mengembalikan 3 baris.
 
 :::drill sql Buat sebuah view
 Buat view `v_delivered` yang menampilkan pesanan dengan status `'delivered'` (semua kolom).
@@ -1403,13 +1436,15 @@ SELECT order_id, status FROM v_delivered ORDER BY order_id
 CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 :::
 
+Sebaliknya, `CREATE TABLE snap AS SELECT ...` (**CTAS**) menyalin hasil query saat itu ke dalam **tabel snapshot** baru yang tetap beku ketika tabel sumber berubah. PostgreSQL dan cloud warehouse juga menawarkan **materialized view**: hasil query yang disimpan di disk demi kecepatan, tetapi menjadi usang sampai Anda me-refresh-nya secara eksplisit.
+
 :::ask Sebuah view dan tabel snapshot (CREATE TABLE snap AS SELECT ...) dibuat ketika tabel sumber punya 5 baris. Lalu satu baris lagi dimasukkan ke sumber. Apa yang ditampilkan keduanya?
 @options
 * view menampilkan 6 baris, snapshot masih 5
 view dan snapshot sama-sama menampilkan 6 baris
 view dan snapshot sama-sama menampilkan 5 baris
 @why
-View menyimpan **query-nya**, jadi ia selalu membaca data terkini. Tabel yang dibuat dengan `CREATE TABLE ... AS SELECT` (CTAS) menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (dan ia kehilangan constraint aslinya). PostgreSQL dan warehouse juga menawarkan **materialized view**: hasil tersimpan yang **basi sampai di-refresh**.
+View menyimpan **query-nya**, jadi ia selalu membaca data terkini. Tabel yang dibuat dengan `CREATE TABLE ... AS SELECT` (CTAS) menyimpan **snapshot** yang tidak berubah ketika sumbernya berubah (dan ia kehilangan constraint aslinya). PostgreSQL dan warehouse juga menawarkan **materialized view**: hasil tersimpan yang **usang sampai di-refresh**.
 :::
 
 Mengapa ini penting bagi data engineer: view adalah cara tim mendefinisikan sebuah metrik di satu tempat ("revenue" berarti query ini) dan cara warehouse membuka subset kolom yang aman. Model yang Anda bangun dengan dbt di Modul 2.3 adalah view dan tabel yang dibuat oleh DDL yang ditulis alat itu untuk Anda; mengetahui apa mereka sebenarnya di bawahnya membuat Anda bisa men-debug-nya.
@@ -1424,15 +1459,16 @@ Dengan Level 0 selesai, Anda tahu dasar Python, terminal, Git, pembersihan data,
 Anda data engineer baru dan pendiri toko punya sepuluh pertanyaan. Jawab dengan SQL pada dataset mini KopiKu: tabel pelanggan dengan kota NULL, pesanan dengan pembatalan dan refund, dan biaya kirim yang menggoda Anda membuat bug fan-out.
 
 ### @steps
-1. Pilih tempat bekerja. **Di browser (disarankan):** buka SQL Sandbox dari aplikasi, pilih dataset KopiKu dan pilih sebuah tantangan; sandbox menjalankan query Anda dan memberi tahu apakah hasilnya cocok. **Lokal:** pakai file di bawah dengan SQLite bawaan Python, tanpa instalasi.
-2. Untuk jalur lokal, buka `labs/mod-0-3/answers.sql`. Di bawah tiap penanda `-- k-N`, tulis satu query. Jangan hapus penandanya.
-3. Periksa pekerjaan Anda kapan saja dengan pemeriksa, yang membandingkan hasil Anda dengan hasil referensi:
+1. Uji coba bebas, verifikasi secara lokal. Anda bisa menguji dan menyusun query di **SQL Sandbox** browser kapan saja (buka SQL Sandbox, pilih dataset KopiKu, lalu pilih tantangan). Untuk menyelesaikan modul dan membuat kode bukti penyelesaian, simpan semua 10 jawaban di `labs/mod-0-3/answers.sql` lalu jalankan pemeriksa lokal memakai SQLite bawaan Python (tanpa instalasi).
+2. Buka `labs/mod-0-3/answers.sql`. Di bawah tiap penanda `-- k-N`, tulis satu query. Jangan hapus penandanya.
+3. Periksa pekerjaan Anda kapan saja dengan pemeriksa, yang membandingkan hasil Anda dengan hasil referensi, lalu buat kode bukti penyelesaian begitu semua 10 lulus:
 
 ```bash
 python3 labs/mod-0-3/check.py
+python3 scripts/prove.py mod-0-3
 ```
 
-4. Kerjakan pertanyaan berurutan; makin lama makin sulit. Pertanyaan 4, 6, dan 8 adalah jebakan dari materi (NULL, NULL-menjadi-Unknown dengan join, dan fan-out). Ketika sebuah pertanyaan gagal, baca pesan pemeriksa: ia memberi tahu apakah jumlah kolom, jumlah baris, atau nilainya yang berbeda.
+4. Kerjakan pertanyaan berurutan; makin lama makin sulit. Pertanyaan 4, 6, dan 8 adalah jebakan dari pelajaran (NULL, NULL-menjadi-Unknown dengan join, dan fan-out). Ketika sebuah pertanyaan gagal, baca pesan pemeriksa: ia memberi tahu apakah jumlah kolom, jumlah baris, atau nilainya yang berbeda.
 5. Setelah tiap jawaban, jalankan `SELECT COUNT(*)` pada join perantara dan pastikan Anda bisa menjelaskan angkanya. Inilah kebiasaan yang melindungi Anda di pekerjaan nyata.
 6. Opsional: bangun database sendiri dan jelajahi di prompt `sqlite>`, tanpa memasang apa pun (Python 3.12 atau lebih baru): `python3 -m sqlite3 kopiku.db < labs/mod-0-3/datasets/kopiku.sql`, lalu `python3 -m sqlite3 kopiku.db`. Di `sqlite>` tampilkan tabelnya dengan `select name from sqlite_master where type = 'table';`, lihat cara `orders` dibuat dengan `select sql from sqlite_master where name = 'orders';`, lalu coba query apa pun, masing-masing diakhiri `;`. Keluar dengan `.quit`.
 
@@ -1443,24 +1479,25 @@ python3 labs/mod-0-3/check.py
 - labs/mod-0-3/reference/answers.sql :: Jawaban referensi (coba sendiri dulu!) :: reference
 
 ### @deliverables
-- Kesepuluh jawaban lulus, di sandbox atau dengan `check.py`
+- Kesepuluh jawaban di `labs/mod-0-3/answers.sql` lulus `python3 labs/mod-0-3/check.py` (dan `python3 scripts/prove.py mod-0-3` menghasilkan kode bukti penyelesaian Anda)
 - Untuk pertanyaan 4 dan 8 Anda bisa menjelaskan dalam satu kalimat mengapa query yang "jelas" memberi angka salah
 - Anda bisa menyebut grain dari keempat tabel
 
 ### @verify
-Di sandbox, pakai tombol "Periksa jawaban" pada tiap tantangan. Secara lokal:
+Anda bisa menguji query di **SQL Sandbox** browser ("Periksa jawaban"), lalu simpan semua 10 jawaban di `labs/mod-0-3/answers.sql` dan verifikasi secara lokal untuk membuat kode bukti penyelesaian:
 
 ```bash
 python3 labs/mod-0-3/check.py
+python3 scripts/prove.py mod-0-3
 ```
 
-Ia mencetak PASS, FAIL (beserta alasannya) atau TODO per pertanyaan dan totalnya. Untuk melihat seperti apa hasil yang benar sepenuhnya: `python3 labs/mod-0-3/check.py reference`.
+`check.py` mencetak PASS, FAIL (beserta alasannya) atau TODO per pertanyaan dan totalnya. Untuk melihat seperti apa hasil yang benar sepenuhnya: `python3 labs/mod-0-3/check.py reference`.
 
 ## @chaos Pendapatan ongkir yang 49% terlalu tinggi
 ### @scenario
-Tim keuangan bertanya mengapa dashboard menyebut KopiKu memperoleh Rp 350.000 dari ongkir pesanan terkirim di bulan Januari, sementara laporan penyedia pembayaran menyebut Rp 235.000. Query dashboard ditulis berbulan-bulan lalu dan berjalan tiap hari tanpa error apa pun. Tidak ada yang mengubahnya. Analis yang menulisnya sudah keluar.
+Tim keuangan bertanya mengapa dashboard menyebut KopiKu memperoleh Rp 350.000 dari ongkir di seluruh pesanan terkirim pada bulan Januari, sementara laporan penyedia pembayaran menyebut Rp 235.000. Query dashboard ditulis berbulan-bulan lalu dan berjalan tiap hari tanpa error apa pun. Tidak ada yang mengubahnya. Analis yang menulisnya sudah keluar.
 
-Query itu menggabungkan `orders` dengan `order_items` karena filter produk ditambahkan kuartal lalu ("hanya hitung pesanan yang memuat biji Gayo"), dan menjumlahkan `shipping_fee_idr` di seluruh baris hasil join.
+Query itu menggabungkan `orders` dengan `order_items` agar satu query dashboard bisa menghitung pendapatan produk (`SUM(qty * unit_price_idr)`) sekaligus ongkos kirim (`SUM(shipping_fee_idr)`) di seluruh pesanan terkirim.
 
 ### @cause
 `shipping_fee_idr` disimpan sekali per **pesanan**, tetapi setelah join ke `order_items` ada satu baris per **baris produk**. Pesanan dengan tiga baris produk biaya kirimnya terhitung tiga kali. Hasilnya salah tepat sebanding dengan banyaknya pesanan multi-baris, sehingga tampak masuk akal dan melebar seiring waktu ketika pelanggan mulai membeli lebih banyak produk per pesanan.
@@ -1468,8 +1505,8 @@ Query itu menggabungkan `orders` dengan `order_items` karena filter produk ditam
 Tidak ada error karena SQL tidak punya cara untuk tahu bahwa jumlah itu dimaksudkan per pesanan: query valid, hanya maknanya yang salah.
 
 ### @fix
-1. Tentukan grain yang Anda inginkan: ongkir per pesanan. Agregasikan atau filter pada grain itu: pakai `WHERE EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.order_id AND i.product_id = 1)` alih-alih join, sehingga setiap pesanan tetap satu baris.
-2. Atau hitung tabel grain lebih halus dulu di CTE (pesanan distinct yang memuat produk itu) dan join *itu* ke `orders`.
+1. Tentukan grain yang Anda inginkan: ongkir per pesanan. Jumlahkan `shipping_fee_idr` dari tabel `orders` saja (tanpa join ke `order_items`). Jika Anda juga perlu menyaring pesanan berdasarkan produk di dalamnya (misalnya pesanan yang memuat biji Gayo, `product_id = 1`), pakai `WHERE EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.order_id AND i.product_id = 1)` alih-alih join: `EXISTS` memeriksa apakah setidaknya ada satu baris cocok di subquery tanpa menggandakan baris `orders` di luar.
+2. Atau, jika Anda butuh pendapatan produk sekaligus ongkir dalam satu query, agregasikan tabel grain lebih halus (`order_items`) lebih dulu di CTE (satu baris per `order_id`, atau `order_id` distinct yang memuat suatu produk) lalu join *itu* ke `orders`.
 3. Tambahkan tes rekonsiliasi: total ongkir di dashboard harus sama dengan `SELECT SUM(shipping_fee_idr) FROM orders WHERE ...` dan idealnya cocok dengan laporan penyedia pembayaran dalam toleransi.
 4. Tambahkan pemeriksaan jumlah baris setelah join pada apa pun yang menjumlahkan nilai per pesanan.
 
@@ -1507,7 +1544,7 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 - [x] Setelah join, biaya tiap pesanan terulang sekali untuk tiap baris produk dalam pesanan itu
 - [ ] Database menyimpan cache hasil sebelumnya lalu menambahkannya sekali lagi ke hasil yang baru
 
-> Menggabungkan dengan tabel berbutir lebih halus mengulang baris yang lebih kasar. Nilai per pesanan harus dijumlahkan pada grain per pesanan, atau tabel yang lebih halus harus diagregasi lebih dulu.
+> Menggabungkan dengan tabel berbutir lebih halus mengulang baris pada grain lebih kasar. Nilai per pesanan harus dijumlahkan pada grain per pesanan, atau tabel yang lebih halus harus diagregasi lebih dulu.
 
 ### Apa beda WHERE dan HAVING?
 - [ ] WHERE hanya bekerja pada kolom teks, sedangkan HAVING hanya pada kolom angka
@@ -1555,7 +1592,7 @@ Ketahui grain setiap tabel yang Anda join, dan jumlahkan nilai hanya pada grain 
 - [ ] Hanya 5, karena view hanya menampilkan baris yang ditambahkan setelah hari ia dibuat
 - [x] Hitungan lama ditambah 5 baris baru, karena view menjalankan querynya pada data terkini
 
-> View adalah query tersimpan, bukan data tersimpan. Tabel hasil `CREATE TABLE ... AS` adalah snapshot yang mempertahankan hitungan lama, dan materialized view tetap basi sampai di-refresh.
+> View adalah query tersimpan, bukan data tersimpan. Tabel hasil `CREATE TABLE ... AS` adalah snapshot yang mempertahankan hitungan lama, dan materialized view tetap usang sampai di-refresh.
 
 ### `SELECT customer_id FROM customers WHERE customer_id NOT IN (SELECT customer_id FROM orders)` tidak mengembalikan baris sama sekali, padahal ada pelanggan yang belum pernah memesan. Apa penyebab yang paling mungkin?
 - [x] Ada `orders.customer_id` yang NULL, jadi setiap perbandingan NOT IN tidak diketahui dan tak ada yang lolos

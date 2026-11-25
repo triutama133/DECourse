@@ -39,7 +39,7 @@ Typical uses for data engineers: **change data capture** (database changes as ev
 
 > 🛠 **Try it (10 min, Python).** Build a log in 10 lines: a list `log`, `append(x)` that adds to the end and returns the offset, and `read(offset, n=100)` that returns a slice and removes nothing. Append `order-1` to `order-5`. Reader A reads everything; reader B reads only the first two and remembers its offset. Append `order-6` to `order-8`, then let each reader continue from its own offset. Finally replay from offset 0.
 >
-> **You should see:** A has read 5 and next continues with `order-6`, `order-7`, `order-8`; B continues from offset 2 with `order-3` to `order-8`; the replay from 0 returns the same five records as A's first read. Nothing was deleted by reading, and each reader owns its position, which is exactly what a queue cannot do.
+> **You should see:** A has read 5 and next continues with `order-6`, `order-7`, `order-8`; B continues from offset 2 with `order-3` to `order-8`; the replay from 0 returns all eight records (`order-1` to `order-8`) from the beginning of the log. Nothing was deleted by reading, and each reader owns its position, which is exactly what a queue cannot do.
 
 :::trace A log with two readers
 @code
@@ -59,9 +59,9 @@ print(log[offsets["billing"]:])
 
 :::ask How does a Kafka topic differ from a classic message queue?
 @options
-* records stay after reading, so many can read them
-records are deleted once one consumer reads
-records can be edited after they are written
+* records stay in the log for other consumers
+records are deleted as soon as one consumer reads them
+records can be edited in place after they are written
 @why
 The log is append-only and durable; each consumer group tracks its own offset. This lets a new team read the full history, and lets a consumer replay after a bug fix.
 :::
@@ -75,7 +75,7 @@ The log is append-only and durable; each consumer group tracks its own offset. T
 
 Ordering is the property people misunderstand. Kafka guarantees order **only within a partition**. If all of customer 7's events must be processed in order, give them the same key (`customer_id`) so they share a partition; events of different customers may interleave freely, which is fine. Choose keys that match the order you need and that spread load evenly (a hot key gives you a hot partition: skew again, Module 3.1).
 
-**How many partitions?** Partitions set the maximum parallelism of a consumer group (below) and the throughput of a topic. Too few limits scale; too many adds overhead and, importantly, you can **increase but not decrease** a topic's partitions, and increasing changes which partition a key maps to, breaking per-key ordering for existing data. Plan with headroom (for example 6 to 30 for a moderate topic) rather than guessing small.
+**How many partitions?** Partitions set the maximum parallelism of a consumer group, within a group, each partition is read by at most one consumer at a time, so extra consumers sit idle (Lesson 4 explains how assignment and rebalancing work), and the throughput of a topic. Too few limits scale; too many adds overhead and, importantly, you can **increase but not decrease** a topic's partitions, and increasing changes which partition a key maps to, breaking per-key ordering for existing data. Plan with headroom (for example 6 to 30 for a moderate topic) rather than guessing small.
 
 **Retention.** By default Kafka deletes records older than a retention time (7 days) or beyond a size limit. Setting `cleanup.policy=compact` instead keeps **the latest record per key** forever: log compaction, which turns a topic into a changelog of the *current state* of each key. A record with a key and a **null value** is a **tombstone** that tells compaction to remove the key. Compacted topics are how a table's current state is stored in Kafka.
 
@@ -103,7 +103,7 @@ print(produce("cd", "order-3"))
 4 | The key decides the partition (here a stand-in for the hash). The same key always lands in the same partition, which keeps the order of that key's events.
 5 | The record is appended at the end of its partition's log.
 6 | The offset is the position inside **that** partition: 0 for the first record, 1 for the second...
-9 | `"cd"` has the same length as `"ab"`, so it joins the same partition, at the next offset.
+10 | `"cd"` has the same length as `"ab"`, so it joins the same partition, at the next offset.
 :::
 
 Now the log compaction rule: keep **the latest record per key**, and treat a `None` value (a **tombstone**) as "this key was deleted".
@@ -117,8 +117,7 @@ for key, value in log:
 compacted = {k: v for k, v in latest.items() if v is not None}
 print(compacted)
 @notes
-4 | A later record for the same key **replaces** the earlier one: `c1` moves from Jakarta to Bandung.
-4 | The last record for `c2` has the value `None`: a tombstone.
+4 | A later record for the same key **replaces** the earlier one (`c1` moves from Jakarta to Bandung), and a later `None` value (`c2`) records a **tombstone**.
 5 | The tombstone removes the key from the compacted result: `c2` is gone, `c1` is Bandung.
 :::
 
@@ -151,6 +150,8 @@ def compact(log):
         latest[key] = value
     return {k: v for k, v in latest.items() if v is not None}
 :::
+
+Because Kafka consumers commonly run with **at-least-once delivery** (Lesson 4), a crash before committing offsets can deliver the same `(partition, offset)` record a second time:
 
 :::drill python Skip what you already processed
 A consumer must not apply a record twice (delivery can repeat). Write `fresh(events)`: `events` is a list of dicts with `"partition"` and `"offset"`; return the events in the same order, **dropping any whose `(partition, offset)` pair was already seen earlier** in the list.
@@ -198,11 +199,11 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 
 **What `acks=all` and `min.insync.replicas` mean together.** With `acks=all`, the leader answers only after **every replica currently in the ISR** has the record. `min.insync.replicas=2` adds a floor: if the ISR is smaller than 2, the leader **refuses** the write instead of accepting it with fewer copies. So `replication.factor=3`, `min.insync.replicas=2` and `acks=all` is the standard recipe: any single broker can fail without losing an acknowledged record *and* without stopping writers.
 
-**Experiment 1: crash the leader under load.** We started a producer sending 20 records per second with `acks=all` and, after about 9 seconds, killed (`docker kill`, a crash, not a clean shutdown) the broker leading partition 0. The producer received `NOT_LEADER_OR_FOLLOWER`, **retried by itself**, and finished: all 500 records were delivered, the slowest took **7.46 seconds**, and the throughput in that interval fell from 20 to 7.5 records per second. `describe` then showed the survivors as the new world: `Leader: 3, Isr: 3,1`. After the broker was restarted it rejoined every ISR (`Isr: 3,1,2`) within the 40 seconds we waited, but leadership stayed with broker 3; Kafka moves leaders back to the preferred broker later, in the background. The final offsets summed to **507 = 6 + 500 + 1**, exactly the records we sent: no loss and no duplicates, because the Java producer is idempotent by default when `acks=all` (since Kafka 3.0).
+**Experiment 1: crash the leader under load.** We started a producer sending 20 records per second with `acks=all` and, after about 9 seconds, killed (`docker kill`, a crash, not a clean shutdown) the broker leading partition 0. The producer received `NOT_LEADER_OR_FOLLOWER`, **retried by itself**, and finished: all 500 records were delivered, the slowest took **7.46 seconds**, and the throughput in that interval fell from 20 to 7.5 records per second. `describe` then showed the survivors as the new world: `Leader: 3, Isr: 3,1`. After the broker was restarted it rejoined every ISR (`Isr: 3,1,2`) within the 40 seconds we waited, but leadership stayed with broker 3; Kafka moves leaders back to the preferred broker later, in the background. The final offsets summed to **507 = 6 + 500 + 1** (6 initial probe records + 500 load records + 1 sentinel), exactly the records we sent: no loss and no duplicates, because the Java producer is idempotent by default when `acks=all` (since Kafka 3.0).
 
-**Experiment 2: the cost of a strict floor.** We made a second topic with `min.insync.replicas=3` (every replica must be present) and killed one broker. Producers with `acks=all` failed with **`NOT_ENOUGH_REPLICAS`** until the broker returned: the topic had chosen *consistency over availability*. A producer with `acks=1` kept succeeding, writing to a leader with only two copies: **availability won and the durability promise was silently lowered**. The topic with `min.insync.replicas=2` accepted `acks=all` writes with one broker down, which is why 2 is the usual value. Remember that `acks=1` or `acks=0` can lose a record that was acknowledged only by a leader that then crashed.
+**Experiment 2: the cost of a strict floor.** We made a second 1-partition topic with `min.insync.replicas=3` (every replica must be present) and killed one broker. Producers with `acks=all` failed with **`NOT_ENOUGH_REPLICAS`** until the broker returned: the topic had chosen *consistency over availability*. A producer with `acks=1` kept succeeding, writing to a leader with only two copies: **availability won and the durability promise was silently lowered**. The topic with `min.insync.replicas=2` accepted `acks=all` writes with one broker down, which is why 2 is the usual value. Remember that `acks=1` or `acks=0` can lose a record that was acknowledged only by a leader that then crashed.
 
-**Watch for it.** `kafka-topics.sh --describe --under-replicated-partitions` lists partitions with fewer in-sync replicas than replicas (in the experiment: all four partitions while one broker was down), and `--under-min-isr-partitions` lists those that **refuse `acks=all` writes** (the strict topic). Both should be empty and are the first alerts of a Kafka operator. Related settings: `unclean.leader.election.enable` (default `false`) would let an *out-of-sync* replica become leader when no in-sync one exists, restoring availability by **throwing away acknowledged records**; leave it off for important data. Rack-aware placement (`broker.rack`) spreads the replicas over failure zones.
+**Watch for it.** `kafka-topics.sh --describe --under-replicated-partitions` lists partitions with fewer in-sync replicas than replicas (in the experiment: all four partitions, 3 on `orders` plus 1 on the strict topic, while one broker was down), and `--under-min-isr-partitions` lists those that **refuse `acks=all` writes** (the strict topic). Both should be empty and are the first alerts of a Kafka operator. Related settings: `unclean.leader.election.enable` (default `false`) would let an *out-of-sync* replica become leader when no in-sync one exists, restoring availability by **throwing away acknowledged records**; leave it off for important data. Rack-aware placement (`broker.rack`) spreads the replicas over failure zones.
 
 **Who decides the leaders?** In KRaft mode a quorum of **controller** nodes keeps the cluster metadata with the Raft protocol and elects partition leaders. In our small cluster every node was both broker and controller. The broker we killed in the first attempt was also the active controller, and the others elected a new one within **5 seconds** (the log shows the new controller recorded exactly 5.0 s after the kill). Raft needs a **majority**: three controllers survive one failure, five survive two. Production clusters therefore run 3 or 5 dedicated controller nodes separate from the brokers, so a busy broker cannot starve the cluster's brain.
 
@@ -213,7 +214,7 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 :::ask A partition has replication factor 3, `acks=all` and `min.insync.replicas=2`. Two brokers die, leaving one in the ISR. What happens to a producer's writes?
 @options
 they succeed, because the leader is still alive
-* rejected: the ISR is below 2, safety is not possible
+* rejected: ISR dropped below the minimum of 2
 they succeed and are copied over later on
 @why
 `min.insync.replicas=2` sets a floor. With only one replica in sync the leader refuses writes (NotEnoughReplicas) rather than accept data that could be lost if that last broker also fails.
@@ -273,12 +274,12 @@ Records are bytes; you choose the format. **JSON** is easy to read and debug but
 
 > 🛠 **Try it (20 min, Python).** Encode the record `{"id": 1, "customer": "Budi", "total": 150000}` the way a registry-based Avro producer does, by hand. The rules: the message starts with a `0` byte and the schema id (1) as 4 bytes, big-endian. An Avro integer is **zig-zag** coded (`(n << 1) ^ (n >> 63)`), then written in groups of 7 bits, lowest group first, with the high bit set on every byte except the last. A string is its length written as an integer, then its UTF-8 bytes. Print the result as hex with `.hex()` and its length, and compare with the length of the same record as compact JSON (`json.dumps(rec, separators=(",", ":"))`).
 >
-> **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of JSON. Compare it with the bytes in the lesson: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
+> **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of JSON. Compare it with the Schema Registry wire format shown in Lesson 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
 
 :::ask Why do teams put Avro with a schema registry on a topic instead of plain JSON?
 @options
-* compact records and a versioned, checked schema
-JSON cannot be read by Kafka at all
+* compact records and checked schema versions
+Kafka brokers cannot store plain JSON messages
 Avro removes the need for any producer
 @why
 JSON repeats every field name in every message and enforces no types. Avro stores the schema once in the registry and sends a short id, and the registry rejects changes that would break consumers.
@@ -313,8 +314,8 @@ Practical rules:
 :::ask A producer wants to change a field's type from `int` to `string` under BACKWARD compatibility. What does the registry do?
 @options
 it accepts and converts all the old messages
-* it rejects it: Avro only promotes numbers like int
-it accepts and silently drops the field
+* it rejects the incompatible type change
+it accepts and drops the field
 @why
 BACKWARD compatibility means consumers with the new schema can read old data. int to string breaks that, so it is refused; adding an optional field with a default is the safe kind of change.
 :::
@@ -391,9 +392,11 @@ Other practices: keep the **raw event log** (a bronze layer) so you can rebuild 
 > 1. Open `labs/mod-3-2/cdc.py` in your text editor.
 > 2. Implement `to_events(changes, pk)` converting PostgreSQL WAL mutations into standard Debezium event envelopes.
 > 3. Implement `apply_events(state, events)` tracking `(lsn, seq)` positions per primary key to discard duplicates and out-of-order replays, plus `materialize(state, table)`.
-> 4. Run the tests in terminal (when PostgreSQL dependencies are present):
+> 4. Run the tests in terminal (on Python 3.14, set `DATABASE_URL` to your Docker Postgres container as shown in Prerequisites above):
 >    `pytest labs/mod-3-2/test_cdc.py -v`
-> 5. **Success Indicator:** All CDC tests report `PASSED` (or skip gracefully if local database services are inactive), verifying idempotent state synchronization and tombstone safety.
+> 5. **Success Indicator:** All 8 CDC tests report `PASSED`, verifying idempotent state synchronization and tombstone safety.
+
+*(Browser warm-up: this simplified 1-argument `apply_events(events)` drill practices the LSN watermark rule independently of `cdc.py`'s `apply_events(state, events)`.)*
 
 :::drill python Apply only newer events
 A CDC consumer keeps a replica of a table. Write `apply_events(events)`: each event is a dictionary `{"key": ..., "lsn": number, "value": ...}`. Return the replica as a dictionary `{key: value}`. For each key keep only the event with the **highest** `lsn`; an event with an older (or equal) `lsn` than the one already applied is skipped, even when it arrives later.
@@ -432,6 +435,8 @@ Delivery is at-least-once and consumers restart and rebalance, so the same event
 Three parts, each testable. A: build a miniature Kafka to master the semantics. B: use a real broker (producer with idempotence, a consumer with manual commit, lag). C: consume PostgreSQL's actual replication stream into a replica that is correct under replay and reordering.
 
 ### @steps
+> Already finished Parts A and C during Practice Pauses 1–3? Skip straight to Step 3 (Part B real broker) and Practice Pause 5 to generate your proof code.
+
 1. Install the requirements (Part A needs only pytest):
 
 ```bash
@@ -447,16 +452,16 @@ python -m pip install -r labs/mod-3-2/requirements.txt
 >    `LAB_DIR=reference pytest labs/mod-3-2/test_minilog.py -v`
 > 3. **Success Indicator:** All 15 tests in `test_minilog.py` report `PASSED` in < 0.1s in pure Python with zero external servers.
 
-3. **Part B: a real broker.** Start Kafka or Redpanda. With Docker, from the course repository: `docker compose up -d redpanda` (external listener `localhost:19092`). Implement the five functions in `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, `group_lag`) and run:
+3. **Part B: a real broker.** Start Kafka or Redpanda (with the web UI). With Docker, from the course repository: `docker compose up -d redpanda redpanda-console` (external listener `localhost:19092`). Implement the five functions in `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, `group_lag`) and run:
 
 ```bash
 KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v
 ```
 
    Without `KAFKA_BOOTSTRAP` these tests are skipped. Look at your topic with the broker's console (Redpanda Console at http://localhost:8080) and watch the group's lag go from 60 to 0.
-4. **Part C: CDC.** Read the docstring of `labs/mod-3-2/pgoutput.py` (provided) and then its code. Implement `to_events`, `apply_events` and `materialize` in `labs/mod-3-2/cdc.py`, and run `pytest labs/mod-3-2/test_cdc.py -v`. The tests start an embedded PostgreSQL with `wal_level=logical`, create a publication and a slot, run inserts, updates, a delete and a primary-key change, and compare your replica with the real table.
+4. **Part C: CDC.** Read the docstring of `labs/mod-3-2/pgoutput.py` (provided) and then its code. Implement `to_events`, `apply_events` and `materialize` in `labs/mod-3-2/cdc.py`, and run `pytest labs/mod-3-2/test_cdc.py -v` (on Python 3.14, export `DATABASE_URL` to your Docker PostgreSQL container from Prerequisites first). The tests start an embedded PostgreSQL with `wal_level=logical` (or use `DATABASE_URL`), create a publication and a slot, run inserts, updates, a delete and a primary-key change, and compare your replica with the real table.
 5. Experiment: print the raw decoded changes for one scenario with and without `REPLICA IDENTITY FULL`; apply events in random order and confirm the replica never changes; in a `psql` session, create a slot, make changes without consuming them, and watch `pg_replication_slots` retain WAL.
-6. Optional, with Docker: start the stack from the repository (`docker compose up -d --wait postgres redpanda connect`), register the connector with the JSON in `labs/mod-3-2/debezium-orders.json`, and watch real events arrive as you change the seeded `orders` table. (This part uses Docker images and is not covered by automated tests; it was checked by hand against Debezium 2.7 and Redpanda.)
+6. Optional, with Docker: start the stack from the repository (`docker compose up -d --wait postgres redpanda redpanda-console connect`), register the connector with the JSON in `labs/mod-3-2/debezium-orders.json`, and watch real events arrive as you change the seeded `orders` table. (This part uses Docker images and is not covered by automated tests; it was checked by hand against Debezium 2.7 and Redpanda.)
 
 ```bash
 curl -s -X POST -H 'Content-Type: application/json' --data @labs/mod-3-2/debezium-orders.json localhost:8083/connectors
@@ -480,11 +485,11 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
    Before you kill the broker, **predict** the new `Leader` and `Isr` of each partition, then compare. Next create a topic with `--config min.insync.replicas=3`, kill a broker, and produce with `kafka-console-producer.sh ... --producer-property acks=all`; explain the `NOT_ENOUGH_REPLICAS` you get. For the schema registry, `docker compose up -d redpanda` also exposes it on `localhost:8081`: register an Avro schema with `POST /subjects/orders-value/versions`, then check an incompatible change against `POST /compatibility/subjects/orders-value/versions/latest` and see the answer change when you set `FORWARD` or `FULL` with `PUT /config/orders-value`. (These parts were run by hand against Apache Kafka 4.0.0 and Redpanda; they are not covered by automated tests.)
 
 > 💡 **Practice Pause 5 (Full Broker & CDC Verification):**
-> 1. Run the real broker tests (optional, when Redpanda container is running):
+> 1. Make sure Redpanda is running (`docker compose up -d redpanda redpanda-console`) and run the real broker tests:
 >    `KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v`
-> 2. Generate the verification proof token:
->    `python3 scripts/prove.py mod-3-2`
-> 3. **Success Indicator:** All active tests report `PASSED` and your completion proof token is printed to terminal.
+> 2. Generate the verification proof token (pass `KAFKA_BOOTSTRAP` so `prove.py` can verify Part B alongside Parts A and C; on Python 3.14 also keep `DATABASE_URL` exported):
+>    `KAFKA_BOOTSTRAP=localhost:19092 python3 scripts/prove.py mod-3-2`
+> 3. **Success Indicator:** All 27 tests (15 Part A + 4 Part B + 8 Part C) report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-2/minilog.py :: Part A working file: the mini Kafka :: starter
@@ -511,6 +516,7 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
 ```bash
 pytest labs/mod-3-2/test_minilog.py labs/mod-3-2/test_cdc.py -v
 KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v
+KAFKA_BOOTSTRAP=localhost:19092 python3 scripts/prove.py mod-3-2
 ```
 
 Known-good run: prefix with `LAB_DIR=reference`.

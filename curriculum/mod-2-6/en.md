@@ -104,9 +104,9 @@ CREATE TABLE analytics.fct_orders (
 )
 COMPOUND SORTKEY (order_date, status);
 ```
+:::
 
 The second saving comes from **columns**. In the lab, selecting only `total` from the clustered table bills **24,000 bytes**, against **158,041** for all five columns, because a columnar store reads only the columns you name. Against the random layout the same one-column query bills 800,000 bytes: 33 times more. `SELECT *` throws the columnar advantage away.
-:::
 
 :::ask A table has 3 micro-partitions. The zone maps for `order_date` say: P1 is Jan 1 to Jan 10, P2 is Jan 11 to Jan 20, P3 is Jan 21 to Jan 31. You query `WHERE order_date = '2026-01-15'`. How many partitions are scanned?
 @options
@@ -122,8 +122,8 @@ A zone map is the min/max of each column in each partition. The engine compares 
 > 2. Implement `build_micro_partitions(rows, target_rows, cluster_key=None)` to split rows and compute min/max statistics for every column.
 > 3. Implement `prune(partitions, column, low, high)` to skip non-matching partitions using zone maps, and `scan(...)` to project only requested columns.
 > 4. Test in terminal:
->    `pytest labs/mod-2-6/test_lab.py -k "TestMicroPartitions or TestPrune or TestScan" -v`
-> 5. **Success Indicator:** 17 tests report `PASSED`, confirming that queries touch only relevant partitions and read only requested columnar bytes.
+>    `pytest labs/mod-2-6/test_lab.py -k "(TestMicroPartitions or TestPrune or TestScan) and not test_query_cost" -v`
+> 5. **Success Indicator:** 16 tests report `PASSED`, confirming that queries touch only relevant partitions and read only requested columnar bytes.
 
 ## @lesson Compute: parallel work, distribution and joins
 **MPP.** A warehouse spreads a table over many compute nodes (Redshift calls the per-node worker units **slices**), and every node scans its own part in parallel; the results are combined on a coordinator (Redshift's leader node). More nodes mean more parallelism, until something must be moved between them.
@@ -203,7 +203,7 @@ query_cost(500_000_000_000, 6) == 3 ## Half a terabyte at $6 per TB costs $3.
 query_cost(0, 5) == 0 ## A query that reads nothing costs nothing.
 query_cost(2_000_000_000, 5) == 0.01 ## 2 GB is 0.002 TB, so 0.002 × $5 = $0.01.
 @hint
-`bytes_billed / 1_000_000_000_000 * price_per_tb`
+Convert `bytes_billed` to terabytes by dividing by `10^12` (`1_000_000_000_000`), then multiply by `price_per_tb`.
 @solution
 def query_cost(bytes_billed, price_per_tb):
     return bytes_billed / 1_000_000_000_000 * price_per_tb
@@ -223,6 +223,8 @@ Other practices:
 - **Unloading** (`COPY INTO` a bucket, `UNLOAD`, `EXPORT DATA`) writes query results back to object storage for other systems.
 
 Record **where every load came from and when**: file names, load ids, row counts and rejected rows. Reconciling counts between source and warehouse (Module 2.5) is the cheapest data quality check there is.
+
+**Private networks and on-premises sources.** When a cloud data factory or warehouse ingestion service needs to copy tables from a database inside a company's or bank's private network, never expose that database to the public internet. Instead, install a **self-hosted integration runtime** (a private-network connector agent) inside that network next to the database so it connects outbound securely to the cloud service.
 
 :::advanced Production bulk loads and an idempotent MERGE
 **Production Bulk-Load & Idempotent `MERGE` SQL (Snowflake, BigQuery, Redshift).** Notice how all three warehouses load Parquet files from object storage in parallel, and how the `MERGE` statement **must** include a partition-pruning filter on the target table (`t.order_date >= ...`) so it does not scan the entire historical fact table:
@@ -274,7 +276,7 @@ WHEN NOT MATCHED THEN
 
 > 💡 **Practice Pause 4 (Planning Parallel Bulk Load Files):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
-> 2. Implement `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` to balance ideal file size (`<= max_bytes`, noting `min_bytes` as the lower sizing guideline) and slice multiples.
+> 2. Implement `plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * MiB)` to split files so each is `<= max_bytes` and the count is a multiple of `slices` (`min_bytes` is informational only, do not enforce it as a hard floor).
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k TestLoadPlanning -v`
 > 4. **Success Indicator:** All 4 tests in `TestLoadPlanning` report `PASSED`, confirming balanced file sizing without small-file overhead.
@@ -291,16 +293,16 @@ Warehouses are built for bulk loads of reasonably sized files (about 100 to 250 
 ## @lesson Concurrency, governance, and choosing
 **Concurrency.** A warehouse has finite compute. When more queries arrive than it can run at once, the extra ones **queue**. The lab's `simulate_queue` shows it: five 10-second jobs on two slots finish at 10, 10, 20, 20 and 30 seconds, so the last user waits 20 seconds before the job even starts. The cures are the same everywhere: isolate workloads on separate compute (a warehouse for ETL, one for dashboards, one for analysts), use multi-cluster or auto-scaling features for bursts, and make heavy queries shorter with the layout tools above. Isolation also makes the bill attributable to a team (Module 3.4).
 
-**Governance.** Data engineers set up access, not just tables. The common pieces: **roles** with privileges granted to roles rather than to people (Snowflake's role hierarchy, BigQuery IAM, Redshift groups and roles); **column masking** and **row access policies** so that analysts see masked emails or only their region's rows; **encryption** at rest and in transit (the warehouse handles it; you manage the keys policy); and **audit logs** of who queried what. Personal data needs extra care (Module 3.5, deletion requests).
+**Governance.** Data engineers set up access, not just tables. The common pieces: **roles** with privileges granted to roles rather than to people (Snowflake's role hierarchy, BigQuery IAM, Redshift groups and roles); **column masking** and **row access policies** so that analysts see masked emails or only their region's rows; **encryption** at rest and in transit (the warehouse handles it; you manage the keys policy); and **audit logs** of who queried what. Personal data needs extra care (Modules 2.5 and 3.5, deletion requests).
 
 Two features you will hear about: **zero-copy cloning** (Snowflake) creates a copy of a table or database as metadata, which costs storage only for changes, ideal for test environments; and **secure data sharing** lets another account query your data without copying it.
 
-:::advanced Production governance SQL, and how warehouses and lakehouses converged
+:::advanced Production governance SQL
 **Production Governance SQL: Dynamic Data Masking, Row-Level Security & Zero-Copy Clones.** Instead of maintaining separate "masked" and "unmasked" copies of a table, modern cloud warehouses enforce column masking and multi-tenant row filtering directly in the catalog policy:
 
 ```sql
 -- 1. Dynamic Column Masking (Snowflake syntax; BigQuery does the same with policy tags on columns):
---    Analysts see '***MASKED***'; only the PII_COMPLIANCE_ROLE sees raw emails
+--    Analysts see '***@domain.com'; only the PII_COMPLIANCE_ROLE sees raw emails
 CREATE OR REPLACE MASKING POLICY governance.email_mask AS (val STRING) RETURNS STRING ->
   CASE
     WHEN CURRENT_ROLE() IN ('PII_COMPLIANCE_ROLE', 'ACCOUNTADMIN') THEN val
@@ -327,6 +329,7 @@ CREATE DATABASE analytics_pr_482 CLONE analytics_prod;
 -- Run dbt build --target pr_482 against real production scale, then:
 DROP DATABASE analytics_pr_482;
 ```
+:::
 
 **Choosing.** There is no universal winner. A fair summary:
 
@@ -348,12 +351,11 @@ In practice the choice is often made by the company's cloud provider and existin
 | **3. Open Lakehouse Table** (Snowflake Iceberg / Polaris, BigQuery BigLake Iceberg, Redshift Iceberg) | Your own S3/GCS/ADLS bucket in open **Apache Iceberg** format | Open Iceberg catalog (REST / Glue / Polaris / Unity) | **Reversible two-way door:** Spark, DuckDB, Trino and Flink can read the same Parquet files in place, with no copies; how close it comes to native speed depends on the engine and on table maintenance (compaction), so measure it on your own queries |
 
 Questions you can now answer: "Why is this query expensive?" (it scans many partitions or columns; look at partitions scanned and bytes billed). "How do I make it cheaper?" (filter on the clustering or partition column, select only needed columns, pre-aggregate). "What is the difference between Snowflake and BigQuery pricing?" (compute time versus bytes scanned). "Why file sizes of 100 to 250 MB?" (parallelism without per-file overhead).
-:::
 
 > 💡 **Practice Pause 5 (Result Caching & Concurrency Queueing):**
 > 1. Open `labs/mod-2-6/warehouse_lab.py` in your text editor.
 > 2. Implement class `ResultCache`: normalize whitespace and SQL casing, track table versions, and invalidate cache entries when underlying tables change.
-> 3. Implement `simulate_queue(query_durations, slots)` to model finish times of queries competing for execution slots.
+> 3. Implement `simulate_queue(jobs, slots)` where `jobs` is a list of `(name, duration_seconds)` tuples, returning `{name: (start, finish)}` to model queries competing for execution slots.
 > 4. Run the tests in terminal:
 >    `pytest labs/mod-2-6/test_lab.py -k "TestResultCache or TestQueueing" -v`
 > 5. **Success Indicator:** 8 tests report `PASSED`, validating cache invalidation and concurrency queue behavior.
@@ -403,7 +405,7 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 ```
 
-> 🛠 **Try it (20 min, in your own terminal).** In `strangler_reverse_etl.py`, write `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Each order has `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` maps a date to the old pipeline's net revenue. Net revenue is gross minus discount minus tax, counted only for `paid`, `shipped` and `delivered` orders. Return a dict with:
+> 🛠 **Try it (20 min, in your own terminal).** Save `~/practice/strangler_reverse_etl.py` and write `run_strangler_and_reverse_etl(orders, legacy_daily_totals, sync_date)`. Each order has `order_id, customer_id, order_date, status, gross_idr, discount_idr, tax_idr`; `legacy_daily_totals` maps a date to the old pipeline's net revenue. Net revenue is gross minus discount minus tax, counted only for `paid`, `shipped` and `delivered` orders. Return a dict with:
 > `semantic_daily`: date → net revenue, for every date that has orders · `drift_report`: one `{date, legacy_idr, semantic_idr, delta_idr}` per date where old and new differ, sorted by date, with `delta_idr = semantic - legacy` · `reverse_etl_payloads`: one `{customer_id, net_ltv_idr, tier_action, idempotency_key}` per customer worth sending, sorted by `customer_id`; `tier_action` is `VIP_UPGRADE` from 200000 upward, otherwise `STANDARD_SYNC`; the key is made as in the code above.
 > Real data is untidy: think about how a status can be written, which dates either side might have that the other lacks, and which customers must not be sent.
 > Check it: `python3 labs/tryit/check.py 2.6-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
@@ -655,7 +657,7 @@ GRANT ROLE ROLE_BI_READER TO USER SVC_LOOKER_BI;
 - **External Tables:** Zero warehouse storage duplication cost; great for cold archival logs or one-off exploration. However, query planning is slower and fine-grained clustering/BI Engine acceleration is more limited (unless using **BigLake / Iceberg tables** with pinned metadata).
 - **Native Managed Tables + Pre-Aggregated BI Rollup Marts:** For hot executive dashboards in Tableau or Looker, load atomic facts into partitioned/clustered native tables and materialize **Rollup Target Tables** (`mart_daily_store_rollup` at `(order_date, store_id, product_category)` grain). Pointing Tableau at a 50,000-row daily rollup instead of a 2-billion-row fact table means every filter reads 40,000 times fewer rows (2,000,000,000 / 50,000), and on a warehouse that bills by bytes scanned, the bill shrinks with it.
 
-> 🛠 **Try it (15 min, Python with DuckDB).** Load the rows of `data/orders.csv` whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST`, and make a bigger fact table by repeating them 300 times (`CROSS JOIN range(300)`), with `order_date`, `payment_method`, `status` (lowercased and trimmed: the file spells it several ways) and `total_idr`. Build a rollup at the grain `(order_date, payment_method, status)` with `count(*)` and `sum(total_idr)`. Answer the dashboard question "revenue per payment method, not cancelled, 10 to 16 January" from both tables, check that the answers are identical, and time each query five times.
+> 🛠 **Try it (15 min, Python with DuckDB).** Generate `data/orders.csv` first if it is not present yet (`python3 labs/shared/shopgen.py --out data`). Load the rows of `data/orders.csv` whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST`, and make a bigger fact table by repeating them 300 times (`CROSS JOIN range(300)`), with `order_date`, `payment_method`, `status` (lowercased and trimmed: the file spells it several ways) and `total_idr`. Build a rollup at the grain `(order_date, payment_method, status)` with `count(*)` and `sum(total_idr)`. Answer the dashboard question "revenue per payment method, not cancelled, 10 to 16 January" from both tables, check that the answers are identical, and time each query five times.
 >
 > **You should see:** `1061700` fact rows and `557` rollup rows, the same four totals from both (`bank_transfer` first with `20436000000`), and a median of about `13` ms on the fact table against `3` ms on the rollup. On a warehouse that bills by bytes scanned the gap is in money as well as time. The rollup only works because every filter the dashboard offers is a column of its grain: ask it for revenue per customer and it cannot answer. Measured with DuckDB 2.0.1 on the course's default data.
 
@@ -709,19 +711,21 @@ An SSIS package is a `.dtsx` file, which is XML: you can search it with `grep` f
 Model the mechanisms of this module in plain Python: micro-partitions with zone maps, pruning and scanning, a clustering-quality measure, query cost, distribution styles and join data movement, bulk-load planning, a result cache, and a queue of concurrent queries. The tests (42) check each rule, and let you reproduce the key measurement: the same query scanning 100 of 100 partitions on random data and about 3 of 100 on clustered data.
 
 ### @steps
-1. Read `labs/mod-2-6/warehouse_lab.py` from top to bottom. `value_bytes` is provided; everything else has a docstring that is the specification and names the lesson.
+> 💡 **Completed Practice Pauses 1–5?** Your implementations in `labs/mod-2-6/warehouse_lab.py` are already in place, jump straight to **Step 7 / Practice Pause 6** below to run the full test suite and generate your proof token.
+
+1. Install pytest if needed (`pip install -r labs/mod-2-6/requirements.txt`), then read `labs/mod-2-6/warehouse_lab.py` from top to bottom. `value_bytes` is provided; everything else has a docstring that is the specification and names the lesson.
 2. Work in file order and run the tests after EACH function:
 
 ```bash
 pytest labs/mod-2-6/test_lab.py -v
-pytest labs/mod-2-6/test_lab.py -v -k "Prune or Scan"          # one group at a time
+pytest labs/mod-2-6/test_lab.py -v -k "(Prune or Scan) and not test_query_cost"   # one group at a time
 ```
 
 3. **Partitions first.** Write `build_micro_partitions` and print the `min` and `max` of the `order_date` column for the first three partitions of a random layout and of a clustered one. Say out loud why one of them can be skipped and the other cannot.
 4. **Scan and cost.** After `scan` passes, run it on both layouts with a one-week filter and with one column and five columns. Write the four numbers (partitions scanned, bytes billed) in a table, and compute the dollar cost with `query_cost`.
 5. **Distribution.** Predict `join_rows_moved` for five combinations of distribution before you implement it, then compare with the tests.
 6. **Loading, caching and queueing.** Plan the files for a 10 GiB load on 16 slices, then change the number of slices to 12 and 20 and predict the file count.
-7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-2-6` to get the proof code for the **Proof** box on this lab page.
+7. **Verify and prove.** Run the full test suite (`pytest labs/mod-2-6/test_lab.py -v`) in your own virtual environment to confirm all 42 tests pass, then run `python3 scripts/prove.py mod-2-6` to generate the proof code for the **Proof** box on this lab page.
 
 > 💡 **Practice Pause 6 (Full Verification & Proof Token):**
 > 1. In terminal, run the complete test suite:

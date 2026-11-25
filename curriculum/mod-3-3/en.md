@@ -132,7 +132,7 @@ The late-event test in the lab shows the other side: after the `[10:00, 10:05)` 
 
 ### See it: the watermark decides what is too late
 
-`watermark = the newest event time seen so far, minus the allowed lateness`. An event older than the watermark is late. Watch it move (allowed lateness 5):
+`watermark = the newest event time seen so far, minus the watermark delay` (often called *allowed lateness* in simple examples; note that Spark's `withWatermark` delay controls when a window closes and is dropped, whereas Flink also has a separate *allowed lateness* setting for updating already-emitted windows, covered in Lesson 4). An event older than the watermark is late. Watch it move (delay / allowed lateness 5):
 
 :::trace The watermark moves, late events are routed aside
 @code
@@ -157,7 +157,7 @@ print(accepted, late)
 
 :::ask The watermark is 15 and an event with time 11 arrives. What should the system do?
 @options
-* treat it as late: side output or count it
+* treat it as late (drop or side output)
 accept it and move the watermark back to 11
 stop the whole stream until it is fixed
 @why
@@ -175,7 +175,7 @@ is_late(11, 15) is True ## 11 is older than 15: late.
 is_late(15, 15) is False ## Exactly at the watermark is not late.
 is_late(20, 15) is False ## Newer than the watermark: not late.
 @hint
-`return event_time < watermark`
+Compare the event's timestamp against the watermark using strict less-than, since an event arriving exactly at the watermark is still on time.
 @solution
 def is_late(event_time, watermark):
     return event_time < watermark
@@ -192,7 +192,7 @@ advance(0, 20, 5) == 15 ## 20 - 5 = 15 is greater than 0.
 advance(15, 11, 5) == 15 ## An old event (11 - 5 = 6) must not move the watermark back.
 advance(10, 10, 0) == 10 ## With no allowed lateness the watermark follows the newest event.
 @hint
-`return max(watermark, event_time - allowed_lateness)`
+Compute the candidate watermark by subtracting the lateness tolerance from the event time, then take the larger of that candidate and the existing watermark so it never moves backwards.
 @solution
 def advance(watermark, event_time, allowed_lateness):
     return max(watermark, event_time - allowed_lateness)
@@ -318,7 +318,7 @@ A streaming job is a service that never finishes, and it fails in ways batch doe
 
 > 🛠 **Try it (10 min, Python).** A job receives 100 events per second but can process only 80. Simulate 600 seconds, keeping `lag += arrived - processed` each second, and print the lag. Then drop the input to 50 per second and count how many more seconds it takes the lag to reach zero (processing stays at 80, and the lag cannot go below 0).
 >
-> **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). Nobody has to be paged for a job that fails, but a job that is merely slower than its input is a failure that grows quietly; that is why lag is the first metric to alert on.
+> **You should see:** a lag of `12000` events after 10 minutes, and `400` seconds to catch up once the input drops to 50 per second (12,000 divided by the spare 30 per second). A job that crashes wakes someone up right away, whereas a job that is merely slower than its input fails quietly; that is why lag is the first metric to alert on.
 
 :::ask A streaming job's input rate is 10,000 events per second but it only processes 8,000. What happens if nobody acts?
 @options
@@ -399,6 +399,8 @@ python -m pip install -r labs/mod-3-3/requirements.txt
 pytest labs/mod-3-3 -v         # fail at first
 ```
 
+> **Already did Practice Pauses 1–3?** If you already finished `windows.py` and `stream_job.py` during the lessons above, skip Steps 2–5 below and jump straight to Step 6 (experiments) and Practice Pause 5.
+
 2. **Part A.** Open `labs/mod-3-3/windows.py`. Implement `window_starts`, then `WindowedAggregator` following the rules in its docstring. Run `pytest labs/mod-3-3/test_windows.py -v`. Use the lesson's table as your reference; when a test fails, draw the watermark and the state after each batch.
 3. Pay special attention to the three tests of the *late* behaviour: late but counted, dropped, and an old event does not recreate a window.
 
@@ -411,15 +413,15 @@ pytest labs/mod-3-3 -v         # fail at first
 
 4. **Part B.** Open `labs/mod-3-3/stream_job.py`. `write_batch_file` is provided (note why it sets the file modification times: Spark reads files in that order). Implement `run_available_now` using the recipe in its docstring.
 5. Run `pytest labs/mod-3-3/test_stream.py -v` (about 20 seconds). The first test is the centrepiece: for the same five batches, Spark's emitted windows equal your model's.
-6. Experiment: remove `withWatermark` and watch what changes in the output mode and the state; change the delay to 0 and 10 minutes and predict what your model emits before you run Spark; print `query.recentProgress` to see the watermark and the number of state rows per batch.
+6. Experiment: remove `withWatermark` and watch Spark reject `append` mode with an `AnalysisException` (and if you switch to `update` mode, watch state grow without bound); change the delay to 0 and 10 minutes and predict what your model emits before you run Spark; print `query.recentProgress` to see the watermark and the number of state rows per batch.
 7. Optional: with a Kafka broker (`docker compose up -d redpanda`), publish JSON events with the Part B producer from Module 3.2 and run the Kafka version of the job from the lesson.
 
 > 💡 **Practice Pause 5 (Full Verification & Proof Token):**
-> 1. In terminal, run the relevant tests:
->    `pytest labs/mod-3-3/test_windows.py -v`
+> 1. In terminal, run both test suites (Part A and Part B):
+>    `pytest labs/mod-3-3/test_windows.py -v && pytest labs/mod-3-3/test_stream.py -v`
 > 2. Generate the verification proof token:
 >    `python3 scripts/prove.py mod-3-3`
-> 3. **Success Indicator:** All tests report `PASSED` and your completion proof token is printed to terminal.
+> 3. **Success Indicator:** All 10 tests in `test_windows.py` and all 5 tests in `test_stream.py` report `PASSED`, and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-3/windows.py :: Part A working file: windows and the watermark model :: starter

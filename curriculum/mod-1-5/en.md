@@ -42,13 +42,13 @@ The mental model that matters most: **pandas works on whole columns at once.** `
 
 Two habits to start with. First, **look before you change**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df["country"].value_counts()`. Second, **never edit in place without a reason**: build a new frame from the old one (`assign`, `rename`, `dropna`), which also makes your function easy to test, as in the lab.
 
-> 🛠 **Try it (10 min, Python).** Run `pip install pandas`. Load `data/orders.csv` with `pd.read_csv`. Print `df.shape` and `df.dtypes`. Translate three SQL queries into pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, and the count of rows with `WHERE status = 'delivered'`. Then repeat the status count after `df["status"].str.strip().str.lower()` and compare.
+> 🛠 **Try it (10 min, Python).** With your virtual environment active, run `pip install pandas`. Load `data/orders.csv` with `pd.read_csv`. Print `df.shape` and `df.dtypes`. Translate three SQL queries into pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, and the count of rows with `WHERE status = 'delivered'`. Then repeat the status count after `df["status"].str.strip().str.lower()` and compare.
 >
 > **You should see:** `(3634, 6)`; raw status counts that include variants such as `DELIVERED`, exactly `2080` rows with `delivered` in the exact-match count, and after lower-casing five statuses: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
 
 :::ask Why do pandas users almost never write a `for` loop over rows?
 @options
-* one whole-column call loops in compiled code
+* column ops run in compiled code
 pandas forbids loops of any kind
 loops give different answers from columns
 @why
@@ -71,7 +71,7 @@ Also useful when reading big files: `usecols=[...]` loads only the columns you n
 
 ### Messy Excel workbooks (.xlsx)
 
-Finance and operations teams rarely send tidy CSVs—they email `.xlsx` spreadsheets with a company title in the first three rows, multiple tabs, merged cells and a `"GRAND TOTAL"` footer row at the bottom. Use `pd.read_excel` (installs `openpyxl`) with explicit boundaries:
+Finance and operations teams rarely send tidy CSVs, they email `.xlsx` spreadsheets with a company title in the first three rows, multiple tabs, merged cells and a `"GRAND TOTAL"` footer row at the bottom. Use `pd.read_excel` (requires the `openpyxl` package) with explicit boundaries:
 
 ```python
 budget = pd.read_excel(
@@ -87,7 +87,7 @@ Always inspect `budget.head()` **and** `budget.tail()` so a `"TOTAL"` summary ro
 :::ask A customer id is `00042` in the customer table. You read the orders file with the default `pd.read_csv` (no `dtype`). What does the id look like in `orders`?
 @options
 `"00042"`: pandas keeps it exactly as written
-* `42`: pandas guessed a number, the zeros are gone
+* `42`: guessed as int, zeros stripped
 `NaN`: pandas cannot read a leading zero
 @why
 A file has no types and pandas **guesses**. An id is a label, not a quantity: read it as text with `dtype={"customer_id": "string"}` (or `str`).
@@ -104,7 +104,7 @@ Most pandas aggregations **skip** `NaN`: the mean is (1 + 3) / 2 = 2.0. That is 
 
 > 💡 **Practice Pause 1 (Loading Data & Data Quality Report):**
 > Start building your analytics module with precise type specification:
-> 1. Open `labs/mod-1-5/orders_lab.py` in your text editor (remember: do not execute directly in bash!).
+> 1. Make sure your virtual environment is active and install the lab dependencies (`pip install -r labs/mod-1-5/requirements.txt`), then open `labs/mod-1-5/orders_lab.py` in your text editor (remember: do not execute directly in bash!).
 > 2. Implement `load_orders(source)` with strict types (`dtype={"order_id": "string", "customer_id": "string"}`, nullable `"Int64"` for quantity, `na_values=["-"]` for float64 unit_price_idr NaNs, and `pd.to_datetime` with `errors="coerce"`).
 > 3. Implement `data_quality_report(df)` returning row count, null count per column, and duplicate order id count.
 > 4. Test in the terminal:
@@ -122,7 +122,7 @@ Cleaning is a short list of repeated moves. Each has a vectorised form:
 - **New columns**: `df.assign(revenue_idr=df["quantity"] * df["unit_price_idr"])`.
 - **Types**: `astype("int64")`, `pd.to_numeric(..., errors="coerce")`.
 
-**Why not `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` gives the right answer and is how many tutorials write it. We measured it on a table of **1,000,000 rows**: the column multiplication took **1.8 milliseconds**, the row-by-row `apply` took **5.7 seconds**, about **3,100 times slower**, and a plain `itertuples` loop over just 200,000 rows took 0.9 seconds. The loop runs Python code a million times; the column operation runs one compiled loop. When you feel the urge to write `apply`, search for a built-in: `.str`, `.dt`, `np.where`, `clip`, `map` with a dictionary, `groupby`. The lab tests forbid `apply`, `iterrows` and `itertuples` where a vectorised answer exists, so you learn the habit.
+**Why not `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` gives the right answer and is how many tutorials write it. We measured it on a table of **1,000,000 rows**: the column multiplication took **1.8 milliseconds**, the row-by-row `apply` took **5.7 seconds**, about **3,100 times slower**, and a plain `itertuples` loop over just 200,000 rows took 0.9 seconds. The loop runs Python code a million times; the column operation runs one compiled loop. When you feel the urge to write `apply`, search for a built-in: `.str`, `.dt`, `np.where` (after `import numpy as np`, for vectorised if-else), `clip`, `map` with a dictionary, `groupby`. The lab tests forbid `apply`, `iterrows` and `itertuples` where a vectorised answer exists, so you learn the habit.
 
 **Do not chain assignments.** `df[df["a"] > 1]["b"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df["b"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).
 
@@ -162,6 +162,8 @@ print(utc_ts.date(), "->", wib_ts.date())
 WIB (`Asia/Jakarta`) is `UTC+7`. Adding 7 hours to `18:00` on 31 January gives `01:00` on **1 February** (`2026-02-01`). Storing UTC and converting explicitly avoids month-end finance mismatches.
 :::
 
+To parse an ISO timestamp string in plain Python (including those ending with `"Z"` for UTC), use `datetime.fromisoformat(s.replace("Z", "+00:00"))`, then convert with `.astimezone(...)` and format with `.strftime("%Y-%m-%d")`.
+
 :::drill python Convert a UTC timestamp to a WIB business date
 Write `wib_date(iso_utc)`: `iso_utc` is an ISO timestamp string in UTC such as `"2026-01-31T18:30:00Z"` or `"2026-01-31T10:00:00+00:00"`. Convert it to WIB (`UTC+7`) and return its date as `"YYYY-MM-DD"`.
 @starter
@@ -175,7 +177,7 @@ wib_date("2026-01-31T18:30:00Z") == "2026-02-01" ## 18:30 UTC + 7 hours crosses 
 wib_date("2026-01-31T10:00:00+00:00") == "2026-01-31" ## 10:00 UTC + 7 hours is 17:00 WIB on the same day.
 wib_date("2026-03-01T17:00:00Z") == "2026-03-02" ## Exactly 17:00 UTC is midnight (00:00) the next day in WIB.
 @hint
-Replace `"Z"` with `"+00:00"`, parse with `datetime.fromisoformat(...)`, call `.astimezone(timezone(timedelta(hours=7)))`, and format with `.strftime("%Y-%m-%d")`.
+Parse the ISO string into a UTC datetime (remember `"Z"` means `"+00:00"`), convert it to a fixed `+7` hours timezone, and format the resulting date as `"YYYY-MM-DD"`.
 @solution
 from datetime import datetime, timedelta, timezone
 
@@ -187,7 +189,7 @@ def wib_date(iso_utc):
 
 :::ask What happens to `df[df["a"] > 1]["b"] = 9`?
 @options
-* the change goes to a temporary copy and is lost
+* it writes to a temporary copy and is lost
 it sets `b` to 9 where `a > 1`, as intended
 it raises an error and stops the script
 @why
@@ -254,7 +256,7 @@ unpivot([{"branch": "JKT", "Jan": 10, "Feb": 20}], "branch") == [{"branch": "JKT
 unpivot([{"store": "BDG", "Q1": 5}], "store") == [{"store": "BDG", "month": "Q1", "value": 5}] ## Works with any id_col name.
 unpivot([], "branch") == [] ## Empty input returns an empty list.
 @hint
-Loop over each `row` in `rows`, then over `k, v` in `row.items()`; whenever `k != id_col`, append `{id_col: row[id_col], "month": k, "value": v}`.
+Use a nested loop: for each dictionary in `rows`, iterate through its key-value pairs and emit a new 3-key dictionary (`id_col`, `"month"`, `"value"`) for every key that is not `id_col`.
 @solution
 def unpivot(rows, id_col):
     out = []
@@ -271,7 +273,7 @@ def unpivot(rows, id_col):
 out = df.sort_values(["customer_id", "order_date", "order_id"])
 by_customer = out.groupby("customer_id")
 out["order_number"] = by_customer.cumcount() + 1                 # 1, 2, 3 ... per customer
-out["revenue_to_date"] = by_customer["revenue_idr"].cumsum()      # running total
+out["customer_revenue_to_date"] = by_customer["revenue_idr"].cumsum()  # running total
 out["days_since_previous"] = by_customer["order_date"].diff().dt.days   # LAG-style gap
 ```
 
@@ -287,7 +289,7 @@ Check your aggregates against an independent calculation. The lab tests recomput
 >    - `top_products_per_country(df, n=2)`: top N products per country with alphabetical tie-breaking.
 >    - `add_customer_history(df)`: compute customer order number (`cumcount() + 1`), cumulative revenue (`cumsum()`), and day gap (`diff().dt.days`).
 > 2. Test in the terminal:
-> `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestAggregate or TestPivot or TestTopN or TestWindow" -v`
 > When tests show PASSED, proceed to Lesson 5 on defensive table merges!
 
 :::drill python Total per group
@@ -377,7 +379,7 @@ def rows_after_join(left_keys, right_keys):
 ## @lesson Memory, chunks and Parquet
 pandas keeps the entire table in RAM. How much RAM? More than the file. We generated an orders table of **1,000,000 rows** (a **47.7 MB** CSV) and read it with default settings: on pandas 3.0.6 it occupied **83 MB** in memory (1.75 times the file), and on pandas 2.2.3 **247 MB, 5.2 times the file**, because older pandas stores every text value as a separate Python object. Rule of thumb: **plan for 2 to 10 times the file size**, measure with `df.memory_usage(deep=True).sum()`, and check before you read a 20 GB export on a 16 GB laptop.
 
-**Shrink it.** Columns with few distinct values (country, product, status) can be stored as **categories**: the table keeps each distinct value once and a small integer code per row. Integer columns rarely need 64 bits. On the same million rows, converting low-variety text to `category` and downcasting integers took memory from **78 MB to 40 MB on pandas 3.0.6, and from 242 MB to 84 MB on 2.2.3** (`shrink_memory` in the lab). The values are identical. Do not turn a unique id into a category: it would store one code *and* one label per row, which is bigger. The lab's rule is "fewer distinct values than half the rows".
+**Shrink it.** Columns with few distinct values (country, product, status) can be stored as **categories**: the table keeps each distinct value once and a small integer code per row. Integer columns rarely need 64 bits. On the same million rows (after cleaning and date parsing, which drops memory by ~5 MB), converting low-variety text to `category` and downcasting integers took memory from **78 MB to 40 MB on pandas 3.0.6, and from 242 MB to 84 MB on 2.2.3** (`shrink_memory` in the lab). The values are identical. Do not turn a unique id into a category: it would store one code *and* one label per row, which is bigger. The lab's rule is "fewer distinct values than half the rows".
 
 **Read in chunks.** When the file does not fit, `pd.read_csv(path, usecols=[...], chunksize=100_000)` returns an iterator of DataFrames. For each chunk, compute a **partial result**, then combine the partials:
 
@@ -402,7 +404,8 @@ This works for things you can combine: sums, counts, minimum, maximum. A mean is
 >    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: write Parquet without pandas index and read requested columns.
 > 2. Run the complete test suite in the terminal:
 > `pytest labs/mod-1-5/test_lab.py -v`
-> When all 35 tests show PASSED, your production pandas lab is 100% complete!
+> 3. When all 35 tests show PASSED, generate your proof code for the lab page:
+> `python3 scripts/prove.py mod-1-5`
 
 :::drill python The mean of means is wrong
 You read a big file in chunks, and each chunk gives `(sum, count)`. Write `combined_mean(parts)`: `parts` is a list of `(sum, count)` pairs; return the mean of **all** the values together. An empty list gives `0`.
@@ -412,10 +415,10 @@ You read a big file in chunks, and each chunk gives `(sum, count)`. Write `combi
 @check
 defines("combined_mean") ## Define combined_mean(parts).
 combined_mean([(10, 2), (30, 2)]) == 10 ## 40 over 4 values.
-combined_mean([(10, 1), (100, 9)]) == 11 ## 110 over 10 values. The mean of the two chunk means would be 30: wrong.
+combined_mean([(50, 1), (90, 9)]) == 14 ## 140 over 10 values. The mean of the two chunk means (50 and 10) would be 30: wrong.
 combined_mean([]) == 0 ## No chunks, no mean.
 @hint
-Add all the sums, add all the counts, divide once: `sum(s for s, _ in parts) / sum(c for _, c in parts)`.
+Handle an empty list first (returning `0`). Otherwise, accumulate the total sum across all chunks and the total count across all chunks, then divide once at the end.
 @solution
 def combined_mean(parts):
     if not parts:
@@ -478,7 +481,7 @@ result_df = lazy_plan.collect(engine="streaming")   # Polars 1.25+; older code s
 arrow_tbl = result_df.to_arrow()
 ```
 
-> 🛠 **Try it (15 min, Python with `polars`, `pandas` and `pyarrow`).** Read `data/orders.csv` with pandas as text, keep the rows whose `total_idr` is all digits and make it an integer, repeat the rows 30 times (`pd.concat([df] * 30)`) and write them as 10 Parquet files `big/part-00.parquet` … `big/part-09.parquet`. Build a lazy plan with `pl.scan_parquet("big/*.parquet")`: keep `status == "delivered"` (that exact spelling, as in the first Try it of this module), group by `payment_method`, count the orders and sum `total_idr`, sort by the sum. Print `.explain()` before you collect, then collect with `engine="streaming"` and compare with the same thing in pandas.
+> 🛠 **Try it (15 min, Python with `polars`, `pandas` and `pyarrow`).** Read `data/orders.csv` with pandas as text, keep the rows whose `total_idr` is all digits and make it an integer, repeat the rows 30 times (`pd.concat([df] * 30)`) and write them as 10 Parquet files `big/part-00.parquet` … `big/part-09.parquet`. Build a lazy plan with `pl.scan_parquet("big/*.parquet")`: keep `status == "delivered"` (that exact spelling, as in the first Try it of this module), group by `payment_method`, count the orders and sum `total_idr`, sort by the sum descending. Print `.explain()` before you collect, then collect with `engine="streaming"` and compare with the same thing in pandas.
 >
 > **You should see:** `107400` rows on disk. Inside the `Parquet SCAN` node the plan says `PROJECT 3/6 COLUMNS` and `SELECTION: col("status") == "delivered"`: the filter and the column list moved into the scan, so the other three columns are never read. Four payment methods, led by `cod` with `15600` orders and `5349150000`, exactly the counts and sums pandas gives. Measured with Polars 2.1.0 and pandas 3.1.1 on the course's default data.
 
@@ -495,6 +498,8 @@ it converts the file to CSV first
 Clean the KopiKu orders export with pandas: load it with the right types, profile it, clean it, compute revenue by country and month, rank products, add per-customer history, join the customer list safely, and then make it smaller, read it in chunks and write Parquet. The 35 tests check each function independently against an answer computed in plain Python, and forbid row-by-row loops.
 
 ### @steps
+> **Already completed Practice Pauses 1–5?** Your `labs/mod-1-5/orders_lab.py` is already implemented! You can jump straight to the reflection checks in steps 4–7 and run `python3 scripts/prove.py mod-1-5` in step 8.
+
 1. Create or activate your virtual environment (Module 0.1) and install the lab requirements: `pip install -r labs/mod-1-5/requirements.txt`.
 2. Read the top of `labs/mod-1-5/orders_data.py`, write the file with `python3 -c "from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])"` (run it inside `labs/mod-1-5`), and **explore it before writing code**: `head`, `dtypes`, `isna().sum()`, `value_counts()` on country, how many repeated order ids. Write down what you find.
 3. Work through `labs/mod-1-5/orders_lab.py` from the top and run the tests after EACH function:
@@ -573,7 +578,7 @@ A join is a claim about keys. Write the claim down (`validate=`), check the row 
 
 ### `pd.Series([1, None, 3]).mean()` returns 2.0. Why?
 - [ ] pandas replaces the missing value with zero before averaging, which would give 1.33 instead
-- [x] Missing values are skipped, so it is (1 + 3) / 2, and you should count how many were skipped.
+- [x] Missing values are skipped, so it is (1 + 3) / 2, and you should count how many were skipped
 - [ ] pandas raises a warning and returns the median because it cannot compute a mean of missing data
 - [ ] The missing value is treated as the previous value, so the series is read as 1, 1, 3 by default
 
@@ -614,7 +619,7 @@ A join is a claim about keys. Write the claim down (`validate=`), check the row 
 ### You deduplicate a large file by calling `drop_duplicates` on each chunk separately. What is the risk?
 - [ ] None; the result is always identical to deduplicating the whole file at once, whatever the order
 - [ ] pandas refuses to run `drop_duplicates` on a chunk, so the call fails with an error immediately
-- [x] Duplicates in different chunks are never compared, so some copies survive in the output tables.
+- [x] Duplicates in different chunks are never compared, so some copies survive in the output tables
 - [ ] The chunks are merged back in random order, so the first copy kept differs on every single run
 
 > Deduplication needs the whole key space. Chunking is safe for sums, counts and similar combinable results, not for global operations; use a database or a two-pass approach for those.

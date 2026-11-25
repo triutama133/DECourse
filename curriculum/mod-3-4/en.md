@@ -38,7 +38,7 @@ IaC tools come in two styles. An **imperative** script says *how*: "create a buc
 
 :::ask Why is a change to infrastructure written as code and reviewed in a pull request safer than a click in the console?
 @options
-* a colleague reads it first and Git keeps history
+* peer review and full Git change history
 the console is always much slower than code
 code can never contain any mistakes at all
 @why
@@ -98,16 +98,17 @@ Dev and prod usually share the same code with different variable files; in the l
 
 > 💡 **Practice Pause 1 (Terraform Variable Declaration & Environment Validation):**
 > 1. Open `labs/mod-3-4/terraform/variables.tf` in your text editor. Do not execute Terraform files directly without the CLI.
-> 2. Declare the input variables: `env` (with a validation rule accepting only dev or prod), `project`, `owner`, `cost_center`, `raw_archive_days`, and `enable_versioning`, each with its type and description.
-> 3. Run the tests in terminal:
+> 2. Declare the input variables: `env` (with a `validation` rule accepting only `"dev"` or `"prod"` and an `error_message` containing `"env must be dev or prod"`), `project`, `owner`, `cost_center`, `raw_archive_days`, and `enable_versioning`, each with its `type` and `description`.
+> 3. Because `provider.tf` already references `local.common_tags`, also open `labs/mod-3-4/terraform/main.tf` and add the `locals { common_tags = { ... } }` block (mapping `Project`, `Environment`, `Owner`, `CostCenter`, and `ManagedBy = "terraform"`), leaving the AWS resources for Practice Pause 2. Run `terraform fmt` in `labs/mod-3-4/terraform/`.
+> 4. Run the tests in terminal:
 >    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
-> 4. **Success Indicator:** All tests in `TestHygiene` report `PASSED` (or cleanly skip if the Terraform CLI is not installed), verifying HCL formatting, valid syntax, and rejection of invalid environment names.
+> 5. **Success Indicator:** All tests in `TestHygiene` report `PASSED` (or cleanly skip if the Terraform CLI is not installed), verifying HCL formatting, valid syntax, and rejection of invalid environment names.
 
 :::ask What does the Terraform state file hold?
 @options
-a copy of all the data in your buckets
-* a map from your code's resources to real objects
-the passwords of the users of your cloud
+a backup copy of all data in your storage buckets
+* a map linking your code to real cloud objects
+the login passwords of your cloud users
 @why
 Without state, Terraform could not tell 'create this' from 'this already exists'. It compares your code, the state and reality to build the plan. Keep it in a shared, locked, access-controlled place.
 :::
@@ -145,7 +146,7 @@ block_size(16) == 65536 ## A /16: 2 ** 16.
 block_size(32) == 1 ## All 32 bits locked: exactly one address.
 block_size(20) == 4096 ## A /20: 2 ** 12.
 @hint
-`2 ** (32 - prefix)`
+An IPv4 address has 32 bits total; subtract the locked prefix bits to get the host bits, then raise 2 to that power.
 @solution
 def block_size(prefix):
     return 2 ** (32 - prefix)
@@ -164,7 +165,7 @@ in_block("10.0.48.1", "10.0.32.0/20") == False ## 48 is past the end of that /20
 in_block("10.0.1.1", "10.0.0.0/16") == True ## Inside the big block.
 in_block("192.168.0.1", "10.0.0.0/16") == False ## A different network.
 @hint
-`ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)`
+Parse the IP string into an address object and the CIDR string into a network object using the `ipaddress` module, then test membership with `in`.
 @solution
 import ipaddress
 def in_block(ip, cidr):
@@ -201,7 +202,7 @@ allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 22) == False ## The right address, 
 allowed([], "10.0.3.7", 5432) == False ## No rules: nothing is allowed.
 allowed([("0.0.0.0/0", 5432)], "203.0.113.9", 5432) == True ## 0.0.0.0/0 is the whole internet: the dangerous rule.
 @hint
-`any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)`
+Parse `ip` once with `ipaddress`, then loop over each `(cidr, rule_port)` pair and return `True` as soon as you find one whose network contains the address and whose port matches; return `False` if none match.
 @solution
 import ipaddress
 def allowed(rules, ip, port):
@@ -211,7 +212,7 @@ def allowed(rules, ip, port):
 :::ask A security group has the rule "allow 0.0.0.0/0 on port 5432" and the database port is 5432. Who can now try to connect to the database?
 @options
 only machines in your own VPC, because 0.0.0.0 means "this network"
-* anyone on the internet: this is the network version of a public bucket
+* anyone on the internet: like a public bucket
 nobody, because a database port is always blocked by default
 @why
 `0.0.0.0/0` is the CIDR block of every address on the internet. A rule that allows it on a database port opens the door to everyone. The safe version names your own subnet, for example `10.0.0.0/16`, and nothing broader.
@@ -225,7 +226,7 @@ A cloud **region** is a city, such as Jakarta or Singapore. Inside it sit severa
 @options
 a public subnet with a rule allowing 0.0.0.0/0 on every port
 a bigger CIDR block, so that the worker has more addresses
-* a NAT gateway: the worker starts the request, and nothing outside can start one
+* a NAT gateway: outbound access only, no inbound path
 @why
 A NAT gateway gives a private machine a way out without a way in. A public subnet with open rules would let anyone try to connect. A bigger block changes how many addresses exist, not who can reach the worker.
 :::
@@ -268,7 +269,7 @@ One subtle point from the lab. The IAM policy mentions the bucket's **ARN** (Ama
 :::ask Your VPC is `10.0.0.0/16`. You split it into `/20` subnets. How many subnets do you get?
 @options
 4 subnets, one per step in the prefix
-* 16 subnets: four extra bits make 2 x 2 x 2 x 2
+* 16 subnets (four extra prefix bits)
 256 subnets, one per host bit
 @why
 A `/20` has 4 more network bits than a `/16`, so there are 2^4 = 16 subnets, each with 4,096 addresses (4,091 usable on AWS, which reserves 5). Sizing is hard to change later, so plan it before you build.
@@ -371,8 +372,8 @@ Learn the vocabulary of the field, known as **FinOps**: *showback* (show each te
 
 :::ask Pipelines in a private subnet read S3 all day through a NAT gateway, which charges per GB processed. What is the cheaper, more private path?
 @options
-a bigger NAT gateway with more capacity
-* an S3 gateway endpoint: a route that skips the NAT
+a bigger NAT gateway with higher throughput capacity
+* an S3 gateway endpoint to bypass the NAT
 send the data over the public internet
 @why
 A gateway endpoint adds a route to S3 without sending the traffic through the NAT gateway, so there is no per-GB NAT processing charge and the traffic never leaves the AWS network. Network paths are a bill line, not an afterthought.
@@ -483,6 +484,8 @@ jobs:
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Success Indicator:** All 15 tests report `PASSED` in milliseconds in pure Python, proving query outlier detection, monthly budget forecasting, and storage tiering trade-offs work accurately.
 
+*(Browser warm-up: this simplified 2-argument `forecast_month(daily_costs, days_in_month)` drill practices the projection math independently of `finops.py`'s 3-argument version.)*
+
 :::drill python Forecast the month
 Write `forecast_month(daily_costs, days_in_month)`: `daily_costs` is the list of costs so far this month, one per day. Project the rest of the month with the **average of the last 7 days** (or of all days, if there are fewer than 7). Return the spend so far plus that average times the days still to come.
 @starter
@@ -495,7 +498,7 @@ forecast_month([10] * 7 + [20] * 7, 30) == 530 ## 210 so far; the last 7 days av
 forecast_month([10, 20], 30) == 450 ## Fewer than 7 days: average all of them (15), 28 days remain: 30 + 420.
 forecast_month([10] * 30, 30) == 300 ## The month is over: nothing left to project.
 @hint
-`recent = daily_costs[-7:]`, `avg = sum(recent) / len(recent)`, then `sum(daily_costs) + avg * (days_in_month - len(daily_costs))`.
+Slice up to the last 7 entries of `daily_costs` to get their mean daily rate, multiply that rate by the remaining days in the month, and add it to the total spent so far.
 @solution
 def forecast_month(daily_costs, days_in_month):
     recent = daily_costs[-7:]
@@ -566,10 +569,10 @@ These ideas from chapter 3 of the book come up in every system design interview,
 >
 > **You should see:** `9.3` days at full speed, `13.2` days at 70%, and `92.6` days over 100 Mbit/s; a 10 Gbit/s line at 70% would take `1.3` days. When the network needs weeks, shipping disks wins: this is why the big clouds rent out physical transfer appliances (on AWS: Snowball) that you fill on site and send back by courier.
 
-> 🛠 **Try it (20 min, in your own terminal).** Combine three calculations from this module into one script, `cloud_architect.py`, with three functions:
+> 🛠 **Try it (20 min, in your own terminal).** Combine three calculations from this module into one script, `~/practice/cloud_architect.py`, with three functions:
 > 1. `plan_iac_diff(desired, actual)`: both arguments map `resource_name -> properties_dict`. Return a list of `(action, resource_name)` tuples sorted by name, with `"create"` for a resource only in `desired`, `"destroy"` for one only in `actual`, and `"update"` when both have it with different properties. Leave out unchanged resources (the planner from lesson 1).
-> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: split `vpc_cidr` (for example `"10.0.0.0/16"`) into subnets of size `/new_prefix` and return a dict with `num_subnets`; `usable_ips_per_subnet` on AWS (lesson 3); `monthly_cross_az_usd`, the 30-day cost of the daily shuffle at $0.02 per GB, assuming the data is spread evenly over `zones` zones so only the share that leaves a node's own zone is charged (nothing with one zone); `monthly_nat_s3_usd`, 30 days of S3 traffic through a NAT gateway at $0.045 per GB, or `0.0` when `has_s3_endpoint` is true; and `monthly_endpoint_savings_usd`, what an S3 gateway endpoint saves in 30 days. Round dollar amounts to 2 decimals.
-> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: for `num_services` services called one after another, each available `service_sla` of the time (for example `0.999`), return `combined_sla` rounded to 6 decimals, `monthly_downtime_min` in a 30-day month (43,200 minutes) rounded to 1 decimal, and `needs_continuous_cdc`: `True` when the backups are further apart than the target RPO allows (section 4 of lesson 6).
+> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: split `vpc_cidr` (for example `"10.0.0.0/16"`) into subnets of size `/new_prefix` and return a dict with `num_subnets`; `usable_ips_per_subnet` on AWS (lesson 4); `monthly_cross_az_usd`, the 30-day cost of the daily shuffle at $0.02 per GB, assuming the data is spread evenly over `zones` zones so only the share that leaves a node's own zone is charged (nothing with one zone); `monthly_nat_s3_usd`, 30 days of S3 traffic through a NAT gateway at $0.045 per GB, or `0.0` when `has_s3_endpoint` is true; and `monthly_endpoint_savings_usd`, what an S3 gateway endpoint saves in 30 days. Round dollar amounts to 2 decimals.
+> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: for `num_services` services called one after another, each available `service_sla` of the time (for example `0.999`), return `combined_sla` rounded to 6 decimals, `monthly_downtime_min` in a 30-day month (43,200 minutes) rounded to 1 decimal, and `needs_continuous_cdc`: `True` when the backups are further apart than the target RPO allows (section 4 of this lesson).
 >
 > **Check it:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
@@ -617,6 +620,8 @@ Terraform merges any file whose name ends in `_override.tf` into the matching bl
 Part A: finish a Terraform configuration until an offline plan proves the bucket is private, encrypted, lifecycle-managed, tagged and accessible only through a least-privilege policy. Part B: write the Python functions behind your FinOps controls: warehouse billing, cost by team, runaway detection, a budget forecast and storage tiering.
 
 ### @steps
+> Already finished Parts A and B during Practice Pauses 1–4? Skip straight to Step 7 and Practice Pause 5 to verify both suites and generate your proof token.
+
 1. Install pytest and the Terraform CLI (1.5 or newer, from developer.hashicorp.com/terraform/install, or OpenTofu). Reuse the heavy provider download across runs:
 
 ```bash
@@ -629,15 +634,15 @@ pytest labs/mod-3-4 -v          # the starter fails at first
 3. Work with the real CLI while you write: `cd labs/mod-3-4/terraform && terraform init -backend=false && terraform validate && terraform plan -var-file=dev.tfvars`. Read the plan as a reviewer would. Run `terraform fmt` before testing, since formatting is one of the tests.
 4. Run `pytest labs/mod-3-4/test_terraform.py -v` (about 30 seconds after the first provider download). The tests inspect `terraform show -json` of the dev and prod plans.
 5. Read the failing test for the IAM policy carefully. It asserts the exact actions, resources and the `s3:prefix` condition. Replace `local.bucket_arn` with `aws_s3_bucket.lakehouse.arn` and look at the plan: the policy turns into "known after apply".
-6. **Part B.** Open `labs/mod-3-4/finops.py` and implement the five functions. The query log comes from `labs/shared/querylog.py`: print the first rows and the largest query before you start. Run `pytest labs/mod-3-4/test_finops.py -v`.
+6. **Part B.** Open `labs/mod-3-4/finops.py` and implement the six functions (`query_cost`, `billed_seconds`, `cost_by_tag`, `find_runaway`, `forecast_month`, `storage_cost`). The query log comes from `labs/shared/querylog.py`: print the first rows and the largest query before you start. Run `pytest labs/mod-3-4/test_finops.py -v`.
 7. Use your functions to answer: what auto-suspend would you choose for the shared warehouse and why? Which team paid for the 11-hour query? Add up each day's cost and try `forecast_month` with a $75 budget: what does it say on day 15, and on day 16 (the day the runaway starts)? Why is the day-16 forecast too pessimistic, and how could `find_runaway` improve it?
 
 > 💡 **Practice Pause 5 (Full Verification & Proof Token):**
-> 1. In terminal, run the complete FinOps test suite:
->    `pytest labs/mod-3-4/test_finops.py -v`
-> 2. Generate the verification proof token:
+> 1. In terminal, run both the Terraform (Part A) and FinOps (Part B) test suites:
+>    `pytest labs/mod-3-4/test_terraform.py labs/mod-3-4/test_finops.py -v`
+> 2. Generate the verification proof token (requires Terraform CLI installed so Part A is not skipped):
 >    `python3 scripts/prove.py mod-3-4`
-> 3. **Success Indicator:** All tests report `PASSED` and your completion proof token is printed to terminal.
+> 3. **Success Indicator:** All 41 tests (12 Terraform + 29 FinOps) report `PASSED` and your completion proof token is printed to terminal.
 
 ### @files
 - labs/mod-3-4/terraform/variables.tf :: Part A: declare the input variables :: starter
@@ -648,7 +653,7 @@ pytest labs/mod-3-4 -v          # the starter fails at first
 - labs/mod-3-4/terraform/dev.tfvars :: Dev values (provided) :: config
 - labs/mod-3-4/terraform/prod.tfvars :: Prod values (provided) :: config
 - labs/mod-3-4/test_terraform.py :: Part A tests (12, from the planned JSON) :: test
-- labs/mod-3-4/finops.py :: Part B working file: five cost functions :: starter
+- labs/mod-3-4/finops.py :: Part B working file: six cost functions :: starter
 - labs/mod-3-4/test_finops.py :: Part B tests (29) :: test
 - labs/shared/querylog.py :: Deterministic 30-day query log with a planted runaway :: data
 - labs/mod-3-4/requirements.txt :: pytest and installation notes :: config
@@ -667,6 +672,7 @@ pytest labs/mod-3-4 -v          # the starter fails at first
 ```bash
 pytest labs/mod-3-4/test_terraform.py -v
 pytest labs/mod-3-4/test_finops.py -v
+python3 scripts/prove.py mod-3-4
 ```
 
 Known-good run: prefix with `LAB_DIR=reference`. The Terraform tests are skipped, with a message, if the CLI is not installed.

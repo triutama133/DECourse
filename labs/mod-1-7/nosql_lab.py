@@ -107,11 +107,11 @@ def quorum_overlaps(n, r, w):
 class ReplicaSet:
     """n replicas of one value; each replica holds (version, value). Used to see when a read can be stale.
 
+    - self.replicas: list of n (version, value) tuples, one per replica; initially every replica holds (0, None).
     - write(value, w, down=()): replicas whose index is in `down` are unreachable. Raise Unavailable if fewer than w replicas are up.
       Otherwise increase the version number by 1 and store (version, value) on the FIRST w live replicas (lowest indexes).
     - read(r, down=()): raise Unavailable if fewer than r replicas are up. Otherwise contact the LAST r live replicas (highest indexes) and
       return the value with the highest version among them.
-    Initially every replica holds (0, None).
     """
 
     def __init__(self, n):

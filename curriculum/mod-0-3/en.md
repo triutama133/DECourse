@@ -15,7 +15,7 @@ why: Tutorials treat SQL as syntax to memorise on perfect tables. In real work t
 - Define tables with types and constraints, change them with ALTER, and explain the difference between a view, a snapshot table and a materialized view
 
 ## @prereq
-Modules 0.1 and 0.2 are helpful. You can do the whole lab in your browser (SQL Sandbox) or with the `sqlite3` module that ships with Python; no installation is needed.
+Modules 0.1 and 0.2 are helpful. You can prototype and test queries in your browser's **SQL Sandbox** at any time; to finish the module and generate your completion proof code, save your 10 lab answers in `labs/mod-0-3/answers.sql` and run the local checker with Python's built-in `sqlite3` module (no installation needed).
 
 ## @part Reading tables
 
@@ -78,6 +78,8 @@ Ask of every table, before you query it: **what does one row represent?** This i
 SELECT COUNT(*) FROM customers;    -- 10
 ```
 
+Use `AS` to give a computed column a readable name (for example, `SELECT COUNT(*) AS total FROM customers;`).
+
 :::drill sql How many rows?
 Count the rows of `order_items`. Give the column the name `lines`.
 @data kopiku
@@ -95,9 +97,9 @@ SELECT COUNT(*) AS lines FROM order_items;
 
 :::ask What does ONE row of order_items represent?
 @options
-one order
-one product in the catalogue
-* one product line inside an order
+one whole order
+one product in the product catalogue
+* one line item in an order
 @why
 `order_items` has one row per **line** of an order: an order with three different products has three rows. That is why it has more rows (24) than `orders` (18).
 :::
@@ -122,7 +124,7 @@ An order can have several lines (so `order_id` repeats), and line number 1 exist
 @options
 the old row is replaced silently by the new one
 two customers end up sharing the same id
-* the database refuses: `UNIQUE constraint failed`
+* it fails: `UNIQUE constraint failed`
 @why
 A primary key must be unique, and the database enforces it. This is the point of keys: bad data is rejected at the door instead of being found later in a report.
 :::
@@ -297,7 +299,7 @@ SELECT DISTINCT payment_method FROM orders;
 **Dates.** Databases have date types, but a lot of real data stores dates as text like `'2026-01-15'`. The ISO format (year-month-day) is special because text order equals date order, which is why `BETWEEN` works on it. Dates written as `15/01/2026` do not sort or compare correctly: normalise them early.
 
 > 💡 **Practice Pause 1 (SELECT & WHERE):**
-> Open `labs/mod-0-3/answers.sql` in your editor (or open the SQL Sandbox in the web app).
+> Open `labs/mod-0-3/answers.sql` in your editor (you can prototype queries in the browser **SQL Sandbox** first, then save your final answer in `answers.sql`).
 > Solve challenge `-- k-1`: write a query returning `name` and `tier` from `customers` whose city is Jakarta (`WHERE city = 'Jakarta'`).
 > Test your query in your terminal:
 > `python3 labs/mod-0-3/check.py`
@@ -308,7 +310,7 @@ SELECT DISTINCT payment_method FROM orders;
 
 ### Comparing with NULL gives "unknown"
 
-The rule: any comparison with NULL gives neither true nor false, but **UNKNOWN**, and `WHERE` keeps only rows where the condition is *true*. Watch what happens to the two customers without a city:
+The rule, called **Three-Valued Logic** (true, false, or unknown), is that any comparison with NULL gives neither true nor false, but **UNKNOWN**, and `WHERE` keeps only rows where the condition is *true*. Watch what happens to the two customers without a city:
 
 :::sqlsteps Where do the NULL rows go?
 @data kopiku
@@ -415,6 +417,8 @@ SELECT name, COALESCE(city, 'Unknown') AS city FROM customers;
 - **Arithmetic spreads NULL.** `price - discount` is NULL if `discount` is NULL, so the whole row's total vanishes.
 - **`NOT IN` with a NULL in the list returns nothing.** `x NOT IN (1, NULL)` is never true, because the comparison with NULL is UNKNOWN for every row. This is a classic production bug when the list comes from a subquery that happens to contain a NULL.
 
+In the question below, `(SELECT city FROM ...)` is a **subquery**, a query inside parentheses that feeds its list of cities into `NOT IN` (we cover subqueries in full in Lesson 8).
+
 :::ask What does this return?
 ```sql
 SELECT name FROM customers
@@ -444,7 +448,7 @@ Real columns are messy: names in mixed case, ratios that must be computed, dates
 
 ### Text functions
 
-`LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)`, `REPLACE(x, 'a', 'b')`, `SUBSTR(x, start, length)` (positions start at **1**, not 0), `INSTR(x, 'text')` (the position of the first match, 0 if none) and `||` to join text.
+`LENGTH(x)`, `UPPER(x)`, `LOWER(x)`, `TRIM(x)` (removes leading/trailing spaces), `REPLACE(x, 'a', 'b')` (swaps every `'a'` for `'b'`), `SUBSTR(x, start, length)` (positions start at **1**, not 0), `INSTR(x, 'text')` (the position of the first match, 0 if none) and `||` to join text.
 
 ```sql
 SELECT name, UPPER(name) AS shout, LENGTH(name) AS name_length FROM customers;
@@ -546,14 +550,14 @@ Show each product's `name` and its price in thousands of rupiah, with one decima
 
 @check
 /round/ ## Use ROUND(..., 1).
-/1000\.0/ ## Divide by 1000.0 (with .0), or the decimals are lost.
+/(?:1000\.0|\*\s*1\.0|cast\s*\()/ ## Divide by 1000.0 (with .0), or multiply by 1.0 / CAST to decimal, or the decimals are lost.
 @hint
 `ROUND(price_idr / 1000.0, 1) AS price_k`
 @solution
 SELECT name, ROUND(price_idr / 1000.0, 1) AS price_k FROM products;
 :::
 
-KopiKu has 2 cancelled orders out of 18. In SQLite a true comparison like `status = 'cancelled'` is `1` and a false one is `0`, so `SUM(status = 'cancelled')` counts the cancelled rows (Lesson 8 shows the portable `CASE WHEN`). `SUM(status = 'cancelled') / COUNT(*)` returns **0** (integer division!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` returns **11.1**.
+KopiKu has 2 cancelled orders out of 18. In SQLite a true comparison like `status = 'cancelled'` is `1` and a false one is `0`, and `SUM(...)` adds up those 1s and 0s across rows (we cover `SUM` and aggregation in full in Lesson 5), so `SUM(status = 'cancelled')` counts the cancelled rows (Lesson 8 shows the portable `CASE WHEN`). `SUM(status = 'cancelled') / COUNT(*)` returns **0** (integer division!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` returns **11.1**.
 
 :::drill sql A percentage
 What percent of all orders are `'cancelled'`? Show one number, rounded to one decimal, as `pct`.
@@ -572,7 +576,7 @@ SELECT ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1) AS pct FROM orders
 
 ### Dates
 
-SQLite has no real date type: dates are text in the ISO format `YYYY-MM-DD`, which sorts correctly as text (`'2026-01-03' < '2026-01-10'`). A format such as `10/1/2026` does not: as text, `'10/1/2026' < '3/1/2026'` is true. Store dates in ISO form, always. The SQLite functions are `date(x, '+7 days')`, `strftime(format, x)` and `julianday(x)`:
+SQLite has no real date type: dates are text in the ISO format `YYYY-MM-DD`, which sorts correctly as text (`'2026-01-03' < '2026-01-10'`). A format such as `10/1/2026` does not: as text, `'10/1/2026' < '3/1/2026'` is true. Store dates in ISO form, always. The SQLite functions are `date(x, '+7 days')`, `strftime(format, x)` and `julianday(x)` (converts a date to a day count so subtracting two dates gives the number of days between them):
 
 ```sql
 SELECT date(order_date, '+7 days') FROM orders;     -- 2026-01-03 becomes 2026-01-10
@@ -620,7 +624,7 @@ Two traps, both checked on SQLite, PostgreSQL and DuckDB. First, `'a' || NULL` i
 **One performance rule** that Module 1.3 explains with EXPLAIN: do not wrap an indexed column in a function inside `WHERE`. On a table with an index on `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` made SQLite **scan the whole table**, and the equivalent range `ts >= '2026-01-01' AND ts < '2026-02-01'` **searched the index**.
 :::
 
-> 🛠 **Try it (10 min, SQL Sandbox).** Solve the KopiKu challenges **k-16** (first name and name length), **k-17** (unknown cities) and **k-18** (cancellation rate) with the functions of this lesson. Note: SQLite treats a true comparison like `status = 'cancelled'` as `1` and false as `0`, so `SUM(status = 'cancelled')` counts cancelled rows (Lesson 8 shows portable `CASE WHEN`). Before you run k-18, predict the answer by hand, then try `SUM(status = 'cancelled') / COUNT(*)` without the `100.0` and see what integer division does.
+> 🛠 **Try it (10 min, SQL Sandbox).** Solve the KopiKu challenges **k-16** (first name and name length) and **k-18** (cancellation rate) with the functions of this lesson (save **k-17** for after Lesson 5 introduces `GROUP BY`). Note: SQLite treats a true comparison like `status = 'cancelled'` as `1` and false as `0`, so `SUM(status = 'cancelled')` counts cancelled rows (Lesson 8 shows portable `CASE WHEN`). Before you run k-18, predict the answer by hand, then try `SUM(status = 'cancelled') / COUNT(*)` without the `100.0` and see what integer division does.
 >
 > **You should see:** the sandbox says Correct for each challenge; the wrong attempt at k-18 shows `0`, the right one `11.1`.
 
@@ -789,13 +793,13 @@ The logical order is: `FROM` and `JOIN`, then `WHERE` (filter rows), `GROUP BY` 
 Beware integer division here too: write `100.0 * part / total` for percentages.
 
 > 💡 **Practice Pause 3 (Aggregation: GROUP BY & HAVING):**
-> Apply aggregation logic to three challenges in `labs/mod-0-3/answers.sql`:
+> Apply aggregation logic to two challenges in `labs/mod-0-3/answers.sql`:
 > 1. `-- k-2`: count orders per status (`GROUP BY status`, then `COUNT(*)`).
 > 2. `-- k-3`: compute each order's total value (`SUM(qty * unit_price_idr)` grouped by `order_id`).
-> 3. `-- k-7`: find customers with at least 2 delivered orders (`HAVING COUNT(*) >= 2`).
-> Test these three queries in your terminal:
+> (Optional extra sandbox challenge now that you know `GROUP BY`: **k-17**, unknown cities with `COALESCE`.)
+> Test these two queries in your terminal:
 > `python3 labs/mod-0-3/check.py`
-> When k-2, k-3, and k-7 PASS, you have mastered aggregation! Proceed to Lesson 6 on Joins.
+> When k-2 and k-3 PASS, you have mastered aggregation! Proceed to Lesson 6 on Joins (where you will also solve `-- k-7`, which combines `JOIN` with `HAVING`).
 
 ## @part Combining data
 
@@ -859,7 +863,7 @@ Show each customer's `name` and how many orders they have, as `orders`: customer
 @check
 /left\s+join/ ## Use LEFT JOIN, so customers without orders stay in the result.
 /group\s+by/ ## Group by the customer.
-/count\s*\(\s*o\./ ## Count a column of the orders table (COUNT(o.order_id)), not COUNT(*): COUNT(*) would count the empty row as 1.
+/count\s*\(\s*(?:[\w.]+\.)?(?:order_id|customer_id|order_date|status|payment_method|shipping_fee_idr)\s*\)/ ## Count a column of the orders table (COUNT(o.order_id)), not COUNT(*): COUNT(*) would count the empty row as 1.
 @hint
 `SELECT c.name, COUNT(o.order_id) AS orders FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id GROUP BY c.customer_id, c.name;`
 @solution
@@ -914,10 +918,10 @@ Habits to adopt: always know the grain of each table; after a join, check `COUNT
 :::ask Two tables are joined and the row count is larger than you can explain. What do you do?
 @options
 carry on: more rows just means more data
-* stop and find out why: a non-unique key repeats rows
+* find the cause: a key is repeating
 add DISTINCT so the repeats disappear
 @why
-A join on a key that is not unique on **both** sides multiplies rows (a many-to-many join even more). `DISTINCT` hides the symptom and can hide real repeated rows. Find the grain mismatch first.
+A join on a key that is not unique on **at least one** side multiplies rows (a many-to-many join even more). `DISTINCT` hides the symptom and can hide real repeated rows. Find the grain mismatch first.
 :::
 
 :::drill sql Sum without the fan-out
@@ -934,6 +938,15 @@ What is the total shipping fee of the orders whose status is `'paid'` or `'shipp
 @solution
 SELECT SUM(shipping_fee_idr) AS shipping_total FROM orders WHERE status IN ('paid', 'shipped');
 :::
+
+To combine three tables, chain two `JOIN` clauses one after the other, each `JOIN` connects to a table already in the query:
+
+```sql
+SELECT c.name, o.order_id, i.qty
+FROM customers c
+JOIN orders o ON o.customer_id = c.customer_id
+JOIN order_items i ON i.order_id = o.order_id;
+```
 
 :::drill sql Revenue per city
 For the `'delivered'` orders, show each city and the sum of `qty * unit_price_idr` of their lines, as `revenue`. A NULL city should show as `'Unknown'`. You need three tables.
@@ -955,10 +968,11 @@ SELECT COALESCE(c.city, 'Unknown') AS city, SUM(i.qty * i.unit_price_idr) AS rev
 > Solve the multi-table challenges in `labs/mod-0-3/answers.sql`:
 > 1. `-- k-5`: find customers who never placed an order (`LEFT JOIN orders` then `WHERE o.order_id IS NULL`).
 > 2. `-- k-6`: revenue per city for delivered orders, mapping NULL cities to 'Unknown' using `COALESCE(c.city, 'Unknown')`.
-> 3. `-- k-8`: compute total shipping fees without fan-out (sum over the `orders` table alone!).
+> 3. `-- k-7`: find repeat customers with at least 2 delivered orders (`JOIN customers` with `orders`, filter `WHERE o.status = 'delivered'`, group by customer, and filter with `HAVING COUNT(*) >= 2`).
+> 4. `-- k-8`: compute total shipping fees for delivered orders without fan-out (sum over the `orders` table alone!).
 > Test in your terminal:
 > `python3 labs/mod-0-3/check.py`
-> Verify that k-5, k-6, and k-8 PASS! Proceed to Lesson 7 below.
+> Verify that k-5, k-6, k-7, and k-8 PASS! Proceed to Lesson 7 below.
 
 ## @lesson More ways to combine data: self-joins, CROSS JOIN and set operations
 A join puts tables **side by side**: it adds columns. Three more tools complete the picture: a table joined to itself, every row paired with every row, and **stacking** results on top of each other.
@@ -976,7 +990,7 @@ JOIN products b ON a.roast = b.roast AND a.product_id < b.product_id;
 This returns 3 pairs: (1, 4) medium, (2, 5) dark and (3, 6) light. The `<` is what makes it correct: without it every product is paired with itself and every pair appears twice (12 rows instead of 3). Remember the NULL lesson: two NULLs are never equal, so rows with a NULL in the joined column match nothing.
 
 :::drill sql Pairs in the same tier
-Show pairs of customers who have the same `tier`: the two names as `customer_a` and `customer_b`. Each pair must appear **once**, and nobody is paired with themselves.
+Show pairs of customers who have the same `tier`: the two names as `customer_a` and `customer_b`. Put the customer with the smaller `customer_id` first (`customer_a`), so each pair appears **once** and nobody is paired with themselves.
 @data kopiku
 @names
 @starter
@@ -984,7 +998,7 @@ Show pairs of customers who have the same `tier`: the two names as `customer_a` 
 
 @check
 /join/ ## Join the customers table to itself (two aliases).
-/</ ## Use a.customer_id < b.customer_id so each pair appears once.
+/[<>]/ ## Use a.customer_id < b.customer_id (or b.customer_id > a.customer_id) so each pair appears once.
 @hint
 `FROM customers a JOIN customers b ON a.tier = b.tier AND a.customer_id < b.customer_id`
 @solution
@@ -994,6 +1008,14 @@ SELECT a.name AS customer_a, b.name AS customer_b FROM customers a JOIN customer
 ### CROSS JOIN: every combination
 
 A `CROSS JOIN` has no `ON`: every row of one side is paired with every row of the other. That is useful for building a **complete grid** of categories, so that combinations with no data still appear as 0 instead of silently vanishing (a chart with a missing bar is a lie of omission). Then `LEFT JOIN` the facts onto the grid and count a column of the *right* side (`COUNT(o.order_id)`, not `COUNT(*)`, which would count the empty row as 1).
+
+You can put a `SELECT` inside parentheses in `FROM`, called a **derived table** (a temporary query result given an alias like `t` or `p`), to cross-join distinct values:
+
+```sql
+SELECT t.tier, p.payment_method
+FROM (SELECT DISTINCT tier FROM customers) t
+CROSS JOIN (SELECT DISTINCT payment_method FROM orders) p;
+```
 
 :::drill sql Every combination
 Show every combination of a product `roast` and a customer `tier`: two columns `roast` and `tier`, each combination once. Use `CROSS JOIN` on the distinct values.
@@ -1023,6 +1045,16 @@ Set operations stack the results of two queries. Both queries must return the sa
 | `INTERSECT` | rows present in both | 2 (Gold, Silver) |
 | `EXCEPT` | rows of the first missing from the second | 1 (Bronze) |
 
+```sql
+SELECT tier FROM customers WHERE city = 'Jakarta'
+UNION
+SELECT tier FROM customers WHERE city = 'Bandung';   -- Gold, Bronze, Silver
+
+SELECT tier FROM customers WHERE city = 'Jakarta'
+EXCEPT
+SELECT tier FROM customers WHERE city = 'Bandung';   -- Bronze
+```
+
 :::ask Jakarta has the tiers Gold, Bronze and Silver; Bandung has Silver and Gold. Which operator keeps only the rows that exist in BOTH results?
 @options
 UNION
@@ -1033,7 +1065,7 @@ EXCEPT
 :::
 
 :::drill sql Cities of two groups
-Show the different cities of the `'Gold'` customers **and** of the `'Silver'` customers together, each city once (a single column `city`). Use `UNION`.
+Show the different cities of the `'Gold'` customers **and** of the `'Silver'` customers together, each city once (a single column `city`). An unknown city (`NULL`) may appear as one of the rows. Use `UNION`.
 @data kopiku
 @names
 @starter
@@ -1145,7 +1177,7 @@ SELECT name FROM products WHERE price_idr > (SELECT AVG(price_idr) FROM products
 
 ### A CTE: name an intermediate result
 
-A **CTE** (common table expression, `WITH name AS (...)`) names an intermediate result, so a long query reads from top to bottom like a recipe. Watch one built in two steps:
+A **CTE** (common table expression, `WITH name AS (...)`) names an intermediate result, so a long query reads from top to bottom like a recipe. Watch one built in three steps:
 
 :::sqlsteps A query as a recipe
 @data kopiku
@@ -1163,19 +1195,19 @@ WITH order_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total 
 Only the big orders are left.
 :::
 
-:::drill sql The three biggest lines
-Using a CTE named `line_totals` (one row per order with `SUM(qty * unit_price_idr)` as `order_total`), show the **three orders with the biggest total**: `order_id` and `order_total`, biggest first.
+:::drill sql The three biggest orders
+Using a CTE named `order_totals` (one row per order with `SUM(qty * unit_price_idr)` as `order_total`), show the **three orders with the biggest total**: `order_id` and `order_total`, biggest first.
 @data kopiku
 @ordered
 @starter
 -- write your query below this line
 
 @check
-/with\s+line_totals/ ## Start with WITH line_totals AS (...).
+/with\s+order_totals/ ## Start with WITH order_totals AS (...).
 @hint
-`WITH line_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM line_totals ORDER BY order_total DESC LIMIT 3;`
+`WITH order_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM order_totals ORDER BY order_total DESC LIMIT 3;`
 @solution
-WITH line_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM line_totals ORDER BY order_total DESC LIMIT 3;
+WITH order_totals AS (SELECT order_id, SUM(qty * unit_price_idr) AS order_total FROM order_items GROUP BY order_id) SELECT order_id, order_total FROM order_totals ORDER BY order_total DESC LIMIT 3;
 :::
 
 Prefer CTEs over deeply nested subqueries: they are easier to read, debug (select from each step on its own) and review. Style matters because other people will maintain your SQL. Put each clause on its own line, use clear aliases, keep keywords consistent in case, and add a comment that says *why* a filter exists ("exclude test accounts") rather than what it does.
@@ -1184,14 +1216,15 @@ Prefer CTEs over deeply nested subqueries: they are easier to read, debug (selec
 > Complete the final two queries in `labs/mod-0-3/answers.sql`:
 > 1. `-- k-9`: categorize orders into 'small', 'medium', and 'large' using a CTE (`WITH ... AS`) and `CASE WHEN`.
 > 2. `-- k-10`: compute the percentage share of each payment method using a scalar subquery `(SELECT COUNT(*) FROM orders)`.
-> Now test all 10 answers in your terminal:
+> Now test all 10 answers and generate your completion proof code in your terminal:
 > `python3 labs/mod-0-3/check.py`
-> If your score is **10/10 answers correct**, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 9 for DML & Transactions.
+> `python3 scripts/prove.py mod-0-3`
+> If your score is `10/10 answers correct`, your entire foundational analytical SQL mastery is proven! Proceed to Lesson 9 for DML & Transactions.
 
 ## @part Changing and defining tables
 
 ## @lesson Changing data safely: DML, constraints and transactions
-Besides reading, SQL **changes** data. Three statements do it, and each one asks for care.
+Besides reading, SQL **changes** data using **DML** (Data Manipulation Language). Three statements do it, and each one asks for care.
 
 ### INSERT, UPDATE, DELETE
 
@@ -1306,7 +1339,7 @@ An **index** is a separate lookup structure that makes finding rows by a column 
 
 > 🛠 **Try it (8 min, SQL Sandbox).** A transaction lets you try a change and take it back. Run these as two separate runs: (1) `BEGIN; DELETE FROM orders WHERE status = 'cancelled'; SELECT COUNT(*) FROM orders;` and then (2) `ROLLBACK; SELECT COUNT(*) FROM orders;`. Then practise the safe habit: write `SELECT COUNT(*) FROM orders WHERE status = 'cancelled'` first, and only afterwards the `DELETE` with the same `WHERE`.
 >
-> **You should see:** `16` after the delete inside the transaction and `18` after `ROLLBACK`; the check query before the delete says `2`. Without `BEGIN` the delete would stay until you press **Reset data**.
+> **You should see:** `16` after the delete inside the transaction and `18` after `ROLLBACK`; the check query before the delete says `2`. Without `BEGIN` the delete would stay until you press **Reset dataset**.
 
 ## @lesson Defining tables: DDL, types and views
 So far you read and changed rows. **DDL** (Data Definition Language) creates and changes the *structure*: `CREATE`, `ALTER` and `DROP`.
@@ -1327,7 +1360,7 @@ CREATE TABLE reviews (
 );
 ```
 
-We ran this kind of table and each constraint rejects a bad row: a `stars` of 9 fails with `CHECK constraint failed`, a missing `customer_id` with `NOT NULL constraint failed`, and a second review by the same customer of the same product with `UNIQUE constraint failed`. Choose types deliberately: whole numbers `INTEGER`, text `TEXT`, dates and times as real date types where the engine has them (ISO text in SQLite), and **money never as floating point**: in SQLite `0.1 + 0.2 = 0.3` is **false** (the sum is 0.30000000000000004). KopiKu stores rupiah as `INTEGER`.
+Here `REFERENCES customers (customer_id)` declares a foreign key pointing to `customers`, and `DEFAULT CURRENT_TIMESTAMP` fills in the current UTC date and time automatically when omitted. We ran this kind of table and each constraint rejects a bad row: a `stars` of 9 fails with `CHECK constraint failed`, a missing `customer_id` with `NOT NULL constraint failed`, and a second review by the same customer of the same product with `UNIQUE constraint failed`. Choose types deliberately: whole numbers `INTEGER`, text `TEXT`, dates and times as real date types where the engine has them (ISO text in SQLite), and **money never as floating point**: in SQLite `0.1 + 0.2 = 0.3` is **false** (the sum is 0.30000000000000004). KopiKu stores rupiah as `INTEGER`.
 
 :::drill sql Design a table
 Create a table `tags` with three columns: `tag_id` (INTEGER, the primary key), `label` (TEXT, NOT NULL) and `product_id` (INTEGER).
@@ -1375,7 +1408,7 @@ SELECT name, type FROM pragma_table_info('customers') ORDER BY cid
 ALTER TABLE customers ADD COLUMN email TEXT;
 :::
 
-Changes to a shared table should be written as small, ordered **migration scripts** kept in version control, run the same way in every environment, and preferably **backwards compatible** (adding a nullable column does not break existing queries; renaming one does). Module 3.2 returns to schema changes in streams.
+Changes to a shared table should be written as small, ordered **migration scripts** kept in version control, run the same way in every environment, and preferably **backwards compatible** (adding a **nullable** column, one that allows `NULL`, does not break existing queries; renaming one does). Module 3.2 returns to schema changes in streams.
 
 ### Views: a name for a query
 
@@ -1385,7 +1418,7 @@ A **view** gives a name to a query:
 CREATE VIEW v_gold AS SELECT * FROM customers WHERE tier = 'Gold';
 ```
 
-A view stores **the query, not the data**. We created `v_gold` when it matched 1 row, inserted another Gold customer, and the view immediately returned 2 rows.
+A view stores **the query, not the data**. We created `v_gold` when it matched 2 rows (Budi Santoso and Wulan Kusuma), inserted another Gold customer, and the view immediately returned 3 rows.
 
 :::drill sql Create a view
 Create a view `v_delivered` that shows the orders whose status is `'delivered'` (all columns).
@@ -1403,9 +1436,11 @@ SELECT order_id, status FROM v_delivered ORDER BY order_id
 CREATE VIEW v_delivered AS SELECT * FROM orders WHERE status = 'delivered';
 :::
 
+By contrast, `CREATE TABLE snap AS SELECT ...` (**CTAS**) copies the current query output into a new **snapshot table** that stays frozen when the source table changes. PostgreSQL and cloud warehouses also offer **materialized views**: saved query results stored on disk for speed, which become stale until you explicitly refresh them.
+
 :::ask A view and a snapshot table (CREATE TABLE snap AS SELECT ...) were both made when a source table had 5 rows. Then one more row is inserted into the source. What do they show?
 @options
-* the view shows 6 rows, the snapshot still 5
+* view shows 6 rows, snapshot still 5
 both the view and the snapshot show 6 rows
 both the view and the snapshot show 5 rows
 @why
@@ -1424,12 +1459,13 @@ With Level 0 complete, you know Python basics, the terminal, Git, data cleaning 
 You are the new data engineer and the founder has ten questions. Answer them in SQL against the KopiKu miniature dataset: a customer table with NULL cities, orders with cancellations and refunds, and a shipping fee that tempts you into a fan-out bug.
 
 ### @steps
-1. Choose where to work. **In the browser (recommended):** open the SQL Sandbox from the app, select the KopiKu dataset and pick a challenge; the sandbox runs your query and tells you whether the result matches. **Locally:** use the files below with Python's built-in SQLite, no installation needed.
-2. For the local route, open `labs/mod-0-3/answers.sql`. Under each `-- k-N` marker, write one query. Do not remove the markers.
-3. Check your work any time with the checker, which compares your result sets with the reference results:
+1. Prototype freely, verify locally. You can prototype and test any query in the browser **SQL Sandbox** (open SQL Sandbox, select the KopiKu dataset, and pick a challenge). To finish the module and generate your completion proof code, save all 10 answers in `labs/mod-0-3/answers.sql` and run the local checker with Python's built-in SQLite (no installation needed).
+2. Open `labs/mod-0-3/answers.sql`. Under each `-- k-N` marker, write one query. Do not remove the markers.
+3. Check your work any time with the checker, which compares your result sets with the reference results, and generate your completion proof code once all 10 pass:
 
 ```bash
 python3 labs/mod-0-3/check.py
+python3 scripts/prove.py mod-0-3
 ```
 
 4. Do the questions in order; they get harder. Questions 4, 6 and 8 are the traps from the lessons (NULL, NULL-to-Unknown with a join, and fan-out). When a question fails, read the checker's message: it tells you whether the column count, row count, or values differ.
@@ -1443,24 +1479,25 @@ python3 labs/mod-0-3/check.py
 - labs/mod-0-3/reference/answers.sql :: Reference answers (try first!) :: reference
 
 ### @deliverables
-- All ten answers pass, in the sandbox or with `check.py`
+- All ten answers in `labs/mod-0-3/answers.sql` pass `python3 labs/mod-0-3/check.py` (and `python3 scripts/prove.py mod-0-3` generates your completion proof code)
 - For questions 4 and 8 you can explain in one sentence why the "obvious" query gives a wrong number
 - You can state the grain of each of the four tables
 
 ### @verify
-In the sandbox, use the "Check my answer" button on each challenge. Locally:
+You can prototype queries in the browser **SQL Sandbox** ("Check my answer"), then save all 10 answers in `labs/mod-0-3/answers.sql` and verify locally to generate your completion proof code:
 
 ```bash
 python3 labs/mod-0-3/check.py
+python3 scripts/prove.py mod-0-3
 ```
 
-It prints PASS, FAIL (with the reason) or TODO per question and a total. To see what a fully correct run looks like: `python3 labs/mod-0-3/check.py reference`.
+`check.py` prints PASS, FAIL (with the reason) or TODO per question and a total. To see what a fully correct run looks like: `python3 labs/mod-0-3/check.py reference`.
 
 ## @chaos The shipping income that was 49% too high
 ### @scenario
-The finance team asks why the dashboard says KopiKu earned Rp 350,000 in shipping fees on delivered orders in January, while the payment provider's report says Rp 235,000. The dashboard query was written months ago and has run every day without any error. Nobody has changed it. The analyst who wrote it has left.
+The finance team asks why the dashboard says KopiKu earned Rp 350,000 in shipping fees across all delivered orders in January, while the payment provider's report says Rp 235,000. The dashboard query was written months ago and has run every day without any error. Nobody has changed it. The analyst who wrote it has left.
 
-The query joins `orders` to `order_items` because a filter on product was added last quarter ("only count orders that contain Gayo beans"), and sums `shipping_fee_idr` across the joined rows.
+The query joins `orders` to `order_items` so one dashboard query can compute both product revenue (`SUM(qty * unit_price_idr)`) and shipping fees (`SUM(shipping_fee_idr)`) across all delivered orders.
 
 ### @cause
 `shipping_fee_idr` is stored once per **order**, but after joining to `order_items` there is one row per order **line**. An order with three lines has its fee counted three times. The result is wrong exactly in proportion to how many multi-line orders there are, so it looked plausible and drifted over time as customers started buying more products per order.
@@ -1468,8 +1505,8 @@ The query joins `orders` to `order_items` because a filter on product was added 
 No error is raised because SQL has no way to know the sum is meant to be per order: the query is valid, only its meaning is wrong.
 
 ### @fix
-1. Decide the grain you want: shipping fee per order. Aggregate or filter at that grain: use `WHERE EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.order_id AND i.product_id = 1)` instead of joining, so each order stays one row.
-2. Alternatively compute the finer-grain table first in a CTE (distinct orders containing the product) and join *that* to `orders`.
+1. Decide the grain you want: shipping fee per order. Sum `shipping_fee_idr` from `orders` alone (without joining `order_items`). If you also need to filter orders by a product they contain (for example, orders containing Gayo beans, `product_id = 1`), use `WHERE EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.order_id AND i.product_id = 1)` instead of joining: `EXISTS` checks whether at least one matching row exists in the subquery without multiplying the outer `orders` rows.
+2. Alternatively, if you need both product revenue and shipping fees in one query, aggregate the finer-grain `order_items` table first in a CTE (one row per `order_id`, or distinct `order_id`s containing a product) and join *that* to `orders`.
 3. Add a reconciliation test: the dashboard's shipping total must equal `SELECT SUM(shipping_fee_idr) FROM orders WHERE ...` and ideally match the payment provider's report within a tolerance.
 4. Add a row-count check after joins in anything that sums per-order values.
 

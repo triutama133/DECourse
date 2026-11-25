@@ -13,7 +13,7 @@ why: Banyak tutorial pemula menghitung metrik event berdasarkan waktu saat serve
 - Membangun job Spark Structured Streaming yang membaca data dari Apache Kafka, serta membandingkan arsitektur micro-batch Spark dengan arsitektur record-at-a-time Apache Flink
 
 ## @prereq
-Modul 3.1 (dasar Apache Spark) dan Modul 3.2 (Kafka, offsets, jaminan at-least-once). Bagian A dari lab praktikum ini menggunakan Python murni tanpa dependensi eksternal; Bagian B membutuhkan runtime Java 17+ serta instalasi dependensi via `pip install -r labs/mod-3-3/requirements.txt`.
+Modul 3.1 (dasar Apache Spark) dan Modul 3.2 (Kafka, offsets, jaminan at-least-once). Bagian A dari lab praktikum ini menggunakan Python murni (dengan `pytest` untuk menjalankan pengujian); Bagian B membutuhkan runtime Java 17+ serta instalasi dependensi via `pip install -r labs/mod-3-3/requirements.txt`.
 
 ## @part Waktu dan window
 
@@ -36,10 +36,10 @@ Prinsip penting arsitektur: jika sebuah keputusan bisnis masih dapat menunggu la
 :::ask Setelah gangguan, sebuah pipeline mengejar dan memproses enam jam event dalam lima menit. Jika dikelompokkan menurut processing time, apa yang ditampilkan grafik per menit?
 @options
 garis datar, karena event tersebar merata
-* satu lonjakan: event lama dihitung sebagai sekarang
+* satu lonjakan besar: event lama masuk sekarang
 tidak ada, karena event terlambat dibuang
 @why
-Processing time adalah saat sistemmu melihat event, bukan saat terjadinya. Mengelompokkan dengannya mengubah backlog menjadi lonjakan palsu. Event time menaruh setiap event di menit tempatnya yang sebenarnya.
+Processing time adalah saat sistem Anda melihat event, bukan saat terjadinya. Mengelompokkan dengannya mengubah backlog menjadi lonjakan palsu. Event time menaruh setiap event di menit tempatnya yang sebenarnya.
 :::
 
 ## @lesson Windowing (jendela waktu)
@@ -65,7 +65,7 @@ Pada Bagian A lab praktikum, Anda akan mengimplementasikan fungsi `window_starts
 :::drill python Window mana yang memuat event ini?
 Tulis `window_starts(ts, size, slide)`: `ts`, `size`, dan `slide` adalah bilangan bulat detik. Sebuah window mulai di setiap kelipatan `slide` dan berlangsung `size` detik, `[start, start + size)`. Kembalikan daftar terurut awal semua window yang memuat `ts`. Saat `size == slide` (tumbling) hasilnya tepat satu window.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("window_starts") ## Definisikan window_starts(ts, size, slide).
@@ -85,13 +85,13 @@ def window_starts(ts, size, slide):
     return sorted(starts)
 :::
 
-:::ask Window geser 5 menit maju 1 menit tiap langkah. Dalam berapa window satu event dihitung?
+:::ask Sliding window 5 menit maju 1 menit tiap langkah. Dalam berapa window satu event dihitung?
 @options
 1: setiap event punya tepat satu waktu
 60: satu untuk tiap detik dari window
 * 5: ukuran dibagi langkah geser
 @why
-Tiap event masuk ke size / slide window geser, di sini 300 / 60 = 5. Window tumbling adalah kasus khusus ketika size sama dengan slide, sehingga tiap event masuk tepat satu window.
+Tiap event masuk ke size / slide sliding window, di sini 300 / 60 = 5. Window tumbling adalah kasus khusus ketika size sama dengan slide, sehingga tiap event masuk tepat satu window.
 :::
 
 ## @lesson Watermarks: kapan sebuah window dinyatakan selesai?
@@ -120,7 +120,7 @@ Kaidah operasional yang wajib dipatuhi oleh model streaming Anda:
 
 1. **Watermark dihitung dari data batch sebelumnya.** Event-event pada batch yang sedang berjalan hanya akan memajukan posisi watermark untuk evaluasi *batch berikutnya*.
 2. **Window dipancarkan di akhir batch pertama yang posisi watermark awalnya telah mencapai atau melampaui batas akhir window tersebut**, lalu state window tersebut langsung dihapus dari memori.
-3. **Data terlambat (late) TIDAK selalu dibuang (dropped).** Event yang timestamp-nya tertinggal di belakang watermark tetap dihitung *selama window penampungnya belum dipancarkan dan belum diev документов*. Hanya event yang seluruh window penampungnya **sudah dipancarkan dan dihapus** yang akan **dibuang (dropped)**.
+3. **Data terlambat (late) TIDAK selalu dibuang (dropped).** Event yang timestamp-nya tertinggal di belakang watermark tetap dihitung *selama window penampungnya belum dipancarkan dan belum dieviksi (dihapus dari state)*. Hanya event yang seluruh window penampungnya **sudah dipancarkan dan dihapus** yang akan **dibuang (dropped)**.
 4. Nilai watermark **pantang bergerak mundur (monotonik naik)**.
 5. Eksekusi sebuah **batch kosong tambahan (empty batch)** di akhir proses berfungsi memajukan watermark untuk menutup dan memancarkan window-window terakhir yang menggantung saat aliran data berhenti. (Aliran data yang mendadak sunyi akan menahan window terakhirnya tanpa dipancarkan; untuk stream bervolume rendah, kirimkan sinyal event heartbeat buatan secara berkala).
 
@@ -135,7 +135,7 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 
 ### Lihat sendiri: watermark menentukan apa yang terlalu terlambat
 
-`watermark = waktu event terbaru yang sudah terlihat, dikurangi keterlambatan yang diizinkan`. Event yang lebih lama dari watermark terlambat. Perhatikan ia bergerak (keterlambatan yang diizinkan 5):
+`watermark = waktu event terbaru yang sudah terlihat, dikurangi delay watermark` (sering disebut *allowed lateness* dalam contoh sederhana; perhatikan bahwa delay `withWatermark` di Spark mengendalikan kapan window ditutup dan datanya dibuang, sedangkan Apache Flink memiliki pengaturan *allowed lateness* terpisah untuk memperbarui window yang sudah dipancarkan, yang dibahas di Pelajaran 4). Event yang lebih lama dari watermark dianggap terlambat. Perhatikan ia bergerak (batas keterlambatan 5):
 
 :::trace Watermark bergerak, event terlambat dialihkan
 @code
@@ -160,9 +160,9 @@ print(accepted, late)
 
 :::ask Watermark bernilai 15 dan event dengan waktu 11 tiba. Apa yang harus dilakukan sistem?
 @options
-* perlakukan sebagai terlambat: side output atau hitung
-terima dan mundurkan watermark ke 11
-hentikan seluruh stream sampai diperbaiki
+* anggap terlambat (buang atau side output)
+terima dan mundurkan watermark kembali ke 11
+hentikan seluruh stream sampai masalah beres
 @why
 Watermark tidak pernah mundur, dan event di belakangnya **terlambat**. Window miliknya mungkin sudah dikeluarkan, jadi sistem memperbaruinya dengan sengaja (allowed lateness) atau mengirim event ke side output untuk diperiksa.
 :::
@@ -178,7 +178,7 @@ is_late(11, 15) is True ## 11 lebih lama dari 15: terlambat.
 is_late(15, 15) is False ## Tepat di watermark tidak terlambat.
 is_late(20, 15) is False ## Lebih baru dari watermark: tidak terlambat.
 @hint
-`return event_time < watermark`
+Bandingkan timestamp event terhadap watermark menggunakan perbandingan kurang-dari ketat, karena event yang tiba tepat di posisi watermark tidak dianggap terlambat.
 @solution
 def is_late(event_time, watermark):
     return event_time < watermark
@@ -195,7 +195,7 @@ advance(0, 20, 5) == 15 ## 20 - 5 = 15 lebih besar dari 0.
 advance(15, 11, 5) == 15 ## Event lama (11 - 5 = 6) tidak boleh memundurkan watermark.
 advance(10, 10, 0) == 10 ## Tanpa keterlambatan yang diizinkan watermark mengikuti event terbaru.
 @hint
-`return max(watermark, event_time - allowed_lateness)`
+Hitung kandidat watermark baru dengan mengurangi waktu event dengan toleransi keterlambatan, lalu ambil nilai terbesar antara kandidat tersebut dan watermark saat ini agar tidak pernah mundur.
 @solution
 def advance(watermark, event_time, allowed_lateness):
     return max(watermark, event_time - allowed_lateness)
@@ -242,8 +242,8 @@ Tanpa pemenuhan syarat ketiga, Anda hanya memiliki jaminan at-least-once dengan 
 
 :::ask Sebuah agregasi streaming per window berjalan tanpa watermark. Apa yang terjadi pada state-nya selama berbulan-bulan?
 @options
-* tumbuh terus: event masih bisa datang kapan saja
-menyusut, karena window lama menutup sendiri
+* tumbuh terus: event masih bisa tetap datang
+menyusut, karena window lama otomatis tertutup
 tetap sama, karena state tersimpan di disk
 @why
 Watermark adalah yang memberi tahu Spark bahwa sebuah window tidak akan menerima event lagi, sehingga state-nya bisa dihapus. Tanpanya setiap window harus disimpan, sampai job kehabisan memori.
@@ -265,7 +265,7 @@ Watermark adalah yang memberi tahu Spark bahwa sebuah window tidak akan menerima
 
 Pilihlah berdasarkan toleransi latensi bisnis dan kompetensi teknis tim. Untuk mayoritas kebutuhan analitik di mana latensi data "dalam kurun waktu 1 menit" sudah memuaskan dan tim telah menguasai Spark, Structured Streaming adalah pilihan yang sangat pragmatis; sedangkan untuk kebutuhan deteksi kecurangan transaksi finansial berlatensi milidetik atau alur logika berbasis timer yang kompleks, Apache Flink adalah spesialis tak tertandingi. Pustaka *Kafka Streams* menjadi alternatif ringan ketiga jika Anda ingin memproses stream langsung di dalam microservice JVM tanpa perlu mengelola klaster komputasi terpisah.
 
-**Membaca Data dari Apache Kafka menggunakan Structured Streaming:**
+**Membaca Data dari Apache Kafka menggunakan Structured Streaming** (terverifikasi pada broker nyata; tambahkan konektor Kafka yang sesuai dengan versi Spark dan Scala Anda, misalnya `--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0`):
 
 ```python
 schema = StructType([
@@ -321,13 +321,13 @@ Job streaming adalah layanan komputasi jangka panjang yang tidak pernah berhenti
 
 > 🛠 **Coba sendiri (10 menit, Python).** Sebuah job menerima 100 event per detik tetapi hanya mampu memproses 80. Simulasikan 600 detik, dengan `lag += arrived - processed` setiap detik, dan cetak lag-nya. Lalu turunkan input menjadi 50 per detik dan hitung berapa detik lagi sampai lag-nya mencapai nol (pemrosesan tetap 80, dan lag tidak bisa di bawah 0).
 >
-> **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Tidak ada yang perlu dibangunkan untuk job yang gagal, tetapi job yang sekadar lebih lambat dari inputnya adalah kegagalan yang tumbuh diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
+> **Seharusnya Anda melihat:** lag `12000` event setelah 10 menit, dan `400` detik untuk mengejar setelah input turun menjadi 50 per detik (12.000 dibagi sisa kapasitas 30 per detik). Job yang crash langsung membangunkan seseorang lewat alarm, sedangkan job yang sekadar lebih lambat dari inputnya gagal secara diam-diam; itulah sebabnya lag adalah metrik pertama yang dipasangi peringatan.
 
 :::ask Laju input sebuah job streaming adalah 10.000 event per detik tetapi hanya memproses 8.000. Apa yang terjadi jika tidak ada yang bertindak?
 @options
 job memperlambat input agar sesuai dirinya
 Kafka langsung menghapus event yang berlebih
-* lag tumbuh tanpa batas sampai kamu men-scale
+* lag tumbuh tanpa batas sampai Anda men-scale
 @why
 Setiap detik backlog bertambah 2.000 event. Kafka menyimpan rekamannya, jadi awalnya tidak ada yang hilang, tetapi hasil makin tertinggal dari waktu nyata. Pantau lag dan durasi batch serta tambah kapasitas sebelum jadi masalah.
 :::
@@ -402,6 +402,8 @@ python -m pip install -r labs/mod-3-3/requirements.txt
 pytest labs/mod-3-3 -v         # seluruh pengujian akan gagal pada awalnya
 ```
 
+> **Sudah menyelesaikan Jeda Praktik 1–3?** Jika Anda sudah menyelesaikan `windows.py` dan `stream_job.py` selama pelajaran di atas, lewati Langkah 2–5 di bawah ini dan langsung menuju Langkah 6 (eksplorasi mandiri) serta Jeda Praktik 5.
+
 2. **Bagian A: Model Python Murni.** Buka `labs/mod-3-3/windows.py`. Implementasikan fungsi `window_starts`, kemudian kelas agregator `WindowedAggregator` mengikuti spesifikasi pada docstring. Jalankan pengujian `pytest labs/mod-3-3/test_windows.py -v`. Jadikan tabel kronologi batch pada materi modul sebagai panduan utama; saat ada test yang gagal, petakan posisi watermark dan status open windows pada setiap akhir batch.
 3. Cermati secara mendalam tiga skenario pengujian data terlambat: skenario data terlambat yang tetap dihitung (karena window masih terbuka), skenario data terlambat yang dibuang (karena window telah dipancarkan), dan skenario event purba yang tidak boleh membangun ulang window lama.
 
@@ -414,15 +416,15 @@ pytest labs/mod-3-3 -v         # seluruh pengujian akan gagal pada awalnya
 
 4. **Bagian B: Job Structured Streaming Nyata.** Buka file `labs/mod-3-3/stream_job.py`. Fungsi pembantu `write_batch_file` telah disediakan (perhatikan bahwa fungsi ini menyetel modification time file secara berurutan agar Spark membacanya dalam urutan kronologis yang konsisten). Implementasikan fungsi `run_available_now` mengikuti panduan pada docstring.
 5. Jalankan suite pengujian `pytest labs/mod-3-3/test_stream.py -v` (membutuhkan waktu sekitar 20 detik). Pengujian pertama adalah inti pembuktian modul ini: untuk lima batch data yang sama persis, window yang dipancarkan oleh Spark identik dengan hasil perhitungan model Python Anda.
-6. Lakukan eksplorasi mandiri: hilangkan deklarasi `withWatermark` dan amati bagaimana Spark menolak mode penulisan append; ubah nilai watermark delay menjadi 0 dan 10 menit lalu prediksi window apa saja yang akan dipancarkan oleh model sebelum Anda mengeksekusi Spark; cetak metrik `query.recentProgress` untuk mengamati metrik watermark dan jumlah baris state per batch.
+6. Lakukan eksplorasi mandiri: hilangkan deklarasi `withWatermark` dan amati bagaimana Spark menolak mode penulisan `append` dengan `AnalysisException` (dan jika Anda beralih ke mode `update`, amati state yang terus membengkak); ubah nilai watermark delay menjadi 0 dan 10 menit lalu prediksi window apa saja yang akan dipancarkan oleh model sebelum Anda mengeksekusi Spark; cetak metrik `query.recentProgress` untuk mengamati metrik watermark dan jumlah baris state per batch.
 7. Eksplorasi opsional: nyalakan broker Kafka lokal (`docker compose up -d redpanda`), publikasikan event JSON menggunakan producer dari Modul 3.2, dan jalankan pipeline Kafka Structured Streaming seperti yang dicontohkan pada materi pelajaran.
 
 > 💡 **Jeda Praktik 5 (Verifikasi Lengkap & Bukti Kode):**
-> 1. Di terminal, jalankan seluruh uji yang relevan:
->    `pytest labs/mod-3-3/test_windows.py -v`
+> 1. Di terminal, jalankan kedua rangkaian uji (Bagian A dan Bagian B):
+>    `pytest labs/mod-3-3/test_windows.py -v && pytest labs/mod-3-3/test_stream.py -v`
 > 2. Hasilkan token bukti verifikasi:
 >    `python3 scripts/prove.py mod-3-3`
-> 3. **Indikator Sukses:** Seluruh pengujian lulus dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
+> 3. **Indikator Sukses:** Seluruh 10 pengujian di `test_windows.py` dan 5 pengujian di `test_stream.py` berstatus `PASSED`, dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-3-3/windows.py :: File kerja Bagian A: implementasi windowing dan model simulasi watermark :: starter
@@ -453,7 +455,7 @@ Sebuah pipeline deteksi fraud realtime menghitung akumulasi transaksi per rekeni
 Dalam beberapa jam berikutnya, ukuran state store memori job melonjak drastis dari beberapa ratus megabyte menjadi puluhan gigabyte, durasi eksekusi micro-batch membengkak, para executor JVM dimatikan paksa oleh cluster manager karena melampaui batas alokasi RAM (`OOMKilled`), dan job terjebak dalam siklus restart tanpa henti (crash loop) karena saat menyala ia gagal memuat kembali snapshot state raksasa dari folder checkpoint.
 
 ### @cause
-Tanpa adanya konfigurasi watermark, engine Spark tidak pernah memiliki dasar acuan untuk mengetahui kapan sebuah jendela waktu dapat dinyatakan selesai dan final. Akibatnya, Spark terpaksa mempertahankan seluruh state window historis yang pernah ada di memori selamanya, karena berasumsi event masa lalu bisa tiba kapan saja. Pada kondisi operasional normal, pertambahan data historis berjalan perlahan sehingga kebocoran memori ini tidak terdeteksi; namun banjir data backlog 2 hari sekaligus secara instan menciptakan puluhan ribu window masa lalu baru untuk setiap nasabah, dan tidak ada satu pun window yang dapat dievakuasi atau dihapus dari memori. Pengukuran lab modul ini membuktikan: job tanpa watermark menumbuhkan state secara linier hingga 1.187 baris dalam 120 batch, berbanding lurus dengan stabilitas 40 baris konstan pada job yang menggunakan watermark.
+Tanpa adanya konfigurasi watermark, engine Spark tidak pernah memiliki dasar acuan untuk mengetahui kapan sebuah jendela waktu dapat dinyatakan selesai dan final. Akibatnya, Spark terpaksa mempertahankan seluruh state window historis yang pernah ada di memori selamanya, karena berasumsi event masa lalu bisa tiba kapan saja. Pada kondisi operasional normal, pertambahan data historis berjalan perlahan sehingga kebocoran memori ini tidak terdeteksi; namun banjir data backlog 2 hari sekaligus secara instan menciptakan puluhan ribu window masa lalu baru untuk setiap nasabah, dan tidak ada satu pun window yang dapat dievakuasi atau dihapus dari memori. Pengukuran lab modul ini membuktikan: job tanpa watermark menumbuhkan state secara linier hingga 1.187 baris dalam 120 batch, dibandingkan dengan stabilitas 40 baris konstan pada job yang menggunakan watermark.
 
 Faktor pendukung kegagalan: dashboard pemantauan hanya menampilkan metrik throughput pesan per detik dan tidak memantau metrik ukuran memori state store maupun watermark delay, sehingga tim engineer tidak pernah menerima peringatan dini sebelum insiden meledak.
 

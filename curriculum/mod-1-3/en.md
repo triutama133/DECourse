@@ -14,7 +14,7 @@ why: Tutorials test SELECT and WHERE on a few rows. In production a query that r
 - Translate a query between SQLite, PostgreSQL, DuckDB and the cloud warehouses, and recognise the dialect differences that silently change an answer
 
 ## @prereq
-Module 0.3 (joins, GROUP BY, NULL, CTEs). Part A of the lab runs in your browser or with Python's built-in SQLite; Part B uses PostgreSQL (an embedded copy is installed by `pip`, so Docker is optional).
+Module 0.3 (joins, GROUP BY, NULL, CTEs). You can prototype Part A in the browser SQL Sandbox; to complete the module and generate a proof code, save all 10 Part A queries in `labs/mod-1-3/answers.sql` (checked with Python's built-in SQLite), complete Part B in PostgreSQL (an embedded copy is installed by `pip`, so Docker is optional), and run `python3 scripts/prove.py mod-1-3`.
 
 ## @part Window functions and recursion
 
@@ -47,6 +47,7 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 | 90,000 | 4 | 4 | 2 |
 | 90,000 | 5 | 4 | 2 |
 | 95,000 | 6 | 6 | 3 |
+| 95,000 | 7 | 6 | 3 |
 
 - `ROW_NUMBER()` gives every row a unique number, breaking ties arbitrarily unless your `ORDER BY` is unique. Add a tiebreaker (`ORDER BY order_total, order_id`) so results are deterministic.
 - `RANK()` gives ties the same rank and then **skips** (1, 1, 1, 4).
@@ -221,7 +222,7 @@ For **every** store, show `store`, `day` and the average revenue of the current 
 -- write your query below this line
 
 @check
-/partition\s+by\s+store/ ## Keep the stores apart: PARTITION BY store.
+/partition\s+by\s+(?:\w+\.)?store/ ## Keep the stores apart: PARTITION BY store.
 /rows\s+between\s+2\s+preceding/ ## Use ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.
 @hint
 `AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d`
@@ -232,7 +233,7 @@ SELECT store, day, AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWE
 > 💡 **Practice Pause 2 (Frames & Moving Averages):**
 > Master row frame specifications for cumulative sums and rolling averages:
 > 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve 2 frame challenges:
->    - `w-1`: Running total of customer spend ordered by date (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id)`).
+>    - `w-1`: Running total of customer spend ordered by date (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`).
 >    - `w-6`: 7-day moving average per store (`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`).
 > 2. Test in the terminal:
 > `python3 labs/mod-1-3/check.py`
@@ -251,7 +252,7 @@ FROM orders;
 
 (`julianday` is SQLite; in PostgreSQL you subtract dates directly: `order_date - LAG(order_date) OVER (...)`.) `FIRST_VALUE` and `LAST_VALUE` return the first or last row of the frame.
 
-**The latest-record-per-key pattern** is the most useful window trick in data engineering. Whenever a table holds several versions of the same entity (many address changes per customer, repeated events, CDC rows), keep one:
+**The latest-record-per-key pattern** is the most useful window trick in data engineering. Whenever a table holds several versions of the same entity (many address changes per customer, repeated events, CDC, Change Data Capture, rows from database change logs), keep one:
 
 ```sql
 WITH ranked AS (
@@ -278,7 +279,7 @@ The first day has no row before it, so `yesterday` is NULL.
 @stage 3. Subtract: the change since yesterday
 SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day
 @say
-NULL minus a number is NULL, so the first row's change is NULL too: a missing comparison, not a zero.
+A number minus NULL is NULL, so the first row's change is NULL too: a missing comparison, not a zero.
 :::
 
 :::drill sql Change since the day before
@@ -299,7 +300,7 @@ SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM d
 :::ask Can you write `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` directly?
 @options
 yes, it is the standard way to filter
-* no: windows run after WHERE, so use a CTE
+* no: WHERE runs first, so use a CTE
 only in SQLite, other engines refuse it
 @why
 `WHERE` runs before window functions exist. So the portable pattern is two steps: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery and DuckDB have the shortcut `QUALIFY`; PostgreSQL and SQLite do not.
@@ -316,7 +317,7 @@ Show, for each `roast`, the single cheapest product: `roast` and `name`. Use `RO
 /row_number\s*\(/ ## Use ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr).
 /with\s/ ## Compute the number in a CTE (WITH ...), then filter outside.
 @hint
-`WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;`
+Compute `ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn` inside a CTE over `products`, then select `roast` and `name` from that CTE `WHERE rn = 1`.
 @solution
 WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;
 :::
@@ -324,7 +325,7 @@ WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER 
 > 💡 **Practice Pause 3 (Looking Sideways & De-duplication):**
 > Retrieve the latest records and measure gaps between events:
 > 1. In `labs/mod-1-3/answers.sql` (or SQL Sandbox), solve the following challenges:
->    - `w-2`: Select each customer's latest order using `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC)` filtered to rank 1 in a CTE.
+>    - `w-2`: Select each customer's latest order using `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC)` (using `order_id DESC` as a tiebreaker) filtered to rank 1 in a CTE.
 >    - `w-3`: Compute the day gap since the customer's previous order using `LAG(order_date)` and `julianday` subtraction.
 > 2. Test in the terminal:
 > `python3 labs/mod-1-3/check.py`
@@ -363,9 +364,9 @@ SELECT user_id, event_time,
 FROM flagged;
 ```
 
-The shape is always the same: **flag the boundary, then cumulative-sum the flags to get a group id.** It reappears in event processing (Module 3.3) and in slowly changing dimensions (Module 1.4).
+(`ROWS UNBOUNDED PRECEDING` is shorthand for `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.) The shape is always the same: **flag the boundary, then cumulative-sum the flags to get a group id.** It reappears in event processing (Module 3.3) and in slowly changing dimensions (Module 1.4).
 
-### See it: flag the boundary, then count the flags
+### See it: date minus row number
 
 For user 1 (logins on March 1, 2, 3 and 5, 6, 7, 8) the island trick turns every streak into a constant:
 
@@ -411,7 +412,7 @@ For every login, show `user_id`, `login_date` and `starts`: `1` when this login 
 /lag\s*\(/ ## Use LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) to see the previous login.
 /case/ ## Use CASE WHEN ... THEN 1 ELSE 0 END.
 @hint
-`CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts`
+Use `LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)` for the previous day. In a `CASE` expression, return `1` when the previous date `IS NULL` or the `julianday()` gap is `> 1`, else `0`.
 @solution
 SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins;
 :::
@@ -510,7 +511,7 @@ The result is the union of all rounds: 12 rows. The query stops when a round fin
 :::ask In the data, category A's parent is B and B's parent is A. What does an unprotected `WITH RECURSIVE` do?
 @options
 returns the first two rows and stops
-* never ends: it keeps finding rows, so add a depth limit
+* loops forever without a depth limit
 raises an error at once about the cycle
 @why
 A cycle means every round produces new rows forever. Always bound the recursion: a depth condition in the recursive part (and `CYCLE` detection in PostgreSQL).
@@ -525,9 +526,9 @@ Generate every day from `'2026-02-01'` to `'2026-02-07'` (inclusive) with a recu
 
 @check
 /with\s+recursive/ ## Use WITH RECURSIVE.
-/date\s*\(\s*d/ ## The step adds a day: date(d, '+1 day').
+/date\s*\(/ ## The step adds a day using date(...).
 @hint
-`WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;`
+Start `WITH RECURSIVE days(d) AS (...)` with an anchor selecting `date('2026-02-01')`, `UNION ALL` a recursive step advancing by `'+1 day'` while `d < '2026-02-07'`, then select `d`.
 @solution
 WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;
 :::
@@ -542,7 +543,7 @@ Show how many categories sit **below** `Gear` (id 3) at any depth, as `descendan
 @check
 /with\s+recursive/ ## Use WITH RECURSIVE.
 @hint
-`WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;`
+Anchor the recursive CTE at `categories WHERE id = 3`, join children via `c.parent_id = sub.id` in the recursive step, then subtract 1 from `COUNT(*)` so Gear itself is not counted.
 @solution
 WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;
 :::
@@ -571,7 +572,7 @@ Gather  (cost=1000.00..7776.17 rows=50 width=35) (actual time=0.748..21.027 rows
 Execution Time: 21.043 ms
 ```
 
-Read it from the **innermost, most indented** node outward. `Seq Scan` reads the whole table (4,167 pages here) and throws away 166,653 rows per worker to keep 13: a lot of work for 40 result rows. Add the right index and the same kind of query becomes:
+Read it from the **innermost, most indented** node outward. PostgreSQL stores tables in fixed 8 kB **pages** (blocks), and `Buffers:` reports how many pages were served from RAM cache (`shared hit`) versus fetched from disk (`read`). `Seq Scan` reads the whole table (4,167 pages here) and throws away 166,653 rows per worker to keep 13: a lot of work for 40 result rows. Add the right index and the same kind of query becomes:
 
 ```text
 Limit  (cost=0.42..41.40 rows=10 width=35) (actual time=0.028..0.036 rows=10 loops=1)
@@ -592,7 +593,14 @@ Thirteen pages instead of 4,167, and 0.045 ms instead of 21 ms: nearly 500 times
 
 > **Tip:** Test on realistic volumes. On 1,000 rows every plan is fast and tells you nothing. Generate data at production scale (the lab does) before you judge a query.
 
-> 🛠 **Try it (12 min, Python and SQLite).** Load `data/orders.csv` into SQLite (reuse your script from Module 0.2). For each query print `EXPLAIN QUERY PLAN` (last column): (1) `WHERE customer_id = '479'`; (2) the same after `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` with the index in place; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` before and after `CREATE INDEX ix_ts ON orders(order_ts)`.
+> 🛠 **Try it (12 min, Python and SQLite).** Load `data/orders.csv` into SQLite (if `data/` does not exist yet, generate it first with `python3 labs/shared/shopgen.py --out data`):
+> ```python
+> import csv, sqlite3
+> con = sqlite3.connect(":memory:")
+> con.execute("CREATE TABLE orders(order_id, customer_id, order_ts, status, payment_method, total_idr)")
+> con.executemany("INSERT INTO orders VALUES (?,?,?,?,?,?)", list(csv.reader(open("data/orders.csv")))[1:])
+> ```
+> For each query print `EXPLAIN QUERY PLAN` (last column): (1) `WHERE customer_id = '479'`; (2) the same after `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` with the index in place; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` before and after `CREATE INDEX ix_ts ON orders(order_ts)`.
 >
 > **You should see:** `SCAN orders` for (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` for (2); `SCAN orders` again for (3), because a function on the column defeats the index (sargability); and for (4) a `SCAN` that becomes `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
@@ -626,13 +634,13 @@ Wrapping the indexed column in a function (`strftime`, `substr`) hides it from t
 :::
 
 :::drill sql Make it sargable
-This question is correct but cannot use an index on `order_date`: it counts the orders of January 2026 with `strftime`. Rewrite it with a half-open range on the bare column (no function around `order_date`). One number, `orders`.
+This query is correct but cannot use an index on `order_date`: it counts the orders of January 2026 with `strftime`. Rewrite it with a half-open range on the bare column (no function around `order_date`). One number, `orders`.
 @data kopiku
 @names
 @starter
 SELECT COUNT(*) AS orders FROM orders WHERE strftime('%Y-%m', order_date) = '2026-01';
 @check
-!/strftime|substr|date\s*\(/ ## Do not wrap order_date in a function.
+!/strftime\s*\([^)]*order_date|substr\s*\([^)]*order_date|date\s*\(\s*order_date/ ## Do not wrap order_date in a function.
 />=/ ## Start the range: order_date >= '2026-01-01'.
 @hint
 `WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
@@ -644,14 +652,14 @@ SELECT COUNT(*) AS orders FROM orders WHERE order_date >= '2026-01-01' AND order
 Create an index on `orders(customer_id)` so that looking up one customer's orders searches instead of scanning. (Name it anything.)
 @data kopiku
 @verify
-SELECT COUNT(*) AS indexes_on_customer_id FROM sqlite_master WHERE type = 'index' AND tbl_name = 'orders' AND sql LIKE '%customer_id%'
+SELECT COUNT(*) AS indexes_on_customer_id FROM pragma_index_list('orders') il JOIN pragma_index_info(il.name) ii WHERE ii.seqno = 0 AND ii.name = 'customer_id'
 @starter
 -- write your statement below this line
 
 @check
 /create\s+index/ ## Use CREATE INDEX name ON orders(customer_id).
 @hint
-`CREATE INDEX ix_orders_customer ON orders(customer_id);`
+Use `CREATE INDEX <index_name> ON <table>(<column>);`, choose any index name, target `orders`, and index `customer_id`.
 @solution
 CREATE INDEX ix_orders_customer ON orders(customer_id);
 :::
@@ -689,9 +697,9 @@ A composite index is sorted by its **leftmost** column first, then the next. A f
 
 :::ask `status = 'done'` matches 99.8% of the rows. Will an index on `status` help that query?
 @options
-yes: any index always helps a query
+yes: an index always speeds up any filter
 only if the index is a BRIN index
-* no: the planner scans, since nearly every row matches
+* no: scanning beats an index at 99.8%
 @why
 Selectivity matters. An index on a column where one value covers almost the whole table saves nothing. A partial index on the rare value (`WHERE status = 'pending'`) is the useful one.
 :::
@@ -699,6 +707,7 @@ Selectivity matters. An index on a column where one value covers almost the whol
 :::drill sql A composite index
 Create an index named `ix_cust_date` on `orders` with the columns `customer_id` and then `order_date` (in that order).
 @data kopiku
+@ordered
 @verify
 SELECT name FROM pragma_index_info('ix_cust_date') ORDER BY seqno
 @starter
@@ -707,7 +716,7 @@ SELECT name FROM pragma_index_info('ix_cust_date') ORDER BY seqno
 @check
 /ix_cust_date/ ## Name the index ix_cust_date.
 @hint
-`CREATE INDEX ix_cust_date ON orders(customer_id, order_date);`
+List both columns inside the parentheses of `CREATE INDEX ix_cust_date ON orders(...)`, putting `customer_id` first and `order_date` second.
 @solution
 CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 :::
@@ -716,7 +725,8 @@ CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 > Apply the art of index tuning to a 500,000-row PostgreSQL table:
 > 1. Open `labs/mod-1-3/explain/indexes.sql` and `labs/mod-1-3/explain/queries.sql` in your text editor.
 > 2. Define at most 3 indexes in `indexes.sql` to eliminate all Sequential Scans and remove the Sort step on Q3. Rewrite Q4 in `queries.sql` to be sargable (using date range filters instead of the `date()` function).
-> 3. Run the plan verification in your terminal:
+> 3. Install the Part B dependencies (embedded PostgreSQL included; on Python 3.14 or if you prefer Docker, see the `DATABASE_URL` Docker fallback in the Lab section Step 4) and run the plan verification in your terminal:
+> `python -m pip install -r labs/mod-1-3/explain/requirements.txt`
 > `pytest labs/mod-1-3/explain -v`
 > When all Part B tests are GREEN (PASSED), you have mastered database query plan optimization at a professional level! Proceed to Lesson 8 to explore SQL dialect nuances.
 
@@ -754,7 +764,7 @@ In the SQL Sandbox you therefore write `group_concat`, `julianday` and `strftime
 | `SELECT "hello"` (double quotes) | the text `hello` if no such column | error | error |
 | `SELECT 1 = 1` | `1` | `true` | `true` |
 
-Read the third and fourth rows twice. A report that sorts by a nullable column puts the unknowns at the top in SQLite and at the bottom elsewhere, and moving a query from one engine to another reorders the result with no error: when order matters, write `NULLS FIRST` or `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, and SQLite 3.30+). A `GROUP BY` that selects an ungrouped column is an *error* in PostgreSQL because the answer is ambiguous; SQLite returns one row's value without telling you, so a bug that PostgreSQL would catch passes silently in a prototype. When sqlglot moved a Snowflake `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` to BigQuery it added `NULLS LAST`, which is the translator keeping the NULL order the same. And a dialect that is *forgiving* (storing `'abc'` in an integer column, reading `'12abc'` as 12) turns a data quality problem into a wrong number instead of an error. The pandas trap in Module 1.5 about guessing types is the same family.
+Read the second and fourth rows twice. A report that sorts by a nullable column puts the unknowns at the top in SQLite and at the bottom elsewhere, and moving a query from one engine to another reorders the result with no error: when order matters, write `NULLS FIRST` or `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, and SQLite 3.30+). Row 3 also points to **collation**, the rule that decides whether text comparisons ignore letter case. SQL Server's default collation is case-insensitive, so `WHERE status <> 'cancelled'` also drops `'CANCELLED'` rows, whereas PostgreSQL, DuckDB, Spark and Snowflake compare case-sensitively by default and keep them; normalise text (for example `lower(trim(status))`) before comparing across engines. A `GROUP BY` that selects an ungrouped column is an *error* in PostgreSQL because the answer is ambiguous; SQLite returns one row's value without telling you, so a bug that PostgreSQL would catch passes silently in a prototype. When sqlglot moved a Snowflake `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` to BigQuery it added `NULLS LAST`, which is the translator keeping the NULL order the same. And a dialect that is *forgiving* (storing `'abc'` in an integer column, reading `'12abc'` as 12) turns a data quality problem into a wrong number instead of an error. The pandas trap in Module 1.5 about guessing types is the same family.
 
 **A working strategy.**
 
@@ -774,7 +784,7 @@ The sandbox practice challenges **k-16 to k-23** (text, number, date functions a
 @options
 PostgreSQL refuses to sort a column that has NULLs
 nothing changes: every engine sorts NULLs the same way
-* the NULL rows move from the top to the bottom, with no error
+* NULLs move from top to bottom, with no error
 @why
 SQLite puts NULLs first in ascending order; PostgreSQL, DuckDB and the warehouses put them last. The query runs in both and the order silently differs, so write NULLS FIRST or NULLS LAST when order matters.
 :::
@@ -831,7 +841,7 @@ ROLLUP is the hierarchy detail, subtotal, total. For (a, b) that is (a, b), (a) 
 :::ask In a ROLLUP result a row has NULL in `city`. How do you tell a subtotal row from a customer whose city is really missing?
 @options
 test city IS NULL: it matches only subtotals
-* use GROUPING(city): 1 means a rolled-up placeholder
+* GROUPING(city): 1 marks a rolled-up row
 count the NULLs and assume the first one is real
 @why
 Real NULLs and rollup placeholders both show NULL. `GROUPING(column)` returns 1 for a placeholder and 0 when the column took part in the grouping. `IS NULL` matches both kinds.
@@ -849,7 +859,7 @@ SELECT e.event_id, COUNT(i.key) AS n_items                                      
 FROM events e LEFT JOIN json_each(e.payload, '$.items') i GROUP BY e.event_id;
 ```
 
-Notice the `LEFT JOIN` in the second query. With a plain join (`FROM events e, json_each(...)`) an event with an empty array or no `items` at all produces **zero rows**, so it silently disappears from the result. That is right when you want line items, and wrong when you are counting events.
+(`GROUP BY 1` is positional shorthand for grouping by the first column in the `SELECT` list, here, `action`.) Notice the `LEFT JOIN` in the second query. With a plain join (`FROM events e, json_each(...)`) an event with an empty array or no `items` at all produces **zero rows**, so it silently disappears from the result. That is right when you want line items, and wrong when you are counting events.
 
 **Building JSON** goes the other way, for APIs and for storing a nested record in one column:
 
@@ -873,7 +883,7 @@ Two differences deserve a second look. `qty * price` works in SQLite because `->
 
 **Habits.** Check `json_valid(payload)` before parsing: one malformed row makes the whole query fail (`malformed JSON` in SQLite). In PostgreSQL prefer `jsonb`, which is parsed once and can be indexed, over `json`, which is kept as text. Above all, **parse once, then use typed columns**: a staging model (Module 2.3) turns the JSON into columns with real types, and everything downstream queries those, not the text.
 
-> 🛠 **Try it (25 min, SQL Sandbox with the app_events dataset).** Choose the dataset *App events (JSON payloads)* and solve **j-1** (pull `user.id` and `user.plan` out of the payload), **j-2** (events per device, with a missing device shown as `unknown`), **j-3** (one row per item with its line total) and **j-4** (revenue per plan). For j-3, first use a plain join and then a `LEFT JOIN`, and count the rows each version returns. Then, in the editor, try `SELECT payload ->> '$.user.id' FROM events` and `SELECT payload ->> '$.user.plan' FROM events` and compare the column types.
+> 🛠 **Try it (25 min, SQL Sandbox with the app_events dataset).** Choose the dataset *App events (JSON payloads)* and solve **j-1** (pull `user.id` and `user.plan` out of the payload), **j-2** (events per device, with a missing device shown as `unknown`), **j-3** (one row per item with its line total) and **j-4** (revenue per plan). For j-3, first use a plain join and then a `LEFT JOIN`, and count the rows each version returns. Then, in the editor, try `SELECT typeof(payload ->> '$.user.id') AS id_type, typeof(payload ->> '$.user.plan') AS plan_type FROM events` to compare the extracted types (you should see `integer` vs `text`, and `null` where `plan` is missing).
 >
 > **You should see:** j-1 returns 7 rows with a NULL plan for event 6; j-2 returns android 2, ios 2, unknown 2, web 1; j-3 returns 4 rows (events 1, 1, 3 and 7), because events 2, 4, 5 and 6 have no items; j-4 returns free 50000 and pro 310000. The plain join gives 4 rows for j-3 and the `LEFT JOIN` gives 8: the same 4 plus one row with empty values for each of events 2, 4, 5 and 6.
 
@@ -930,11 +940,11 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 | # | Canonical SQL Interview Blueprint | Core SQL Skeleton & Edge-Case Guard |
 |---|---|---|
 | **1** | **Deterministic Deduplication / Latest State** | `QUALIFY ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY updated_at DESC, event_id DESC) = 1` (Always include a unique tie-breaker column after `updated_at`!). |
-| **2** | **Sessionization (30-Min Inactivity Gap)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → flag `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → outer `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts)` creates `session_id`. |
+| **2** | **Sessionization (30-Min Inactivity Gap)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → flag `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → outer `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)` creates `session_id`. |
 | **3** | **Consecutive Streak / Gaps & Islands** | Deduplicate to distinct `(user_id, active_date)` first! Then subtract `DATE(active_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY active_date) || ' days') AS island_anchor`; rows in the same consecutive streak share the exact same `island_anchor`. |
 | **4** | **Point-in-Time (`ASOF`) / SCD2 Attribution** | Join fact to dimension with `f.event_ts >= d.effective_from AND f.event_ts < COALESCE(d.effective_to, '9999-12-31')` (or picking `ROW_NUMBER() ... ORDER BY d.updated_at DESC = 1` where `d.updated_at <= f.event_ts`). Prevents future label leakage! |
 | **5** | **Rolling 7-Day Window on Sparse Dates** | Generate a continuous calendar `date_spine` first, `LEFT JOIN` daily aggregates (`COALESCE(rev, 0)`), then use `AVG(rev) OVER (PARTITION BY store_id ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` so a missing Tuesday isn't skipped by row count. |
-| **6** | **Cohort Retention Matrix (`Month 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = months_between(order_month, first_month)`. Final: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` grouped by `(first_month, month_num)`. |
+| **6** | **Cohort Retention Matrix (`Month 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = date_diff('month', first_month, order_month)` (DuckDB; `DATEDIFF('month', ...)` in Snowflake/T-SQL). Final: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` grouped by `(first_month, month_num)`. |
 | **7** | **Multi-Fact Fan-Out Prevention** | Never join `accounts` to `transfers` (1:N) and `chargebacks` (1:M) in the same `FROM` clause (5 × 3 = 15 rows!). Pre-aggregate `transfers_by_account` and `chargebacks_by_account` into separate CTEs at the `account_id` grain first, then `LEFT JOIN` both to `accounts`. |
 
 > 🛠 **Try it (20 min, Python with `sqlite3`).** Build a test table: 2,000 customers and 300,000 orders with random `order_ts` between 2025-07-01 and 2026-06-30 (ISO text), random statuses (`paid` three times as likely as `cancelled` or `refunded`) and amounts, and create the index `(status, order_ts, customer_id)` before running `ANALYZE`. Run `EXPLAIN QUERY PLAN` on the slow and fast queries above and find the line for `orders` in each. Then time both and check that they return the same total.
@@ -953,7 +963,7 @@ A predicate is sargable when the engine can seek in the index directly. A functi
 ## @part SQL Server and T-SQL
 
 ## @lesson SQL Server and T-SQL: the dialect many job posts expect {optional}
-Microsoft's data tools are everywhere in this job market: of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), **53.9%** name at least one of Azure, SQL Server, SSIS, Power BI, Fabric or Synapse, and **10.8%** ask for SQL Server or T-SQL by name. Banks and older enterprises often keep years of business logic in SQL Server **stored procedures** and SSIS packages, and a new data engineer is expected to read them, fix them and eventually move them. You already know SQL: `SELECT`, joins, `GROUP BY` and window functions work the same in **T-SQL** (Transact-SQL, the dialect of SQL Server, Azure SQL, Synapse and Fabric Warehouse). This lesson is the short list of differences that trip people up.
+Microsoft's data tools are everywhere in this job market: of 1,134 data engineering postings in TalentHub (2026-07-23 to 2026-11-21), **53.9%** name at least one of Azure, SQL Server, SSIS (SQL Server Integration Services, Microsoft's ETL tool), Power BI, Fabric or Synapse, and **10.8%** ask for SQL Server or T-SQL by name. Banks and older enterprises often keep years of business logic in SQL Server **stored procedures** and SSIS packages, and a new data engineer is expected to read them, fix them and eventually move them. You already know SQL: `SELECT`, joins, `GROUP BY` and window functions work the same in **T-SQL** (Transact-SQL, the dialect of SQL Server, Azure SQL, Synapse and Fabric Warehouse). This lesson is the short list of differences that trip people up.
 
 **Run it on your laptop, free.** SQL Server's Developer edition runs in Docker:
 
@@ -970,17 +980,17 @@ Microsoft asks for at least 2 GB of RAM, and the password must have at least eig
 | You know (PostgreSQL, DuckDB, SQLite) | T-SQL | Note |
 |---|---|---|
 | `LIMIT 10` | `TOP (10)`, or `ORDER BY ... OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY` | `LIMIT` is a syntax error |
-| `QUALIFY ROW_NUMBER() OVER (...) = 1` | number the rows in a CTE, then `WHERE rn = 1` | no `QUALIFY` |
+| `QUALIFY ROW_NUMBER() OVER (...) = 1` (DuckDB) | number the rows in a CTE, then `WHERE rn = 1` | no `QUALIFY` (same as PostgreSQL/SQLite) |
 | `'a' \|\| 'b'` | `'a' + 'b'` or `CONCAT('a', 'b')` | `'a' + NULL` is `NULL`; `CONCAT` skips `NULL`s. `\|\|` works from SQL Server 2025 |
 | `COALESCE(x, 0)` | the same, or `ISNULL(x, 0)` | |
-| `7 / 2` | `3` | integer division, as in PostgreSQL; DuckDB gives `3.5` |
-| `strptime(s, '%d/%m/%Y')` | `TRY_CONVERT(date, s, 103)` | style numbers: `126` is ISO 8601, `103` is dd/mm/yyyy; `TRY_` returns `NULL` instead of failing |
-| `now()`, `d + INTERVAL 1 DAY` | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
+| `7 / 2` | `3` | integer division, as in PostgreSQL and SQLite; DuckDB gives `3.5` |
+| `to_date(s, 'DD/MM/YYYY')` (PostgreSQL) / `strptime(s, '%d/%m/%Y')` (DuckDB) | `TRY_CONVERT(date, s, 103)` | style numbers: `126` is ISO 8601, `103` is dd/mm/yyyy; `TRY_` returns `NULL` instead of failing |
+| `NOW()`, `d + INTERVAL '1 day'` (PostgreSQL/DuckDB) / `date(d, '+1 day')` (SQLite) | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
 | `"order"` | `[order]` | square brackets quote names |
 | `CREATE TEMP TABLE t` | `#t` (your session), `##t` (everyone) | |
-| `string_agg(x, ',' ORDER BY x)` | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
+| `string_agg(x, ',' ORDER BY x)` (PostgreSQL/DuckDB) / `group_concat(x, ',')` (SQLite) | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
 | `TEXT` | `NVARCHAR(n)` with `N'...'` literals | `N` means Unicode: `DATALENGTH(N'abc')` is 6 bytes |
-| `CREATE OR REPLACE` | `CREATE OR ALTER` | for procedures, views and functions |
+| `CREATE OR REPLACE` (PostgreSQL/DuckDB) | `CREATE OR ALTER` | for procedures, views and functions |
 
 **Collation: the difference that changes numbers silently.** A **collation** decides how text compares. SQL Server's default (`SQL_Latin1_General_CP1_CI_AS`, measured) is **case-insensitive** (`CI`) and accent-sensitive (`AS`), so `status <> 'cancelled'` also excludes `CANCELLED` and `Cancelled`. DuckDB, PostgreSQL, Spark and Snowflake compare case-sensitively by default, so the same `WHERE` keeps those rows. On the course data the same query gives Rp 100,360,000 in SQL Server and Rp 101,925,000 in DuckDB for 10 to 12 January. When you move a SQL Server job to a lakehouse, normalise text (`lower(trim(status))`) before you compare, or the migrated numbers will not match and nobody will know why.
 
@@ -1003,7 +1013,7 @@ BEGIN
 END;
 ```
 
-**DDL, DML, DCL and TCL.** *Fundamentals of Data Engineering* sorts SQL statements into four kinds, and T-SQL has all four: **DDL** defines objects (`CREATE`, `ALTER`, `DROP`), **DML** reads and changes rows (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** controls access (`GRANT`, `REVOKE`, and in SQL Server also `DENY`, which wins over any grant), and **TCL** controls transactions (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). The procedure above uses DML inside TCL; Module 2.6 showed DCL for warehouse roles.
+**DDL, DML, DCL and TCL.** *Fundamentals of Data Engineering* sorts SQL statements into four kinds, and T-SQL has all four: **DDL** defines objects (`CREATE`, `ALTER`, `DROP`), **DML** reads and changes rows (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** controls access (`GRANT`, `REVOKE`, and in SQL Server also `DENY`, which wins over any grant), and **TCL** controls transactions (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). The procedure above uses DML inside TCL; Module 2.6 will cover DCL for warehouse roles.
 
 > 🛠 **Try it (30 min, Docker and `sqlcmd`).** Start SQL Server as above and copy the data in: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Create a database `kopiku` and a table `raw_orders` with the six columns of the file, all `NVARCHAR(50)`, and load it with `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Count the rows whose `total_idr` is all digits (`NOT LIKE '%[^0-9]%'`) and whose `order_ts` converts with style 126. If the answer surprises you, find out why before going on. Then create `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, finish the procedure above for orders that are not cancelled, and run it for 10, 11 and 12 January, twice. Finally, try `LIMIT` and `QUALIFY` on `raw_orders`.
 >
@@ -1021,9 +1031,11 @@ SQL Server's default collation is case-insensitive (CI), so 'cancelled', 'Cancel
 ## @lab Lab: window-function puzzles and a PostgreSQL tuning exercise
 Part A: ten analytical questions answered with window functions and a recursive CTE, checked automatically. Part B: given four slow queries on a 500,000-row table in PostgreSQL, create the fewest indexes that make them fast, and rewrite one query so an index can be used. Part B is checked by reading the actual execution plans.
 
+> 💡 **Already finished via Practice Pauses 1–6?** If all 10 Part A queries in `labs/mod-1-3/answers.sql` pass `python3 labs/mod-1-3/check.py` and all 10 Part B tests pass `pytest labs/mod-1-3/explain -v`, you can skip straight to `python3 scripts/prove.py mod-1-3` in the verify section below to generate your completion proof code.
+
 ### @steps
-1. **Part A, in the browser (recommended).** Open the SQL Sandbox, pick a challenge from the list (they are tagged for this module: running total, latest order, days since previous order, share of total, ranking with ties, moving average, quartiles, category tree, plus the gaps-and-islands and sessionization challenges) and use "Check my answer". Each challenge switches to the right dataset for you.
-2. **Part A, locally.** Open `labs/mod-1-3/answers.sql`, write one query under each marker, and run `python3 labs/mod-1-3/check.py`. It compares your results with the reference using Python's built-in SQLite.
+1. **Part A: prototype in the browser, save locally.** You can prototype and test any Part A query in the browser **SQL Sandbox** (pick a challenge tagged for this module, `ch-3`, `ch-4`, and `w-1`..`w-8`: running total, latest order, days since previous order, share of total, ranking with ties, moving average, quartiles, category tree, gaps-and-islands, and sessionization, and click "Check my answer"; each challenge switches to the right dataset for you). To complete the module and generate a proof code, save all 10 Part A queries (`ch-3`, `ch-4`, `w-1`..`w-8`) under their markers in `labs/mod-1-3/answers.sql`.
+2. **Part A: verify locally.** Run `python3 labs/mod-1-3/check.py`. It compares your results in `labs/mod-1-3/answers.sql` with the reference using Python's built-in SQLite (no extra installation needed).
 3. Do not skip the *why*: for the running total, try the default frame and the explicit `ROWS` frame and see the difference on tied rows; for ranking, try all three ranking functions.
 4. **Part B, setup.** Install the requirements (an embedded PostgreSQL is included; no Docker needed):
 
@@ -1035,7 +1047,7 @@ pytest labs/mod-1-3/explain -v
    Most tests fail at first (6 of the 10 with the starter). That is the starting point. (To use your own PostgreSQL, for example the one from Docker, set `DATABASE_URL` to an empty scratch database. On Python 3.14 `pip` skips `pgserver` (it has no build for 3.14 yet), so start PostgreSQL in Docker instead: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, then `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab13"` and `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab13`. That one container serves Modules 1.3, 3.2 and 3.5 (it has pgvector and logical decoding); measured on Python 3.14, the reference passes all 10 tests this way.)
 5. **Part B, tune.** Open `labs/mod-1-3/explain/queries.sql` and `indexes.sql`. Look at the four queries and decide which columns each filters and sorts on. Write the **fewest** `CREATE INDEX` statements in `indexes.sql` so that no query does a Seq Scan, and Q3 needs no Sort. Rewrite Q4 in `queries.sql` so that it returns the same answer but can use an index.
 6. To see what the tests see, load the table into any PostgreSQL and run `EXPLAIN (ANALYZE, BUFFERS)` on each query before and after your change; compare estimated and actual rows, pages read and time.
-7. Re-run the tests until they all pass. If one fails, its message says which rule you broke.
+7. Re-run the tests until all 10 Part A queries and all 10 Part B tests pass (if one fails, its message says which rule you broke), then generate your completion proof code with `python3 scripts/prove.py mod-1-3`.
 
 ### @files
 - labs/mod-1-3/answers.sql :: Part A working file: one query per marker :: starter
@@ -1043,8 +1055,11 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/datasets/kopiku.sql :: Dataset for most Part A questions :: data
 - labs/mod-1-3/datasets/daily_sales.sql :: Dataset for the moving average :: data
 - labs/mod-1-3/datasets/categories.sql :: Dataset for the recursive CTE :: data
+- labs/mod-1-3/datasets/logins.sql :: Dataset for the gaps-and-islands challenge (ch-3) :: data
+- labs/mod-1-3/datasets/clickstream.sql :: Dataset for the sessionization challenge (ch-4) :: data
 - labs/tryit/check.py :: Checks your Try it exercises, for example: python3 labs/tryit/check.py 1.3-9 ~/practice :: config
 - labs/mod-1-3/reference/answers.sql :: Part A reference answers (try first!) :: reference
+- labs/mod-1-3/explain/requirements.txt :: Part B Python dependencies (pytest, psycopg, embedded pgserver) :: config
 - labs/mod-1-3/explain/queries.sql :: Part B: the four queries (rewrite Q4) :: starter
 - labs/mod-1-3/explain/indexes.sql :: Part B: put your CREATE INDEX statements here :: starter
 - labs/mod-1-3/explain/test_lab.py :: Part B tests that inspect real execution plans :: test
@@ -1052,12 +1067,20 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/explain/reference/queries.sql :: Part B reference queries :: reference
 
 ### @deliverables
-- All ten Part A answers pass, in the sandbox or with `check.py`
-- All ten Part B tests pass
+- All ten Part A queries (`ch-3`, `ch-4`, `w-1`..`w-8`) saved in `labs/mod-1-3/answers.sql` pass `python3 labs/mod-1-3/check.py`
+- All ten Part B tests in `labs/mod-1-3/explain/` pass `pytest labs/mod-1-3/explain -v` (and `python3 scripts/prove.py mod-1-3` generates your completion proof code)
 - For Part B you can explain, with the plan in front of you, why `(customer_id, event_time DESC)` removes the Sort but `(customer_id, event_type, event_time DESC)` does not
 
 ### @verify
-Part A: `python3 labs/mod-1-3/check.py` (or the sandbox buttons). Part B: `pytest labs/mod-1-3/explain -v`. Compare with the reference: `python3 labs/mod-1-3/check.py reference` and `LAB_DIR=reference pytest labs/mod-1-3/explain -v`.
+You can prototype Part A queries in the browser **SQL Sandbox** ("Check my answer"), then save all 10 queries (`ch-3`, `ch-4`, `w-1`..`w-8`) into `labs/mod-1-3/answers.sql`, complete Part B (`labs/mod-1-3/explain/`), and verify locally to generate your completion proof code:
+
+```bash
+python3 labs/mod-1-3/check.py
+pytest labs/mod-1-3/explain -v
+python3 scripts/prove.py mod-1-3
+```
+
+Compare with the reference: `python3 labs/mod-1-3/check.py reference` and `LAB_DIR=reference pytest labs/mod-1-3/explain -v`.
 
 ## @chaos The dashboard query that was fast until March
 ### @scenario

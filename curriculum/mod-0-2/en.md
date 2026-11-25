@@ -17,7 +17,7 @@ Module 0.0 (Python from zero) and Module 0.1 (terminal, virtual environments and
 
 > [!IMPORTANT]
 > **Editor vs Terminal Reminder:**
-> Open and edit code files (such as `labs/mod-0-2/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-2/pipeline.py` in your shell). Use the terminal only for test commands, such as `pytest labs/mod-0-2/test_lab.py -v`.
+> Open and edit code files (such as `labs/mod-0-2/pipeline.py`) in your text editor (VS Code / Cursor / the Lab tab in the app). Do not run the code file directly in bash without the python interpreter (e.g. do not type `labs/mod-0-2/pipeline.py` in your shell). Use the terminal to run Python scripts (such as `python labs/mod-0-2/pipeline.py`), inspect files, and run tests (such as `pytest labs/mod-0-2/test_lab.py -v`).
 
 ## @part The job and the people
 
@@ -35,17 +35,17 @@ Now the founder asks: "How much revenue did we make per city, per week, for the 
 | Data | Current state | Full history |
 | Design goal | Never lose or corrupt a write | Read and aggregate fast |
 
-If an analyst runs the two-year revenue query directly on the production database, it competes with customers for the same CPU, memory and disk. Checkouts get slower, sometimes they time out, and the shop loses money while someone makes a chart. Some teams add a read replica to soften this, and that helps, but it does not fix the other problems: the data is shaped for writing, not for analysis; it only keeps the current state of each row; and it lives in a different system from your payments, your ads and your website events.
+If an analyst runs the two-year revenue query directly on the **production database** (the live database running the shop), it competes with customers for the same CPU, memory and disk. Checkouts get slower, sometimes they **time out** (fail because the request waited too long for an answer), and the shop loses money while someone makes a chart. Some teams add a **read replica** (a read-only copy of the production database kept up to date for queries) to soften this, and that helps, but it does not fix the other problems: the data is shaped for writing, not for analysis; it only keeps the current state of each row; and it lives in a different system from your payments, your ads and your website events.
 
-So companies copy the data into a **separate system built for analysis** (a data warehouse or a lakehouse) and keep it up to date. Doing that copying reliably, every day, for dozens of sources, with data that is correct and explained, is the job of the **data engineer**.
+So companies copy the data into a **separate system built for analysis** (a data warehouse or a **lakehouse**, which combines cheap cloud file storage with warehouse-style SQL tables) and keep it up to date. Doing that copying reliably, every day, for dozens of sources, with data that is correct and explained, is the job of the **data engineer**.
 
 > **Tip:** When someone says "we need a data warehouse", the real need is almost always: "we need trustworthy numbers without slowing down the product." Keep that sentence in mind; it explains most design decisions in this course.
 
-> 🛠 **Try it (10 min, in Python).** Generate the data (you did this in Start here; if the `data/` folder is missing, run `python3 labs/shared/shopgen.py --out data` again from the course folder) and read `data/orders.csv` with `csv.DictReader` from Module 0.0 to feel the difference between an **OLTP point lookup** and an **OLAP full scan**:
+> 🛠 **Try it (10 min, in Python).** Generate the data (you did this in Start here; if the `data/` folder is missing, run `python labs/shared/shopgen.py --out data` inside your active course venv from the course folder) and read `data/orders.csv` with `csv.DictReader` from Module 0.0 to feel the difference between an **OLTP point lookup** and an **OLAP full scan**:
 > 1. Walk the `3634` rows and build a dict `by_id` keyed by `order_id` (`by_id[row["order_id"]] = row`). How many duplicate keys overwrite an earlier row, leaving `len(by_id)` shorter than `3634`? Notice looking up `by_id["1001"]` touches **one** item instantly (OLTP).
-> 2. Now run a full scan across every row to count how many orders belong to each lowercase status (`counts[status] = counts.get(status, 0) + 1`, the counting line from Module 0.0). Notice it must touch **all** `3634` rows (OLAP).
+> 2. Now run a full scan across every row to count how many orders belong to each lowercase status (`status = row["status"].strip().lower()`, then `counts[status] = counts.get(status, 0) + 1`, the counting line from Module 0.0). Notice it must touch **all** `3634` rows (OLAP).
 >
-> **You should see:** `len(by_id)` is `3599` (so `35` duplicate order IDs appear in the file!), while `counts` visits every row to summarise categories. Module 0.3 shows how SQL databases do both with `PRIMARY KEY` lookups vs `GROUP BY` scans.
+> **You should see:** `len(by_id)` is `3599` (so `35` duplicate order IDs appear in the file!), while `counts` visits every row and gives `delivered: 2148, shipped: 576, paid: 374, cancelled: 362, refunded: 174`. Module 0.3 shows how SQL databases do both with `PRIMARY KEY` lookups vs `GROUP BY` scans.
 
 ## @lesson Who does what: roles around data
 Job titles overlap and differ between companies, so think in terms of **work**, not titles. Here is the usual split, using KopiKu again.
@@ -54,7 +54,7 @@ Job titles overlap and differ between companies, so think in terms of **work**, 
 |---|---|---|
 | **Software engineer** | "How do we build the shop?" | The website, app and production database |
 | **Data engineer** | "How do we get data from everywhere to one trustworthy place, on time?" | Pipelines, tables, tests, monitoring |
-| **Analytics engineer** | "How do we turn raw tables into clean, shared business definitions?" | Modeled tables such as `fct_orders` and `dim_customers`, documented |
+| **Analytics engineer** | "How do we turn raw tables into clean, shared business definitions?" | Modeled tables such as `fct_orders` (`fct_` = fact/events) and `dim_customers` (`dim_` = dimension/entities), documented |
 | **Data analyst** | "What happened, and why?" | Dashboards, reports, answers to business questions |
 | **Data scientist / ML engineer** | "What will happen, and what should we do?" | Forecasts, recommendations, models |
 | **Platform / DevOps engineer** | "How do we run all of this safely?" | Servers, networks, access, deployment tooling |
@@ -70,7 +70,7 @@ Skills that matter, roughly in the order this course teaches them: SQL, Python, 
 > *Compare:* (a) data engineer, (b) data analyst, (c) data scientist, (d) software engineer, (e) analytics engineer, (f) platform engineer. Then write two sentences: which of these tasks would be yours at a five-person company, and which would you not want to do alone?
 
 ## @lesson The big picture: five stops, six habits and the people
-> **In short:** Every data engineering job moves data through five stops: it is born (generation), it rests (storage), it is collected (ingestion), it is cleaned and shaped (transformation) and it is handed to people (serving). Six habits run underneath all five stops: security, data management, DataOps, data architecture, orchestration and software engineering. Most of the job is the people on either side of you.
+> **In short:** Every data engineering job moves data through five stops (which Reis & Housley's book calls **lifecycle stages**): it is born (generation), it rests (storage), it is collected (ingestion), it is cleaned and shaped (transformation) and it is handed to people (serving). Six habits (called **undercurrents** in the book) run underneath all five stops: security, data management, DataOps, data architecture, orchestration and software engineering. Most of the job is the people on either side of you.
 
 Tools change every year, but this map does not. Whatever you meet later in the course, whether it is SQL, Parquet, Spark, Kafka or dbt, it sits on one of five stops. The map comes from the book *Fundamentals of Data Engineering* by Joe Reis and Matt Housley.
 
@@ -97,9 +97,9 @@ serving: the founder may be looking at the wrong screen
 The orders exist at the source (generation worked), so the number was lost on the way. The first suspect is the truck: the job that collects the orders and carries them to the platform. A silent failure there leaves the dashboard empty while the shop looks perfectly fine.
 :::
 
-### Six habits under every stop
+### Six habits (undercurrents) under every stop
 
-These are not extra stops. They are habits you need at *every* stop, and each one is really a question you keep asking:
+These are not extra stops. Reis & Housley call them **undercurrents** because they are habits you need at *every* lifecycle stage, and each one is really a question you keep asking:
 
 - **Security**: who may see this? A customer's phone number should not be visible to every intern.
 - **Data management**: is this number right, and are we allowed to keep it? (Quality, clear definitions, privacy.)
@@ -113,8 +113,8 @@ This is why job posts for data engineers sound like DevOps or software engineeri
 :::ask Someone asks: "Can the new intern read the customers' phone numbers in the analytics table?" Which habit is this question about?
 @options
 software engineering, which keeps the code readable
-security, which decides who may see what
-* orchestration, which decides the order in which jobs run
+* security, which decides who may see what
+orchestration, which sets the order jobs run
 @why
 "Who may see what" is security. Orchestration is about the order and timing of jobs, and software engineering is about code that others can read and change. A good data engineer asks the security question at every stop, not only at the end.
 :::
@@ -159,7 +159,7 @@ In the TalentHub job database, 64% of the 1,130 data engineering postings mentio
 People often ask for a solution they have heard of. Asking about the decision turns it back into the real problem. If the answer is "we look at it in the Monday meeting", a reliable daily job beats a streaming system. Refusing or picking tools skips the conversation that matters.
 :::
 
-> 🛠 **Try it (10 min, paper and the simulator).** First open the maturity simulator at the top of this page and find, for each stage, the choice it calls right-sized. Its costs are a rough teaching model, not measured prices: use it to see the shape of the trade-off. Then write a three-line scoping note for KopiKu from what this module has told you about it: (1) its maturity stage, and the fact that told you; (2) who produces the orders data and who uses the revenue number; (3) Type A or Type B, and the one question you would ask the CEO before deciding.
+> 🛠 **Try it (10 min, paper and the simulator).** First open the maturity simulator on the Module Overview page (click "Lesson map" and scroll down below the lesson map) and find, for each stage, the choice it calls **Right-sized**. Its costs are a rough teaching model, not measured prices: use it to see the shape of the trade-off. Then write a three-line scoping note for KopiKu from what this module has told you about it: (1) its maturity stage, and the fact that told you; (2) who produces the orders data and who uses the revenue number; (3) Type A or Type B, and the one question you would ask the CEO before deciding.
 >
 > **You should see:** stage 1: one website database, the founder asking first questions, nothing to analyse with yet. The website (and whoever builds it) produces the orders; the founder uses the revenue number. Type A, after asking something like "what will you decide with this number, and how often?". If your question was about tools rather than the decision, try again.
 
@@ -169,9 +169,9 @@ People often ask for a solution they have heard of. Asking about the decision tu
 
 **2. Inward or outward.** **Internal-facing** engineers build for the company itself: pipelines, a warehouse, dashboards and reports for analysts and managers. That is most data engineering jobs, and it is what this course trains first. **External-facing** engineers build data systems that customers use inside the product: a sales dashboard inside an app, recommendations on a website, an event pipeline behind a feature. The same skills apply, but the demands are stricter: many more users at once, answers in under a second, and a mistake is seen by customers instead of a colleague (Module 2.6 compares the two). Many jobs mix both, so ask in an interview which one the role leans towards.
 
-> 🛠 **Try it (10 min, pen and paper).** For each KopiKu task, write *internal* or *external*, and either the lifecycle stop it belongs to or "wider data lifecycle" if the decision comes from outside engineering: (1) a weekly revenue dashboard for the founder; (2) a "your sales this month" page inside the app KopiKu sells to café owners; (3) "customers who bought Gayo also bought…" on the website; (4) a nightly copy of the orders database into the warehouse; (5) deleting a customer's personal data when they close their account; (6) suppose finance says order records must be kept for ten years:
+> 🛠 **Try it (10 min, pen and paper).** For each KopiKu task, write *internal* or *external*, and either the lifecycle stop it belongs to or "wider data lifecycle" if the decision comes from outside engineering: (1) a weekly revenue dashboard for the founder; (2) a "your sales this month" page inside the app KopiKu sells to café owners; (3) "customers who bought Gayo also bought…" on the website; (4) a nightly copy of the orders database into the warehouse; (5) deleting a customer's personal data when they close their account; (6) suppose finance says order records must be kept for ten years.
 >
-> **You should see:** (1) internal, serving; (2) external, serving (customer-facing analytics); (3) external, serving, built on transformation; (4) internal, ingestion into storage; (5) wider data lifecycle: the rule comes from privacy law and the company's policy, and engineering carries it out in every copy; (6) wider data lifecycle as well: finance sets the period, and engineering turns it into storage lifecycle rules (Module 3.4). If you put (5) or (6) under a single stop, notice that they touch every stop at once.
+> **You should see:** (1) internal, serving; (2) external, serving (customer-facing analytics); (3) external, serving, built on transformation; (4) internal, ingestion into storage; (5) internal (triggered by a customer action, carried out across internal copies), wider data lifecycle: the rule comes from privacy law and the company's policy, and engineering carries it out in every copy; (6) internal, wider data lifecycle as well: finance sets the period, and engineering turns it into storage lifecycle rules (Module 3.4). If you put (5) or (6) under a single stop, notice that they touch every stop at once.
 
 ## @part The data you will work with
 
@@ -188,13 +188,13 @@ Follow a single KopiKu order, #4821, from the customer's phone to the CEO's dash
 Two vocabulary points you will meet constantly:
 
 - **Batch vs streaming.** Batch means processing data in chunks on a schedule (every hour, every night). Streaming means processing each event within seconds of it happening. Most data work is batch. Streaming is more complex and more expensive; use it only when a business decision really needs fresh data (fraud checks, live inventory).
-- **ETL vs ELT.** ETL transforms data *before* loading it into the warehouse. ELT loads the raw data first and transforms it *inside* the warehouse with SQL. Modern cloud warehouses are powerful and cheap enough that ELT is the common default, which is why tools like dbt (Module 2.3) exist.
+- **ETL vs ELT.** **ETL** (*Extract, Transform, Load*) transforms data *before* loading it into the warehouse. **ELT** (*Extract, Load, Transform*) loads the raw data first and transforms it *inside* the warehouse with SQL. Modern cloud warehouses are powerful and cheap enough that ELT is the common default, which is why tools like dbt (Module 2.3) exist.
 
 > **Tip:** Draw the journey for any system you work with: boxes for sources, arrows for jobs, and a mark wherever a failure would go unnoticed. That drawing is a data engineer's most useful first deliverable.
 
-> 🛠 **Try it (10 min, in the terminal).** Walk one file through the journey with commands, from the course folder: `python3 labs/shared/shopgen.py --out data` (source), `mkdir -p raw && cp data/orders.csv raw/orders_$(date +%F).csv` (ingestion and raw storage), and `cut -d, -f4 raw/orders_*.csv | tail -n +2 | sort | uniq -c | sort -rn` (a first transformation: orders per status). Say in one sentence which stages you just did and which are still missing before a dashboard could read this.
+> 🛠 **Try it (10 min, in the terminal).** Walk one file through the journey with commands, from the course folder (with your venv active): `python labs/shared/shopgen.py --out data` (source), `mkdir -p raw && cp data/orders.csv raw/orders_$(date +%F).csv` (ingestion and raw storage; `$(date +%F)` inserts today's date as `YYYY-MM-DD`), and `cut -d, -f4 raw/orders_$(date +%F).csv | tail -n +2 | sort | uniq -c | sort -rn` (a first transformation: orders per status). Say in one sentence which stages you just did and which are still missing before a dashboard could read this.
 >
-> **You should see:** `2080 delivered` at the top and, further down, `34 DELIVERED` and `34 Delivered`: the same status written three ways. A transformation step has to fix that before anyone can trust a count, and because you copied to `raw/` first, you can fix it again and again without asking the source for the file.
+> **You should see:** `2080 delivered` at the top and, further down, `34 DELIVERED` and `34 Delivered`: the same status written three ways. A transformation step has to fix that before anyone can trust a count, and because you copied to `raw/` first, you can fix it again and again without asking the source for the file. You just ran **source**, **ingestion**, **raw storage**, and a tiny **transformation**; still missing before a dashboard can read this are full **transformation** (cleaning, deduplication, and modeling), **serving** (loading into a warehouse table for the dashboard), and **operations** (scheduling, data tests, and monitoring).
 
 ## @lesson The five ways data goes wrong
 The KopiKu dataset you will use throughout this course is deliberately a little dirty, because real data is. These problems cover most of what you will ever debug. Learn to recognise them early.
@@ -203,7 +203,7 @@ The KopiKu dataset you will use throughout this course is deliberately a little 
 
 **2. Late or missing data.** A partner's file arrives at 09:40 instead of 06:00. A mobile app was offline and sends yesterday's events today. Effect: yesterday's report is wrong, then silently "fixes itself". Defence: record two times (when it happened and when you received it), and design jobs to reprocess recent days.
 
-**3. Schema drift.** A source team renames `total` to `total_amount`, or turns an integer into text, without telling you. Effect: your job crashes, or worse, fills a column with nulls and carries on. Defence: validate the shape of data at the door and agree *data contracts* with producers (Module 2.5).
+**3. Schema drift.** A **schema** is the expected list of column names and data types. A source team renames `total` to `total_amount`, or turns an integer into text, without telling you. Effect: your job crashes, or worse, fills a column with **nulls** (empty/missing values, like `None` in Python) and carries on. Defence: validate the shape of data at the door and agree *data contracts* with producers (Module 2.5).
 
 **4. Bad values.** Negative totals, `"Rp 1.250.000"` where a number should be, a status written as `PAID`, `paid` and `Paid`, a customer id that does not exist, a date written day-first. Effect: wrong sums, broken joins, rows silently dropped. Defence: parse strictly, normalise, and send rows you cannot trust to a **quarantine** instead of guessing or discarding them quietly.
 
@@ -225,7 +225,7 @@ Duplicates come from retries, "at least once" delivery and overlapping sources, 
 :::ask A source team renames `total` to `total_amount` without telling you. Your job keeps running and fills the `total` column with nulls. Which defence catches this at the door?
 @options
 more memory for the job so it copes
-* validate the shape on arrival and agree a contract
+* validate the data schema on arrival
 a bigger dashboard to spot it sooner
 @why
 This is **schema drift**, and it is dangerous because nothing crashes. Checking the columns and types on arrival turns a silent corruption into a loud, early failure.
@@ -242,7 +242,7 @@ repeated_ids([{"order_id": "1"}, {"order_id": "2"}, {"order_id": "1"}, {"order_i
 repeated_ids([{"order_id": "7"}, {"order_id": "8"}]) == [] ## No repeats gives an empty list.
 repeated_ids([]) == [] ## An empty input gives an empty list.
 @hint
-Count each id with a dictionary (`counts[id] = counts.get(id, 0) + 1`), then keep the ids whose count is above 1 and sort them.
+Count each order id with a dictionary (`counts[order_id] = counts.get(order_id, 0) + 1`), then keep the ids whose count is above 1 and sort them.
 @solution
 def repeated_ids(rows):
     counts = {}
@@ -252,20 +252,20 @@ def repeated_ids(rows):
 :::
 
 > 💡 **Practice Pause 1 (Explore Dirty Data):**
-> Before reading about data formats, prove these five problems on your computer! Open a terminal in the course folder, generate the dataset, and inspect the order file:
-> `python3 labs/shared/shopgen.py --out data`
+> Before reading about data formats, see real examples of messy values, duplicates, and orphans in the KopiKu data on your computer! Open a terminal in the course folder (with your course venv active), generate the dataset, and inspect the order file:
+> `python labs/shared/shopgen.py --out data`
 > `head -20 data/orders.csv`
 > `grep -c "Rp " data/orders.csv` (totals written as formatted text)
 > `grep -c ",-" data/orders.csv` (negative/corrupted totals)
 > `cat data/manifest.json` (JSON is structured key-value text explained in the next lesson; `manifest.json` lists every anomaly planted by the generator)
-> You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 6 below.
+> You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 7 below.
 
 ## @lesson The formats you will meet
 Data arrives in a handful of file formats. Knowing their traps saves hours.
 
 **CSV** (comma-separated values) is the most common exchange format and the least reliable. It has no types: every value is text, so `007` and `7` and `"7"` are indistinguishable until you decide. It has no standard for dates, decimal separators, quoting or encoding; a customer name containing a comma or a line break breaks naive parsing. Always use a real CSV parser (Python's `csv` module), never `line.split(",")`, and always state the encoding (usually UTF-8).
 
-**JSON** and **NDJSON**. JSON describes nested data and has basic types (string, number, boolean, null). NDJSON (newline-delimited JSON) puts one JSON object per line, which lets you process a huge file one line at a time without loading it all. Click events and logs commonly use NDJSON. Watch for fields that are sometimes missing and for numbers that arrive as strings.
+**JSON** and **NDJSON**. JSON describes nested data as key-value pairs, for example, `{"order_id": 4821, "total": 150000, "paid": true, "coupon": null}`, and has basic types (string, number, boolean, `null`, which becomes `None` in Python). NDJSON (newline-delimited JSON) puts one JSON object per line, which lets you process a huge file one line at a time without loading it all. Click events and logs commonly use NDJSON. Watch for fields that are sometimes missing and for numbers that arrive as strings.
 
 **Parquet** is a *columnar* binary format used for analytics. It stores each column together, compresses well, and keeps the types, so reading three columns out of fifty only reads those three. You will use it heavily from Module 2.1 onward. You cannot open it in a text editor, which is a fair price for being much smaller and faster than CSV.
 
@@ -273,7 +273,17 @@ Data arrives in a handful of file formats. Knowing their traps saves hours.
 
 A rule of thumb: CSV and JSON are for *exchange* (humans and other systems send them to you); Parquet and database tables are for *storage and analysis*. A common first step in a pipeline is turning the former into the latter, with types enforced.
 
-**Parsing two date formats in Python (`datetime.strptime`).** Dates from CSV files often mix styles like `"2026-01-31T14:03:00"` and `"31/01/2026 14:03"`. Python's standard library includes `from datetime import datetime`, whose `datetime.strptime(text, fmt)` tries parsing text against a format template (`"%Y-%m-%dT%H:%M:%S"` for ISO or `"%d/%m/%Y %H:%M"` for day/month/year) and raises `ValueError` if it does not match. Catch `ValueError` to try the next format, then format the valid result cleanly back to standard ISO text with `dt.strftime("%Y-%m-%dT%H:%M:%S")`.
+**Parsing two date formats in Python (`datetime.strptime`).** Dates from CSV files often mix styles like `"2026-01-31T14:03:00"` and `"31/01/2026 14:03"`. Python's standard library includes `from datetime import datetime`, whose `datetime.strptime(text, fmt)` parses text against a format template and raises `ValueError` if it does not match. Format codes are case-sensitive: `%Y` = 4-digit year, `%m` = month (vs `%M` = minute), `%d` = day, `%H` = 24-hour, `%S` = second. Catch `ValueError` to try the next format, then format the valid result cleanly back to standard ISO text with `dt.strftime("%Y-%m-%dT%H:%M:%S")`:
+
+```python
+from datetime import datetime
+for fmt in ("%Y-%m-%dT%H:%M:%S", "%d/%m/%Y %H:%M"):
+    try:
+        iso = datetime.strptime(raw.strip(), fmt).strftime("%Y-%m-%dT%H:%M:%S")
+        break
+    except ValueError:
+        continue
+```
 
 :::drill python Read a percentage
 Write `parse_percent(raw)`: `"12%"` or `" 12 % "` gives the number `12`; text that is not a whole number with an optional `%` (for example `"abc"`, `""`) gives `None`, never an error.
@@ -312,13 +322,7 @@ parse_day("31/02/2026") is None ## 31 February does not exist: None.
 parse_day("2026-01-31") is None ## A different format is not accepted here: None.
 parse_day("") is None ## An empty cell gives None.
 @hint
-```python
-def parse_day(raw):
-    try:
-        return datetime.strptime(raw, "%d/%m/%Y").strftime("%Y-%m-%d")
-    except ValueError:
-        return None
-```
+Inside a `try` block, parse `raw` with `datetime.strptime(raw, "%d/%m/%Y")` and convert the result to ISO text with `.strftime("%Y-%m-%d")`; catch `ValueError` and return `None` when the text is empty, not a valid calendar date, or in another format.
 @solution
 from datetime import datetime
 
@@ -336,7 +340,7 @@ def parse_day(raw):
 > 2. Implement `parse_ts(raw)`: try both `datetime.strptime` formats above and return ISO text `"YYYY-MM-DDTHH:MM:SS"` or `None`.
 > Test both parsers in your terminal:
 > `pytest labs/mod-0-2/test_lab.py -v -k TestParsers`
-> When both parser tests show PASSED, you are ready for defensive cleaning rules in Lesson 7.
+> When both parser tests show PASSED, continue to Lesson 8 and Practice Pause 3 below to finish `clean_orders` and `daily_revenue`.
 
 ## @lesson How this course works, and the KopiKu data
 Each module has four parts, and they are meant to be done in order:
@@ -357,10 +361,11 @@ Two habits will help more than any tool:
 > Return to `labs/mod-0-2/pipeline.py` in your editor to complete the full lab:
 > 1. Implement `clean_orders(rows)`: partition rows into `clean` and `rejected` (recording `reason` for each dropped row). Deduplicate order_ids by keeping the first occurrence.
 > 2. Implement `daily_revenue(clean)`: sum revenue per date `YYYY-MM-DD`, excluding cancelled and refunded orders.
-> Run the complete test suite in your terminal:
+> Run the complete test suite in your terminal (with your course venv active, where `python` works on macOS, Linux, and Windows):
 > `pytest labs/mod-0-2/test_lab.py -v`
-> Once all 8 tests are GREEN, run the pipeline against the real dataset:
-> `python3 labs/mod-0-2/pipeline.py data/orders.csv`
+> Once all 8 tests are GREEN, run the pipeline against the real dataset and generate your proof code:
+> `python labs/mod-0-2/pipeline.py data/orders.csv`
+> `python scripts/prove.py mod-0-2`
 > Congratulations! You have built your first defensive data cleaning pipeline!
 
 ## @lab Lab: clean the KopiKu orders file
@@ -376,13 +381,15 @@ You have a file of KopiKu order rows with the problems from the lessons: totals 
 The functions build on each other: `clean_orders` uses `parse_total` and `parse_ts`, and `daily_revenue` uses the result of `clean_orders`. That is why the order matters.
 
 ### @steps
-1. Open the **Browser preview** below and read `pipeline.py` from top to bottom once: four empty functions, each with its description and real examples from the file.
+> **Already wrote `labs/mod-0-2/pipeline.py` during Practice Pauses 2–3?** Skip Steps 1–3 and jump to Steps 4–5 to verify and run `prove.py`.
+
+1. Open the **Browser preview** above and read `pipeline.py` from top to bottom once: four empty functions, each with its description and real examples from the file.
 2. Write them in this order, running the tests after each and looking only at its group: `parse_total`, then `parse_ts`, then `clean_orders`, then `daily_revenue`.
 3. The rule for a row you cannot trust: **never guess and never drop silently.** Every row you leave out goes into `rejected` with a short reason.
-4. Optional, if you did Start here: look at the real file with your own eyes. In the terminal, from the course folder:
+4. **Generate and inspect the real file** (running `shopgen.py` is **required if you do not have `data/orders.csv` yet**, otherwise Step 5's `pipeline.py data/orders.csv` will fail with `FileNotFoundError`). In the terminal, from the course folder with your course venv active (`python` works inside an active venv on all OSes including Windows):
 
 ```bash
-python3 labs/shared/shopgen.py --out data
+python labs/shared/shopgen.py --out data
 head -20 data/orders.csv           # the first 20 lines
 grep -c "Rp " data/orders.csv      # how many totals are written as text
 cat data/manifest.json             # what was planted in the file, and how much
@@ -392,8 +399,8 @@ cat data/manifest.json             # what was planted in the file, and how much
 
 ```bash
 pytest labs/mod-0-2/test_lab.py -v                  # until all tests pass
-python3 labs/mod-0-2/pipeline.py data/orders.csv    # run it on the real file: rows in, clean, rejected
-python3 scripts/prove.py mod-0-2                    # your proof code for the Proof box on this page
+python labs/mod-0-2/pipeline.py data/orders.csv     # run it on the real file: rows in, clean, rejected
+python scripts/prove.py mod-0-2                     # your proof code for the Proof box on this page
 ```
 
 6. Optional: write three sentences in a `NOTES.md` about the problems you found and which one surprised you.
@@ -431,7 +438,7 @@ Two things made it worse: the job reports success after the retry, so no alert f
 
 ### @fix
 1. Repair the data: for the affected day, delete and reload the rows, or remove the duplicates by keeping one row per `order_id`.
-2. Make the load **idempotent**: replace the day's data in one atomic step (delete the day and insert it in one transaction, or use `MERGE`/upsert keyed on `order_id`) instead of blindly appending.
+2. Make the load **idempotent**: replace the day's data in one **atomic step** (all-or-nothing, so it never stops halfway), delete the day and insert it in one database **transaction** (a group of changes that either all succeed or all roll back together), or use `MERGE`/**upsert** (update existing rows, insert new ones) keyed on `order_id`, instead of blindly appending.
 3. Add a check that fails the job if any `order_id` appears more than once, and a check that compares the day's row count with the source.
 
 ### @pattern
@@ -476,7 +483,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 - [x] If a later transformation has a bug, you can fix it and rerun everything from the real original input
 - [ ] Data protection regulations require every table in a warehouse to have a matching untouched raw table
 
-> Reprocessing from raw is what makes fixes and backfills possible. If you only store transformed data, a bug in the transformation may destroy the evidence.
+> Reprocessing from raw is what makes fixes and **backfills** (re-running a pipeline over past dates to repair or populate history) possible. If you only store transformed data, a bug in the transformation may destroy the evidence.
 
 ### A source team renames a column from `total` to `total_amount` without telling you. Your job keeps running but the revenue column is now empty. Which problem category is this?
 - [ ] Duplicates: the renamed column was loaded alongside the old one, so every order now appears twice
@@ -510,7 +517,7 @@ Assume every job will run twice someday. If running it twice changes the result,
 
 > This is a stage-1 company: a weekly decision needs trustworthy daily numbers, not sub-second freshness. Building a stage-3 platform first costs months of the team's time before any useful number appears.
 
-### Which of these is one of the six undercurrents rather than one of the five lifecycle stages?
+### Which of these is one of the six habits (undercurrents) rather than one of the five stops (lifecycle stages)?
 - [ ] Ingestion: copying data from the source systems into your platform
 - [ ] Serving: handing the results to dashboards, analysts and models
 - [x] Orchestration: running every step in the right order, with retries

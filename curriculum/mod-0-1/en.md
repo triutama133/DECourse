@@ -27,7 +27,9 @@ The program that reads your commands is the **shell** (usually `bash` or `zsh`; 
 - **Press Tab** to complete file names. It is faster and prevents typos.
 - **Press the Up arrow** to recall previous commands, and `Ctrl+R` to search them.
 - **Read the error.** Nine times out of ten the answer is in the last line.
-- **Ask the command for help:** `ls --help`, or `man ls` (press `q` to quit).
+- **Ask the command for help:** `man ls` opens the manual on Linux and macOS (press `q` to quit); on Linux, `ls --help` also prints a short summary (`--help` is Linux-only and fails on macOS).
+
+**Windows users.** Install WSL2 (`wsl --install` in an administrator PowerShell), then open "Ubuntu" from the Start menu. Inside it, everything in this course works exactly as written. If you stay in plain PowerShell, many commands have equivalents (`dir` for `ls`, `type` for `cat`, `Select-String` for `grep`) but tutorials, Docker (a tool that packages programs to run anywhere; Module 1.1) and data tools will keep assuming a Linux shell, so WSL2 saves you a lot of friction.
 
 The commands come in small groups. For each group: read what it is for, answer the question, then try it on your computer.
 
@@ -41,11 +43,13 @@ Before anything else you need to know **which folder you are standing in** and *
 | `ls -la` | List files, including hidden ones, with details | `ls -la data` |
 | `cd` | Change folder | `cd ~/kopiku` |
 
+Two path shortcuts you will see right away: `~` means your **home folder** (e.g. `/home/budi`), and `..` means the **parent folder** one level up.
+
 :::ask You are in `~/kopiku/scripts`. The data folder is `~/kopiku/data`. You run `head -5 data/orders.csv`. What happens?
 @options
 the first five lines of the orders file are shown
-the first five lines are deleted
-* an error: `data/` is not inside `scripts/`
+the first five lines of the orders file are deleted
+* error: `data/` is not inside `scripts/`
 @why
 `data/orders.csv` is a **relative path**: the shell looks for it starting from the folder you are in, `scripts/`, and there is no `data/` inside it. The file is one level up. Run `pwd` and `ls` first, or write the path from where you are: `../data/orders.csv`.
 :::
@@ -74,7 +78,7 @@ deletes both files
 `mv` moves. When the destination is a new name in the same folder, "moving" a file is the same as **renaming** it. Use `cp` when you want to keep the original.
 :::
 
-> **On your computer, now:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` prints text, and `>` sends it into a file instead of the screen; Lesson 3 explains), `cp a.txt b.txt`, `mv b.txt c.txt`, then `ls`. You should see `a.txt` and `c.txt`.
+> **On your computer, now:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` prints text, and `>` sends it into a file instead of the screen; Lesson 3 explains), `cp a.txt b.txt`, `mv b.txt c.txt`, then `ls`. You should see `a.txt`, `c.txt`, and `data`. Clean up the two practice files with `rm a.txt c.txt` so they do not clutter `~/kopiku` later.
 
 ### Look inside a file
 
@@ -102,7 +106,7 @@ Never open a million-line file in an editor to "see what is in it": `head` shows
 | `grep` | Find lines containing text | `grep "cancelled" orders.csv` |
 | `wc -l` | Count lines | `wc -l orders.csv` |
 
-Together they answer "how many orders were cancelled?" without opening the file: `grep -c "cancelled" orders.csv`.
+Together they answer "how many orders were cancelled?" without opening the file: `grep "cancelled" orders.csv | wc -l` (the `|` pipe, explained in Lesson 3, sends `grep`'s matching lines into `wc -l`; `grep -c "cancelled" orders.csv` is a built-in shortcut for the same count).
 
 ### The dangerous one: rm
 
@@ -114,17 +118,16 @@ Together they answer "how many orders were cancelled?" without opening the file:
 
 :::ask You want to delete the folder `old_data/`. What is the safest habit?
 @options
-* run `ls old_data` first, check it, then delete
+* check with `ls old_data`, then delete
 run `rm -rf old_data` and hope it is right
-use `rm` so it goes to the recycle bin
+run `rm old_data` so it moves to the recycle bin
 @why
 There is no recycle bin in the shell. Looking at **exactly the same path** with `ls` first costs two seconds and has saved many people a bad day.
 :::
 
-**Windows users.** Install WSL2 (`wsl --install` in an administrator PowerShell), then open "Ubuntu" from the Start menu. Inside it, everything in this course works exactly as written. If you stay in plain PowerShell, many commands have equivalents (`dir` for `ls`, `type` for `cat`, `Select-String` for `grep`) but tutorials, Docker (a tool that packages programs to run anywhere; Module 1.1) and data tools will keep assuming a Linux shell, so WSL2 saves you a lot of friction.
-
 > 💡 **Practice Pause 1 (Terminal Command Exploration):**
-> Do not just read the table above! Open your terminal right now in this course directory and try basic navigation commands:
+> Do not just read the table above! Open your terminal right now and move to your course folder first:
+> Type `cd ~/projects/DECourse` (or wherever you cloned the course). If `data/orders.csv` is not there yet, run `python3 labs/shared/shopgen.py --out data` first.
 > Type `pwd` to check your current working directory.
 > Type `ls -la data` to list KopiKu's transaction files.
 > Type `head -5 data/orders.csv` to inspect the first 5 order rows.
@@ -138,7 +141,7 @@ Why do scripts say "file not found" when the file is right there? Almost always 
 
 Every file has a **path**, its address in the file system. An **absolute path** starts at the root (`/home/budi/kopiku/data/orders.csv`). A **relative path** starts from where you are now (`data/orders.csv`). Some shortcuts you will use constantly: `~` is your home folder, `.` is the current folder, `..` is the parent folder. If a script says "file not found", run `pwd` and `ls` first.
 
-Watch how a relative path becomes an absolute one: the shell glues it to the folder you are in.
+Watch how a relative path becomes an absolute one: the shell glues it to the folder you are in. (The trace below uses Python's built-in `posixpath` module, which handles Linux/macOS `/`-separated paths.)
 
 :::trace A relative path, resolved
 @code
@@ -164,14 +167,14 @@ Files whose names start with a dot (`.gitignore`, `.env`) are **hidden**; `ls -a
 
 ### Environment variables and PATH
 
-- **Environment variables** are named values every program can read, such as `HOME` or `PATH`. `echo $HOME` shows one. Later you will use them to pass settings and secrets to programs without writing them in code.
+- **Environment variables** are named values every program can read, such as `HOME` or `PATH`. `echo $HOME` shows one (putting `$` in front of a variable name tells the shell to read its value). Later you will use them to pass settings and secrets to programs without writing them in code.
 - **`PATH`** is the list of folders the shell searches when you type a command name, **in order, and the first match wins**. "command not found" means the program is not installed, or not in a folder on your `PATH`.
 
 :::ask You type `pytest` and the shell answers `command not found`. What does that tell you?
 @options
-the pytest program is broken on this machine
-you typed the wrong password for it
-* no folder on `PATH` has a program called `pytest`
+the `pytest` program is broken on this machine
+you typed the wrong password to run `pytest`
+* `pytest` is not in any `PATH` folder
 @why
 The shell looks for the name in every folder of `PATH`, in order. "command not found" means none of them has it: not installed, or installed somewhere that is not on `PATH`. Activating a Python virtual environment (the lesson after next) works by putting its folder at the **front** of `PATH`.
 :::
@@ -182,19 +185,20 @@ The shell looks for the name in every folder of `PATH`, in order. "command not f
 
 **Text encoding and line endings** cause quiet bugs. Text files are bytes (a **byte** is the smallest piece a computer stores; one plain letter is one byte) interpreted through an encoding, the rule that says which byte means which character; use **UTF-8** everywhere and say so when opening files in code. Windows and Linux end lines differently (`\r\n` vs `\n`); a CSV created on Windows may leave an invisible `\r` at the end of the last column, which breaks comparisons that "look" identical.
 
-**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them as letters (`-rwxr-xr-x`: `r` is read, `w` is write, `x` is run; three groups of three, for the owner, the group and everyone else). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file.
+**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them as letters (`-rwxr-xr-x`: `r` is read, `w` is write, `x` is run; three groups of three, for the owner, the group and everyone else). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file. You may also see people prefix commands with `sudo`, it runs a command as `root` (the system administrator, with unrestricted power to change or delete anything).
 
 :::ask You get `Permission denied` running a script you just downloaded. What is the right first move?
 @options
-* check `ls -l`, then `chmod +x` if the script is yours
-put `sudo` in front, so it always works
-delete the file and download it again
+* inspect with `ls -l`, then `chmod +x` if safe
+put `sudo` in front so it runs as root right away
+delete the file and download a fresh copy
 @why
 `sudo` runs the command with full power and creates files only the administrator can later change: do not "fix" permission errors with it blindly. Read the permission flags first, then change only what is needed, on a file you trust.
 :::
 
 > 💡 **Practice Pause 2 (Paths & Environment Exploration):**
 > Inspect your shell environment directly in your terminal:
+> Type `cd ~/projects/DECourse` (or your course folder; if `data/orders.csv` is not there yet, run `python3 labs/shared/shopgen.py --out data` first).
 > Type `echo $HOME` to see your home directory path.
 > Type `echo $PATH` to see where your shell looks for executables.
 > Type `which python3` to find the absolute path of your system's Python interpreter.
@@ -219,6 +223,8 @@ How many orders per status? Try this on the KopiKu order file you generated in S
 cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
 ```
 
+The building blocks: `cut -d, -f4` splits each line on commas (`-d,`) and picks the 4th field (`-f4`), `tail -n +2` prints from line 2 onward (skipping the header), `sort` orders lines alphabetically (`-rn` sorts numerically in reverse), and `uniq -c` counts repeated lines.
+
 Do not run it yet. First predict what each stage hands to the next, on a tiny file:
 
 ```
@@ -230,9 +236,9 @@ id,customer,total,status
 
 :::ask What does `cut -d, -f4 orders.csv` print for that file?
 @options
-the whole file, header and all columns
-* the 4th column, one value per line, header included
-only the numbers, without the header
+the whole file, including header and all columns
+* the 4th column, including the header
+only the numeric values, without the header
 @why
 `-d,` says the separator is a comma, and `-f4` picks the 4th field. The header's 4th field (`status`) comes out too, which is why the next stage skips the first line.
 :::
@@ -240,7 +246,7 @@ only the numbers, without the header
 :::ask Why must `sort` come BEFORE `uniq -c` in the pipe?
 @options
 `uniq` only works on sorted numbers, not text
-* `uniq -c` counts only neighbouring equal lines
+* `uniq -c` only counts adjacent duplicates
 it makes the output look prettier, nothing more
 @why
 `uniq -c` only compares a line with the one just before it. For `paid, cancelled, paid` it would count three groups of 1. After `sort` it sees `cancelled, paid, paid` and counts `1 cancelled` and `2 paid`.
@@ -279,7 +285,7 @@ nothing happens: the shell refuses to run it
 `>` truncates the target file as the command starts. `sort` then reads an already-empty file. To sort a file into another file, write to a **different** name: `sort orders.csv > sorted.csv`. (Redirecting onto the file you read from destroys it.)
 :::
 
-Every program has three standard streams: input (`stdin`), output (`stdout`) and errors (`stderr`). Pipes carry `stdout`; error messages still appear on your screen. To save errors too, use `2>` (for example `python job.py > out.txt 2> errors.txt`). Separating them is why a pipeline can fail loudly even when its output is being piped away.
+Every program has three standard streams: input (`stdin`), output (`stdout`) and errors (`stderr`). Pipes carry `stdout`; error messages still appear on your screen. To save errors too, use `2>` (for example `python3 job.py > out.txt 2> errors.txt`). Separating them is why a pipeline can fail loudly even when its output is being piped away.
 
 > 💡 **Practice Pause 3 (Piping KopiKu Data):**
 > Prove the power of pipes directly in your terminal without writing a Python script:
@@ -351,7 +357,7 @@ Three rules save most beginners' afternoons:
 
 1. **Always run `python -m pip`, not bare `pip`.** It guarantees the package goes to the same Python you are using.
 2. **Never use `sudo pip install`.** It modifies the system Python and can break the operating system's tools.
-3. **Commit `requirements.txt`, never the `venv/` folder.** The folder is large, specific to your machine, and recreated in one command: `python -m pip install -r requirements.txt`.
+3. **Commit `requirements.txt`, never the `venv/` folder.** (Git and committing are taught next in Lesson 5, for now, "commit" means saving a file into your project's version history.) The folder is large, specific to your machine, and recreated in one command: `python -m pip install -r requirements.txt`.
 
 Newer tools (`uv`, `poetry`) do the same job faster and add lock files; the concept is identical, so learn it with `venv` first.
 
@@ -366,8 +372,8 @@ Newer tools (`uv`, `poetry`) do the same job faster and add lock files; the conc
 
 :::ask Which of these should you commit to Git?
 @options
-the `venv/` folder
-both
+the whole `venv/` folder
+both of them
 * `requirements.txt`
 @why
 `venv/` is large, specific to your machine, and recreated in one command from `requirements.txt` (`python -m pip install -r requirements.txt`). Commit the recipe, not the result.
@@ -379,7 +385,7 @@ both
 
 > 💡 **Practice Pause 4 (Build Workspace & Virtual Environment):**
 > Time to build your own local workbench! Open your terminal and run:
-> 1. Create your project folder: `mkdir -p ~/kopiku && cd ~/kopiku`
+> 1. Create your project folder: `mkdir -p ~/kopiku && cd ~/kopiku` (`&&` runs the second command only if the first succeeds)
 > 2. Create an isolated virtual environment: `python3 -m venv venv`
 > 3. Activate the environment: `source venv/bin/activate`
 > 4. Verify: `which python` (ensure it points to `~/kopiku/venv/bin/python`).
@@ -394,10 +400,17 @@ Git records snapshots of your project so you can see what changed, go back to an
 2. **Staging area**: the changes you have *chosen* to include in the next snapshot.
 3. **Repository history**: the permanent chain of snapshots, called **commits**.
 
-The basic loop:
+**One-time setup (do this once per computer):** tell Git who you are so it knows who made each commit (otherwise `git commit` stops with `Author identity unknown`):
 
 ```bash
-git init                         # start tracking this folder (once)
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+The basic loop (passing `-b main` to `git init` guarantees the first branch is always named `main`, even on older Git installs):
+
+```bash
+git init -b main                 # start tracking this folder on branch main (once)
 git status                       # what changed? what is staged?
 git add summarize.py             # stage a file for the next snapshot
 git commit -m "Add script that counts orders by status"   # take the snapshot
@@ -409,9 +422,9 @@ Predict before you read the next part:
 
 :::ask You edit `a.py` and `b.py`. You run `git add a.py` and then `git commit -m "fix"`. What is in the commit?
 @options
-* only `a.py`: only staged changes go into a commit
-both files
-nothing, you must also run `git push`
+* only `a.py`, because only it was staged
+both `a.py` and `b.py`
+nothing yet, until you also run `git push`
 @why
 A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `b.py` stays a modified file in the working tree. This is why `git status` before every commit pays off.
 :::
@@ -422,7 +435,7 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 
 - Discard uncommitted edits to a file: `git restore file.py`
 - Unstage a file: `git restore --staged file.py`
-- Undo a commit by adding a new commit that reverses it: `git revert <commit>`
+- Undo a commit by adding a new commit that reverses it: `git revert <commit>` (replace `<commit>` with the short commit hash shown by `git log --oneline`, e.g. `a1b2c3d`)
 - Fix the last commit message (not yet shared): `git commit --amend`
 
 :::ask You edited `summarize.py` and broke it. Nothing is committed yet. Which command throws the edits away and brings the last committed version back?
@@ -436,24 +449,24 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 
 **Branches** let you experiment without touching the main line: `git switch -c try-new-parser`, work and commit, then merge it (`git switch main && git merge try-new-parser`) or throw it away. **Remotes** such as GitHub hold a copy elsewhere: `git remote add origin <url>` and `git push -u origin main`. A pushed repository is a backup and a portfolio, but also something other people can read, which is why the next two points matter.
 
-**`.gitignore`** lists files Git must not track: `venv/`, `.env`, `__pycache__/`, large data files such as `data/`. Note: ignoring a file only affects files not yet committed. If you committed `data/` earlier, add it to `.gitignore` *and* run `git rm -r --cached data` to stop tracking it.
+**`.gitignore`** lists files Git must not track: `venv/`, `.env`, `__pycache__/`, large data files such as `data/`. Note: ignoring a file only affects files not yet committed. If you committed `data/` earlier, add it to `.gitignore` *and* run `git rm -r --cached data` to stop tracking it (`--cached` removes it from Git only while keeping the local files on your disk).
 
 > **Warning:** Git history is permanent by design. A file committed once lives in every clone and every old commit, even if you delete it in the next commit. This is why secrets must never be committed, even "temporarily".
 
 :::ask You committed `.env` with a password, noticed, and deleted the file in your next commit. Is the password safe now?
 @options
-* no: the earlier commit still holds it for anyone with a clone
+* no: it stays in the earlier commit
 yes, the file is gone from the folder now
-yes, because old commits can not be read
+yes, because old commits cannot be read
 @why
 Deleting a file in a later commit only removes it from the latest snapshot. The old commit still contains it. Treat any committed secret as exposed: revoke and replace it first (next lesson).
 :::
 
 
 > 💡 **Practice Pause 5 (Initialize Git & Guard with .gitignore):**
-> Still inside `~/kopiku` in your terminal:
-> 1. Initialize Git tracking: `git init`
-> 2. Create a `.gitignore` so venv and data are never tracked:
+> Still inside `~/kopiku` in your terminal (if you have never used Git on this computer, run the two `git config --global` lines above once first):
+> 1. Initialize Git tracking on branch `main`: `git init -b main`
+> 2. Create a `.gitignore` so venv and data are never tracked (`printf` prints text where `\n` means a new line):
 > `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
 > 3. Make your first commit:
 > `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
@@ -483,7 +496,7 @@ it returns the password of another program
 Failing immediately and clearly beats running half-configured. `os.environ.get("REGION", "ap-southeast-1")` is the version for **harmless** settings that have a safe default; never give a secret a default.
 :::
 
-For local work, put variables in a file named `.env` that is listed in `.gitignore`, and load it with your shell (`set -a; source .env; set +a`) or a library such as `python-dotenv`. In production the platform injects them from a secrets manager. Commit a `.env.example` with fake values so teammates know which variables exist.
+For local work, put variables in a file named `.env` that is listed in `.gitignore`, and load it with your shell (`set -a; source .env; set +a`: `set -a` auto-exports every variable defined while `source .env` reads the file, and `set +a` turns auto-export back off) or a library such as `python-dotenv`. In production the platform injects them from a secrets manager. Commit a `.env.example` with fake values so teammates know which variables exist.
 
 ### Why a variable "disappears"
 
@@ -524,7 +537,7 @@ port: 5432
 @options
 yes, because it comes right after `host`
 yes, because both values are written the same way
-* no: it sits at the left edge, so it is a separate setting next to `database`
+* no: it is not indented, so it is a top-level key
 @why
 Only indentation decides. `host` is pushed in under `database`, but `port` starts at the left edge again, so it belongs to the top level. To put it inside, indent it by the same two spaces as `host`.
 :::
@@ -580,34 +593,34 @@ Finally, **practise the loop** until it is automatic: make a small change, run i
 
 > 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
 > Prove that your entire workbench functions as intended:
-> 0. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/projects/DECourse` (the folder from Start here, step 3; `export` lasts only in this terminal window)
-> 1. Inside `~/kopiku`, copy the generator and generate data:
-> `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
-> 2. Copy the starter script: `cp $COURSE/labs/mod-0-1/starter/summarize.py .`
-> 3. Open `summarize.py` in your editor and implement order counting grouped by lower-case status.
-> 4. Commit script and generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
-> 5. Freeze requirements: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
-> 6. Run the automated checker from the course repo:
-> `python3 $COURSE/labs/mod-0-1/check.py ~/kopiku`
-> When all checks PASS, congratulations! You have a verified professional data engineering environment!
+> 1. Make sure you are in `~/kopiku` with its virtual environment active: `cd ~/kopiku && source venv/bin/activate`
+> 2. Tell the shell where you cloned the course (change the path to YOUR folder): `export COURSE=~/projects/DECourse` (the folder from Start here, step 3; `export` lasts only in this terminal window)
+> 3. Copy the generator and generate data: `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 4. Copy the starter script: `cp $COURSE/labs/mod-0-1/starter/summarize.py .`
+> 5. Open `summarize.py` in your editor and implement it: count each `order_id` once (deduplicate repeated rows), normalize statuses to trimmed lower-case, and print one sorted line per status in the format `"<status> <count>"`.
+> 6. Commit script and generator, then freeze requirements: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"` and `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
+> 7. Run the automated checker from the course repo: `python3 $COURSE/labs/mod-0-1/check.py ~/kopiku`
+> When all 16 checks PASS, congratulations! You have a verified professional data engineering environment (in the Lab below, skip Steps 1–5 and jump straight to Steps 6–7).
 
 ## @lab Lab: build your KopiKu workspace
 Create the project folder that you will use for the rest of the course, and prove it is set up correctly with an automatic checker. Your workspace needs an isolated environment, a Git history with sensible commits, a `.gitignore` that protects you, and a small script that counts orders by status.
 
 ### @steps
+> **Already followed Practice Pauses 4–7 in `~/kopiku`?** **Skip Steps 1–5**: do **not** re-run `cp $COURSE/labs/mod-0-1/starter/summarize.py .` or it will overwrite your finished script! Jump straight to **Step 6** (`check.py`) and **Step 7** (course venv + `prove.py`).
+
 1. Create the folder and move into it:
 
 ```bash
 mkdir -p ~/kopiku && cd ~/kopiku
 ```
 
-2. Create and activate a virtual environment, and make your first commit with a `.gitignore` that excludes `venv/`, `.env`, `data/` and `__pycache__/`:
+2. Create and activate a virtual environment, and make your first commit with a `.gitignore` that excludes `venv/`, `.env`, `data/` and `__pycache__/` (if this is your first time using Git on this computer, run `git config --global user.name "Your Name"` and `git config --global user.email "you@example.com"` once first so `git commit` does not stop with `Author identity unknown`):
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate            # Windows PowerShell: venv\Scripts\Activate.ps1
-git init
-printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore
+git init -b main
+printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore   # printf writes text (\n = newline)
 git add .gitignore
 git commit -m "Start project with a .gitignore"
 ```
@@ -620,7 +633,7 @@ cp $COURSE/labs/shared/shopgen.py .
 python3 shopgen.py --out data
 ```
 
-4. Copy the starter script into your project with `cp $COURSE/labs/mod-0-1/starter/summarize.py .`, open it in your editor and implement it. It must count each `order_id` once and group by lower-case status. Try it, and compare with the terminal one-liner from the lessons (remember the one-liner double-counts duplicates, so the numbers will differ slightly: that is the point):
+4. Copy the starter script into your project with `cp $COURSE/labs/mod-0-1/starter/summarize.py .` (**do not run this `cp` if you already finished `summarize.py` in Practice Pause 7**, or it will overwrite your code), open it in your editor and implement it. It must count each `order_id` once and group by lower-case status. Try it, and compare with the terminal one-liner from the lessons (remember the one-liner double-counts duplicates, so the numbers will differ slightly: that is the point):
 
 ```bash
 python3 summarize.py data/orders.csv
@@ -642,10 +655,12 @@ git commit -m "Record dependencies in requirements.txt"
 python3 $COURSE/labs/mod-0-1/check.py ~/kopiku
 ```
 
-7. **Get ready for Module 0.2 and prove your workspace.** Create the shared course virtual environment once inside your course folder, install `pytest` (Module 0.2 uses it right next; if you tried `Lab 0.0` only in the browser preview earlier, run `pytest labs/mod-0-0/test_lab.py -v` here too), and generate your Module 0.1 proof code:
+7. **Get ready for Module 0.2 and prove your workspace.** First leave `~/kopiku`'s venv with `deactivate`, then create the shared course virtual environment once inside your course folder (`$COURSE`), install `pytest` (Module 0.2 uses it right next; if you tried `Lab 0.0` only in the browser preview earlier, run `pytest labs/mod-0-0/test_lab.py -v` here too), and generate your Module 0.1 proof code:
 
 ```bash
-cd ~/projects/DECourse
+deactivate                              # leave ~/kopiku's venv (skip if not active)
+export COURSE=~/projects/DECourse       # change if you cloned elsewhere
+cd "$COURSE"
 python3 -m venv venv && source venv/bin/activate
 python -m pip install pytest
 python3 scripts/prove.py mod-0-1 ~/kopiku
@@ -653,7 +668,7 @@ python3 scripts/prove.py mod-0-1 ~/kopiku
 
 The last command prints a proof code. Paste it into the **Proof** box on the Module 0.1 lab page.
 
-   This second venv belongs to the **course folder** (`~/projects/DECourse`, or wherever you cloned it in Start here, step 3), not to `~/kopiku`: one venv per project is the normal habit. It is the one you use for every later module. Create it once; at the start of each study session run `cd ~/projects/DECourse` and `source venv/bin/activate`, and check that the prompt starts with `(venv)`.
+This second venv belongs to the **course folder** (`$COURSE`, e.g. `~/projects/DECourse`, from Start here, step 3), not to `~/kopiku`: one venv per project is the normal habit. It is the one you use for every later module. Create it once; at the start of each study session run `cd ~/projects/DECourse` (your `$COURSE` folder) and `source venv/bin/activate`, and check that the prompt starts with `(venv)`.
 
 ### @files
 - labs/mod-0-1/starter/summarize.py :: Starter for your script: fill in the counting logic :: starter
@@ -662,13 +677,13 @@ The last command prints a proof code. Paste it into the **Proof** box on the Mod
 - labs/mod-0-1/reference/make_workspace.sh :: Builds the finished workspace automatically :: reference
 
 ### @deliverables
-- `python3 labs/mod-0-1/check.py ~/kopiku` prints PASS for every line
-- Your Git history has at least three commits with meaningful messages
-- `venv/`, `data/` and `.env` are not tracked by Git
-- Lab 0.2's 8 tests pass in your own terminal, inside your own venv (your own setup, not the browser preview)
+- `python3 labs/mod-0-1/check.py ~/kopiku` prints PASS for all 16 checks
+- Your Git history has at least three commits with unique, meaningful messages, and `venv/`, `data/` and `.env` are not tracked by Git
+- `python3 scripts/prove.py mod-0-1 ~/kopiku` prints a valid proof code
+- `pytest` is installed in the course folder's `venv`, ready for Module 0.2
 
 ### @verify
-The checker is the verification:
+The checker is the verification. Run it from your course folder (`cd "$COURSE"`, e.g. `~/projects/DECourse`):
 
 ```bash
 python3 labs/mod-0-1/check.py ~/kopiku
@@ -708,7 +723,7 @@ Secrets live in the environment, never in the repository. If one ever leaks, rev
 - [ ] It is removed from your disk during the next `git pull`
 - [ ] It is hidden in the log but still tracked, and future edits are ignored automatically
 
-> `.gitignore` applies only to files Git is not already tracking. Already-committed files continue to be tracked until you remove them from the index (and they remain in old commits).
+> `.gitignore` applies only to files Git is not already tracking. Already-committed files continue to be tracked until you remove them from the staging area (and they remain in old commits).
 
 ### What does `grep "paid" orders.csv | wc -l` do?
 - [ ] Counts how many files in the current folder contain the word "paid"

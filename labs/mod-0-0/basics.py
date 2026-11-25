@@ -11,7 +11,7 @@ CANCELLED = {"cancelled", "refunded"}  # a set: statuses that bring in no money
 
 
 def format_rupiah(amount):
-    """Turn a whole number into text with dots between thousands.   (lessons 1 and 5)
+    """Turn a whole number into text with dots between thousands.   (lessons 1, 3 and 5)
 
     1250000 -> "Rp 1.250.000"      0 -> "Rp 0"      -45000 -> "-Rp 45.000"
     Hint: f"{n:,}" puts commas between thousands; .replace(",", ".") swaps them for dots.
@@ -21,9 +21,10 @@ def format_rupiah(amount):
 
 
 def safe_int(text, default=None):
-    """Turn text into an int, or return `default` when that is impossible.   (lesson 6: try / except)
+    """Turn text (or an integer) into an int, or return `default` when that is impossible.   (lesson 6: try / except)
 
-    "42" -> 42     " 42 " -> 42     "abc" -> None     "" -> None     safe_int("abc", 0) -> 0
+    "42" -> 42     " 42 " -> 42     12 -> 12     "abc" -> None     "" -> None     safe_int("abc", 0) -> 0
+    Hint: `text` may arrive as text (" 42 ") or already an int (12); int(str(text).strip()) handles both.
     """
     raise NotImplementedError("TODO: implement safe_int")
 
@@ -42,7 +43,7 @@ def count_by_status(orders):
 
 
 def unique_customer_ids(orders):
-    """The distinct customer ids as ints, smallest first, each once.   (lesson 2: set)"""
+    """The distinct customer ids as ints, smallest first, each once.   (lessons 1, 2 and 4: int, set, for)"""
     raise NotImplementedError("TODO: implement unique_customer_ids")
 
 
@@ -62,6 +63,7 @@ def average_total(orders):
 def top_customers(orders, n):
     """The n customers who spent the most, as a list of (customer_id, total) tuples, biggest total first.
 
+    Include ALL orders regardless of status (do not filter out cancelled or refunded).
     customer_id is an int. If two customers have the same total, the smaller id comes first.   (lessons 2, 4: dict, for, tuple)
     Hint: collect totals in a dict, then sorted(d.items(), key=...) with a key function; slicing [:n] keeps the first n.
     """

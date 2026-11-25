@@ -76,6 +76,7 @@ def run_gate(data_dir, contract_path, now, out_dir):
                     reject_rate above the contract's sla.max_reject_rate -> "fail", reason "reject rate above the contract limit"
       3. freshness  newest valid order_ts vs `now` and sla.freshness_hours -> "fail", reason "data is stale"
       4. volume     daily_counts of valid rows; volume_anomaly(last 14 days before the final day, final day's count);
-                    an anomaly -> "warn", reason "volume anomaly on the latest day"
+                    include "day": days[-1] (the final day string) and "count": counts[days[-1]] alongside the keys returned
+                    by volume_anomaly(...); an anomaly -> "warn", reason "volume anomaly on the latest day"
     Put each check's result in report["checks"] under the keys 'schema', 'contract', 'freshness', 'volume'."""
     raise NotImplementedError("TODO: run_gate")

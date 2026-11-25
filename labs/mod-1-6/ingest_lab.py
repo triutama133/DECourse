@@ -12,6 +12,7 @@ import urllib.error  # noqa: F401
 import urllib.parse  # noqa: F401
 import urllib.request  # noqa: F401
 from datetime import datetime, timezone  # noqa: F401
+from pathlib import Path  # noqa: F401
 
 
 class ApiError(Exception):
@@ -118,7 +119,7 @@ def incremental_load(url, token, checkpoint_path, landing_dir, run_id, today, **
        keys: "_run_id" (run_id), "_source" (url) and "_ingested_at" (the current UTC time as an ISO string). Write to a temporary file in that folder first
        and os.replace() it, so the file is complete or absent, and running again with the same run_id overwrites the same file (idempotent).
     6. ONLY AFTER the file is in place, save the new checkpoint: the greatest updated_at of the records.
-    Return {"fetched": number of records the API returned, "written": the file path, "checkpoint": the new checkpoint}.
+    Return {"fetched": number of records the API returned, "written": the file path as a str, "checkpoint": the new checkpoint}.
     If anything fails before step 6 the checkpoint must stay as it was, so the next run fetches the same data again.
     """
     raise NotImplementedError("TODO: implement incremental_load")

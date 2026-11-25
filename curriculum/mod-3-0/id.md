@@ -19,7 +19,7 @@ Modul 0.0 (Python) dan Modul 2.1 (file kolumnar) membantu. Lab ini memakai Pytho
 ## @part Penyimpanan dan komputasi: HDFS dan MapReduce
 
 ## @lesson Mengapa Hadoop diciptakan
-Sekitar tahun 2003, sebuah perusahaan pencarian tidak bisa menyimpan web di satu komputer. Satu mesin, sebesar apa pun, punya batas: satu disk menampung beberapa terabyte, membacanya makan waktu berjam-jam, dan mesin terbesar harganya jauh lebih dari sepuluh kali harga sepuluh mesin biasa. Ada dua cara tumbuh. **Scale up** berarti membeli mesin yang lebih besar; ia menabrak langit-langit dan tembok harga. **Scale out** berarti menyambung banyak mesin biasa dan membiarkan mereka berbagi pekerjaan; ia tidak punya langit-langit, tetapi melahirkan masalah baru.
+Sekitar tahun 2003, sebuah perusahaan pencarian tidak bisa menyimpan web di satu komputer. Satu mesin, sebesar apa pun, punya batas: satu disk menampung beberapa terabyte, membacanya makan waktu berjam-jam, dan mesin terbesar harganya jauh lebih dari sepuluh kali harga sepuluh mesin biasa. Ada dua cara tumbuh. **Scale up** berarti membeli mesin yang lebih besar; ia segera menabrak batas kapasitas dan biaya. **Scale out** berarti menyambung banyak mesin biasa dan membiarkan mereka berbagi pekerjaan; kapasitasnya bisa terus tumbuh tanpa batas mesin tunggal, tetapi melahirkan masalah baru.
 
 Masalah utamanya adalah kegagalan. Jika satu disk rusak sekali dalam beberapa tahun, klaster 4.000 mesin dengan masing-masing 12 disk kehilangan sebuah disk **hampir setiap hari**. Google menjelaskan jawabannya dalam dua makalah: Google File System (2003) untuk penyimpanan, dan MapReduce (2004) untuk komputasi. Doug Cutting dan rekan-rekannya membangun versi open source-nya, dan Apache **Hadoop** (sejak 2006) menjadi fondasi dekade big data pertama. Gagasan desainnya, yang akan Anda temui lagi di Spark dan Kafka, adalah: **anggap mesin pasti gagal, simpan beberapa salinan data, dan buat komputasi bisa dijalankan ulang**.
 
@@ -40,8 +40,8 @@ Gagasan kedua mengalir melalui semuanya: **pindahkan komputasi ke data, bukan da
 
 :::ask Sebuah klaster punya 4.000 mesin dengan 12 disk tiap mesin. Mengapa Hadoop harus berasumsi bahwa kegagalan itu normal?
 @options
-disk klaster murah dan tidak pernah awet
-* dengan disk sebanyak itu, satu rusak tiap hari
+disk klaster murah dan rusak dalam hitungan bulan
+* dengan 48.000 disk, satu rusak tiap hari
 jaringan merusak setiap file yang dibawanya
 @why
 Jika satu disk rusak sekali dalam beberapa tahun, 48.000 disk rusak kira-kira tiap hari. Pada skala itu kegagalan itu rutin, sehingga penyimpanan harus menyimpan salinan dan job harus bisa dijalankan ulang.
@@ -57,7 +57,7 @@ Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di 
 **Rack awareness.** Mesin berada di rak yang berbagi satu switch dan satu catu daya. Kehilangan satu rak utuh adalah kejadian nyata. Kebijakan penempatan bawaan untuk tiga replika: **replika pertama di mesin penulis sendiri, kedua di mesin pada rak yang berbeda, ketiga di mesin lain pada rak yang sama dengan yang kedua**. Ini memberi toleransi kegagalan tingkat rak sambil menjaga sebagian besar lalu lintas tulis di dalam satu rak. `place_replicas` di lab mengimplementasikannya persis, dan `blocks_lost` menunjukkan bahwa sebuah blok hilang hanya jika mesin dari *setiap* replikanya gagal.
 
 > 💡 **Jeda Praktik 1 (Pemotongan Blok HDFS & Penempatan Replika Sadar-Rak):**
-> 1. Buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda (misalnya VS Code). Jangan jalankan file Python ini langsung di terminal tanpa argumen.
+> 1. Pasang dependensi lab sekali saja (`pip install -r labs/mod-3-0/requirements.txt`), lalu buka file `labs/mod-3-0/hadoop_lab.py` di teks editor Anda (misalnya VS Code). Jangan jalankan file Python ini langsung di terminal tanpa argumen.
 > 2. Implementasikan fungsi `split_into_blocks(file_size, block_size=BLOCK_SIZE)` untuk memotong file ke ukuran blok standar (128 MiB) beserta sisa blok terakhir.
 > 3. Implementasikan fungsi `place_replicas(nodes, writer, factor=3)` dengan aturan penempatan rak: replika 1 di node penulis, replika 2 di rak berbeda, replika 3 di rak yang sama dengan replika kedua.
 > 4. Implementasikan fungsi `blocks_lost(placements, failed_nodes)` yang mengembalikan daftar blok yang kehilangan seluruh replikanya.
@@ -67,13 +67,13 @@ Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di 
 
 **Masalah file kecil.** NameNode menyimpan satu objek di memori untuk setiap file, direktori, dan blok; aturan praktis yang sering dikutip adalah sekitar **150 byte** per objek. `metadata_objects` di lab membuat akibatnya terlihat. Satu terabyte yang disimpan sebagai file 1 GiB adalah 1.024 file dengan 8 blok masing-masing: **9.216 objek**, sekitar 1,4 MB memori NameNode. Terabyte yang sama sebagai file 1 MiB adalah **2.097.152 objek**, sekitar **300 MB**, atau 227 kali lebih banyak, untuk data yang identik. Puluhan juta file kecil bisa menghabiskan memori NameNode dan menjatuhkan seluruh klaster (lihat skenario chaos). HDFS dibuat untuk **file yang sedikit dan besar**.
 
-Batasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HDFS cocok untuk data "tulis sekali, baca berkali-kali"; satu NameNode tunggal akan menjadi titik kegagalan tunggal, sehingga klaster produksi menjalankan NameNode standby dengan journal bersama (**HA**); dan **erasure coding** (Hadoop 3) menyimpan blok paritas, bukan salinan penuh, misalnya enam blok data ditambah tiga blok paritas, yang berbiaya 1,5 kali data dan bukan 3 kali.
+Batasan lain: file bisa ditambah di akhir tetapi tidak diedit di tengah, jadi HDFS cocok untuk data "tulis sekali, baca berkali-kali"; satu NameNode tunggal akan menjadi titik kegagalan tunggal, sehingga klaster produksi menjalankan NameNode standby dengan journal bersama (**HA**, High Availability); dan **erasure coding** (Hadoop 3) menyimpan blok paritas, bukan salinan penuh, misalnya enam blok data ditambah tiga blok paritas, yang berbiaya 1,5 kali data dan bukan 3 kali.
 
 :::ask Satu terabyte disimpan sebagai 10 juta file kecil sekitar 100 KB. Apa masalah sebenarnya bagi HDFS?
 @options
-DataNode kehabisan ruang disk
+DataNode kehabisan ruang disk akibat overhead blok
 file sama sekali tidak bisa direplikasi
-* NameNode harus menyimpan objek untuk setiap file
+* NameNode harus melacak tiap file di memori
 @why
 NameNode menyimpan seluruh namespace di memori (sekitar 150 byte per objek sebagai patokan). Ukuran byte tidak penting baginya; yang penting adalah **jumlah objek**. Perbaikannya adalah file yang lebih sedikit dan lebih besar (kompaksi, format kolumnar seperti Parquet).
 :::
@@ -131,7 +131,7 @@ defines("map_words") ## Definisikan map_words(line).
 map_words("A b A") == [("a", 1), ("b", 1), ("a", 1)] ## "A b A" menghasilkan [("a", 1), ("b", 1), ("a", 1)]: huruf kecil, satu pasangan per kata.
 map_words("") == [] ## Baris kosong menghasilkan [].
 @hint
-`return [(word.lower(), 1) for word in line.split()]`
+Pecah baris menjadi kata-kata dengan `line.split()`, ubah setiap kata dengan `.lower()`, lalu kumpulkan tuple `(word, 1)` untuk setiap kata.
 @solution
 def map_words(line):
     return [(word.lower(), 1) for word in line.split()]
@@ -145,10 +145,10 @@ Tulis `reduce_counts(pairs)`: `pairs` adalah list `(word, number)`; kembalikan d
 @check
 defines("reduce_counts") ## Definisikan reduce_counts(pairs).
 reduce_counts([("a", 1), ("b", 1), ("a", 1)]) == {"a": 2, "b": 1} ## a muncul dua kali, b sekali.
-reduce_counts([("x", 5), ("x", 7)]) == {"x": 12} ## Angka dijumlahkan, bukan dihitung: 5 + 7 = 12.
+reduce_counts([("x", 5), ("x", 7)]) == {"x": 12} ## Angka dijumlahkan, bukan dicacah: 5 + 7 = 12.
 reduce_counts([]) == {} ## Tanpa pasangan, tanpa hitungan.
 @hint
-`counts[word] = counts.get(word, 0) + number` untuk setiap pasangan.
+Mulai dengan dictionary kosong, ulangi setiap pasangan `(word, number)`, lalu tambahkan `number` ke total berjalan untuk key itu (pakai `.get(..., 0)` agar kata baru mulai dari `0`).
 @solution
 def reduce_counts(pairs):
     counts = {}
@@ -195,7 +195,7 @@ Hari ini Spark bisa berjalan di YARN (masih umum di on-premises), di Kubernetes 
 > 2. Implementasikan fungsi `allocate_containers(requests, nodes)` dengan strategi First-Fit First-Come-First-Served untuk mengalokasikan irisan memori container ke node pertama yang muat.
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-0/test_lab.py -k TestYarnScheduler -v`
-> 4. **Indikator Sukses:** Seluruh 3 tes di `TestYarnScheduler` berstatus `PASSED`, mengonfirmasi penempatan container tanpa memutasi kamus kapasitas node asli.
+> 4. **Indikator Sukses:** Seluruh 3 tes di `TestYarnScheduler` berstatus `PASSED`, mengonfirmasi penempatan container tanpa memutasi dictionary kapasitas node asli.
 
 :::ask Mengapa Hadoop 2 memisahkan YARN dari MapReduce?
 @options
@@ -232,7 +232,7 @@ Tabel Hive hanyalah deskripsi yang diletakkan di atas file. Metastore menyimpan 
 Tiga perubahan bersama menjelaskan pergeseran itu:
 
 1. **Memori dan graf.** Spark menyimpan data antara di memori dan merencanakan seluruh job sebagai satu graf, bukan rantai job yang terikat disk. Untuk pekerjaan bertahap dan iteratif ia jauh lebih cepat, dan API-nya (DataFrame, SQL) jauh lebih ramah daripada MapReduce yang ditulis tangan.
-2. **Object storage.** Penyimpanan objek cloud (S3, GCS, Azure storage) menjadi murah, tahan lama, dan nyaris tak terbatas. Mereka memisahkan **penyimpanan dari komputasi**: Anda menyimpan data di S3 dengan biaya receh dan menyalakan klaster hanya selama dibutuhkan. Klaster HDFS sebaliknya membayar mesin (dan disknya) sepanjang waktu karena komputasi dan penyimpanan berada di kotak yang sama.
+2. **Object storage.** Penyimpanan objek cloud (S3, GCS, Azure storage) menjadi murah, tahan lama, dan nyaris tak terbatas. Mereka memisahkan **penyimpanan dari komputasi**: Anda menyimpan data di S3 dengan biaya receh dan menyalakan klaster hanya selama dibutuhkan. Klaster HDFS sebaliknya membayar mesin (dan disknya) sepanjang waktu karena komputasi dan penyimpanan berada di mesin yang sama.
 3. **Layanan terkelola dan format tabel terbuka.** Mengoperasikan klaster Hadoop adalah kerja berat. Spark terkelola, warehouse, dan tabel Iceberg/Delta memindahkan pekerjaan itu ke penyedia.
 
 Apa yang tersisa, agar Anda bicara akurat: banyak perusahaan **on-premises** masih menjalankan HDFS dan YARN, terutama bank besar, telekomunikasi, dan platform lama; **Hive Metastore** dan folder berpartisi ala Hive ada di mana-mana; **pustaka Hadoop** (konektor S3A, pembaca Parquet dan ORC) ada di dalam Spark; dan konsepnya (blok, replikasi, shuffle, locality, scheduler) adalah kosakata sistem terdistribusi. Apakah keahlian Hadoop muncul di lowongan di pasar *Anda* adalah hal yang perlu dicek pada lowongan nyata sebelum Anda memutuskan seberapa dalam mempelajarinya.
@@ -255,7 +255,7 @@ Tabel terjemahan untuk wawancara:
 
 > 🛠 **Coba sendiri (10 menit, Python).** Bandingkan dua cara menjalankan job iteratif. Tulis 500.000 bilangan bulat acak (1 sampai 1000) ke file teks, satu per baris. Versi A membaca dan mem-parse ulang seluruh file di **setiap** putaran (kebiasaan MapReduce); versi B membacanya sekali dan menyimpan list-nya di memori (kebiasaan Spark). Setiap putaran melakukan pembaruan kecil yang sama, `x = (x + sum(vals) / len(vals)) / 2`, dimulai dari `x = 500.0`. Ukur waktu keduanya untuk 1 putaran dan untuk 10 putaran, dan pastikan `x` akhirnya identik.
 >
-> **Seharusnya Anda melihat:** `x` yang sama dari kedua versi (sekitar `500.17` setelah 10 putaran). Dengan 1 putaran keduanya butuh waktu kira-kira sama; dengan 10 putaran versi A sekitar 800 ms dan versi B sekitar 115 ms, kira-kira tujuh kali lebih cepat, karena B hanya sekali membayar biaya membaca. Waktu persisnya tergantung mesin Anda; polanya tidak.
+> **Seharusnya Anda melihat:** `x` yang sama dari kedua versi (sekitar `500.5` setelah 10 putaran). Dengan 1 putaran keduanya butuh waktu kira-kira sama; dengan 10 putaran versi A sekitar 800 ms dan versi B sekitar 115 ms, kira-kira tujuh kali lebih cepat, karena B hanya sekali membayar biaya membaca. Waktu persisnya tergantung mesin Anda; polanya tidak.
 
 :::ask Perubahan mana yang membantu Spark mengungguli MapReduce pada kerja bertahap dan iteratif?
 @options
@@ -270,7 +270,9 @@ MapReduce menulis ke disk di antara tiap job dalam rantai. Spark merencanakan se
 Bangun tiga model kecil yang deterministik dalam Python murni: pemecahan blok HDFS, penempatan replika sadar-rak, kegagalan, dan aritmetika file kecil; mesin MapReduce (map, partisi, shuffle, reduce, combiner, reduce-side join, pengulangan task); dan scheduler YARN mainan. Tidak perlu klaster, dan tesnya (38) memeriksa setiap perilaku yang dijelaskan pelajaran.
 
 ### @steps
-1. Baca `labs/mod-3-0/hadoop_lab.py` dari atas ke bawah. Docstring tiap fungsi punya contoh dan menyebut pelajaran mana yang menjelaskannya.
+> 💡 **Sudah menyelesaikan Jeda Praktik 1–5?** Implementasi Anda di `labs/mod-3-0/hadoop_lab.py` sudah siap, langsung lompat ke **Langkah 6–7 / Jeda Praktik 6** di bawah untuk bereksperimen, memverifikasi ke-38 tes, dan menghasilkan token bukti Anda.
+
+1. Pasang `pytest` (`pip install -r labs/mod-3-0/requirements.txt`), lalu baca `labs/mod-3-0/hadoop_lab.py` dari atas ke bawah. Docstring tiap fungsi punya contoh dan menyebut pelajaran mana yang menjelaskannya.
 2. Kerjakan sesuai urutan file, dan jalankan tes setelah SETIAP fungsi:
 
 ```bash
@@ -282,7 +284,7 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # satu kelompok p
 4. **MapReduce berikutnya.** Tulis `partition` dan `shuffle`, lalu cetak `lab.shuffle(pairs, 3)` untuk masukan kecil dan baca hasilnya: inilah yang diterima setiap reducer di klaster sungguhan. Lalu bangun `run_job` dan combiner. Bandingkan `shuffled_pairs` dengan dan tanpa combiner.
 5. **Join-nya.** Tulis `revenue_per_city` sebagai reduce-side join. Sebelum menjalankan, tebak apa yang dilihat reducer untuk satu pelanggan.
 6. Eksperimen: ubah jumlah reducer, ukuran blok, atau combiner dan tebak setiap hasilnya lebih dulu. Lalu pakai `metadata_objects` untuk menghitung berapa memori NameNode yang dibutuhkan 50 juta file kecil.
-7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Verifikasi dan buktikan.** Aktifkan virtual environment Anda, pastikan ke-38 tes lulus (`pytest labs/mod-3-0/test_lab.py -v`), lalu jalankan `python3 scripts/prove.py mod-3-0` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 > 💡 **Jeda Praktik 6 (Verifikasi Lengkap & Bukti Kode):**
 > 1. Di terminal, jalankan seluruh rangkaian pengujian:
@@ -315,7 +317,7 @@ Jalankan yang diketahui benar: awali perintah pertama dengan `LAB_DIR=reference`
 ### @scenario
 Sebuah tim memasukkan event clickstream ke HDFS. Agar data cepat masuk ke lake, sebuah job menulis **satu file per micro-batch per partisi** setiap menit, masing-masing file beberapa ratus kilobyte. Ini berjalan berbulan-bulan. Setelah kampanye pemasaran jumlah partisi bertambah, dan jumlah file melewati empat puluh juta.
 
-Pertama, listing direktori menjadi lambat, dan setiap query menghabiskan beberapa menit hanya untuk membuka file. Lalu NameNode mulai berhenti lama karena garbage collection, dan akhirnya kehabisan heap dan restart, membawa seluruh klaster bersamanya. Setiap job gagal dengan error koneksi, padahal tidak ada DataNode dan tidak ada disk yang bermasalah. Memulai ulang NameNode memakan lebih dari satu jam karena ia harus memuat dan memverifikasi metadata setiap file.
+Pertama, listing direktori menjadi lambat, dan setiap query menghabiskan beberapa menit hanya untuk membuka file. Lalu NameNode mulai berhenti lama karena garbage collection (JVM berhenti sejenak untuk membersihkan memori yang tidak lagi terpakai), dan akhirnya kehabisan heap (ruang memori utama JVM untuk menyimpan objek) lalu restart, membawa seluruh klaster bersamanya. Setiap job gagal dengan error koneksi, padahal tidak ada DataNode dan tidak ada disk yang bermasalah. Memulai ulang NameNode memakan lebih dari satu jam karena ia harus memuat dan memverifikasi metadata setiap file.
 
 ### @cause
 Setiap file dan setiap blok adalah objek di memori NameNode. Empat puluh juta file, masing-masing dengan setidaknya satu blok, sekitar 80 juta objek; pada kira-kira 150 byte masing-masing itu **sekitar 12 GB** heap hanya untuk metadata, sebelum beban kerja apa pun (aritmetika yang sama dengan `metadata_objects` dan `namenode_memory_bytes` di lab: satu terabyte sebagai file 1 MiB adalah 227 kali lebih banyak objek daripada sebagai file 1 GiB). HDFS dirancang untuk file yang sedikit dan besar, dan volume datanya kecil; yang menjadi masalah adalah *jumlahnya*. Dashboard pemantauan yang menampilkan pemakaian disk dan CPU tetap hijau, karena tidak satu pun dari keduanya adalah batasnya.
@@ -327,7 +329,7 @@ Kesalahan yang sama di object storage (S3) tidak merusak NameNode, tetapi merugi
 2. Ubah pipeline agar tidak pernah membuat file kecil: tulis batch lebih besar lebih jarang, atau tulis ke log (Kafka) dan biarkan sebuah job menghasilkan file besar, atau pakai format tabel dengan compaction bawaan (Iceberg, Modul 2.2).
 3. **Pantau jumlah objek** (file ditambah blok) dan heap NameNode, dengan alert jauh sebelum batasnya, bukan hanya disk dan CPU.
 4. Tetapkan kebijakan dan pemeriksaan di code review: target ukuran file untuk setiap dataset, dan tes yang gagal jika sebuah job menulis file jauh lebih kecil dari itu.
-5. Untuk keamanan jangka panjang, partisi berdasarkan sesuatu dengan nilai lebih sedikit, dan pakai **federation** atau pindahkan penyimpanan ke object storage yang metadatanya tidak ditahan di memori satu mesin.
+5. Untuk keamanan jangka panjang, partisi berdasarkan sesuatu dengan nilai lebih sedikit, dan pakai **HDFS Federation** (memecah namespace ke beberapa NameNode) atau pindahkan penyimpanan ke object storage yang metadatanya tidak ditahan di memori satu mesin.
 
 ### @pattern
 Sumber daya yang langka tidak selalu yang tampak jelas. Metadata dan jumlah file bisa menghabiskan sistem yang punya banyak disk dan CPU, jadi ukurlah hal yang sungguh-sungguh menjadi batasnya.
@@ -367,7 +369,7 @@ Sumber daya yang langka tidak selalu yang tampak jelas. Metadata dan jumlah file
 
 ### Apa yang diubah combiner pada job MapReduce?
 - [ ] Ia mengubah jawaban akhir, karena menggabungkan key berbeda yang tampak mirip sebelum direduksi
-- [ ] Ia membuat mapper berjalan di lebih banyak mesin, sehingga job butuh lebih sedikit task reduce lagi
+- [ ] Ia membuat mapper berjalan di lebih banyak mesin, sehingga job butuh lebih sedikit task reduce
 - [x] Ia memperkecil data di sisi map sebelum shuffle, sehingga lebih sedikit lewat jaringan, hasil sama
 - [ ] Ia menyimpan keluaran map di HDFS dengan tiga replika, agar mapper yang gagal tidak perlu diulang
 

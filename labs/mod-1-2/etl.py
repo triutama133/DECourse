@@ -1,6 +1,6 @@
 """Lab 1.2: a streaming, validated, idempotent orders ETL.   Tests: pytest labs/mod-1-2 -v
 
-    python labs/mod-1-2/etl.py data/orders.csv clean.ndjson quarantine.ndjson
+    python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson
 
 Fill in every TODO. Read the tests in test_lab.py first: they describe exactly what is expected.
 """
@@ -74,11 +74,14 @@ def run(input_path, output_path, quarantine_path) -> Stats:
     Rules:
       - memory must stay flat no matter how big the input is
       - an order_id that was already accepted is a duplicate: reject it with reason "duplicate"
-      - invalid rows are rejected with a reason built from the first validation error
-      - write to <path>.tmp files and os.replace() them at the end, so a failed run never leaves
-        half-written outputs and never destroys the previous good output
+      - invalid rows are rejected with a reason built from the first validation error,
+        starting with the failing field name (e.g., f"{err['loc'][0]}: {err['msg']}")
+      - write to temporary files using f"{output_path}.tmp" and f"{quarantine_path}.tmp"
+        (output_path and quarantine_path may be pathlib.Path objects, so do not use output_path + ".tmp")
+        and os.replace() them at the end, so a failed run never leaves half-written outputs
+        and never destroys the previous good output
       - running twice on the same input must give byte-identical outputs
-      - log one INFO line with the counts, e.g. "read=3634 valid=3560 duplicates=35 invalid=39"
+      - log one INFO line with the counts, e.g. "read=3634 valid=3582 duplicates=35 invalid=17"
     """
     raise NotImplementedError("TODO: run")
 

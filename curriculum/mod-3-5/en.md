@@ -13,7 +13,7 @@ why: Tutorials call an embedding API once on a pile of text files and show a cha
 - Evaluate retrieval with a labelled question set (hit rate, MRR), and explain how model changes, filtering and access control can quietly break a RAG system
 
 ## @prereq
-Modules 1.3 (PostgreSQL, indexes, EXPLAIN), 2.5 (data quality and contracts) and 3.2 (streaming and change capture are useful context for the sync lesson). The lab needs `pip install -r labs/mod-3-5/requirements.txt` and uses an embedded PostgreSQL that already contains pgvector. It makes no network calls, and needs no GPU, API key or account.
+Modules 1.3 (PostgreSQL, indexes, EXPLAIN), 2.5 (data quality and contracts) and 3.2 (streaming and change capture are useful context for the sync lesson). The lab needs `pip install -r labs/mod-3-5/requirements.txt` and uses an embedded PostgreSQL (`pgserver`) that already contains pgvector. On Python 3.14 `pip` skips `pgserver` (no 3.14 wheel yet), so start the `pgvector/pgvector:pg16` Docker container and export `DATABASE_URL` as shown in `@verify` below. It makes no network calls, and needs no GPU, API key or account.
 
 ## @part From documents to vectors
 
@@ -43,8 +43,8 @@ Everything in the old checklist applies: idempotence, retries, backfills, data q
 
 :::ask A RAG chatbot gives wrong answers about the refund policy. The model is fine. Where should the data engineer look first?
 @options
-a bigger model with many more parameters
-* the offline pipeline: extraction, chunking, freshness
+a bigger model with far more training parameters
+* the offline extraction and chunking pipeline
 the colour and the font of the chat window
 @why
 Most RAG failures in production come from the offline part: a broken table extracted as nonsense, a chunk that lost its context, or an index that still holds last year's policy.
@@ -111,7 +111,7 @@ abs(cosine([1, 0], [0, 1])) < 1e-9 ## Perpendicular: 0.
 abs(cosine([1, 0], [-1, 0]) + 1) < 1e-9 ## Opposite: −1.
 abs(cosine([1, 1], [5, 5]) - 1) < 1e-9 ## Length does not matter, only direction.
 @hint
-`dot = sum(x * y for x, y in zip(a, b))`, `norm_a = math.sqrt(sum(x * x for x in a))`, same for b, then `dot / (norm_a * norm_b)`.
+Compute the dot product by summing products of paired elements (`zip`), compute each vector's length (`math.sqrt` of the sum of squares), then divide the dot product by the product of the two lengths.
 @solution
 import math
 def cosine(a, b):
@@ -158,7 +158,7 @@ chunk_words("a b c d", 4, 0) == ["a b c d"] ## The whole text fits in one chunk.
 chunk_words("a b c d e", 2, 0) == ["a b", "c d", "e"] ## No overlap: plain cutting, the last chunk is shorter.
 chunk_words("", 3, 1) == [] ## Nothing to chunk.
 @hint
-`words = text.split()`; `step = size - overlap`; loop `start` over `range(0, len(words), step)`, take `words[start:start + size]`, and stop after the chunk that reaches the end.
+Split the text into words, advance the start position by `size - overlap` each iteration, join each slice of up to `size` words with a space, and break once a chunk reaches or passes the end of the word list.
 @solution
 def chunk_words(text, size, overlap):
     words = text.split()
@@ -198,7 +198,7 @@ This is the lab's hardest data: 20,000 random vectors of 64 dimensions with no c
 
 Two lessons. First, **recall is a dial, not a constant**: the default setting (40) loses a third of the true neighbours on this data. Second, build parameters matter: an index built with `m = 4` and `ef_construction = 16` took 0.6 seconds, and at `ef_search = 400` it still reached only 0.53 recall. A fast build is not a good deal if it caps your quality.
 
-Do not confuse **ANN recall** (does the index return what an exact search would?) with **retrieval quality** (does the right *document* come back for the *question*?). The first is a property of the index and you can measure it without any labelled data. The second depends on the model, the chunking and the data, and needs the labelled questions of the last lesson. A perfect index over bad embeddings is a fast way to retrieve the wrong things.
+Do not confuse **ANN recall** (does the index return what an exact search would?) with **retrieval quality** (does the right *document* come back for the *question*?). The first is a property of the index and you can measure it without any labelled data. The second depends on the model, the chunking and the data, and needs the labelled questions of Lesson 6. A perfect index over bad embeddings is a fast way to retrieve the wrong things.
 
 ### Choosing a store
 
@@ -209,7 +209,7 @@ A dedicated vector database (Qdrant, Weaviate, Milvus, Pinecone and others) adds
 > 💡 **Practice Pause 3 (HNSW Graph Indexing & ANN Recall Metrics):**
 > 1. Open `labs/mod-3-5/rag.py` in your text editor.
 > 2. Implement `recall_at_k(approx_ids, exact_ids)`, `create_hnsw_index(conn, table, m, ef_construction)`, and `ann_top_k(conn, table, vec, k, ef_search)` using dynamic `SET LOCAL hnsw.ef_search`.
-> 3. Run the tests in terminal:
+> 3. Run the tests in terminal (on Python 3.14 where `pgserver` is skipped, start Docker `pgvector/pgvector:pg16` and export `DATABASE_URL` as shown in `@verify` first):
 >    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
 > 4. **Success Indicator:** All 8 tests report `PASSED`, validating exact recall fraction calculation and HNSW graph index traversal in pgvector.
 
@@ -333,6 +333,8 @@ filters only make the search faster, nothing else
 Once text is in the prompt the model can repeat it. The only safe place to enforce access is **before** retrieval results leave the data layer, with metadata filters applied inside the search so the top-k is chosen among allowed chunks.
 :::
 
+*(Browser warm-up on in-memory dicts, distinct from the PostgreSQL `search(conn, ...)` function in `labs/mod-3-5/rag.py` below.)*
+
 :::drill python Filter first, then rank
 Write `search(chunks, user_groups, k)`: `chunks` are dicts with `"id"`, `"group"` and `"score"`. Keep only chunks whose `"group"` is in `user_groups`, **then** return the ids of the `k` highest scores, best first.
 @starter
@@ -344,12 +346,7 @@ search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "s
 search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A", "B"], 2) == ["b1", "a1"] ## With both groups allowed the top 2 are b1 and a1.
 search([{"id": "b1", "group": "B", "score": 0.95}], ["A"], 3) == [] ## Nothing allowed: an empty result, never a forbidden chunk.
 @hint
-```python
-def search(chunks, user_groups, k):
-    allowed = [c for c in chunks if c["group"] in user_groups]
-    best = sorted(allowed, key=lambda c: -c["score"])[:k]
-    return [c["id"] for c in best]
-```
+First filter `chunks` to keep only items whose `"group"` is in `user_groups`. Next sort those allowed chunks by `"score"` descending, slice the top `k`, and return a list of their `"id"` values.
 @solution
 def search(chunks, user_groups, k):
     allowed = [c for c in chunks if c["group"] in user_groups]
@@ -452,7 +449,9 @@ FROM ML.PREDICT(
 Build the offline half of a RAG system for the KopiKu help center: 116 short documents (store hours, payments, parking, menu items, allergens and policies) and 116 questions with known answers. You write chunking, embedding, content hashing, an incremental atomic sync, filtered search, evaluation, and the HNSW index functions, and the tests prove each behaviour, including the rare ones: nothing is re-embedded when nothing changed, a failed sync changes nothing, and vectors from another model are never compared.
 
 ### @steps
-1. Install and run the tests (a throw-away PostgreSQL with pgvector starts by itself; the first run may take a few seconds longer):
+> **Already completed Practice Pauses 1–5?** Your functions in `labs/mod-3-5/rag.py` are already written, jump straight to Step 7 (experiments) and Practice Pause 6 (`pytest` + `prove.py`).
+
+1. Install and run the tests (a throw-away PostgreSQL with pgvector starts by itself on Python 3.10–3.13; on Python 3.14 `pip` skips `pgserver`, so start Docker `pgvector/pgvector:pg16` and export `DATABASE_URL` as shown in `@verify` below, stop any older Postgres container using port 5432 first if needed):
 
 ```bash
 python -m pip install -r labs/mod-3-5/requirements.txt
@@ -488,6 +487,7 @@ pytest labs/mod-3-5 -v        # fails at first
 ### @verify
 ```bash
 pytest labs/mod-3-5 -v
+python3 scripts/prove.py mod-3-5
 ```
 
 Known-good run: `LAB_DIR=reference pytest labs/mod-3-5 -v`. To use your own PostgreSQL (with the pgvector extension, for example the `pgvector/pgvector` Docker image), set `DATABASE_URL` to an empty scratch database. On Python 3.14 `pip` skips `pgserver` (it has no build for 3.14 yet), so start PostgreSQL in Docker instead: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, then `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab35"` and `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab35`. That one container serves Modules 1.3, 3.2 and 3.5 (it has pgvector and logical decoding); measured on Python 3.14, the reference passes all 43 tests this way.

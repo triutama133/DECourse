@@ -9,6 +9,19 @@ Check your work after every step:
     ...
     python3 labs/mod-4-3/check.py ~/fleet --step all
 
+Key implementation contracts:
+    - UTC timestamps: convert epoch seconds to naive UTC with
+      datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).replace(tzinfo=None)
+      when writing window_start and window_end to DuckDB so non-UTC machines
+      (e.g., WIB UTC+7) match epoch(window_start) exactly.
+    - 1-based last_offset: count lines 1-based via enumerate(lines, start=1)
+      (so last_offset is 150 after 150 lines), skip lines with idx <= last_offset
+      on resume, and preserve last_offset if zero new lines are read.
+    - End-of-stream (EOF) flush: at EOF, upsert all remaining still-open windows
+      from window_state into DuckDB so current partial totals are queryable, while
+      ALSO keeping them in open_windows in offsets.json so a resumed run merges
+      new events and cleanly overwrites the partial rows via upsert.
+
 Exit codes:
     0 = stream processed successfully
     anything else = error / crash
@@ -44,13 +57,20 @@ def run_stream(args):
     # TODO Step 2: Ingest jsonl streaming events, calculate tumbling event-time windows (e.g. 300s),
     #              and store aggregated metrics into <args.output_dir>/warehouse.duckdb (table windowed_metrics).
     #              Metrics per window and zone: total_trips, total_passengers, total_fare, avg_fare.
+    #              Convert epoch seconds to naive UTC:
+    #                datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).replace(tzinfo=None)
+    #              for window_start and window_end so non-UTC machines match epoch(window_start).
     # TODO Step 3: Implement watermark tracking with allowed lateness delay:
     #              watermark = max(watermark, event_time - args.watermark_delay)
     #              Evict closed windows when window_end <= watermark.
     #              Drop late events arriving after their window is already closed and route them
     #              to <args.output_dir>/dlq/late_events.jsonl.
+    #              At EOF, upsert remaining still-open windows from window_state into DuckDB so partial
+    #              totals are queryable, while keeping them in open_windows in offsets.json.
     # TODO Step 4: Implement consumer offset checkpointing in args.state_file.
-    #              Write offsets atomically (tmp file + atomic rename) and ensure idempotent resumption.
+    #              Use 1-based line counting (enumerate(lines, start=1) -> last_offset=150 after 150 lines),
+    #              preserve last_offset on zero-new-line reruns, persist open_windows alongside last_offset,
+    #              write offsets atomically (.tmp file + os.replace), and ensure idempotent resumption.
     # TODO Step 5: Support sliding windows when --window-slide is specified (e.g. size 300s, slide 60s).
     print("not implemented yet: stream processor", file=sys.stderr)
     sys.exit(1)

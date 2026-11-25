@@ -13,7 +13,7 @@ why: Bootcamp mengajarkan pandas pada file kecil yang bersih. Di produksi, kode 
 - Menulis tes pytest dengan fixture dan parametrisasi, termasuk tes untuk pemakaian memori dan perilaku saat gagal
 
 ## @prereq
-Modul 0.1 dan 0.3, serta dasar Python (fungsi, loop, dictionary, file). Virtual environment dengan `pip install -r labs/mod-1-2/requirements.txt`.
+Modul 0.1, 0.2, dan 1.1 (atau dasar Python: fungsi, loop, dictionary, file, virtual environment, dan exit code). Virtual environment dengan `pip install -r labs/mod-1-2/requirements.txt`.
 
 ## @part Membangun job-nya
 
@@ -31,6 +31,8 @@ def run(input_path, output_path):              # tepi: membaca, menulis, mencata
         ...
 ```
 
+(Label `: str` dan `-> int | None` pada `parse_total` adalah *type hint*, artinya ia menerima teks dan mengembalikan integer atau `None`. Anda akan mempelajarinya secara utuh di **Pelajaran 2**; Anda belum perlu menulisnya pada latihan pelajaran ini.)
+
 Tata letak yang wajar untuk job kecil:
 
 ```text
@@ -47,9 +49,9 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 **Antarmuka command-line** adalah cara scheduler dan manusia menjalankan job Anda. `argparse` (pustaka standar) memberi argumen bernama, nilai bawaan, `--help`, dan error penggunaan secara gratis. Kembalikan **exit code** dari `main()` dan panggil `sys.exit(main())`, seperti di Modul 1.1: `0` untuk sukses, bukan nol untuk gagal, dan angka berbeda untuk kegagalan berbeda bila pemanggil perlu membedakannya.
 
-**Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah ditulis keras di kode; **rahasia** hanya dari environment (Modul 0.1).
+**Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah di-hardcode; **rahasia** hanya dari environment (Modul 0.1).
 
-**Tiga potong sintaks Python baru mulai dari sini: class, type hint, dan decorator.** Ketiganya muncul di materi berikutnya, jadi mereka punya materi singkat sendiri tepat setelah ini (**Materi 2**). Tidak ada yang di materi ini yang membutuhkannya.
+**Tiga potong sintaks Python baru mulai dari sini: class, type hint, dan decorator.** Anda baru saja melihat sekilas type hint di atas, dan ketiganya muncul di sisa modul ini, jadi mereka punya pelajaran singkat sendiri tepat setelah ini (**Pelajaran 2**). Anda belum perlu menulis salah satunya pada latihan pelajaran ini.
 
 > 🛠 **Coba sendiri (12 menit, di `etl_try.py`).** Tulis fungsi **murni** `parse_total(raw)` yang mengembalikan int, atau `None` jika teksnya bukan bilangan bulat yang tidak negatif (ia juga harus mengerti gaya `Rp 150.000`). Fungsi itu harus lulus:
 > `assert parse_total("150000") == 150000`
@@ -58,7 +60,7 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 > `assert parse_total("abc") is None`
 > `assert parse_total("") is None`
 >
-> Lalu tulis `run(path)`, bagian tepinya: ia membuka `data/orders.csv`, memanggil `parse_total` untuk setiap `total_idr`, dan mengembalikan jumlah baris yang valid dan tidak valid. Tidak ada bagian lain yang boleh menyentuh file.
+> Lalu tulis `run(path)`, bagian tepinya: ia membuka `path` (berikan `"data/orders.csv"` saat memanggilnya), memanggil `parse_total` untuk setiap `total_idr`, dan mengembalikan jumlah baris yang valid dan tidak valid. Tidak ada bagian lain yang boleh menyentuh file.
 >
 > **Seharusnya Anda melihat:** tidak ada assertion error, dan `run("data/orders.csv")` mengembalikan `(3617, 17)`. Perhatikan bahwa Anda menguji `parse_total` tanpa file apa pun. Coba lakukan hal yang sama pada versi yang membuka file di dalam fungsinya, dan rasakan bedanya.
 
@@ -66,7 +68,7 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 :::drill python Fungsi murni di jantung sebuah job
 Tulis `parse_total(raw)`: `raw` adalah teks dari CSV. Bisa berupa `"150000"` atau `"Rp 1.250.000"` (titik adalah pemisah ribuan). Kembalikan jumlahnya sebagai `int`. Jika teks bukan sebuah jumlah (misalnya `"abc"` atau string kosong), kembalikan `None` alih-alih melempar error.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("parse_total") ## Definisikan parse_total(raw).
@@ -93,8 +95,8 @@ tepi adalah satu-satunya tempat Python mengizinkan I/O
 Fungsi murni menerima nilai dan mengembalikan nilai tanpa menyentuh hal lain, jadi tes hanyalah panggilan dan pemeriksaan. Membaca file, memanggil API, dan menulis database tetap di lapisan luar yang tipis.
 :::
 
-## @lesson Class, type hint, dan decorator: tiga hal yang dibaca di materi berikutnya
-Di materi berikutnya Anda akan bertemu kode seperti `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)`, dan `@field_validator("status")`. Semuanya tampak aneh sampai Anda tahu tiga ide kecil: **class**, **type hint**, dan **decorator**. Masing-masing hanya beberapa baris. Anda tidak perlu menjadi ahli: Anda perlu bisa membacanya, dan menulis bentuk sederhananya sendiri.
+## @lesson Class, type hint, dan decorator: tiga hal yang dibaca di Pelajaran 4
+Di Pelajaran 4 Anda akan bertemu kode seperti `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)`, dan `@field_validator("status")`. Semuanya tampak aneh sampai Anda tahu tiga ide kecil: **class**, **type hint**, dan **decorator**. Masing-masing hanya beberapa baris. Anda tidak perlu menjadi ahli: Anda perlu bisa membacanya, dan menulis bentuk sederhananya sendiri.
 
 ### Class: cetak biru untuk sesuatu yang punya data dan tindakan
 
@@ -117,7 +119,7 @@ print(order.is_big())    # True
 Istilahnya, satu per satu:
 
 - **Class** adalah cetak biru. `Order` menjelaskan apa yang dimiliki dan bisa dilakukan setiap pesanan.
-- **Object** (disebut juga **instance**) adalah satu benda yang dibuat dari cetak biru itu. `Order(1001, 150000)` membuat satu.
+- **Object** (disebut juga **instance**) adalah satu benda yang dibuat dari cetak biru itu. `Order(1001, 150000)` membuat satu object.
 - `__init__` berjalan sekali, saat object dibuat. Ia menyimpan data awal.
 - `self` berarti "object ini". `self.total = total` menulis nilainya ke object, sehingga tiap object menyimpan datanya sendiri.
 - **Attribute** adalah sepotong data pada object (`order.total`). **Method** adalah fungsi di dalam class (`order.is_big()`).
@@ -156,7 +158,7 @@ variabel khusus yang diisi Python dengan nilai total
 :::drill python Keranjang yang mengingat
 Tulis class `Cart` dengan method `add(price)` yang mengingat harga, dan method `total()` yang mengembalikan jumlah semua yang ditambahkan (0 untuk keranjang baru). Dua keranjang **tidak boleh** berbagi isinya.
 @starter
-# tulis class-mu di bawah baris ini
+# tulis class Anda di bawah baris ini
 
 @check
 defines("Cart") ## Definisikan class Cart.
@@ -189,7 +191,7 @@ def add_tax(price: int, rate: float = 0.11) -> int:
 
 `price: int` berarti "price seharusnya bilangan bulat"; `-> int` berarti "fungsi ini mengembalikan bilangan bulat". Hint lain yang akan Anda lihat: `list[str]` (list berisi teks), `dict[str, int]` (kunci teks, nilai bilangan bulat), `int | None` (bilangan bulat atau tidak ada) dan `Literal["paid", "shipped"]` (hanya salah satu nilai persis ini).
 
-Fakta terpenting: **Python sendiri tidak memeriksa hint.** `add_tax("abc")` tetap berjalan dan gagal belakangan dengan cara yang jelek. Hint dibaca editor dan library seperti Pydantic, yang *memang* memeriksa data terhadapnya. Itulah seluruh ide materi berikutnya.
+Fakta terpenting: **Python sendiri tidak memeriksa hint.** `add_tax("abc")` tetap berjalan dan gagal belakangan dengan cara yang jelek. Hint dibaca editor dan library seperti Pydantic, yang *memang* memeriksa data terhadapnya. Itulah seluruh ide Pelajaran 4.
 
 :::ask Apa yang terjadi bila Anda menjalankan `def f(x: int): return x` lalu memanggil `f("hello")`?
 @options
@@ -197,13 +199,13 @@ Python berhenti dengan TypeError sebelum fungsi berjalan
 ia mengubah "hello" menjadi angka lebih dulu
 * ia berjalan dan mengembalikan "hello": Python tidak menegakkan hint
 @why
-Hint adalah label. Python mengabaikannya saat menjalankan kodemu. Alat seperti Pydantic (atau editor) membacanya dan melakukan pemeriksaannya untukmu.
+Hint adalah label. Python mengabaikannya saat menjalankan kode Anda. Alat seperti Pydantic (atau editor) membacanya dan melakukan pemeriksaannya untuk Anda.
 :::
 
 :::drill python Tulis hint-nya
 Tulis `add_tax(price, rate)` dengan hint `price: int`, `rate: float`, dan `-> int`. Ia mengembalikan harga ditambah pajak, sebagai bilangan bulat: `add_tax(100000, 0.11)` adalah `111000`. `rate` punya default `0.11`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("add_tax") ## Definisikan add_tax.
@@ -212,15 +214,15 @@ add_tax(100000) == 111000 ## Rate default adalah 0.11.
 add_tax(200, 0.5) == 300 ## Rate lain.
 add_tax.__annotations__ == {"price": int, "rate": float, "return": int} ## Ketiga hint tertulis.
 @hint
-`def add_tax(price: int, rate: float = 0.11) -> int:` dan `return round(price * (1 + rate))`.
+Beri anotasi `: type` pada tiap parameter, taruh nilai bawaan `= 0.11` setelah type hint, tambahkan `-> int` sebelum titik dua, dan pakai `round(...)` agar hasil pecahan menjadi bilangan bulat yang tepat.
 @solution
 def add_tax(price: int, rate: float = 0.11) -> int:
     return round(price * (1 + rate))
 :::
 
-### Dataclass: class yang menuliskan bagian membosankan untukmu
+### Dataclass: class yang menuliskan bagian membosankan untuk Anda
 
-Banyak class hanya menyimpan data. Library standar bisa menulis `__init__` untukmu dari type hint:
+Banyak class hanya menyimpan data. Library standar bisa menulis `__init__` untuk Anda dari type hint:
 
 ```python
 from dataclasses import dataclass
@@ -241,14 +243,14 @@ Baris `@dataclass` adalah sebuah decorator (bagian berikutnya). Ia memberi class
 Tulis dataclass `Product` dengan dua field: `name` (teks) dan `price` (bilangan bulat). `Product("tea", 5000) == Product("tea", 5000)` harus `True`.
 @starter
 from dataclasses import dataclass
-# tulis class-mu di bawah baris ini
+# tulis class Anda di bawah baris ini
 
 @check
 defines("Product") ## Definisikan class Product.
 Product("tea", 5000).price == 5000 ## Ia menyimpan harganya.
 Product("tea", 5000) == Product("tea", 5000) ## Field sama: sama.
 (Product("tea", 5000) == Product("tea", 6000)) == False ## Harga berbeda: tidak sama.
-uses("dataclass") ## Kamu memakai @dataclass.
+uses("dataclass") ## Anda memakai @dataclass.
 @hint
 Taruh `@dataclass` di baris di atas `class Product:` dan tulis `name: str` dan `price: int` di dalamnya.
 @solution
@@ -299,21 +301,23 @@ print(greet("sari"))
 10 | Memanggil `greet("sari")` menjalankan wrapper, yang menjalankan `greet` asli, lalu mengubahnya menjadi huruf besar: HELLO SARI.
 :::
 
-Di materi-materi berikutnya Anda kebanyakan akan **memakai** decorator buatan orang lain: `@field_validator(...)` dan `@classmethod` di Pydantic, `@pytest.fixture` dan `@pytest.mark.parametrize` di tes, `@task` dan `@dag` di Airflow. Menulis sendiri adalah keterampilan yang akan Anda pakai sesekali.
+Di pelajaran-pelajaran berikutnya Anda kebanyakan akan **memakai** decorator buatan orang lain: `@field_validator(...)` dan `@classmethod` di Pydantic, `@pytest.fixture` dan `@pytest.mark.parametrize` di tes, `@task` dan `@dag` di Airflow. Menulis sendiri adalah keterampilan yang akan Anda pakai sesekali.
 
 :::ask Pada kode `@field_validator("status")` di atas sebuah method, apa yang dilakukan baris `@` itu?
 @options
 ia membuat method berjalan dua kali, sekali untuk tiap status
-* ia menyerahkan method ke field_validator, yang mendaftarkannya sebagai pemeriksaan untuk field itu
+* ia mendaftarkan method sebagai pemeriksa field itu
 ia mengubah method menjadi komentar sehingga Python mengabaikannya
 @why
-Decorator menerima fungsi di bawahnya dan mengembalikan sesuatu untuk dipakai sebagai gantinya. Decorator Pydantic mengingat method-mu dan memanggilnya saat memvalidasi field `status`.
+Decorator menerima fungsi di bawahnya dan mengembalikan sesuatu untuk dipakai sebagai gantinya. Decorator Pydantic mengingat method Anda dan memanggilnya saat memvalidasi field `status`.
 :::
+
+Satu detail yang perlu diperhatikan pada `wrapper(*args)` di atas: menulis `*args` pada definisi fungsi mengumpulkan sejumlah argumen posisional berapa pun (nol, satu, dua, atau lebih) ke dalam sebuah tuple bernama `args`. Menulis `fn(*args)` membongkar kembali tuple tersebut menjadi argumen terpisah saat memanggil fungsi aslinya, sehingga wrapper bisa bekerja pada fungsi dengan tanda tangan apa pun.
 
 :::drill python Tulis sebuah decorator
 Tulis decorator `twice(fn)`: fungsi baru memanggil `fn` dua kali dengan argumen yang sama dan mengembalikan **list berisi kedua hasilnya**. Jadi `twice(lambda x: x + 1)(5)` adalah `[6, 6]`.
 @starter
-# tulis decorator-mu di bawah baris ini
+# tulis decorator Anda di bawah baris ini
 
 @check
 defines("twice") ## Definisikan twice(fn).
@@ -321,7 +325,7 @@ twice(lambda x: x + 1)(5) == [6, 6] ## Dipanggil dua kali, kedua hasil.
 twice(lambda a, b: a * b)(3, 4) == [12, 12] ## Beberapa argumen diteruskan.
 (lambda c: (twice(lambda: c.append(1))(), len(c))[1])([]) == 2 ## Fungsinya benar-benar berjalan dua kali.
 @hint
-Di dalam `twice`, definisikan `wrapper(*args)` yang mengembalikan `[fn(*args), fn(*args)]`, lalu `return wrapper`.
+Ikuti pola `shout` di atas: definisikan fungsi dalam `wrapper(*args)` yang memanggil `fn(*args)` dua kali lalu mengumpulkan kedua hasilnya ke dalam list, kemudian kembalikan fungsi wrapper-nya sendiri (tanpa memanggilnya).
 @solution
 def twice(fn):
     def wrapper(*args):
@@ -329,7 +333,7 @@ def twice(fn):
     return wrapper
 :::
 
-### Sekarang baca kode dari materi berikutnya
+### Sekarang baca kode dari Pelajaran 4
 
 Anda sudah bisa membaca setiap baris contoh ini:
 
@@ -346,7 +350,7 @@ class OrderRow(BaseModel):                 # class yang memperluas BaseModel (ia
 > **Yang harus Anda lihat:** order tercetak sebagai `Order(order_id=1001, total=150000)` dan hasil fungsi ber-decorator dalam huruf besar. Jika muncul `NameError: name 'dataclass' is not defined`, Anda lupa `from dataclasses import dataclass`.
 
 ## @lesson Fungsi adalah nilai: lambda, kunci pengurutan, dan rekursi
-Fungsi di Python adalah nilai seperti angka atau teks. Anda bisa menyimpannya di variabel, memasukkannya ke list, dan menyerahkannya ke fungsi lain. Satu fakta itu menjelaskan `sorted(..., key=...)`, `lambda`, decorator (materi sebelumnya), dan banyak kode data engineering. Materi ini juga menunjukkan **rekursi**: fungsi yang memanggil dirinya sendiri, cara menelusuri data berkedalaman tak tentu, seperti JSON bersarang atau pohon folder.
+Fungsi di Python adalah nilai seperti angka atau teks. Anda bisa menyimpannya di variabel, memasukkannya ke list, dan menyerahkannya ke fungsi lain. Satu fakta itu menjelaskan `sorted(..., key=...)`, `lambda`, decorator (pelajaran sebelumnya), dan banyak kode data engineering. Pelajaran ini juga menunjukkan **rekursi**: fungsi yang memanggil dirinya sendiri, cara menelusuri data berkedalaman tak tentu, seperti JSON bersarang atau pohon folder.
 
 ### Menyerahkan fungsi ke fungsi
 
@@ -383,14 +387,14 @@ menghitung ada berapa kata lalu mengembalikan angka itu
 :::drill python Urutkan dengan key
 Tulis `by_total(orders)`: `orders` adalah list dictionary berisi `id` dan `total`. Kembalikan list **id**, diurutkan menurut `total` dari terbesar ke terkecil. (Pakai `sorted` dengan `key=`.)
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("by_total") ## Definisikan by_total(orders).
 by_total([{"id": 1, "total": 50}, {"id": 2, "total": 90}]) == [2, 1] ## Terbesar dulu.
 by_total([]) == [] ## Tanpa pesanan.
 by_total([{"id": 7, "total": 5}]) == [7] ## Satu pesanan.
-calls("sorted") ## Kamu memakai sorted(...).
+calls("sorted") ## Anda memakai sorted(...).
 @hint
 `sorted(orders, key=lambda o: o["total"], reverse=True)`, lalu ambil id-nya.
 @solution
@@ -402,7 +406,7 @@ def by_total(orders):
 :::drill python Sebuah list fungsi
 Tulis `apply_all(funcs, x)`: `funcs` adalah list fungsi. Kembalikan list berisi hasil pemanggilan tiap fungsi pada `x`, berurutan. `apply_all([abs, str], -3)` adalah `[3, "-3"]`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("apply_all") ## Definisikan apply_all(funcs, x).
@@ -410,7 +414,7 @@ apply_all([abs, str], -3) == [3, "-3"] ## Dua fungsi.
 apply_all([], 5) == [] ## Tanpa fungsi.
 apply_all([lambda v: v + 1, lambda v: v * 2], 10) == [11, 20] ## Lambda juga bisa.
 @hint
-`[fn(x) for fn in funcs]`: fungsi adalah nilai yang bisa Anda ulangi dan panggil.
+Fungsi adalah nilai biasa, sehingga Anda bisa meloop `funcs`, memanggil setiap fungsi dengan `x`, lalu mengumpulkan hasil kembaliannya ke dalam list baru.
 @solution
 def apply_all(funcs, x):
     return [fn(x) for fn in funcs]
@@ -461,7 +465,7 @@ Setiap panggilan membuat panggilan lain, sehingga panggilan menumpuk sampai Pyth
 :::drill python Temukan sebuah key di mana saja
 Tulis `find_values(data, key)`: `data` adalah struktur bersarang berisi dictionary dan list (seperti JSON yang sudah di-parse). Kembalikan list nilai dari **setiap** entri dictionary yang kuncinya `key`, di mana pun letaknya, sesuai urutan ditemukan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("find_values") ## Definisikan find_values(data, key).
@@ -489,7 +493,7 @@ Rekursi adalah alat yang tepat untuk pohon. Untuk list datar biasa, loop `for` l
 
 > 🛠 **Coba sendiri (10 menit, Python).** Di komputer Anda sendiri, dalam file `nested.py`, tempel sebuah dictionary bersarang kecil (pesanan palsu dengan `customer` dan `items`, tiap item berupa dictionary), lalu tulis `find_values` dan cetak setiap `sku` di dalamnya. Jalankan `python3 nested.py`.
 >
-> **Yang harus Anda lihat:** list semua nilai `sku`, di mana pun letaknya. Jika muncul `RecursionError`, sebuah panggilan rekursif tidak mendapat data yang lebih kecil: periksa base case-mu.
+> **Yang harus Anda lihat:** list semua nilai `sku`, di mana pun letaknya. Jika muncul `RecursionError`, sebuah panggilan rekursif tidak mendapat data yang lebih kecil: periksa base case Anda.
 
 ## @lesson Validasi di batas dengan Pydantic
 Pipeline yang paling andal tidak mempercayai masukannya. Data melintasi sebuah **batas** (file, API, antrean) dan Anda mengubahnya dari "apa pun yang dihasilkan pengirim" menjadi "nilai yang bisa diandalkan kode saya". Lakukan sekali, di pintu; semua yang setelah pintu bisa mengasumsikan data bersih.
@@ -530,18 +534,10 @@ Pola yang mengikutinya adalah antrean **karantina** (disebut juga dead-letter). 
 
 > **Tip:** Validasi bukan hanya untuk file. Model yang sama bisa memvalidasi respons API, pesan dari antrean, dan konfigurasi. Satu definisi "pesanan yang valid" yang dipakai ulang di mana-mana adalah sebuah data contract kecil (Modul 2.5).
 
-> 💡 **Jeda Praktik 1 (Validasi Data dengan Pydantic OrderRow):**
-> Mulai bangun modul ETL Anda dengan membuat model validasi batas:
-> 1. Buka file `labs/mod-1-2/etl.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
-> 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
-> 3. Uji model Anda di terminal:
-> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
-> Ketika semua tes TestOrderRow berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 5 tentang streaming generator.
-
 :::drill python Mengapa baris ini ditolak?
 Tulis `reasons(row)`: `row` adalah dictionary dari CSV (semua teks). Kembalikan daftar alasan penolakan, dengan urutan ini: `"bad status"` jika `status` bukan salah satu dari `paid`, `cancelled`, `shipped`; `"bad total"` jika `total_idr` bukan bilangan bulat nol atau lebih. Baris yang baik menghasilkan `[]`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("reasons") ## Definisikan reasons(row).
@@ -567,7 +563,7 @@ untuk file CSV, tempat semua nilai memang berupa teks
 tidak pernah: mode lax selalu pilihan yang aman dipakai
 * untuk sumber bertipe seperti JSON API, bukan CSV
 @why
-CSV hanya berisi teks, jadi koersi lax ('150000' menjadi 150000) memang yang kamu mau. JSON API sudah punya angka, jadi string di sana berarti ada yang rusak di hulu, dan mode strict menolaknya.
+CSV hanya berisi teks, jadi koersi lax ('150000' menjadi 150000) memang yang Anda mau. JSON API sudah punya angka, jadi string di sana berarti ada yang rusak di hulu, dan mode strict menolaknya.
 :::
 
 ### Mencocokkan pola teks berantakan: regular expression (regex)
@@ -624,7 +620,7 @@ Tulis `extract_codes(text)`: kembalikan list berisi setiap kode pesanan yang coc
 @starter
 import re
 
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("extract_codes") ## Definisikan extract_codes(text).
@@ -633,13 +629,21 @@ extract_codes("Paid ORD-104 and ORD-209 today") == ["ORD-104", "ORD-209"] ## Ked
 extract_codes("No orders here") == [] ## Tanpa kecocokan mengembalikan list kosong.
 extract_codes("ORD-7! and ORD-9999.") == ["ORD-7", "ORD-9999"] ## Berlaku untuk panjang angka berapa pun dan tanda baca di sekitarnya.
 @hint
-`re.findall(r"ORD-\d+", text)` menemukan setiap kemunculan `ORD-` diikuti satu atau lebih angka.
+Pakai `re.findall` dengan pola raw string yang diawali `ORD-` diikuti simbol angka (`\d`) dan penanda satu-atau-lebih (`+`).
 @solution
 import re
 
 def extract_codes(text):
     return re.findall(r"ORD-\d+", text)
 :::
+
+> 💡 **Jeda Praktik 1 (Validasi Data dengan Pydantic OrderRow):**
+> Mulai bangun modul ETL Anda dengan membuat model validasi batas:
+> 1. Buka file `labs/mod-1-2/etl.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
+> 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
+> 3. Uji model Anda di terminal:
+> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> Ketika semua tes `TestOrderRow` berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 5 tentang streaming generator.
 
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
@@ -654,7 +658,7 @@ def read_orders(path):
 
 Memanggil `read_orders(path)` tidak membaca apa pun; ia mengembalikan sebuah generator. Setiap kali pemanggil meminta item berikutnya, fungsi berjalan sampai `yield` berikutnya, menyerahkan satu baris, lalu berhenti sejenak. Pada saat mana pun hanya satu baris (ditambah apa yang disimpan kode Anda) berada di memori, berapa pun ukuran file. Dua sifat yang mengejutkan pendatang baru:
 
-- **Kemalasan menyembunyikan error.** Karena tidak ada yang berjalan sampai sesuatu mengonsumsi generator, bug di dalamnya muncul belakangan dan di tempat lain dari tempat Anda membuatnya. `FileNotFoundError` muncul pada `next()` pertama, bukan saat pemanggilan.
+- **Evaluasi malas (lazy) menyembunyikan error.** Karena tidak ada yang berjalan sampai sesuatu mengonsumsi generator, bug di dalamnya muncul belakangan dan di tempat lain dari tempat Anda membuatnya. `FileNotFoundError` muncul pada `next()` pertama, bukan saat pemanggilan.
 - **Generator habis dipakai.** Iterasi dua kali dan putaran kedua kosong. Buat yang baru bila Anda butuh putaran lain.
 
 Bahan bangunan yang akan Anda pakai: `enumerate` (menambah nomor baris), `zip`, generator expression `(f(x) for x in rows)`, dan modul `itertools`: `islice` (ambil N pertama), `chain` (menyambung iterable), dan sejak Python 3.12 `batched` (mengelompokkan item menjadi tuple berisi N, cara Anda mengirim baris ke database dalam potongan, misalnya 1.000).
@@ -723,10 +727,10 @@ Generator **habis dipakai** setelah satu putaran: `list(rows)` kedua tidak menem
 di baris yang memanggil `read_orders(...)`
 tidak pernah: generator menelan error
 @why
-Kemalasan menyembunyikan error: memanggil fungsi tidak menjalankan apa-apa, jadi file baru dibuka ketika baris pertama diminta. Bug di generator muncul lebih lambat dan di tempat lain daripada tempat Anda membuatnya.
+Evaluasi malas (lazy) menyembunyikan error: memanggil fungsi tidak menjalankan apa-apa, jadi file baru dibuka ketika baris pertama diminta. Bug di generator muncul lebih lambat dan di tempat lain daripada tempat Anda membuatnya.
 :::
 
-:::drill python Tulis generator yang malas
+:::drill python Tulis generator lazy
 Tulis `doubled(numbers)` sebagai **generator** (pakai `yield`, bukan `return`) yang memberi setiap angka dikali dua, satu per satu.
 @starter
 # tulis generator Anda di bawah baris ini
@@ -738,11 +742,7 @@ list(doubled([1, 2, 3])) == [2, 4, 6] ## list(doubled([1, 2, 3])) harus [2, 4, 6
 next(doubled([5, 6])) == 10 ## next(doubled([5, 6])) harus 10: hanya item pertama.
 not isinstance(doubled([1]), list) ## Ia harus mengembalikan generator, bukan list yang sudah jadi.
 @hint
-```python
-def doubled(numbers):
-    for n in numbers:
-        yield n * 2
-```
+Lakukan loop pada `numbers` dan pakai `yield` (alih-alih membangun list lalu memakai `return`) untuk mengeluarkan tiap angka dikali 2 satu per satu.
 @solution
 def doubled(numbers):
     for n in numbers:
@@ -750,7 +750,7 @@ def doubled(numbers):
 :::
 
 :::drill python Simpan hanya baris yang baik
-Tulis generator `good_totals(rows)`: untuk setiap baris (dict dengan `"total"` berupa teks) berikan total **sebagai angka**, tetapi lewati baris yang totalnya bukan bilangan bulat (pakai `try` / `except ValueError`, jangan pernah `except` kosong).
+Tulis generator `good_totals(rows)`: untuk setiap baris (dict dengan `"total"` berupa teks) berikan total **sebagai angka**, tetapi lewati baris yang totalnya bukan bilangan bulat (pakai `try` / `except ValueError`, jangan pernah memakai bare `except`).
 @starter
 # tulis generator Anda di bawah baris ini
 
@@ -761,15 +761,7 @@ list(good_totals([{"total": "100"}, {"total": "x"}, {"total": "250"}])) == [100,
 list(good_totals([])) == [] ## Input kosong tidak memberi apa-apa.
 has_node("Try") ## Pakai try / except ValueError.
 @hint
-```python
-def good_totals(rows):
-    for row in rows:
-        try:
-            yield int(row["total"])
-        except ValueError:
-            pass
-```
-(Melewati itu boleh **di sini** karena ini latihan; di pipeline sungguhan baris buruk masuk karantina, seperti yang ditunjukkan materi berikutnya.)
+Lakukan loop pada `rows` dan bungkus konversi `row["total"]` dengan `int(...)` di dalam blok `try`; `yield` angkanya jika berhasil dan tangkap `ValueError` untuk melewati baris yang rusak. (Melewati itu boleh **di sini** karena ini latihan; di pipeline sungguhan baris buruk masuk karantina, seperti yang ditunjukkan Pelajaran 6.)
 @solution
 def good_totals(rows):
     for row in rows:
@@ -782,15 +774,15 @@ def good_totals(rows):
 > 💡 **Jeda Praktik 2 (Streaming Data dengan Generator read_orders):**
 > Buat pembaca data hemat memori yang tidak memuat seluruh file ke RAM:
 > 1. Di file `labs/mod-1-2/etl.py` pada text editor, temukan fungsi `read_orders(path)`.
-> 2. Terapkan generator malas menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
-> 3. Uji konsumsi memori dan sifat generator di terminal:
-> `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
-> Jika tes TestStreaming PASSED (memori tetap datar di bawah 30 MB bahkan untuk ratusan ribu baris), generator Anda sukses! Lanjut ke Pelajaran 6 tentang retry dan idempotensi.
+> 2. Terapkan generator lazy menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
+> 3. Uji sifat evaluasi malas (lazy) generator di terminal:
+> `pytest labs/mod-1-2/test_lab.py -k test_read_orders_is_a_lazy_generator -v`
+> (Tes `TestStreaming` lainnya, `test_memory_stays_flat_on_a_big_file`, memanggil `etl.run()` dan akan lulus tepat setelah Jeda Praktik 3 mengimplementasikan `run()`.) Jika `test_read_orders_is_a_lazy_generator` PASSED, generator Anda siap! Lanjut ke Pelajaran 6 tentang retry dan idempotensi.
 
 ## @part Membuatnya andal
 
 ## @lesson Error, retry, dan idempotensi
-**Tangkap exception yang spesifik, tangani yang bisa Anda tangani, biarkan sisanya gagal dengan jelas.** `except Exception: pass` adalah baris termahal yang bisa Anda tulis, karena mengubah setiap bug di masa depan menjadi kehilangan data yang senyap. Tangkap tipe tersempit (`ValidationError`, `FileNotFoundError`), lakukan sesuatu yang disengaja (karantina, retry, keluar dengan kode), dan tambahkan konteks saat melempar ulang: `raise RuntimeError("loading orders failed") from exc` mempertahankan traceback aslinya.
+**Tangkap exception yang spesifik, tangani yang bisa Anda tangani, biarkan sisanya gagal dengan jelas.** `except Exception: pass` adalah baris termahal yang bisa Anda tulis, karena mengubah setiap bug di masa depan menjadi kehilangan data yang senyap. Tangkap tipe yang paling spesifik (`ValidationError`, `FileNotFoundError`), lakukan sesuatu yang disengaja (karantina, retry, keluar dengan kode), dan tambahkan konteks saat melempar ulang: `raise RuntimeError("loading orders failed") from exc` mempertahankan traceback aslinya.
 
 **Bedakan dua jenis kegagalan:**
 
@@ -800,7 +792,7 @@ def good_totals(rows):
 Ulangi jenis kedua dengan **exponential backoff dan jitter**: tunggu 1 dtk, lalu 2 dtk, lalu 4 dtk, masing-masing dikali faktor acak agar banyak klien tidak mengulang pada detik yang sama. Selalu batasi jumlah percobaan dan lempar ulang di akhir.
 
 ```python
-def retry(fn, attempts=4, base=0.5, retry_on=(ConnectionError, TimeoutError)):
+def retry(fn, attempts=4, base=1.0, retry_on=(ConnectionError, TimeoutError)):
     for n in range(1, attempts + 1):
         try:
             return fn()
@@ -812,7 +804,7 @@ def retry(fn, attempts=4, base=0.5, retry_on=(ConnectionError, TimeoutError)):
 
 (Ulangi hanya operasi yang **aman diulang**. Mengulang pembayaran tanpa idempotency key menagih dua kali.)
 
-Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalankan job dua kali harus meninggalkan hasil yang sama dengan sekali. Teknik yang bisa Anda terapkan hari ini:
+Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalankan job dua kali harus menghasilkan hasil yang sama dengan sekali. Teknik yang bisa Anda terapkan hari ini:
 
 - **Keluaran deterministik.** Masukan sama memberi keluaran identik byte demi byte: pertahankan urutan masukan, `json.dumps(..., sort_keys=True)`, tanpa stempel waktu "sekarang" di dalam data.
 - **Tulis atomik.** Tulis ke `output.tmp` dan `os.replace("output.tmp", "output")` di akhir. Pembaca melihat file lama yang lengkap atau file baru yang lengkap; crash di tengah menyisakan yang lama utuh. Bersihkan file `.tmp` dalam `try/except` agar eksekusi yang gagal tidak meninggalkan apa pun.
@@ -851,7 +843,7 @@ total pesanan negatif
 kolom yang hilang di header CSV
 * timeout koneksi saat memanggil API
 @why
-Kegagalan **sementara** (timeout, batas laju, koneksi putus) kemungkinan berhasil setelah jeda. **Data buruk** (total negatif, kolom hilang) akan gagal dengan cara yang sama setiap kali: mengulang membuang waktu, jadi karantina atau gagal dengan keras.
+Kegagalan **sementara** (timeout, batas laju, koneksi putus) kemungkinan berhasil setelah jeda. **Data buruk** (total negatif, kolom hilang) akan gagal dengan cara yang sama setiap kali: mengulang membuang waktu, jadi karantina atau gagal dengan jelas.
 :::
 
 :::ask Job crash di tengah penulisan `output.tmp`, dan langkah terakhir `os.replace("output.tmp", "output")` tidak pernah berjalan. Apa yang dilihat pembaca `output`?
@@ -885,15 +877,7 @@ retry(make_flaky(2), 4) == "ok" ## Fungsi yang gagal dua kali lalu berhasil haru
 (lambda f: (raises_error(ConnectionError, retry, f, 3), f.calls)[1] == 3)(make_flaky(10)) ## Ketika selalu gagal, retry harus memanggilnya tepat 3 kali lalu memunculkan ConnectionError lagi.
 raises_error(ValueError, retry, lambda: int("x"), 3) ## ValueError adalah data buruk, bukan gangguan jaringan: ia harus dimunculkan seketika, tidak diulang.
 @hint
-```python
-def retry(fn, attempts=3):
-    for n in range(1, attempts + 1):
-        try:
-            return fn()
-        except ConnectionError:
-            if n == attempts:
-                raise
-```
+Pakai loop `for` sebanyak `attempts` kali; di dalam `try`, kembalikan `fn()`. Tangkap hanya `ConnectionError` (agar error lain langsung naik), dan pada percobaan terakhir lempar ulang dengan `raise` kosong. Lihat contoh `retry` di awal pelajaran ini jika Anda macet.
 @solution
 def make_flaky(failures):
     """Fungsi yang memunculkan ConnectionError sebanyak `failures` kali, lalu mengembalikan "ok"."""
@@ -940,14 +924,14 @@ Tingkat dalam praktik: `DEBUG` (detail untuk pengembang), `INFO` (tonggak normal
 
 Baris log tunggal yang paling berguna di pipeline mana pun adalah **ringkasan eksekusi**: berapa baris dibaca, berapa valid, berapa ditolak dan mengapa, berapa lama. Itu monitoring pertama dan termurah Anda: perubahan mendadak angka-angka itu antar malam sering menjadi tanda pertama masalah di hulu, itulah sebabnya lab meminta Anda mencatatnya dan exit code mencerminkan tingkat penolakan.
 
-> 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri sebelumnya: panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
+> 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri Pelajaran 1 (`etl_try.py`): panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
 >
 > **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan. Di lab Anda, periksa baris log ringkasan dengan `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
 :::drill python Ringkasan run
 Baris log paling berguna dari sebuah job adalah ringkasan run-nya. Tulis `run_summary(outcomes)`: `outcomes` adalah daftar berisi satu kata per baris masukan: `"valid"`, `"duplicate"`, atau `"invalid"`. Kembalikan dictionary dengan kunci `read`, `valid`, `duplicates`, dan `invalid` berisi jumlahnya.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("run_summary") ## Definisikan run_summary(outcomes).
@@ -968,11 +952,11 @@ def run_summary(outcomes):
 
 :::ask Ringkasan run semalam: read=100000, invalid=200. Malam ini: read=100000, invalid=30000. Bagaimana membacanya dengan baik?
 @options
-* ada yang berubah di hulu, jadi lihat alasan baris yang ditolak
+* ada perubahan di hulu: lihat alasan baris yang ditolak
 job malam ini lebih cepat, jadi angkanya pasti wajar
 logging rusak dan sebaiknya dimatikan dulu untuk sementara
 @why
-Hitungan yang melonjak antar malam sering menjadi tanda pertama perubahan di hulu, misalnya format baru atau field yang diganti nama. Ringkasan run adalah monitoring termurahmu, jadi selidiki alasannya.
+Hitungan yang melonjak antar malam sering menjadi tanda pertama perubahan di hulu, misalnya format baru atau field yang diganti nama. Ringkasan run adalah monitoring termurah Anda, jadi selidiki alasannya.
 :::
 
 ## @lesson Menguji kode data dengan pytest
@@ -1007,19 +991,33 @@ Apa yang diuji dalam pipeline:
 
 Jaga tes tetap cepat dan bebas dari jaringan dan jam. Rangkaian tes yang berjalan dalam hitungan detik dijalankan di setiap perubahan; yang butuh sepuluh menit diabaikan.
 
+Agar CLI Anda mudah diuji dengan `pytest`, terima parameter `argv=None` di `main` lalu teruskan ke `argparse`:
+
+```python
+parser = argparse.ArgumentParser()
+parser.add_argument("input")
+parser.add_argument("output")
+parser.add_argument("quarantine")
+parser.add_argument("--max-reject-rate", type=float, default=0.05)
+args = parser.parse_args(argv)
+```
+
+Selalu teruskan `argv` ke `parser.parse_args(argv)`. Ketika `argv` bernilai `None` (saat dijalankan normal lewat terminal), `argparse` membaca `sys.argv[1:]`; ketika `pytest` memanggil `etl.main([...])`, meneruskan `argv` membuat `argparse` mem-parse argumen uji alih-alih rusak karena flag command line milik `pytest` sendiri.
+
 > 💡 **Jeda Praktik 4 (CLI Entrypoint & Uji Rangkaian Penuh):**
 > Lengkapi antarmuka command line produksi dan jalankan verifikasi menyeluruh:
-> 1. Di file `labs/mod-1-2/etl.py` pada text editor, lengkapi fungsi `main(argv=None)` dengan `argparse`: terima argumen `input`, `output`, `quarantine`, serta opsi `--max-reject-rate` (default `0.05`). Kembalikan exit code `0` untuk sukses, `1` jika tingkat penolakan melebihi batas, dan `2` jika file input tidak bisa dibaca.
-> 2. Uji CLI dan seluruh suite di terminal:
+> 1. Di file `labs/mod-1-2/etl.py` pada text editor, lengkapi fungsi `main(argv=None)` dengan pola `argparse` di atas: terima argumen `input`, `output`, `quarantine`, serta `--max-reject-rate` (default `0.05`). Kembalikan exit code `0` untuk sukses, `1` jika tingkat penolakan melebihi batas, dan `2` jika file input tidak bisa dibaca.
+> 2. Jalankan seluruh suite tes (termasuk `TestLogging`, uji memori 120.000 baris `TestStreaming`, dan `TestMain`) di terminal:
 > `pytest labs/mod-1-2/test_lab.py -v`
-> 3. Coba jalankan skrip langsung lewat terminal pada data KopiKu:
+> 3. Jalankan skrip pada data KopiKu dan buat kode bukti lab Anda:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
-> Ketika semua tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 9 untuk memilih perkakas yang tepat.
+> `python3 scripts/prove.py mod-1-2`
+> Ketika seluruh 28 tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 9 untuk memilih perkakas yang tepat.
 
-:::ask Kamu punya satu aturan untuk diuji (total bisa 'Rp 1.250.000' atau '150000') dengan banyak contoh masukan. Fitur pytest mana yang cocok?
+:::ask Anda punya satu aturan untuk diuji (total bisa 'Rp 1.250.000' atau '150000') dengan banyak contoh masukan. Fitur pytest mana yang cocok?
 @options
 fixture yang menghapus semua file tes yang ada
-* parametrize: satu isi tes dijalankan atas daftar kasus
+* parametrize: satu isi tes, banyak kasus
 tes yang berulang sampai akhirnya berhasil lolos
 @why
 `pytest.mark.parametrize` menjalankan isi tes yang sama sekali per kasus dan melaporkan tiap kasus terpisah, cocok untuk aturan data berantakan dengan banyak contoh.
@@ -1044,7 +1042,7 @@ memasang ulang library tersebut setiap pagi
 menghindari penggunaan library sama sekali
 * pin versinya, mis. pydantic>=2.5,<3
 @why
-Versi persis atau berbatas membuat build bisa diulang, dan lock file membuatnya persis sama. Tanpa pin, rilis baru bisa mengubah perilaku saat kamu tidur.
+Versi persis atau berbatas membuat build bisa diulang, dan lock file membuatnya persis sama. Tanpa pin, rilis baru bisa mengubah perilaku saat Anda tidur.
 :::
 
 ## @lesson I/O konkuren, pemuatan database massal, integration testing, dan pola live-coding {optional}
@@ -1096,7 +1094,7 @@ def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> l
 | **2** | **Exponential Backoff + Jitter & Atomic Checkpointing** | Hanya me-retry `429 / 5xx`, mematuhi `Retry-After`, dan menyimpan state via `os.replace`. | `delay = min(cap, base * (2 ** attempt)) * random.uniform(0.5, 1.0)` |
 | **3** | **Perataan JSON Bersarang & Deteksi Schema Drift** | Memecah `order -> items[]` menjadi baris induk/anak tanpa menghilangkan pesanan kosong, serta mendeteksi kunci baru/hilang. | Aljabar himpunan `expected_keys - actual_keys` + tuple induk/anak |
 | **4** | **Tokenisasi PII `HMAC-SHA256` Ber-Salt** | Memahami bahwa `sha256(telepon)` biasa mudah dibongkar rainbow table sehingga wajib memakai secret salt. | `hmac.new(salt.encode(), norm_email.encode(), hashlib.sha256).hexdigest()` |
-| **5** | **Sliding Window di Memori / Penggusuran Watermark** | Menghitung agregat bergulir 5 menit pada aliran event dengan membuang timestamp kedaluwarsa agar RAM tidak bocor. | `collections.deque` atau `heapq` berdasarkan `event_ts` |
+| **5** | **Sliding Window di Memori / Pembersihan/Eviction Watermark** | Menghitung agregat bergulir 5 menit pada aliran event dengan membuang timestamp kedaluwarsa agar RAM tidak bocor. | `collections.deque` atau `heapq` berdasarkan `event_ts` |
 
 > 🛠 **Coba sendiri (15 menit, Python).** Palsukan panggilan API dengan `def fetch(ep): time.sleep(0.25); return {"ep": ep}` dan ambil 40 endpoint dengan tiga cara: loop biasa, `fetch_all_bounded` di atas dengan 8 worker tanpa throttle, dan cara yang sama dengan throttle 20 per detik. (Beri `fetch_all_bounded` parameter `min_interval_sec` yang diteruskan ke `throttled_fetch`, sehingga `0` mematikan throttle.) Ukur masing-masing dengan `time.perf_counter()` dan pastikan ketiganya mengembalikan 40 hasil. Sebelum menjalankan, tebak ketiga waktunya hanya dari angka-angkanya.
 >
@@ -1106,7 +1104,7 @@ def fetch_all_bounded(endpoints: list[str], fetch_fn, max_workers: int = 8) -> l
 Setiap panggilan API menunggu `latency_ms` milidetik. Dengan `workers` panggilan berjalan bersamaan, panggilan berjalan dalam putaran. Tulis `seconds_needed(calls, latency_ms, workers)`: kembalikan total waktu dalam detik (sebuah angka).
 @starter
 import math
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("seconds_needed") ## Definisikan seconds_needed(calls, latency_ms, workers).
@@ -1115,7 +1113,7 @@ seconds_needed(400, 250, 20) == 5 ## 20 sekaligus: 20 putaran × 0,25 dtk = 5 dt
 seconds_needed(3, 1000, 2) == 2 ## 3 panggilan pada 2 worker butuh 2 putaran 1 dtk.
 seconds_needed(0, 250, 5) == 0 ## Tanpa panggilan, tanpa waktu.
 @hint
-`rounds = math.ceil(calls / workers)`, lalu `rounds * latency_ms / 1000`.
+Bagi `calls` dengan `workers` lalu bulatkan ke atas dengan `math.ceil` untuk mendapat jumlah putaran, kemudian kalikan dengan `latency_ms` dan ubah milidetik ke detik (bagi dengan 1000).
 @solution
 import math
 def seconds_needed(calls, latency_ms, workers):
@@ -1125,7 +1123,7 @@ def seconds_needed(calls, latency_ms, workers):
 
 :::ask 400 endpoint API harus diambil. Mengapa tidak memulai 400 thread sekaligus?
 @options
-* API akan menjawab 429, jadi batasi worker dan lajunya
+* API akan balas 429: batasi jumlah worker
 thread hanya bisa dimulai sepuluh sekaligus saja
 400 thread selalu lebih lambat daripada satu thread
 @why
@@ -1171,7 +1169,7 @@ Begitu Anda menjalankan `pip install pre-commit && pre-commit install`, Git menj
 - **Dampak Biaya / Waktu Eksekusi Query:** Byte yang dipindai atau durasi jalan sebelum vs. sesudah (contoh: `BigQuery dry-run turun dari 42,1 GB ke 1,4 GB berkat partition pruning tanggal`).
 - **Rencana Backfill & Rollback:** Apakah merge PR ini membutuhkan backfill historis (`dbt run --full-refresh` atau backfill rentang tanggal), dan bagaimana cara memulihkannya jika dashboard BI hilir terdampak?
 
-> 🛠 **Coba sendiri (5 menit, terminal).** Di dalam repositori Git mana pun, lihat isi folder `.git/hooks/`. Tanpa pustaka tambahan sekalipun, Anda dapat membuat skrip shell `.git/hooks/pre-commit` (baris pertama `#!/bin/sh`, lalu `chmod +x .git/hooks/pre-commit`) berisi `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Jangan commit file data!" && exit 1 || exit 0`. Coba `git add` sebuah file `.csv` bayangan lalu commit, kemudian lakukan hal yang sama dengan file `.txt`.
+> 🛠 **Coba sendiri (5 menit, terminal).** Di dalam repositori Git mana pun, lihat isi folder `.git/hooks/`. Tanpa pustaka tambahan sekalipun, Anda dapat membuat skrip shell `.git/hooks/pre-commit` (baris pertama `#!/bin/sh`, lalu `chmod +x .git/hooks/pre-commit`) berisi `git diff --cached --name-only | grep -E '\.(csv|parquet|db)$' && echo "ERROR: Jangan commit file data!" && exit 1 || exit 0`. Coba `git add` sebuah file `.csv` contoh lalu commit, kemudian lakukan hal yang sama dengan file `.txt`.
 >
 > **Seharusnya Anda melihat:** commit `.csv` berhenti: hook mencetak nama file dan `ERROR: Jangan commit file data!`, dan `echo $?` tepat setelah `git commit` menampilkan `1`. Commit `.txt` berhasil. Jika tidak terjadi apa-apa, periksa `chmod +x`: tanpanya Git melewati hook dan hanya mencetak `hint:` bahwa hook diabaikan karena tidak bisa dieksekusi. Diukur dengan Git 2.53.
 
@@ -1188,7 +1186,9 @@ Peninjau tidak bisa melihat data dari membaca kode. Deskripsi harus menyebut gra
 Bangun versi produksi dari job pembersihan di Modul 0.2. Ia membaca pesanan KopiKu yang kotor, memvalidasi tiap baris dengan model Pydantic, menulis baris baik dan baris karantina ke file terpisah, tidak pernah menahan file di memori, aman dijalankan dua kali, dan memberi sinyal sukses atau gagal lewat exit code-nya. Tesnya sudah ditulis untuk Anda, dan memeriksa perilaku (memori, eksekusi ulang, kegagalan), bukan hanya nilai.
 
 ### @steps
-1. Persiapan (lanjutkan di proyek `~/kopiku` dari Modul 0.1, atau bekerja di dalam repositori kursus). Pasang requirement dan buat datanya:
+> **Sudah menyelesaikan Jeda Praktik 1–4?** File `labs/mod-1-2/etl.py` Anda sudah selesai, langsung lompat ke Langkah 7 untuk menjalankan verifikasi penuh dan membuat kode bukti Anda.
+
+1. Persiapan di dalam repositori kursus (Anda akan mengedit `labs/mod-1-2/etl.py`). Pasang requirement dan buat datanya:
 
 ```bash
 python -m pip install -r labs/mod-1-2/requirements.txt
@@ -1198,17 +1198,19 @@ python3 labs/shared/shopgen.py --out data
 2. Baca dulu `labs/mod-1-2/test_lab.py`. Itulah spesifikasinya. Perhatikan apa yang diperiksanya: hitungan terhadap ground truth generator, memori di bawah 30 MB pada file 120.000 baris, keluaran identik byte demi byte saat dijalankan ulang, keluaran sebelumnya tetap ada saat eksekusi gagal, exit code 0, 1, dan 2.
 3. Buka `labs/mod-1-2/etl.py` dan implementasikan, dengan urutan ini, jalankan tes setelah tiap langkah:
    `OrderRow` (constraint dan validator), lalu `validate`, lalu `read_orders` (sebuah generator), lalu `run`, lalu `main`.
-4. Di `run`, pakai pola karantina: untuk tiap baris tulis ke keluaran atau tulis `{"row", "reason", "raw"}` ke karantina, dan hitung yang terjadi. Susun alasan dari error validasi pertama. Lakukan pemeriksaan duplikat hanya untuk baris yang lolos validasi.
-5. Buat `run` atomik: tulis ke file `<path>.tmp` dan `os.replace` di akhir; dalam `try/except` hapus file sementara dan lempar ulang pada kegagalan apa pun.
-6. Jalankan tes, lalu jalankan program pada data asli dan lihat karantinanya:
+4. Di `run`, pakai pola karantina: untuk tiap baris tulis ke keluaran atau tulis `{"row", "reason", "raw"}` ke karantina, dan hitung yang terjadi. Susun alasan dari error validasi pertama (diawali nama field yang gagal). Lakukan pemeriksaan duplikat hanya untuk baris yang lolos validasi.
+5. Buat `run` atomik: tulis ke file `f"{output_path}.tmp"` dan `f"{quarantine_path}.tmp"` lalu `os.replace` di akhir; dalam `try/except` hapus file sementara dan lempar ulang pada kegagalan apa pun.
+6. Di `main(argv=None)`, parse `input`, `output`, `quarantine`, dan `--max-reject-rate` (default `0.05`) dengan `argparse` (teruskan `argv` ke `parser.parse_args(argv)`). Kembalikan `0` saat sukses, catat error dan kembalikan `1` bila `stats.reject_rate > args.max_reject_rate`, dan kembalikan `2` bila file input tidak bisa dibaca (`OSError`).
+7. Jalankan tes, jalankan program pada data asli (menulis ke `/tmp/` agar repositori tetap bersih), lihat karantinanya, dan buat kode bukti Anda:
 
 ```bash
 pytest labs/mod-1-2 -v
-python labs/mod-1-2/etl.py data/orders.csv clean.ndjson quarantine.ndjson; echo "exit code: $?"
-head -3 quarantine.ndjson
+python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson; echo "exit code: $?"
+head -3 /tmp/quarantine.ndjson
+python3 scripts/prove.py mod-1-2
 ```
 
-7. Tantangan tambahan: tambahkan penanganan `--max-reject-rate` yang mencatat error dan mengembalikan 1; tambahkan helper retry dan tes yang memakai `monkeypatch` untuk mensimulasikan dua kegagalan sebelum sukses; tambahkan type hint dan jalankan `mypy`.
+8. Tantangan tambahan opsional: tambahkan helper retry dan tes yang memakai `monkeypatch` untuk mensimulasikan dua kegagalan sebelum sukses; tambahkan type hint dan jalankan `mypy`.
 
 ### @files
 - labs/mod-1-2/etl.py :: File kerja Anda: isi bagian TODO :: starter
@@ -1225,9 +1227,10 @@ head -3 quarantine.ndjson
 ### @verify
 ```bash
 pytest labs/mod-1-2 -v
+python3 scripts/prove.py mod-1-2
 ```
 
-Bandingkan dengan hasil yang sudah benar: `LAB_DIR=reference pytest labs/mod-1-2 -v`. Jika tes memori gagal, kemungkinan Anda menahan semua baris sekaligus; pakai `tracemalloc` seperti di materi untuk menemukan tempatnya.
+Bandingkan dengan hasil yang sudah benar: `LAB_DIR=reference pytest labs/mod-1-2 -v`. Jika tes memori gagal, kemungkinan Anda menahan semua baris sekaligus; pakai `tracemalloc` seperti di pelajaran untuk menemukan tempatnya.
 
 ## @chaos Omset yang kehilangan 1% tanpa error
 ### @scenario

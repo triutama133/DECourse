@@ -13,7 +13,7 @@ why: Tutorials tell you to spin up a cluster for a 15 GB file. A single modern m
 - Choose between pandas, Polars, DuckDB and a distributed engine for a given data size, using measurements
 
 ## @prereq
-Modules 1.2 (streaming and memory) and 1.3 (SQL, plans). `pip install -r labs/mod-2-1/requirements.txt` installs DuckDB, Polars and PyArrow.
+Modules 1.2 (streaming and memory) and 1.3 (SQL, plans). `pip install -r labs/mod-2-1/requirements.txt` installs DuckDB, Polars, PyArrow and pandas.
 
 ## @part How columnar storage works
 
@@ -26,13 +26,13 @@ A table is a grid. To store it in a file or in memory you must flatten it into a
 
 Three benefits stack up:
 
-1. **Less I/O.** Reading 2 of 50 columns is roughly 4% of the data. In the lab you will see the engine report `PROJECT 3/7 COLUMNS`: only three of seven columns are read.
+1. **Less I/O.** Reading 2 of 50 columns is roughly 4% of the data. In the 7-column benchmark example in Lesson 5 you will see the engine report `PROJECT 3/7 COLUMNS`: only three of seven columns are read.
 2. **Better compression.** Values of one column are the same type and often similar (`'mobile'`, `'mobile'`, `'desktop'`, ...), which compresses far better than a row mixing text, numbers and dates. Techniques such as **dictionary encoding** (store each distinct string once, then small integer codes), **run-length encoding (RLE)** (store `'mobile' x 1000` once instead of repeating `'mobile'` 1,000 times), **delta encoding** (store differences between sorted timestamps) and **bit-packing** (use only as many bits as the values need) shrink columns dramatically.
 3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute with **SIMD** instructions (Single Instruction, Multiple Data — adding 4 to 16 numbers in one CPU tick instead of one row at a time).
 
 The trade-off is the mirror image: updating or fetching **one whole record** touches every column's data, so columnar files suit analytics and bulk loads, not frequent single-row writes. That is why you keep an OLTP database for the application (Module 0.2) and a columnar format for analysis.
 
-Real numbers from a 5,000,000-row event table with seven columns (ids, timestamps, a few categories and an amount), written by the lab's tools (where **Snappy** prioritises fast decompression speed and **Zstd / Zstandard** achieves smaller files at similar speed):
+Real numbers from an illustrative 5,000,000-row benchmark table with seven columns (ids, timestamps, a few categories and an amount), written with DuckDB and Parquet (separate from the smaller 1,000,000-row test table in `test_lab.py`; here **Snappy** prioritises fast decompression speed and **Zstd / Zstandard** achieves smaller files at similar speed):
 
 | Format | Size on disk |
 |---|---|
@@ -43,7 +43,7 @@ Real numbers from a 5,000,000-row event table with seven columns (ids, timestamp
 
 The last two rows show something important: the *same* data, in a different row order, is 65% larger, because sorted timestamps and repeated values sit next to each other and compress better. How you order data before writing it is a performance decision.
 
-> 🛠 **Try it (10 min, Python).** Run `pip install pandas pyarrow`. Load `data/orders.csv` with `pd.read_csv(..., dtype={"customer_id": "string"})` and save it with `df.to_parquet("orders.parquet")`. Compare the two file sizes with `os.path.getsize`. Then open `pq.ParquetFile("orders.parquet").metadata.row_group(0)` and, for every `column(i)`, print `path_in_schema` and `total_compressed_size`. Which column is biggest, which are smallest, and why? Finally work out what share of the Parquet bytes a "total by status" query (columns `status` and `total_idr`) has to read, and compare that with the CSV, where every byte must be read.
+> 🛠 **Try it (10 min, Python).** Run `pip install pandas pyarrow`, then import `os`, `import pandas as pd`, and `import pyarrow.parquet as pq`. Load `data/orders.csv` with `pd.read_csv(..., dtype={"customer_id": "string"})` and save it with `df.to_parquet("orders.parquet")`. Compare the two file sizes with `os.path.getsize`. Then open `pq.ParquetFile("orders.parquet").metadata.row_group(0)` and, for every `column(i)`, print `path_in_schema` and `total_compressed_size`. Which column is biggest, which are smallest, and why? Finally work out what share of the Parquet bytes a "total by status" query (columns `status` and `total_idr`) has to read, and compare that with the CSV, where every byte must be read.
 >
 > **You should see:** the CSV is `195075` bytes and the Parquet file roughly 77,000 (the exact number moves a little with the library version), well under half. `order_ts` is the biggest column (about 37 KB: almost every value is different), `status` and `payment_method` are the smallest (1 to 2 KB: a handful of repeated values), and `status` plus `total_idr` are about 9% of the Parquet bytes.
 
@@ -81,7 +81,7 @@ to_columns([(1, "a"), (2, "b")], ["id", "tag"]) == {"id": [1, 2], "tag": ["a", "
 to_columns([], ["x"]) == {"x": []} ## No rows: every column is an empty list.
 to_columns([(5, 6, 7)], ["a", "b", "c"]) == {"a": [5], "b": [6], "c": [7]} ## It works for any number of columns.
 @hint
-`{name: [row[i] for row in rows] for i, name in enumerate(names)}`
+Pair each column index `i` with its column name using `enumerate(names)`, and map each name to a list collecting `row[i]` from every tuple in `rows`.
 @solution
 def to_columns(rows, names):
     return {name: [row[i] for row in rows] for i, name in enumerate(names)}
@@ -108,7 +108,7 @@ file
 
 > 💡 **Practice Pause: Converting CSV to Parquet with DuckDB**
 > 1. Open `labs/mod-2-1/analytics.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
-> 2. Locate function `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Use DuckDB's `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` to convert CSV to zstd-compressed Parquet with the requested row group size. Remember that the target path clause in `COPY ... TO` does not accept a bound `?` parameter, so format it as an escaped f-string.
+> 2. Locate function `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Run DuckDB SQL from Python with `duckdb.connect().execute("...")` (covered in full in Lesson 4), using `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` to convert CSV to zstd-compressed Parquet with the requested row group size. Remember that the target path clause in `COPY ... TO` does not accept a bound `?` parameter, so format it as an escaped f-string.
 > 3. Open your terminal and run the Parquet conversion unit tests:
 > `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
 > 4. Ensure all 4 tests pass (`4 passed`). Observe how column data types are inferred automatically and ZSTD compression is applied across row groups.
@@ -118,7 +118,7 @@ file
 - **Projection pushdown (column pruning).** Read only the columns the query uses.
 - **Predicate pushdown (filter pushdown).** Before reading any data, compare the filter with each row group's min/max statistics and **skip row groups that cannot contain a match**. If a row group's timestamps run from 09:00 to 09:15 and you want 14:00 to 15:00, it is skipped without being read.
 
-The second one depends entirely on **sort order**. In the 5-million-row file (50 row groups of 100,000 rows) a one-hour window of timestamps needed only **5 of 50** row groups when the file was sorted by time, and **all 50** when rows were in random order: every row group's min/max range spans the whole day, so none can be skipped, and the engine reads everything. The statistics are the same; the layout decided whether they were useful. You can implement this decision yourself in the lab (`row_groups_to_read`): given only the footer, return which row groups might contain values in a range.
+The second one depends entirely on **sort order**. In the 5-million-row benchmark example (50 row groups of 100,000 rows) a one-hour window of timestamps needed only **5 of 50** row groups when the file was sorted by time, and **all 50** when rows were in random order: every row group's min/max range spans the whole day, so none can be skipped, and the engine reads everything. The statistics are the same; the layout decided whether they were useful. You can implement this decision yourself in the lab (`row_groups_to_read`, where `test_lab.py` checks a smaller 1-million-row, 20-row-group table and expects 1 to 3 row groups on sorted data): given only the footer, return which row groups might contain values in a range.
 
 Practical consequences:
 
@@ -128,8 +128,8 @@ Practical consequences:
 
 :::ask A Parquet file has 3 row groups. The footer says `total` is 0 to 100 in group 0, 100 to 200 in group 1 and 200 to 300 in group 2. You query `WHERE total > 250`. How many row groups must the engine read?
 @options
-all three, to be sure
-* one: only group 2 can contain a value above 250
+all three groups, to be sure
+* only one (group 2)
 none, the footer cannot be trusted
 @why
 Each row group stores min/max statistics in the footer. Groups 0 and 1 have a maximum below 250, so the engine **skips** them without reading their data. This is predicate pushdown, and why sorted data (tight ranges) skips more.
@@ -149,14 +149,14 @@ How does an engine compute on columns quickly? Older databases processed **one r
 
 The practical takeaway is not the mechanism but the habit: **express work as whole-column operations** (SQL, dataframe expressions) and let the engine run the loop. A Python `for` loop over rows pays interpreter overhead per value (Module 1.2); the same logic as a SQL aggregate or a Polars expression runs orders of magnitude faster.
 
-> 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query over `range(2000000) t(x)`. Time each with `time.perf_counter()` and check that the two answers are equal.
+> 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query via `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchone()[0]` (in DuckDB SQL, `range(N) t(x)` is a built-in table generator producing rows `0..N-1` in column `x`, covered further in Lesson 4). Time each with `time.perf_counter()` and check that the two answers are equal.
 >
 > **You should see:** both answers are `1333332666666`; the loop takes roughly 160 ms and DuckDB roughly 20 ms. The exact ratio depends on your machine (expect somewhere between 5 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
 
 :::ask A job loops over 10 million rows in a Python `for` loop to add 1 to each price. What is the better habit?
 @options
 keep the loop and run it on a bigger machine
-* write one whole-column expression for the engine
+* write a whole-column expression
 convert the prices to text so adding is simpler
 @why
 A whole-column operation runs the loop inside compiled code over contiguous memory, often tens of times faster than the Python loop, which pays interpreter overhead per value.
@@ -264,7 +264,7 @@ SELECTION: col("event_type") == "purchase"
 
 Three of seven columns, and the filter inside the scan. (`pl.read_parquet` is the *eager* version: it loads everything first and forfeits these optimisations; prefer `scan_*` for files.) Polars runs on all cores by default and has a streaming mode for larger-than-memory work.
 
-**What about pandas?** pandas is everywhere and perfect for small data, exploration and the ecosystem (plotting, scikit-learn). Its costs appear at scale: it loads whole tables into memory, uses Python objects for strings (which is expensive), and mostly runs on one core. Measured on the same 5-million-row file, each in a fresh process (peak memory includes the roughly 100 to 150 MB that the Python and library imports themselves take):
+**What about pandas?** pandas is everywhere and perfect for small data, exploration and the ecosystem (plotting, scikit-learn). Its costs appear at scale: it loads whole tables into memory, uses Python objects for strings (which is expensive), and mostly runs on one core. Measured on the same illustrative 5-million-row, 7-column benchmark table from Lesson 1 (separate from the smaller 1-million-row test table in `test_lab.py`), each in a fresh process (for the pandas runs, peak memory includes the roughly 100 to 150 MB baseline of importing Python with `pandas` and `pyarrow`; standalone `duckdb` has a smaller import footprint):
 
 | Task: sum of `amount` by `event_type` | Time | Peak memory |
 |---|---|---|
@@ -275,7 +275,7 @@ Three of seven columns, and the filter inside the scan. (`pl.read_parquet` is th
 | DuckDB over the Parquet | **0.1 s** | **80 MB** |
 | Polars lazy over the Parquet | 0.2 s | 160 MB |
 
-Notice the second row: reading Parquet into pandas used *more* memory than reading the CSV, because pandas must materialise all seven columns as in-memory objects. Reading only the columns you need (`columns=[...]`) cut that in half. The engines that push work into the scan never build the full table at all. (Exact numbers depend on your machine and library versions; measure your own, as the lab does. The ratios are the lesson.)
+Notice the second row: reading Parquet into pandas used *more* memory than reading the CSV, because pandas must materialise all seven columns as in-memory objects. Reading only the columns you need (`columns=[...]`) cut that in half. The engines that push work into the scan never build the full table at all. (Exact numbers depend on your machine and library versions; measure your own, as Step 6 of the lab does. The ratios are the lesson.)
 
 A practical guide:
 
@@ -290,7 +290,7 @@ DuckDB and Polars interoperate through Arrow, so you can mix them: SQL for the h
 
 > 💡 **Practice Pause: Lazy Columnar Analysis with Polars**
 > 1. In your text editor in `labs/mod-2-1/analytics.py`, open function `revenue_by_month_roast_polars(data_dir)`.
-> 2. Implement the identical analytical pipeline **lazily** using `pl.scan_parquet(...)`. Join items with orders and products (`join`), add the formatted month and line total with `.with_columns()`, group with `.group_by("month", "roast_level")`, aggregate with `.agg(pl.col("line").sum().alias("revenue"))`, sort with `.sort()`, and execute the plan with `.collect()`.
+> 2. Implement the identical analytical pipeline **lazily** using `pl.scan_parquet(...)`. Chain `.join(orders, on="order_id").join(products, on="product_id")` to combine the tables, add derived columns with `.with_columns(month=pl.col("order_ts").dt.strftime("%Y-%m"), line=pl.col("qty") * pl.col("unit_price_idr"))`, group with `.group_by("month", "roast_level")`, aggregate with `.agg(pl.col("line").sum().alias("revenue"))`, sort with `.sort("month", "roast_level")`, execute the plan with `.collect()`, and convert the result rows to plain Python tuples with `.iter_rows()`.
 > 3. Run the engine test suite in your terminal:
 > `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
 > 4. Ensure all 3 engine tests pass (`3 passed`). Observe how two distinct modern engines (DuckDB and Polars) produce 100% identical outputs matching independent SQLite calculations.
@@ -320,7 +320,9 @@ That is lazy evaluation: the chain describes work, and `.collect()` triggers it.
 > 1. Once all four functions in `labs/mod-2-1/analytics.py` are implemented, run the entire test suite in your terminal:
 > `pytest labs/mod-2-1 -v`
 > 2. Ensure all 10 tests pass cleanly without errors (`10 passed`).
-> 3. Observe the execution speed and low memory footprint of DuckDB and Polars, confirming the power of in-process columnar processing on your local machine.
+> 3. Generate your completion proof code by running:
+> `python3 scripts/prove.py mod-2-1`
+> 4. Note that `pytest` verifies correctness only, to measure and compare execution time and peak memory across pandas, DuckDB, and Polars, complete the benchmark in Step 6 of the lab below.
 
 :::ask Your table has 5 years of daily data, and queries almost always filter on one date. Which partition column is the sensible choice?
 @options
@@ -363,7 +365,7 @@ Two storage questions appear repeatedly in both production architecture reviews 
 
 | Storage Engine | Used By | Write Path | Read Path | Data Engineering Impact (Ingestion & Serving) |
 |---|---|---|---|---|
-| **B+Tree** (Page-oriented, in-place page updates + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Appends to WAL, then modifies fixed-size `8 KB / 16 KB` B-Tree pages in place (causes random disk I/O on heavy writes). | **Fast O(log N) point & range reads** down balanced tree pointers. | Ingest via **WAL Change Data Capture (Debezium)** rather than polling `SELECT *`, so you don't contend with OLTP page locks. |
+| **B+Tree** (Page-oriented, in-place page updates + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Appends to the **WAL** (Write-Ahead Log, an append-only durability log written before data pages change), then modifies fixed-size `8 KB / 16 KB` B-Tree pages in place (causes random disk I/O on heavy writes). | **Fast O(log N) point & range reads** down balanced tree pointers. | Ingest via **WAL Change Data Capture (Debezium)** rather than polling `SELECT *`, so you don't contend with OLTP page locks. |
 | **LSM-Tree** (Append-only MemTable → immutable SSTables + Compaction) | Cassandra, RocksDB, Bigtable, HBase, ScyllaDB | Appends to WAL + in-memory sorted **MemTable**; flushes sequentially to immutable on-disk **SSTables (Sorted String Tables)**; background **Compaction** merges SSTables. | Checks MemTable + checks SSTables using **Bloom Filters** (which tell you in O(1) if a key is *not* in an SSTable). | **Ultra-fast write throughput** for IoT telemetry and online feature stores. Ingest downstream via **DynamoDB Streams / MongoDB Change Streams** into Bronze Parquet. |
 
 > 🛠 **Try it (15 min, Python with `pandas` and `pyarrow`).** Read `data/orders.csv` as text, keep the rows whose `total_idr` is all digits and make `order_id`, `customer_id` and `total_idr` integers, then repeat the rows 30 times. Write the same table six ways: CSV, gzipped CSV, and Parquet with `compression=` `"none"`, `"snappy"`, `"gzip"` and `"zstd"` (`pyarrow.parquet.write_table`). Compare the file sizes, and before you look, guess the order.
@@ -381,10 +383,10 @@ Chapter 6 of *Fundamentals of Data Engineering* starts below the warehouse and t
 | Cloud examples | AWS EBS, Azure Managed Disks, Google Persistent Disk | AWS EFS, Azure Files, Google Filestore | S3, Azure Blob and ADLS Gen2, Google Cloud Storage |
 | Change part of it | Yes: rewrite any block | Yes: append to or edit a file | No: replace the whole object |
 | Rename a folder | One operation | One operation | No real folders: copy and delete every object (ADLS Gen2 with a hierarchical namespace is the exception) |
-| Typical use | Database data files, a VM's boot disk | Shared home folders, tools that need a POSIX file system | Data lakes, lakehouse tables, backups, anything large |
+| Typical use | Database data files, a VM's boot disk | Shared home folders, tools that need a POSIX file system (standard Unix/Linux file-and-folder API) | Data lakes, lakehouse tables, backups, anything large |
 | Cost and scale | Highest per GB, one machine at a time (mostly) | In between | Cheapest per GB, practically unlimited |
 
-Two older names you will meet in brownfield jobs: **RAID** combines several disks into one, for speed (striping), for safety (mirroring or parity), or both; a **SAN** (storage area network) serves block storage to many servers over a dedicated network. Cloud block storage is the same idea as a managed service.
+Two older names you will meet in **brownfield** jobs (projects modernising existing legacy systems rather than starting from scratch): **RAID** combines several disks into one, for speed (striping), for safety (mirroring or parity), or both; a **SAN** (storage area network) serves block storage to many servers over a dedicated network. Cloud block storage is the same idea as a managed service.
 
 **Why object storage shaped the lakehouse.** Since objects cannot be edited or renamed cheaply, the old Hadoop habit of writing results to a temporary folder and renaming it at the end becomes thousands of copy requests on S3. Table formats such as Delta Lake and Iceberg (Module 2.2) never rename data files: they write new files and then commit one small metadata change, which is why they work on object storage.
 
@@ -400,7 +402,7 @@ Two older names you will meet in brownfield jobs: **RAID** combines several disk
 @options
 object storage is too slow to hold any table
 object storage accepts only CSV files
-* objects cannot be renamed cheaply, so commits need a log
+* renames copy data, so commits need a log
 @why
 Writing to a temporary folder and renaming it works on a file system, but on object storage a rename copies every object. A table format commits a change by writing one small metadata file instead.
 :::
@@ -409,6 +411,8 @@ Writing to a temporary folder and renaming it works on a file system, but on obj
 Convert the KopiKu tables to Parquet, answer the same business question with DuckDB and with Polars (and prove both give the independently calculated answer), and implement predicate pushdown yourself from nothing but a Parquet footer. Then measure on a bigger dataset and compare engines.
 
 ### @steps
+> **Already completed Practice Pauses 1–5?** Your `labs/mod-2-1/analytics.py` is already implemented and passing all 10 tests! Jump straight to Step 6 (the pandas vs. DuckDB vs. Polars benchmark), Step 7, and **@verify** (`python3 scripts/prove.py mod-2-1`) below.
+
 1. Install the requirements and look at the tests first; they explain every rule:
 
 ```bash
@@ -425,6 +429,8 @@ pytest labs/mod-2-1 -v          # all fail at first
 ```python
 import duckdb
 duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (hash(i) % 20000)::INT AS customer_id,
+                    CASE i % 3 WHEN 0 THEN 'purchase' WHEN 1 THEN 'view' ELSE 'click' END AS event_type,
+                    CASE i % 2 WHEN 0 THEN 'mobile' ELSE 'desktop' END AS device,
                     round((hash(i * 17) % 100000) / 100.0, 2) AS amount
              FROM range(5000000) t(i) ORDER BY event_ts)
              TO 'events.parquet' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE 100000)""")
@@ -435,7 +441,7 @@ duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (ha
 ### @files
 - labs/mod-2-1/analytics.py :: Your working file: four functions to implement :: starter
 - labs/mod-2-1/test_lab.py :: The tests (they build the data and check your work) :: test
-- labs/mod-2-1/requirements.txt :: duckdb, polars, pyarrow, pytest :: config
+- labs/mod-2-1/requirements.txt :: duckdb, polars, pyarrow, pandas, pytest :: config
 - labs/mod-2-1/reference/analytics.py :: One possible solution (try first!) :: reference
 
 ### @deliverables
@@ -446,6 +452,7 @@ duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (ha
 ### @verify
 ```bash
 pytest labs/mod-2-1 -v
+python3 scripts/prove.py mod-2-1
 ```
 
 Known-good run: `LAB_DIR=reference pytest labs/mod-2-1 -v`.
@@ -491,7 +498,7 @@ Fix the format and the layout before you scale the hardware. Columnar, typed, so
 - [x] The sorted file lets most row groups be skipped, while in the random file every group's range overlaps
 - [ ] The sorted file cannot be filtered at all, because filters need a column with randomly distributed values
 
-> Statistics only help when values are clustered. In the lab 5 of 50 row groups were needed for sorted data and all 50 for shuffled data.
+> Statistics only help when values are clustered. In the benchmark example, 5 of 50 row groups were needed for sorted data and all 50 for shuffled data (and in the lab's 1M-row / 20-row-group test, 1–3 of 20 for sorted data vs nearly all for shuffled).
 
 ### In a DuckDB plan, where should a `WHERE event_type = 'purchase'` filter appear for the best performance?
 - [ ] In a separate FILTER node after the aggregation, so that fewer groups have to be calculated

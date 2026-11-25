@@ -33,7 +33,7 @@ Modul 2.1 telah memberi Anda format file kolumnar yang sangat efisien. Langkah l
 
 Tiga format tabel terbuka utama di industri saat ini adalah **Apache Iceberg**, **Delta Lake**, dan **Apache Hudi**. Mereka bukan format file penyimpanan (datanya tetap Parquet) dan bukan mesin komputasi: Spark, Trino, Flink, DuckDB, Snowflake, BigQuery, dan alat lainnya dapat membaca dan menulis format ini. Dipadukan dengan mesin query dan katalog metadata, lahirlah arsitektur **Lakehouse**: keandalan transaksi ACID setara data warehouse tradisional di atas media penyimpanan murah data lake.
 
-> 🛠 **Coba sendiri (10 menit, Python).** Muat `data/orders.csv` dan potong menjadi lima bagian berisi 727 baris (`df.iloc[i*727:(i+1)*727]`). Tulis sebagai `lake/orders/part-0.parquet` sampai `part-4.parquet`, tetapi buat job-nya mati dengan `raise RuntimeError("job killed")` tepat sebelum menulis file keempat. Sekarang baca foldernya dengan `pd.read_parquet("lake/orders")` dan bandingkan jumlah barisnya dengan 3634. Lalu perbaiki penulisnya agar pembaca tidak pernah melihat setengah tabel: tulis ke `lake/orders.tmp` dan baru `os.rename` menjadi `lake/orders` setelah kelima file ada. Buat crash lagi di folder baru dan periksa apa yang ditemukan pembaca. Hapus `lake/` setelah selesai.
+> 🛠 **Coba sendiri (10 menit, Python dengan `pandas` dan `pyarrow`).** Impor `os` dan `import pandas as pd`, buat folder target dengan `os.makedirs("lake/orders", exist_ok=True)`, muat `data/orders.csv` dengan `pd.read_csv("data/orders.csv")`, lalu potong menjadi lima bagian berisi 727 baris (`df.iloc[i*727:(i+1)*727]`). Tulis sebagai `lake/orders/part-0.parquet` sampai `part-4.parquet`, tetapi buat job-nya mati dengan `raise RuntimeError("job killed")` tepat sebelum menulis file keempat. Sekarang baca foldernya dengan `pd.read_parquet("lake/orders")` dan bandingkan jumlah barisnya dengan 3634. Lalu perbaiki penulisnya agar pembaca tidak pernah melihat setengah tabel: tulis ke `lake/orders.tmp` dan baru `os.rename` menjadi `lake/orders` setelah kelima file ada. Buat crash lagi di folder baru dan periksa apa yang ditemukan pembaca. Hapus `lake/` setelah selesai.
 >
 > **Seharusnya Anda melihat:** penulis yang rusak meninggalkan `lake/orders` berisi 3 file dan pembaca mengembalikan `2181` baris dari 3634 **tanpa error sama sekali**. Dengan penulis folder-sementara-lalu-rename, `lake/orders` tidak ada setelah crash, sehingga pembaca gagal dengan jelas lewat `FileNotFoundError` alih-alih diam-diam mengembalikan data sebagian, dan sisa `orders.tmp` mudah ditemukan dan dibersihkan. Table format (pelajaran berikutnya) melakukan trik yang sama dengan file metadata, bukan rename folder.
 
@@ -58,6 +58,8 @@ catalog                 "tabel shop.orders -> file metadata aktif"          (sat
             └─ manifest (*.avro)        daftar file Parquet data beserta statistik min/max dan partisi
                  └─ data file (*.parquet)
 ```
+
+(Manifest list dan manifest disimpan dalam format **Apache Avro** (`.avro`), yakni format biner berbasis baris yang ringkas dan menyertakan skemanya sendiri.)
 
 Mari kita telaah tabel nyata dari lab praktis setelah menerima dua kali operasi penambahan data (append). File `metadata.json` mencatat skema tabel lengkap dengan **field id numerik**, spesifikasi partisi, dan daftar snapshot:
 
@@ -94,11 +96,11 @@ Perhatikan bahwa **tidak ada satu pun file yang pernah dimodifikasi di tempat**.
 
 > 💡 **Jeda Praktik: Pembuatan Tabel Iceberg & Inspeksi Layout Metadata**
 > 1. Buka file `labs/mod-2-2/lakehouse.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
-> 2. Temukan fungsi `create_orders_table(catalog)`. Buat namespace `shop` dan tabel `shop.orders` dengan skema lima kolom (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) menggunakan `NestedField` ber-ID eksplisit, serta `PartitionSpec` dengan `DayTransform` pada `order_ts` (bernama `order_day`).
-> 3. Implementasikan fungsi `append_batch(table, rows)` untuk menambahkan data sebagai satu snapshot baru, serta fungsi `layout(table)` untuk menghitung file `.metadata.json`, manifest list (`snap-*.avro`), manifest (`*.avro`), dan data parquet di disk.
+> 2. Temukan fungsi `create_orders_table(catalog)`. Buat namespace `shop` dan tabel `shop.orders` dengan skema lima kolom (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) menggunakan `NestedField` ber-ID eksplisit (dengan `order_id` bertanda `required=True`), serta `PartitionSpec` dengan `DayTransform` pada `order_ts` (bernama `order_day`).
+> 3. Implementasikan fungsi `append_batch(table, rows)` untuk menambahkan data sebagai satu snapshot baru, serta fungsi `layout(table)` untuk menghitung file `.metadata.json`, manifest list (`snap-*.avro`), file manifest `*.avro` lainnya di dalam `metadata/`, dan file data parquet di disk.
 > 4. Buka terminal Anda dan uji pembentukan tabel Iceberg:
-> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
-> 5. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana folder `metadata/` dan `data/` terbentuk di direktori penyimpanan lokal Anda.
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_data_is_partitioned or test_layout"`
+> 5. Pastikan ke-3 pengujian lulus (`3 passed`). Amati bagaimana folder `metadata/` dan `data/` terbentuk di direktori penyimpanan lokal Anda.
 
 :::ask Pada pohon metadata Iceberg, apa yang membuat sebuah commit atomik?
 @options
@@ -124,7 +126,7 @@ Panduan implementasi praktis:
 
 :::ask Dua writer melakukan commit ke tabel Iceberg yang sama pada saat yang sama. Apa yang menjaga tabel tetap konsisten?
 @options
-* pertukaran pointer atomik, lalu yang kalah mencoba lagi
+* tukar pointer atomik; yang kalah coba lagi
 lock yang dipegang writer pertama sepanjang job
 file data digabung secara otomatis
 @why
@@ -134,9 +136,9 @@ Iceberg memakai **optimistic concurrency**: writer membangun file mereka tanpa l
 > 💡 **Jeda Praktik: Operasi Snapshot & Optimistic Concurrency Control**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, buka fungsi `snapshot_ops(table)`.
 > 2. Ambil riwayat snapshot tabel (`table.snapshots()`) dan kembalikan daftar jenis operasi pembuatannya (`s.summary.operation.value`, misalnya `['append', 'append', ...]`).
-> 3. Jalankan pengujian di terminal untuk membuktikan bahwa dua proses penulisan bersamaan dapat diselesaikan secara otomatis oleh OCC:
-> `pytest labs/mod-2-2/test_lab.py -v -k "test_a_writer_with_a_stale_view_still_commits"`
-> 4. Pastikan pengujian lulus (`1 passed`). Perhatikan pesan log yang menunjukkan PyIceberg melakukan retry commit secara otomatis ketika terjadi pembaruan konkuren.
+> 3. Jalankan pengujian snapshot dan konkurensi di terminal (sertakan `--log-cli-level=INFO` agar pesan log retry PyIceberg tampil):
+> `pytest labs/mod-2-2/test_lab.py -v --log-cli-level=INFO -k "test_each_append_is_one_snapshot or test_a_writer_with_a_stale_view_still_commits"`
+> 4. Pastikan kedua pengujian lulus (`2 passed`). Perhatikan pesan log INFO yang menunjukkan PyIceberg melakukan retry commit secara otomatis ketika terjadi pembaruan konkuren.
 
 ## @lesson Time travel, penghapusan baris, dan alasan data tidak langsung musnah
 Karena setiap commit menghasilkan snapshot baru dan snapshot lama tetap disimpan, Anda mendapatkan kapabilitas **Time Travel** secara cuma-cuma: membaca kondisi tabel pada snapshot id atau timestamp tertentu di masa lalu. Pada lab praktis, setelah tabel menerima penambahan data berturut-turut sebanyak 3, 2, dan 2 baris, membaca snapshot 0 menghasilkan 3 baris dan membaca snapshot 2 menghasilkan 7 baris. Fitur ini sangat berharga untuk debugging insiden ("seperti apa kondisi data saat dashboard eksekutif rusak tadi malam?"), mereproduksi dataset pelatihan model machine learning, audit regulasi, dan melakukan **rollback instan** jika ada pemuatan batch yang rusak.
@@ -150,13 +152,13 @@ Operasi manipulasi baris individual (**Row-Level Changes** seperti `DELETE`, `UP
 
 Copy-on-write ideal untuk tabel analitik yang jarang diperbarui namun rutin dibaca dalam volume besar. Merge-on-read ideal untuk pipeline yang menerima pembaruan baris berfrekuensi tinggi (seperti Change Data Capture, Modul 3.2). Di lab praktis, perintah `table.delete(EqualTo("status", "cancelled"))` menghasilkan snapshot baru dengan operasi `delete`; tabel kemudian menampilkan 5 baris aktif, namun **snapshot 2 yang diambil sebelum delete tetap mengembalikan 7 baris**.
 
-Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DELETE pada format tabel terbuka hanya menyembunyikan baris dari snapshot aktif; operasi tersebut sama sekali tidak memusnahkan data dari media penyimpanan fisik.** File data Parquet lama yang memuat baris tersebut masih tersimpan di bucket storage dan masih dirujuk oleh snapshot-snapshot lama, sehingga data tersebut masih bisa dibaca melalui query time travel. Untuk koreksi bisnis biasa, ini adalah fitur proteksi data yang luar biasa. Namun untuk **permintaan penghapusan data privasi (GDPR / Hak untuk Dilupakan)**, ini adalah jebakan kepatuhan hukum: data pribadi pengguna sebenarnya masih tersimpan di storage Anda. Untuk menghapusnya secara fisik, Anda wajib **mengusangkan snapshot lama (expire snapshots)** sehingga tidak ada lagi metadata yang merujuk file tersebut, kemudian **menghapus file yatim (remove orphan files)** dari bucket penyimpanan fisik, serta menangani cadangan backup dan tabel turunan. Rancang kebijakan retensi dan penghapusan data secara sadar untuk setiap tabel.
+Fakta teknis ini melahirkan konsekuensi hukum yang sangat krusial: **Operasi DELETE pada format tabel terbuka hanya menyembunyikan baris dari snapshot aktif; operasi tersebut sama sekali tidak memusnahkan data dari media penyimpanan fisik.** File data Parquet lama yang memuat baris tersebut masih tersimpan di bucket storage dan masih dirujuk oleh snapshot-snapshot lama, sehingga data tersebut masih bisa dibaca melalui query time travel. Untuk koreksi bisnis biasa, ini adalah fitur proteksi data yang luar biasa. Namun untuk **permintaan penghapusan data privasi (GDPR / Hak untuk Dilupakan)**, ini adalah jebakan kepatuhan hukum: data pribadi pengguna sebenarnya masih tersimpan di storage Anda. Untuk menghapusnya secara fisik, Anda wajib **menjadikan snapshot lama kedaluwarsa (expire snapshots)** sehingga tidak ada lagi metadata yang merujuk file tersebut, kemudian **menghapus file yatim (remove orphan files)** dari bucket penyimpanan fisik, serta menangani cadangan backup dan tabel turunan. Rancang kebijakan retensi dan penghapusan data secara sadar untuk setiap tabel.
 
 :::ask Anda menjalankan `DELETE` pada tabel Iceberg. Apakah baris lama langsung hilang dari penyimpanan?
 @options
-ya: file data langsung dihapus
-hanya jika tabelnya kebetulan kecil
-* tidak: file lama tetap ada sampai snapshot kedaluwarsa
+ya: file data lama langsung dihapus dari penyimpanan
+hanya jika tabelnya kebetulan berukuran kecil
+* tidak: tunggu sampai snapshot kedaluwarsa
 @why
 Time travel bekerja karena snapshot lama masih menunjuk ke file lama. Delete menulis snapshot baru (dan file delete atau file yang ditulis ulang); ruang baru dikembalikan ketika snapshot **kedaluwarsa**. Karena itu data pribadi yang "dihapus" butuh langkah kedaluwarsa dan pembersihan yang nyata.
 :::
@@ -192,7 +194,7 @@ Bandingkan dengan file Parquet biasa yang mencocokkan kolom berdasarkan *nama te
 > `pytest labs/mod-2-2/test_lab.py -v -k "test_schema_evolution or test_new_schema"`
 > 4. Pastikan kedua pengujian lulus (`2 passed`). Verifikasi bahwa daftar file data Parquet di disk tidak berubah sama sekali (nol byte yang ditulis ulang) dan data lama membaca kolom baru sebagai `NULL`.
 
-:::ask Di Iceberg kamu mengganti nama kolom `status` menjadi `order_status`. Apa yang terjadi pada file data lama?
+:::ask Di Iceberg Anda mengganti nama kolom `status` menjadi `order_status`. Apa yang terjadi pada file data lama?
 @options
 setiap file lama ditulis ulang dengan nama baru
 file lama tak cocok lagi dan kolomnya NULL
@@ -233,19 +235,30 @@ Perbandingan komparatif Apache Iceberg dan Delta Lake:
 | Sumber Kebenaran Tunggal | Pohon file metadata hierarkis + pointer katalog atomik | Buku besar log JSON terurut (ditambah file checkpoint) |
 | Mekanisme Atomic Commit | Compare-and-swap pada pointer katalog metadata | Penulisan file log JSON berikutnya secara atomik (put if absent) |
 | Identifikasi Kolom Skema | Field ID numerik permanen | Nama kolom secara default (mendukung column mapping) |
-| Pendekatan Partisi | Hidden partitioning, evolusi partisi dinamis | Kolom partisi fisik (tersedia fitur liquid clustering) |
+| Pendekatan Partisi | Hidden partitioning, evolusi partisi dinamis | Kolom partisi fisik (tersedia fitur liquid clustering dan generated columns) |
 | Keunggulan Terbesar | Netralitas terhadap berbagai query engine, hidden partitioning, skala metadata masif | Integrasi native yang sangat dalam dengan Apache Spark dan Databricks, model log sederhana |
 | Ekosistem Tipikal | Arsitektur multi-engine (Trino, Flink, DuckDB, Snowflake, Spark) | Platform terpusat Databricks dan Apache Spark |
 
-Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir untuk menghubungkan kedua format tersebut. Panduan praktis memilih: gunakan **Delta Lake** jika ekosistem utama Anda berpusat pada Databricks dan Spark; gunakan **Apache Iceberg** jika Anda memprioritaskan independensi arsitektur bebas vendor di berbagai mesin komputasi (Trino, Flink, DuckDB, Spark). Opsi ketiga adalah **Apache Hudi**, yang sangat kuat untuk pemrosesan inkremental dan upsert berkecepatan tinggi. Prinsip-prinsip inti dalam modul ini (snapshot, atomic commit, field id, pruning, pemeliharaan) berlaku setara untuk ketiganya.
+Kedua format ini kini semakin konvergen, dan berbagai alat perantara telah hadir untuk menghubungkan kedua format tersebut. Panduan praktis memilih: gunakan **Delta Lake** jika ekosistem utama Anda berpusat pada Databricks dan Spark; gunakan **Apache Iceberg** jika Anda memprioritaskan independensi arsitektur bebas vendor di berbagai mesin komputasi (Trino, Flink, DuckDB, Spark). Opsi ketiga adalah **Apache Hudi**, yang sangat kuat untuk pemrosesan inkremental dan upsert berkecepatan tinggi. Prinsip-prinsip inti dalam modul ini (snapshot, atomic commit, pruning, pemeliharaan, serta field id saat column mapping diaktifkan) berlaku setara untuk ketiganya.
 
 :::advanced Fitur Delta Lake 3 yang akan Anda temui di produksi
 **Fitur Modern Delta Lake 3.0+ & Databricks di Lingkungan Produksi:**
 1. **Liquid Clustering (`CLUSTER BY (order_date, customer_id)`):** Menggantikan folder partisi fisik `PARTITION BY` yang kaku dan perintah manual `OPTIMIZE ... ZORDER BY`. Delta menata file secara inkremental menggunakan kurva ruang multi-dimensi dan mengizinkan Anda mengubah kunci clustering kapan saja tanpa menulis ulang data lama.
 2. **Deletion Vectors (Merge-on-Read di Delta Lake):** Daripada menulis ulang seluruh file Parquet 512 MB saat satu baris dihapus atau di-update, Delta menulis bitmap kecil (*deletion vector*) yang menandai posisi baris yang dihapus, lalu memadatkannya belakangan saat `OPTIMIZE` berjalan.
-3. **Change Data Feed (`delta.enableChangeDataFeed = true`):**Mengekspos perubahan tingkat baris (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) di antara dua versi tabel sehingga pipeline hilir (Silver/Gold) cukup memproses baris yang berubah tanpa memindai ulang seluruh tabel Bronze.
+3. **Change Data Feed (`delta.enableChangeDataFeed = true`):** Mengekspos perubahan tingkat baris (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) di antara dua versi tabel sehingga pipeline hilir (Silver/Gold) cukup memproses baris yang berubah tanpa memindai ulang seluruh tabel Bronze.
 4. **Delta Universal Format (UniForm):** Secara otomatis menghasilkan pohon **metadata Apache Iceberg** setiap kali terjadi commit di `_delta_log`, sehingga mesin pembaca Iceberg (Snowflake, BigQuery, Trino, DuckDB) dapat meng-query tabel Delta di Databricks secara langsung tanpa duplikasi data.
 :::
+
+Di Python, library **`deltalake`** (berbasis `delta-rs` dalam Rust) menyediakan operasi-operasi ini tanpa memerlukan Spark:
+
+```python
+from deltalake import DeltaTable, write_deltalake
+
+write_deltalake(path, first_batch, mode="overwrite")   # versi 0 (gunakan mode="append" untuk batch berikutnya)
+dt = DeltaTable(path)                                  # tabel aktif; dt.version() mengembalikan versi terbaru
+dt.delete("order_id = 4")                              # hapus tingkat baris (membuat versi baru)
+old_rows = DeltaTable(path, version=0).to_pyarrow_table().num_rows   # time travel ke versi lebih lama
+```
 
 > 💡 **Jeda Praktik: Mengelola Transaction Log Delta Lake**
 > 1. Di Text Editor pada `labs/mod-2-2/lakehouse.py`, navigasikan ke Bagian B (Delta Lake).
@@ -270,13 +283,13 @@ print(sorted(live))
 6 | Mulai tanpa file. Tabel **didefinisikan oleh** log, bukan oleh isi folder.
 8 | Untuk tiap commit secara berurutan: pertama buang file yang dihapusnya...
 9 | ...lalu tambahkan file yang ditambahkannya. Setelah commit 2 himpunan aktifnya a dan b; setelah commit 3 menjadi b dan c.
-10 | Hasilnya adalah tabel pada versi terbaru. Hentikan loop lebih awal dan kamu mendapat **time travel** ke versi lama.
+10 | Hasilnya adalah tabel pada versi terbaru. Hentikan loop lebih awal dan Anda mendapat **time travel** ke versi lama.
 :::
 
 :::drill python Putar ulang log
 Tulis `replay(log)`: `log` adalah daftar commit; tiap commit berupa dictionary yang boleh punya daftar `"add"` dan `"remove"` berisi nama file. Kembalikan daftar terurut file yang aktif setelah semua commit.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("replay") ## Definisikan replay(log).
@@ -285,7 +298,7 @@ replay([{"add": ["a"]}, {"remove": ["a"], "add": ["c"]}]) == ["c"] ## Penulisan 
 replay([]) == [] ## Log kosong adalah tabel kosong.
 replay([{"add": ["x", "y"]}, {"remove": ["x"]}]) == ["y"] ## Sebuah commit boleh hanya berisi remove.
 @hint
-Simpan sebuah `set`. Untuk tiap commit: `live -= set(commit.get("remove", []))`, lalu `live |= set(commit.get("add", []))`.
+Pertahankan sebuah `set` berisi nama file yang sedang aktif. Telusuri setiap commit secara berurutan: hapus dulu nama file yang tercantum di `"remove"` (jika tidak ada, anggap daftar kosong), lalu tambahkan nama file yang tercantum di `"add"`, dan kembalikan daftar yang sudah diurutkan.
 @solution
 def replay(log):
     live = set()
@@ -299,12 +312,12 @@ def replay(log):
 Tabel lakehouse bukanlah sesuatu yang "dibuat lalu ditinggalkan". Setiap commit menambahkan file baru ke storage, dan tanpa perawatan rutin, performa tabel akan mengalami degradasi. Rangkaian tugas pemeliharaan berkala yang wajib dijadwalkan:
 
 - **Pemadatan File (Compaction):** pemuatan data berfrekuensi tinggi (seperti pipeline streaming yang menulis file tiap menit) menciptakan ribuan file mini, yang memperlambat penyusunan rencana query dan pembacaan data (*small files problem* dari Modul 2.1). Job pemeliharaan berkala akan menulis ulang kumpulan file mini tersebut menjadi file Parquet berukuran optimal (128 MB hingga 1 GB) serta mengurutkannya (clustering/Z-order) untuk memaksimalkan skipping data. Di Delta operasi ini bernama `OPTIMIZE`; di Iceberg bernama `rewrite_data_files`.
-- **Pengusangan Snapshot (Expire Snapshots):** menghapus referensi snapshot lama yang melampaui batas retensi, sehingga ukuran metadata tetap ramping dan data yang telah dihapus dapat benar-benar dihilangkan secara fisik. Langkah ini menentukan seberapa jauh ke belakang time travel dapat digunakan.
+- **Kedaluwarsa Snapshot (Expire Snapshots):** menghapus referensi snapshot lama yang melampaui batas retensi, sehingga ukuran metadata tetap ramping dan data yang telah dihapus dapat benar-benar dihilangkan secara fisik. Langkah ini menentukan seberapa jauh ke belakang time travel dapat digunakan.
 - **Pembersihan File Yatim (Remove Orphan Files):** menghapus file data fisik di bucket yang tidak dirujuk oleh snapshot mana pun (misalnya file sisa dari proses penulisan yang gagal), dengan jeda batas aman agar tidak menghapus file dari commit yang sedang aktif berjalan.
 - **Penulisan Ulang Manifest (Rewrite Manifests):** menggabungkan manifest-manifest berukuran kecil agar proses penyusunan rencana query tetap kilat.
 - **Monitoring Berkelanjutan:** pantau metrik jumlah file data, rata-rata ukuran file, jumlah snapshot aktif, dan usia snapshot tertua. Pasang alert alarm sebelum tabel melambat, bukan setelah pengguna mengeluh.
 
-**Peran Katalog Metadata.** Katalog memetakan nama tabel ke file metadata aktif terkini dan menjamin operasi pointer swap atomik. Ragam pilihan katalog meliputi: katalog berbasis basis data relasional (seperti SQLite di lab ini; bagus untuk belajar lokal), **Hive Metastore (HMS)**, **AWS Glue Data Catalog**, **REST Catalog** (antarmuka HTTP API standar terbuka yang diimplementasikan oleh Apache Polaris, Project Nessie, Unity Catalog, dan Tabular), serta katalog terkelola cloud. Katalog juga merupakan tempat penegakan tata kelola data (**governance** dan RBAC). Pilihlah katalog yang didukung oleh seluruh mesin query Anda, karena kataloglah yang menentukan mesin mana saja yang dapat mengakses dan berbagi tabel lakehouse Anda.
+**Peran Katalog Metadata.** Katalog memetakan nama tabel ke file metadata aktif terkini dan menjamin operasi pointer swap atomik. Ragam pilihan katalog meliputi: katalog berbasis basis data relasional (seperti SQLite di lab ini; bagus untuk belajar lokal), **Hive Metastore (HMS)**, **AWS Glue Data Catalog**, **REST Catalog** (antarmuka HTTP API standar terbuka yang diimplementasikan oleh Apache Polaris, Project Nessie, Unity Catalog, dan lainnya), serta katalog terkelola cloud. Katalog juga merupakan tempat alami untuk tata kelola data (**governance**): siapa yang boleh membaca atau menulis tabel mana. Pilihlah katalog yang didukung oleh seluruh mesin query Anda, karena kataloglah yang menentukan mesin mana saja yang dapat mengakses dan berbagi tabel lakehouse Anda.
 
 Praktik perancangan terbaik: buat partisi secara moderat (partisi harian adalah standar paling umum) dan biarkan pengurutan data serta statistik min/max menangani filter beresolusi tinggi; jangan pernah partisi pada kolom ber-kardinalitas tinggi. Lakukan penulisan dalam batch besar. Tetapkan kebijakan batas retensi snapshot dan prosedur penghapusan sejak awal. Rancang jalur penulisan data yang terpusat dan teruji konkurensinya, karena kegagalan data di lapisan lakehouse membutuhkan biaya investigasi yang sangat mahal.
 
@@ -312,7 +325,9 @@ Praktik perancangan terbaik: buat partisi secara moderat (partisi harian adalah 
 > 1. Setelah semua fungsi Iceberg dan Delta Lake selesai diimplementasikan di `labs/mod-2-2/lakehouse.py`, jalankan seluruh unit test dari terminal:
 > `pytest labs/mod-2-2 -v`
 > 2. Pastikan ke-12 pengujian lulus sempurna (`12 passed`).
-> 3. Selamat! Anda telah membuktikan secara nyata bagaimana transaksi ACID, time travel, evolusi skema, dan transaction log bekerja di disk pada dua format tabel terbuka standar industri.
+> 3. Hasilkan kode bukti penyelesaian Anda dengan menjalankan:
+> `python3 scripts/prove.py mod-2-2`
+> 4. Selamat! Anda telah membuktikan secara nyata bagaimana transaksi ACID, time travel, evolusi skema, dan transaction log bekerja di disk pada dua format tabel terbuka standar industri.
 
 :::ask Sebuah job streaming menambahkan satu file kecil ke tabel Iceberg setiap menit. Sebulan kemudian query lambat. Tugas pemeliharaan mana yang paling membantu?
 @options
@@ -327,6 +342,8 @@ Ribuan file kecil membuat perencanaan dan pemindaian lambat (masalah file kecil)
 Bangun tabel Apache Iceberg produksi, lakukan manipulasi data bertahap, dan buktikan janji-janji arsitektur table format melalui unit test otomatis: verifikasi pembuatan snapshot, pembacaan time travel, operasi delete yang mempertahankan histori, evolusi skema tanpa penulisan ulang data, dan inspeksi langsung struktur file metadata di disk. Kemudian lakukan observasi yang sama terhadap transaction log Delta Lake.
 
 ### @steps
+> **Sudah menyelesaikan Jeda Praktik 1–6?** File `labs/mod-2-2/lakehouse.py` Anda sudah selesai diimplementasikan dan lulus seluruh 12 pengujian! Anda dapat langsung melompat ke eksplorasi mandiri di Langkah 7–8 dan **@verify** (`python3 scripts/prove.py mod-2-2`) di bawah.
+
 1. Pasang dependensi yang diperlukan dan jalankan pengujian awal untuk melihat spesifikasi yang diharapkan:
 
 ```bash
@@ -356,9 +373,10 @@ pytest labs/mod-2-2 -v
 ### @verify
 ```bash
 pytest labs/mod-2-2 -v
+python3 scripts/prove.py mod-2-2
 ```
 
-Jalankan pengujian terhadap solusi referensi pembanding: `LAB_DIR=reference pytest labs/mod-2-2 -v`. Catatan: penulisan data ke tabel Iceberg dengan partisi harian membutuhkan modul C binding `pyiceberg-core`; file requirements sudah menyertakannya.
+Jalankan pengujian terhadap solusi referensi pembanding: `LAB_DIR=reference pytest labs/mod-2-2 -v`. Catatan: penulisan data ke tabel Iceberg dengan partisi harian membutuhkan ekstensi Rust (`pyiceberg-core`); file requirements sudah menyertakannya.
 
 ## @chaos Permintaan penghapusan data privasi yang ternyata tidak benar-benar terhapus
 ### @scenario
@@ -367,19 +385,19 @@ Seorang pelanggan menggunakan hak privasi hukumnya dan meminta KopiKu untuk meng
 Enam minggu kemudian, auditor regulasi perlindungan data yang diberikan akses baca menjalankan query time travel terhadap snapshot bulan sebelumnya, dan berhasil menarik riwayat pesanan lengkap milik pelanggan tersebut beserta nama dan alamat pengirimannya langsung dari bucket data lake.
 
 ### @cause
-Operasi delete hanya menghasilkan *snapshot baru* di mana baris pelanggan disembunyikan dari query aktif. Snapshot-snapshot sebelumnya, beserta file-file data Parquet fisik yang memuat baris tersebut, sama sekali tidak tersentuh di bucket storage karena Iceberg tidak pernah memodifikasi file di tempat. Fitur time travel (dan siapa pun yang memiliki akses baca langsung ke storage bucket) masih dapat mengakses data tersebut secara utuh. Tim data tidak pernah menjadwalkan prosedur pengusangan snapshot (snapshot expiry), sehingga histori lama tersimpan tanpa batas waktu; proses pembersihan file yatim tidak pernah dijalankan; dan salinan data masih tersisa di tabel mart hilir serta file backup.
+Operasi delete hanya menghasilkan *snapshot baru* di mana baris pelanggan disembunyikan dari query aktif. Snapshot-snapshot sebelumnya, beserta file-file data Parquet fisik yang memuat baris tersebut, sama sekali tidak tersentuh di bucket storage karena Iceberg tidak pernah memodifikasi file di tempat. Fitur time travel (dan siapa pun yang memiliki akses baca langsung ke storage bucket) masih dapat mengakses data tersebut secara utuh. Tim data tidak pernah menjadwalkan prosedur kedaluwarsa snapshot (snapshot expiry), sehingga histori lama tersimpan tanpa batas waktu; proses pembersihan file yatim tidak pernah dijalankan; dan salinan data masih tersisa di tabel mart hilir serta file backup.
 
 Tidak ada bug teknis di sini: inilah cara kerja resmi format tabel dalam melindungi histori data. Kesalahan fatalnya adalah menganggap "query menghasilkan data kosong" sama dengan "data telah musnah secara fisik dari disk".
 
 ### @fix
-1. Eksekusi prosedur **pengusangan snapshot (expire snapshots)** yang melampaui batas jendela retensi, lalu jalankan perintah **pembersihan file yatim (remove orphan files)**, sehingga tidak ada lagi metadata yang merujuk file data lama dan storage provider dapat menghapus file fisik tersebut.
-2. Tetapkan **kebijakan retensi formal per tabel** (misalnya, usangkan snapshot otomatis setelah 7 hari) yang durasinya lebih pendek daripada batas waktu hukum penyelesaian permohonan penghapusan data.
+1. Eksekusi prosedur **kedaluwarsa snapshot (expire snapshots)** yang melampaui batas jendela retensi, lalu jalankan perintah **pembersihan file yatim (remove orphan files)**, sehingga tidak ada lagi metadata yang merujuk file data lama dan storage provider dapat menghapus file fisik tersebut.
+2. Tetapkan **kebijakan retensi formal per tabel** (misalnya, buat snapshot kedaluwarsa otomatis setelah 7 hari) yang durasinya lebih pendek daripada batas waktu hukum penyelesaian permohonan penghapusan data.
 3. Lacak alur penghapusan data secara menyeluruh (end-to-end): tabel turunan di hilir, ekstrak data mart, search index, cache, dan cadangan backup wajib memiliki prosedur penghapusan tersinkronisasi. Pertimbangkan teknik **crypto-shredding** (menghapus kunci enkripsi data pengguna) untuk kasus data yang sangat sensitif.
-4. Batasi akses izin baca langsung ke raw object storage bucket dan batasi hak eksekusi query time travel ke snapshot usang, serta verifikasi penghapusan fisik melalui pengujian audit nyata (jalankan query time travel dan listing file storage setelah proses pemeliharaan selesai).
+4. Batasi akses izin baca langsung ke raw object storage bucket dan batasi hak eksekusi query time travel ke snapshot lama, serta verifikasi penghapusan fisik melalui pengujian audit nyata (jalankan query time travel dan listing file storage setelah proses pemeliharaan selesai).
 5. Rancang arsitektur model data di mana data identitas pribadi (PII) dipisahkan dari tabel fakta transaksi (misalnya di tabel dimensi identitas kecil terpisah) sehingga proses penghapusan data privasi hanya menyentuh sedikit file.
 
 ### @pattern
-Pada format tabel terbuka, operasi delete hanya menyembunyikan data, sedangkan operasi pemeliharaanlah yang memusnahkannya secara fisik. Jadikan prosedur pengusangan snapshot dan pembersihan file yatim sebagai bagian mutlak dari setiap alur penghapusan data privasi, dan selalu verifikasi hasilnya.
+Pada format tabel terbuka, operasi delete hanya menyembunyikan data, sedangkan operasi pemeliharaanlah yang memusnahkannya secara fisik. Jadikan prosedur kedaluwarsa snapshot dan pembersihan file yatim sebagai bagian mutlak dari setiap alur penghapusan data privasi, dan selalu verifikasi hasilnya.
 
 ## @quiz
 ### Apa konsep inti mendasar yang sama-sama diterapkan oleh Apache Iceberg, Delta Lake, dan Apache Hudi?
@@ -425,10 +443,10 @@ Pada format tabel terbuka, operasi delete hanya menyembunyikan data, sedangkan o
 ### Setelah menjalankan `DELETE FROM orders WHERE customer_id = 4242`, query time travel ke snapshot minggu lalu masih menampilkan baris pelanggan tersebut. Mengapa, dan bagaimana cara memusnahkan data tersebut secara fisik?
 - [ ] Operasi delete gagal secara diam-diam sehingga Anda harus menjalankannya ulang dengan level isolasi lebih tinggi
 - [ ] Katalog metadata mengalami caching oleh engine sehingga Anda harus me-restart cluster untuk melihat perubahannya
-- [x] Snapshot lama masih merujuk file lama, jadi Anda harus mengusangkan snapshot dan membersihkan file yatim
+- [x] Snapshot lama masih merujuk file lama, jadi jadwalkan kedaluwarsa snapshot dan bersihkan file yatim
 - [ ] Fitur time travel selalu mengabaikan operasi delete karena selalu membaca file sumber awal pemuatan
 
-> Operasi delete menghasilkan snapshot baru yang menyembunyikan baris; delete tidak pernah mengedit file Parquet di tempat. Sebelum snapshot lama diusangkan (expired) dan file fisik yang tidak lagi dirujuk dibersihkan, data tersebut tetap tersimpan dan dapat diakses.
+> Operasi delete menghasilkan snapshot baru yang menyembunyikan baris; delete tidak pernah mengedit file Parquet di tempat. Sebelum snapshot lama dibuat kedaluwarsa (expired) dan file fisik yang tidak lagi dirujuk dibersihkan, data tersebut tetap tersimpan dan dapat diakses.
 
 ### Bagaimana cara Delta Lake menentukan kondisi aktif terkini dari sebuah tabel?
 - [ ] Melakukan listing seluruh file di folder dan membaca file-file terbaru yang baru saja dibuat
@@ -444,7 +462,7 @@ Pada format tabel terbuka, operasi delete hanya menyembunyikan data, sedangkan o
 - [ ] File Parquet melambat seiring bertambahnya usia sehingga data harus dikonversi ke CSV sebelum dibaca
 - [ ] Ruang penyimpanan katalog metadata mulai habis sehingga tabel harus dipindahkan ke server katalog yang lebih besar
 
-> Commit kecil yang berfrekuensi tinggi menciptakan ribuan file data mini dan file manifest kecil yang memperlambat perencanaan query dan proses pemindaian. Pemadatan berkala (compaction), pengusangan snapshot, dan penulisan ulang manifest memulihkan performa tabel.
+> Commit kecil yang berfrekuensi tinggi menciptakan ribuan file data mini dan file manifest kecil yang memperlambat perencanaan query dan proses pemindaian. Pemadatan berkala (compaction), kedaluwarsa snapshot, dan penulisan ulang manifest memulihkan performa tabel.
 
 ## @resources
 - [Apache Iceberg documentation](https://iceberg.apache.org/docs/latest/)

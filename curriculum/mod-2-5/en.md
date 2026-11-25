@@ -34,7 +34,7 @@ Why it matters is practical. Analysts stop trusting a dashboard after one wrong 
 
 Where do problems come from? Mostly **upstream and from change**, not from your code: a source team changes a field, a deploy introduces a bug, a partner is late, a definition ("what counts as an active customer?") differs between teams. A data engineer cannot prevent all of that, but can make the problems **visible, early and owned**.
 
-> 🛠 **Try it (15 min, Python).** Run one check per dimension on `data/orders.csv` and `data/customers.csv`. Read everything as text (`csv.DictReader`), because letting pandas guess types would hide some of the problems. Count: rows with an empty `order_id` (completeness); rows whose `status` is not exactly one of `delivered`, `shipped`, `paid`, `cancelled`, `refunded`, rows whose `total_idr` is not a plain non-negative integer (`re.fullmatch(r"\d+", value)`), and rows whose `order_ts` does not parse with `datetime.strptime(..., "%Y-%m-%dT%H:%M:%S")` (validity); extra copies of an `order_id` (uniqueness); orders whose `customer_id` is missing from the customers file (integrity); and the newest valid `order_ts` (timeliness). Print one line per check.
+> 🛠 **Try it (15 min, Python).** Generate the sample dataset first if you do not have `data/` yet (`python3 labs/shared/shopgen.py --out data`), then run one check per dimension on `data/orders.csv` and `data/customers.csv`. Read everything as text (`csv.DictReader`), because letting pandas guess types would hide some of the problems. Count: rows with an empty `order_id` (completeness); rows whose `status` is not exactly one of `delivered`, `shipped`, `paid`, `cancelled`, `refunded`, rows whose `total_idr` is not a plain non-negative integer (`re.fullmatch(r"\d+", value)`), and rows whose `order_ts` does not parse with `datetime.strptime(..., "%Y-%m-%dT%H:%M:%S")` (validity); extra copies of an `order_id` (uniqueness); orders whose `customer_id` is missing from the customers file (integrity); and the newest valid `order_ts` (timeliness). Print one line per check.
 >
 > **You should see:** `0` empty ids; `112` bad statuses, `54` bad totals, `41` bad timestamps; `35` extra copies of an order id; `16` orders with an unknown customer; newest order `2026-01-30T23:59:00`. Which dimension would you have forgotten if the table above had not listed it?
 
@@ -120,9 +120,10 @@ Contracts are not about blame; they make **expectations testable**. They work on
 > 💡 **Practice Pause 1 (Defining the YAML Data Contract):**
 > 1. In your text editor (VS Code / Cursor), open `labs/mod-2-5/contracts/orders.yaml` (do not run `.yaml` files directly in bash).
 > 2. Complete the contract specification: specify `name: orders`, `version: 1.0.0`, `owner: checkout-team`, declare all 6 fields (`order_id`, `customer_id`, `order_ts`, `status`, `payment_method`, `total_idr`) with constraints, and configure the SLA block (`freshness_hours: 24`, `max_reject_rate: 0.10`).
-> 3. Verify the contract definition in terminal:
+> 3. Open `labs/mod-2-5/quality.py` and implement the 1-line `load_contract(path)` (`return yaml.safe_load(Path(path).read_text())`) so the test fixture can load your YAML file.
+> 4. Verify the contract definition in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
-> 4. **Success Indicator:** Both `TestContractFile` tests report `PASSED`, verifying schema and SLA completeness.
+> 5. **Success Indicator:** Both `TestContractFile` tests report `PASSED`, verifying schema and SLA completeness.
 
 :::drill python Check a row against a contract
 A contract says which fields are required and which type each has. Write `violations(row, contract)`: `contract` maps a field name to a type (for example `{"id": int, "email": str}`). Return a sorted list of the field names that are **missing** from `row` or have the **wrong type**. A row that obeys the contract gives `[]`.
@@ -136,7 +137,7 @@ violations({"id": "1", "email": "a@b.c"}, {"id": int, "email": str}) == ["id"] #
 violations({"id": 1}, {"id": int, "email": str}) == ["email"] ## email is missing.
 violations({}, {"b": int, "a": str}) == ["a", "b"] ## Everything missing; the list is sorted.
 @hint
-For each `name, kind` in the contract: it is a violation if `name not in row` or `not isinstance(row[name], kind)`. Return `sorted(...)`.
+Loop over each field name and expected type in the contract. Collect the name whenever the key is absent from the row or its value fails an `isinstance` check, then return the collected names sorted alphabetically.
 @solution
 def violations(row, contract):
     bad = []
@@ -182,7 +183,7 @@ Strict at the door does not mean throwing the batch away or hiding the problem. 
 
 > 💡 **Practice Pause 2 (Building the Ingestion Gate & Quarantine):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
-> 2. Implement `load_contract(path)` and `validate_rows(rows, contract)`: enforce field constraints strictly (missing, wrong type, minimum, allowed, duplicate) and route invalid rows to `quarantined` with detailed error messages.
+> 2. Implement `validate_rows(rows, contract)` (`load_contract(path)` is already done from Practice Pause 1): enforce field constraints strictly (missing, wrong type, minimum, allowed, duplicate) and route invalid rows to `quarantined` with detailed error messages.
 > 3. Test row validation in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
 > 4. **Success Indicator:** All 13 tests in `TestValidateRows` report `PASSED`, confirming 3,394 valid rows and 240 quarantined rows on the real shop dataset.
@@ -198,7 +199,7 @@ Row-level checks see one row at a time. **Dataset-level monitoring** looks at th
 4. **Distribution**: did the *content* shift? The share of each status, the null rate of a column, the range of a number. Catches subtle breakage such as a fallback value flooding a column.
 5. **Lineage**: which upstream tables and jobs feed this one, and what depends on it? Not a check but what makes the other four actionable (below).
 
-**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2` — even if a wild day had `1000`, the median and MAD of `[10, 12, 14, 1000]` stay almost unchanged (`13` and `1`), whereas the standard deviation explodes!
+**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2`, even if a wild day had `1000`, the median and MAD of `[10, 12, 14, 1000]` stay almost unchanged (`13` and `2`, with MAD completely unchanged at `2`), whereas the standard deviation explodes!
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 makes MAD comparable to a standard deviation
@@ -215,7 +216,7 @@ Practical tuning:
 
 > 💡 **Practice Pause 3 (Dataset Monitoring & Robust Statistics):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
-> 2. Implement the dataset monitoring helpers: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `daily_counts(rows)` (count rows per ISO date prefix `YYYY-MM-DD`, sorted by date), `volume_anomaly(history, today, k=3.0)` using Median and MAD with safety floors, and `distribution_shift(before, after)` using Total Variation Distance.
+> 2. Implement the dataset monitoring helpers: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` using Median and MAD with safety floors, and `distribution_shift(before, after)` using Total Variation Distance (note: `daily_counts(rows)` is already provided in `quality.py`).
 > 3. Run the statistical monitoring tests in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Success Indicator:** All 6 tests in `TestSmallChecks` report `PASSED`, proving detection resilience against outliers and drift.
@@ -232,7 +233,7 @@ is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 8), 24) == True ## 26 hou
 is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 5), 24) == False ## 23 hours old, fine.
 is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 6), 24) == False ## Exactly 24 hours is not more than 24.
 @hint
-`(now - latest).total_seconds() / 3600 > max_hours`
+Subtract `latest` from `now` to get a `timedelta`, convert its total seconds into hours by dividing by 3600, and compare strictly (`>`) against `max_hours`.
 @solution
 from datetime import datetime
 def is_stale(latest, now, max_hours):
@@ -252,7 +253,7 @@ volume_ok(3000, [29000, 30000, 31000], 0.5) == False ## A tenth of normal: far o
 volume_ok(3000, [29000, 30000, 31000, 100, 28000], 0.5) == False ## One past outage (100) must not drag the median down.
 volume_ok(15000, [30000, 30000, 30000], 0.5) == True ## Exactly half is the edge of the band, still ok.
 @hint
-`m = statistics.median(history)`, then `abs(today - m) <= tolerance * m`.
+Compute the median of `history` using the `statistics` module, then check whether the absolute distance between `today` and that median is at most `tolerance` times the median.
 @solution
 import statistics
 def volume_ok(today, history, tolerance):
@@ -303,7 +304,7 @@ A few habits make this easier: keep a **runbook** per critical dataset (how to c
 
 > 💡 **Practice Pause 4 (Quality Gate Orchestration & Incident Prevention):**
 > 1. Open `labs/mod-2-5/quality.py` in your text editor.
-> 2. Implement `run_gate(data_dir, contract_path, now, out_dir)`: read `<data_dir>/orders.csv`, execute hierarchical checks (schema, row validation, freshness, volume), write `orders_valid.ndjson` and `quarantine.ndjson` in `out_dir`, and return an evaluation dictionary with status `pass`, `warn`, or `fail`.
+> 2. Implement `run_gate(data_dir, contract_path, now, out_dir)`: read `<data_dir>/orders.csv`, execute hierarchical checks (schema, row validation, freshness, volume, storing `"day"` and `"count"` alongside the keys returned by `volume_anomaly(...)` inside `report["checks"]["volume"]`), write `orders_valid.ndjson` and `quarantine.ndjson` in `out_dir`, and return an evaluation dictionary with status `pass`, `warn`, or `fail`.
 > 3. Test gate orchestration in terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Success Indicator:** All 5 tests in `TestRunGate` report `PASSED`, confirming fail-fast behavior on schema drift and reject rate breaches.
@@ -330,7 +331,7 @@ Chapters 2 and 10 of *Fundamentals of Data Engineering* treat security and data 
 - *operational* metadata: when jobs ran, how many rows, how many were rejected, how long it took;
 - *reference* metadata: shared code lists such as country, currency or cost-centre codes.
 
-**2. Personal data: pseudonymise with a secret.** Emails, phone numbers and ID numbers should not sit in plain text in the analytics platform, where every analyst query can see them. Replacing them with a hash keeps them joinable: the same email always gives the same token. But a plain `sha256(phone)` is not protection. A mobile number with a known prefix, such as 0812 followed by eight digits, has only 100 million possibilities, and hashing all of them took about two minutes in plain Python on one laptop core (measured for this lesson); after that, every "protected" number can be looked up. Mix in a secret key that only the pipeline knows, kept in a secret store, never in the code. In production use HMAC (`hmac.new(key, email.encode(), "sha256")`), the standard way to hash with a key. The exercise below uses the simpler `sha256(salt + ":" + email)` so that the check can recompute it. Show only what people need, such as the last four digits of a phone. And remember that encrypting a disk does not stop anyone who is allowed to query the table: who may see which rows and columns is a separate control (row- and column-level security).
+**2. Personal data: pseudonymise with a secret.** Emails, phone numbers and ID numbers should not sit in plain text in the analytics platform, where every analyst query can see them. Replacing them with a hash keeps them joinable: the same email always gives the same token. But a plain `sha256(phone)` is not protection. A mobile number with a known prefix, such as 0812 followed by eight digits, has only 100 million possibilities, and hashing all of them took about two minutes in plain Python on one laptop core (measured for this lesson); after that, every "protected" number can be looked up. Mix in a secret key that only the pipeline knows, kept in a secret store, never in the code. In production use HMAC (`hmac.new(key.encode(), email.encode(), "sha256")`), the standard way to hash with a key. The exercise below uses the simpler `sha256(salt + ":" + email)` so that the check can recompute it. Show only what people need, such as the last four digits of a phone. And remember that encrypting a disk does not stop anyone who is allowed to query the table: who may see which rows and columns is a separate control (row- and column-level security).
 
 **3. Erasure and master data.**
 - *The right to be forgotten.* GDPR (and the UU PDP) let a person ask to be deleted. The GDPR deadline is one month. The person must disappear from the tables that hold them, and you keep a record of *which source records* you erased, without keeping the personal data you were asked to remove.
@@ -348,7 +349,7 @@ def mask_phone(phone):
     return f"***-***-{digits[-4:]}" if len(digits) >= 4 else "***-***-****"
 ```
 
-> 🛠 **Try it (20 min, in your own terminal).** In `privacy_gate.py`, write `process_privacy_and_mdm(records, erasure_emails, salt)`. Each record has `source_id`, `email`, `phone`, `city`, `tier` and `updated_at`. Return `{"golden_records": [...], "erased_audit": [...]}`:
+> 🛠 **Try it (20 min, in your own terminal).** Save `~/practice/privacy_gate.py` and write `process_privacy_and_mdm(records, erasure_emails, salt)`. Each record has `source_id`, `email`, `phone`, `city`, `tier` and `updated_at`. Return `{"golden_records": [...], "erased_audit": [...]}`:
 > each golden record has exactly the keys `pii_token, phone_masked, city, tier, updated_at, source_ids`, with the token and the mask made as in the code above; golden records are sorted by `pii_token`, and `source_ids` is a sorted list without repeats; `erased_audit` is the sorted list of the `source_id`s you erased.
 > Decide for yourself: when two emails belong to the same person, what does "the same" mean; which record's city, tier and phone survive; and what must never appear in the output.
 > Check it: `python3 labs/tryit/check.py 2.5-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
@@ -367,7 +368,7 @@ pseudonymise("a@b.c", "s1") != pseudonymise("x@y.z", "s1") ## A different person
 len(pseudonymise("a@b.c", "s1")) == 64 ## SHA-256 in hex is 64 characters.
 "a@b.c" not in pseudonymise("a@b.c", "s1") ## The original value is not visible.
 @hint
-`hmac.new(secret.encode(), value.encode(), "sha256").hexdigest()`
+Encode both `secret` and `value` into UTF-8 bytes, pass them with `"sha256"` into `hmac.new(...)`, and call `.hexdigest()` on the result.
 @solution
 import hmac
 def pseudonymise(value, secret):
@@ -389,7 +390,7 @@ Communication is not a soft extra in this job. "Communication" or "stakeholders"
 
 **A design doc** says what you will build and, just as important, what you rejected and why. The rejected alternatives are what reviewers check first, because they show you understood the problem rather than reaching for the first tool you knew. Write it before you code: changing a paragraph costs minutes, changing a pipeline costs weeks.
 
-**An incident update** goes out early and again at regular times, even when there is nothing new: what is wrong, which reports and tables are affected, what people should do meanwhile, and when the next update will come. Lesson 7 explained why: trust survives a bug that was announced, not one that was discovered.
+**An incident update** goes out early and again at regular times, even when there is nothing new: what is wrong, which reports and tables are affected, what people should do meanwhile, and your **ETA** (estimated time of arrival, when the fix or next update will come). Lesson 7 explained why: trust survives a bug that was announced, not one that was discovered.
 
 **A post-mortem** is **blameless**. "Human error" is never a root cause: it is the start of the question "what allowed one person's mistake to reach a published report?" A blamed engineer hides the next mistake; a team that asks what the system allowed fixes the system. Every action item has an owner and a date, or it will not happen.
 
@@ -403,7 +404,7 @@ The course gives you templates (English and Indonesian) in `labs/shared/writing/
 @options
 the history of how the pipeline was first built
 an apology and a list of the tools you have tried
-* impact and decision: 'Revenue is 8% low; fix by 14:00'
+* impact and ETA: 'Revenue 8% low; fix by 14:00'
 @why
 Put the answer first, with numbers: what is affected, how much, and what happens next. Details and the story of the investigation can follow below for the readers who want them.
 :::
@@ -420,11 +421,11 @@ In most data engineering jobs your first 90 days are **brownfield**: you inherit
 | **Hop 2** | **Gold / Semantic Metric Layer** (`mart_daily_revenue`) | Compare `SUM(net_revenue_idr)` and `COUNT(*)` against `COUNT(DISTINCT order_id)` in the Gold table for the affected date. | Metric drift: Gold mart subtracted `discount_idr` twice after a schema change, or included `status = 'pending'`. |
 | **Hop 3** | **Silver Joins & SCD2 History** (`int_orders_enriched`) | Check if `COUNT(*)` after joining `stg_orders` to `dim_customers` or `dim_stores` is larger than `COUNT(*)` in `stg_orders`. | **Join Fan-Out (1:N)** because `dim_customers` had duplicate active rows (`is_current = TRUE` broken) or missing point-in-time SCD2 bounds. |
 | **Hop 4** | **Incremental Watermark & Timezone Boundary** (`stg_orders`) | Check `MIN(order_ts)`, `MAX(order_ts)`, and `MAX(ingested_at)` for yesterday's partition. | **Timezone shift (`UTC` vs `Asia/Jakarta UTC+7`)** cut off the last 7 hours of the day, or an incremental watermark without a lookback window dropped late-arriving orders. |
-| **Hop 5** | **Bronze Raw Landing & Quarantine DLQ** (`raw_orders`, `dlq.jsonl`) | Check yesterday's quarantine rejection rate and upstream source API/CDC lag. | Upstream checkout team renamed `"total_idr"` to `"amount_idr"`, causing 12% of payloads from the new mobile app version to land in the Dead-Letter Quarantine. |
+| **Hop 5** | **Bronze Raw Landing & Dead-Letter Quarantine (DLQ)** (`raw_orders`, `dlq.jsonl`) | Check yesterday's quarantine rejection rate and upstream source API/CDC lag. | Upstream checkout team renamed `"total_idr"` to `"amount_idr"`, causing 12% of payloads from the new mobile app version to land in the Dead-Letter Quarantine. |
 
 **2. Zero-Downtime Schema Deprecation (*Expand → Migrate → Contract*).** When you need to rename or change the type of a column (for example, replacing float `total_amount` with integer `total_idr`) on a table queried by 15 analysts and 8 dashboards, **never drop or rename the column in one commit**. Use the 3-phase **Expand → Migrate → Contract** protocol:
 1. **Phase 1 — Expand:** Add the new column `total_idr` alongside the old `total_amount` column (both populated in the model). Announce a 14-day deprecation window in `#data-announcements`.
-2. **Phase 2 — Migrate:** Audit `INFORMATION_SCHEMA.JOBS_BY_USER` / query logs and dbt exposures to find every downstream dashboard or script still referencing `total_amount`, and migrate them to `total_idr`.
+2. **Phase 2, Migrate:** Audit query logs (such as `INFORMATION_SCHEMA.JOBS_BY_USER`, BigQuery's query-history system view covered in Module 2.6) and **dbt exposures** (YAML declarations of downstream dashboards in dbt) to find every downstream dashboard or script still referencing `total_amount`, and migrate them to `total_idr`.
 3. **Phase 3 — Contract:** Only after query logs show **zero reads** of `total_amount` for 7 consecutive days, remove `total_amount` from the model.
 
 > 🛠 **Try it (15 min, SQL on your Lab 1.4 `warehouse.db`).** Finance says "revenue by current city" is too high. A colleague's query gets each line's `customer_id` through `customer_sk`, then joins `dim_customer` a second time on `customer_id` to read the city, and forgot `is_current = 1`. Walk hop 3 of the trace: count the rows and sum `line_total_idr` of `fact_order_items` alone, then through the colleague's join, then with `is_current = 1` added. Find out how many customers make the difference.
@@ -481,7 +482,7 @@ A dataset without these is a file someone once made; with them it is something t
 @options
 yes, because no direct identifier is left
 yes, as long as the table is stored encrypted
-* not necessarily: quasi-identifiers can single you out
+* no: quasi-identifiers can single people out
 @why
 A combination of ordinary columns can be unique to one person, and joining with another dataset can reveal who it is. Removing names is pseudonymisation at best, not anonymisation.
 :::
@@ -492,7 +493,7 @@ A combination of ordinary columns can be unique to one person, and joining with 
 
 Most broken pipelines do not fail because of a syntax error; they fail because the engineer started writing SQL or Python before agreeing with the business stakeholder on what the data actually means. When a VP of Operations sends a Slack message asking, *"Can you build me a customer service and retention table by Friday?"*, jumping straight into your code editor guarantees rework.
 
-Good data teams start every pipeline with **three short alignment artifacts**, agreed with the person who asked, before a single table is created. *Fundamentals of Data Engineering* puts the same idea at the start of the lifecycle: first find out who the stakeholders are and what they will do with the data (Module 0.2, Lesson 3).
+Good data teams start every pipeline with **three short alignment artifacts**, agreed with the person who asked, before a single table is created. *Fundamentals of Data Engineering* puts the same idea at the start of the lifecycle: first find out who the stakeholders are and what they will do with the data (Module 0.2, Lesson 4).
 
 | Artifact | Question It Answers | Concrete KopiKu Example |
 |---|---|---|
@@ -524,6 +525,8 @@ Most wrong numbers are definition mismatches, not code errors. Writing down the 
 Write the data contract for the orders feed and implement the gate that enforces it: row validation with quarantine, schema-drift detection, freshness, a robust volume monitor, and a distribution-shift measure. 26 tests check each piece and run the whole gate against deliberately broken versions of the data.
 
 ### @steps
+> 💡 **Completed Practice Pauses 1–4?** Your contract and gate functions in `labs/mod-2-5/` are already in place, jump straight to **Step 6 / Practice Pause 5** below to run the full test suite and generate your proof token.
+
 1. Install and generate the data, then read the tests to see the expected behaviour:
 
 ```bash
@@ -535,14 +538,15 @@ pytest labs/mod-2-5 -v          # everything fails at first
 2. **Write the contract.** Open `labs/mod-2-5/contracts/orders.yaml`. Its header lists the six fields and their rules; fill in `fields:` and the `sla:` block. A wrong or missing rule will show up as a failing test, so use them as feedback.
 3. In `labs/mod-2-5/quality.py` implement `load_contract` and `validate_rows`. Be strict (the producer promised these types). Return all errors of each row with the exact messages in the docstring, keep input order, and remember that a rejected row must not mark its key as seen.
 4. Implement the small checks: `check_schema`, `check_freshness`, `volume_anomaly` (median and MAD, with the floors), and `distribution_shift` (total variation distance).
-5. Implement `run_gate`, which runs the checks in order (schema, contract, freshness, volume), writes `orders_valid.ndjson` and `quarantine.ndjson`, and returns a report with a status of `pass`, `warn` or `fail`. Stop at the first failure.
+5. Implement `run_gate`, which runs the checks in order (schema, contract, freshness, volume, making sure `report["checks"]["volume"]` includes `"day"` and `"count"` alongside the `volume_anomaly` keys), writes `orders_valid.ndjson` and `quarantine.ndjson`, and returns a report with a status of `pass`, `warn` or `fail`. Stop at the first failure.
 6. Run the tests. Then **use your gate on the real data** and read the report; look at the first lines of the quarantine file and the count of reasons.
 
-> 💡 **Practice Pause 5 (Full Suite Verification & Quarantine Inspection):**
+> 💡 **Practice Pause 5 (Full Suite Verification & Proof Token):**
 > 1. In your terminal, run the complete automated test suite:
 >    `pytest labs/mod-2-5 -v`
-> 2. Observe the execution output: all 26 test cases are evaluated in about 1 second.
-> 3. **Success Indicator:** All 26 tests in `test_lab.py` report `PASSED` (100% pass rate).
+> 2. Generate your verification proof token:
+>    `python3 scripts/prove.py mod-2-5`
+> 3. **Success Indicator:** All 26 tests in `test_lab.py` report `PASSED` (100% pass rate in about 1 second) and your proof token is printed.
 
 7. Break the feed yourself and watch the gate respond: rename a column, delete 40% of the last day, change 25% of totals to `Rp ...` text, advance `now` by three days. For each, ask whether the status and the message tell an on-call engineer what to do.
 8. Stretch goals: add a null-rate check per column; compare the last day with the same weekday of earlier weeks; write the same contract in the Open Data Contract Standard format; add a `--now` command-line argument and an exit code (0 pass, 1 warn, 2 fail) so the gate can run in a scheduler.
@@ -563,6 +567,7 @@ pytest labs/mod-2-5 -v          # everything fails at first
 ### @verify
 ```bash
 pytest labs/mod-2-5 -v
+python3 scripts/prove.py mod-2-5
 ```
 
 Known-good run: `LAB_DIR=reference pytest labs/mod-2-5 -v`.

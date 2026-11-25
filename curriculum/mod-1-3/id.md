@@ -14,7 +14,7 @@ why: Tutorial menguji SELECT dan WHERE pada beberapa baris. Di produksi, query y
 - Menerjemahkan query antara SQLite, PostgreSQL, DuckDB, dan warehouse cloud, serta mengenali perbedaan dialek yang diam-diam mengubah jawaban
 
 ## @prereq
-Modul 0.3 (join, GROUP BY, NULL, CTE). Bagian A lab berjalan di browser Anda atau dengan SQLite bawaan Python; Bagian B memakai PostgreSQL (salinan tertanam dipasang oleh `pip`, jadi Docker opsional).
+Modul 0.3 (join, GROUP BY, NULL, CTE). Anda dapat membuat prototipe Bagian A di SQL Sandbox browser; untuk menyelesaikan modul dan menghasilkan kode bukti penyelesaian, simpan kesepuluh query Bagian A di `labs/mod-1-3/answers.sql` (diperiksa dengan SQLite bawaan Python), selesaikan Bagian B di PostgreSQL (salinan tertanam dipasang oleh `pip`, jadi Docker opsional), lalu jalankan `python3 scripts/prove.py mod-1-3`.
 
 ## @part Window function dan rekursi
 
@@ -47,6 +47,7 @@ FROM orders o JOIN t ON t.order_id = o.order_id;
 | 90.000 | 4 | 4 | 2 |
 | 90.000 | 5 | 4 | 2 |
 | 95.000 | 6 | 6 | 3 |
+| 95.000 | 7 | 6 | 3 |
 
 - `ROW_NUMBER()` memberi setiap baris nomor unik, memutus seri secara acak kecuali `ORDER BY` Anda unik. Tambahkan pemutus seri (`ORDER BY order_total, order_id`) agar hasilnya deterministik.
 - `RANK()` memberi peringkat sama pada baris kembar lalu **melompat** (1, 1, 1, 4).
@@ -221,7 +222,7 @@ Untuk **setiap** toko, tampilkan `store`, `day`, dan rata-rata omset hari ini da
 -- tulis query Anda di bawah baris ini
 
 @check
-/partition\s+by\s+store/ ## Pisahkan tokonya: PARTITION BY store.
+/partition\s+by\s+(?:\w+\.)?store/ ## Pisahkan tokonya: PARTITION BY store.
 /rows\s+between\s+2\s+preceding/ ## Pakai ROWS BETWEEN 2 PRECEDING AND CURRENT ROW.
 @hint
 `AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS avg_3d`
@@ -232,7 +233,7 @@ SELECT store, day, AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWE
 > 💡 **Jeda Praktik 2 (Frame & Moving Average):**
 > Kuasai spesifikasi frame baris untuk akumulasi dan rata-rata berjalan:
 > 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), kerjakan 2 tantangan frame:
->    - `w-1`: Akumulasi total belanja pelanggan (running total) dari waktu ke waktu (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id)`).
+>    - `w-1`: Akumulasi total belanja pelanggan (running total) dari waktu ke waktu (`SUM(...) OVER (PARTITION BY customer_id ORDER BY order_date, order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`).
 >    - `w-6`: Rata-rata bergerak 7 hari per toko (`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`).
 > 2. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
@@ -251,7 +252,7 @@ FROM orders;
 
 (`julianday` adalah SQLite; di PostgreSQL Anda mengurangkan tanggal langsung: `order_date - LAG(order_date) OVER (...)`.) `FIRST_VALUE` dan `LAST_VALUE` mengembalikan baris pertama atau terakhir dari frame.
 
-**Pola record-terbaru-per-kunci** adalah trik window paling berguna dalam data engineering. Setiap kali tabel menyimpan beberapa versi entitas yang sama (banyak perubahan alamat per pelanggan, event berulang, baris CDC), simpan satu:
+**Pola record-terbaru-per-kunci** adalah trik window paling berguna dalam data engineering. Setiap kali tabel menyimpan beberapa versi entitas yang sama (banyak perubahan alamat per pelanggan, event berulang, baris CDC, *Change Data Capture*, dari log perubahan database), simpan satu:
 
 ```sql
 WITH ranked AS (
@@ -278,7 +279,7 @@ Hari pertama tidak punya baris sebelumnya, jadi `yesterday` adalah NULL.
 @stage 3. Kurangkan: perubahan sejak kemarin
 SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM daily_sales WHERE store = 'jakarta' ORDER BY day
 @say
-NULL dikurangi angka adalah NULL, jadi perubahan baris pertama juga NULL: perbandingan yang hilang, bukan nol.
+Angka dikurangi NULL adalah NULL, jadi perubahan baris pertama juga NULL: perbandingan yang hilang, bukan nol.
 :::
 
 :::drill sql Perubahan sejak hari sebelumnya
@@ -299,7 +300,7 @@ SELECT day, revenue, revenue - LAG(revenue) OVER (ORDER BY day) AS change FROM d
 :::ask Bisakah Anda menulis `WHERE ROW_NUMBER() OVER (PARTITION BY k ORDER BY t DESC) = 1` langsung?
 @options
 ya, itu cara standar untuk menyaring
-* tidak: window berjalan setelah WHERE, jadi pakai CTE
+* tidak: WHERE jalan dulu, pakai CTE
 hanya di SQLite, engine lain menolaknya
 @why
 `WHERE` berjalan sebelum window function ada. Jadi pola portabelnya dua langkah: `WITH ranked AS (SELECT *, ROW_NUMBER() OVER (...) AS rn FROM t) SELECT * FROM ranked WHERE rn = 1`. Snowflake, BigQuery, dan DuckDB punya pintasan `QUALIFY`; PostgreSQL dan SQLite tidak.
@@ -316,7 +317,7 @@ Tampilkan, untuk setiap `roast`, satu produk termurah: `roast` dan `name`. Pakai
 /row_number\s*\(/ ## Pakai ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr).
 /with\s/ ## Hitung nomornya dalam CTE (WITH ...), lalu saring di luar.
 @hint
-`WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;`
+Hitung `ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn` di dalam CTE atas `products`, lalu pilih `roast` dan `name` dari CTE tersebut dengan `WHERE rn = 1`.
 @solution
 WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER BY price_idr) AS rn FROM products) SELECT roast, name FROM ranked WHERE rn = 1;
 :::
@@ -324,7 +325,7 @@ WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER 
 > 💡 **Jeda Praktik 3 (Melihat Baris Lain & Deduplikasi):**
 > Ambil baris terbaru dan bandingkan jarak antar-event:
 > 1. Di `labs/mod-1-3/answers.sql` (atau SQL Sandbox), kerjakan tantangan berikut:
->    - `w-2`: Ambil pesanan paling baru per pelanggan menggunakan `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC)` lalu filter rank 1 di CTE.
+>    - `w-2`: Ambil pesanan paling baru per pelanggan menggunakan `ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, order_id DESC)` (memakai `order_id DESC` sebagai pemutus seri) lalu filter rank 1 di CTE.
 >    - `w-3`: Hitung jeda hari sejak pesanan sebelumnya menggunakan `LAG(order_date)` dan selisih `julianday`.
 > 2. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
@@ -363,9 +364,9 @@ SELECT user_id, event_time,
 FROM flagged;
 ```
 
-Bentuknya selalu sama: **tandai batasnya, lalu jumlahkan kumulatif tanda itu untuk mendapat id kelompok.** Ia muncul lagi dalam pemrosesan event (Modul 3.3) dan dalam slowly changing dimension (Modul 1.4).
+(`ROWS UNBOUNDED PRECEDING` adalah bentuk singkat dari `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.) Bentuknya selalu sama: **tandai batasnya, lalu jumlahkan kumulatif tanda itu untuk mendapat id kelompok.** Ia muncul lagi dalam pemrosesan event (Modul 3.3) dan dalam slowly changing dimension (Modul 1.4).
 
-### Lihat sendiri: tandai batasnya, lalu hitung penandanya
+### Lihat sendiri: tanggal dikurangi nomor baris
 
 Untuk pengguna 1 (login 1, 2, 3 dan 5, 6, 7, 8 Maret) trik island mengubah setiap rangkaian menjadi sebuah konstanta:
 
@@ -411,7 +412,7 @@ Untuk setiap login, tampilkan `user_id`, `login_date`, dan `starts`: `1` ketika 
 /lag\s*\(/ ## Pakai LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) untuk melihat login sebelumnya.
 /case/ ## Pakai CASE WHEN ... THEN 1 ELSE 0 END.
 @hint
-`CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts`
+Pakai `LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)` untuk hari sebelumnya. Di dalam `CASE`, kembalikan `1` jika tanggal sebelumnya `IS NULL` atau selisih `julianday()`-nya `> 1`, selain itu `0`.
 @solution
 SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date) IS NULL OR julianday(login_date) - julianday(LAG(login_date) OVER (PARTITION BY user_id ORDER BY login_date)) > 1 THEN 1 ELSE 0 END AS starts FROM logins;
 :::
@@ -510,13 +511,13 @@ Hasilnya adalah gabungan semua putaran: 12 baris. Query berhenti ketika sebuah p
 :::ask Di data, parent kategori A adalah B dan parent B adalah A. Apa yang dilakukan `WITH RECURSIVE` yang tidak dilindungi?
 @options
 mengembalikan dua baris pertama lalu berhenti
-* tidak pernah berakhir: ia terus menemukan baris, jadi tambah batas kedalaman
+* berulang terus tanpa batas kedalaman
 langsung memunculkan error tentang siklus
 @why
 Sebuah siklus berarti setiap putaran menghasilkan baris baru selamanya. Selalu batasi rekursinya: kondisi kedalaman di bagian rekursif (dan deteksi `CYCLE` di PostgreSQL).
 :::
 
-:::drill sql Tulang punggung tanggal
+:::drill sql Membuat date spine
 Hasilkan setiap hari dari `'2026-02-01'` sampai `'2026-02-07'` (inklusif) dengan CTE rekursif: satu kolom `d`, satu baris per hari.
 @data categories
 @names
@@ -525,9 +526,9 @@ Hasilkan setiap hari dari `'2026-02-01'` sampai `'2026-02-07'` (inklusif) dengan
 
 @check
 /with\s+recursive/ ## Pakai WITH RECURSIVE.
-/date\s*\(\s*d/ ## Langkahnya menambah satu hari: date(d, '+1 day').
+/date\s*\(/ ## Langkahnya menambah satu hari memakai date(...).
 @hint
-`WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;`
+Mulai `WITH RECURSIVE days(d) AS (...)` dengan anchor yang memilih `date('2026-02-01')`, lalu `UNION ALL` langkah rekursif yang menambah `'+1 day'` selama `d < '2026-02-07'`, lalu pilih `d`.
 @solution
 WITH RECURSIVE days(d) AS (SELECT date('2026-02-01') UNION ALL SELECT date(d, '+1 day') FROM days WHERE d < '2026-02-07') SELECT d FROM days;
 :::
@@ -542,7 +543,7 @@ Tampilkan berapa kategori yang berada **di bawah** `Gear` (id 3) pada kedalaman 
 @check
 /with\s+recursive/ ## Pakai WITH RECURSIVE.
 @hint
-`WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;`
+Jangkarkan CTE rekursif pada `categories WHERE id = 3`, sambungkan anak lewat `c.parent_id = sub.id` di langkah rekursif, lalu kurangi 1 dari `COUNT(*)` agar Gear sendiri tidak ikut terhitung.
 @solution
 WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c.id FROM categories c JOIN sub ON c.parent_id = sub.id) SELECT COUNT(*) - 1 AS descendants FROM sub;
 :::
@@ -555,7 +556,7 @@ WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c
 > `python3 labs/mod-1-3/check.py`
 > Ketika Anda melihat pesan `10/10 answers correct`, Bagian A lab ini 100% tuntas! Lanjut ke Pelajaran 6 & 7 untuk membedah query plan dan index database.
 
-## @part Performa: plan dan indeks
+## @part Performa: plan dan index
 
 ## @lesson Bagaimana database menjalankan query Anda: membaca EXPLAIN
 SQL menyatakan *apa* yang Anda mau; **planner** database memutuskan *bagaimana*: index mana yang dipakai, urutan join, algoritma apa. Ia memperkirakan biaya berbagai alternatif dari **statistik** (jumlah baris dan sebaran nilai per kolom, diperbarui oleh `ANALYZE`) lalu memilih yang termurah. Tugas Anda adalah memeriksa bahwa pilihannya masuk akal. `EXPLAIN` menampilkan plan; `EXPLAIN ANALYZE` juga **menjalankan** query dan menambahkan waktu serta jumlah baris aktual (jadi bungkus penulisan dalam transaksi yang Anda rollback). Di PostgreSQL bentuk yang berguna adalah `EXPLAIN (ANALYZE, BUFFERS)`.
@@ -571,7 +572,7 @@ Gather  (cost=1000.00..7776.17 rows=50 width=35) (actual time=0.748..21.027 rows
 Execution Time: 21.043 ms
 ```
 
-Bacalah dari node **paling dalam dan paling menjorok** ke luar. `Seq Scan` membaca seluruh tabel (4.167 halaman di sini) dan membuang 166.653 baris per worker untuk menyimpan 13: kerja berat untuk 40 baris hasil. Tambahkan index yang tepat dan query sejenis menjadi:
+Bacalah dari node **paling dalam dan paling menjorok** ke luar. PostgreSQL menyimpan tabel dalam **halaman (page)** berukuran tetap 8 kB, dan `Buffers:` melaporkan berapa halaman yang dibaca dari cache RAM (`shared hit`) dibanding yang diambil dari disk (`read`). `Seq Scan` membaca seluruh tabel (4.167 halaman di sini) dan membuang 166.653 baris per worker untuk menyimpan 13: kerja berat untuk 40 baris hasil. Tambahkan index yang tepat dan query sejenis menjadi:
 
 ```text
 Limit  (cost=0.42..41.40 rows=10 width=35) (actual time=0.028..0.036 rows=10 loops=1)
@@ -586,23 +587,30 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 - **Jenis scan**: `Seq Scan` (seluruh tabel), `Index Scan` (ikuti index, ambil baris), `Index Only Scan` (jawab dari index saja), `Bitmap Index/Heap Scan` (kumpulkan banyak kecocokan, lalu baca halaman berurutan). Seq Scan itu *benar* bila Anda butuh sebagian besar tabel; ia tanda bahaya bila Anda butuh sedikit baris.
 - **Algoritma join**: `Nested Loop` (untuk tiap baris luar, cari yang dalam; bagus bila sisi luar kecil dan sisi dalam ber-index), `Hash Join` (bangun hash table dari satu sisi; pilihan lazim untuk masukan besar tak terurut), `Merge Join` (kedua sisi sudah terurut).
 - Node **`Sort`** dan **`Rows Removed by Filter`**: tanda kerja yang bisa dihindari oleh index.
-- **Baris perkiraan vs aktual** (`rows=` di kurung pertama dibanding kurung kedua). Bila keduanya berbeda berorde-orde besar, planner memilih dalam gelap. Contoh: pada tabel di mana kolom `a` dan `b` selalu sama, `WHERE a = 7 AND b = 7` diperkirakan **15 baris** dan mengembalikan **2.000**, karena planner mengasumsikan dua kondisi itu independen. Perbaikannya termasuk `ANALYZE` baru, statistik tambahan (extended statistics), atau menulis ulang query. Selalu bandingkan angka-angka ini sebelum menyetel hal lain.
+- **Baris perkiraan vs aktual** (`rows=` di kurung pertama dibanding kurung kedua). Bila keduanya berbeda berorde-orde besar, planner memilih tanpa statistik yang akurat. Contoh: pada tabel di mana kolom `a` dan `b` selalu sama, `WHERE a = 7 AND b = 7` diperkirakan **15 baris** dan mengembalikan **2.000**, karena planner mengasumsikan dua kondisi itu independen. Perbaikannya termasuk `ANALYZE` baru, statistik tambahan (extended statistics), atau menulis ulang query. Selalu bandingkan angka-angka ini sebelum menyetel hal lain.
 - **`loops`**: baris dan waktu aktual dihitung *per loop*; kalikan.
 - Satuan **cost** bersifat sembarang dan hanya bisa dibandingkan dalam satu plan.
 
 > **Tip:** Uji pada volume yang realistis. Pada 1.000 baris setiap plan cepat dan tidak memberi tahu apa-apa. Bangkitkan data pada skala produksi (lab melakukannya) sebelum menilai sebuah query.
 
-> 🛠 **Coba sendiri (12 menit, Python dan SQLite).** Muat `data/orders.csv` ke SQLite (pakai lagi skrip Anda dari Modul 0.2). Untuk setiap query, cetak `EXPLAIN QUERY PLAN` (kolom terakhir): (1) `WHERE customer_id = '479'`; (2) yang sama setelah `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` dengan index sudah ada; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` sebelum dan sesudah `CREATE INDEX ix_ts ON orders(order_ts)`.
+> 🛠 **Coba sendiri (12 menit, Python dan SQLite).** Muat `data/orders.csv` ke SQLite (jika folder `data/` belum ada, bangkitkan dulu dengan `python3 labs/shared/shopgen.py --out data`):
+> ```python
+> import csv, sqlite3
+> con = sqlite3.connect(":memory:")
+> con.execute("CREATE TABLE orders(order_id, customer_id, order_ts, status, payment_method, total_idr)")
+> con.executemany("INSERT INTO orders VALUES (?,?,?,?,?,?)", list(csv.reader(open("data/orders.csv")))[1:])
+> ```
+> Untuk setiap query, cetak `EXPLAIN QUERY PLAN` (kolom terakhir): (1) `WHERE customer_id = '479'`; (2) yang sama setelah `CREATE INDEX ix_cust ON orders(customer_id)`; (3) `WHERE lower(customer_id) = '479'` dengan index sudah ada; (4) `WHERE order_ts >= '2026-01-10' AND order_ts < '2026-01-11'` sebelum dan sesudah `CREATE INDEX ix_ts ON orders(order_ts)`.
 >
 > **Seharusnya Anda melihat:** `SCAN orders` untuk (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` untuk (2); `SCAN orders` lagi untuk (3), karena fungsi pada kolom membuat index tidak terpakai (sargability); dan untuk (4) sebuah `SCAN` yang berubah menjadi `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
-### Lihat sendiri: scan, search, dan fungsi yang mengalahkan indeks
+### Lihat sendiri: scan, search, dan fungsi yang mengalahkan index
 
-Gagasan yang sama dalam plan milik SQLite sendiri (`EXPLAIN QUERY PLAN`, kolom terakhir): tanpa indeks database memindai seluruh tabel; dengan indeks ia mencari.
+Gagasan yang sama dalam plan milik SQLite sendiri (`EXPLAIN QUERY PLAN`, kolom terakhir): tanpa index database memindai seluruh tabel; dengan index ia mencari.
 
 :::sqlsteps Scan, search, scan lagi
 @data kopiku
-@stage 1. Tanpa indeks: plan memindai seluruh tabel
+@stage 1. Tanpa index: plan memindai seluruh tabel
 EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
 @say
 `SCAN orders`: setiap baris dibaca untuk menemukan beberapa baris milik pelanggan 3.
@@ -610,29 +618,29 @@ EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
 CREATE INDEX ix_cust ON orders(customer_id); EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id = 3
 @say
 `SEARCH orders USING INDEX ix_cust (customer_id=?)`: ia langsung menuju baris yang cocok.
-@stage 3. Fungsi pada kolom mengalahkan indeks
+@stage 3. Fungsi pada kolom mengalahkan index
 EXPLAIN QUERY PLAN SELECT * FROM orders WHERE customer_id + 0 = 3
 @say
-Indeksnya ada pada `customer_id`, bukan `customer_id + 0`, jadi database memindai lagi. Kondisi yang tidak bisa memakai indeks tidak **sargable**: biarkan kolom telanjang dan tulis ulang sisanya.
+Index-nya ada pada `customer_id`, bukan `customer_id + 0`, jadi database memindai lagi. Kondisi yang tidak bisa memakai index tidak **sargable**: biarkan kolom polos dan tulis ulang sisanya.
 :::
 
-:::ask Tabel punya indeks pada `order_date`. Filter mana yang bisa memakainya?
+:::ask Tabel punya index pada `order_date`. Filter mana yang bisa memakainya?
 @options
 `WHERE strftime('%Y-%m', order_date) = '2026-01'`
 `WHERE substr(order_date, 1, 7) = '2026-01'`
 * `WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
 @why
-Membungkus kolom berindeks dengan fungsi (`strftime`, `substr`) menyembunyikannya dari indeks, jadi database memindai setiap baris. Rentang setengah terbuka pada kolom telanjang itu sargable dan mencari lewat indeks.
+Membungkus kolom ber-index dengan fungsi (`strftime`, `substr`) menyembunyikannya dari index, jadi database memindai setiap baris. Rentang setengah terbuka pada kolom polos itu sargable dan mencari lewat index.
 :::
 
 :::drill sql Jadikan sargable
-Query ini benar tetapi tidak bisa memakai indeks pada `order_date`: ia menghitung pesanan Januari 2026 dengan `strftime`. Tulis ulang dengan rentang setengah terbuka pada kolom telanjang (tanpa fungsi di sekitar `order_date`). Satu angka, `orders`.
+Query ini benar tetapi tidak bisa memakai index pada `order_date`: ia menghitung pesanan Januari 2026 dengan `strftime`. Tulis ulang dengan rentang setengah terbuka pada kolom polos (tanpa fungsi di sekitar `order_date`). Satu angka, `orders`.
 @data kopiku
 @names
 @starter
 SELECT COUNT(*) AS orders FROM orders WHERE strftime('%Y-%m', order_date) = '2026-01';
 @check
-!/strftime|substr|date\s*\(/ ## Jangan bungkus order_date dengan fungsi.
+!/strftime\s*\([^)]*order_date|substr\s*\([^)]*order_date|date\s*\(\s*order_date/ ## Jangan bungkus order_date dengan fungsi.
 />=/ ## Mulai rentangnya: order_date >= '2026-01-01'.
 @hint
 `WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01'`
@@ -640,18 +648,18 @@ SELECT COUNT(*) AS orders FROM orders WHERE strftime('%Y-%m', order_date) = '202
 SELECT COUNT(*) AS orders FROM orders WHERE order_date >= '2026-01-01' AND order_date < '2026-02-01';
 :::
 
-:::drill sql Tambahkan indeks
-Buat indeks pada `orders(customer_id)` sehingga pencarian pesanan satu pelanggan mencari alih-alih memindai. (Beri nama apa saja.)
+:::drill sql Tambahkan index
+Buat index pada `orders(customer_id)` sehingga pencarian pesanan satu pelanggan mencari alih-alih memindai. (Beri nama apa saja.)
 @data kopiku
 @verify
-SELECT COUNT(*) AS indexes_on_customer_id FROM sqlite_master WHERE type = 'index' AND tbl_name = 'orders' AND sql LIKE '%customer_id%'
+SELECT COUNT(*) AS indexes_on_customer_id FROM pragma_index_list('orders') il JOIN pragma_index_info(il.name) ii WHERE ii.seqno = 0 AND ii.name = 'customer_id'
 @starter
 -- tulis pernyataan Anda di bawah baris ini
 
 @check
 /create\s+index/ ## Pakai CREATE INDEX nama ON orders(customer_id).
 @hint
-`CREATE INDEX ix_orders_customer ON orders(customer_id);`
+Pakai `CREATE INDEX <nama_index> ON <tabel>(<kolom>);`, pilih nama index apa saja, arahkan ke `orders`, dan index kolom `customer_id`.
 @solution
 CREATE INDEX ix_orders_customer ON orders(customer_id);
 :::
@@ -678,45 +686,47 @@ CREATE INDEX ix_orders_customer ON orders(customer_id);
 
 Terakhir, beberapa kebiasaan query yang menghindari masalah sebelum index dibutuhkan: pilih hanya kolom yang Anda perlukan (bukan `*`), filter lebih awal, hindari `DISTINCT` sebagai tambalan untuk fan-out join yang tidak disengaja (perbaiki join-nya), pilih `EXISTS` daripada `IN (subquery)` untuk uji keberadaan, hati-hati dengan `OR` lintas kolom berbeda, dan hindari menjalankan query per baris dari kode aplikasi (pola "N+1"): satu query berbasis himpunan mengalahkan seribu query kecil.
 
-:::ask Indeks ada pada `(customer_id, order_date)`. Query mana yang bisa memakainya DAN mendapat baris yang sudah berurutan menurut tanggal, tanpa pengurutan terpisah?
+:::ask Index ada pada `(customer_id, order_date)`. Query mana yang bisa memakainya DAN mendapat baris yang sudah berurutan menurut tanggal, tanpa pengurutan terpisah?
 @options
 * `WHERE customer_id = 3 ORDER BY order_date DESC LIMIT 10`
 `WHERE order_date = '2026-01-10' ORDER BY customer_id`
 `WHERE order_date > '2026-01-01'`
 @why
-Indeks komposit diurutkan menurut kolom **paling kiri** dulu, lalu berikutnya. Filter pada `customer_id` memakai prefiks paling kiri, dan di dalam satu pelanggan baris sudah terurut menurut tanggal. Filter pada `order_date` saja tidak bisa memakai indeks dengan efisien: tanggal hanya terurut di dalam setiap pelanggan.
+Index komposit diurutkan menurut kolom **paling kiri** dulu, lalu berikutnya. Filter pada `customer_id` memakai prefiks paling kiri, dan di dalam satu pelanggan baris sudah terurut menurut tanggal. Filter pada `order_date` saja tidak bisa memakai index dengan efisien: tanggal hanya terurut di dalam setiap pelanggan.
 :::
 
-:::ask `status = 'done'` cocok dengan 99,8% baris. Apakah indeks pada `status` membantu query itu?
+:::ask `status = 'done'` cocok dengan 99,8% baris. Apakah index pada `status` membantu query itu?
 @options
-ya: indeks mana pun selalu membantu query
-hanya jika indeksnya BRIN
-* tidak: planner memindai, karena hampir setiap baris cocok
+ya: index selalu mempercepat filter apa pun
+hanya jika index-nya BRIN
+* tidak: scan lebih cepat di 99,8% baris
 @why
-Selektivitas penting. Indeks pada kolom yang satu nilainya mencakup hampir seluruh tabel tidak menghemat apa pun. Indeks parsial pada nilai yang jarang (`WHERE status = 'pending'`) adalah yang berguna.
+Selektivitas penting. Index pada kolom yang satu nilainya mencakup hampir seluruh tabel tidak menghemat apa pun. Index parsial pada nilai yang jarang (`WHERE status = 'pending'`) adalah yang berguna.
 :::
 
-:::drill sql Indeks komposit
-Buat indeks bernama `ix_cust_date` pada `orders` dengan kolom `customer_id` lalu `order_date` (dalam urutan itu).
+:::drill sql Index komposit
+Buat index bernama `ix_cust_date` pada `orders` dengan kolom `customer_id` lalu `order_date` (dalam urutan itu).
 @data kopiku
+@ordered
 @verify
 SELECT name FROM pragma_index_info('ix_cust_date') ORDER BY seqno
 @starter
 -- tulis pernyataan Anda di bawah baris ini
 
 @check
-/ix_cust_date/ ## Beri nama indeks ix_cust_date.
+/ix_cust_date/ ## Beri nama index ix_cust_date.
 @hint
-`CREATE INDEX ix_cust_date ON orders(customer_id, order_date);`
+Cantumkan kedua kolom di dalam tanda kurung `CREATE INDEX ix_cust_date ON orders(...)`, dengan `customer_id` di depan dan `order_date` di belakang.
 @solution
 CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 :::
 
 > 💡 **Jeda Praktik 6 (Tuning Query & Optimalisasi Index PostgreSQL - Bagian B):**
-> Terapkan seni tuning indeks pada PostgreSQL tabel 500.000 baris:
+> Terapkan seni tuning index pada PostgreSQL tabel 500.000 baris:
 > 1. Buka file `labs/mod-1-3/explain/indexes.sql` dan `labs/mod-1-3/explain/queries.sql` di text editor.
-> 2. Definisikan maksimal 3 indeks di `indexes.sql` untuk menghapus seluruh Sequential Scan dan meniadakan operasi Sort pada Q3. Tulis ulang Q4 di `queries.sql` agar sargable (gunakan rentang tanggal alih-alih fungsi `date()`).
-> 3. Jalankan pengujian plan di terminal:
+> 2. Definisikan maksimal 3 index di `indexes.sql` untuk menghapus seluruh Sequential Scan dan meniadakan operasi Sort pada Q3. Tulis ulang Q4 di `queries.sql` agar sargable (gunakan rentang tanggal alih-alih fungsi `date()`).
+> 3. Pasang dependensi Bagian B (PostgreSQL tertanam sudah termasuk; di Python 3.14 atau jika memilih Docker, lihat alternatif Docker `DATABASE_URL` di Langkah 4 bagian Lab) lalu jalankan pengujian plan di terminal:
+> `python -m pip install -r labs/mod-1-3/explain/requirements.txt`
 > `pytest labs/mod-1-3/explain -v`
 > Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Pelajaran 8 untuk melihat ragam dialek SQL.
 
@@ -754,7 +764,7 @@ Di SQL Sandbox Anda karena itu menulis `group_concat`, `julianday`, dan `strftim
 | `SELECT "hello"` (tanda kutip ganda) | teks `hello` bila tak ada kolom itu | error | error |
 | `SELECT 1 = 1` | `1` | `true` | `true` |
 
-Baca baris ketiga dan keempat dua kali. Laporan yang mengurutkan menurut kolom nullable menaruh yang tak diketahui di atas di SQLite dan di bawah di tempat lain, dan memindahkan query dari satu engine ke engine lain mengubah urutan hasil tanpa error: bila urutan penting, tulis `NULLS FIRST` atau `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, dan SQLite 3.30+). `GROUP BY` yang memilih kolom tak ter-grup adalah *error* di PostgreSQL karena jawabannya ambigu; SQLite mengembalikan nilai dari satu baris tanpa memberi tahu, sehingga bug yang akan ditangkap PostgreSQL lolos diam-diam di prototipe. Ketika sqlglot memindahkan `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` dari Snowflake ke BigQuery ia menambahkan `NULLS LAST`, yaitu penerjemah menjaga urutan NULL tetap sama. Dan dialek yang *memaafkan* (menyimpan `'abc'` di kolom integer, membaca `'12abc'` sebagai 12) mengubah masalah kualitas data menjadi angka yang salah alih-alih error. Jebakan pandas di Modul 1.5 tentang menebak tipe adalah keluarga yang sama.
+Baca baris kedua dan keempat dua kali. Laporan yang mengurutkan menurut kolom nullable menaruh yang tak diketahui di atas di SQLite dan di bawah di tempat lain, dan memindahkan query dari satu engine ke engine lain mengubah urutan hasil tanpa error: bila urutan penting, tulis `NULLS FIRST` atau `NULLS LAST` (PostgreSQL, DuckDB, Snowflake, BigQuery, dan SQLite 3.30+). Baris ketiga juga mengarah pada **collation**, aturan yang menentukan apakah perbandingan teks mengabaikan huruf besar-kecil. Collation default SQL Server tidak peka huruf besar-kecil, sehingga `WHERE status <> 'cancelled'` juga membuang baris `'CANCELLED'`, sedangkan PostgreSQL, DuckDB, Spark, dan Snowflake membandingkan secara peka huruf secara default sehingga baris itu tetap dipertahankan; normalkan teks (misalnya `lower(trim(status))`) sebelum membandingkan lintas engine. `GROUP BY` yang memilih kolom tak ter-grup adalah *error* di PostgreSQL karena jawabannya ambigu; SQLite mengembalikan nilai dari satu baris tanpa memberi tahu, sehingga bug yang akan ditangkap PostgreSQL lolos diam-diam di prototipe. Ketika sqlglot memindahkan `QUALIFY ROW_NUMBER() OVER (ORDER BY x)` dari Snowflake ke BigQuery ia menambahkan `NULLS LAST`, yaitu penerjemah menjaga urutan NULL tetap sama. Dan dialek yang *memaafkan* (menyimpan `'abc'` di kolom integer, membaca `'12abc'` sebagai 12) mengubah masalah kualitas data menjadi angka yang salah alih-alih error. Jebakan pandas di Modul 1.5 tentang menebak tipe adalah keluarga yang sama.
 
 **Strategi kerja.**
 
@@ -770,7 +780,7 @@ Challenge latihan sandbox **k-16 sampai k-23** (fungsi teks, angka, tanggal dan 
 >
 > **Seharusnya Anda melihat:** `3` dibanding `3.5`; `1` dibanding `False`; NULL di awal dibanding NULL di akhir; sebuah baris sembarang `(1, 2)` dibanding `Binder Error`. Empat perbedaan diam-diam dalam empat baris: mana yang akan menipu Anda?
 
-:::ask Sebuah laporan mengurutkan pelanggan menurut `city`, yang punya beberapa NULL. Kamu memindahkan query dari SQLite ke PostgreSQL. Apa yang terjadi?
+:::ask Sebuah laporan mengurutkan pelanggan menurut `city`, yang punya beberapa NULL. Anda memindahkan query dari SQLite ke PostgreSQL. Apa yang terjadi?
 @options
 PostgreSQL menolak mengurutkan kolom yang punya NULL
 tidak ada perubahan: semua engine mengurutkan NULL sama
@@ -786,7 +796,7 @@ Sebuah laporan sering butuh baris detail, subtotal, dan total akhir dalam satu t
 - `ROLLUP (a, b)` adalah hierarki detail, subtotal, total: pengelompokan `(a, b)`, `(a)`, dan `()`. Pakai bila `b` berada di dalam `a` (sebuah kota, lalu metode bayar).
 - `CUBE (a, b)` adalah semua kombinasi: `(a, b)`, `(a)`, `(b)`, dan `()`. Pakai untuk tabel silang di mana salah satu dimensi bisa menjadi subtotal.
 
-Pada setiap baris hasil, kolom yang *digulung* menampilkan NULL. Pada enam produk KopiKu:
+Pada setiap baris hasil, kolom yang *dirangkum (rolled up)* menampilkan NULL. Pada enam produk KopiKu:
 
 ```sql
 SELECT roast, origin, COUNT(*) AS products
@@ -795,7 +805,7 @@ GROUP BY GROUPING SETS ((roast), (origin), ());
 -- dark 2, light 2, medium 2  |  enam origin masing-masing 1  |  total 6   (10 baris)
 ```
 
-**Masalah NULL.** Baris subtotal punya NULL di kolom yang digulung, tetapi data Anda juga bisa berisi NULL sungguhan. Dua pelanggan KopiKu tidak punya kota, jadi `ROLLUP (tier, city)` mengembalikan, untuk tier Bronze, dua baris yang tampak identik:
+**Masalah NULL.** Baris subtotal punya NULL di kolom yang dirangkum (rolled up), tetapi data Anda juga bisa berisi NULL sungguhan. Dua pelanggan KopiKu tidak punya kota, jadi `ROLLUP (tier, city)` mengembalikan, untuk tier Bronze, dua baris yang tampak identik:
 
 ```sql
 SELECT tier, city, COUNT(*) AS customers, GROUPING(city) AS city_rolled_up
@@ -806,7 +816,7 @@ GROUP BY ROLLUP (tier, city);
 -- ... 14 baris seluruhnya, yang terakhir   NULL  NULL  10  1   adalah total akhir
 ```
 
-`GROUPING(kolom)` mengembalikan 1 bila NULL itu hanyalah penanda hasil gulungan dan 0 bila kolom itu ikut dalam pengelompokan. Jangan pernah memakai `city IS NULL` untuk mengenali subtotal: ia juga cocok dengan NULL sungguhan, dan laporan akan menampilkan jumlah pelanggan sebagai "subtotal". Beri label baris dengan `GROUPING`, baru kemudian percantik labelnya (misalnya `CASE WHEN GROUPING(city) = 1 THEN 'Semua kota' ELSE COALESCE(city, 'Unknown') END`). Perhatikan bahwa `GROUPING(a, b)` dengan beberapa kolom mengembalikan bit mask (0, 1, 3), bukan hitungan.
+`GROUPING(kolom)` mengembalikan 1 bila NULL itu hanyalah penanda hasil rangkuman (rolled up) dan 0 bila kolom itu ikut dalam pengelompokan. Jangan pernah memakai `city IS NULL` untuk mengenali subtotal: ia juga cocok dengan NULL sungguhan, dan laporan akan menampilkan jumlah pelanggan sebagai "subtotal". Beri label baris dengan `GROUPING`, baru kemudian percantik labelnya (misalnya `CASE WHEN GROUPING(city) = 1 THEN 'Semua kota' ELSE COALESCE(city, 'Unknown') END`). Perhatikan bahwa `GROUPING(a, b)` dengan beberapa kolom mengembalikan bit mask (0, 1, 3), bukan hitungan.
 
 **Di mana ia berjalan.** PostgreSQL dan DuckDB menjalankan ketiganya dan mengembalikan baris yang identik untuk setiap query di halaman ini. Gudang data juga mendukungnya (dari dokumentasi mereka, tidak dijalankan di kursus ini). SQLite tidak: `GROUP BY ROLLUP (...)` gagal di sana dengan `no such function: rollup`. Karena itu SQL Sandbox di browser tidak bisa melatihnya dan latihan di bawah memakai DuckDB di komputer Anda. Pada mesin tanpa fitur ini, kembalilah ke beberapa query `GROUP BY` yang digabung dengan `UNION ALL`.
 
@@ -825,7 +835,7 @@ GROUP BY ROLLUP (tier, city);
 hanya (tier, city) dan (city), tanpa total
 semua kombinasi yang mungkin, seperti CUBE
 @why
-ROLLUP adalah hierarki detail, subtotal, total. Untuk (a, b) itu (a, b), (a), dan (). CUBE akan menambah (b) juga, dan GROUPING SETS memungkinkan kamu menyebut persis pengelompokan yang diinginkan.
+ROLLUP adalah hierarki detail, subtotal, total. Untuk (a, b) itu (a, b), (a), dan (). CUBE akan menambah (b) juga, dan GROUPING SETS memungkinkan Anda menyebut persis pengelompokan yang diinginkan.
 :::
 
 :::ask Di hasil ROLLUP sebuah baris punya NULL di `city`. Bagaimana membedakan baris subtotal dari pelanggan yang kotanya memang kosong?
@@ -849,7 +859,7 @@ SELECT e.event_id, COUNT(i.key) AS n_items                                      
 FROM events e LEFT JOIN json_each(e.payload, '$.items') i GROUP BY e.event_id;
 ```
 
-Perhatikan `LEFT JOIN` pada query kedua. Dengan join biasa (`FROM events e, json_each(...)`) event dengan array kosong atau tanpa `items` sama sekali menghasilkan **nol baris**, sehingga ia hilang diam-diam dari hasil. Itu benar bila Anda menginginkan item pesanan, dan salah bila Anda sedang menghitung event.
+(`GROUP BY 1` adalah singkatan posisional untuk mengelompokkan berdasarkan kolom pertama di daftar `SELECT`, di sini, `action`.) Perhatikan `LEFT JOIN` pada query kedua. Dengan join biasa (`FROM events e, json_each(...)`) event dengan array kosong atau tanpa `items` sama sekali menghasilkan **nol baris**, sehingga ia hilang diam-diam dari hasil. Itu benar bila Anda menginginkan item pesanan, dan salah bila Anda sedang menghitung event.
 
 **Membangun JSON** berjalan ke arah sebaliknya, untuk API dan untuk menyimpan satu record bersarang dalam satu kolom:
 
@@ -869,19 +879,19 @@ SELECT json_object('event', event_id, 'user', payload ->> '$.user.id') FROM even
 | Mengumpulkan nilai ke array | `json_group_array(x)` | `jsonb_agg(x)` | `json_group_array(x)` |
 | Kunci hilang atau JSON `null` | NULL | NULL | NULL |
 
-Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `->>` mempertahankan angkanya, tetapi di PostgreSQL dan DuckDB ia gagal dengan `text * text` sampai Anda melakukan cast: kegagalan yang berisik dan mudah diperbaiki. Yang diam-diam: di PostgreSQL, `payload ->> '$.user.id'` mengembalikan **NULL untuk setiap baris**, tanpa error, karena sintaks path `$.user.id` bukan milik PostgreSQL (ia mencari kunci yang namanya persis `$.user.id`). Query yang dipindahkan antar mesin bisa mengembalikan kolom kosong dan lolos semua pemeriksaan sintaks.
+Dua perbedaan layak dilihat dua kali. `qty * price` berjalan di SQLite karena `->>` mempertahankan angkanya, tetapi di PostgreSQL dan DuckDB ia gagal dengan `text * text` sampai Anda melakukan cast: kegagalan yang jelas dan mudah diperbaiki. Yang diam-diam: di PostgreSQL, `payload ->> '$.user.id'` mengembalikan **NULL untuk setiap baris**, tanpa error, karena sintaks path `$.user.id` bukan milik PostgreSQL (ia mencari kunci yang namanya persis `$.user.id`). Query yang dipindahkan antar mesin bisa mengembalikan kolom kosong dan lolos semua pemeriksaan sintaks.
 
-**Kebiasaan.** Periksa `json_valid(payload)` sebelum mengurai: satu baris yang rusak membuat seluruh query gagal (`malformed JSON` di SQLite). Di PostgreSQL pilih `jsonb`, yang diurai sekali dan bisa diindeks, daripada `json`, yang disimpan sebagai teks. Terutama, **urai sekali, lalu pakai kolom bertipe**: model staging (Modul 2.3) mengubah JSON menjadi kolom dengan tipe sebenarnya, dan semua yang di hilir menanyakan kolom itu, bukan teksnya.
+**Kebiasaan.** Periksa `json_valid(payload)` sebelum mengurai: satu baris yang rusak membuat seluruh query gagal (`malformed JSON` di SQLite). Di PostgreSQL pilih `jsonb`, yang diurai sekali dan bisa di-index, daripada `json`, yang disimpan sebagai teks. Terutama, **urai sekali, lalu pakai kolom bertipe**: model staging (Modul 2.3) mengubah JSON menjadi kolom dengan tipe sebenarnya, dan semua yang di hilir menanyakan kolom itu, bukan teksnya.
 
-> 🛠 **Coba sendiri (25 menit, SQL Sandbox dengan dataset app_events).** Pilih dataset *Event aplikasi (payload JSON)* dan selesaikan **j-1** (ambil `user.id` dan `user.plan` dari payload), **j-2** (event per perangkat, dengan perangkat yang hilang ditampilkan sebagai `unknown`), **j-3** (satu baris per item beserta total barisnya), dan **j-4** (omzet per paket). Untuk j-3, pakai dulu join biasa lalu `LEFT JOIN`, dan hitung baris yang dikembalikan tiap versi. Lalu, di editor, coba `SELECT payload ->> '$.user.id' FROM events` dan `SELECT payload ->> '$.user.plan' FROM events` dan bandingkan tipe kolomnya.
+> 🛠 **Coba sendiri (25 menit, SQL Sandbox dengan dataset app_events).** Pilih dataset *Event aplikasi (payload JSON)* dan selesaikan **j-1** (ambil `user.id` dan `user.plan` dari payload), **j-2** (event per perangkat, dengan perangkat yang hilang ditampilkan sebagai `unknown`), **j-3** (satu baris per item beserta total barisnya), dan **j-4** (omzet per paket). Untuk j-3, pakai dulu join biasa lalu `LEFT JOIN`, dan hitung baris yang dikembalikan tiap versi. Lalu, di editor, coba `SELECT typeof(payload ->> '$.user.id') AS id_type, typeof(payload ->> '$.user.plan') AS plan_type FROM events` untuk membandingkan tipe hasil ekstraksinya (seharusnya Anda melihat `integer` dibanding `text`, dan `null` saat `plan` kosong).
 >
 > **Yang harus Anda lihat:** j-1 mengembalikan 7 baris dengan plan NULL untuk event 6; j-2 mengembalikan android 2, ios 2, unknown 2, web 1; j-3 mengembalikan 4 baris (event 1, 1, 3, dan 7), karena event 2, 4, 5, dan 6 tidak punya item; j-4 mengembalikan free 50000 dan pro 310000. Join biasa memberi 4 baris untuk j-3 dan `LEFT JOIN` memberi 8: 4 baris yang sama ditambah satu baris bernilai kosong untuk tiap event 2, 4, 5, dan 6.
 
-:::ask Kamu menghitung event dengan `FROM events e, json_each(e.payload, '$.items')` dan sebagian event hilang dari hasil. Mengapa?
+:::ask Anda menghitung event dengan `FROM events e, json_each(e.payload, '$.items')` dan sebagian event hilang dari hasil. Mengapa?
 @options
 json_each menghapus baris yang sudah selesai dibacanya
 event yang punya item dihitung dua kali menurut definisi
-* event dengan array kosong atau tak ada menghasilkan nol baris
+* event ber-array kosong menghasilkan nol baris
 @why
 Join biasa dengan json_each menghasilkan satu baris per elemen array, jadi event tanpa item tidak punya pasangan dan menghilang. Pakai LEFT JOIN saat menghitung event, bukan item.
 :::
@@ -890,17 +900,17 @@ Join biasa dengan json_each menghasilkan satu baris per elemen array, jadi event
 
 ## @lesson Operator join cost-based optimizer, MVCC VACUUM, tuning Sargable, dan 7 pola wawancara SQL {optional}
 
-Saat Anda membaca rencana eksekusi `EXPLAIN ANALYZE` di PostgreSQL, Spark, Snowflake, atau BigQuery, **Cost-Based Optimizer (CBO)** tidak hanya memutuskan apakah akan memakai indeks—ia juga memilih algoritma fisik untuk menggabungkan (join) dua tabel:
+Saat Anda membaca rencana eksekusi `EXPLAIN ANALYZE` di PostgreSQL, Spark, Snowflake, atau BigQuery, **Cost-Based Optimizer (CBO)** tidak hanya memutuskan apakah akan memakai index, ia juga memilih algoritma fisik untuk menggabungkan (join) dua tabel:
 
 | Operator Join Fisik | Cara Kerja di Balik Layar | Kompleksitas & Profil Memori | Kapan Optimizer Memilihnya (dan Kapan Menjadi Bencana) |
 |---|---|---|---|
-| **Nested Loop Join** | Untuk setiap baris di tabel luar, mencari pasangan di tabel dalam (baik lewat full scan maupun pencarian indeks). | O(N × M) tanpa indeks; O(N log M) dengan indeks B-Tree di tabel dalam. Memori hampir nol. | Terbaik saat tabel luar sangat kecil (< 1.000 baris) dan kunci tabel dalam terindeks. **Bencana** saat statistik `ANALYZE` yang usang menipu CBO hingga mengira tabel 5 juta baris hanya berisi 10 baris! |
-| **Hash Join** | Membaca tabel yang lebih kecil (*build side*) ke dalam hash table di memori berdasarkan kunci join, lalu mengalirkan tabel besar (*probe side*) melewatinya dalam satu lintasan. | Waktu CPU O(N + M); membutuhkan RAM sebesar O(ukuran tabel build) (`work_mem`). | Pekerja utama untuk equijoin besar (`ON a.id = b.id`). **Bahaya:** Jika tabel build melebihi batas `work_mem` / RAM executor, hash table akan **tumpah ke disk (spill)** dalam banyak batch (`Batches: 16` di `EXPLAIN` Postgres). |
-| **Sort-Merge Join** | Mengurutkan kedua tabel pada kunci join (atau membacanya dalam keadaan sudah terurut dari indeks B-Tree / clustering key) lalu menyatukannya secara beriringan. | O(N log N + M log M) jika belum terurut; O(N + M) jika sudah terurut/terklaster. | Terbaik untuk input sangat besar yang sudah terurut pada kuncinya, atau ketika tidak ada sisi yang muat di memori. PostgreSQL hanya memakainya untuk kondisi kesamaan; join pertidaksamaan (`<=`, `>=`) kembali ke nested loop. |
+| **Nested Loop Join** | Untuk setiap baris di tabel luar, mencari pasangan di tabel dalam (baik lewat full scan maupun pencarian index). | O(N × M) tanpa index; O(N log M) dengan index B-Tree di tabel dalam. Memori hampir nol. | Terbaik saat tabel luar sangat kecil (< 1.000 baris) dan kunci tabel dalam ber-index. **Bencana** saat statistik `ANALYZE` yang usang menipu CBO hingga mengira tabel 5 juta baris hanya berisi 10 baris! |
+| **Hash Join** | Membaca tabel yang lebih kecil (*build side*) ke dalam hash table di memori berdasarkan kunci join, lalu mengalirkan tabel besar (*probe side*) melewatinya dalam satu lintasan. | Waktu CPU O(N + M); membutuhkan RAM sebesar O(ukuran tabel build) (`work_mem`). | Pilihan utama untuk equijoin besar (`ON a.id = b.id`). **Bahaya:** Jika tabel build melebihi batas `work_mem` / RAM executor, hash table akan **tumpah ke disk (spill)** dalam banyak batch (`Batches: 16` di `EXPLAIN` Postgres). |
+| **Sort-Merge Join** | Mengurutkan kedua tabel pada kunci join (atau membacanya dalam keadaan sudah terurut dari index B-Tree / clustering key) lalu menyatukannya secara beriringan. | O(N log N + M log M) jika belum terurut; O(N + M) jika sudah terurut/terklaster. | Terbaik untuk input sangat besar yang sudah terurut pada kuncinya, atau ketika tidak ada sisi yang muat di memori. PostgreSQL hanya memakainya untuk kondisi kesamaan; join pertidaksamaan (`<=`, `>=`) kembali ke nested loop. |
 
 **Dead Tuple MVCC PostgreSQL, `VACUUM`, dan `ANALYZE`.** Di PostgreSQL, perintah `UPDATE` atau `DELETE` tidak menimpa baris lama secara langsung di disk; di bawah **Multi-Version Concurrency Control (MVCC)**, PostgreSQL menulis versi baris baru (*tuple*) dan menandai baris lama sebagai **dead tuple** agar pembaca konkuren tetap melihat snapshot yang konsisten. Jika tabel staging menerima 500.000 update sehari dan `autovacuum` tertinggal, ukuran tabel membengkak beberapa kali lipat dari ukuran sebenarnya (memperlambat sequential scan) dan statistik kolom menjadi usang. Menjalankan `VACUUM` membebaskan ruang dead tuple agar bisa dipakai ulang; menjalankan `ANALYZE` memperbarui histogram dan estimasi kardinalitas yang dibutuhkan CBO agar tidak salah memilih Nested Loop Join.
 
-**Klinik Refactoring Query Lambat "Sebelum vs. Sesudah" (Predikat Sargable).** Sebuah kondisi filter disebut **Sargable (*Search Argument Able*)** jika engine database dapat mendorongnya langsung ke pencarian indeks B-Tree atau zone map partisi kolumnar tanpa harus menghitung fungsi pada setiap baris:
+**Klinik Refactoring Query Lambat "Sebelum vs. Sesudah" (Predikat Sargable).** Sebuah kondisi filter disebut **Sargable (*Search Argument Able*)** jika engine database dapat mendorongnya langsung ke pencarian index B-Tree atau zone map partisi kolumnar tanpa harus menghitung fungsi pada setiap baris:
 
 ```sql
 -- ❌ LAMBAT (sekitar 32 detik pada 300.000 pesanan di SQLite: correlated subquery + fungsi pada kolom)
@@ -911,7 +921,7 @@ SELECT c.customer_id, c.city,
           AND LOWER(o.status) = 'paid') AS jan_paid_idr
 FROM customers c;
 
--- ✅ CEPAT (sekitar 19 ms pada data yang sama: pencarian rentang pada indeks (status, order_ts, customer_id) + satu CTE pra-agregasi)
+-- ✅ CEPAT (sekitar 19 ms pada data yang sama: pencarian rentang pada index (status, order_ts, customer_id) + satu CTE pra-agregasi)
 WITH jan_paid AS (
     SELECT customer_id, SUM(total_idr) AS jan_paid_idr
     FROM orders
@@ -930,30 +940,30 @@ LEFT JOIN jan_paid j ON j.customer_id = c.customer_id;
 | # | Cetak Biru Wawancara SQL | Kerangka Inti SQL & Penjaga Kasus Tepi |
 |---|---|---|
 | **1** | **Deduplikasi Deterministik / State Terbaru** | `QUALIFY ROW_NUMBER() OVER (PARTITION BY entity_id ORDER BY updated_at DESC, event_id DESC) = 1` (Selalu tambahkan kolom tie-breaker unik setelah `updated_at`!). |
-| **2** | **Sessionization (Jeda Inaktivitas 30 Menit)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → tandai `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts)` di query luar membentuk `session_id`. |
+| **2** | **Sessionization (Jeda Inaktivitas 30 Menit)** | `LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts)` → tandai `CASE WHEN diff_min > 30 OR prev_ts IS NULL THEN 1 ELSE 0 END AS is_new` → `SUM(is_new) OVER (PARTITION BY user_id ORDER BY event_ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)` di query luar membentuk `session_id`. |
 | **3** | **Streak Hari Berturut-turut / Gaps & Islands** | Deduplikasi dulu ke `(user_id, active_date)` unik! Lalu kurangi `DATE(active_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY active_date) || ' days') AS island_anchor`; hari-hari yang berurutan akan memiliki `island_anchor` yang persis sama. |
 | **4** | **Atribusi Point-in-Time (`ASOF`) / SCD2** | Join fakta ke dimensi dengan `f.event_ts >= d.effective_from AND f.event_ts < COALESCE(d.effective_to, '9999-12-31')` (atau memilih versi terbaru di mana `d.updated_at <= f.event_ts`). Mencegah kebocoran masa depan (future label leakage)! |
 | **5** | **Rolling 7 Hari pada Tanggal yang Bolong** | Bangun kalender kontinu `date_spine` terlebih dahulu, `LEFT JOIN` agregat harian (`COALESCE(rev, 0)`), lalu gunakan `AVG(rev) OVER (PARTITION BY store_id ORDER BY dt ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` agar hari Selasa yang tanpa transaksi tidak terlewati. |
-| **6** | **Matriks Retensi Kohort (`Bulan 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = selisih_bulan(order_month, first_month)`. Hasil: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` dikelompokkan per `(first_month, month_num)`. |
+| **6** | **Matriks Retensi Kohort (`Bulan 0..N`)** | CTE 1: `first_month = MIN(order_month) OVER (PARTITION BY user_id)`. CTE 2: `month_num = date_diff('month', first_month, order_month)` (DuckDB; `DATEDIFF('month', ...)` di Snowflake/T-SQL). Hasil: `COUNT(DISTINCT user_id) * 100.0 / MAX(cohort_size)` dikelompokkan per `(first_month, month_num)`. |
 | **7** | **Pencegahan Fan-Out Multi-Fakta** | Jangan pernah men-join `accounts` ke `transfers` (1:N) dan `chargebacks` (1:M) dalam satu klausa `FROM` yang sama (5 × 3 = 15 baris!). Pra-agregasi `transfers_by_account` dan `chargebacks_by_account` di CTE terpisah pada grain `account_id` terlebih dahulu, baru `LEFT JOIN` keduanya ke `accounts`. |
 
-> 🛠 **Coba sendiri (20 menit, Python dengan `sqlite3`).** Bangun tabel uji: 2.000 pelanggan dan 300.000 pesanan dengan `order_ts` acak antara 2025-07-01 dan 2026-06-30 (teks ISO), status acak (`paid` tiga kali lebih mungkin daripada `cancelled` atau `refunded`) dan nominal acak, lalu buat indeks `(status, order_ts, customer_id)` sebelum menjalankan `ANALYZE`. Jalankan `EXPLAIN QUERY PLAN` pada query lambat dan cepat di atas, lalu temukan baris untuk `orders` di masing-masing. Setelah itu ukur waktu keduanya dan pastikan totalnya sama.
+> 🛠 **Coba sendiri (20 menit, Python dengan `sqlite3`).** Bangun tabel uji: 2.000 pelanggan dan 300.000 pesanan dengan `order_ts` acak antara 2025-07-01 dan 2026-06-30 (teks ISO), status acak (`paid` tiga kali lebih mungkin daripada `cancelled` atau `refunded`) dan nominal acak, lalu buat index `(status, order_ts, customer_id)` sebelum menjalankan `ANALYZE`. Jalankan `EXPLAIN QUERY PLAN` pada query lambat dan cepat di atas, lalu temukan baris untuk `orders` di masing-masing. Setelah itu ukur waktu keduanya dan pastikan totalnya sama.
 >
-> **Seharusnya Anda melihat:** plan yang lambat berbunyi `CORRELATED SCALAR SUBQUERY` dan `SCAN o`: scan penuh atas pesanan untuk setiap 2.000 pelanggan, karena fungsi pada `order_ts` dan `status` menyembunyikan kolomnya dari indeks. Plan yang cepat berbunyi `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Keduanya memberi total yang sama (`3192691000` pada data yang diukur di sini, `random.seed(7)`), dalam sekitar `31` sampai `33` detik versus `18` sampai `19` ms. Angka Anda akan sedikit berbeda dengan data acak Anda sendiri; selisihnya tidak. Diukur dengan SQLite 3.46.
+> **Seharusnya Anda melihat:** plan yang lambat berbunyi `CORRELATED SCALAR SUBQUERY` dan `SCAN o`: scan penuh atas pesanan untuk setiap 2.000 pelanggan, karena fungsi pada `order_ts` dan `status` menyembunyikan kolomnya dari index. Plan yang cepat berbunyi `SEARCH orders USING INDEX ix_orders (status=? AND order_ts>? AND order_ts<?)`. Keduanya memberi total yang sama (`3192691000` pada data yang diukur di sini, `random.seed(7)`), dalam sekitar `31` sampai `33` detik versus `18` sampai `19` ms. Angka Anda akan sedikit berbeda dengan data acak Anda sendiri; selisihnya tidak. Diukur dengan SQLite 3.46.
 
-:::ask Klausa WHERE mana yang memungkinkan database memakai indeks pada `order_date`?
+:::ask Klausa WHERE mana yang memungkinkan database memakai index pada `order_date`?
 @options
 * order_date >= '2026-01-01' AND order_date < '2027-01-01'
 strftime('%Y', order_date) = '2026'
 substr(order_date, 1, 4) = '2026'
 @why
-Predikat bersifat sargable jika mesin bisa langsung mencari di indeks. Fungsi yang membungkus kolom memaksanya menghitung fungsi itu untuk setiap baris. Rentang biasa pada kolom polos menjaga indeks tetap berguna.
+Predikat bersifat sargable jika mesin bisa langsung mencari di index. Fungsi yang membungkus kolom memaksanya menghitung fungsi itu untuk setiap baris. Rentang biasa pada kolom polos menjaga index tetap berguna.
 :::
 
 ## @part SQL Server dan T-SQL
 
 ## @lesson SQL Server dan T-SQL: dialek yang diharapkan banyak lowongan {optional}
-Alat data Microsoft ada di mana-mana di pasar kerja ini: dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), **53,9%** menyebut setidaknya satu dari Azure, SQL Server, SSIS, Power BI, Fabric, atau Synapse, dan **10,8%** meminta SQL Server atau T-SQL secara eksplisit. Bank dan perusahaan lama sering menyimpan logika bisnis bertahun-tahun di **stored procedure** SQL Server dan paket SSIS, dan data engineer baru diharapkan bisa membacanya, memperbaikinya, dan suatu saat memindahkannya. Anda sudah menguasai SQL: `SELECT`, join, `GROUP BY`, dan window function bekerja sama di **T-SQL** (Transact-SQL, dialek SQL Server, Azure SQL, Synapse, dan Fabric Warehouse). Pelajaran ini adalah daftar pendek perbedaan yang sering menjebak.
+Alat data Microsoft ada di mana-mana di pasar kerja ini: dari 1.134 lowongan data engineering di TalentHub (2026-07-23 sampai 2026-11-21), **53,9%** menyebut setidaknya satu dari Azure, SQL Server, SSIS (*SQL Server Integration Services*, alat ETL milik Microsoft), Power BI, Fabric, atau Synapse, dan **10,8%** meminta SQL Server atau T-SQL secara eksplisit. Bank dan perusahaan lama sering menyimpan logika bisnis bertahun-tahun di **stored procedure** SQL Server dan paket SSIS, dan data engineer baru diharapkan bisa membacanya, memperbaikinya, dan suatu saat memindahkannya. Anda sudah menguasai SQL: `SELECT`, join, `GROUP BY`, dan window function bekerja sama di **T-SQL** (Transact-SQL, dialek SQL Server, Azure SQL, Synapse, dan Fabric Warehouse). Pelajaran ini adalah daftar pendek perbedaan yang sering menjebak.
 
 **Jalankan di laptop Anda, gratis.** Edisi Developer SQL Server berjalan di Docker:
 
@@ -970,17 +980,17 @@ Microsoft meminta RAM minimal 2 GB, dan password harus minimal delapan karakter 
 | Yang Anda kenal (PostgreSQL, DuckDB, SQLite) | T-SQL | Catatan |
 |---|---|---|
 | `LIMIT 10` | `TOP (10)`, atau `ORDER BY ... OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY` | `LIMIT` adalah syntax error |
-| `QUALIFY ROW_NUMBER() OVER (...) = 1` | beri nomor baris di CTE, lalu `WHERE rn = 1` | tidak ada `QUALIFY` |
+| `QUALIFY ROW_NUMBER() OVER (...) = 1` (DuckDB) | beri nomor baris di CTE, lalu `WHERE rn = 1` | tidak ada `QUALIFY` (sama seperti PostgreSQL/SQLite) |
 | `'a' \|\| 'b'` | `'a' + 'b'` atau `CONCAT('a', 'b')` | `'a' + NULL` hasilnya `NULL`; `CONCAT` melewati `NULL`. `\|\|` berlaku mulai SQL Server 2025 |
 | `COALESCE(x, 0)` | sama, atau `ISNULL(x, 0)` | |
-| `7 / 2` | `3` | pembagian integer, seperti PostgreSQL; DuckDB memberi `3.5` |
-| `strptime(s, '%d/%m/%Y')` | `TRY_CONVERT(date, s, 103)` | nomor style: `126` adalah ISO 8601, `103` adalah dd/mm/yyyy; `TRY_` mengembalikan `NULL` alih-alih gagal |
-| `now()`, `d + INTERVAL 1 DAY` | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
+| `7 / 2` | `3` | pembagian integer, seperti PostgreSQL dan SQLite; DuckDB memberi `3.5` |
+| `to_date(s, 'DD/MM/YYYY')` (PostgreSQL) / `strptime(s, '%d/%m/%Y')` (DuckDB) | `TRY_CONVERT(date, s, 103)` | nomor style: `126` adalah ISO 8601, `103` adalah dd/mm/yyyy; `TRY_` mengembalikan `NULL` alih-alih gagal |
+| `NOW()`, `d + INTERVAL '1 day'` (PostgreSQL/DuckDB) / `date(d, '+1 day')` (SQLite) | `GETDATE()`, `DATEADD(day, 1, d)`, `DATEDIFF(day, a, b)` | |
 | `"order"` | `[order]` | kurung siku mengutip nama |
 | `CREATE TEMP TABLE t` | `#t` (sesi Anda), `##t` (semua orang) | |
-| `string_agg(x, ',' ORDER BY x)` | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
+| `string_agg(x, ',' ORDER BY x)` (PostgreSQL/DuckDB) / `group_concat(x, ',')` (SQLite) | `STRING_AGG(x, ',') WITHIN GROUP (ORDER BY x)` | |
 | `TEXT` | `NVARCHAR(n)` dengan literal `N'...'` | `N` berarti Unicode: `DATALENGTH(N'abc')` adalah 6 byte |
-| `CREATE OR REPLACE` | `CREATE OR ALTER` | untuk procedure, view, dan function |
+| `CREATE OR REPLACE` (PostgreSQL/DuckDB) | `CREATE OR ALTER` | untuk procedure, view, dan function |
 
 **Collation: perbedaan yang mengubah angka diam-diam.** **Collation** menentukan cara teks dibandingkan. Default SQL Server (`SQL_Latin1_General_CP1_CI_AS`, diukur) **tidak peka huruf besar-kecil** (`CI`) dan peka aksen (`AS`), sehingga `status <> 'cancelled'` juga mengecualikan `CANCELLED` dan `Cancelled`. DuckDB, PostgreSQL, Spark, dan Snowflake membandingkan dengan peka huruf besar-kecil secara default, sehingga `WHERE` yang sama tetap menyimpan baris itu. Pada data kursus, query yang sama memberi Rp 100.360.000 di SQL Server dan Rp 101.925.000 di DuckDB untuk 10 sampai 12 Januari. Saat Anda memindahkan job SQL Server ke lakehouse, normalkan teks (`lower(trim(status))`) sebelum membandingkan, atau angka hasil migrasi tidak akan cocok dan tidak ada yang tahu sebabnya.
 
@@ -1003,7 +1013,7 @@ BEGIN
 END;
 ```
 
-**DDL, DML, DCL, dan TCL.** *Fundamentals of Data Engineering* membagi perintah SQL menjadi empat jenis, dan T-SQL punya keempatnya: **DDL** mendefinisikan objek (`CREATE`, `ALTER`, `DROP`), **DML** membaca dan mengubah baris (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** mengatur akses (`GRANT`, `REVOKE`, dan di SQL Server juga `DENY`, yang mengalahkan grant apa pun), dan **TCL** mengatur transaksi (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). Procedure di atas memakai DML di dalam TCL; Modul 2.6 menunjukkan DCL untuk role warehouse.
+**DDL, DML, DCL, dan TCL.** *Fundamentals of Data Engineering* membagi perintah SQL menjadi empat jenis, dan T-SQL punya keempatnya: **DDL** mendefinisikan objek (`CREATE`, `ALTER`, `DROP`), **DML** membaca dan mengubah baris (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `MERGE`), **DCL** mengatur akses (`GRANT`, `REVOKE`, dan di SQL Server juga `DENY`, yang mengalahkan grant apa pun), dan **TCL** mengatur transaksi (`BEGIN TRAN`, `COMMIT`, `ROLLBACK`). Procedure di atas memakai DML di dalam TCL; Modul 2.6 akan membahas DCL untuk role warehouse.
 
 > 🛠 **Coba sendiri (30 menit, Docker dan `sqlcmd`).** Jalankan SQL Server seperti di atas dan salin datanya: `docker cp data/orders.csv mssql:/tmp/orders.csv`. Buat database `kopiku` dan tabel `raw_orders` dengan enam kolom file itu, semuanya `NVARCHAR(50)`, lalu muat dengan `BULK INSERT raw_orders FROM '/tmp/orders.csv' WITH (FORMAT = 'CSV', FIRSTROW = 2)`. Hitung baris yang `total_idr`-nya hanya angka (`NOT LIKE '%[^0-9]%'`) dan `order_ts`-nya bisa dikonversi dengan style 126. Jika jawabannya mengejutkan, cari tahu sebabnya sebelum lanjut. Lalu buat `daily_revenue (order_date DATE PRIMARY KEY, orders INT, revenue_idr BIGINT)`, lengkapi procedure di atas untuk pesanan yang tidak dibatalkan, dan jalankan untuk 10, 11, dan 12 Januari, dua kali. Terakhir, coba `LIMIT` dan `QUALIFY` pada `raw_orders`.
 >
@@ -1021,9 +1031,11 @@ Collation bawaan SQL Server tidak peka huruf besar-kecil (CI), jadi 'cancelled',
 ## @lab Lab: teka-teki window function dan latihan tuning PostgreSQL
 Bagian A: sepuluh pertanyaan analitik yang dijawab dengan window function dan CTE rekursif, diperiksa otomatis. Bagian B: diberi empat query lambat pada tabel 500.000 baris di PostgreSQL, buat index sesedikit mungkin yang membuatnya cepat, dan tulis ulang satu query agar bisa memakai index. Bagian B diperiksa dengan membaca execution plan yang sebenarnya.
 
+> 💡 **Sudah menyelesaikan Jeda Praktik 1–6?** Jika kesepuluh query Bagian A di `labs/mod-1-3/answers.sql` lulus `python3 labs/mod-1-3/check.py` dan kesepuluh tes Bagian B lulus `pytest labs/mod-1-3/explain -v`, Anda bisa langsung menjalankan `python3 scripts/prove.py mod-1-3` pada bagian verifikasi di bawah untuk menghasilkan kode bukti penyelesaian.
+
 ### @steps
-1. **Bagian A, di browser (disarankan).** Buka SQL Sandbox, pilih tantangan dari daftar (bertanda untuk modul ini: total berjalan, pesanan terbaru, hari sejak pesanan sebelumnya, porsi terhadap total, peringkat dengan nilai kembar, rata-rata bergerak, kuartil, pohon kategori, ditambah tantangan gaps-and-islands dan sessionization) dan pakai "Periksa jawaban". Setiap tantangan otomatis berpindah ke dataset yang tepat.
-2. **Bagian A, lokal.** Buka `labs/mod-1-3/answers.sql`, tulis satu query di bawah tiap penanda, dan jalankan `python3 labs/mod-1-3/check.py`. Ia membandingkan hasil Anda dengan referensi memakai SQLite bawaan Python.
+1. **Bagian A: buat prototipe di browser, simpan secara lokal.** Anda bisa membuat prototipe dan menguji query Bagian A mana pun di **SQL Sandbox** browser (pilih tantangan bertanda untuk modul ini, `ch-3`, `ch-4`, dan `w-1`..`w-8`: total berjalan, pesanan terbaru, hari sejak pesanan sebelumnya, porsi terhadap total, peringkat dengan nilai kembar, rata-rata bergerak, kuartil, pohon kategori, gaps-and-islands, dan sessionization, lalu klik "Periksa jawaban"; setiap tantangan otomatis berpindah ke dataset yang tepat). Untuk menyelesaikan modul dan menghasilkan kode bukti penyelesaian, simpan kesepuluh query Bagian A (`ch-3`, `ch-4`, `w-1`..`w-8`) di bawah penandanya di `labs/mod-1-3/answers.sql`.
+2. **Bagian A: verifikasi secara lokal.** Jalankan `python3 labs/mod-1-3/check.py`. Pemeriksa ini membandingkan hasil Anda di `labs/mod-1-3/answers.sql` dengan referensi memakai SQLite bawaan Python (tanpa instalasi tambahan).
 3. Jangan lewatkan *mengapa*-nya: untuk total berjalan, coba frame bawaan dan frame `ROWS` eksplisit dan lihat bedanya pada baris kembar; untuk peringkat, coba ketiga fungsi peringkat.
 4. **Bagian B, persiapan.** Pasang requirement (PostgreSQL tertanam sudah termasuk; tidak perlu Docker):
 
@@ -1035,7 +1047,7 @@ pytest labs/mod-1-3/explain -v
    Sebagian besar tes gagal pada awalnya (6 dari 10 dengan starter). Itulah titik awalnya. (Untuk memakai PostgreSQL Anda sendiri, misalnya dari Docker, set `DATABASE_URL` ke database sementara yang kosong. Di Python 3.14 `pip` melewati `pgserver` (belum ada build untuk 3.14), jadi jalankan PostgreSQL di Docker: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, lalu `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab13"` dan `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab13`. Satu container itu melayani Modul 1.3, 3.2, dan 3.5 (ada pgvector dan logical decoding); diukur di Python 3.14, referensinya lulus 10 tes dengan cara ini.)
 5. **Bagian B, tuning.** Buka `labs/mod-1-3/explain/queries.sql` dan `indexes.sql`. Lihat keempat query dan tentukan kolom mana yang difilter dan diurutkan masing-masing. Tulis pernyataan `CREATE INDEX` **sesedikit mungkin** di `indexes.sql` sehingga tidak ada query yang melakukan Seq Scan, dan Q3 tidak butuh Sort. Tulis ulang Q4 di `queries.sql` agar memberi jawaban sama tetapi bisa memakai index.
 6. Untuk melihat apa yang dilihat tes, muat tabel ke PostgreSQL mana pun dan jalankan `EXPLAIN (ANALYZE, BUFFERS)` pada tiap query sebelum dan sesudah perubahan Anda; bandingkan baris perkiraan dan aktual, halaman yang dibaca, dan waktu.
-7. Jalankan ulang tes sampai semuanya lulus. Jika ada yang gagal, pesannya menyebut aturan mana yang Anda langgar.
+7. Jalankan ulang tes sampai kesepuluh query Bagian A dan kesepuluh tes Bagian B lulus (jika ada yang gagal, pesannya menyebut aturan mana yang Anda langgar), lalu buat kode bukti penyelesaian Anda dengan `python3 scripts/prove.py mod-1-3`.
 
 ### @files
 - labs/mod-1-3/answers.sql :: File kerja Bagian A: satu query per penanda :: starter
@@ -1043,8 +1055,11 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/datasets/kopiku.sql :: Dataset untuk sebagian besar pertanyaan Bagian A :: data
 - labs/mod-1-3/datasets/daily_sales.sql :: Dataset untuk rata-rata bergerak :: data
 - labs/mod-1-3/datasets/categories.sql :: Dataset untuk CTE rekursif :: data
+- labs/mod-1-3/datasets/logins.sql :: Dataset untuk tantangan gaps-and-islands (ch-3) :: data
+- labs/mod-1-3/datasets/clickstream.sql :: Dataset untuk tantangan sessionization (ch-4) :: data
 - labs/tryit/check.py :: Pemeriksa latihan Try it, misalnya: python3 labs/tryit/check.py 1.3-9 ~/practice :: config
 - labs/mod-1-3/reference/answers.sql :: Jawaban referensi Bagian A (coba sendiri dulu!) :: reference
+- labs/mod-1-3/explain/requirements.txt :: Dependensi Python Bagian B (pytest, psycopg, pgserver tertanam) :: config
 - labs/mod-1-3/explain/queries.sql :: Bagian B: keempat query (tulis ulang Q4) :: starter
 - labs/mod-1-3/explain/indexes.sql :: Bagian B: taruh pernyataan CREATE INDEX Anda di sini :: starter
 - labs/mod-1-3/explain/test_lab.py :: Tes Bagian B yang memeriksa execution plan asli :: test
@@ -1052,12 +1067,20 @@ pytest labs/mod-1-3/explain -v
 - labs/mod-1-3/explain/reference/queries.sql :: Query referensi Bagian B :: reference
 
 ### @deliverables
-- Kesepuluh jawaban Bagian A lulus, di sandbox atau dengan `check.py`
-- Kesepuluh tes Bagian B lulus
+- Kesepuluh query Bagian A (`ch-3`, `ch-4`, `w-1`..`w-8`) yang disimpan di `labs/mod-1-3/answers.sql` lulus `python3 labs/mod-1-3/check.py`
+- Kesepuluh tes Bagian B di `labs/mod-1-3/explain/` lulus `pytest labs/mod-1-3/explain -v` (dan `python3 scripts/prove.py mod-1-3` menghasilkan kode bukti penyelesaian Anda)
 - Untuk Bagian B Anda bisa menjelaskan, dengan plan di depan Anda, mengapa `(customer_id, event_time DESC)` menghilangkan Sort tetapi `(customer_id, event_type, event_time DESC)` tidak
 
 ### @verify
-Bagian A: `python3 labs/mod-1-3/check.py` (atau tombol di sandbox). Bagian B: `pytest labs/mod-1-3/explain -v`. Bandingkan dengan referensi: `python3 labs/mod-1-3/check.py reference` dan `LAB_DIR=reference pytest labs/mod-1-3/explain -v`.
+Anda bisa membuat prototipe query Bagian A di **SQL Sandbox** browser ("Periksa jawaban"), lalu simpan kesepuluh query (`ch-3`, `ch-4`, `w-1`..`w-8`) ke `labs/mod-1-3/answers.sql`, selesaikan Bagian B (`labs/mod-1-3/explain/`), dan verifikasi secara lokal untuk menghasilkan kode bukti penyelesaian:
+
+```bash
+python3 labs/mod-1-3/check.py
+pytest labs/mod-1-3/explain -v
+python3 scripts/prove.py mod-1-3
+```
+
+Bandingkan dengan referensi: `python3 labs/mod-1-3/check.py reference` dan `LAB_DIR=reference pytest labs/mod-1-3/explain -v`.
 
 ## @chaos Query dashboard yang cepat sampai bulan Maret
 ### @scenario
@@ -1163,10 +1186,10 @@ Lihat plan-nya, bukan ukuran servernya. Fungsi pada kolom ber-index menyembunyik
 ### Hasil `GROUP BY ROLLUP (city, payment_method)` punya baris dengan `city` NULL. Bagaimana membedakan baris subtotal dari pelanggan yang kotanya memang tidak diketahui?
 - [ ] Baris subtotal selalu muncul paling akhir, jadi posisi baris memberi tahu Anda yang mana
 - [ ] Subtotal menampilkan teks `'ALL'` alih-alih NULL, jadi NULL selalu berarti kota yang benar-benar tidak diketahui
-- [x] `GROUPING(city)` bernilai 1 di baris tempat city digulung menjadi subtotal, dan 0 jika NULL-nya data asli
+- [x] `GROUPING(city)` bernilai 1 di baris tempat city dirangkum (rolled up) menjadi subtotal, dan 0 jika NULL-nya data asli
 - [ ] Keduanya tidak bisa dibedakan, jadi ganti kota NULL dengan penanda sebelum setiap query ROLLUP
 
-> ROLLUP menandai kolom yang digulung dengan NULL, yang bertabrakan dengan NULL asli. `GROUPING(col)` mengembalikan 1 untuk level subtotal dan 0 untuk nilai asli, termasuk NULL asli.
+> ROLLUP menandai kolom yang dirangkum (rolled up) dengan NULL, yang bertabrakan dengan NULL asli. `GROUPING(col)` mengembalikan 1 untuk level subtotal dan 0 untuk nilai asli, termasuk NULL asli.
 
 ### Di PostgreSQL, `SUM(payload->>'amount')` gagal padahal setiap `amount` di JSON berupa angka. Mengapa?
 - [ ] `->>` hanya bekerja pada key tingkat atas, dan `amount` disimpan satu tingkat lebih dalam di payload

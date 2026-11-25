@@ -11,7 +11,8 @@ NEG_INF = -math.inf
 def window_starts(ts, size, slide):
     """Start times (sorted) of every window [start, start + size) that CONTAINS ts, for windows that begin at multiples of
     `slide`. slide == size is a tumbling window (exactly one start); slide < size is a sliding window (size // slide starts).
-    Example: window_starts(125, 300, 300) == [0];   window_starts(125, 300, 60) == [-120, -60, 0, 60]"""
+    Note: negative starts are allowed for small timestamps (unlike Lesson 2's browser drill, which clamps start >= 0).
+    Example: window_starts(125, 300, 300) == [0];   window_starts(125, 300, 60) == [-120, -60, 0, 60, 120]"""
     raise NotImplementedError("TODO: window_starts")
 
 

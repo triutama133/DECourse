@@ -22,10 +22,10 @@ Modul 0.0 dan 1.2 (Python, error, idempotensi). Lab hanya butuh pustaka standar 
 > **Intinya:** Data datang sebagai file, panggilan API, pembacaan database, atau event. Anda memilih pull atau push, dan penuh atau inkremental. Job yang bisa dipercaya itu lengkap, aman diulang, mentah dulu, bisa diamati, dan sopan kepada sumbernya.
 Semua yang dibangun data engineer dimulai dari **ingestion**: memindahkan data dari tempat ia dibuat ke tempat ia bisa dipakai. Sumbernya terbagi dalam empat keluarga:
 
-- **File**: CSV, JSON, Parquet yang dijatuhkan di server, folder SFTP, atau penyimpanan cloud oleh mitra atau job ekspor.
+- **File**: CSV, JSON, Parquet yang ditaruh atau diunggah ke server, folder **SFTP** (Secure File Transfer Protocol, transfer file terenkripsi lewat SSH), atau penyimpanan cloud oleh mitra atau job ekspor.
 - **API**: layanan (penyedia pembayaran, alat pemasaran, portal data terbuka pemerintah) yang Anda panggil lewat HTTP.
 - **Database**: tabel di database operasional, dibaca secara bulk atau inkremental (Modul 3.2 membahas change data capture).
-- **Event**: pesan dari Kafka, webhook, dan antrean (Modul 3.2).
+- **Event**: pesan dari Kafka, **webhook** (URL HTTP milik Anda yang dipanggil otomatis oleh layanan lain saat suatu peristiwa terjadi), dan antrean (Modul 3.2).
 
 Dua pilihan membentuk setiap job. **Pull atau push:** apakah Anda meminta data ke sumber sesuai jadwal (pull), atau sumber mengirim data ketika sesuatu terjadi (push, seperti pada webhook dan event)? **Penuh atau inkremental:** apakah Anda menyalin semuanya setiap kali (sederhana, benar, mahal seiring data tumbuh), atau hanya yang berubah sejak terakhir kali (murah, tetapi Anda harus melacak "sejak kapan" dan menangani pembaruan dan penghapusan)?
 
@@ -52,10 +52,10 @@ Satu prinsip terakhir: sumber **tidak berada di bawah kendali Anda**. Ia bisa la
 :::ask Mengapa job ingestion yang tepercaya menyimpan data persis seperti diterima sebelum membersihkannya?
 @options
 karena data mentah memakai ruang lebih kecil dari data bersih
-* agar bisa diproses ulang jika aturan pembersihannya salah
+* agar bisa diproses ulang jika aturan salah
 karena pembersihan tidak boleh ada di job ingestion
 @why
-'Raw first' adalah kebiasaan ELT: simpan yang asli, lalu transformasikan. Jika sebuah aturan salah, atau data terlambat tiba, kamu menjalankan ulang dari salinan mentah tanpa meminta ke sumber lagi.
+'Raw first' adalah kebiasaan ELT: simpan yang asli, lalu transformasikan. Jika sebuah aturan salah, atau data terlambat tiba, Anda menjalankan ulang dari salinan mentah tanpa meminta ke sumber lagi.
 :::
 
 ## @lesson API HTTP dalam sepuluh menit
@@ -79,19 +79,32 @@ Accept: application/json
 | 429 | **terlalu banyak permintaan**: Anda terkena rate limit | tunggu, lalu ulangi (lihat di bawah) |
 | 500, 502, 503, 504 | server bermasalah | tunggu dan ulangi |
 
-**Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau query string, **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau secret manager, jangan pernah di kode atau di Git (Modul 0.1), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.
+**Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau **query string** (parameter `?kunci=nilai&...` di akhir URL), **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau **secret manager** (layanan brankas khusus seperti AWS Secrets Manager atau GCP Secret Manager yang menyimpan dan merotasi kredensial), jangan pernah di kode atau di Git (Modul 0.1), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.
 
 Selalu pasang **timeout**. Tanpanya, koneksi yang menggantung memblokir job Anda selamanya. Masalah koneksi (server tidak terjangkau, reset, timeout) berbeda dari error HTTP: tidak ada status code, jadi Anda memperlakukannya seperti 5xx, sebagai sesuatu yang sementara.
 
 Baca dokumentasi API untuk empat hal sebelum menulis kode: bagaimana **autentikasi** bekerja, bagaimana **pagination** bekerja, berapa **rate limit**-nya, dan bagaimana meminta **hanya perubahan** (parameter seperti `updated_since`). Banyak API diberi versi (`/v2/orders`); kunci versinya, karena perubahan tanpa pengumuman adalah cara job Anda rusak.
 
-Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), seperti di lab, atau dengan paket populer `requests`; gagasannya identik.
+Anda bisa melakukan semua ini dengan pustaka standar Python (`urllib.request`), seperti di lab, atau dengan paket populer `requests`; gagasannya identik:
+
+```python
+import json, urllib.error, urllib.request
+
+req = urllib.request.Request("http://localhost:8765/orders?limit=3", headers={"Authorization": "Bearer learner-token"})
+try:
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        data = json.load(resp)                       # resp.status bernilai 200
+except urllib.error.HTTPError as e:                  # 4xx / 5xx: baca e.code dan e.headers
+    print("HTTP error:", e.code, e.headers.get("Retry-After"))
+except urllib.error.URLError as e:                   # masalah koneksi atau timeout (tanpa status code)
+    print("Network error:", e.reason)
+```
 
 > 💡 **Jeda Praktik 1 (Konstruksi Request HTTP & Header Autentikasi):**
 > Mulai bangun modul ingestion Anda dengan penyusunan request HTTP deterministik:
 > 1. Buka file `labs/mod-1-6/ingest_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
 > 2. Implementasikan fungsi `build_request(url, token, params=None)`: buang parameter bernilai None, urutkan nama parameter dengan `urllib.parse.urlencode` (agar URL selalu konsisten), dan pasang header `Authorization: Bearer <token>` serta `Accept: application/json`.
-> 3. Uji di terminal:
+> 3. Uji di terminal (jika `pytest` belum terpasang, jalankan `pip install -r labs/mod-1-6/requirements.txt` sekali):
 > `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Pelajaran 3 untuk menangani pagination dan retry jaringan!
 
@@ -117,9 +130,9 @@ berhenti pada error pertama dan buang semuanya
 > **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
 API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
 
-- **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data hidup. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman 10 sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris diambil untuk 25 pesanan sebenarnya**: 3 duplikat (baris yang lebih lama bergeser ke halaman berikutnya). Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.
+- **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data yang terus berubah. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman berisi 10 baris sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris terambil yang hanya mencakup 25 pesanan asli yang unik**, 3 duplikat (baris lama bergeser ke halaman berikutnya), dan 3 pesanan baru terlewat. Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.
 - **Nomor halaman** (`?page=3`): kelemahan yang sama.
-- **Pagination cursor (keyset)** (`?cursor=abc`): setiap respons memuat `next_cursor` yang menandai persis di mana melanjutkan. Membaca feed yang sama dengan cara ini memberi 25 pesanan tanpa duplikat dan tanpa yang hilang. **Pilih cursor setiap kali API menyediakannya.** `fetch_all_cursor` di lab mengikuti `next_cursor` sampai tidak ada, dan `fetch_all_offset` memperlihatkan loop offset (berhenti ketika sebuah halaman lebih pendek dari `limit`; perhatikan bahwa ketika total adalah kelipatan pas dari `limit`, Anda butuh satu permintaan tambahan untuk melihat halaman kosong).
+- **Pagination cursor (keyset)** (`?cursor=abc`): setiap respons memuat `next_cursor` yang menandai persis di mana melanjutkan. Membaca feed yang sama dengan cara ini memberi setiap pesanan tepat sekali, tanpa duplikat dan tanpa yang terlewat. **Pilih cursor setiap kali API menyediakannya.** `fetch_all_cursor` di lab mengikuti `next_cursor` sampai tidak ada, dan `fetch_all_offset` memperlihatkan loop offset (berhenti ketika sebuah halaman lebih pendek dari `limit`; perhatikan bahwa ketika total adalah kelipatan pas dari `limit`, Anda butuh satu permintaan tambahan untuk melihat halaman kosong).
 
 **Rate limit.** Untuk melindungi diri, API membatasi berapa banyak permintaan yang boleh Anda kirim, misalnya 100 per menit. Ketika Anda melampauinya, Anda menerima **429 Too Many Requests**, sering dengan header **`Retry-After`** yang menyatakan berapa detik harus menunggu. Respons yang sopan dan efektif adalah **menunggu selama itu persis**. Menghantam API membuat keadaan lebih buruk dan bisa membuat Anda diblokir.
 
@@ -127,7 +140,7 @@ API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **ha
 
 Mengulang hanya aman untuk operasi yang **idempoten**. GET yang membaca data adalah idempoten. POST yang membuat sesuatu bisa membuatnya dua kali jika percobaan pertama berhasil tetapi responsnya hilang; panggilan seperti itu butuh idempotency key bila API menyediakannya. Ingestion kebanyakan membaca, itulah mengapa ini kasus yang ramah.
 
-Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di komputer Anda**, yang menjawab 429 dengan `Retry-After` dan 500 sesuai permintaan. Fungsi `sleep` adalah parameter, sehingga tes mencatat waktu tunggu (1, 2, atau 7 detik) alih-alih benar-benar tidur. Merancang kode agar waktu dan jaringan bisa diganti saat tes adalah keterampilan tersendiri.
+Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di komputer Anda**, yang menjawab 429 dengan `Retry-After` dan 500 sesuai permintaan. Fungsi `sleep` adalah parameter, sehingga tes mencatat waktu tunggu (1, 2, atau 7 detik) alih-alih benar-benar menunggu (sleep). Merancang kode agar waktu dan jaringan bisa diganti saat tes adalah keterampilan tersendiri.
 
 > 💡 **Jeda Praktik 2 (Resilient Network Fetching & Pagination):**
 > Tangani fluktuasi jaringan, rate limit 429, dan pagination data:
@@ -141,18 +154,18 @@ Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di 
 > Ketika tes PASSED, lanjut ke Pelajaran 4 untuk mekanisme checkpoint pemuatan bertahap!
 
 > 🛠 **Coba sendiri (15 menit, praktik langsung).** Biarkan API latihan tetap menyala. Mulai setiap langkah dari keadaan bersih dengan `curl localhost:8765/reset`.
-> 1. *Halaman offset bergeser.* Baca halaman 1 dengan `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Sekarang biarkan 3 pesanan baru datang (`.../arrive?n=3`, header yang sama). Baca halaman 2 dengan `offset=10`. Id mana di halaman 2 yang sudah ada di halaman 1?
+> 1. *Halaman offset bergeser.* Baca halaman 1 dengan `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Sekarang biarkan 3 pesanan baru datang (`http://localhost:8765/arrive?n=3`, header yang sama). Baca halaman 2 dengan `offset=10`. Id mana di halaman 2 yang sudah ada di halaman 1?
 > 2. *Cursor tidak bergeser.* Di `cursor_all.py`, baca **semua** pesanan dari `/orders?limit=10` dengan mengikuti `next_cursor` sampai kosong, dan panggil `/arrive?n=3` sekali tepat setelah halaman pertama. Cetak berapa id yang Anda kumpulkan dan berapa yang unik.
-> 3. *Rate limit.* Panggil `/limited` dari `limited.py`. Saat mendapat 429, cetak statusnya dan nilai `Retry-After`, tidur tepat selama itu, panggil lagi, dan cetak status yang baru.
+> 3. *Rate limit.* Panggil `/limited` dari `limited.py`. Saat mendapat 429, cetak statusnya dan nilai `Retry-After`, tunggu (`time.sleep`) tepat selama itu, panggil lagi, dan cetak status yang baru.
 >
-> **Seharusnya Anda melihat:** halaman 1 berisi id 25 turun sampai 16, dan halaman 2 mengulang 18, 17, dan 16; skrip cursor mencetak `28 28`; skrip rate limit mencetak `429 2.0` lalu `200`.
+> **Seharusnya Anda melihat:** halaman 1 berisi id 25 turun sampai 16, dan halaman 2 mengulang 18, 17, dan 16; skrip cursor mencetak `28 28`; skrip rate limit mencetak `429 2` (atau `429 2.0`) lalu `200`.
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (perlu `cursor_all.py` dan `limited.py`; hentikan dulu API latihan Anda sendiri). Pemeriksa juga mencoba `limited.py` Anda pada server yang meminta waktu tunggu berbeda, jadi baca header-nya, jangan menulis angkanya langsung di kode.
 
 :::drill python Tunggu lebih lama tiap kali
 Retry memakai exponential backoff: tunggu 1 detik setelah kegagalan pertama, lalu 2, 4, 8, dan seterusnya, tidak pernah melebihi batas. Tulis `backoff_delay(attempt, base, cap)` dengan `attempt` mulai dari 1: kembalikan `min(cap, base * 2 ** (attempt - 1))`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("backoff_delay") ## Definisikan backoff_delay(attempt, base, cap).
@@ -161,7 +174,7 @@ backoff_delay(4, 1, 30) == 8 ## 1, 2, 4, 8.
 backoff_delay(6, 1, 30) == 30 ## 32 terlalu lama: batas yang menang.
 backoff_delay(3, 5, 100) == 20 ## Base lain: 5, 10, 20.
 @hint
-`return min(cap, base * 2 ** (attempt - 1))`
+Gandakan `base` untuk setiap percobaan ulang setelah yang pertama (sebanyak `attempt - 1` kali penggandaan dengan pangkat 2), lalu batasi hasilnya dengan `min()`.
 @solution
 def backoff_delay(attempt, base, cap):
     return min(cap, base * 2 ** (attempt - 1))
@@ -170,7 +183,7 @@ def backoff_delay(attempt, base, cap):
 :::drill python Baca setiap halaman
 Sebuah API mengembalikan satu halaman sekali ambil: `get_page(cursor)` menghasilkan dictionary `{"items": [...], "next": cursor_atau_None}`. Mulai dengan cursor `None`. Tulis `fetch_all(get_page)`: terus ambil sampai `next` bernilai `None`, dan kembalikan semua item secara berurutan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("fetch_all") ## Definisikan fetch_all(get_page).
@@ -191,16 +204,16 @@ def fetch_all(get_page):
             return items
 :::
 
-:::ask Kamu membaca feed terbaru-dulu yang hidup dengan `?offset=10&limit=10` saat 3 pesanan baru masuk. Apa yang bisa salah?
+:::ask Anda membaca feed terbaru-dulu yang terus berubah dengan `?offset=10&limit=10` saat 3 pesanan baru masuk. Apa yang bisa salah?
 @options
 * offset bergeser, sehingga sebagian baris terambil dua kali
 API selalu mengembalikan halaman kosong setiap kali
 pesanan baru menimpa pesanan yang lama
 @why
-Dengan paginasi offset, baris baru mendorong baris lama ke bawah daftar, sehingga baris yang sama bisa muncul di akhir satu halaman dan awal halaman berikutnya. Paginasi cursor menghindarinya.
+Dengan pagination offset, baris baru mendorong baris lama ke bawah daftar, sehingga baris yang sama bisa muncul di akhir satu halaman dan awal halaman berikutnya. Pagination cursor menghindarinya.
 :::
 
-:::trace Paginasi offset pada feed yang hidup
+:::trace Pagination offset pada feed yang terus berubah
 @code
 feed = [5, 4, 3, 2, 1]
 page1 = feed[0:2]
@@ -230,10 +243,10 @@ Satu putaran lalu tampak seperti ini:
 Cara membuat pemuatan idempoten:
 
 - **Namai keluaran sesuai putaran** (`orders_<run_id>.jsonl`). Pengulangan putaran yang sama menimpa file yang sama, bukan menambah yang kedua.
-- **Tulis secara atomik**: tulis file sementara di folder yang sama, lalu ganti namanya menimpa nama akhir (`os.replace`). File itu lengkap atau tidak ada, tidak pernah setengah tertulis. Lab menerapkan gagasan yang sama pada file checkpoint sendiri, sehingga crash tidak bisa meninggalkan checkpoint rusak.
+- **Tulis secara atomik**: tulis file sementara di folder yang sama, lalu ganti namanya menimpa nama akhir (`os.replace`). File itu lengkap atau tidak ada, tidak pernah setengah tertulis. Di Python, `fd, tmp = tempfile.mkstemp(dir=folder)` membuat file sementara unik di folder tersebut dan `with os.fdopen(fd, "w", encoding="utf-8") as f:` menulis ke dalamnya sebelum `os.replace(tmp, final_path)`. Lab menerapkan gagasan yang sama pada file checkpoint sendiri, sehingga crash tidak bisa meninggalkan checkpoint rusak.
 - **Deduplikasi** berdasarkan id record, simpan versi dengan `updated_at` terbesar, karena record yang sama bisa muncul dua kali (pembaruan tiba di antara halaman).
 
-Kasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `updated_at` baru, jadi ia muncul lagi, dan pemuatan Anda harus memperlakukannya sebagai versi baru (tes lab mengubah pesanan 3 menjadi "refunded"). **Penghapusan**: API berbasis `updated_since` biasanya tidak bisa memberi tahu bahwa sebuah record dihapus; cari flag soft-delete atau endpoint "deleted since", atau rekonsiliasi dengan pemuatan penuh sesekali, atau pakai change data capture (Modul 3.2). **Timestamp kembar dan pembaruan terlambat**: beberapa record bisa berbagi satu timestamp, dan jam berbeda, sehingga banyak tim membaca ulang jendela tumpang tindih kecil (beberapa menit terakhir) dan mengandalkan deduplikasi. **Tanpa `updated_since`**: kembali ke snapshot penuh dan bandingkan dengan yang sudah Anda miliki.
+Kasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `updated_at` baru, jadi ia muncul lagi, dan pemuatan Anda harus memperlakukannya sebagai versi baru (tes lab mengubah pesanan 3 menjadi "refunded"). **Penghapusan**: API berbasis `updated_since` biasanya tidak bisa memberi tahu bahwa sebuah record dihapus; cari **flag soft-delete** (kolom seperti `is_deleted = true` atau `deleted_at` yang menandai baris terhapus tanpa benar-benar menghapusnya) atau endpoint "deleted since", atau rekonsiliasi dengan pemuatan penuh sesekali, atau pakai change data capture (Modul 3.2). **Timestamp kembar dan pembaruan terlambat**: beberapa record bisa berbagi satu timestamp, dan jam berbeda, sehingga banyak tim membaca ulang jendela tumpang tindih kecil (beberapa menit terakhir) dan mengandalkan deduplikasi. **Tanpa `updated_since`**: kembali ke snapshot penuh dan bandingkan dengan yang sudah Anda miliki.
 
 Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih lama dari mesin (file di penyimpanan cloud, sebuah tabel), dan buat mudah diperiksa dan di-reset untuk **backfill** (memuat ulang suatu periode dengan sengaja).
 
@@ -299,11 +312,7 @@ next_checkpoint([{"updated_at": 5}, {"updated_at": 9}, {"updated_at": 7}], 3) ==
 next_checkpoint([], 42) == 42 ## Tanpa baris baru, checkpoint tetap 42.
 next_checkpoint([{"updated_at": 2}], 10) == 10 ## Ia tidak boleh mundur: baris lama (2) tidak boleh menurunkan checkpoint 10.
 @hint
-```python
-def next_checkpoint(rows, old):
-    newest = [r["updated_at"] for r in rows]
-    return max(newest + [old])
-```
+Kumpulkan nilai `"updated_at"` dari setiap baris, sertakan `old` sebagai kandidat (agar baris kosong atau timestamp lama tidak pernah memundurkan checkpoint), lalu kembalikan nilai terbesar dengan `max()`.
 @solution
 def next_checkpoint(rows, old):
     newest = [r["updated_at"] for r in rows]
@@ -321,15 +330,7 @@ latest([{"id": 1, "updated_at": 5, "s": "paid"}, {"id": 1, "updated_at": 8, "s":
 latest([]) == [] ## Input kosong menghasilkan list kosong.
 [r["id"] for r in latest([{"id": 3, "updated_at": 1}, {"id": 1, "updated_at": 1}])] == [1, 3] ## Hasilnya terurut menurut id.
 @hint
-```python
-def latest(rows):
-    best = {}
-    for row in rows:
-        known = best.get(row["id"])
-        if known is None or row["updated_at"] > known["updated_at"]:
-            best[row["id"]] = row
-    return [best[i] for i in sorted(best)]
-```
+Simpan sebuah dictionary yang memetakan tiap `"id"` ke baris terbaik sejauh ini. Untuk setiap baris, simpan jika id-nya baru atau `"updated_at"`-nya lebih besar dari yang tersimpan, lalu kembalikan nilainya terurut menurut id.
 @solution
 def latest(rows):
     best = {}
@@ -349,10 +350,10 @@ def latest(rows):
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah dan schema drift!
 
-> 🛠 **Coba sendiri (15 menit, praktik langsung).** Tulis `load.py` untuk API latihan: baca pesanan dengan cursor (`limit=5`) dan tambahkan ke `out.jsonl`; **setelah** setiap halaman ditulis, simpan `{"cursor": ...}` ke `checkpoint.json` (tulis file sementara, lalu `os.replace`). Saat skrip mulai, ia melanjutkan dari `checkpoint.json` jika file itu ada. Taruh `time.sleep(1)` setelah menulis setiap halaman, agar Anda sempat menghentikannya.
+> 🛠 **Coba sendiri (15 menit, praktik langsung).** Tulis `load.py` untuk API latihan: baca pesanan dengan cursor (`limit=5`) dan tambahkan ke `out.jsonl`; **setelah** setiap halaman ditulis, simpan `{"cursor": ...}` ke `checkpoint.json` (tulis file sementara, lalu `os.replace`). Saat skrip mulai, ia melanjutkan dari `checkpoint.json` jika file itu ada. Taruh `time.sleep(1)` **di antara** menulis halaman ke `out.jsonl` dan menyimpan `checkpoint.json`, agar menekan Ctrl+C saat jeda secara konsisten menangkap halaman yang sudah tertulis tetapi belum di-checkpoint.
 > 1. Jalankan `curl localhost:8765/reset`, lalu mulai `load.py` dan tekan Ctrl+C setelah kira-kira dua halaman. Bandingkan `wc -l out.jsonl` dengan cursor di `checkpoint.json`: mengapa file bisa berisi lebih banyak baris daripada yang dikatakan checkpoint?
 > 2. Jalankan `load.py` lagi sampai selesai, lalu jalankan `python3 -c "import json; ids=[json.loads(l)['id'] for l in open('out.jsonl')]; print(len(ids), len(set(ids)))"`. Buat loader Anda menghapus duplikat berdasarkan `id` sampai ia mencetak `25 25`.
-> 3. Sekarang rusak dengan sengaja: hapus `out.jsonl` dan `checkpoint.json`, reset API-nya, dan tukar urutannya (simpan checkpoint **lebih dulu**, tidur, baru tulis halamannya). Hentikan saat tidur, jalankan sampai selesai, lalu jalankan lagi pemeriksaan dari langkah 2.
+> 3. Sekarang rusak dengan sengaja: hapus `out.jsonl` dan `checkpoint.json`, reset API-nya, dan tukar urutannya (simpan checkpoint **lebih dulu**, tunggu `time.sleep(1)`, baru tulis halamannya). Hentikan saat menunggu, jalankan sampai selesai, lalu jalankan lagi pemeriksaan dari langkah 2.
 >
 > **Seharusnya Anda melihat:** di langkah 1 lebih banyak baris daripada yang tersirat dari checkpoint (halaman yang sedang diproses sudah ditulis tetapi belum di-checkpoint); `25 25` di langkah 2; di langkah 3 kurang dari 25 baris, dan id yang hilang membentuk satu halaman berisi lima. Halaman itu hilang selamanya, dan itulah sebabnya checkpoint disimpan paling akhir.
 >
@@ -371,7 +372,7 @@ Kebiasaan landing yang baik:
 - **Partisi menurut tanggal ingestion** (`dt=2026-02-01/`), agar data satu hari mudah ditemukan, diproses ulang, atau dihapus (lab menulis persis path itu).
 - Jaga file pada **ukuran yang wajar**: bukan satu file mungil per permintaan (masalah file kecil, Modul 3.0 dan 2.6), bukan satu file raksasa.
 
-**Meratakan JSON bersarang.** API mengembalikan objek dan array bersarang, tetapi tabel itu datar. Objek bersarang menjadi kolom (`customer.address.city` menjadi `customer_address_city`); sebuah **array** butuh keputusan. Menyimpannya sebagai string JSON dalam satu kolom adalah default aman untuk landing (`flatten_record` di lab), dan langkah berikutnya meledakkannya menjadi **tabel anak** dengan satu baris per elemen dan id induknya (`items` sebuah pesanan menjadi tabel `order_items`, grain dari Modul 1.4).
+**Meratakan JSON bersarang.** API mengembalikan objek dan array bersarang, tetapi tabel itu datar. Objek bersarang menjadi kolom (`customer.address.city` menjadi `customer_address_city`); sebuah **array** butuh keputusan. Menyimpannya sebagai string JSON dalam satu kolom adalah default aman untuk landing (`flatten_record` di lab), dan langkah berikutnya memecahnya (explode) menjadi **tabel anak** dengan satu baris per elemen dan id induknya (`items` sebuah pesanan menjadi tabel `order_items`, grain dari Modul 1.4).
 
 **Schema drift.** Bentuk API akan berubah: field baru muncul, field menghilang, angka tiba sebagai teks `"Rp 6.000"`. Memuatnya diam-diam itu berbahaya. `detect_schema_drift` di lab membandingkan record yang masuk dengan skema yang Anda harapkan dan melaporkan **kolom baru**, **kolom hilang**, dan **perubahan tipe** (dengan setiap tipe yang terlihat). Lalu tentukan kebijakan: **gagalkan** pemuatan (ketat, aman untuk data keuangan), **karantina** record yang janggal dan lanjutkan, atau **evolusikan** skema otomatis (nyaman, berisiko). Tuliskan kebijakan itu sebagai data contract dengan penyedia atau konsumen Anda (Modul 2.5), dan beri alert saat drift terdeteksi.
 
@@ -385,13 +386,13 @@ Kebiasaan landing yang baik:
 > Ketika tes PASSED, lanjut ke Pelajaran 6 untuk merangkai pipeline ingestion inkremental penuh!
 
 > 🛠 **Coba sendiri (10 menit, praktik langsung).** Dengan API latihan menyala, ambil satu pesanan yang datanya bersarang: `curl -H "Authorization: Bearer learner-token" localhost:8765/orders/1`.
-> 1. Tulis `flatten(record)` di `flat.py`: objek bersarang menjadi kolom yang dinamai menurut jalurnya (`customer_address_city`), list disimpan sebagai teks JSON. Kode Anda harus lulus pemeriksaan ini (`order1` adalah JSON dari `/orders/1` yang sudah di-parse):
+> 1. Tulis `flatten(record)` di `flat.py`: objek bersarang menjadi kolom yang dinamai menurut jalurnya (`customer_address_city`), list disimpan sebagai teks JSON (boleh memakai `json.dumps(value)` maupun `json.dumps(value, sort_keys=True)`). Kode Anda harus lulus pemeriksaan ini (`order1` adalah JSON dari `/orders/1` yang sudah di-parse):
 >    `flat = flatten(order1)`
 >    `assert flat["customer_address_city"] == "Jakarta"`
 >    `assert flat["customer_id"] == 7`
->    `assert flat["items"] == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]'`
+>    `assert isinstance(flat["items"], str) and json.loads(flat["items"]) == [{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]`
 >    `assert "customer" not in flat`
-> 2. Buat salinan `flat` yang `total_idr`-nya berupa teks `"Rp 1.000"`. Di `flat.py`, tulis juga `type_changes(old, new)`: ia mengembalikan list berisi satu teks, misalnya `total_idr: int -> str`, untuk setiap field yang ada di kedua record dan tipenya berubah (list kosong jika tidak ada yang berubah). Cetak hasilnya untuk `flat` dan salinan Anda.
+> 2. Buat salinan `flat` yang `total_idr`-nya berupa teks `"Rp 1.000"`. Di `flat.py`, tulis juga `type_changes(old, new)`: ia mengembalikan list berisi satu teks, misalnya `total_idr: int -> str`, untuk setiap field yang ada di kedua record dan tipenya berubah (list kosong jika tidak ada yang berubah). Bungkus kode fetch, assertion, dan `print(...)` Anda di dalam `if __name__ == "__main__":` agar `check.py 1.6-5` dapat melakukan `import flat` dengan bersih tanpa mengenai API latihan yang sedang berhenti.
 >
 > **Seharusnya Anda melihat:** tidak ada assertion error, dan untuk langkah 2 `['total_idr: int -> str']`. Itulah schema drift, ditemukan dalam empat baris kode.
 >
@@ -400,7 +401,7 @@ Kebiasaan landing yang baik:
 :::drill python Apa yang berubah pada bentuknya?
 Schema drift: sumber mengubah bentuk datanya tanpa memberi tahu. Tulis `detect_drift(expected, record)`: `expected` memetakan nama field ke tipe yang diharapkan (misalnya `{"id": int, "city": str}`); `record` adalah satu dictionary masuk. Kembalikan dictionary dengan tiga daftar terurut: `"new"` (field ada di record tetapi tak diharapkan), `"missing"` (field diharapkan tetapi tak ada di record), dan `"type_changed"` (field di keduanya yang nilainya bukan bertipe yang diharapkan).
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("detect_drift") ## Definisikan detect_drift(expected, record).
@@ -418,18 +419,18 @@ def detect_drift(expected, record):
     return {"new": new, "missing": missing, "type_changed": changed}
 :::
 
-:::ask Mengapa menambahkan kolom `_run_id`, `_source`, dan `_ingested_at` pada setiap rekaman yang didaratkan?
+:::ask Mengapa menambahkan kolom `_run_id`, `_source`, dan `_ingested_at` pada setiap record yang didaratkan?
 @options
 kolom itu membuat file lebih kecil di disk
 * kolom itu menunjukkan run mana yang membawa angka salah
 kolom itu diwajibkan oleh format Parquet
 @why
-Metadata pada tiap rekaman mengubah 'angka ini salah' menjadi 'run 482 dari API pembayaran pukul 02.10 yang menghasilkannya', sehingga kamu bisa menemukan dan memperbaiki run itu, bukan menebak.
+Metadata pada tiap record mengubah 'angka ini salah' menjadi 'run 482 dari API pembayaran pukul 02.10 yang menghasilkannya', sehingga Anda bisa menemukan dan memperbaiki run itu, bukan menebak.
 :::
 
 ## @lesson File, database, dan menjalankannya sungguhan
 > **Intinya:** File: tunggu sampai lengkap dan catat nama serta checksum-nya. Database: baca dari replika dan pakai kolom inkremental. Jalankan dengan hitungan, rekonsiliasi, dan backfill yang disengaja.
-**File.** Mitra menjatuhkan file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau ("file pukul 06:00 belum datang").
+**File.** Mitra mengunggah file, dan file penuh kejutan: encoding (selalu sebut UTF-8 secara eksplisit, Modul 0.0), pemisah baris di dalam kutipan, header yang berubah, **file terlambat atau hilang**, dan file yang sama dikirim dua kali. Praktiknya: tunggu sampai file selesai ditulis sepenuhnya (file penanda, atau ukuran yang stabil), catat **nama file dan checksum** dari semua yang dimuat sehingga pengiriman duplikat dikenali, dan jadikan kedatangan sebagai kejadian yang dipantau ("file pukul 06:00 belum datang").
 
 **Database.** Pilihannya **salinan tabel penuh** (sederhana, berat bagi sumber), **salinan inkremental menurut timestamp atau id yang naik** (logika checkpoint yang sama seperti di atas; ia melewatkan penghapusan dan mengandalkan `updated_at` yang tepercaya), dan **change data capture** dari log (Modul 3.2). Apa pun pilihan Anda, baca dari **replika** bila mungkin dan hindari query panjang pada primary produksi (Modul 1.3). Hormati batas tim aplikasi seperti Anda menghormati batas API.
 
@@ -452,26 +453,27 @@ Kini Anda bisa menjawab: "Bagaimana Anda meng-ingest dari API berhalaman secara 
 >    - Deduplikasi per id (ambil versi dengan `updated_at` tertinggi).
 >    - Tulis data mentah ke `landing_dir/dt=<today>/orders_<run_id>.jsonl` dengan metadata audit (`_run_id`, `_source`, `_ingested_at`) secara atomik.
 >    - Perbarui checkpoint HANYA SETELAH file data berhasil mendarat.
-> 2. Jalankan seluruh rangkaian pengujian di terminal:
+> 2. Jalankan seluruh rangkaian pengujian dan buat kode bukti lab di terminal:
 > `pytest labs/mod-1-6/test_lab.py -v`
-> Ketika semua 37 tes berstatus PASSED, pipeline data ingestion Anda telah memenuhi standar industri data engineering!
+> `python3 scripts/prove.py mod-1-6`
+> Ketika semua 37 tes berstatus PASSED, pipeline data ingestion Anda siap produksi, tempelkan kode bukti ke kotak **Bukti** pada tab Lab!
 
 > 🛠 **Coba sendiri (10 menit, praktik langsung).** Buat file KopiKu (`python3 labs/shared/shopgen.py --out data`) dan perlakukan `data/orders.csv` sebagai kiriman dari mitra. Tulis ketiga langkah dalam satu skrip, `load_orders.py`.
 > 1. Dengan modul `csv`, hitung jumlah baris dan jumlah nilai `order_id` yang unik. Bandingkan dengan `orders_rows`, `orders_distinct`, dan `orders_duplicate_rows` di `data/manifest.json`.
-> 2. Muat file ke tabel SQLite yang primary key-nya `order_id` (pakai `INSERT OR REPLACE`), lalu cetak jumlah barisnya.
+> 2. Muat file ke tabel SQLite yang primary key-nya `order_id` (pakai `INSERT OR REPLACE`, perintah upsert SQLite yang menimpa baris lama jika primary key sudah ada), lalu cetak jumlah barisnya.
 > 3. Jalankan pemuatan untuk kedua kalinya di skrip yang sama, lalu cetak lagi jumlah barisnya.
 >
 > **Seharusnya Anda melihat:** `3634 3599` di langkah 1 (35 baris duplikat, sesuai manifest), lalu `3599` dan `3599` di langkah 2 dan 3. Bandingkan juga dengan `wc -l data/orders.csv`: hasilnya 3635, karena ada baris header. Menghitung baris di setiap perpindahan adalah cara termurah untuk membuktikan tidak ada yang hilang.
 >
 > **Periksa:** `python3 labs/tryit/check.py 1.6-6 ~/practice` (skrip Anda membaca `data/orders.csv` relatif terhadap folder tempat ia dijalankan).
 
-:::ask Sebuah job ingestion selesai 'sukses' tiap malam tetapi mengambil nol rekaman selama tiga malam. Apa yang seharusnya menangkap ini?
+:::ask Sebuah job ingestion selesai 'sukses' tiap malam tetapi mengambil nol record selama tiga malam. Apa yang seharusnya menangkap ini?
 @options
 timeout yang lebih panjang pada setiap permintaan
 menjalankan job dua kali tiap malam
 * alert pada volume dan kesegaran, bukan hanya pada error
 @why
-Sebuah job bisa sukses namun tidak menghasilkan apa-apa. Alert pada jumlah rekaman dan umur data terbaru menangkap kegagalan sumber yang diam, yang tidak pernah terlihat oleh exit code.
+Sebuah job bisa sukses namun tidak menghasilkan apa-apa. Alert pada jumlah record dan usia data terbaru menangkap kegagalan sumber yang diam, yang tidak pernah terlihat oleh exit code.
 :::
 
 ## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif {optional}
@@ -523,10 +525,10 @@ load_info = pipeline.run(kopiku_orders_source())
 > **Periksa:** `python3 labs/tryit/check.py 1.6-7 ~/practice`
 
 :::drill python Apakah webhook ini asli?
-Sebuah layanan mendorong event ke webhook-mu dan menandatangani tiap body: tanda tangannya adalah HMAC-SHA256 dari body, berkunci rahasia bersama, dalam heksa. Tulis `verify_signature(body, secret, signature)`: ketiganya string. Kembalikan `True` hanya jika tanda tangan cocok. Bandingkan dengan `hmac.compare_digest`, yang aman dari serangan timing.
+Sebuah layanan mendorong event ke webhook Anda dan menandatangani tiap body: tanda tangannya adalah HMAC-SHA256 dari body, berkunci rahasia bersama, dalam heksa. Tulis `verify_signature(body, secret, signature)`: ketiganya string. Kembalikan `True` hanya jika tanda tangan cocok. Bandingkan dengan `hmac.compare_digest`, yang aman dari serangan timing.
 @starter
 import hmac
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("verify_signature") ## Definisikan verify_signature(body, secret, signature).
@@ -535,7 +537,7 @@ verify_signature("x", "s", "0" * 64) == False ## Tanda tangan yang salah ditolak
 verify_signature("x!", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## Body diubah: ditolak.
 verify_signature("x", "other", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## Rahasia yang salah: ditolak.
 @hint
-`expected = hmac.new(secret.encode(), body.encode(), "sha256").hexdigest()`, lalu `hmac.compare_digest(expected, signature)`.
+Ubah `secret` dan `body` menjadi byte UTF-8 dengan `.encode()`, hitung digest heksa HMAC SHA-256 memakai `hmac.new(..., "sha256").hexdigest()`, lalu bandingkan dengan `signature` memakai `hmac.compare_digest`.
 @solution
 import hmac
 def verify_signature(body, secret, signature):
@@ -554,7 +556,7 @@ Bab 7 *Fundamentals of Data Engineering* mendaftar cara-cara data sampai ke sebu
 
 **3. EDI: dokumen bisnis antarperusahaan.** **Electronic Data Interchange** adalah cara perusahaan besar bertukar purchase order, invoice, dan pemberitahuan pengiriman jauh sebelum ada API. File EDI adalah teks yang terdiri dari **segmen** yang diakhiri `~`, dengan **elemen** yang dipisahkan `*`. Dalam standar AS ANSI X12, purchase order adalah transaction set **850**: `BEG` memuat nomor dan tanggal pesanan, setiap `PO1` adalah satu baris (jumlah, satuan, harga, kode produk), `CTT` menyatakan berapa barisnya, dan `SE` menyatakan berapa segmen dokumen itu. Kedua hitungan itu adalah checksum milik file itu sendiri: parser yang tidak membandingkannya akan memuat pesanan yang terpotong tanpa sadar. (Eropa dan sebagian besar Asia memakai UN/EDIFACT, dengan nama segmen yang berbeda dan gagasan yang sama.)
 
-**4. Data sharing.** Alih-alih menyalin data ke mitra, beberapa platform membiarkan penyedia **membagikan** tabel yang hidup: konsumen meng-query-nya di akunnya sendiri, penyedia membayar penyimpanan dan konsumen membayar komputasi, dan tidak ada yang diekspor. Snowflake Secure Data Sharing, Delta Sharing (Databricks, protokol terbuka), dan Analytics Hub milik BigQuery bekerja dengan cara ini. Ini menghilangkan file drop sepenuhnya, tetapi hanya berhasil jika kedua pihak memakai platform yang mendukungnya.
+**4. Data sharing.** Alih-alih menyalin data ke mitra, beberapa platform membiarkan penyedia **membagikan** tabel aktif (live table): konsumen meng-query-nya di akunnya sendiri, penyedia membayar penyimpanan dan konsumen membayar komputasi, dan tidak ada yang diekspor. Snowflake Secure Data Sharing, Delta Sharing (Databricks, protokol terbuka), dan Analytics Hub milik BigQuery bekerja dengan cara ini. Ini menghilangkan file drop sepenuhnya, tetapi hanya berhasil jika kedua pihak memakai platform yang mendukungnya.
 
 > 🛠 **Coba sendiri (20 menit, Python).** Tulis `parse_850(path)` yang membaca `labs/shared/edi/po_850.edi`, memecahnya menjadi segmen dan elemen, lalu mengembalikan nomor dan tanggal pesanan (dari `BEG`), baris-barisnya (dari setiap `PO1`: nomor baris, jumlah, satuan, harga satuan, kode produk, total baris), dan total pesanan. Lalu buat ia memeriksa file terhadap dirinya sendiri: angka di `CTT` harus sama dengan jumlah baris `PO1`, dan angka di `SE` harus sama dengan jumlah segmen dari `ST` sampai `SE`, keduanya ikut dihitung. Jalankan pada `po_850.edi` dan pada `po_850_broken.edi`.
 >
@@ -562,7 +564,7 @@ Bab 7 *Fundamentals of Data Engineering* mendaftar cara-cara data sampai ke sebu
 
 :::ask Dalam file EDI, `PO*1001*20260105~` adalah satu segmen. Apa fungsi `*` dan `~`?
 @options
-* `*` memisahkan elemen di dalam segmen; `~` mengakhiri segmen
+* `*` memisahkan elemen; `~` mengakhiri segmen
 `*` mengakhiri segmen; `~` memisahkan elemen-elemennya
 keduanya komentar yang diabaikan pembaca
 @why
@@ -581,7 +583,7 @@ Gagasan yang sama dalam kode adalah rantai fungsi. Versi kode itulah yang sudah 
 :::drill python Sebuah alur dalam beberapa baris
 Tulis `run_flow(processors, records)`: `processors` adalah list fungsi, `records` list nilai. Setiap record melewati processor secara berurutan. Sebuah processor bisa mengembalikan record baru; mengembalikan `None` untuk **menyaring** record itu diam-diam; atau **melempar error**, yang mengirim record itu ke daftar gagal. Kembalikan `(done, failed)`: record yang lolos semua processor (menurut urutan masukan), dan record yang melempar error (sebagaimana keadaannya saat error terjadi, menurut urutan masukan).
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("run_flow") ## Definisikan run_flow(processors, records).
@@ -590,7 +592,7 @@ run_flow([lambda r: r if r > 1 else None], [1, 2, 3]) == ([2, 3], []) ## None me
 run_flow([lambda r: 10 // r], [1, 0, 5]) == ([10, 2], [0]) ## 10 // 0 melempar error: record itu masuk daftar gagal.
 run_flow([], [1, 2]) == ([1, 2], []) ## Tanpa processor: semuanya lolos.
 @hint
-Ulangi record-recordnya. Di dalamnya, `try:` ulangi processor-processornya; jika ada yang mengembalikan `None`, berhenti dengan record itu; `except Exception:` tambahkan nilai saat ini ke `failed`. Pakai bendera untuk tahu apakah record selesai.
+Ulangi record-recordnya. Di dalamnya, `try:` ulangi processor-processornya; jika ada yang mengembalikan `None`, berhenti dengan record itu; `except Exception:` tambahkan nilai saat ini ke `failed`. Pakai `for ... else` atau flag (variabel penanda) untuk tahu apakah record selesai.
 @solution
 def run_flow(processors, records):
     done, failed = [], []
@@ -617,7 +619,7 @@ def run_flow(processors, records):
 - **Melihat alurnya.** Rekan baru bisa mengikuti panahnya. Banyak alat juga mencatat **data provenance** (dari mana tiap item datang dan apa yang terjadi padanya) dan menerapkan **back pressure** (antrean penuh membuat kotak di hulu menunggu, bukan meluap).
 - **Versi pertama yang cepat** untuk tim dengan sedikit pengalaman pemrograman.
 
-### Di mana alat ini menyakitkan
+### Kelemahan alat-alat ini
 
 - **Review dan pengujian.** Alurnya disimpan sebagai file besar hasil generate, jadi memindah satu kotak bisa tampak seperti perubahan besar, dan pull request sulit dibaca. Menguji satu processor secara terpisah kikuk dibanding memanggil fungsi Python.
 - **Logika yang bukan garis lurus.** Percabangan berat, loop, dan aturan khusus jadi kusut di kanvas dan lebih singkat sebagai kode.
@@ -628,7 +630,7 @@ Kompromi yang lazim: biarkan alat mengerjakan **perpindahan** (mengumpulkan dan 
 :::ask Mengapa perubahan pada alur visual sering sulit di-review dalam pull request?
 @options
 alat visual tidak pernah menyimpan riwayat perubahannya
-* alurnya disimpan sebagai file besar hasil generate, jadi perubahan kecil bisa tampak besar
+* file hasil generate besar, jadi diff sulit dibaca
 reviewer tidak diizinkan membuka kanvas sebuah alur
 @why
 Kanvas adalah gambar untuk manusia, tetapi Git melihat file hasil generate di baliknya. Memindah satu kotak bisa menulis ulang banyak baris, sehingga reviewer tak bisa tahu apa yang sebenarnya berubah. Itulah mengapa banyak tim menyimpan logika yang teruji di kode dan membiarkan alat visual hanya memindahkan data.
@@ -636,25 +638,28 @@ Kanvas adalah gambar untuk manusia, tetapi Git melihat file hasil generate di ba
 
 :::ask Sebuah tim harus mengumpulkan file dari sepuluh mitra berbeda (FTP, email, dan API) dan menaruhnya di satu folder, tanpa hitungan rumit. Pilihan mana yang paling masuk akal?
 @options
-alat alur visual, karena konektor siap pakainya tepat mengerjakan tugas ini
+* alat alur visual dengan konektor siap pakai
 klaster streaming, karena setiap pipeline harus real-time
-* tulis sepuluh program khusus terpisah, karena kode selalu lebih baik
+tulis sepuluh program khusus terpisah, karena kode selalu lebih baik
 @why
 Mengumpulkan dan mengantar file adalah perpindahan, bukan logika, dan di situlah alat visual dengan banyak konektor menghemat waktu. Sepuluh program tulis tangan mengulang pekerjaan yang sama, dan klaster streaming jauh lebih dari yang dibutuhkan tugas ini.
 :::
 
 > 🛠 **Coba sendiri (15 menit, kertas).** Gambar job malam KopiKu sebagai kotak dan panah: baca `orders.csv`, buang baris dengan `total_idr` yang buruk, tambahkan kota pelanggan dari `customers.csv`, tulis ke tabel. Pada tiap kotak tuliskan panah mana untuk sukses dan mana untuk gagal, dan ke mana kegagalan pergi. Lalu tandai kotak mana yang lebih Anda sukai ditulis sebagai kode yang teruji.
 >
-> **Yang harus Anda lihat:** empat kotak berderet dengan panah kedua keluar dari kotak yang membuang baris, menunjuk ke tempat "baris ditolak" yang dibaca seseorang (Modul 2.5). Kotak yang menambah kota adalah perpindahan data; aturan yang menentukan apa itu total yang buruk milik kode yang teruji. Jika kegagalan menghilang begitu saja, tambahkan tempatnya: pipeline tanpa panah kegagalan kehilangan data secara diam-diam.
+> **Seharusnya Anda melihat:** empat kotak berderet dengan panah kedua keluar dari kotak yang membuang baris, menunjuk ke tempat "baris ditolak" yang dibaca seseorang (Modul 2.5). Kotak yang menambah kota adalah perpindahan data; aturan yang menentukan apa itu total yang buruk milik kode yang teruji. Jika kegagalan menghilang begitu saja, tambahkan tempatnya: pipeline tanpa panah kegagalan kehilangan data secara diam-diam.
 
 ## @lab Lab: ingest dari API yang tidak stabil, dengan aman
 Bangun inti job ingestion terhadap **API HTTP palsu yang berjalan di komputer Anda sendiri** (dijalankan oleh tes; tidak perlu internet atau akun): pembuatan request dan autentikasi, retry dengan exponential backoff dan `Retry-After`, pagination cursor dan offset, checkpoint atomik, perataan, deteksi schema drift, dan pemuatan inkremental yang idempoten yang mendaratkan JSON Lines. Tesnya (37) memeriksa setiap perilaku, termasuk crash simulasi antara penulisan file dan penyimpanan checkpoint.
 
 ### @steps
+> **Sudah menyelesaikan Jeda Praktik 1–5?** Anda sudah mengimplementasikan `labs/mod-1-6/ingest_lab.py`! Langsung loncat ke eksperimen urutan crash di Langkah 6 dan Langkah 7 (`python3 scripts/prove.py mod-1-6`).
+
 1. Baca `labs/mod-1-6/ingest_lab.py` lalu 70 baris pertama `test_lab.py` untuk melihat API palsunya (ia Python biasa: server HTTP kecil dalam sebuah thread). `ApiError` sudah disediakan.
-2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP fungsi:
+2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP fungsi (pasang `pytest` sekali dengan `pip install -r labs/mod-1-6/requirements.txt` bila belum terpasang):
 
 ```bash
+pip install -r labs/mod-1-6/requirements.txt   # sekali saja, untuk memasang pytest
 pytest labs/mod-1-6/test_lab.py -v
 pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # satu kelompok pada satu waktu
 ```
@@ -663,7 +668,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # satu kelomp
 4. **Pagination.** Implementasikan loop cursor lebih dulu, lalu loop offset. Jalankan `fetch_all_offset` terhadap data yang ukurannya kelipatan pas dari ukuran halaman dan hitung permintaannya.
 5. **Checkpoint, flatten, drift.** Ini kecil dan murni. Untuk `Checkpoint.save`, jelaskan dalam satu kalimat apa yang bisa salah jika Anda menulis file langsung.
 6. **Pemuatan inkremental.** Tulis paling akhir. Sebelum menjalankan `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, jelaskan mengapa urutan langkah Anda membuatnya lulus. Lalu tukar langkah 5 dan 6 dengan sengaja dan lihat tes mana yang gagal.
-7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-6` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
+7. **Buktikan hasil kerja Anda.** Setelah semua 37 tes lulus di terminal Anda, jalankan `python3 scripts/prove.py mod-1-6` untuk membuat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 ### @files
 - labs/mod-1-6/ingest_lab.py :: File kerja Anda: implementasikan fungsi TODO dan class Checkpoint :: starter
@@ -718,7 +723,7 @@ Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Atur
 
 > `Retry-After` menyatakan berapa lama harus menunggu. Menghantam server memperburuk masalah dan bisa membuat klien diblokir.
 
-### Error HTTP mana di bawah ini yang TIDAK boleh diulang oleh klien?
+### Kegagalan mana di bawah ini yang TIDAK boleh diulang oleh klien?
 - [ ] 503 Service Unavailable, karena server kelebihan beban dan mungkin bisa menjawab sebentar lagi
 - [ ] 500 Internal Server Error, karena gangguan sementara di server sering hilang pada percobaan berikutnya
 - [ ] Timeout koneksi, karena jaringan atau server bisa saja sebentar tidak tersedia
@@ -728,7 +733,7 @@ Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Atur
 
 ### Mengapa exponential backoff menunggu 1, 2, 4, 8 detik, bukan satu detik tetap setiap kali?
 - [ ] Waktu tunggu yang berlipat memakai lebih sedikit memori di program klien daripada yang sama panjang setiap kali
-- [x] Server yang kewalahan punya waktu untuk pulih, dan banyak klien tidak mengulang bersamaan
+- [x] Server yang kewalahan punya waktu untuk pulih, dan backoff dengan jitter mencegah klien bertabrakan
 - [ ] Standar HTTP mewajibkan waktu tunggu berupa pangkat dua, dan server menolak waktu tunggu yang lain
 - [ ] Ia menjamin permintaan berhasil pada percobaan keempat, sehingga tidak butuh retry lagi
 
@@ -740,7 +745,7 @@ Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Atur
 - [ ] Server menutup koneksi, karena klien tidak boleh membaca feed saat baris sedang ditambahkan
 - [ ] Halaman berikutnya kosong, karena record baru membuat offset sebelumnya tidak valid bagi semua klien
 
-> Penyisipan menggeser offset berikutnya. Pada contoh lab 25 pesanan terambil sebagai 28 baris. Pagination cursor (keyset) menghindarinya.
+> Penyisipan menggeser offset berikutnya. Pada contoh Pelajaran 3, 25 pesanan asli terambil sebagai 28 baris (dengan 3 duplikat). Pagination cursor (keyset) menghindarinya.
 
 ### Apa urutan yang benar untuk satu putaran inkremental?
 - [ ] Simpan checkpoint baru, lalu ambil data, lalu tulis, agar putaran berikutnya mulai secepat mungkin

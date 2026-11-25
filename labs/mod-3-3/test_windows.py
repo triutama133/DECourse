@@ -22,7 +22,7 @@ class TestWindowStarts:
 
     def test_sliding_windows_overlap(self):
         starts = m.window_starts(at(7), 300, 60)
-        assert starts == [at(3, 0) + 60, at(4), at(5), at(6), at(7)] or len(starts) == 5
+        assert starts == [at(3), at(4), at(5), at(6), at(7)]
         assert len(starts) == 5 and all(s <= at(7) < s + 300 for s in starts) and starts == sorted(starts)
 
     def test_every_event_is_in_size_over_slide_windows(self):

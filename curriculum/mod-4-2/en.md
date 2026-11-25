@@ -16,7 +16,7 @@ why: In production data engineering, data rarely arrives in tidy monthly CSV fil
 Modules 0.1 (terminal and virtual environment), 1.2 (idempotency, retries, and atomic operations), 1.6 (API ingestion, pagination, and watermarks), and 2.1 (DuckDB and Parquet). You need Python 3.10+, about 1 GB of free disk space, and DuckDB installed.
 
 ## @lesson How this capstone works
-> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (exponential backoff, retries & idempotency), **Module 1.6** (cursor/offset API pagination & atomic checkpoints), and **Module 2.1** (DuckDB table storage & CDC upserts). Each lesson aligns 1-to-1 with `check.py --step 1` through `--step 5`.
+> **Prior Modules Synthesized:** This capstone pulls together **Module 0.1** (terminal & venv), **Module 1.2** (exponential backoff, retries & idempotency), **Module 1.6** (cursor/offset API pagination & atomic checkpoints), and **Module 2.1** (DuckDB table storage & CDC upserts). Lessons 2–6 align 1-to-1 with `check.py --step 1` through `--step 5`.
 
 Every lab earlier in the course gave you predefined function signatures, unit test files, and guided scaffolding. A capstone is intentionally different: **you receive a technical contract, real public data, and an automated verification suite that attacks your pipeline.**
 
@@ -45,7 +45,7 @@ The rules of engagement:
 
 Setup your workspace:
 ```bash
-cd ~/projects/DECourse          # run the setup from the course folder: the labs/ paths below live there
+cd ~/projects/DECourse          # example path (or wherever you cloned the course): the labs/ paths below live there
 mkdir -p ~/seismic
 python3 -m venv ~/seismic/venv && source ~/seismic/venv/bin/activate
 pip install -r labs/mod-4-2/requirements.txt
@@ -61,7 +61,7 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 @options
 whether your code looks tidy to a reviewer
 how many lines your pipeline has
-* observable behaviour: schema, resuming, no duplicates
+* observable outcomes, not code style
 @why
 Nobody grades style. The suite checks outcomes: the exact DuckDB schema, a clean resume after the server cuts the connection mid-sync, rate-limit handling, and reconciled counts.
 :::
@@ -81,11 +81,11 @@ GeoJSON Feature Collection
     ├── properties:
     │   ├── mag: 7.5                <-- Magnitude (Double, nullable)
     │   ├── place: "2024 Noto..."   <-- Text description
-    │   ├── time: 1704067395140     <-- Event epoch ms (UTC)
-    │   ├── updated: 1708819584040  <-- Revision epoch ms (UTC)
+    │   ├── time: 1704093009476     <-- Event epoch ms (UTC)
+    │   ├── updated: 1791612789213  <-- Revision epoch ms (UTC)
     │   ├── status: "reviewed"      <-- "automatic" vs "reviewed"
     │   ├── tsunami: 1              <-- 1 if tsunami warning issued, 0 otherwise
-    │   ├── sig: 2470               <-- Significance rating
+    │   ├── sig: 2376               <-- Significance rating
     │   └── type: "earthquake"
     └── geometry:
         ├── type: "Point"
@@ -98,7 +98,7 @@ GeoJSON Feature Collection
    - `coordinates[1]` is **Latitude** (valid range: -90.0 to 90.0)
    - `coordinates[2]` is **Depth in kilometers**
    If you accidentally map `lat = coords[0]`, any earthquake with longitude beyond +/-90 degrees (such as Japan or Indonesia, roughly 95 to 145 degrees East) will crash your coordinate bounds validation!
-2. **SCD Type 1 & Revision Timestamps (`updated`):** Seismological data evolves over time. When a tremor occurs, automated seismographs generate a preliminary event (`status: "automatic"`). Hours or days later, geophysicists recalculate the epicenter, refine the magnitude, and promote the record to `status: "reviewed"` with an updated timestamp (`updated > time`). A pipeline whose watermark follows only the event `time` never sees these revisions. **Track the watermark on `updated`** (the time of the last change) and ask the API for what changed with `updatedafter`; upsert by event id.
+2. **SCD Type 1 (overwrite in place with the latest version, Module 1.4) & Revision Timestamps (`updated`):** Seismological data evolves over time. When a tremor occurs, automated seismographs generate a preliminary event (`status: "automatic"`). Hours or days later, geophysicists recalculate the epicenter, refine the magnitude, and promote the record to `status: "reviewed"` with an updated timestamp (`updated > time`). A pipeline whose watermark follows only the event `time` never sees these revisions. **Track the watermark on `updated`** (the time of the last change) and ask the API for what changed with `updatedafter`; upsert by event id.
 3. **Nullable and Negative Measures:** Micro-earthquakes or quarry blasts can have null or negative magnitudes (logarithmic Richter scale allows values below 0). Depths can be 0 or negative (mountainous quakes above sea level). Your schema must accommodate nullable floats without crashing.
 4. **Pagination Strategies (Offset vs Watermark Keysets):** REST APIs commonly offer offset pagination (`limit` and `offset`). While intuitive, pure offset pagination suffers from O(N) scanning on deep offsets and drifts if records are inserted concurrently. In modern data architecture, we pair a high-watermark on the `updated` time (the `updatedafter` filter) with small page offsets inside one sync session, keeping extraction queries fast and idempotent. The filter stays constant while the offset moves.
 5. **Preserving Data Dictionaries:** Scientific APIs carry domain-specific codes such as `magType` (`ml` local Richter, `mw` moment magnitude, `md` duration). Never discard these attributes during extraction; analysts rely on magnitude types to determine physical sensor calibration accuracy.
@@ -131,13 +131,13 @@ def to_event(feature):
 ## @lesson Baseline ingestion contract: pagination, coordinates & DuckDB storage
 Before adding retries or dead-letter routing, get the **core ingestion contract** right cleanly from API page to analytical table:
 
-1. **Paginate with `limit` and 1-based `offset`:** Loop page by page (`offset = 1`, advancing by page length) until the returned `features` list is empty.
+1. **Paginate with `limit` and 1-based `offset`:** Loop page by page (`offset = 1`, advancing by page length) until the returned `features` list is empty or shorter than `limit` (`len(features) < limit`, which saves one trailing empty request).
 2. **Enforce coordinate ordering:** Always map `longitude = coords[0]`, `latitude = coords[1]`, and `depth_km = coords[2]`, converting timestamps to UTC consistently.
 3. **Create the target DuckDB `events` table idempotently:** Use `event_id` as the primary key and store `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, and `status`, updating existing rows cleanly if an event is revised rather than appending duplicates.
 
 > 💡 **Practice Pause 2 (Step 2: Baseline Ingestion Contract & DuckDB Storage):**
 > 1. Open `pipeline.py` in your workspace (`~/seismic/pipeline.py`) using your text editor.
-> 2. Implement the CLI subcommand `pipeline.py ingest` with pagination (`limit` and `offset`), exact coordinate parsing (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), creation of table `events` in DuckDB, and initial `state.json` write.
+> 2. Implement the CLI subcommand `pipeline.py ingest` with flags `--api-url`, `--output-dir`, `--state-file`, and `--batch-size`, pagination (`limit` and `offset`), exact coordinate parsing (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), creation of table `events` in `<output-dir>/warehouse.duckdb`, and initial `state.json` write (see Lab Step 2 for full column details).
 > 3. Run the step 2 check in terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
 > 4. **Success Indicator:** All step 2 checks report `PASS`, validating DuckDB schema, geographic coordinate bounds, and API pagination.
@@ -158,7 +158,7 @@ An incremental pipeline is defined by its ability to ingest **only what is new s
 State Checkpoint (state.json):
 {
   "high_watermark_epoch_ms": 1704367849415,       <-- the largest properties.updated you have COMMITTED
-  "high_watermark_iso": "2024-01-04T11:30:49Z",
+  "high_watermark_iso": "2024-01-04T11:30:49Z",   <-- send as updatedafter (ISO-8601 UTC, not raw epoch ms)
   "last_sync_utc": "2024-01-08T00:00:00Z",
   "total_records_ingested": 450,
   "total_dlq_records": 5
@@ -182,7 +182,7 @@ Or the inverse:
 2. **Update checkpoint state in memory only after database commit succeeds.**
 3. **Write `state.json` via atomic rename:**
    ```python
-   tmp_file = state_path.with_suffix(".tmp")
+   tmp_file = state_path.with_name(state_path.name + ".tmp")  # state.json.tmp
    tmp_file.write_text(json.dumps(state_data))
    os.replace(tmp_file, state_path)  # Atomic on POSIX filesystems
    ```
@@ -192,15 +192,15 @@ Or the inverse:
 :::ask Your ingestion run fetches 500 records, writes them, and only then moves the checkpoint. It crashes right after writing. What happens on the next run?
 @options
 the 500 records are lost for good
-it refuses to start until you reset it
-* it refetches them and the idempotent load absorbs it
+it refuses to start until you reset state.json
+* it refetches them safely via idempotent load
 @why
 A checkpoint may only describe data that is safely stored. Crashing between the write and the checkpoint costs a repeated fetch, which a deduplicating load makes harmless.
 :::
 
 > 💡 **Practice Pause 3 (Step 3: Stateful Watermarking & Atomic Crash Recovery):**
 > 1. Open `pipeline.py` in your workspace using your text editor.
-> 2. Implement `high_watermark_epoch_ms` tracking on the largest committed `updated` timestamp, query with `updatedafter` on subsequent runs, and protect `state.json` writes via atomic rename (`.tmp` + `os.replace`).
+> 2. Implement `high_watermark_epoch_ms` tracking on the largest committed `updated` timestamp, query with `updatedafter` formatted as an **ISO-8601 UTC string** (e.g., `2024-01-04T13:50:49Z`, NOT raw epoch ms) on subsequent runs, and protect `state.json` writes via atomic rename (`state.json.tmp` + `os.replace`).
 > 3. Run the step 3 check in terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Success Indicator:** All step 3 checks report `PASS`, proving mid-flight socket drops do not advance checkpoints prematurely and subsequent runs produce zero loss and zero duplicates.
@@ -250,10 +250,14 @@ Request ───────> [API Server]
 ### 1. HTTP 429 Too Many Requests & `Retry-After`:
 When an API throttles your client, standard REST APIs return an HTTP 429 response accompanied by a `Retry-After` HTTP response header indicating how many seconds to pause:
 ```python
-if response.status_code == 429:
-    retry_after = response.headers.get("Retry-After")
-    delay = float(retry_after) if retry_after else base_backoff
-    time.sleep(delay)
+try:
+    with urllib.request.urlopen(url, timeout=15) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+except urllib.error.HTTPError as e:
+    if e.code == 429:
+        retry_after = e.headers.get("Retry-After")
+        delay = float(retry_after) if retry_after else base_backoff
+        time.sleep(delay)
 ```
 
 ### 2. Truncated Exponential Backoff with Jitter:
@@ -271,7 +275,7 @@ A common rookie mistake is issuing HTTP requests without an explicit timeout (e.
 
 :::ask The API answers HTTP 429 with a `Retry-After: 30` header. What do you do?
 @options
-* wait 30 seconds or more, then retry, with a cap
+* wait at least 30s, then retry
 retry immediately, as fast as possible
 give up and fail the run at once
 @why
@@ -297,7 +301,7 @@ retry_wait(3, 1, None) == 8 ## 1, 2, 4, 8.
 retry_wait(2, 1, 30) == 30 ## The server asked for 30 seconds: obey it.
 retry_wait(1, 5, None) == 10 ## Another base: 5, 10, 20...
 @hint
-`if retry_after is not None: return retry_after`, otherwise `return base * 2 ** attempt`.
+Check whether `retry_after` was provided first (using `is not None`) and return it directly; otherwise multiply `base` by a power of two based on `attempt`.
 @solution
 def retry_wait(attempt, base, retry_after):
     if retry_after is not None:
@@ -318,7 +322,7 @@ Without jitter, clients that failed together retry together and hit the server i
 In production, upstream schemas mutate and sensor data gets corrupted. If 1 record out of 10,000 contains `latitude = 999.0` or missing event IDs, what should your pipeline do?
 - **Option A (Fail the entire batch):** The pipeline crashes. Business dashboards go stale for 48 hours until an on-call engineer wakes up. (Unacceptable).
 - **Option B (Silently drop the bad record):** Data vanishes with zero paper trail. When auditors ask why revenue or telemetry is missing, nobody knows. (Dangerous).
-- **Option C (Dead-Letter Queue - DLQ):** The pipeline validates every incoming record against an explicit schema contract. Valid records proceed to the warehouse; corrupted records are segregated into a Dead-Letter Queue (`dlq/rejected.jsonl`) accompanied by audit metadata:
+- **Option C (Dead-Letter Queue - DLQ):** The pipeline validates every incoming record against an explicit schema contract: reject any record whose `id` is missing or empty, whose `geometry` is `None`, whose `time < 0`, or whose coordinates fall outside `latitude` `[-90, 90]` or `longitude` `[-180, 180]`. Valid records proceed to the warehouse; corrupted records are segregated into a Dead-Letter Queue (`dlq/rejected.jsonl`) accompanied by audit metadata:
   ```json
   {
     "error_code": "INVALID_COORDINATES",
@@ -335,6 +339,8 @@ Your pipeline provides a `backfill` subcommand:
 ```bash
 python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/state.json --start 2023-12-01 --end 2023-12-31
 ```
+Pass `starttime` and `endtime` query parameters (from `--start` and `--end`) to the API, paginate, route invalid records to the DLQ, and upsert valid records only when the incoming `updated_epoch_ms` is greater than or equal to the existing row's.
+
 **The Cardinal Rule of Backfills:** A backfill must load historical records into the analytical warehouse using the same upsert rules, **BUT IT MUST NEVER MODIFY OR REGRESS THE INCREMENTAL WATERMARK IN `state.json`!** If a December 2023 backfill rewrote `state.json`, your next hourly production run would think the current high-watermark is December 2023 and re-fetch an entire month of data redundantly.
 
 Finally, always implement strict **reconciliation counters**: at the conclusion of every sync session, verify the invariant that `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. If the numbers do not reconcile, a row was silently leaked in memory.
@@ -352,7 +358,7 @@ route({"id": "", "latitude": 10.0, "longitude": 20.0}) == "dlq" ## An empty id.
 route({"latitude": 10.0, "longitude": 20.0}) == "dlq" ## A missing id.
 route({"id": "a", "latitude": -90, "longitude": 180}) == "valid" ## The edges of the range are valid.
 @hint
-Use `record.get("id")`. Check `-90 <= record["latitude"] <= 90` and the same for longitude with 180; a record that lacks them is also dlq.
+Use `record.get("id")`, `record.get("latitude")`, and `record.get("longitude")` so missing keys never raise `KeyError`. Reject to `"dlq"` if the id is falsy or either coordinate is `None`, then check the `[-90, 90]` and `[-180, 180]` bounds.
 @solution
 def route(record):
     if not record.get("id"):
@@ -377,7 +383,7 @@ reconciles(100, 97, 3) == True ## Every record is accounted for.
 reconciles(100, 97, 2) == False ## One record leaked.
 reconciles(0, 0, 0) == True ## An empty sync is fine.
 @hint
-`return fetched == valid + dlq`
+Compare the total fetched count against the sum of valid and quarantined (`dlq`) counts and return the resulting boolean.
 @solution
 def reconciles(fetched, valid, dlq):
     return fetched == valid + dlq
@@ -401,7 +407,7 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 3. **Step 2: Baseline ingestion contract.** Implement `pipeline.py ingest` with CLI flags (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Paginate through events (`limit` and a 1-based `offset`), extract coordinates correctly (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), store clean records into `<output-dir>/warehouse.duckdb` in a table `events` with at least the columns `event_id` (primary key), `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude` and `status`, and save `state.json`. Verify with `--step 2`.
 4. **Step 3: Stateful watermarking & crash recovery.** Record the largest committed `updated` timestamp as `high_watermark_epoch_ms`, and on the next run send `updatedafter` (an ISO-8601 UTC time, for example `2024-01-04T11:30:49.415`) so that only new or revised events come back; subtracting one second as overlap is safe because your upsert is idempotent. Use atomic temporary file swap (`.tmp` + `os.replace`) for `state.json`. The checker tests a mid-sync socket disconnection, verifies that the checkpoint is never ahead of the data, locks the warehouse so that a write fails and the checkpoint must not move, and verifies that resuming produces zero duplicates and zero missing rows. Verify with `--step 3`.
 5. **Step 4: Network resilience.** Add retry loop with exponential backoff for transient 5xx errors. Inspect the HTTP 429 `Retry-After` header and pause for at least that long (the checker measures the gap between requests). Exit with code `2`, without retrying, on fatal non-retryable 4xx errors. Verify with `--step 4`.
-6. **Step 5: DLQ, CDC upsert & historical backfill.** Validate coordinates, timestamps, and IDs. Route poisoned records to `<output-dir>/dlq/rejected.jsonl`. Upsert updated records in DuckDB without creating duplicate rows. Implement the `backfill` subcommand (`--api-url --output-dir --state-file --start --end --batch-size`); it receives `--state-file` only so that the checker can prove you never write it, and an older revision of an event must never overwrite a newer one. Verify with `--step 5` and `--step all`.
+6. **Step 5: DLQ, CDC upsert & historical backfill.** Validate coordinates (`latitude` in `[-90, 90]`, `longitude` in `[-180, 180]`), non-null `geometry`, non-negative timestamps (`time >= 0`), and non-empty IDs. Route poisoned records to `<output-dir>/dlq/rejected.jsonl`. Upsert updated records in DuckDB without creating duplicate rows. Implement the `backfill` subcommand (`--api-url --output-dir --state-file --start --end --batch-size`), querying the API with `starttime` and `endtime`; it receives `--state-file` only so that the checker can prove you never write it, and an older revision of an event must never overwrite a newer one. Verify with `--step 5` and `--step all`.
 7. **Proof.** When `--step all` passes, run `python3 scripts/prove.py mod-4-2 ~/seismic` to generate your proof code for the course app.
 
 > 💡 **Practice Pause 5 (Step 5: DLQ Isolation, CDC Upsert, Historical Backfill & Proof Token):**
@@ -423,8 +429,8 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 - You can explain why GeoJSON coordinates order longitude before latitude and how swapping them creates spatial bugs
 - You can explain why the state checkpoint file must be updated atomically only after database writes succeed
 - You can explain how a Dead-Letter Queue enables high-availability ingestion without hiding corrupted data
-- Your `NOTES.md` records your architectural reflections on state isolation between backfills and streaming jobs
-- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
+- Your `NOTES.md` records your architectural reflections on state isolation between backfills and incremental runs
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design ~/seismic/DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash

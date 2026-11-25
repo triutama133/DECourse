@@ -13,7 +13,7 @@ why: Tutorial daring sering mengklaim star schema sudah kuno dan menyuruh Anda m
 - Menguji star schema untuk memastikan grain, integritas referensial, serta rekonsiliasi total angka dengan data sumber
 
 ## @prereq
-Modul 0.3 dan 1.3 (join, jebakan fan-out, window function seperti LEAD, dan CTE rekursif). Lab ini menggunakan SQL murni pada SQLite ditambah script pembantu Python ringan; tidak perlu instalasi rumit.
+Modul 0.3 dan 1.3 (join, jebakan fan-out, window function seperti LEAD, dan CTE rekursif). Lab ini menggunakan SQL murni pada SQLite ditambah skrip pembantu Python ringan; tidak perlu instalasi tambahan untuk `test_lab.py` atau `check.py` (pasang `pytest` lewat `pip install pytest` jika Anda ingin menjalankan `scripts/prove.py`).
 
 ## @part Merancang star schema
 
@@ -23,7 +23,7 @@ Basis data operasional yang menjalankan aplikasi KopiKu dirancang secara **terno
 **Pemodelan dimensional (Dimensional Modeling)**, yang dipopulerkan oleh Ralph Kimball, merancang struktur tabel khusus untuk *menjawab pertanyaan*. Inti dari pendekatan ini adalah memisahkan dua jenis tabel:
 
 - **Tabel Fakta (Fact Tables)** mencatat **peristiwa atau pengukuran numerik**: satu baris pesanan terjual, satu transaksi pembayaran berhasil, satu klik tayangan halaman. Tabel fakta berukuran sangat panjang (jutaan hingga miliaran baris), didominasi angka dan kunci referensi.
-- **Tabel Dimensi (Dimension Tables)** mendeskripsikan **konteks di balik peristiwa tersebut**: siapa (pelanggan), apa (produk), kapan (tanggal), di mana (toko/lokasi). Tabel dimensi berukuran relatif lebih pendek tetapi lebar, penuh kolom teks deskriptif yang dipakai untuk filter, filter pencarian, dan pengelompokan (GROUP BY).
+- **Tabel Dimensi (Dimension Tables)** mendeskripsikan **konteks di balik peristiwa tersebut**: siapa (pelanggan), apa (produk), kapan (tanggal), di mana (toko/lokasi). Tabel dimensi berukuran relatif lebih pendek tetapi lebar, penuh kolom teks deskriptif yang dipakai untuk pemfilteran, pencarian, dan pengelompokan (GROUP BY).
 
 Ketika tabel dimensi diletakkan mengelilingi satu tabel fakta utama, polanya menyerupai bintang, sehingga dinamakan **star schema**:
 
@@ -42,7 +42,7 @@ Perancangan star schema selalu dilakukan melalui empat langkah berurutan. Melewa
 3. **Pilih dimensi.** Segala hal yang mendeskripsikan baris pada tingkat grain tersebut: tanggal, pelanggan, produk.
 4. **Pilih fakta (ukuran numerik / measures).** Angka-angka numerik pada grain tersebut: kuantitas, harga satuan, subtotal item.
 
-> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Jawab "revenue per kota dan tier untuk pesanan delivered" pada tabel KopiKu yang ternormalisasi (revenue = `qty * unit_price_idr`). Hitung berapa tabel yang harus Anda join dan berapa syarat `ON` yang harus benar. Lalu gambar di kertas star schema untuk pertanyaan yang sama: tabel mana yang menyimpan revenue, tabel mana yang menyimpan kota dan tier?
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Jawab "revenue per kota dan tier untuk pesanan delivered" pada tabel KopiKu yang ternormalisasi (revenue = `qty * unit_price_idr`), diurutkan dengan `ORDER BY revenue DESC`. Hitung berapa tabel yang harus Anda join dan berapa syarat `ON` yang harus benar. Lalu gambar di kertas star schema untuk pertanyaan yang sama: tabel mana yang menyimpan revenue, tabel mana yang menyimpan kota dan tier?
 >
 > **Seharusnya Anda melihat:** tiga tabel (`orders`, `customers`, `order_items`) dan dua join, dan baris pertama `Bandung, Gold, 455000` diikuti `Surabaya, Bronze, 365000`. Di sketsa Anda ada satu tabel fakta baris pesanan (revenue-nya) yang menunjuk ke dimensi pelanggan (kota, tier): analis menulis satu join alih-alih mengingat tiga tabel.
 
@@ -68,7 +68,7 @@ ia menyimpan tiap fakta di banyak tabel kecil untuk hemat ruang
 ia menghilangkan kebutuhan menulis JOIN sama sekali
 * satu tabel fakta dengan beberapa dimensi kecil
 @why
-Sebuah pertanyaan menjadi satu tabel fakta plus beberapa dimensi, dengan definisi yang sama bagi setiap analis: lebih sedikit join, lebih sedikit kesalahan, dan dua dasbor yang sepakat.
+Sebuah pertanyaan menjadi satu tabel fakta plus beberapa dimensi, dengan definisi yang sama bagi setiap analis: lebih sedikit join, lebih sedikit kesalahan, dan dua dashboard yang sepakat.
 :::
 
 ## @lesson Grain: kalimat paling krusial dalam pemodelan data
@@ -125,7 +125,7 @@ Tampilkan berapa pasangan `(order_id, line_no)` yang muncul **lebih dari sekali*
 /group\s+by/ ## Kelompokkan menurut kolom grain: order_id, line_no.
 /having/ ## Simpan hanya kelompok dengan COUNT(*) > 1.
 @hint
-`SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);`
+Gunakan subquery yang mengelompokkan `order_items` menurut `order_id, line_no` dan mempertahankan kelompok dengan `HAVING COUNT(*) > 1`, lalu hitung jumlah baris subquery tersebut sebagai `violations`.
 @solution
 SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);
 :::
@@ -167,6 +167,8 @@ tabelnya menjadi star schema yang benar
 Masalah satu tabel besar sebagai **satu-satunya** model bukan ukurannya: ia menyembunyikan grain, membuat pembaruan mahal, dan mengundang setiap tim mendefinisikan sesuatu secara berbeda. Bangun ia **dari** star sebagai lapisan kemudahan, bukan sebagai penggantinya.
 :::
 
+Di warehouse, setiap baris dimensi biasanya diberi id integer buatan warehouse yang disebut **surrogate key** (misalnya `product_sk`), sambil tetap menyimpan id asli dari sistem sumber (**natural key**, misalnya `product_id`) sebagai kolom biasa, Pelajaran 4 menjelaskan alasannya secara rinci.
+
 :::drill sql Dimensi produk dengan surrogate key
 Bangun dimensi produk kecil: `product_sk` (surrogate key: 1, 2, 3... menurut urutan `product_id`), `product_id` (natural key, disimpan sebagai kolom biasa), dan `name`.
 @data kopiku
@@ -177,15 +179,15 @@ Bangun dimensi produk kecil: `product_sk` (surrogate key: 1, 2, 3... menurut uru
 @check
 /row_number/ ## Buat surrogate key dengan ROW_NUMBER() OVER (ORDER BY product_id).
 @hint
-`SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;`
+Pilih dari `products` menggunakan `ROW_NUMBER() OVER (ORDER BY product_id)` dengan alias `product_sk`, diikuti `product_id` dan `name`.
 @solution
 SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;
 :::
 
 > 💡 **Jeda Praktik 1 (Dimensi Tanggal Tanpa Celah Kalender):**
 > Latih pembuatan tabel dimensi tanggal kalender:
-> 1. Buka file `labs/mod-1-4/answers.sql` di Text Editor Anda (atau buka SQL Sandbox di browser).
-> 2. Selesaikan tantangan `d-4`: Bangkitkan 7 hari kalender tanpa celah mulai `2026-01-01` menggunakan `WITH RECURSIVE`. Hitung `date_key` integer (YYYYMMDD), `full_date`, `day_name`, dan flag `is_weekend` (1 untuk Sabtu dan Minggu).
+> 1. Buka file `labs/mod-1-4/answers.sql` di editor teks Anda (atau buka SQL Sandbox di browser).
+> 2. Selesaikan tantangan `d-4`: Bangkitkan 7 hari kalender tanpa celah mulai `2026-01-01` menggunakan `WITH RECURSIVE`. Hitung `date_key` integer (YYYYMMDD), `full_date`, `day_name` (nama hari dalam bahasa Inggris: `Sunday`–`Saturday`), dan flag `is_weekend` (1 untuk Sabtu dan Minggu).
 > 3. Uji di terminal:
 > `python3 labs/mod-1-4/check.py`
 > Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Pelajaran 4 & 5 tentang kunci dan dimensi Slowly Changing Dimensions (SCD).
@@ -206,14 +208,14 @@ Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terda
 :::ask Sebuah pesanan tiba untuk pelanggan yang belum ada di ekstrak pelanggan. Tabel fakta digabung ke dimensi dengan INNER JOIN. Apa yang terjadi pada pesanan itu?
 @options
 ia disimpan dan tampil sebagai Unknown
-* ia hilang diam-diam dan totalnya turun
+* hilang diam-diam; totalnya turun
 join berhenti dengan error yang jelas
 @why
 Baris fakta yang key-nya tidak cocok dengan baris dimensi mana pun lenyap dalam inner join, tanpa error. Perbaikan standarnya adalah **unknown member** (misalnya key -1, "Unknown") yang ditunjuk setiap fakta yatim, sehingga pendapatannya tetap terlihat dan terhitung.
 :::
 
 :::drill sql Pertahankan yang yatim
-Tampilkan `order_id` setiap pesanan dan `name` pelanggannya, tetapi tampilkan `'Unknown'` ketika pelanggan tidak ada di `customers`. Setiap pesanan harus tetap ada di hasil. Pakai `LEFT JOIN` dan `COALESCE`.
+Tampilkan `order_id` setiap pesanan dan `name` pelanggannya, tetapi tampilkan `'Unknown'` ketika pelanggan tidak ada di `customers`. Setiap pesanan harus tetap ada di hasil (pemeriksa menyisipkan pesanan yatim tambahan untuk menguji `'Unknown'`). Pakai `LEFT JOIN` dan `COALESCE`.
 @data kopiku
 @names
 @starter
@@ -223,12 +225,12 @@ Tampilkan `order_id` setiap pesanan dan `name` pelanggannya, tetapi tampilkan `'
 /left\s+join/ ## Pakai LEFT JOIN supaya pesanan tanpa pelanggan tetap ada.
 /coalesce/ ## Tampilkan 'Unknown' dengan COALESCE(c.name, 'Unknown').
 @hint
-`SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;`
+Mulai dari `orders`, lakukan `LEFT JOIN customers` pada `customer_id`, dan bungkus kolom nama pelanggan dengan `COALESCE(..., 'Unknown')` beralias `name`.
 @solution
 SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;
 :::
 
-> 🛠 **Coba sendiri (10 menit, Python).** Dengan file KopiKu yang sudah dibuat, temukan pesanan yang `customer_id`-nya tidak ada di `data/customers.csv`, dan berapa baris pesanan milik mereka. Lalu putuskan: jika tabel fakta mewajibkan key pelanggan yang nyata, apa yang terjadi pada baris-baris itu, dan bagaimana anggota "Unknown" menyelamatkannya?
+> 🛠 **Coba sendiri (10 menit, Python).** Dengan file KopiKu yang sudah dibuat (jalankan `python3 labs/shared/shopgen.py --out data` lebih dulu jika folder `data/` belum ada), temukan pesanan yang `customer_id`-nya tidak ada di `data/customers.csv`, dan berapa baris pesanan milik mereka. Lalu putuskan: jika tabel fakta mewajibkan key pelanggan yang nyata, apa yang terjadi pada baris-baris itu, dan bagaimana anggota "Unknown" menyelamatkannya?
 >
 > **Seharusnya Anda melihat:** `16` pesanan dan `32` baris pesanan (angka yang disebut pelajaran ini). Tulis satu kalimat yang akan Anda cantumkan di dokumentasi model tentang mereka.
 
@@ -245,7 +247,7 @@ Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diper
 | **3** | Tambahkan kolom baru untuk nilai sebelumnya (`previous_city`) | Satu langkah mundur | Kebutuhan khusus perbandingan sebelum vs sesudah |
 | **4 / 6** | Mini-dimension untuk atribut super dinamis / kombinasi hybrid tipe 1, 2, dan 3 | Bervariasi | Arsitektur tingkat lanjut |
 
-Mengapa ini sangat penting? Mari kita buktikan dengan data lab: tier pelanggan meningkat seiring akumulasi belanja mereka. Jika kita menghitung omset per tier **berdasarkan tier yang dimiliki pelanggan pada saat transaksi berlangsung**, omset kategori Gold bernilai Rp 97.650.000. Namun jika kita menghitung menggunakan tier **terkini** pelanggan (sebagaimana yang dihasilkan oleh penimpaan SCD Tipe 1), omset Gold melonjak menjadi **Rp 104.485.000**, selisih 7% lebih tinggi karena 444 transaksi item milik pelanggan dipindahkan historinya ke tier baru. Angka kedua tidak salah secara matematis, tetapi telah *menulis ulang histori secara sepihak*: laporan keuangan kuartal lalu yang sudah diaudit dan ditandatangani manajemen akan menampilkan angka yang berbeda jika dibuka kembali hari ini.
+Mengapa ini sangat penting? Mari kita buktikan dengan data lab: tier pelanggan berubah seiring waktu. Jika kita menghitung omset per tier **berdasarkan tier yang dimiliki pelanggan pada saat transaksi berlangsung**, omset kategori Gold bernilai Rp 97.650.000. Namun jika kita menghitung menggunakan tier **terkini** pelanggan (sebagaimana yang dihasilkan oleh penimpaan SCD Tipe 1), omset Gold melonjak menjadi **Rp 104.485.000**, selisih 7% lebih tinggi, sebanyak 444 baris pesanan milik pelanggan yang sejak itu berubah kota atau tier-nya. Angka kedua tidak salah secara matematis, tetapi telah *menulis ulang histori secara sepihak*: laporan keuangan kuartal lalu yang sudah diaudit dan ditandatangani manajemen akan menampilkan angka yang berbeda jika dibuka kembali hari ini.
 
 **Mekanisme teknis SCD Tipe 2.** Setiap versi entitas dicatat sebagai satu baris terpisah dengan rentang waktu validitas:
 
@@ -255,7 +257,7 @@ Mengapa ini sangat penting? Mari kita buktikan dengan data lab: tier pelanggan m
 | 2 | 1 | Jakarta | Gold | 2026-01-10 | 2026-01-20 | 0 |
 | 3 | 1 | Bandung | Gold | 2026-01-20 | 9999-12-31 | 1 |
 
-`valid_from` bersifat inklusif, sedangkan `valid_to` bersifat eksklusif dan nilainya sama persis dengan `valid_from` versi berikutnya, sehingga garis waktu tersambung rapat tanpa celah dan tanpa tumpang tindih. Tanggal masa depan yang sangat jauh (`9999-12-31`) untuk versi yang sedang aktif mencegah perlunya logika penanganan NULL yang rumit dalam perbandingan waktu. Anda dapat membangun dimensi ini dari feed mutasi data hanya dengan satu fungsi window SQL (`LEAD(effective_ts, 1, '9999-12-31') OVER (PARTITION BY customer_id ORDER BY effective_ts)`), persis seperti tantangan d-1 di playground sandbox.
+`valid_from` bersifat inklusif, sedangkan `valid_to` bersifat eksklusif dan nilainya sama persis dengan `valid_from` versi berikutnya, sehingga garis waktu tersambung rapat tanpa celah dan tanpa tumpang tindih. Tanggal masa depan yang sangat jauh (`9999-12-31 00:00:00`) untuk versi yang sedang aktif mencegah perlunya logika penanganan NULL yang rumit dalam perbandingan waktu. Anda dapat membangun dimensi ini dari feed mutasi data hanya dengan satu fungsi window SQL (`LEAD(effective_ts, 1, '9999-12-31 00:00:00') OVER (PARTITION BY customer_id ORDER BY effective_ts)`), persis seperti tantangan d-1 di playground sandbox (catatan: `warehouse.sql` memakai timestamp ISO-8601 dengan huruf `T`, sehingga tanggal masa depannya adalah `'9999-12-31T00:00:00'`).
 
 **Teknik as-of join.** Untuk menghubungkan transaksi fakta ke versi dimensi yang benar, lakukan join pada natural key **sekaligus** rentang tanggal transaksinya:
 
@@ -283,7 +285,7 @@ SELECT order_id, customer_id, order_ts FROM orders_small WHERE customer_id = 1 O
 @say
 Tiga fakta, tiga momen waktu.
 @stage 2. Tiga versi pelanggan 1 di dimensi
-SELECT customer_sk, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
+SELECT customer_sk, city, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
 @say
 Silver sampai 10 Januari, Gold sampai 20 Januari, lalu Gold di Bandung. Setiap versi punya rentang berlaku.
 @stage 3. SALAH: join hanya pada customer_id
@@ -331,7 +333,7 @@ Tampilkan berapa baris **tambahan** yang dibuat join yang salah (hanya pada `cus
 @check
 /join/ ## Hitung baris orders_small JOIN dim_customer ON customer_id.
 @hint
-`SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;`
+Kurangkan dua subquery skalar `COUNT(*)`: satu menghitung hasil join `orders_small` dan `dim_customer` hanya pada `customer_id`, dikurangi satu yang menghitung `orders_small`, dengan alias `extra_rows`.
 @solution
 SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;
 :::
@@ -347,7 +349,7 @@ Tampilkan `tier` yang dimiliki pelanggan `1` pada `'2026-01-15 00:00:00'`, memak
 /valid_to/ ## Pakai ujung rentang: < valid_to.
 /valid_from/ ## Pakai awal rentang: >= valid_from.
 @hint
-`WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to`
+Pilih `tier` dari `dim_customer` dengan `customer_id = 1` serta timestamp `'2026-01-15 00:00:00'` berada di `>= valid_from` dan `< valid_to`.
 @solution
 SELECT tier FROM dim_customer WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to;
 :::
@@ -379,21 +381,23 @@ Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh 
 
 > 💡 **Jeda Praktik 3 (Bangun Star Schema KopiKu di warehouse.sql):**
 > Waktunya membangun gudang data star schema produksi lengkap!
-> 1. Siapkan tabel staging terlebih dahulu di terminal:
+> 1. Buat data KopiKu jika belum ada (`python3 labs/shared/shopgen.py --out data`), lalu siapkan tabel staging di terminal:
 > `python3 labs/mod-1-4/stage.py data warehouse.db`
-> 2. Buka `labs/mod-1-4/warehouse.sql` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash tanpa argumen!).
+> 2. Buka `labs/mod-1-4/warehouse.sql` di editor teks Anda.
 > 3. Tulis DDL & DML untuk 4 tabel: `dim_date` (tanpa celah), `dim_product` (surrogate key), `dim_customer` (SCD Tipe 2 dengan anggota unknown `customer_sk = -1`), dan `fact_order_items` (grain item pesanan dengan as-of join).
 > 4. Uji seluruh integritas skema bintang di terminal:
 > `python3 labs/mod-1-4/test_lab.py -v`
+> 5. Karena `test_lab.py` berjalan di `:memory:`, tulis tabel `dim_*` dan `fact_order_items` yang sesungguhnya ke file `warehouse.db` di disk (diperlukan untuk query interaktif atau Metabase di Pelajaran 8):
+> `python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"` (atau `sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql`)
 > Ketika ke-13 unit test berstatus PASSED (OK), star schema KopiKu Anda telah memenuhi standar enterprise!
 
 :::ask Tes grain pada tabel fakta ber-grain 'satu baris per item pesanan' memeriksa apa?
 @options
-* bahwa kunci alami unik dan jumlah barisnya cocok
+* natural key unik dan jumlah baris cocok
 bahwa setiap kolom berisi setidaknya satu NULL
 bahwa dimensi punya lebih banyak baris daripada fakta
 @why
-Mencampur grain adalah bug pemodelan paling umum. Jika kunci alami tidak unik atau jumlahnya berbeda dari sumber, baris terduplikasi atau hilang, dan setiap penjumlahan menjadi salah.
+Mencampur grain adalah bug pemodelan paling umum. Jika natural key tidak unik atau jumlahnya berbeda dari sumber, baris terduplikasi atau hilang, dan setiap penjumlahan menjadi salah.
 :::
 
 ## @lesson Cara lain memodelkan: Inmon, Data Vault, dan satu tabel besar
@@ -403,40 +407,37 @@ Bab 8 *Fundamentals of Data Engineering* membandingkan pendekatan-pendekatan ini
 
 | Pendekatan | Bentuk | Unggul dalam | Harganya |
 |---|---|---|---|
-| **Inmon** | Warehouse ternormalisasi (3NF) untuk seluruh perusahaan, dengan mart star schema per departemen yang dibangun darinya | Satu versi untuk setiap fakta, sedikit duplikasi | Banyak join; perubahan perlu koordinasi lintas perusahaan |
+| **Inmon** | Warehouse ternormalisasi (3NF, Third Normal Form, di mana tiap atribut non-kunci hanya bergantung pada kunci tabel) untuk seluruh perusahaan, dengan mart star schema per departemen yang dibangun darinya | Satu versi untuk setiap fakta, sedikit duplikasi | Banyak join; perubahan perlu koordinasi lintas perusahaan |
 | **Kimball** (modul ini) | Tabel fakta dengan grain yang dinyatakan, dikelilingi dimensi | Pertanyaan yang mudah dan cepat untuk analis dan tool BI | Menyatukan banyak sumber yang berubah ke dimensi bersama butuh kerja di awal |
 | **Data Vault** | Hub (business key), link (hubungan), dan satellite (atribut sepanjang waktu), dimuat insert-only | Menyerap sumber baru dan sumber yang berubah; menyimpan riwayat lengkap untuk audit | Terlalu banyak join untuk analis, sehingga biasanya dibangun star schema di atasnya |
 | **Satu tabel besar** | Satu tabel lebar per grain, semuanya sudah di-join di awal | Tanpa join saat query; scan kolom yang cepat | Menyembunyikan grain yang tercampur; satu atribut yang berubah bisa berarti menulis ulang partisi raksasa |
 
 ### Di dalam Data Vault
-Kimball memakai surrogate key 1, 2, 3 yang dibagikan berurutan. Dengan lima belas sumber yang dimuat bersamaan, membagikan nomor berurutan menjadi hambatan, dan pelanggan yang sama mendapat nomor berbeda di setiap sistem. Data Vault justru menurunkan setiap key dari business key itu sendiri dengan hash, sehingga setiap loader menghitung key yang sama secara mandiri. Standar Data Vault 2.0 umumnya memakai MD5; modul ini memakai SHA-256, yang cara kerjanya sama.
+Kimball memakai surrogate key 1, 2, 3 yang dibagikan berurutan. Dengan lima belas sumber yang dimuat bersamaan, membagikan nomor berurutan menjadi hambatan, dan pelanggan yang sama mendapat nomor berbeda di setiap sistem. Data Vault justru menurunkan setiap key dari business key itu sendiri dengan hash, sehingga setiap loader menghitung key yang sama secara mandiri. Standar Data Vault 2.0 umumnya memakai MD5; modul ini memakai SHA-256, yang cara kerjanya sama. Di pustaka standar Python, `hashlib.sha256(s.encode("utf-8")).hexdigest()` mengubah string `s` menjadi byte UTF-8 lalu mengembalikan hash SHA-256 heksadesimal sepanjang 64 karakter.
 
-```python
-import hashlib
+Sebelum di-hash, normalisasikan setiap masukan dengan menghapus spasi di kedua ujung lalu mengubahnya ke huruf besar, dan gabungkan key multi-bagian dengan `|`:
 
-def dv_hash(text):
-    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
-
-hk_customer = dv_hash("C-101")            # key hub
-hk_link     = dv_hash("C-101|O-5001")     # key link: pelanggan dan pesanan, digabung dengan |
-hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: sidik jari atribut
+```text
+hk_customer = SHA-256("C-101")          # key hub: customer_id yang sudah dinormalisasi
+hk_link     = SHA-256("C-101|O-5001")   # key link: pelanggan dan pesanan, digabung dengan |
+hash_diff   = SHA-256("BANDUNG|GOLD")   # satellite: sidik jari atribut yang dilacak
 ```
 
 - **Hub** (`hub_customer`): hanya business key, hash key-nya, kapan pertama kali terlihat (`load_ts`) dan dari mana (`record_source`). Tanpa deskripsi.
 - **Link** (`link_customer_order`): hubungan antar-hub. Link dirancang many-to-many, sehingga aturan bisnis yang berubah dari one-to-many menjadi many-to-many tidak merusak tabel.
 - **Satellite** (`sat_customer`): atribut yang berubah sepanjang waktu, seperti kota dan tier, dengan sidik jari `hash_diff`. Satellite bersifat insert-only: baris baru hanya ditambahkan saat sidik jarinya berbeda dari baris *terakhir* pelanggan itu. Tidak ada yang ditimpa, sehingga riwayat lengkapnya tetap ada.
 
-> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di file `datavault.py`, tulis `build_data_vault(events, record_source="kopiku_oms")`. Setiap event adalah dict dengan `customer_id`, `order_id`, `city`, `tier`, dan `load_ts`, dan event bisa datang dengan urutan apa pun. Kembalikan dict berisi empat list dict, dengan key berikut:
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di file `~/practice/datavault.py`, tulis `build_data_vault(events, record_source="kopiku_oms")`. Setiap event adalah dict dengan `customer_id`, `order_id`, `city`, `tier`, dan `load_ts`, dan event bisa datang dengan urutan apa pun. Kembalikan dict berisi empat list dict, dengan key berikut:
 > `hub_customer`: `hk_customer, customer_id, load_ts, record_source` · `hub_order`: `hk_order, order_id, load_ts, record_source`
 > `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
-> Hash persis seperti kode di atas: business key di-trim dan dijadikan huruf besar; key link adalah `CUSTOMER|ORDER`; `hash_diff` adalah `CITY|TIER`, keduanya di-trim dan dijadikan huruf besar. Pikirkan arti "pertama kali terlihat" saat event datang tidak berurutan, dan apa yang harus ditinggalkan di satellite oleh pelanggan yang pindah ke Bandung lalu kembali ke Jakarta.
+> Hitung hash sesuai aturan di atas: business key di-trim dan dijadikan huruf besar (simpan pula nilai `customer_id` dan `order_id` yang sudah di-trim dan berhuruf besar ke dalam `hub_customer` dan `hub_order`); key link adalah `CUSTOMER|ORDER`; `hash_diff` adalah `CITY|TIER`, keduanya di-trim dan dijadikan huruf besar. Pikirkan arti "pertama kali terlihat" saat event datang tidak berurutan, dan apa yang harus ditinggalkan di satellite oleh pelanggan yang pindah ke Bandung lalu kembali ke Jakarta.
 > **Periksa:** `python3 labs/tryit/check.py 1.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
 :::drill python Kunci sama, hash sama
 Sebuah hub Data Vault dikunci oleh hash dari **business key**. Kunci harus menghasilkan hash yang sama bagaimanapun cara mengetiknya. Tulis `dv_hash(text)`: hapus spasi di kedua ujung, ubah teks menjadi huruf besar, lalu kembalikan hash SHA-256 sebagai string heksadesimal 64 karakter.
 @starter
 import hashlib
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("dv_hash") ## Definisikan dv_hash(text).
@@ -445,7 +446,7 @@ dv_hash("c-001") != dv_hash("c-002") ## Kunci berbeda menghasilkan hash berbeda.
 len(dv_hash("c-001")) == 64 ## SHA-256 dalam heksa adalah 64 karakter.
 dv_hash("c-001") == hashlib.sha256(b"C-001").hexdigest() ## Itu adalah SHA-256 dari teks bersih "C-001".
 @hint
-`hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()`
+Bersihkan `text` dengan menghapus spasi di kedua ujung dan mengubahnya ke huruf besar, ubah ke byte UTF-8, lalu kembalikan hex digest SHA-256 dengan `hashlib`.
 @solution
 import hashlib
 def dv_hash(text):
@@ -485,7 +486,15 @@ Alat-alat itu berbeda di layarnya, bukan di langkah-langkah ini. Pelajari langka
 
 Dua kebiasaan lagi: tampilkan kapan data terakhir diperbarui, dan jangan pernah membandingkan hari, minggu, atau bulan yang belum selesai dengan yang sudah selesai.
 
-**Berlatih pada model Anda sendiri dengan Metabase.** Power BI dan Tableau paling sering disebut lowongan, tetapi Power BI Desktop butuh Windows (Microsoft mencantumkan Windows 10 atau Windows Server 2016 sebagai syarat minimum). Metabase gratis, open source, dan berjalan di mana pun Docker berjalan, dan ia membaca file SQLite yang sudah dibangun lab Anda. Jalankan dari folder yang berisi `warehouse.db` Anda (port 3001, karena situs kursus memakai 3000):
+**Berlatih pada model Anda sendiri dengan Metabase.** Power BI dan Tableau paling sering disebut lowongan, tetapi Power BI Desktop butuh Windows (Microsoft mencantumkan Windows 10 atau Windows Server 2016 sebagai syarat minimum). Metabase gratis, open source, dan berjalan di mana pun Docker berjalan, dan ia membaca file SQLite yang dibangun lab Anda. Pastikan lebih dulu `warehouse.db` benar-benar berisi tabel `dim_*` dan `fact_order_items` di disk (`test_lab.py` berjalan di `:memory:`, jadi tidak menulis tabel-tabel tersebut ke `warehouse.db`):
+
+```bash
+python3 labs/mod-1-4/stage.py data warehouse.db
+python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"
+# atau, jika CLI sqlite3 terpasang: sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql
+```
+
+Lalu jalankan Metabase dari folder yang berisi `warehouse.db` Anda (port 3001, karena situs kursus memakai 3000):
 
 ```bash
 docker run -d --name metabase -p 3001:3000 -v "$PWD":/data metabase/metabase:v0.65.6.3
@@ -504,7 +513,7 @@ Di Power BI Desktop langkah-langkahnya punya nama lain. **Get data** memuat tabe
 :::drill python Nilai pesanan rata-rata pada grain yang benar
 Tabel fakta punya satu baris per **item** pesanan: tiap item adalah `(order_id, amount)`. "Nilai pesanan rata-rata" adalah total pendapatan dibagi jumlah **pesanan**, bukan jumlah item. Tulis `avg_order_value(lines)`; untuk daftar kosong kembalikan `0`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("avg_order_value") ## Definisikan avg_order_value(lines).
@@ -513,7 +522,7 @@ avg_order_value([("o1", 50)]) == 50 ## Satu pesanan, satu item.
 avg_order_value([("a", 10), ("b", 10), ("c", 10), ("c", 10)]) == 40 / 3 ## 40 atas 3 pesanan.
 avg_order_value([]) == 0 ## Tidak ada yang dirata-ratakan.
 @hint
-`sum(amount for _, amount in lines)` dibagi jumlah id pesanan yang berbeda (`len({o for o, _ in lines})`).
+Kembalikan `0` jika `lines` kosong; jika tidak, bagi jumlah seluruh nominal item dengan banyaknya `order_id` unik (misalnya menggunakan `set`).
 @solution
 def avg_order_value(lines):
     if not lines:
@@ -523,17 +532,19 @@ def avg_order_value(lines):
     return total / orders
 :::
 
-:::ask Sebuah dasbor menampilkan 'nilai pesanan rata-rata' yang dihitung sebagai rata-rata `line_total_idr` pada fakta item pesanan. Apa yang salah?
+:::ask Sebuah dashboard menampilkan 'nilai pesanan rata-rata' yang dihitung sebagai rata-rata `line_total_idr` pada fakta item pesanan. Apa yang salah?
 @options
 tidak ada: item dan pesanan adalah hal yang sama
 seharusnya memakai tabel dimensi sebagai gantinya
-* ia merata-ratakan item, bukan pesanan: terlalu kecil
+* rata-rata item, bukan pesanan: terlalu kecil
 @why
 Fakta punya satu baris per item pesanan. Nilai pesanan rata-rata adalah pendapatan dibagi jumlah pesanan; merata-ratakan total item menghasilkan item rata-rata, yang lebih rendah saat pesanan punya beberapa item.
 :::
 
 ## @lab Lab: membangun star schema KopiKu
 Bangun data warehouse untuk KopiKu menggunakan SQL: dimensi tanggal, dimensi produk (SCD Tipe 1), dimensi pelanggan (SCD Tipe 2 lengkap dengan anggota unknown), dan tabel fakta pada grain item pesanan yang terhubung ke versi pelanggan yang valid pada saat pesanan dibuat. 13 unit test otomatis akan menguji integritas grain, referensial, rekonsiliasi nilai omset, serta verifikasi independen menggunakan script Python. Anda juga dibekali empat latihan sandbox interaktif di browser untuk melatih intuisi logika SCD.
+
+> **Sudah menyelesaikan Jeda Praktik 1–3?** Anda sudah menyelesaikan tantangan pemanasan maupun `warehouse.sql`, langsung lompat ke **@verify** di bawah.
 
 ### @steps
 1. Buat data sintetis (jika belum ada) dan periksa hasil pembersihan data oleh skrip staging:
@@ -555,15 +566,24 @@ python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'ta
 python3 labs/mod-1-4/test_lab.py -v
 ```
 
-7. Eksplorasi model Anda dengan query analitik nyata: omset per tier per bulan, omset per profil sangrai, dan penjualan akhir pekan vs hari kerja. Kemudian, coba sengaja rusak model tersebut (misalnya dengan menghapus syarat rentang tanggal pada join pelanggan) dan amati bagaimana pengujian grain dan rekonsiliasi langsung mendeteksi kerusakan tersebut.
+7. Isi `warehouse.db` di disk. Karena `test_lab.py` berjalan di `:memory:`, jalankan skrip `warehouse.sql` Anda terhadap `warehouse.db` agar tabel `dim_*` dan `fact_order_items` yang sesungguhnya tersimpan (diperlukan untuk query interaktif atau Metabase di Pelajaran 8):
+
+```bash
+python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"
+# atau, jika CLI sqlite3 terpasang: sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql
+```
+
+8. Eksplorasi model Anda dengan query analitik nyata: omset per tier per bulan, omset per profil sangrai, dan penjualan akhir pekan vs hari kerja. Kemudian, coba sengaja rusak model tersebut (misalnya dengan menghapus syarat rentang tanggal pada join pelanggan) dan amati bagaimana pengujian grain dan rekonsiliasi langsung mendeteksi kerusakan tersebut.
 
 ### @files
 - labs/mod-1-4/warehouse.sql :: File kerja utama Anda: membangun empat tabel star schema :: starter
 - labs/mod-1-4/stage.py :: Memuat data KopiKu yang sudah bersih ke tabel staging (disediakan) :: data
 - labs/mod-1-4/test_lab.py :: 13 pengujian validasi model dan rekonsiliasi :: test
 - labs/mod-1-4/answers.sql :: Tantangan sandbox dalam format file (pemanasan SCD) :: starter
+- labs/mod-1-4/datasets/scd_demo.sql :: Dataset SCD Tipe 2 kecil yang dipakai sandbox dan check.py :: data
 - labs/mod-1-4/check.py :: Script pemeriksa otomatis untuk latihan pemanasan :: test
 - labs/mod-1-4/reference/warehouse.sql :: Solusi referensi lengkap (coba kerjakan sendiri dulu!) :: reference
+- labs/mod-1-4/reference/answers.sql :: Jawaban referensi untuk empat tantangan pemanasan :: reference
 
 ### @deliverables
 - Seluruh 13 unit test pada `test_lab.py` berhasil lolos (PASS)
@@ -574,9 +594,10 @@ python3 labs/mod-1-4/test_lab.py -v
 ```bash
 python3 labs/mod-1-4/test_lab.py -v
 python3 labs/mod-1-4/check.py
+python3 scripts/prove.py mod-1-4    # membutuhkan pytest (pip install pytest)
 ```
 
-Bandingkan hasil kerja Anda dengan solusi referensi: `LAB_DIR=reference python3 labs/mod-1-4/test_lab.py`.
+Bandingkan hasil kerja Anda dengan solusi referensi: `LAB_DIR=reference python3 labs/mod-1-4/test_lab.py` dan `python3 labs/mod-1-4/check.py reference`.
 
 ## @chaos Pendapatan pelanggan tier Gold yang bergeser setelah penutupan buku kuartal
 ### @scenario
@@ -593,7 +614,7 @@ Ini bukanlah bug penulisan sintaks SQL, melainkan kesalahan keputusan pemodelan 
 1. Ubah kolom `tier` (dan `city`) menjadi **SCD Tipe 2**: simpan baris versi baru lengkap dengan `valid_from` dan `valid_to` untuk setiap perubahan data, dan hubungkan setiap fakta transaksi ke versi yang valid pada saat kejadian transaksi berlangsung.
 2. Terapkan mekanisme pemuatan inkremental dengan langkah close-and-insert menggunakan operator `IS DISTINCT FROM`, dan jalankan dalam satu transaksi basis data yang idempoten agar aman saat dieksekusi berulang.
 3. Rekonstruksi histori transaksi masa lalu dari log audit aplikasi sumber, sehingga perbaikan angka kuartal sebelumnya dicatat secara resmi, transparan, dan terdokumentasi.
-4. Tambahkan automated data test yang membekukan angka laporan periode tertutup dan otomatis memicu alarm jika nilainya bergeser, serta buat dokumentasi Architectural Decision Record (ADR) untuk setiap atribut dimensi yang menentukan pilihan tipe SCD beserta alasannya.
+4. Tambahkan pengujian data otomatis yang membekukan angka laporan periode tertutup dan memicu peringatan jika nilainya bergeser, serta dokumentasikan untuk setiap atribut dimensi tipe SCD apa yang dipilih beserta alasannya.
 
 ### @pattern
 Tentukan secara sadar untuk setiap atribut dimensi apakah histori masa lalunya boleh berubah atau tidak. Jika jawabannya "tidak boleh", atribut tersebut wajib dimodelkan sebagai SCD Tipe 2, dan tabel fakta wajib merujuk ke versi yang berlaku pada saat kejadian.

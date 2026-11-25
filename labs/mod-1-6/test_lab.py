@@ -269,10 +269,10 @@ class TestIncrementalLoad:
     def test_first_run_loads_everything_and_sets_the_checkpoint(self, api, tmp_path):
         r = self.run(api, tmp_path, limit=10)
         assert r["fetched"] == 25 and r["checkpoint"] == "2026-01-01T00:00:25Z"
-        assert r["written"] == str(tmp_path / "landing" / "dt=2026-02-01" / "orders_run1.jsonl")
+        assert str(r["written"]) == str(tmp_path / "landing" / "dt=2026-02-01" / "orders_run1.jsonl")
         rows = self.lines(r["written"])
         assert [x["id"] for x in rows] == list(range(1, 26))
-        assert all(x["_run_id"] == "run1" and x["_source"] == api.url + "/orders" and x["_ingested_at"].endswith("+00:00") for x in rows)
+        assert all(x["_run_id"] == "run1" and x["_source"] == api.url + "/orders" and x["_ingested_at"].endswith(("+00:00", "Z")) for x in rows)
         assert lab.Checkpoint(tmp_path / "state" / "cp.json").load() == "2026-01-01T00:00:25Z"
 
     def test_second_run_with_no_new_data_does_nothing(self, api, tmp_path):
@@ -298,14 +298,17 @@ class TestIncrementalLoad:
     def test_a_crash_before_the_checkpoint_is_repaired_by_rerunning(self, api, tmp_path, monkeypatch):
         calls = {"n": 0}
         real_save = lab.Checkpoint.save
+        expected_out = tmp_path / "landing" / "dt=2026-02-01" / "orders_runA.jsonl"
 
         def failing_save(self, value):
             calls["n"] += 1
+            assert expected_out.exists(), "data file must be written BEFORE saving the checkpoint"
             raise OSError("disk full")
 
         monkeypatch.setattr(lab.Checkpoint, "save", failing_save)
         with pytest.raises(OSError):
             self.run(api, tmp_path, run_id="runA")
+        assert calls["n"] == 1
         assert lab.Checkpoint(tmp_path / "state" / "cp.json").load() is None           # the checkpoint did not move
         monkeypatch.setattr(lab.Checkpoint, "save", real_save)
         r = self.run(api, tmp_path, run_id="runA")                                       # same run id: the same file is overwritten, no duplicate

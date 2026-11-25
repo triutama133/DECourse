@@ -63,7 +63,7 @@ The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip
 | `tpep_pickup_datetime`, `tpep_dropoff_datetime` | start and end of the trip |
 | `passenger_count` | passengers, entered by the driver |
 | `trip_distance` | miles on the meter |
-| `RatecodeID` | 1 Standard, 2 JFK, 3 Newark, 4 Nassau/Westchester, 5 Negotiated, 6 Group ride, 99 unknown |
+| `RatecodeID` | 1 Standard, 2 JFK, 3 Newark, 4 Nassau/Westchester, 5 Negotiated, 6 Group ride, 99 Unknown |
 | `store_and_fwd_flag` | whether the record was held in the vehicle before sending |
 | `PULocationID`, `DOLocationID` | pickup and dropoff **zone id** (1 to 265) |
 | `payment_type` | 0 Flex Fare, 1 Credit card, 2 Cash, 3 No charge, 4 Dispute, 5 Unknown, 6 Voided |
@@ -88,7 +88,7 @@ No duplicates exist in the real file, but a partner can send the same file twice
 
 > 💡 **Practice Pause 1 (Step 1: Raw Data Profiling & profile.json Creation):**
 > 1. Create `profile.json` in your workspace (`~/taxi/profile.json`) using your text editor.
-> 2. Compute the 9 statistical metrics directly from the raw Parquet file using DuckDB queries: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, and `cash_trips_with_tip`.
+> 2. Compute the 9 statistical metrics directly from the raw Parquet file using DuckDB queries: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, and `cash_trips_with_tip`. (See Lesson 3 for DuckDB syntax and Lab Step 2 below for exact boundary definitions such as `total_amount <= 0`, `>= 2024-02-01`, and `payment_type = 2 AND tip_amount > 0`.)
 > 3. Run the step 1 check in terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
 > 4. **Success Indicator:** All 9 metrics report `PASS`, confirming your raw data profiling matches reference truth.
@@ -96,7 +96,7 @@ No duplicates exist in the real file, but a partner can send the same file twice
 :::drill python What is wrong with this trip?
 Real data has trips that end before they start. (A warm-up on made-up rules, not the capstone's contract.) Write `trip_problem(pickup, dropoff)`: both are ISO text such as `"2024-01-05 10:00:00"`. Return `"ends_before_start"` if the dropoff is before the pickup, `"zero_length"` if they are the same second, `"over_24h"` if the trip lasts more than 24 hours, otherwise `"ok"`. Check the problems in that order.
 @starter
-from datetime import datetime
+from datetime import datetime, timedelta
 # write your function below this line
 
 @check
@@ -123,7 +123,7 @@ def trip_problem(pickup, dropoff):
 
 :::ask The January file contains trips from December 2002 and February 2024. What should your pipeline do with them?
 @options
-* reject them with a reason, and count them
+* reject and count them with a reason
 quietly change their dates to January
 delete them without keeping any record
 @why
@@ -136,8 +136,8 @@ The checker does not care which tools you use. We suggest **DuckDB**, because it
 ```python
 import duckdb
 con = duckdb.connect()                                   # in memory; duckdb.connect("file.duckdb") makes a database FILE
-con.sql("DESCRIBE SELECT * FROM 'yellow_tripdata_2024-01.parquet'")    # columns and types
-con.sql("SELECT count(*) AS trips, count(*) FILTER (WHERE tip_amount > 0) AS tipped FROM 'yellow_tripdata_2024-01.parquet'").fetchall()
+con.sql("DESCRIBE SELECT * FROM 'labs/mod-4-1/data/yellow_tripdata_2024-01.parquet'")    # columns and types
+con.sql("SELECT count(*) AS trips, count(*) FILTER (WHERE tip_amount > 0) AS tipped FROM 'labs/mod-4-1/data/yellow_tripdata_2024-01.parquet'").fetchall()
 # [(2964624, 2254230)]: FILTER counts only the rows that match, inside one query
 ```
 
@@ -149,9 +149,9 @@ Patterns you will need, each in one line:
 - **Create a table from a query, inside a database file:** `con = duckdb.connect("OUT/warehouse.duckdb")` then `con.execute("CREATE TABLE t AS SELECT ...")`. Close the connection (`con.close()`) before another process reads the file.
 - **A stable id from values:** `hash(col1, col2, ...)` returns the same 64-bit number for the same values on every run.
 - **Durations and calendars:** `date_diff('second', start, end) / 60.0` for minutes, `isodow(date)` for the day of the week (Saturday is 6), and `unnest(generate_series(DATE '2024-01-30', DATE '2024-02-02', INTERVAL 1 DAY))` for one row per day.
-- **Read a CSV with its header:** `read_csv('taxi_zone_lookup.csv', header = true)`.
+- **Read a CSV with its header:** `read_csv('labs/mod-4-1/data/taxi_zone_lookup.csv', header = true)`.
 
-Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to refuse a delivery, `print(json.dumps(...), file=sys.stderr)` for the reason, and `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) for the temporary-folder swap of the previous lesson.
+Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to refuse a delivery, `print(json.dumps(...), file=sys.stderr)` for the reason, and `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) for the temporary-folder swap in Lesson 5.
 
 **A debugging routine that works for any pipeline.**
 
@@ -161,7 +161,7 @@ Python needs very little: `argparse` for the three arguments, `sys.exit(2)` to r
 4. When a checker line fails, read it literally. "expected 2,927,800, you have 2,927,801" means one row too many, so find that row: select the rows of your clean file that break a rule.
 5. Change one thing at a time and rerun. A pipeline of this size runs in seconds, so there is no reason to guess.
 
-> 🛠 **Try it (20 min, Python).** Practise the one-line patterns on the real file, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. With DuckDB, print: (1) trips per day of the week with `isodow(tpep_pickup_datetime)` for pickups in January 2024 only; (2) how many rows have a pickup outside January 2024; (3) how many rows have a dropoff that is not after the pickup, using `date_diff('second', ...)`. Finally check that `hash('a', 1) = hash('a', 1)` is true and `hash('a', 1) = hash('a', 2)` is false.
+> 🛠 **Try it (20 min, Python).** Practise the one-line patterns on the real file, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. With DuckDB, print: (1) trips per day of the week with `isodow(tpep_pickup_datetime)` for pickups in January 2024 only; (2) how many rows have a pickup outside January 2024; (3) how many rows have a dropoff that is not after the pickup, using `date_diff('second', ...)`. Finally, in DuckDB SQL (via `duckdb.sql(...)`, not Python's built-in `hash()`), check that `hash('a', 1) = hash('a', 1)` is true and `hash('a', 1) = hash('a', 2)` is false.
 >
 > **You should see:** (1) Monday to Sunday: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` rows outside January; (3) `870` rows whose duration is zero or negative; and the two hash comparisons give `True` and `False`. Each of these is a possible rule in your cleaning step: you now know how big each problem is before you decide what to do about it.
 
@@ -294,7 +294,7 @@ The checker's step 5 is where most real pipelines fail, so design for it from th
 
 **Reconcile.** After every step compare numbers with the layer before: `rows_in - duplicates = clean + rejected`, the fact table has as many rows as the clean file, the revenue in the marts sums to the revenue in the clean data. A join that repeats rows (the fan-out of Module 0.3) would make the fact table too big and inflate revenue, and it is exactly the kind of error that no exception reports.
 
-**Work in small, visible steps.** Open `warehouse.duckdb` and the Parquet files in the DuckDB command line or a notebook and look at them after every step. Print counts. Compare with the numbers in this lesson. The profile you write in step 1 is not busywork: it is the table of numbers you will keep comparing your pipeline against.
+**Work in small, visible steps.** Open `warehouse.duckdb` and the Parquet files in the DuckDB command line or a notebook and look at them after every step. Print counts. Compare with the target counts in Lessons 3 and 4 (`~2.93M` clean, `~1.2%` rejected). The profile you write in step 1 is not busywork: it is the table of numbers you will keep comparing your pipeline against.
 
 > 💡 **Practice Pause 3 (Step 3: Star Schema Dimensional Modeling in DuckDB):**
 > 1. Open `pipeline.py` in your workspace using your text editor.
@@ -315,7 +315,7 @@ A rename is a single step, so readers see either the complete old output or the 
 :::ask Running the same delivery twice must give the same result as once. What is the simplest design for that?
 @options
 append the new rows to whatever is already there
-* rebuild the whole output from the input every time
+* rebuild the whole output every time
 keep a counter and skip every second run
 @why
 If the output is a pure function of the delivery, a repeat cannot add anything. Appending is where duplicates come from; rebuilding from scratch is the cheapest way to be idempotent.
@@ -330,6 +330,9 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 3. **Checker step 2: clean and reject.** In `pipeline.py` implement de-duplication, the five rules in order, the clean file, the rejected file and `quality_report.json` exactly as in the contract. Run it yourself first and compare with the numbers in the lesson. Check: `--step 2`. Before you run the checker, predict whether your count for `non_positive_total` will equal your step 1 number, and why not.
 4. **Checker step 3: star schema.** Add `warehouse.duckdb` with the three dimensions and `fact_trip`. Reconcile the fact table with the clean file before you ask the checker. Check: `--step 3`.
 5. **Checker step 4: marts.** Add `mart_daily` and `mart_top_routes`. Defend each definition to yourself (why only credit cards for tips? why ids and not names?). The checker also runs your pipeline on a small delivery built to expose a naming trap. Check: `--step 4`.
+6. **Checker step 5: survive.** Make the pipeline idempotent, atomic and gated, as in the last lesson. The checker runs it five more times: twice on the same file, on a delivery in which every row appears twice, on a delivery with a renamed column, and on a delivery in which 40% of the rows are broken (the last two must exit with code 2 and leave your output folder byte-for-byte unchanged). Check: `--step 5` (under a minute with a fast pipeline).
+7. **Stuck?** Re-read the matching lesson section, query the data, and only then ask for a hint: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (then 2, then 3).
+8. **Finish.** When `--step all` passes, run `python3 scripts/prove.py mod-4-1 ~/taxi` to get the proof code for the **Proof** box on this lab page. Then write down, in a file `NOTES.md` in your workspace, three sentences about what surprised you in the data and one thing you would monitor if this ran every night.
 
 > 💡 **Practice Pause 4 (Step 4: Publishing Data Marts & Zone Ambiguity Handling):**
 > 1. Open `pipeline.py` in your workspace using your text editor.
@@ -337,10 +340,6 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 > 3. Run the step 4 check in terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 4`
 > 4. **Success Indicator:** All step 4 checks report `PASS` on both January data and the synthetic test delivery.
-
-6. **Checker step 5: survive.** Make the pipeline idempotent, atomic and gated, as in the last lesson. The checker runs it five more times: twice on the same file, on a delivery in which every row appears twice, on a delivery with a renamed column, and on a delivery in which 40% of the rows are broken (the last two must exit with code 2 and leave your output folder byte-for-byte unchanged). Check: `--step 5` (under a minute with a fast pipeline).
-7. **Stuck?** Re-read the matching lesson section, query the data, and only then ask for a hint: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (then 2, then 3).
-8. **Finish.** When `--step all` passes, run `python3 scripts/prove.py mod-4-1 ~/taxi` to get the proof code for the **Proof** box on this lab page. Then write down, in a file `NOTES.md` in your workspace, three sentences about what surprised you in the data and one thing you would monitor if this ran every night.
 
 > 💡 **Practice Pause 5 (Step 5: Production Hardening & Capstone Proof Token):**
 > 1. Enhance `pipeline.py` with atomic directory swaps (write to a temporary staging folder, then rename) and quality gate checks (exit with code 2 on missing columns, empty data, or reject rate > 5%).
@@ -362,7 +361,7 @@ Build `pipeline.py` and `profile.json` in your own workspace, one step at a time
 - You can explain why the pipeline builds in a temporary folder and why the gate runs before anything is written
 - You can say which two traps are in the data (cash tips, zone names) and how your pipeline avoids them
 - Your `NOTES.md` states what surprised you and what you would monitor nightly
-- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design DESIGN.md`, then kept up to date when a decision changes
+- Before you write code: a one-page `DESIGN.md` in your workspace (template: `labs/shared/writing/design_doc_template.md`) that passes `python3 scripts/check_writing.py design ~/taxi/DESIGN.md`, then kept up to date when a decision changes
 
 ### @verify
 ```bash
@@ -374,7 +373,7 @@ python3 scripts/prove.py mod-4-1 ~/taxi
 ### @scenario
 A taxi analytics team loads each monthly TLC file with a script that cleans the rows and **appends** them to a warehouse table. A revenue dashboard sums that table. One morning the finance lead asks why January revenue has doubled compared with the figure published last week.
 
-The cause is dull: the partner's export job failed on its first attempt, was restarted, and delivered the January file a second time into the landing folder. The loader found a new file, so it processed it. almost three million duplicate trips were appended. Nothing failed, no test was red, and the dashboard drew a beautiful column twice as high as it should be. A second incident follows the first: while the team deleted the extra rows by hand, a bad delivery arrived in which a column had been renamed. The script crashed after it had already deleted the previous month from the table.
+The cause is dull: the partner's export job failed on its first attempt, was restarted, and delivered the January file a second time into the landing folder. The loader found a new file, so it processed it. Almost three million duplicate trips were appended. Nothing failed, no test was red, and the dashboard drew a beautiful column twice as high as it should be. A second incident follows the first: while the team deleted the extra rows by hand, a bad delivery arrived in which a column had been renamed. The script crashed after it had already deleted the previous month from the table.
 
 ### @cause
 The pipeline was not **idempotent**: processing the same data twice changed the result, because it appended instead of rebuilding or merging by a stable key. It had no **de-duplication rule** and no stable identifier for a trip. It also wrote **before it checked**: the schema problem was discovered halfway through, after the old data had already been modified, and there was no atomic swap, so a crash left the table in a state that matched neither the old nor the new delivery.

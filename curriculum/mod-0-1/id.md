@@ -27,7 +27,9 @@ Program yang membaca perintah Anda adalah **shell** (biasanya `bash` atau `zsh`;
 - **Tekan Tab** untuk melengkapi nama file. Lebih cepat dan mencegah salah ketik.
 - **Tekan panah Atas** untuk memanggil perintah sebelumnya, dan `Ctrl+R` untuk mencarinya.
 - **Baca error-nya.** Sembilan dari sepuluh kali jawabannya ada di baris terakhir.
-- **Minta bantuan dari perintahnya:** `ls --help`, atau `man ls` (tekan `q` untuk keluar).
+- **Minta bantuan dari perintahnya:** `man ls` membuka manual di Linux dan macOS (tekan `q` untuk keluar); di Linux, `ls --help` juga mencetak ringkasan singkat (`--help` khusus Linux dan gagal di macOS).
+
+**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti yang tertulis. Kalau Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker (alat yang mengemas program agar jalan di mana pun; Modul 1.1), dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak gesekan.
 
 Perintah-perintahnya datang dalam kelompok kecil. Untuk setiap kelompok: baca gunanya, jawab pertanyaannya, lalu coba di komputer Anda.
 
@@ -41,11 +43,13 @@ Sebelum yang lain Anda perlu tahu **di folder mana Anda berdiri** dan **apa isin
 | `ls -la` | Daftar file, termasuk yang tersembunyi, dengan detail | `ls -la data` |
 | `cd` | Pindah folder | `cd ~/kopiku` |
 
+Dua pintasan path yang langsung akan Anda temui: `~` berarti **folder home** Anda (misalnya `/home/budi`), dan `..` berarti **folder induk** satu tingkat di atas.
+
 :::ask Anda berada di `~/kopiku/scripts`. Folder datanya `~/kopiku/data`. Anda menjalankan `head -5 data/orders.csv`. Apa yang terjadi?
 @options
 lima baris pertama file pesanan ditampilkan
-lima baris pertama dihapus
-* error: `data/` tidak ada di dalam `scripts/`
+lima baris pertama file pesanan dihapus
+* error: `data/` tidak ada di `scripts/`
 @why
 `data/orders.csv` adalah **path relatif**: shell mencarinya mulai dari folder tempat Anda berada, `scripts/`, dan di dalamnya tidak ada `data/`. File itu satu tingkat di atas. Jalankan `pwd` dan `ls` dulu, atau tulis path dari tempat Anda berdiri: `../data/orders.csv`.
 :::
@@ -60,7 +64,7 @@ lima baris pertama dihapus
 | `cp` | Menyalin file | `cp orders.csv backup.csv` |
 | `mv` | Memindah atau mengganti nama | `mv old.csv new.csv` |
 
-`mv` punya dua tugas yang tampak sama bagi shell: memindah file ke folder lain, dan menggantinya namanya di tempat.
+`mv` punya dua tugas yang tampak sama bagi shell: memindah file ke folder lain, dan mengganti namanya di tempat.
 
 :::ask Apa yang dilakukan ini, jika `old.csv` ada?
 ```bash
@@ -74,7 +78,7 @@ menghapus kedua file
 `mv` memindah. Ketika tujuannya nama baru di folder yang sama, "memindah" file sama dengan **mengganti namanya**. Pakai `cp` ketika Anda ingin menyimpan yang asli.
 :::
 
-> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` mencetak teks, dan `>` mengirimnya ke sebuah file, bukan ke layar; Materi 3 menjelaskannya), `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt` dan `c.txt`.
+> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` mencetak teks, dan `>` mengirimnya ke sebuah file, bukan ke layar; Pelajaran 3 menjelaskannya), `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt`, `c.txt`, dan `data`. Bersihkan dua file latihan itu dengan `rm a.txt c.txt` agar tidak memenuhi `~/kopiku` nanti.
 
 ### Melihat isi file
 
@@ -102,7 +106,7 @@ Jangan pernah membuka file sejuta baris di editor untuk "melihat isinya": `head`
 | `grep` | Mencari baris yang mengandung teks | `grep "cancelled" orders.csv` |
 | `wc -l` | Menghitung baris | `wc -l orders.csv` |
 
-Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka file: `grep -c "cancelled" orders.csv`.
+Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka file: `grep "cancelled" orders.csv | wc -l` (simbol pipe `|`, yang dijelaskan di Pelajaran 3, mengirim baris cocok dari `grep` ke `wc -l`; `grep -c "cancelled" orders.csv` adalah pintasan bawaan untuk hitungan yang sama).
 
 ### Yang berbahaya: rm
 
@@ -114,17 +118,16 @@ Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka f
 
 :::ask Anda ingin menghapus folder `old_data/`. Apa kebiasaan paling aman?
 @options
-* jalankan `ls old_data` dulu, periksa, lalu hapus
+* cek `ls old_data` dulu, lalu hapus
 langsung `rm -rf old_data` dan berharap benar
-pakai `rm` supaya masuk tempat sampah
+pakai `rm old_data` agar masuk tempat sampah
 @why
 Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` lebih dulu hanya butuh dua detik dan sudah menyelamatkan banyak orang dari hari yang buruk.
 :::
 
-**Pengguna Windows.** Pasang WSL2 (`wsl --install` di PowerShell administrator), lalu buka "Ubuntu" dari menu Start. Di dalamnya, semua yang ada di kursus ini bekerja persis seperti yang tertulis. Kalau Anda tetap di PowerShell biasa, banyak perintah punya padanan (`dir` untuk `ls`, `type` untuk `cat`, `Select-String` untuk `grep`) tetapi tutorial, Docker (alat yang mengemas program agar jalan di mana pun; Modul 1.1), dan alat data akan terus mengasumsikan shell Linux, jadi WSL2 menghemat banyak gesekan.
-
 > 💡 **Jeda Praktik 1 (Eksplorasi Perintah Terminal):**
-> Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang di direktori kursus ini dan coba perintah navigasi dasar:
+> Jangan hanya membaca tabel di atas! Buka jendela terminal Anda sekarang dan pindah dulu ke folder kursus Anda:
+> Ketik `cd ~/projects/DECourse` (atau tempat Anda meng-clone kursus ini). Jika `data/orders.csv` belum ada, jalankan `python3 labs/shared/shopgen.py --out data` terlebih dulu.
 > Ketik `pwd` untuk melihat direktori aktif Anda.
 > Ketik `ls -la data` untuk melihat daftar file transaksi KopiKu.
 > Ketik `head -5 data/orders.csv` untuk mengintip 5 baris pertama pesanan.
@@ -138,7 +141,7 @@ Mengapa skrip berkata "file not found" padahal file-nya ada di situ? Hampir sela
 
 Setiap file punya **path**, alamatnya di sistem file. **Path absolut** dimulai dari root (`/home/budi/kopiku/data/orders.csv`). **Path relatif** dimulai dari tempat Anda berada sekarang (`data/orders.csv`). Beberapa pintasan yang akan sering Anda pakai: `~` adalah folder home Anda, `.` adalah folder saat ini, `..` adalah folder induk. Kalau skrip berkata "file not found", jalankan `pwd` dan `ls` dulu.
 
-Perhatikan bagaimana path relatif menjadi absolut: shell menempelkannya pada folder tempat Anda berada.
+Perhatikan bagaimana path relatif menjadi absolut: shell menempelkannya pada folder tempat Anda berada. (Trace di bawah memakai modul bawaan Python `posixpath`, yang menangani path Linux/macOS berpemisah `/`.)
 
 :::trace Path relatif, diselesaikan
 @code
@@ -164,16 +167,16 @@ File yang namanya diawali titik (`.gitignore`, `.env`) **tersembunyi**; `ls -a` 
 
 ### Environment variable dan PATH
 
-- **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya. Nanti Anda akan memakainya untuk mengoper pengaturan dan secret ke program tanpa menuliskannya di kode.
+- **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya (menaruh `$` di depan nama variabel menyuruh shell membaca nilainya). Nanti Anda akan memakainya untuk mengoper pengaturan dan secret ke program tanpa menuliskannya di kode.
 - **`PATH`** adalah daftar folder yang dicari shell ketika Anda mengetik nama perintah, **berurutan, dan yang pertama cocok menang**. "command not found" berarti programnya tidak terpasang, atau tidak ada di folder pada `PATH` Anda.
 
 :::ask Anda mengetik `pytest` dan shell menjawab `command not found`. Apa yang dikatakan itu?
 @options
-program pytest rusak di mesin ini
-Anda salah mengetik password-nya
-* tidak ada folder di `PATH` yang punya program bernama `pytest`
+program `pytest` sedang rusak di mesin ini
+Anda salah mengetik password untuk `pytest`
+* `pytest` tidak ada di folder `PATH`
 @why
-Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" berarti tidak satu pun punya: belum terpasang, atau terpasang di tempat yang tidak ada di `PATH`. Mengaktifkan virtual environment Python (dua materi berikutnya) bekerja dengan menaruh foldernya di **depan** `PATH`.
+Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" berarti tidak satu pun punya: belum terpasang, atau terpasang di tempat yang tidak ada di `PATH`. Mengaktifkan virtual environment Python (dua pelajaran berikutnya) bekerja dengan menaruh foldernya di **depan** `PATH`.
 :::
 
 > **Di komputer Anda, sekarang:** `echo $PATH` (foldernya dipisahkan `:`), lalu `which python3` untuk melihat folder mana yang menang.
@@ -182,19 +185,20 @@ Shell mencari nama itu di setiap folder `PATH`, berurutan. "command not found" b
 
 **Encoding teks dan akhir baris** menyebabkan bug diam-diam. File teks adalah byte (**byte** adalah potongan terkecil yang disimpan komputer; satu huruf biasa adalah satu byte) yang ditafsirkan lewat sebuah encoding, aturan yang menyatakan byte mana berarti karakter apa; pakai **UTF-8** di mana-mana dan sebutkan saat membuka file di kode. Windows dan Linux mengakhiri baris secara berbeda (`\r\n` vs `\n`); CSV yang dibuat di Windows bisa meninggalkan `\r` tak terlihat di akhir kolom terakhir, yang merusak perbandingan yang "tampak" identik.
 
-**Permission.** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya sebagai huruf (`-rwxr-xr-x`: `r` baca, `w` tulis, `x` jalankan; tiga kelompok berisi tiga, untuk pemilik, grup, dan lainnya). `chmod +x script.sh` memungkinkan Anda menjalankan skrip langsung. Anda terutama akan menemui permission sebagai "Permission denied", yang berarti pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file itu.
+**Permission.** File punya izin baca, tulis, dan eksekusi untuk pemilik, grup, dan lainnya. `ls -l` menampilkannya sebagai huruf (`-rwxr-xr-x`: `r` baca, `w` tulis, `x` jalankan; tiga kelompok berisi tiga, untuk pemilik, grup, dan lainnya). `chmod +x script.sh` memungkinkan Anda menjalankan skrip langsung. Anda terutama akan menemui permission sebagai "Permission denied", yang berarti pengguna yang menjalankan perintah tidak diizinkan melakukan aksi itu pada file itu. Anda mungkin juga melihat orang menambahkan `sudo` di depan perintah, itu menjalankan perintah sebagai `root` (administrator sistem dengan kuasa penuh untuk mengubah atau menghapus apa saja).
 
 :::ask Anda mendapat `Permission denied` saat menjalankan skrip yang baru diunduh. Langkah pertama yang benar?
 @options
-* cek `ls -l`, lalu `chmod +x` bila skripnya milik Anda
-taruh `sudo` di depannya, supaya selalu berhasil
-hapus file lalu unduh lagi
+* cek `ls -l`, lalu `chmod +x` jika aman
+taruh `sudo` di depan agar langsung jalan sebagai root
+hapus file itu lalu unduh salinan baru
 @why
 `sudo` menjalankan perintah dengan kekuatan penuh dan membuat file yang kemudian hanya bisa diubah administrator: jangan "memperbaiki" error permission dengan itu secara membabi buta. Baca dulu flag permission-nya, lalu ubah hanya yang perlu, pada file yang Anda percayai.
 :::
 
 > 💡 **Jeda Praktik 2 (Eksplorasi Path & Variabel Lingkungan):**
 > Coba periksa lingkungan shell Anda langsung di terminal:
+> Ketik `cd ~/projects/DECourse` (atau folder kursus Anda; jika `data/orders.csv` belum ada, jalankan `python3 labs/shared/shopgen.py --out data` lebih dulu).
 > Ketik `echo $HOME` untuk melihat path direktori home Anda.
 > Ketik `echo $PATH` untuk melihat daftar folder program yang dicari shell.
 > Ketik `which python3` untuk mengetahui path absolut interpreter Python sistem Anda.
@@ -213,11 +217,13 @@ Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, da
 
 ### Baca pipe dari kiri ke kanan
 
-Berapa pesanan per status? Coba pada file pesanan KopiKu yang Anda buat di Mulai dari sini (`python3 labs/shared/shopgen.py --out data`):
+Berapa pesanan per status? Coba pada file pesanan KopiKu yang Anda buat di Mulai di sini (`python3 labs/shared/shopgen.py --out data`):
 
 ```bash
 cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn
 ```
+
+Komponen penyusunnya: `cut -d, -f4` memecah setiap baris berdasarkan koma (`-d,`) dan mengambil kolom ke-4 (`-f4`), `tail -n +2` menampilkan mulai baris ke-2 ke bawah (melewati header), `sort` mengurutkan baris secara alfabetis (`-rn` mengurutkan angka secara terbalik), dan `uniq -c` menghitung baris yang berulang.
 
 Jangan dijalankan dulu. Tebak dulu apa yang diserahkan setiap tahap ke tahap berikutnya, pada file kecil:
 
@@ -230,9 +236,9 @@ id,customer,total,status
 
 :::ask Apa yang dicetak `cut -d, -f4 orders.csv` untuk file itu?
 @options
-seluruh file, header dan semua kolom
-* kolom ke-4, satu nilai per baris, header ikut
-hanya angkanya, tanpa header
+seluruh file, termasuk header dan semua kolom
+* kolom ke-4, termasuk header
+hanya nilai angkanya, tanpa baris header
 @why
 `-d,` menyatakan pemisahnya koma, dan `-f4` memilih field ke-4. Field ke-4 pada header (`status`) ikut keluar, itulah sebabnya tahap berikutnya melewati baris pertama.
 :::
@@ -240,7 +246,7 @@ hanya angkanya, tanpa header
 :::ask Mengapa `sort` harus datang SEBELUM `uniq -c` dalam pipe?
 @options
 `uniq` hanya bekerja pada angka terurut, bukan teks
-* `uniq -c` hanya menghitung baris sama yang bersebelahan
+* `uniq -c` hanya menghitung baris sama berdekatan
 itu membuat keluaran tampak lebih rapi, tidak lebih
 @why
 `uniq -c` hanya membandingkan sebuah baris dengan baris tepat sebelumnya. Untuk `paid, cancelled, paid` ia menghitung tiga kelompok berisi 1. Setelah `sort` ia melihat `cancelled, paid, paid` dan menghitung `1 cancelled` dan `2 paid`.
@@ -279,7 +285,7 @@ tidak terjadi apa-apa: shell menolak menjalankannya
 `>` mengosongkan file tujuan begitu perintah dimulai. `sort` lalu membaca file yang sudah kosong. Untuk mengurutkan sebuah file ke file lain, tulis ke nama yang **berbeda**: `sort orders.csv > sorted.csv`. (Mengalihkan ke file yang sedang dibaca menghancurkannya.)
 :::
 
-Setiap program punya tiga aliran standar: input (`stdin`), output (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python job.py > out.txt 2> errors.txt`). Memisahkan keduanya adalah alasan pipeline bisa gagal dengan jelas meski outputnya dialirkan ke tempat lain.
+Setiap program punya tiga aliran standar: input (`stdin`), output (`stdout`), dan error (`stderr`). Pipe membawa `stdout`; pesan error tetap muncul di layar Anda. Untuk menyimpan error juga, pakai `2>` (misalnya `python3 job.py > out.txt 2> errors.txt`). Memisahkan keduanya adalah alasan pipeline bisa gagal dengan jelas meski outputnya dialirkan ke tempat lain.
 
 > 💡 **Jeda Praktik 3 (Piping Data KopiKu):**
 > Mari buktikan kekuatan pipe langsung di terminal tanpa menulis program Python:
@@ -351,7 +357,7 @@ Tiga aturan menyelamatkan banyak sore para pemula:
 
 1. **Selalu jalankan `python -m pip`, bukan `pip` saja.** Ini menjamin paket masuk ke Python yang sedang Anda pakai.
 2. **Jangan pernah `sudo pip install`.** Itu mengubah Python sistem dan bisa merusak alat sistem operasi.
-3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
+3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** (Git dan cara commit diajarkan berikutnya di Pelajaran 5, untuk sekarang, "commit" berarti menyimpan file ke riwayat versi proyek Anda.) Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
 
 Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cepat dan menambahkan lock file; konsepnya identik, jadi pelajari dulu dengan `venv`.
 
@@ -368,7 +374,7 @@ Sebelum membaca bagian berikutnya, jawab:
 
 :::ask Mana di antara ini yang harus Anda commit ke Git?
 @options
-folder `venv/`
+seluruh folder `venv/`
 keduanya
 * `requirements.txt`
 @why
@@ -381,7 +387,7 @@ keduanya
 
 > 💡 **Jeda Praktik 4 (Bangun Workspace & Virtual Environment):**
 > Saatnya membangun bengkel kerja lokal Anda sendiri! Buka terminal dan jalankan:
-> 1. Buat folder workspace: `mkdir -p ~/kopiku && cd ~/kopiku`
+> 1. Buat folder workspace: `mkdir -p ~/kopiku && cd ~/kopiku` (`&&` menjalankan perintah kedua hanya jika perintah pertama berhasil)
 > 2. Buat virtual environment terisolasi: `python3 -m venv venv`
 > 3. Aktifkan environment: `source venv/bin/activate`
 > 4. Verifikasi: `which python` (pastikan outputnya menunjuk ke `~/kopiku/venv/bin/python`).
@@ -396,10 +402,17 @@ Git mencatat snapshot proyek Anda sehingga Anda bisa melihat apa yang berubah, k
 2. **Staging area**: perubahan yang sudah *Anda pilih* untuk masuk ke snapshot berikutnya.
 3. **Riwayat repositori**: rantai permanen snapshot, disebut **commit**.
 
-Siklus dasarnya:
+**Pengaturan sekali saja (lakukan sekali per komputer):** beri tahu Git siapa Anda agar ia tahu siapa pembuat setiap commit (jika tidak, `git commit` berhenti dengan error `Author identity unknown`):
 
 ```bash
-git init                         # mulai melacak folder ini (sekali)
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+Siklus dasarnya (memberi `-b main` pada `git init` memastikan branch pertama selalu bernama `main`, bahkan pada instalasi Git yang lebih lama):
+
+```bash
+git init -b main                 # mulai melacak folder ini di branch main (sekali)
 git status                       # apa yang berubah? apa yang sudah di-stage?
 git add summarize.py             # stage sebuah file untuk snapshot berikutnya
 git commit -m "Add script that counts orders by status"   # ambil snapshot
@@ -411,9 +424,9 @@ Tebak dulu sebelum membaca bagian berikutnya:
 
 :::ask Anda mengedit `a.py` dan `b.py`. Anda menjalankan `git add a.py` lalu `git commit -m "fix"`. Apa isi commit itu?
 @options
-* hanya `a.py`: hanya perubahan yang di-stage yang masuk ke commit
-kedua file
-tidak ada, Anda juga harus menjalankan `git push`
+* hanya `a.py`, karena cuma itu yang di-stage
+kedua file, `a.py` dan `b.py`
+tidak ada, sampai Anda menjalankan `git push`
 @why
 Commit mengambil snapshot dari **staging area**, dan hanya `a.py` yang di-stage. `b.py` tetap file yang dimodifikasi di working tree. Itulah mengapa `git status` sebelum setiap commit berguna.
 :::
@@ -424,12 +437,10 @@ Commit mengambil snapshot dari **staging area**, dan hanya `a.py` yang di-stage.
 
 - Membuang perubahan yang belum di-commit pada sebuah file: `git restore file.py`
 - Mengeluarkan file dari staging: `git restore --staged file.py`
-- Membatalkan commit dengan menambah commit baru yang membalikkannya: `git revert <commit>`
+- Membatalkan commit dengan menambah commit baru yang membalikkannya: `git revert <commit>` (ganti `<commit>` dengan hash pendek commit yang ditampilkan `git log --oneline`, misalnya `a1b2c3d`)
 - Memperbaiki pesan commit terakhir (yang belum dibagikan): `git commit --amend`
 
-Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah mana yang membuang suntingan dan mengembalikan versi commit terakhir?
-
-:::ask Pilih perintah yang tepat.
+:::ask Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah mana yang membuang suntingan dan mengembalikan versi commit terakhir?
 @options
 `git revert`
 `git commit --amend`
@@ -440,24 +451,24 @@ Anda mengedit `summarize.py` dan merusaknya. Belum ada yang di-commit. Perintah 
 
 **Branch** memungkinkan Anda bereksperimen tanpa menyentuh jalur utama: `git switch -c coba-parser-baru`, bekerja dan commit, lalu gabungkan (`git switch main && git merge coba-parser-baru`) atau buang. **Remote** seperti GitHub menyimpan salinan di tempat lain: `git remote add origin <url>` dan `git push -u origin main`. Repositori yang di-push adalah cadangan dan portofolio, tetapi juga sesuatu yang bisa dibaca orang lain, itulah mengapa dua poin berikutnya penting.
 
-**`.gitignore`** mendaftar file yang tidak boleh dilacak Git: `venv/`, `.env`, `__pycache__/`, file data besar seperti `data/`. Catatan: mengabaikan file hanya berlaku untuk file yang belum di-commit. Kalau Anda sudah meng-commit `data/` sebelumnya, tambahkan ke `.gitignore` *dan* jalankan `git rm -r --cached data` untuk berhenti melacaknya.
+**`.gitignore`** mendaftar file yang tidak boleh dilacak Git: `venv/`, `.env`, `__pycache__/`, file data besar seperti `data/`. Catatan: mengabaikan file hanya berlaku untuk file yang belum di-commit. Kalau Anda sudah meng-commit `data/` sebelumnya, tambahkan ke `.gitignore` *dan* jalankan `git rm -r --cached data` untuk berhenti melacaknya (`--cached` menghapusnya dari Git saja sambil tetap menyimpan file lokal di disk Anda).
 
 > **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu secret tidak boleh pernah di-commit, bahkan "sementara".
 
 :::ask Anda meng-commit `.env` berisi password, menyadarinya, dan menghapus file itu di commit berikutnya. Apakah password itu sudah aman?
 @options
-* tidak: commit sebelumnya masih menyimpannya untuk siapa pun yang punya clone
+* tidak: tetap ada di commit lama
 ya, file-nya sudah hilang dari folder
 ya, karena commit lama tidak bisa dibaca
 @why
-Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Commit lama masih berisinya. Anggap setiap secret yang ter-commit sudah terbuka: cabut dan ganti dulu (materi berikutnya).
+Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Commit lama masih memuatnya. Anggap setiap secret yang ter-commit sudah terbuka: cabut dan ganti dulu (pelajaran berikutnya).
 :::
 
 
 > 💡 **Jeda Praktik 5 (Inisialisasi Git & Proteksi .gitignore):**
-> Masih di dalam folder `~/kopiku` dengan terminal Anda:
-> 1. Inisialisasi pelacakan Git: `git init`
-> 2. Buat file `.gitignore` agar folder venv dan data tidak ter-commit:
+> Masih di dalam folder `~/kopiku` dengan terminal Anda (jika Anda belum pernah memakai Git di komputer ini, jalankan dua baris `git config --global` di atas sekali terlebih dulu):
+> 1. Inisialisasi pelacakan Git di branch `main`: `git init -b main`
+> 2. Buat file `.gitignore` agar folder venv dan data tidak ter-commit (`printf` mencetak teks dengan `\n` sebagai baris baru):
 > `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
 > 3. Buat commit pertama Anda:
 > `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
@@ -489,7 +500,7 @@ ia mengembalikan password program lain
 Gagal seketika dan jelas lebih baik daripada berjalan setengah terkonfigurasi. `os.environ.get("REGION", "ap-southeast-1")` adalah versi untuk pengaturan yang **tidak berbahaya** dan punya nilai bawaan yang aman; jangan pernah memberi secret nilai bawaan.
 :::
 
-Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.gitignore`, lalu muat dengan shell (`set -a; source .env; set +a`) atau library seperti `python-dotenv`. Di produksi, platform menyuntikkannya dari secrets manager. Commit sebuah `.env.example` berisi nilai palsu agar rekan tim tahu variabel apa saja yang ada.
+Untuk kerja lokal, taruh variabel di file bernama `.env` yang terdaftar di `.gitignore`, lalu muat dengan shell (`set -a; source .env; set +a`: `set -a` otomatis mengekspor setiap variabel saat `source .env` membaca file, dan `set +a` mematikannya kembali) atau library seperti `python-dotenv`. Di produksi, platform menyuntikkannya dari secrets manager. Commit sebuah `.env.example` berisi nilai palsu agar rekan tim tahu variabel apa saja yang ada.
 
 ### Mengapa sebuah variabel "menghilang"
 
@@ -530,7 +541,7 @@ port: 5432
 @options
 ya, karena ia berada tepat setelah `host`
 ya, karena kedua nilainya ditulis dengan cara yang sama
-* tidak: ia berada di tepi kiri, jadi ia pengaturan terpisah di samping `database`
+* tidak: tanpa indentasi, jadi key tingkat atas
 @why
 Hanya indentasi yang menentukan. `host` menjorok di bawah `database`, tetapi `port` mulai lagi dari tepi kiri, jadi ia milik tingkat teratas. Untuk memasukkannya, jorokkan sebanyak dua spasi yang sama seperti `host`.
 :::
@@ -557,7 +568,7 @@ Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena b
 > Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Pelajaran 7.
 
 ## @lesson Kebiasaan kerja yang membuat Anda lebih cepat
-Mengapa menghabiskan satu materi untuk kebiasaan? Karena perbedaan dua pemula dengan keterampilan sama biasanya adalah seberapa cepat masing-masing keluar dari kebuntuan.
+Mengapa menghabiskan satu pelajaran untuk kebiasaan? Karena perbedaan dua pemula dengan keterampilan sama biasanya adalah seberapa cepat masing-masing keluar dari kebuntuan.
 
 Beberapa disiplin kecil memisahkan orang yang menyelesaikan pekerjaan dari orang yang bergulat dengan alatnya.
 
@@ -586,34 +597,34 @@ Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, l
 
 > 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
 > Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:
-> 0. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/projects/DECourse` (folder dari Mulai di sini, langkah 3; `export` hanya berlaku di jendela terminal ini)
-> 1. Masih di `~/kopiku`, salin generator dan buat datanya:
-> `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
-> 2. Salin starter skrip: `cp $COURSE/labs/mod-0-1/starter/summarize.py .`
-> 3. Buka `summarize.py` di editor Anda, implementasikan penghitungan pesanan per status huruf kecil.
-> 4. Commit skrip dan generator: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"`
-> 5. Catat dependensi: `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
-> 6. Jalankan pemeriksa otomatis dari repositori kursus:
-> `python3 $COURSE/labs/mod-0-1/check.py ~/kopiku`
-> Jika semua baris PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional!
+> 1. Pastikan Anda berada di `~/kopiku` dengan virtual environment aktif: `cd ~/kopiku && source venv/bin/activate`
+> 2. Beri tahu shell di mana Anda meng-clone kursus ini (ubah path ke folder ANDA): `export COURSE=~/projects/DECourse` (folder dari Mulai di sini, langkah 3; `export` hanya berlaku di jendela terminal ini)
+> 3. Salin generator dan buat datanya: `cp $COURSE/labs/shared/shopgen.py . && python3 shopgen.py --out data`
+> 4. Salin starter skrip: `cp $COURSE/labs/mod-0-1/starter/summarize.py .`
+> 5. Buka `summarize.py` di editor Anda lalu implementasikan: hitung setiap `order_id` satu kali saja (buang baris duplikat), ubah status menjadi huruf kecil tanpa spasi di tepi, dan cetak satu baris terurut per status dengan format `"<status> <count>"`.
+> 6. Commit skrip dan generator, lalu catat dependensi: `git add shopgen.py summarize.py && git commit -m "feat: count orders by status"` dan `python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "chore: freeze requirements"`
+> 7. Jalankan pemeriksa otomatis dari repositori kursus: `python3 $COURSE/labs/mod-0-1/check.py ~/kopiku`
+> Jika ke-16 pemeriksaan PASS, selamat! Anda resmi memiliki lingkungan kerja data engineer profesional (di Lab di bawah, lewati Langkah 1–5 dan langsung lompat ke Langkah 6–7).
 
 ## @lab Lab: bangun workspace KopiKu Anda
 Buat folder proyek yang akan Anda pakai di sisa kursus ini, dan buktikan ia disiapkan dengan benar lewat pemeriksa otomatis. Workspace Anda butuh lingkungan terisolasi, riwayat Git dengan commit yang masuk akal, `.gitignore` yang melindungi Anda, dan skrip kecil yang menghitung pesanan per status.
 
 ### @steps
+> **Sudah mengikuti Jeda Praktik 4–7 di `~/kopiku`?** **Lewati Langkah 1–5**: **jangan** jalankan ulang `cp $COURSE/labs/mod-0-1/starter/summarize.py .` karena itu akan menimpa skrip Anda yang sudah selesai! Langsung lompat ke **Langkah 6** (`check.py`) dan **Langkah 7** (venv kursus + `prove.py`).
+
 1. Buat folder dan masuk ke dalamnya:
 
 ```bash
 mkdir -p ~/kopiku && cd ~/kopiku
 ```
 
-2. Buat dan aktifkan virtual environment, lalu buat commit pertama dengan `.gitignore` yang mengecualikan `venv/`, `.env`, `data/`, dan `__pycache__/`:
+2. Buat dan aktifkan virtual environment, lalu buat commit pertama dengan `.gitignore` yang mengecualikan `venv/`, `.env`, `data/`, dan `__pycache__/` (jika ini pertama kalinya Anda memakai Git di komputer ini, jalankan `git config --global user.name "Your Name"` dan `git config --global user.email "you@example.com"` sekali lebih dulu agar `git commit` tidak berhenti dengan `Author identity unknown`):
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate            # Windows PowerShell: venv\Scripts\Activate.ps1
-git init
-printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore
+git init -b main
+printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore   # printf mencetak teks (\n = baris baru)
 git add .gitignore
 git commit -m "Start project with a .gitignore"
 ```
@@ -626,7 +637,7 @@ cp $COURSE/labs/shared/shopgen.py .
 python3 shopgen.py --out data
 ```
 
-4. Salin skrip starter ke proyek Anda dengan `cp $COURSE/labs/mod-0-1/starter/summarize.py .`, buka di editor, lalu implementasikan. Ia harus menghitung setiap `order_id` sekali dan mengelompokkan menurut status huruf kecil. Coba jalankan, dan bandingkan dengan one-liner terminal dari materi (ingat one-liner itu menghitung ganda duplikat, jadi angkanya akan sedikit berbeda: itulah intinya):
+4. Salin skrip starter ke proyek Anda dengan `cp $COURSE/labs/mod-0-1/starter/summarize.py .` (**jangan jalankan `cp` ini jika Anda sudah menyelesaikan `summarize.py` di Jeda Praktik 7**, agar tidak menimpa kode Anda), buka di editor, lalu implementasikan. Ia harus menghitung setiap `order_id` sekali dan mengelompokkan menurut status huruf kecil. Coba jalankan, dan bandingkan dengan one-liner terminal dari pelajaran (ingat one-liner itu menghitung ganda duplikat, jadi angkanya akan sedikit berbeda: itulah intinya):
 
 ```bash
 python3 summarize.py data/orders.csv
@@ -648,10 +659,12 @@ git commit -m "Record dependencies in requirements.txt"
 python3 $COURSE/labs/mod-0-1/check.py ~/kopiku
 ```
 
-7. **Siapkan untuk Modul 0.2 dan buktikan workspace Anda.** Buat virtual environment bersama untuk folder kursus satu kali saja, pasang `pytest` (Modul 0.2 langsung memakainya setelah ini; jika tadi Anda baru mencoba `Lab 0.0` di pratinjau browser, jalankan juga `pytest labs/mod-0-0/test_lab.py -v` di sini), lalu buat kode bukti Modul 0.1 Anda:
+7. **Siapkan untuk Modul 0.2 dan buktikan workspace Anda.** Keluar dulu dari venv `~/kopiku` dengan `deactivate`, lalu buat virtual environment bersama untuk folder kursus (`$COURSE`) satu kali saja, pasang `pytest` (Modul 0.2 langsung memakainya setelah ini; jika tadi Anda baru mencoba `Lab 0.0` di pratinjau browser, jalankan juga `pytest labs/mod-0-0/test_lab.py -v` di sini), lalu buat kode bukti Modul 0.1 Anda:
 
 ```bash
-cd ~/projects/DECourse
+deactivate                              # keluar dari venv ~/kopiku (lewati jika tidak aktif)
+export COURSE=~/projects/DECourse       # ubah jika Anda meng-clone di tempat lain
+cd "$COURSE"
 python3 -m venv venv && source venv/bin/activate
 python -m pip install pytest
 python3 scripts/prove.py mod-0-1 ~/kopiku
@@ -659,7 +672,7 @@ python3 scripts/prove.py mod-0-1 ~/kopiku
 
 Perintah terakhir mencetak kode bukti. Tempel ke kotak **Bukti** di halaman lab Modul 0.1.
 
-   Venv kedua ini milik **folder kursus** (`~/projects/DECourse`, atau tempat Anda meng-clone-nya di Mulai di sini, langkah 3), bukan milik `~/kopiku`: satu venv per proyek adalah kebiasaan yang normal. Inilah venv yang Anda pakai untuk semua modul berikutnya. Buat sekali saja; di awal setiap sesi belajar jalankan `cd ~/projects/DECourse` dan `source venv/bin/activate`, lalu pastikan prompt diawali `(venv)`.
+Venv kedua ini milik **folder kursus** (`$COURSE`, misalnya `~/projects/DECourse`, dari Mulai di sini, langkah 3), bukan milik `~/kopiku`: satu venv per proyek adalah kebiasaan yang normal. Inilah venv yang Anda pakai untuk semua modul berikutnya. Buat sekali saja; di awal setiap sesi belajar jalankan `cd ~/projects/DECourse` (folder `$COURSE` Anda) dan `source venv/bin/activate`, lalu pastikan prompt diawali `(venv)`.
 
 ### @files
 - labs/mod-0-1/starter/summarize.py :: Kerangka skrip Anda: isi logika penghitungannya :: starter
@@ -668,13 +681,13 @@ Perintah terakhir mencetak kode bukti. Tempel ke kotak **Bukti** di halaman lab 
 - labs/mod-0-1/reference/make_workspace.sh :: Membuat workspace yang sudah jadi secara otomatis :: reference
 
 ### @deliverables
-- `python3 labs/mod-0-1/check.py ~/kopiku` mencetak PASS di setiap baris
-- Riwayat Git Anda punya minimal tiga commit dengan pesan yang bermakna
-- `venv/`, `data/`, dan `.env` tidak dilacak oleh Git
-- 8 tes Lab 0.2 lulus di terminal Anda sendiri, di dalam venv Anda sendiri (penyiapan Anda sendiri, bukan pratinjau browser)
+- `python3 labs/mod-0-1/check.py ~/kopiku` mencetak PASS untuk ke-16 pemeriksaan
+- Riwayat Git Anda punya minimal tiga commit dengan pesan yang unik dan bermakna, serta `venv/`, `data/`, dan `.env` tidak dilacak oleh Git
+- `python3 scripts/prove.py mod-0-1 ~/kopiku` mencetak kode bukti yang valid
+- `pytest` terpasang di dalam `venv` folder kursus, siap untuk Modul 0.2
 
 ### @verify
-Pemeriksa itulah verifikasinya:
+Pemeriksa itulah verifikasinya. Jalankan dari folder kursus Anda (`cd "$COURSE"`, misalnya `~/projects/DECourse`):
 
 ```bash
 python3 labs/mod-0-1/check.py ~/kopiku
@@ -714,7 +727,7 @@ Rahasia tinggal di environment, tidak pernah di repositori. Jika suatu saat boco
 - [ ] Ia dihapus dari disk Anda saat `git pull` berikutnya
 - [ ] Ia disembunyikan dari log tetapi tetap dilacak, dan edit berikutnya otomatis diabaikan oleh Git
 
-> `.gitignore` hanya berlaku untuk file yang belum dilacak Git. File yang sudah di-commit terus dilacak sampai Anda mengeluarkannya dari index (dan tetap ada di commit lama).
+> `.gitignore` hanya berlaku untuk file yang belum dilacak Git. File yang sudah di-commit terus dilacak sampai Anda mengeluarkannya dari staging area (dan tetap ada di commit lama).
 
 ### Apa yang dilakukan `grep "paid" orders.csv | wc -l`?
 - [ ] Menghitung berapa file di folder saat ini yang mengandung kata "paid"

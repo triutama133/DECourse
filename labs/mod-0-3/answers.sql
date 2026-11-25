@@ -27,7 +27,7 @@
 
 -- k-7 [kopiku] Repeat customers (HAVING)
 -- Return name and delivered_orders for customers with at least 2 delivered orders.
--- Hint: Filter rows with WHERE (status), filter groups with HAVING COUNT(*) >= 2.
+-- Hint: JOIN customers with orders, filter WHERE status = 'delivered', GROUP BY customer, and filter groups with HAVING COUNT(*) >= 2.
 
 -- k-8 [kopiku] The fan-out trap: shipping fees
 -- Return a single number, shipping_total: the sum of shipping_fee_idr over delivered orders. Every order must be counted ONCE.

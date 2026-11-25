@@ -1,6 +1,6 @@
 # Lab 2.5: write the data contract for the "orders" feed.  The tests load THIS file.
 #
-# Required fields, in this order (all of them required: true unless noted):
+# Required fields, in this order (all of them required: true):
 #   order_id        integer, unique, minimum 1
 #   customer_id     integer, minimum 1
 #   order_ts        timestamp (ISO 8601 "YYYY-MM-DDTHH:MM:SS")

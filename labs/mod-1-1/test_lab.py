@@ -1,4 +1,4 @@
-"""Tests for Lab 1.1.   python labs/mod-1-1/test_lab.py -v
+"""Tests for Lab 1.1.   python3 labs/mod-1-1/test_lab.py -v
 
 Part A runs report.sh on generated data and compares it with an independent Python count.
 Part B checks the Dockerfile against good practices (static checks: Docker itself is not needed).
@@ -59,7 +59,15 @@ class TestReportScript(unittest.TestCase):
 
     def test_script_declares_strict_mode_and_cleans_up(self):
         text = (LAB / "report.sh").read_text()
-        self.assertRegex(text, r"set -[a-z]*e[a-z]*u[a-z]*o pipefail|set -euo pipefail", "use `set -euo pipefail`")
+        set_lines = [l.split("#", 1)[0] for l in text.splitlines() if re.match(r"^\s*set\s+", l)]
+        joined = "\n".join(set_lines)
+        has_e = bool(re.search(r"(?:^|\s)-[a-zA-Z]*e[a-zA-Z]*(?:\s|$)|-o\s+errexit\b", joined))
+        has_u = bool(re.search(r"(?:^|\s)-[a-zA-Z]*u[a-zA-Z]*(?:\s|$)|-o\s+nounset\b", joined))
+        has_pipefail = bool(re.search(r"(?:^|\s)-[a-zA-Z]*o\s+pipefail\b", joined))
+        self.assertTrue(
+            has_e and has_u and has_pipefail,
+            "enable strict mode: use `set -euo pipefail` (or separate `set -e`, `set -u`, `set -o pipefail`)",
+        )
         if "mktemp" in text:
             self.assertIn("trap", text, "temporary files must be removed with trap")
 

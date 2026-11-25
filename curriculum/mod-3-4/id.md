@@ -38,8 +38,8 @@ Praktik mengonfigurasi cloud secara manual lewat browser ("ClickOps") dilarang b
 
 :::ask Mengapa perubahan infrastruktur yang ditulis sebagai kode dan ditinjau lewat pull request lebih aman daripada klik di konsol?
 @options
-* rekan membacanya dulu dan Git menyimpan riwayat
-konsol selalu jauh lebih lambat dari kode
+* ada review rekan dan riwayat perubahan Git
+konsol selalu jauh lebih lambat daripada kode
 kode tidak pernah mengandung kesalahan sama sekali
 @why
 Dapat ditinjau, dapat diulang, dan dapat diaudit adalah tiga keuntungannya. File yang sama membangun dev dan prod, dan riwayat menunjukkan siapa mengubah izin mana dan kapan.
@@ -96,20 +96,21 @@ Perubahan manual yang dilakukan seseorang di cloud console di luar kendali Terra
 
 Lingkungan dev dan prod umumnya berbagi file arsitektur `.tf` yang sama namun menggunakan file variabel `.tfvars` yang berbeda; pada lab praktikum, file `dev.tfvars` mengarsipkan data mentah setelah 30 hari sementara `prod.tfvars` menyimpannya selama 90 hari dan hanya lingkungan prod yang mengaktifkan fitur object versioning. Pada sistem berskala enterprise, blok-blok kode yang berulang diabstraksikan ke dalam **Modules** mandiri dan setiap environment memiliki file state yang terisolasi total, idealnya di akun cloud yang berbeda. Kesalahan konfigurasi fatal di dev pantang menjalar ke produksi.
 
-> 💡 **Jeda Praktik 1 (Deklarasi Variabel & Validasi Lingkungan Terraform):**
+> 💡 **Jeda Praktik 1 (Deklarasi Variabel, `common_tags` & Validasi Lingkungan Terraform):**
 > 1. Buka file `labs/mod-3-4/terraform/variables.tf` di teks editor Anda. Jangan jalankan file Terraform secara langsung tanpa CLI.
-> 2. Deklarasikan variabel input: `env` (dengan validasi kondisi hanya menerima dev atau prod), `project`, `owner`, `cost_center`, `raw_archive_days`, dan `enable_versioning` lengkap dengan tipe data dan deskripsinya.
-> 3. Jalankan pengujian di terminal:
+> 2. Deklarasikan variabel input: `env` (dengan validasi kondisi hanya menerima dev atau prod dan pesan berisi `"env must be dev or prod"`), `project`, `owner`, `cost_center`, `raw_archive_days`, dan `enable_versioning` lengkap dengan tipe data dan deskripsinya.
+> 3. Buka `labs/mod-3-4/terraform/main.tf` dan tambahkan blok `locals { common_tags = { ... } }` (karena `provider.tf` langsung merujuk `local.common_tags`; resource AWS-nya kita kerjakan di Jeda Praktik 2).
+> 4. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-4/test_terraform.py -k TestHygiene -v`
-> 4. **Indikator Sukses:** Seluruh pengujian di kelas `TestHygiene` berstatus `PASSED` (atau dilewati secara rapi jika Terraform CLI belum terpasang), memvalidasi format HCL, sintaksis yang benar, dan penolakan otomatis terhadap nilai lingkungan yang tidak valid.
+> 5. **Indikator Sukses:** Seluruh pengujian di kelas `TestHygiene` berstatus `PASSED` (atau dilewati secara rapi jika Terraform CLI belum terpasang), memvalidasi format HCL, sintaksis yang benar, dan penolakan otomatis terhadap nilai lingkungan yang tidak valid.
 
 :::ask Apa isi file state Terraform?
 @options
-salinan semua data di dalam bucket-mu
-* peta dari resource di kodemu ke objek nyata
-kata sandi para pengguna cloud-mu
+salinan cadangan semua data di bucket penyimpanan Anda
+* peta penghubung kode Anda ke objek cloud nyata
+kata sandi login para pengguna cloud Anda
 @why
-Tanpa state, Terraform tidak bisa membedakan 'buat ini' dari 'ini sudah ada'. Ia membandingkan kodemu, state, dan kenyataan untuk membangun plan. Simpan di tempat bersama yang terkunci dan akses-terkontrol.
+Tanpa state, Terraform tidak bisa membedakan 'buat ini' dari 'ini sudah ada'. Ia membandingkan kode Anda, state, dan kenyataan untuk membangun plan. Simpan di tempat bersama yang terkunci dan akses-terkontrol.
 :::
 
 ## @lesson Jaringan cloud dalam bahasa sederhana: alamat, pintu, dan dinding
@@ -136,7 +137,7 @@ Angka setelah garis miring menyatakan berapa dari 32 bit alamat itu yang **terku
 :::drill python Seberapa besar bloknya?
 Tulis `block_size(prefix)`: jumlah alamat dalam blok CIDR yang angka setelah garis miringnya `prefix`. `block_size(24)` adalah `256`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("block_size") ## Definisikan block_size(prefix).
@@ -145,7 +146,7 @@ block_size(16) == 65536 ## /16: 2 ** 16.
 block_size(32) == 1 ## Semua 32 bit terkunci: tepat satu alamat.
 block_size(20) == 4096 ## /20: 2 ** 12.
 @hint
-`2 ** (32 - prefix)`
+Hitung berapa bit yang tersisa dari 32 bit setelah dikunci `prefix`, lalu pangkatkan 2 dengan jumlah bit tersisa tersebut.
 @solution
 def block_size(prefix):
     return 2 ** (32 - prefix)
@@ -155,7 +156,7 @@ def block_size(prefix):
 Tulis `in_block(ip, cidr)`: `True` bila alamat berada di dalam blok CIDR. Library standar membantu: `ipaddress.ip_address(...)` dan `ipaddress.ip_network(...)` memahami kedua teks itu, dan `in` memeriksa keanggotaan.
 @starter
 import ipaddress
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("in_block") ## Definisikan in_block(ip, cidr).
@@ -164,7 +165,7 @@ in_block("10.0.48.1", "10.0.32.0/20") == False ## 48 melewati ujung /20 itu.
 in_block("10.0.1.1", "10.0.0.0/16") == True ## Di dalam blok besar.
 in_block("192.168.0.1", "10.0.0.0/16") == False ## Jaringan lain.
 @hint
-`ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)`
+Konversi `ip` dengan `ip_address` dan `cidr` dengan `ip_network`, lalu uji keanggotaan dengan operator `in`.
 @solution
 import ipaddress
 def in_block(ip, cidr):
@@ -181,7 +182,7 @@ Dua program tidak bisa mendengarkan di pintu yang sama. Jika Anda menyalakan dat
 
 **Subnet publik** punya rute ke internet gateway, jadi mesin di dalamnya bisa dijangkau dari internet bila aturan firewall mengizinkan. **Subnet privat** tidak punya rute seperti itu: tak ada di internet yang bahkan bisa mencoba menjangkaunya. Database, compute warehouse, dan worker pipeline sebaiknya berada di subnet privat.
 
-Tetapi job privat tetap perlu mengunduh library atau memanggil API. **NAT gateway** (network address translation) menyelesaikannya: mesin privat memulai permintaan, NAT gateway mengirimnya keluar dan membawa jawabannya kembali, dan tak ada dari luar yang bisa memulai percakapan dengan mesin privat itu. Ia nyaman, dan **ditagih per jam dan per gigabyte** yang melewatinya (Materi 7 modul ini menunjukkan seberapa besar tagihan itu bisa menjadi). Untuk lalu lintas S3 ada cara yang lebih murah, gateway endpoint, yang menjaga data tetap di jaringan milik cloud itu sendiri.
+Tetapi job privat tetap perlu mengunduh library atau memanggil API. **NAT gateway** (network address translation) menyelesaikannya: mesin privat memulai permintaan, NAT gateway mengirimnya keluar dan membawa jawabannya kembali, dan tak ada dari luar yang bisa memulai percakapan dengan mesin privat itu. Ia nyaman, dan **ditagih per jam dan per gigabyte** yang melewatinya (Pelajaran 7 modul ini menunjukkan seberapa besar tagihan itu bisa membengkak). Untuk lalu lintas S3 ada cara yang lebih murah, gateway endpoint, yang menjaga data tetap di jaringan milik cloud itu sendiri.
 
 ### Aturan firewall: siapa boleh mengetuk pintu yang mana
 
@@ -191,7 +192,7 @@ Tetapi job privat tetap perlu mengunduh library atau memanggil API. **NAT gatewa
 Tulis `allowed(rules, ip, port)`: `rules` adalah list pasangan `(cidr, port)`, masing-masing sebuah aturan **izin**. Kembalikan `True` hanya bila ada aturan yang bloknya memuat `ip` **dan** portnya sama dengan `port`. Tanpa aturan yang cocok jawabannya `False` (apa pun yang tidak diizinkan ditolak).
 @starter
 import ipaddress
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("allowed") ## Definisikan allowed(rules, ip, port).
@@ -201,7 +202,7 @@ allowed([("10.0.0.0/16", 5432)], "10.0.3.7", 22) == False ## Alamat yang benar, 
 allowed([], "10.0.3.7", 5432) == False ## Tanpa aturan: tidak ada yang diizinkan.
 allowed([("0.0.0.0/0", 5432)], "203.0.113.9", 5432) == True ## 0.0.0.0/0 adalah seluruh internet: aturan yang berbahaya.
 @hint
-`any(ipaddress.ip_address(ip) in ipaddress.ip_network(cidr) and p == port for cidr, p in rules)`
+Iterasi setiap pasangan `(cidr, p)` di `rules` dan kembalikan `True` segera setelah alamat `ip` berada di dalam jaringan `cidr` sekaligus `p` sama dengan `port`.
 @solution
 import ipaddress
 def allowed(rules, ip, port):
@@ -219,13 +220,13 @@ tak seorang pun, karena port database selalu diblokir secara bawaan
 
 ### Region dan zona
 
-**Region** cloud adalah sebuah kota, seperti Jakarta atau Singapura. Di dalamnya ada beberapa **availability zone**, gedung-gedung terpisah dengan listrik dan jaringannya sendiri. Menyebar layanan di beberapa zona bertahan dari hilangnya satu gedung. Tetapi lalu lintas yang melintasi zona, atau keluar dari region, ditagih per gigabyte. Untuk klaster yang mengacak terabyte per hari, tagihan yang "tak terlihat" ini menjadi uang sungguhan.
+**Region** cloud adalah sebuah kota, seperti Jakarta atau Singapura. Di dalamnya ada beberapa **availability zone**, gedung-gedung terpisah dengan listrik dan jaringannya sendiri. Menyebar layanan di beberapa zona bertahan dari hilangnya satu gedung. Tetapi lalu lintas yang melintasi zona, atau keluar dari region, ditagih per gigabyte. Untuk klaster yang melakukan shuffle terabyte per hari, tagihan yang "tak terlihat" ini menjadi uang sungguhan.
 
 :::ask Sebuah worker pipeline privat harus mengunduh library dari internet, tetapi tak seorang pun di internet boleh bisa membuka koneksi ke worker itu. Apa yang dibutuhkannya?
 @options
 subnet publik dengan aturan yang mengizinkan 0.0.0.0/0 pada semua port
 blok CIDR yang lebih besar, agar worker punya lebih banyak alamat
-* NAT gateway: worker memulai permintaan, dan tak ada dari luar yang bisa memulainya
+* NAT gateway: akses keluar saja, tanpa jalur masuk
 @why
 NAT gateway memberi mesin privat jalan keluar tanpa jalan masuk. Subnet publik dengan aturan terbuka membiarkan siapa pun mencoba terhubung. Blok yang lebih besar mengubah berapa banyak alamat yang ada, bukan siapa yang bisa menjangkau worker.
 :::
@@ -268,7 +269,7 @@ Catatan arsitektur krusial dari lab: Jika dokumen IAM policy Anda merujuk langsu
 :::ask VPC Anda adalah `10.0.0.0/16`. Anda membaginya menjadi subnet `/20`. Berapa subnet yang Anda dapat?
 @options
 4 subnet, satu per langkah prefiks
-* 16 subnet: empat bit tambahan membuat 2 x 2 x 2 x 2
+* 16 subnet (empat bit prefiks tambahan)
 256 subnet, satu per bit host
 @why
 `/20` punya 4 bit jaringan lebih banyak daripada `/16`, jadi ada 2^4 = 16 subnet, masing-masing 4.096 alamat (4.091 dapat dipakai di AWS, yang menyimpan 5). Ukuran sulit diubah kemudian, jadi rencanakan sebelum membangun.
@@ -349,7 +350,7 @@ Model penetapan harga layanan cloud pada dasarnya terbagi ke dalam tiga pola uta
 
 ### Hasil Pengukuran Nyata dari Lab
 
-Log query lab modul ini mencakup 2.083 transaksi query selama 30 hari yang merepresentasikan 33 jam durasi komputasi nyata dari tiga tim (marketing, finance, data-engineering). Menggunakan simulasi warehouse terpadu (1 kredit per jam dengan estimasi harga $3 per kredit), variasi parameter auto-suspend menghasilkan perbedaan biaya yang dramatis:
+Log query lab modul ini mencakup 2.083 transaksi query selama 30 hari yang merepresentasikan 33 jam durasi komputasi nyata dari tiga tim (`marketing`, `finance`, `data-eng`). Menggunakan simulasi warehouse terpadu (1 kredit per jam dengan estimasi harga $3 per kredit), variasi parameter auto-suspend menghasilkan perbedaan biaya yang dramatis:
 
 | Konfigurasi Auto-Suspend | Total Jam yang Ditagihkan | Estimasi Biaya |
 |---|---|---|
@@ -371,7 +372,7 @@ Kuasai terminologi standar **FinOps**: *Showback* (menampilkan transparansi biay
 :::ask Pipeline di subnet privat membaca S3 sepanjang hari lewat NAT gateway, yang menagih per GB yang diproses. Jalur apa yang lebih murah dan lebih privat?
 @options
 NAT gateway yang lebih besar dengan kapasitas lebih
-* gateway endpoint S3: rute yang melewati NAT
+* gateway endpoint S3: rute tanpa lewat NAT
 kirim data lewat internet publik
 @why
 Gateway endpoint menambahkan rute ke S3 tanpa mengirim lalu lintas lewat NAT gateway, jadi tidak ada biaya pemrosesan NAT per GB dan lalu lintas tidak pernah meninggalkan jaringan AWS. Jalur jaringan adalah satu baris tagihan, bukan renungan belakangan.
@@ -399,7 +400,7 @@ Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat mal
 - **Deteksi Query Liar Menggunakan Median, Bukan Rata-Rata**. Fungsi `find_runaway` menandai query yang durasi jalannya melampaui 10 kali lipat nilai median durasi timnya sendiri. Mengapa median? Pengujian lab membuktikan: pada lima query berdurasi 10, 10, 10, 10, dan 1.000 detik, nilai rata-rata (mean) melonjak menjadi 208 detik sehingga aturan berbasis mean akan menganggap query 1.000 detik sebagai variasi wajar; sebaliknya, nilai median tetap berada di 10 detik dan sukses menangkap query anomali 1.000 detik tersebut. Outlier ekstrem mendistorsi rata-rata yang Anda gunakan untuk mendeteksinya!
 - **Evaluasi Berdasarkan Pola Normal Masing-Masing Kelompok**: durasi 900 detik adalah hal rutin bagi batch job data engineering, namun sangat tidak wajar bagi query dashboard eksekutif.
 
-**Titik Pemborosan Cloud yang Wajib Diburu Rutin:** warehouse dengan jendela auto-suspend yang terlalu lama; klaster eksperimen yang lupa dimatikan; lingkungan development yang menyala di malam hari dan akhir pekan (pasang skrip penjadwal stop otomatis); multipart upload yang menggantung; snapshot dan volume disk yatim piatu (orphaned volumes); duplikasi tabel mentah; query `SELECT *` pada tabel lebar; serta dashboard BI yang me-refresh data setiap satu menit padahal data sumber hanya diperbarui sehari sekali.
+**Titik Pemborosan Cloud yang Wajib Diburu Rutin:** warehouse dengan jendela auto-suspend yang terlalu lama; klaster eksperimen yang lupa dimatikan; lingkungan development yang menyala di malam hari dan akhir pekan (pasang skrip penjadwal stop otomatis); multipart upload yang menggantung; snapshot dan volume disk tak terpakai (orphaned volumes); duplikasi tabel mentah; query `SELECT *` pada tabel lebar; serta dashboard BI yang me-refresh data setiap satu menit padahal data sumber hanya diperbarui sehari sekali.
 
 ### Menjalankan Disiplin IaC dan FinOps Bersama Tim
 
@@ -482,10 +483,12 @@ jobs:
 >    `pytest labs/mod-3-4/test_finops.py -k "TestFindRunaway or TestForecast or TestStorageCost" -v`
 > 4. **Indikator Sukses:** Sebanyak 15 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, membuktikan guardrails deteksi anomali query, proyeksi anggaran, dan analisis tiering data bekerja akurat.
 
+*(Latihan pemanasan browser: `forecast_month(daily_costs, days_in_month)` 2-argumen ini melatih perhitungan proyeksi secara terpisah dari versi 3-argumen di `finops.py`.)*
+
 :::drill python Perkirakan biaya bulan ini
 Tulis `forecast_month(daily_costs, days_in_month)`: `daily_costs` adalah daftar biaya sejauh bulan ini, satu per hari. Proyeksikan sisa bulan dengan **rata-rata 7 hari terakhir** (atau semua hari, jika kurang dari 7). Kembalikan pengeluaran sejauh ini ditambah rata-rata itu dikali jumlah hari yang tersisa.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("forecast_month") ## Definisikan forecast_month(daily_costs, days_in_month).
@@ -494,7 +497,7 @@ forecast_month([10] * 7 + [20] * 7, 30) == 530 ## 210 sejauh ini; rata-rata 7 ha
 forecast_month([10, 20], 30) == 450 ## Kurang dari 7 hari: rata-ratakan semuanya (15), 28 hari tersisa: 30 + 420.
 forecast_month([10] * 30, 30) == 300 ## Bulan sudah berakhir: tidak ada yang diproyeksikan.
 @hint
-`recent = daily_costs[-7:]`, `avg = sum(recent) / len(recent)`, lalu `sum(daily_costs) + avg * (days_in_month - len(daily_costs))`.
+Ambil potongan maksimal 7 elemen terakhir dari `daily_costs` untuk menghitung rata-rata harian, kalikan dengan jumlah hari tersisa, lalu tambahkan ke total pengeluaran sejauh ini.
 @solution
 def forecast_month(daily_costs, days_in_month):
     recent = daily_costs[-7:]
@@ -565,20 +568,20 @@ Gagasan dari bab 3 buku ini muncul di setiap wawancara system design, dan masing
 >
 > **Seharusnya Anda melihat:** `9.3` hari pada kecepatan penuh, `13.2` hari pada 70%, dan `92.6` hari lewat 100 Mbit/s; jalur 10 Gbit/s pada 70% butuh `1.3` hari. Ketika jaringan butuh berminggu-minggu, mengirim disk yang menang: inilah sebabnya cloud besar menyewakan perangkat transfer fisik (di AWS: Snowball) yang Anda isi di lokasi lalu kirim balik lewat kurir.
 
-> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Gabungkan tiga perhitungan dari modul ini ke dalam satu skrip, `cloud_architect.py`, dengan tiga fungsi:
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Gabungkan tiga perhitungan dari modul ini ke dalam satu skrip, `~/practice/cloud_architect.py`, dengan tiga fungsi:
 > 1. `plan_iac_diff(desired, actual)`: kedua argumen memetakan `resource_name -> properties_dict`. Kembalikan list tuple `(action, resource_name)` yang diurutkan menurut nama, dengan `"create"` untuk resource yang hanya ada di `desired`, `"destroy"` untuk yang hanya ada di `actual`, dan `"update"` jika keduanya punya dengan properti berbeda. Jangan masukkan resource yang tidak berubah (planner dari pelajaran 1).
-> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: pecah `vpc_cidr` (misalnya `"10.0.0.0/16"`) menjadi subnet berukuran `/new_prefix` dan kembalikan dict berisi `num_subnets`; `usable_ips_per_subnet` di AWS (pelajaran 3); `monthly_cross_az_usd`, biaya 30 hari dari shuffle harian dengan tarif $0,02 per GB, dengan asumsi data tersebar merata di `zones` zona sehingga hanya bagian yang keluar dari zona node itu sendiri yang ditagih (nol jika hanya satu zona); `monthly_nat_s3_usd`, 30 hari trafik S3 melalui NAT gateway dengan tarif $0,045 per GB, atau `0.0` jika `has_s3_endpoint` bernilai true; dan `monthly_endpoint_savings_usd`, penghematan S3 gateway endpoint dalam 30 hari. Bulatkan nilai dolar ke 2 desimal.
-> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: untuk `num_services` layanan yang dipanggil berurutan, masing-masing tersedia `service_sla` dari waktu (misalnya `0.999`), kembalikan `combined_sla` dibulatkan ke 6 desimal, `monthly_downtime_min` dalam bulan 30 hari (43.200 menit) dibulatkan ke 1 desimal, dan `needs_continuous_cdc`: `True` jika jarak antar-backup lebih lebar daripada yang diizinkan target RPO (bagian 4 pelajaran 6).
+> 2. `audit_vpc_and_egress(vpc_cidr, new_prefix, daily_shuffle_gb, zones, daily_s3_gb, has_s3_endpoint)`: pecah `vpc_cidr` (misalnya `"10.0.0.0/16"`) menjadi subnet berukuran `/new_prefix` dan kembalikan dict berisi `num_subnets`; `usable_ips_per_subnet` di AWS (pelajaran 4); `monthly_cross_az_usd`, biaya 30 hari dari shuffle harian dengan tarif $0,02 per GB, dengan asumsi data tersebar merata di `zones` zona sehingga hanya bagian yang keluar dari zona node itu sendiri yang ditagih (nol jika hanya satu zona); `monthly_nat_s3_usd`, 30 hari trafik S3 melalui NAT gateway dengan tarif $0,045 per GB, atau `0.0` jika `has_s3_endpoint` bernilai true; dan `monthly_endpoint_savings_usd`, penghematan S3 gateway endpoint dalam 30 hari. Bulatkan nilai dolar ke 2 desimal.
+> 3. `chain_sla_and_rpo(num_services, service_sla, backup_interval_hours, target_rpo_minutes)`: untuk `num_services` layanan yang dipanggil berurutan, masing-masing tersedia `service_sla` dari waktu (misalnya `0.999`), kembalikan `combined_sla` dibulatkan ke 6 desimal, `monthly_downtime_min` dalam bulan 30 hari (43.200 menit) dibulatkan ke 1 desimal, dan `needs_continuous_cdc`: `True` jika jarak antar-backup lebih lebar daripada yang diizinkan target RPO (bagian 4 pelajaran ini).
 >
 > **Periksa:** `python3 labs/tryit/check.py 3.4-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
 
-:::ask Sebuah klaster di tiga zona mengacak 50 TB per hari. Mengapa ini bisa jadi baris mengejutkan di tagihan?
+:::ask Sebuah klaster di tiga zona melakukan shuffle 50 TB per hari. Mengapa ini bisa jadi baris mengejutkan di tagihan?
 @options
 * dua pertiga data melintasi zona, dan ditagih
 lalu lintas dalam satu region selalu gratis
 shuffle hanya ditagih pada hari pertama
 @why
-Lalu lintas antar zona berbiaya (di pelajaran $0,02 per GB yang melintas). 33.000 GB pada tarif itu adalah biaya harian nyata yang tidak ditunjukkan rencana query mana pun. Jaga job yang cerewet di satu zona bila bisa.
+Lalu lintas antar zona berbiaya (di pelajaran $0,02 per GB yang melintas). 33.000 GB pada tarif itu adalah biaya harian nyata yang tidak ditunjukkan rencana query mana pun. Jaga job yang banyak berkomunikasi lintas zona (chatty) di satu zona bila bisa.
 :::
 
 ## @part Opsional: terapkan sungguhan
@@ -616,6 +619,8 @@ Terraform menggabungkan setiap file yang namanya berakhiran `_override.tf` ke bl
 Lab ini terbagi menjadi dua bagian: Bagian A melengkapi konfigurasi Terraform hingga menghasilkan execution plan offline yang memvalidasi bahwa storage bucket S3 lakehouse Anda terisolasi privat, terenkripsi KMS kustom, memiliki aturan lifecycle otomatis, bertag lengkap, dan hanya dapat diakses melalui kebijakan least-privilege. Bagian B membangun fungsi-fungsi Python untuk kendali FinOps: pemodelan penagihan warehouse, alokasi biaya per tim, deteksi query liar berbasis median, forecasting proyeksi anggaran, serta simulasi analisis tiering penyimpanan data.
 
 ### @steps
+> Sudah menyelesaikan Bagian A dan B lewat Jeda Praktik 1–4? Langsung loncat ke Langkah 7 dan Jeda Praktik 5 untuk memverifikasi kedua suite pengujian dan menghasilkan kode bukti.
+
 1. Instal pytest dan Terraform CLI (versi 1.5 atau lebih baru; atau OpenTofu). Pasang direktori cache plugin agar proses pengunduhan provider tidak diulang berkali-kali:
 
 ```bash
@@ -628,15 +633,15 @@ pytest labs/mod-3-4 -v          # seluruh pengujian awal akan gagal
 3. Gunakan Terraform CLI lokal secara interaktif saat menulis kode: `cd labs/mod-3-4/terraform && terraform init -backend=false && terraform validate && terraform plan -var-file=dev.tfvars`. Tinjau output plan layaknya seorang code reviewer. Jalankan perintah `terraform fmt` sebelum menjalankan pengujian otomatis.
 4. Eksekusi pengujian Bagian A via `pytest labs/mod-3-4/test_terraform.py -v`. Pengujian akan membedah representasi JSON dari artefak plan untuk lingkungan dev dan prod.
 5. Cermati pengujian kebijakan IAM policy. Pengujian ini menegaskan aksi yang presisi, pembatasan target direktori, dan kondisi awalan `s3:prefix`. Amati bagaimana penggunaan nama bucket langsung memungkinkan evaluasi policy secara transparan pada tahap plan.
-6. **Bagian B: Toolkit Kendali Biaya FinOps.** Buka `labs/mod-3-4/finops.py` dan implementasikan kelima fungsi analitik biaya. Data log query berasal dari generator deterministik `labs/shared/querylog.py`. Jalankan pengujian otomatis via `pytest labs/mod-3-4/test_finops.py -v`.
+6. **Bagian B: Toolkit Kendali Biaya FinOps.** Buka `labs/mod-3-4/finops.py` dan implementasikan keenam fungsi analitik biaya (`query_cost`, `billed_seconds`, `cost_by_tag`, `find_runaway`, `forecast_month`, `storage_cost`). Data log query berasal dari generator deterministik `labs/shared/querylog.py`. Jalankan pengujian otomatis via `pytest labs/mod-3-4/test_finops.py -v`.
 7. Eksplorasi mandiri: gunakan fungsi yang telah Anda bangun untuk menganalisis durasi auto-suspend mana yang paling optimal; identifikasi tim pemilik query liar 11 jam; kalkulasikan akumulasi biaya harian dan uji fungsi `forecast_month` dengan target anggaran $75 pada hari ke-15 dan hari ke-16 (saat query liar terjadi). Pahami mengapa proyeksi hari ke-16 bersifat pesimistis dan bagaimana integrasi `find_runaway` mampu menormalisasi prakiraan tersebut.
 
 > 💡 **Jeda Praktik 5 (Verifikasi Lengkap & Bukti Kelulusan):**
-> 1. Di terminal, jalankan seluruh rangkaian uji FinOps:
->    `pytest labs/mod-3-4/test_finops.py -v`
-> 2. Hasilkan token bukti verifikasi:
+> 1. Di terminal, jalankan kedua rangkaian uji Terraform (Bagian A) dan FinOps (Bagian B):
+>    `pytest labs/mod-3-4/test_terraform.py labs/mod-3-4/test_finops.py -v`
+> 2. Hasilkan token bukti verifikasi (membutuhkan Terraform CLI agar Bagian A tidak dilewati):
 >    `python3 scripts/prove.py mod-3-4`
-> 3. **Indikator Sukses:** Seluruh pengujian lulus dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
+> 3. **Indikator Sukses:** Seluruh 41 pengujian (12 Terraform + 29 FinOps) lulus dan token bukti kelulusan dicetak ke terminal untuk verifikasi.
 
 ### @files
 - labs/mod-3-4/terraform/variables.tf :: File kerja Bagian A: deklarasi variabel input Terraform :: starter
@@ -647,7 +652,7 @@ pytest labs/mod-3-4 -v          # seluruh pengujian awal akan gagal
 - labs/mod-3-4/terraform/dev.tfvars :: Parameter konfigurasi untuk lingkungan development :: config
 - labs/mod-3-4/terraform/prod.tfvars :: Parameter konfigurasi untuk lingkungan production :: config
 - labs/mod-3-4/test_terraform.py :: Suite pengujian Bagian A (12 pengujian memverifikasi plan JSON) :: test
-- labs/mod-3-4/finops.py :: File kerja Bagian B: implementasi lima fungsi kalkulasi biaya FinOps :: starter
+- labs/mod-3-4/finops.py :: File kerja Bagian B: implementasi enam fungsi kalkulasi biaya FinOps :: starter
 - labs/mod-3-4/test_finops.py :: Suite pengujian Bagian B (29 pengujian unit test) :: test
 - labs/shared/querylog.py :: Dataset deterministik 30 hari riwayat query dengan simulasi query liar :: data
 - labs/mod-3-4/requirements.txt :: Dependensi pustaka pytest dan catatan instalasi CLI :: config
@@ -666,6 +671,7 @@ pytest labs/mod-3-4 -v          # seluruh pengujian awal akan gagal
 ```bash
 pytest labs/mod-3-4/test_terraform.py -v
 pytest labs/mod-3-4/test_finops.py -v
+python3 scripts/prove.py mod-3-4
 ```
 
 Verifikasi terhadap kode referensi: tambahkan prefix `LAB_DIR=reference`. Pengujian Terraform otomatis dilewati jika CLI tidak terpasang.
@@ -736,7 +742,7 @@ Biaya infrastruktur adalah metrik produksi. Pasang pembatas otomatis di dalam ko
 ### Mengapa lab modul ini menggunakan nilai median dari durasi query tim, dan bukan nilai rata-rata (mean), untuk mendeteksi query liar?
 - [ ] Nilai median jauh lebih cepat dihitung pada dataset log berukuran besar, sedangkan rata-rata membutuhkan iterasi berulang
 - [ ] Nilai rata-rata tidak dapat dikalkulasikan untuk satuan waktu, sehingga secara matematis hanya nilai median yang terdefinisi
-- [x] outlier raksasa mendistorsi rata-rata hingga menyamarkan dirinya sendiri, sedangkan median tetap stabil di batas normalnya
+- [x] Outlier raksasa mendistorsi rata-rata hingga menyamarkan dirinya sendiri, sedangkan median tetap stabil di batas normalnya
 - [ ] Nilai median secara langsung menunjukkan query dengan durasi terpanjang dalam kelompok tanpa perlu perbandingan tambahan
 
 > Satu query berdurasi 1.000 detik di antara empat query 10 detik mengangkat nilai rata-rata menjadi 208 detik, sehingga aturan deteksi 10x rata-rata akan melewatkannya. Sebaliknya nilai median tetap di 10 detik dan sukses menangkap query 1.000 detik tersebut.

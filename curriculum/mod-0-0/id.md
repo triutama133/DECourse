@@ -14,7 +14,7 @@ why: Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-bur
 - Membaca file CSV dengan `with open` dan modul csv, serta menjelaskan apa yang dilakukan `import` dan `if __name__ == "__main__"`
 
 ## @prereq
-Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda hanya perlu cara menjalankan Python: pratinjau di browser pada lab langsung bisa dipakai; Modul 0.1 lalu mengajarkan penyiapan yang benar di komputer Anda sendiri.
+Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda bisa mulai sekarang juga tanpa memasang apa pun dengan latihan di pelajaran dan **Pratinjau browser** pada lab; begitu Modul 0.1 (atau Mulai di sini) menyiapkan terminal lokal dan virtual environment Anda, Anda menjalankan tes serta `prove.py` di komputer sendiri untuk mengunci kode bukti Anda.
 
 > [!IMPORTANT]
 > **Versi singkat:** lab ini punya dua bagian. **Bagian A** adalah Python biasa (setelah Pelajaran 1 sampai 4), **Bagian B** adalah fungsi (setelah Pelajaran 5). Jangan membaca seluruh bab lebih dulu: bergantianlah antara pelajaran dan Jeda Praktiknya. Panduan lengkap "cara mengerjakan lab" muncul di akhir Pelajaran 1, tepat di tempat Anda pertama kali membutuhkannya.
@@ -184,7 +184,7 @@ row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
 row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
 ```
 
-Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang manajer Anda mengajukan tiga pertanyaan sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
+(Setiap `{...}` adalah **dictionary**, satu baris berlabel tempat `row1["total_idr"]` mengambil nilai `"150000"`; Pelajaran 2 membahas dictionary secara penuh.) Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang manajer Anda mengajukan tiga pertanyaan sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
 
 | Pertanyaannya | Yang Anda tulis | Jawaban Python | Mengapa |
 |---|---|---|---|
@@ -338,13 +338,13 @@ Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.2
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
 > - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Pelajaran 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Pelajaran 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
-> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda (pytest menjalankan pemeriksaan otomatis; tombol **Run tests** melakukan hal yang sama) memeriksa pekerjaan Anda, dan run itulah yang dihitung.
+> - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda (pytest menjalankan pemeriksaan otomatis; tombol **Jalankan tes** melakukan hal yang sama) memeriksa pekerjaan Anda, dan run itulah yang dihitung.
 > - **Mencoba contoh di materi:** ketik di kotak latihan pada halaman, atau di prompt Python `>>>` terminal Anda (ketik `python3` lalu Enter; keluar dengan `exit()`). Perintah seperti `cd`, `ls`, dan `pytest` justru diketik di prompt `$` terminal, tidak pernah di `>>>`. Tidak yakin yang mana? **Mulai di sini, langkah 4** menunjukkan ketiganya.
 
 > 💡 **Jeda Praktik 1 (Bagian A, Langkah 1):**
 > Buka Bagian A lab: file `labs/mod-0-0/practice.py` di editor Anda, atau tab **Bagian A** pada Pratinjau browser di tab Lab. Baca bagian atas file sekali, lalu cari **Langkah 1**. Ia memberi Anda `amount`, `row1`, dan `row2`, serta dua variabel untuk diisi: ganti setiap `None` dengan kode Anda sendiri.
 > 1. `formatted`: jumlah itu ditulis sebagai teks dengan titik, `Rp 1.250.000` (f-string dan `.replace` di atas).
-> 2. `two_totals`: dua total di `row1` dan `row2` dijumlahkan sebagai **angka**. Lihat kembali tiga jawaban salah di tabel: total ini adalah teks, jadi ubah dulu.
+> 2. `two_totals`: dua total di `row1` dan `row2` dijumlahkan sebagai **angka** (ambil tiap total dengan `row1["total_idr"]` dan `row2["total_idr"]`). Lihat kembali tiga jawaban salah di tabel: total ini adalah teks, jadi ubah dulu.
 > Jalankan file untuk melihat nilai Anda: `python3 labs/mod-0-0/practice.py`. Lalu periksa Langkah 1: tekan **Jalankan tes** di pratinjau, atau di terminal (setelah persiapan sekali saja di halaman lab):
 > `pytest labs/mod-0-0/test_practice.py -k Step1 -v`
 > Anda seharusnya melihat `Rp 1.250.000` dan `240000`, dan tiga pemeriksaan lulus. Pemeriksaan yang gagal menyebutkan variabel mana yang salah, seharusnya berapa, dan sekarang berapa: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` hanya berarti Anda belum mengganti `None`. Lalu lanjut ke Pelajaran 2.
@@ -489,7 +489,7 @@ print(len(statuses), statuses.count("paid"))
 :::
 
 :::drill python Semuanya, dan satu jenis
-`statuses` berisi status beberapa pesanan. Buat `all_orders` berisi jumlah pesanan, dan `paid_orders` berisi jumlah pesanan yang statusnya `"paid"`.
+`statuses` berisi status lima pesanan. Buat `all_orders` berisi jumlah pesanan, dan `paid_orders` berisi jumlah pesanan yang statusnya `"paid"`.
 @starter
 statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
 all_orders = None
@@ -616,7 +616,7 @@ unique_ids = sorted(set(ids))
 
 ### File sungguhan: list berisi dictionary
 
-File data sungguhan biasanya berupa **list berisi dictionary**: list adalah file-nya, setiap dictionary adalah satu baris, key-nya adalah nama kolom. Ini tiga produk (setiap nilai berupa teks, seperti keluar dari file CSV, tabel dalam teks biasa yang cara membacanya diajarkan di Materi 7) dan empat pertanyaan beserta jawabannya:
+File data sungguhan biasanya berupa **list berisi dictionary**: list adalah file-nya, setiap dictionary adalah satu baris, key-nya adalah nama kolom. Ini tiga produk (setiap nilai berupa teks, seperti keluar dari file CSV, tabel dalam teks biasa yang cara membacanya diajarkan di Materi 7) dan tiga pertanyaan beserta jawabannya:
 
 ```python
 products = [
@@ -826,6 +826,8 @@ else:
     print("status tidak dikenal: kirim ke karantina")
 ```
 
+(Perhatikan `or` di baris `elif`: artinya "salah satu benar", bagian berikutnya membahas `and`, `or`, dan `not` secara penuh.)
+
 :::drill python Tiga jalur
 Tentukan `action` dari `status`: `"paid"` menghasilkan `"count it"`; `"cancelled"` atau `"refunded"` menghasilkan `"skip it"`; selain itu menghasilkan `"check it"`.
 @starter
@@ -852,7 +854,7 @@ else:
 
 ### and, or, not
 
-Gabungkan pertanyaan dengan `and` (keduanya harus benar), `or` (minimal satu), dan `not` (membalik jawabannya). `status in {"cancelled", "refunded"}` adalah cara singkat menulis beberapa `or`.
+Gabungkan pertanyaan dengan `and` (keduanya harus benar), `or` (minimal satu), dan `not` (membalik jawabannya). `status in {"cancelled", "refunded"}` (kurung kurawal berisi nilai tanpa titik dua membentuk **set** dari Pelajaran 2) adalah cara singkat menulis beberapa `or`.
 
 :::drill python Keduanya harus benar
 Sebuah pesanan bisa dikirim ketika sudah dibayar **dan** ada stok. Buat `can_ship` bernilai `True` hanya ketika `paid` adalah `True` dan `stock` di atas 0.
@@ -876,7 +878,7 @@ can_ship = paid and stock > 0
 
 ### Apa yang dianggap salah: truthiness
 
-Dalam sebuah `if`, beberapa nilai dianggap **salah** tanpa menjadi `False`: `0`, `""` (teks kosong), `None`, `[]` (list kosong), `{}`. Semua yang lain dianggap benar. Jadi `if not rows:` berarti "kalau tidak ada baris". Namun hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah sepenuhnya (pesanan gratis). Ketika nol itu sah, ajukan pertanyaan yang persis: `total is not None`.
+Dalam sebuah `if`, beberapa nilai dianggap **salah** tanpa menjadi `False`: `0`, `""` (teks kosong), `None`, `[]` (list kosong), `{}`. Semua yang lain dianggap benar. Jadi `if not rows:` berarti "kalau tidak ada baris". Namun hati-hati: `if total:` juga salah untuk total `0`, padahal itu bisa nilai yang sah sepenuhnya (pesanan gratis). Ketika nol itu sah, ajukan pertanyaan yang persis: `total is not None` (untuk `None`, Python selalu memakai `is None` / `is not None` alih-alih `==` / `!=`, karena hanya ada satu nilai `None`).
 
 :::ask Apa yang akan tercetak?
 ```python
@@ -1243,6 +1245,8 @@ unique_ids = sorted(seen)
 print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 ```
 
+Di dalam loop, pasangkan setiap `start` dari `range(0, len(items), batch_size)` dengan irisan dinamis `items[start:start + batch_size]`, misalnya, saat `start` bernilai `3` dan `batch_size` bernilai `3`, itu mengambil `items[3:6]`.
+
 :::drill python Dari mana setiap bagian mulai
 `items` punya 10 item. Satu bagian panjangnya 3 item. Buat `starts` berisi list posisi tempat setiap bagian dimulai: `[0, 3, 6, 9]`. Pakai `range` dengan `len(items)`.
 @starter
@@ -1302,9 +1306,12 @@ texts = ["7", "3", "12"]
 ints = [int(text) for text in texts]
 :::
 
-### Tantangan ekstra (opsional): meranking dengan sorted() dan key
+### Meranking dengan sorted() dan key
 
-Ini tantangan ekstra. Jika terasa terlalu berat hari ini, tekan **Lihat jawaban** lalu lanjut: Modul 1.2 mengajarkan `lambda` selangkah demi selangkah. Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak). `sorted(data, key=...)` menerima `key`: fungsi kecil yang memberi tahu Python berdasarkan apa meranking. Fungsi satu baris yang ditulis dengan `lambda` sering dipakai: `lambda pair: pair[1]` berarti "diberi sebuah pasangan, pakai item keduanya". Untuk meranking dari terbesar ke terkecil, tambahkan `reverse=True`. Untuk memutus seri, biarkan key mengembalikan **tuple**: Python membandingkan item pertama lebih dulu dan melihat item kedua hanya ketika item pertama sama. Tanda minus di depan angka mengubah "terbesar dulu" menjadi "terkecil dulu": `key=lambda pair: (-pair[1], pair[0])` meranking berdasarkan total, terbesar dulu, dan untuk total yang sama id yang lebih kecil dulu.
+Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak, Anda akan memakainya untuk `top_customers` di lab). `sorted(data, key=...)` menerima `key`: aturan kecil yang memberi tahu Python berdasarkan apa mengurutkan. Fungsi satu baris dengan `lambda` adalah cara praktis menulis aturan itu (setelah Pelajaran 5 Anda juga bisa menulis fungsi bantu `def` biasa lalu memberikan namanya sebagai `key=...`):
+
+- `lambda pair: pair[1]` berarti: *"diberi satu `pair` seperti `(7, 100)`, kembalikan item keduanya (`100`)"*, `sorted()` memanggilnya untuk setiap item lalu mengurutkan menurut hasilnya.
+- `key=lambda pair: (-pair[1], pair[0])` mengembalikan **tuple**: Python mengurutkan berdasarkan `-pair[1]` lebih dulu (tanda minus menaruh total terbesar di depan, karena `-250 < -100`) dan memakai `pair[0]` (id lebih kecil dulu) hanya untuk memutus seri.
 
 :::drill python Ranking berdasarkan total
 `pairs` berisi tuple `(customer_id, total)`. Buat `ranked` berisi pasangan yang diurutkan menurut total, **terbesar dulu**; ketika dua total sama, customer id yang lebih kecil didahulukan.
@@ -1366,7 +1373,7 @@ while n >= 3:
 
 > 💡 **Jeda Praktik 4 (Bagian A, Langkah 4):**
 > Di `practice.py` (atau tab **Bagian A**), kerjakan **Langkah 4**. Satu perulangan `for order in orders:` bisa membangun beberapa hasil sekaligus. Sebelum perulangan, mulai `status_counts` sebagai `{}`, `revenue` sebagai `0`, dan sebuah set untuk id (`ids = set()`):
-> 1. `status_counts`: pesanan per status, `{"paid": 2, "cancelled": 1, "delivered": 1}` (baris penghitung dari Pelajaran 2).
+> 1. `status_counts`: pesanan per status, `{"paid": 2, "cancelled": 1, "delivered": 1}` (baris penghitung dari pelajaran ini).
 > 2. `revenue`: jumlah total, sebagai angka, dari pesanan yang statusnya bukan `"cancelled"` dan bukan `"refunded"`.
 > 3. `customer_ids`: nilai `customer_id` yang berbeda sebagai bilangan bulat, dari yang terkecil (isi set di dalam perulangan dengan `.add(...)`, yang memasukkan satu nilai ke set, lalu pakai `sorted`).
 > 4. `batches`: `items` dipotong menjadi bagian berisi paling banyak `batch_size`, berurutan, `[[1, 2], [3, 4], [5]]` (`range` dengan langkah, dan slice).
@@ -1465,6 +1472,21 @@ show_label("Kopi")
 ### return: serahkan jawabannya kembali
 
 `print` hanya **menampilkan** sesuatu di layar; program tidak bisa memakainya sesudahnya. `return` **menyerahkan nilai kembali** kepada kode yang memanggil fungsi, sehingga bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.
+
+Fungsi juga bisa mengembalikan **dua nilai sekaligus** (sebagai tuple dari Pelajaran 2) dipisahkan koma, lalu pemanggil membongkar keduanya:
+
+```python
+def split_non_negative(numbers):
+    valid, invalid = [], []
+    for n in numbers:
+        if n >= 0:
+            valid.append(n)
+        else:
+            invalid.append(n)
+    return valid, invalid
+
+good, bad = split_non_negative([10, -5, 20])   # good adalah [10, 20], bad adalah [-5]
+```
 
 :::trace return menyerahkan nilai kembali
 @code
@@ -1625,7 +1647,7 @@ print(label)
 @options
 `Rp 500`, fungsi yang membuatnya
 `None`, fungsi tidak mengembalikan apa-apa
-* error: `label` hanya ada di dalam fungsi
+* error: `label` hanya lokal
 @why
 `label` dibuat **di dalam** `make_label`, dan ia hilang ketika fungsi selesai. Baris terakhir mencari `label` di luar dan Python berhenti dengan `NameError: name 'label' is not defined`. Untuk mengeluarkan nilainya, fungsi harus me-`return`-nya.
 :::
@@ -1664,7 +1686,7 @@ print(add(2))
 6 | Panggilan kedua: `box` tidak diberikan, jadi ia adalah list yang **sama** seperti sebelumnya (label sama), yang sudah berisi 1.
 :::
 
-Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box is None: box = []`. Skenario chaos modul ini menunjukkan apa yang dilakukan bug ini pada pipeline sungguhan, dan lab punya tes untuknya.
+Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box is None: box = []`. Lebih baik lagi, saat pemanggil memberikan list sendiri, `box.append(item)` ikut mengubah list asli mereka, mengembalikan `box + [item]` membuat list **baru** sebagai gantinya (misalnya, `["a", "b"] + ["c"]` menghasilkan `["a", "b", "c"]` tanpa menyentuh list milik pemanggil). Skenario chaos modul ini menunjukkan apa yang dilakukan bug ini pada pipeline sungguhan, dan lab punya tes untuk keduanya.
 
 :::drill python Perbaiki list yang dipakai bersama
 `add` punya jebakannya. Perbaiki supaya setiap panggilan tanpa argumen kedua mulai dengan list kosong yang **baru**: `add(1)` menghasilkan `[1]` lalu `add(2)` menghasilkan `[2]`.
@@ -1673,7 +1695,7 @@ def add(item, box=[]):
     box.append(item)
     return box
 
-# tulis solusi Anda di bawah baris ini
+# perbaiki bug pada kode di atas
 @check
 add(1) == [1] ## add(1) harus mengembalikan [1].
 add(2) == [2] ## add(2) harus mengembalikan [2], bukan [1, 2]: setiap panggilan tanpa list harus mulai dari baru.
@@ -1700,7 +1722,7 @@ def add(item, box=None):
 > 🛠 **Coba sendiri (8 menit, di file `fn.py`).** Tebak dulu setiap output di kepala Anda, baru jalankan.
 > 1. Tulis `def show_square(n): print(n * n)` dan `def give_square(n): return n * n` (masing-masing di barisnya sendiri seperti biasa). Jalankan `a = show_square(4)` dan `b = give_square(4)`, lalu `print(a, b)`.
 > 2. Tulis `def add(item, box=[]): box.append(item); return box` (dengan baris yang benar) dan jalankan `print(add(1))`, `print(add(2))`, `print(add(3))`. Lalu perbaiki agar setiap pemanggilan tanpa argumen kedua mulai dengan list kosong yang baru.
-> 3. Tulis `total(orders)` yang menjumlahkan `int(order["total_idr"])` dari list dict pesanan, tanpa `print` di dalamnya. Periksa dengan `total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350` dan `total([]) == 0`.
+> 3. Tulis `total(orders)` yang menjumlahkan `int(order["total_idr"])` dari list dict pesanan, tanpa `print` di dalamnya. Periksa dengan `print(total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350)` dan `print(total([]) == 0)`.
 >
 > **Seharusnya Anda melihat:** `16` dicetak oleh langkah 1, lalu `None 16` (`print` menampilkan, `return` mengembalikan); `add` yang salah mencetak `[1]`, `[1, 2]`, `[1, 2, 3]` dan yang sudah Anda perbaiki `[1]`, `[2]`, `[3]`; kedua pemeriksaan di langkah 3 bernilai `True`.
 
@@ -1840,7 +1862,7 @@ def to_number(text):
     except Exception:
         return 0
 
-# tulis solusi Anda di bawah baris ini
+# perbaiki bug pada kode di atas
 @check
 to_number("abc") == 0 ## to_number("abc") tetap harus mengembalikan 0.
 raises_error(TypeError, to_number, None) ## to_number(None) harus memunculkan TypeError (jangan disembunyikan sebagai 0). Tangkap hanya ValueError.
@@ -1917,7 +1939,7 @@ for text in rows:
 > 💡 **Jeda Praktik 6 (Bagian B):**
 > Terapkan fungsi murni, penanganan error, dan pencegahan bug mutable default:
 > 1. Kerjakan `safe_int(text, default=None)` dengan blok `try / except ValueError`.
-> 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`.
+> 2. Kerjakan `add_to_batch(order, batch=None)` dengan `if batch is None: batch = []`, lalu kembalikan list **baru** dengan `batch + [order]` supaya Anda tidak mengubah list yang diberikan pemanggil.
 > 3. Kerjakan `split_valid(orders)` menggunakan fungsi `safe_int` yang Anda buat.
 > Klik **Jalankan tes**; ketiga grup itu harus bertanda ✓ (jalur terminal):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
@@ -1957,7 +1979,7 @@ with open("note.txt", encoding="utf-8") as f:
 
 ### File CSV: baris sebagai dictionary
 
-File CSV adalah teks dengan satu baris per baris data dan koma di antara nilai; baris pertama berisi nama kolom. Modul `csv` membacanya. `csv.DictReader(f)` mengubah setiap baris menjadi dictionary, memakai baris header sebagai key, sehingga Anda mendapat persis **list berisi dictionary** dari Materi 2. `newline=""` adalah yang diinginkan modul csv supaya pemisah baris di dalam nilai yang dikutip tetap utuh. Semua nilai berupa teks; mengubahnya adalah tugas Anda.
+File CSV adalah teks dengan satu baris per baris data dan koma di antara nilai; baris pertama berisi nama kolom. Modul `csv` membacanya. `csv.DictReader(f)` mengubah setiap baris menjadi dictionary, memakai baris header sebagai key, sehingga Anda mendapat persis **list berisi dictionary** dari Materi 2. `newline=""` adalah yang diinginkan modul csv supaya pemisah baris di dalam nilai yang dikutip tetap utuh. Semua nilai berupa teks; mengubahnya adalah tugas Anda. (`import csv` di bagian atas memuat kotak perkakas CSV bawaan Python, bagian `import` di bawah menjelaskan cara kerja import.)
 
 :::trace Dari file CSV ke list berisi dictionary
 @file drinks.csv
@@ -2134,7 +2156,7 @@ Saat di-import, `__name__` adalah `"shop"`, bukan `"__main__"`, jadi `main()` **
 
 ### Path: di mana file-nya?
 
-Pakai `pathlib.Path("data") / "orders.csv"` alih-alih menempel string. Path **relatif** relatif terhadap folder tempat Anda memulai Python, yang biasanya menjadi alasan error di bawah.
+Setelah `import pathlib`, pakai `pathlib.Path("data") / "orders.csv"` alih-alih menempel string. Path **relatif** relatif terhadap folder tempat Anda memulai Python, yang biasanya menjadi alasan error di bawah.
 
 :::ask Apa yang terjadi ketika file tidak ada?
 ```python
@@ -2215,7 +2237,7 @@ total = 0
 for price in prices:
     total = total + price
 
-# tulis solusi Anda di bawah baris ini
+# perbaiki bug pada kode di atas
 @check
 total == 43000 ## `total` harus 43000.
 type(total) is int ## `total` harus berupa angka (int).
@@ -2234,7 +2256,7 @@ Ini seharusnya mencetak angka 1 sampai 5, tetapi mencetak 0 sampai 4. Perbaiki, 
 for n in range(5):
     print(n)
 
-# tulis solusi Anda di bawah baris ini
+# perbaiki bug pada kode di atas
 @check
 out == "1\n2\n3\n4\n5" ## Harus mencetak 1, 2, 3, 4, dan 5, masing-masing di barisnya sendiri.
 has_node("For") ## Pertahankan loop for.
@@ -2251,7 +2273,7 @@ for n in range(1, 6):
 def add_fee(price):
     price + 500
 
-# tulis solusi Anda di bawah baris ini
+# perbaiki bug pada kode di atas
 @check
 add_fee(1000) == 1500 ## add_fee(1000) harus mengembalikan 1500.
 add_fee(0) == 500 ## add_fee(0) harus mengembalikan 500.
@@ -2302,7 +2324,7 @@ Anda tidak akan mengingat semuanya setelah satu kali membaca, dan memang tidak s
 **Di mana gagasan-gagasan ini muncul dalam keseharian seorang data engineer.** Wajar bertanya apa hubungan latihan kecil ini dengan pekerjaannya. Hampir setiap tugas yang akan diberikan kepada Anda adalah gagasan-gagasan yang sama, hanya lebih besar:
 - **Tipe:** data datang sebagai teks; Anda memberi setiap nilai tipe yang benar sebelum hal lain, atau total keluar salah tanpa error.
 - **List dan dict:** sebuah file atau tabel adalah list berisi baris; setiap baris adalah dict dari kolom ke nilai.
-- **Menghitung dengan dict:** "berapa banyak per kota, per status, per hari" adalah pertanyaan paling umum dalam data; SQL (bahasa untuk mengajukan pertanyaan ke database; Modul 0.3) melakukan hal yang sama dengan `GROUP BY` adalah gagasan yang sama.
+- **Menghitung dengan dict:** "berapa banyak per kota, per status, per hari" adalah pertanyaan paling umum dalam data; SQL (bahasa untuk mengajukan pertanyaan ke database; Modul 0.3) melakukan hal yang sama dengan `GROUP BY`.
 - **Set:** menghapus duplikat, dan bertanya "apakah kita sudah memuat ini?".
 - **if dan try/except:** memutuskan baris mana yang valid, dan menyisihkan yang buruk alih-alih crash atau membuangnya diam-diam.
 - **Fungsi dengan tes:** setiap langkah pipeline adalah fungsi, dan tesnya adalah cara Anda tahu ia masih bekerja setelah perubahan besok.
@@ -2316,8 +2338,8 @@ Dua bagian, pada data pesanan KopiKu. **Bagian A** (setelah Pelajaran 1 sampai 4
 
 **Di mana mengerjakannya: pilih satu dari dua jalur.**
 
-- **Jalur A, pratinjau browser** (tanpa memasang apa pun): kotak editor di bawah pada halaman ini punya tombol **Bagian A / Bagian B**. **Jalankan tes** menjalankan bagian yang sedang Anda buka, dan daftar di bawah tombol menampilkan setiap kelompok pemeriksaan (satu kelompok per langkah atau fungsi) sebagai ✓ atau ✗. Lulus di pratinjau tidak dihitung: Anda mengerjakan lab ini lagi di terminal Anda sendiri.
-- **Jalur B, terminal Anda sendiri** (disarankan jika Anda sudah mengikuti Mulai di sini): beginilah Anda akan bekerja di sepanjang kursus, dan run-nya dihitung. Siapkan sekali, di terminal:
+- **Jalur A, pratinjau browser** (tanpa instalasi, mulai di sini jika Anda belum menyiapkan terminal): kotak editor di bawah pada halaman ini punya tombol **Bagian A / Bagian B**. **Jalankan tes** menjalankan bagian yang sedang Anda buka, dan daftar di bawah tombol menampilkan setiap kelompok pemeriksaan (satu kelompok per langkah atau fungsi) sebagai ✓ atau ✗. Anda bisa menyelesaikan semua latihan Modul 0.0 di sini lebih dulu; begitu Modul 0.1 menyiapkan terminal lokal dan `venv` Anda, Anda menjalankan ulang lab dan `prove.py` secara lokal untuk mengunci kode bukti Anda (lulus di pratinjau saja belum menghasilkan kode bukti).
+- **Jalur B, terminal Anda sendiri** (disarankan jika Anda sudah mengikuti Mulai di sini atau Modul 0.1): beginilah Anda akan bekerja di sepanjang kursus, dan menjalankan `prove.py` di sini mengunci kode bukti Anda. Siapkan sekali, di terminal:
 
 ```bash
 cd ~/projects/DECourse                     # folder kursus Anda
@@ -2353,7 +2375,7 @@ Pelajaran 1 sampai 4 diakhiri langkah Bagian A, tanpa fungsi. Mulai Pelajaran 5,
 | 3 | `signed_text`, `average` | jumlah negatif (refund); hari tanpa pesanan tidak boleh membuat seluruh job crash |
 | 4 | `status_counts`, `revenue`, `customer_ids`, `batches` | berapa per kategori (SQL menyebutnya `GROUP BY`, Modul 0.3); omzet yang dicocokkan Keuangan dengan Anda; mengirim data per bagian |
 
-**Bagian B, sebelas fungsinya, urut sesuai pelajaran, dan mengapa data engineer membutuhkan masing-masing:**
+**Bagian B, sebelas fungsi, urut sesuai pelajaran, dan mengapa data engineer membutuhkan masing-masing:**
 
 | Gagasan dari pelajaran | Fungsi | Apa yang dilakukannya | Di mana Anda membutuhkannya saat bekerja |
 |---|---|---|---|
@@ -2364,8 +2386,8 @@ Pelajaran 1 sampai 4 diakhiri langkah Bagian A, tanpa fungsi. Mulai Pelajaran 5,
 | 4 | `total_revenue` | jumlah total yang tidak dibatalkan | omzet adalah angka yang dicocokkan Keuangan dengan Anda: teks ke angka, dan filter yang benar |
 | 4 | `batches` | potong list menjadi bagian berukuran `size` | kirim data ke API atau database per bagian, bukan satu permintaan raksasa (Modul 1.6) |
 | 4 | `top_customers` | `n` pelanggan dengan belanja terbesar | setiap laporan "10 teratas" |
-| 6 | `safe_int` | teks ke angka, atau nilai bawaan jika tidak mungkin | mengonversi nilai kotor tanpa membuat run crash |
 | 5 | `add_to_batch` | menambah ke list tanpa jebakan "nilai bawaan mutable" | bug persis ini membuat data kemarin bocor ke run hari ini (lihat tab Chaos) |
+| 6 | `safe_int` | teks ke angka, atau nilai bawaan jika tidak mungkin | mengonversi nilai kotor tanpa membuat run crash |
 | 6 | `split_valid` | memisahkan baris baik dari yang rusak | baris rusak disisihkan dan dilaporkan, tidak pernah dibuang diam-diam (Modul 1.2) |
 | 7 | `read_orders` | membaca file CSV menjadi list berisi dict | setiap pipeline dimulai dengan membaca file |
 
@@ -2413,7 +2435,7 @@ Run yang pasti benar: awali perintah pertama dengan `LAB_DIR=reference`.
 ### @scenario
 Sebuah tim kecil menulis job per jam yang mengelompokkan pesanan masuk menjadi batch sebelum dimuat. Fungsi pembantunya satu baris: `def add_to_batch(order, batch=[]): batch.append(order); return batch`. Dalam tes ia berfungsi: panggil dengan satu pesanan dan Anda mendapat list berisi pesanan itu.
 
-Di produksi, job berjalan di dalam proses worker yang hidup lama. Setelah jam kedua, dashboard menampilkan lagi pesanan dari jam pertama; setelah sehari, pesanan yang sama muncul 24 kali dan omset 24 kali terlalu tinggi. Memulai ulang worker memperbaikinya selama satu jam. Tidak ada yang bisa mereproduksi masalahnya dengan satu tes, sehingga orang mencurigai database, lalu jaringan.
+Di produksi, job berjalan di dalam proses worker yang hidup lama. Setelah jam kedua, dashboard menampilkan lagi pesanan dari jam pertama; setelah sehari, pesanan yang sama muncul 24 kali dan omzet 24 kali terlalu tinggi. Memulai ulang worker memperbaikinya selama satu jam. Tidak ada yang bisa mereproduksi masalahnya dengan satu tes, sehingga orang mencurigai database, lalu jaringan.
 
 ### @cause
 Di Python, nilai bawaan sebuah parameter dibuat **sekali**, saat baris `def` dieksekusi, bukan setiap kali fungsi dipanggil. `batch=[]` karena itu adalah satu list tunggal yang hidup selama prosesnya. Setiap pemanggilan yang tidak memberi list sendiri menambah ke list yang sama, sehingga ia mengingat semuanya dari pemanggilan sebelumnya. Proses baru (seperti dalam unit test, atau tepat setelah restart) menyembunyikan bug karena list-nya kosong lagi.
@@ -2427,7 +2449,7 @@ Penyebab yang lebih dalam adalah state tersembunyi: hasil fungsi bergantung pada
 4. Pilih fungsi yang keluarannya hanya bergantung pada masukannya. Bila state memang diperlukan, simpan secara eksplisit (parameter atau objek), jangan pernah di nilai bawaan.
 
 ### @pattern
-Nilai bawaan dibuat sekali. Fungsi harus memberi hasil yang sama untuk masukan yang sama; state tersembunyi mengubah pipeline menjadi yang berfungsi di tes dan gagal di produksi.
+Nilai bawaan dibuat sekali. Fungsi harus memberi hasil yang sama untuk masukan yang sama; state tersembunyi mengubahnya menjadi pipeline yang berfungsi di tes dan gagal di produksi.
 
 ## @quiz
 ### Apa yang dilakukan baris `total = total + 1000` di Python?
@@ -2482,7 +2504,7 @@ Nilai bawaan dibuat sekali. Fungsi harus memberi hasil yang sama untuk masukan y
 - [ ] Pemanggilan kedua mengembalikan ["b"], karena setiap pemanggilan mulai dengan list kosong yang baru
 - [ ] Python melaporkan error pada pemanggilan kedua karena list bawaan sudah pernah dipakai
 - [ ] Setiap pemanggilan mengubah salinan, jadi hasil ["a"] dan ["b"] tidak saling memengaruhi
-- [x] Pemanggilan kedua mengembalikan "a", "b", karena list bawaan dibuat sekali dan dipakai bersama
+- [x] Pemanggilan kedua mengembalikan ["a", "b"], karena list bawaan dibuat sekali dan dipakai bersama
 
 > Nilai bawaan dibuat saat `def` berjalan, bukan di setiap pemanggilan. Pakai `batch=None` dan buat list di dalam fungsi.
 

@@ -40,8 +40,8 @@ A second idea runs through all of it: **move the computation to the data, not th
 
 :::ask A cluster has 4,000 machines with 12 disks each. Why must Hadoop assume that failures are normal?
 @options
-cluster disks are cheap and never last long
-* with so many disks, one fails about every day
+cluster disks are cheap and fail within months
+* with 48,000 disks, one fails every day
 the network corrupts every file that it carries
 @why
 If one disk fails once every few years, 48,000 disks fail about every day. At that scale failure is routine, so storage must keep copies and jobs must be re-runnable.
@@ -57,7 +57,7 @@ Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in m
 **Rack awareness.** Machines sit in racks that share a switch and a power supply. Losing a whole rack is a real event. The default placement policy for three replicas is: **1st replica on the writer's own machine, 2nd on a machine in a different rack, 3rd on a different machine in the same rack as the 2nd**. That gives rack-level fault tolerance while keeping most of the write traffic inside a rack. The lab's `place_replicas` implements this exactly, and `blocks_lost` shows that a block is lost only when *every* replica's machine failed.
 
 > 💡 **Practice Pause 1 (HDFS Block Splitting & Rack-Aware Replication):**
-> 1. Open `labs/mod-3-0/hadoop_lab.py` in your text editor (such as VS Code). Do not execute this Python file directly in terminal without arguments.
+> 1. Install the lab dependency once (`pip install -r labs/mod-3-0/requirements.txt`), then open `labs/mod-3-0/hadoop_lab.py` in your text editor (such as VS Code). Do not execute this Python file directly in terminal without arguments.
 > 2. Implement `split_into_blocks(file_size, block_size=BLOCK_SIZE)` to partition files into default 128 MiB blocks plus the exact remainder.
 > 3. Implement `place_replicas(nodes, writer, factor=3)` following the rack-awareness policy: replica 1 on writer, replica 2 on a different rack, replica 3 on the same rack as replica 2.
 > 4. Implement `blocks_lost(placements, failed_nodes)` to report blocks whose replicas have all failed.
@@ -67,13 +67,13 @@ Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in m
 
 **The small-files problem.** The NameNode keeps one in-memory object per file, per directory and per block; a commonly quoted rule of thumb is about **150 bytes** each. The lab's `metadata_objects` makes the consequence visible. One terabyte stored as 1 GiB files is 1,024 files with 8 blocks each: **9,216 objects**, about 1.4 MB of NameNode memory. The same terabyte stored as 1 MiB files is **2,097,152 objects**, about **300 MB**, which is 227 times more, for identical data. Tens of millions of tiny files can exhaust the NameNode's memory and take down the whole cluster (see the chaos scenario). HDFS is built for **few, large files**.
 
-Other limits: files can be appended to but not edited in the middle, so HDFS suits "write once, read many" data; a single NameNode would be a single point of failure, so production clusters run a standby NameNode with shared journals (**HA**); and **erasure coding** (Hadoop 3) stores parity blocks instead of full copies, for example six data blocks plus three parity blocks, which costs 1.5 times the data instead of 3 times.
+Other limits: files can be appended to but not edited in the middle, so HDFS suits "write once, read many" data; a single NameNode would be a single point of failure, so production clusters run a standby NameNode with shared journals (**HA**, High Availability); and **erasure coding** (Hadoop 3) stores parity blocks instead of full copies, for example six data blocks plus three parity blocks, which costs 1.5 times the data instead of 3 times.
 
 :::ask One terabyte is stored as 10 million tiny files of about 100 KB. What is the real problem for HDFS?
 @options
-the DataNodes run out of disk space
+DataNodes run out of disk space from block overhead
 the files can not be replicated at all
-* the NameNode must keep an object for every file
+* the NameNode must track every file in memory
 @why
 The NameNode holds the whole namespace in memory (about 150 bytes per object as a rule of thumb). The size of the bytes does not matter to it; the **number of objects** does. The fix is fewer, larger files (compaction, columnar formats such as Parquet).
 :::
@@ -131,7 +131,7 @@ defines("map_words") ## Define map_words(line).
 map_words("A b A") == [("a", 1), ("b", 1), ("a", 1)] ## "A b A" gives [("a", 1), ("b", 1), ("a", 1)]: lowercase, one pair per word.
 map_words("") == [] ## An empty line gives [].
 @hint
-`return [(word.lower(), 1) for word in line.split()]`
+Split the line into words with `line.split()`, convert each word with `.lower()`, and collect a `(word, 1)` tuple for each word.
 @solution
 def map_words(line):
     return [(word.lower(), 1) for word in line.split()]
@@ -148,7 +148,7 @@ reduce_counts([("a", 1), ("b", 1), ("a", 1)]) == {"a": 2, "b": 1} ## a appears t
 reduce_counts([("x", 5), ("x", 7)]) == {"x": 12} ## Numbers are added, not counted: 5 + 7 = 12.
 reduce_counts([]) == {} ## No pairs, no counts.
 @hint
-`counts[word] = counts.get(word, 0) + number` for each pair.
+Start with an empty dictionary, loop over each `(word, number)` pair, and add `number` to the running total for that key (using `.get(..., 0)` so unseen words start at `0`).
 @solution
 def reduce_counts(pairs):
     counts = {}
@@ -255,7 +255,7 @@ A translation table for interviews:
 
 > 🛠 **Try it (10 min, Python).** Compare two ways to run an iterative job. Write 500,000 random integers (1 to 1000) to a text file, one per line. Version A re-reads and re-parses the whole file in **every** pass (the MapReduce habit); version B reads it once and keeps the list in memory (the Spark habit). Each pass does the same small update, `x = (x + sum(vals) / len(vals)) / 2`, starting from `x = 500.0`. Time both for 1 pass and for 10 passes and check that the final `x` is identical.
 >
-> **You should see:** the same `x` from both versions (about `500.17` after 10 passes). With 1 pass they take about the same time; with 10 passes version A is around 800 ms and version B around 115 ms, roughly seven times faster, because B pays the cost of reading once. The exact times depend on your machine; the pattern does not.
+> **You should see:** the same `x` from both versions (about `500.5` after 10 passes). With 1 pass they take about the same time; with 10 passes version A is around 800 ms and version B around 115 ms, roughly seven times faster, because B pays the cost of reading once. The exact times depend on your machine; the pattern does not.
 
 :::ask Which change helped Spark outrun MapReduce on multi-step and iterative work?
 @options
@@ -270,7 +270,9 @@ MapReduce writes to disk between every job in a chain. Spark plans the whole job
 Build three small, deterministic models in plain Python: HDFS block splitting, rack-aware replica placement, failure and the small-files arithmetic; a MapReduce engine (map, partition, shuffle, reduce, combiner, a reduce-side join, task retries); and a toy YARN scheduler. No cluster is needed, and the tests (38) check each behaviour the lessons describe.
 
 ### @steps
-1. Read `labs/mod-3-0/hadoop_lab.py` from top to bottom. Each function's docstring has an example and says which lesson explains it.
+> 💡 **Completed Practice Pauses 1–5?** Your implementations in `labs/mod-3-0/hadoop_lab.py` are already in place, jump straight to **Steps 6–7 / Practice Pause 6** below to run experiments, verify all 38 tests, and generate your proof token.
+
+1. Install `pytest` (`pip install -r labs/mod-3-0/requirements.txt`), then read `labs/mod-3-0/hadoop_lab.py` from top to bottom. Each function's docstring has an example and says which lesson explains it.
 2. Work in file order, and run the tests after EACH function:
 
 ```bash
@@ -282,7 +284,7 @@ pytest labs/mod-3-0/test_lab.py -v -k "Blocks or Replica"      # one group at a 
 4. **MapReduce next.** Write `partition` and `shuffle`, then print `lab.shuffle(pairs, 3)` for a small input and read it: this is what every reducer in a real cluster receives. Then build `run_job` and the combiner. Compare `shuffled_pairs` with and without the combiner.
 5. **The join.** Write `revenue_per_city` as a reduce-side join. Predict, before you run it, what the reducer sees for one customer.
 6. Experiment: change the number of reducers, the block size, or the combiner and predict each result first. Then use `metadata_objects` to work out how much NameNode memory 50 million small files would need.
-7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page.
+7. **Verify and prove.** Activate your virtual environment, verify that all 38 tests pass (`pytest labs/mod-3-0/test_lab.py -v`), and run `python3 scripts/prove.py mod-3-0` to get the proof code for the **Proof** box on this lab page.
 
 > 💡 **Practice Pause 6 (Full Verification & Proof Token):**
 > 1. In terminal, run the complete test suite:
@@ -315,7 +317,7 @@ Known-good run: prefix the first command with `LAB_DIR=reference`.
 ### @scenario
 A team ingests clickstream events into HDFS. To get data into the lake quickly, a job writes **one file per micro-batch per partition** every minute, each file a few hundred kilobytes. It works for months. After a marketing campaign the number of partitions grows, and the file count passes forty million.
 
-First, listing directories becomes slow, and every query spends minutes just opening files. Then the NameNode begins to pause for long garbage collections, and finally it runs out of heap and restarts, taking the whole cluster with it. Every job fails with connection errors, although no DataNode and no disk has any problem. Restarting the NameNode takes more than an hour because it must reload and verify the metadata of every file.
+First, listing directories becomes slow, and every query spends minutes just opening files. Then the NameNode begins to pause for long garbage collections (the JVM freezing briefly while reclaiming unused memory), and finally it runs out of heap (the JVM's main object memory pool) and restarts, taking the whole cluster with it. Every job fails with connection errors, although no DataNode and no disk has any problem. Restarting the NameNode takes more than an hour because it must reload and verify the metadata of every file.
 
 ### @cause
 Each file and each block is an object in the NameNode's memory. Forty million files, each with at least one block, are about 80 million objects; at roughly 150 bytes each that is **about 12 GB** of heap just for metadata, before any workload (the same arithmetic as the lab's `metadata_objects` and `namenode_memory_bytes`: one terabyte as 1 MiB files is 227 times more objects than as 1 GiB files). HDFS was designed for few large files, and the data volume was tiny; the *count* was the problem. A monitoring dashboard that showed disk usage and CPU stayed green, because neither resource was the limit.
@@ -327,7 +329,7 @@ The same mistake on object storage (S3) does not break a NameNode, but it costs 
 2. Change the pipeline so that it never creates tiny files: write larger batches less often, or write to a log (Kafka) and let a job produce big files, or use a table format with built-in compaction (Iceberg, Module 2.2).
 3. **Monitor the object count** (files plus blocks) and NameNode heap, with alerts well before the limit, not only disk and CPU.
 4. Set a policy and a check in code review: a target file size for every dataset, and a test that fails if a job writes files far smaller than that.
-5. For long-term safety, partition by something with fewer values, and use **federation** or move storage to object storage where metadata is not held in one machine's memory.
+5. For long-term safety, partition by something with fewer values, and use **HDFS Federation** (splitting the namespace across multiple NameNodes) or move storage to object storage where metadata is not held in one machine's memory.
 
 ### @pattern
 The scarce resource is not always the obvious one. Metadata and file counts can exhaust a system that has plenty of disk and CPU, so measure the thing that actually limits you.

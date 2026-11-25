@@ -20,7 +20,7 @@ Modul 0.1 (virtual environment), 1.2 (idempotensi, retry), 1.6 (ingesti, checkpo
 
 Anda menerima sebuah **kontrak arsitektur**, **tujuh file pengiriman harian** berisi postingan lowongan kerja, serta **skrip pemeriksa otomatis**. Anda memiliki kebebasan penuh dalam merancang implementasi kode DAG Anda. Skrip pemeriksa hanya mengevaluasi hasil akhir yang dapat diamati: bagaimana parser Airflow membaca file DAG Anda, apa yang dituliskan oleh task ke database warehouse, serta bagaimana pipeline merespons saat file datang terlambat atau saat pengiriman data mengalami kerusakan parah. Sebagaimana halnya modul capstone lain dalam kursus ini, **Anda mengerjakannya sendiri secara mandiri**: tanpa menyalin solusi referensi dan tanpa membiarkan AI menulis seluruh kode untuk Anda. Kode bukti kelulusan di akhir capstone ini hanya memiliki arti jika dicapai melalui kerja keras Anda sendiri.
 
-Dataset yang digunakan merupakan **data sintetis terarah**: skrip `fetch_data.py` menghasilkan data dari seed angka tetap untuk meniru karakteristik postingan lowongan kerja yang dikumpulkan dari empat portal karier (pekerjaan yang sama tercantum di beberapa portal, penulisan gaji dengan berbagai gaya teks, penulisan nama skill yang beragam, serta baris teks yang terpotong). Data ini tidak di-scrape dari situs mana pun secara ilegal. Namun, ragam kekacauan datanya mencerminkan kondisi lapangan yang sebenarnya.
+Dataset yang digunakan merupakan **data sintetis terarah**: skrip `fetch_data.py` menghasilkan data dari seed angka tetap untuk meniru karakteristik postingan lowongan kerja yang dikumpulkan dari empat portal karier (pekerjaan yang sama tercantum di beberapa portal, penulisan gaji dengan berbagai gaya teks, penulisan nama skill yang beragam, serta baris teks yang terpotong). Data ini tidak di-scrape dari situs mana pun. Namun, ragam kekacauan datanya mencerminkan kondisi lapangan yang sebenarnya.
 
 Cara kerja skrip pemeriksa agar Anda memahami alur pengujiannya:
 
@@ -29,16 +29,17 @@ Cara kerja skrip pemeriksa agar Anda memahami alur pengujiannya:
 3. Sistem mengeksekusi DAG Anda menggunakan method **`dag.test()`** untuk serangkaian tanggal yang dipilih. Fungsi ini menjalankan seluruh task dalam satu proses Python lokal, tanpa memerlukan daemon scheduler yang berjalan di background, serta mematuhi konfigurasi retry. Sistem juga menetapkan variabel lingkungan `JOBS_INBOX`, `JOBS_WAREHOUSE`, dan `JOBS_QUARANTINE`.
 4. Sistem membandingkan data di warehouse dengan nilai kebenaran yang dihitung secara independen dari file mentah, kemudian menyerang ketahanan pipeline Anda: pengujian rerun, eksekusi tanggal dengan urutan terbalik, file yang sengaja dibuat terlambat beberapa detik, serta kiriman data yang 60% isinya berupa teks sampah.
 
-**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-4`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-4`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika semua lolos, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
 
 Langkah persiapan workspace (hanya perlu dijalankan sekali):
 
 ```bash
+cd ~/projects/DECourse                           # contoh path: ganti dengan folder tempat Anda meng-clone kursus
 python3 -m venv ~/airflow-lab/venv && source ~/airflow-lab/venv/bin/activate
 PYV=$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 pip install -r labs/mod-4-4/requirements.txt \
   --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-$PYV.txt"
-python3 labs/mod-4-4/fetch_data.py            # generates the seven deliveries and checks their hash
+python3 labs/mod-4-4/fetch_data.py            # menghasilkan tujuh file pengiriman dan memeriksa hash-nya
 cp labs/mod-4-4/starter/jobs_pipeline.py ~/airflow-lab/jobs_pipeline.py
 ```
 
@@ -46,17 +47,17 @@ Argumen `--constraint` mengunci versi dependensi yang telah teruji kompatibel se
 
 Bantuan petunjuk tersedia dalam tiga level bertingkat (`--hint 1`, `2`, `3`). Luangkan waktu minimal 30 menit untuk menganalisis masalah sebelum meminta petunjuk. Menghadapi pesan error secara mandiri adalah cara terbaik melatih kemampuan membaca pesan diagnostik Airflow, keterampilan yang akan sangat sering Anda gunakan di lingkungan kerja produksi.
 
-> 🛠 **Coba sendiri (30 menit, terminal).** Kerjakan persiapan di atas di `~/airflow-lab` (instalasi Airflow butuh beberapa menit; pertahankan constraint file-nya). Sebelum menulis DAG, jalankan `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, lalu `--hint 1`. Lalu lihat isi `labs/mod-4-4/data/inbox/`: ada berapa file, dan seperti apa satu baris dari satu file?
+> 🛠 **Coba sendiri (30 menit, terminal).** Kerjakan persiapan di atas di `~/airflow-lab` (instalasi Airflow butuh beberapa menit; pertahankan constraint file-nya). Sebelum menulis DAG, jalankan `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`, lalu `--step 1 --hint 1`. Lalu lihat isi `labs/mod-4-4/data/inbox/`: ada berapa file, dan seperti apa satu baris dari satu file?
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `wrote 7 delivery files into .../labs/mod-4-4/data/inbox`. Pemeriksa mencetak `== Step 1: profile the seven deliveries (profile.json)`, `FAIL  profile.json exists in your workspace`, dan `0 passed, 1 failed`. Petunjuk 1 menyarankan membaca ketujuh file dengan `json` dan `collections`, menghitung lebih dulu, dan melihat baris-baris yang aneh dengan mata. Inbox berisi tujuh file, satu per hari, dan setiap baris adalah satu objek JSON.
 
-:::ask Bagaimana checker melihat DAG-mu?
+:::ask Bagaimana checker melihat DAG Anda?
 @options
 ia membaca file sebagai teks dan menghitung kata kunci
 * ia mengimpor DAG, memeriksanya, lalu menjalankannya
-ia hanya melihat tangkapan layar yang kamu unggah
+ia hanya melihat tangkapan layar yang Anda unggah
 @why
-Checker memberi workspace-mu Airflow home pribadi, mengimpor file DAG, memeriksa jadwal, tanggal mulai, tugas, urutan, dan retry, lalu menjalankannya, termasuk kiriman terlambat dan rusak.
+Checker memberi workspace Anda Airflow home pribadi, mengimpor file DAG, memeriksa jadwal, tanggal mulai, tugas, urutan, dan retry, lalu menjalankannya, termasuk kiriman terlambat dan rusak.
 :::
 
 ## @lesson Mengenal data pengiriman
@@ -90,7 +91,7 @@ Tiap file harian berisi satu objek JSON per baris. (Latihan pemanasan pada file 
 @starter
 import json
 from datetime import date
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("line_status") ## Definisikan line_status(line).
@@ -101,7 +102,7 @@ line_status('{"sensor": "  ", "value": "5", "day": "2026-03-01"}') == "missing_f
 line_status('{"sensor": "a1", "day": "2026-03-01"}') == "missing_field" ## Tidak ada value sama sekali.
 line_status('{"sensor": "a1", "value": "5", "day": "31/02/2026"}') == "bad_date" ## Bukan tanggal ISO.
 @hint
-`json.loads` di dalam `try`; periksa `isinstance(obj, dict)`; trim teks dengan `str(obj.get(f) or "").strip()`; untuk tanggal pakai `date.fromisoformat(...)` di dalam `try`.
+Periksa aturan secara berurutan: pertama parse JSON di dalam blok `try/except` dan pastikan hasilnya berupa dictionary; berikutnya periksa kedua field wajib ada dan tidak kosong setelah spasi tepinya dibuang; terakhir parse `"day"` menggunakan `date.fromisoformat` di dalam `try/except`.
 @solution
 import json
 from datetime import date
@@ -122,13 +123,13 @@ def line_status(line):
     return "ok"
 :::
 
-:::ask Kiriman satu hari sebagian besar sampah (kebanyakan baris tak bisa dipakai). Apa yang sebaiknya dilakukan pipeline yang baik pada hari itu?
+:::ask Kiriman satu hari sebagian besar sampah (lebih dari separuh tak bisa dipakai). Apa yang sebaiknya dilakukan pipeline pada hari itu?
 @options
 memuat baris yang bisa di-parse dan diam saja
 menghapus semua hari sebelumnya agar konsisten
-* menolaknya dengan jelas dan mengarantina barisnya
+* menolaknya dengan jelas tanpa memuat apa pun
 @why
-Kiriman yang kebanyakan tak terpakai biasanya berarti masalah di hulu. Menggagalkan task membuatnya terlihat, baris yang ditolak disimpan untuk diperiksa, dan data baik hari lain tidak tersentuh.
+Kiriman dengan lebih dari separuh baris gagal menandakan masalah di hulu. Menggagalkan `validate` sebelum apa pun ditulis membuatnya terlihat dan membiarkan hari-hari sebelumnya tetap utuh; karantina baris rusak hanya dipakai pada hari yang lolos batas kualitas 50%.
 :::
 
 ## @lesson Airflow dalam lima belas menit
@@ -154,7 +155,7 @@ Dua prinsip utama yang jauh lebih krusial daripada sekadar operator Airflow: **j
 >    `python3 labs/mod-4-4/check.py ~/airflow-lab --step 2`
 > 4. **Indikator Sukses:** Seluruh pemeriksaan konfigurasi DAG berstatus `PASS`, memastikan file DAG diimpor tanpa error dan top-level parsing tuntas dalam tempo cepat.
 
-:::ask Airflow mengimpor file DAG-mu berulang kali. Apa yang cocok berada di tingkat atas file itu?
+:::ask Airflow mengimpor file DAG Anda berulang kali. Apa yang cocok berada di tingkat atas file itu?
 @options
 * hanya kode ringan: import dan DAG-nya sendiri
 koneksi database, dibuka sekali untuk semua task
@@ -222,9 +223,9 @@ File yang hilang mungkin hanya terlambat. Melempar membuat Airflow mencoba ulang
 
 :::ask DAG untuk logical date `2026-01-05` berjalan dua kali (rerun manual). Apa yang harus benar sesudahnya?
 @options
-* hasil yang sama seperti setelah satu run
-ada dua salinan hasil hari itu
-run kedua gagal dengan error
+* hasil identik dengan satu run
+ada dua salinan hasil untuk hari itu
+run kedua gagal dengan pesan error
 @why
 Orchestrator menjalankan ulang sesuatu: retry, backfill, clear manual. Setiap task harus **idempoten per logical date**, menulis ke path atau partisi untuk tanggal itu dan menggantinya, sehingga rerun tidak pernah menggandakan apa pun.
 :::
@@ -239,7 +240,7 @@ Orchestrator menjalankan ulang sesuatu: retry, backfill, clear manual. Setiap ta
 :::drill python Ganti harinya, jangan menambah
 Sebuah tabel berisi baris dari banyak hari. Retry tidak boleh menggandakan sebuah hari. Tulis `replace_day(table, ds, new_rows)`: `table` adalah daftar tuple `(day, value)`. Kembalikan daftar baru yang semua baris hari `ds`-nya **dihapus** lalu `new_rows` (daftar nilai) ditambahkan sebagai `(ds, value)`. Baris hari lain tetap seperti semula.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("replace_day") ## Definisikan replace_day(table, ds, new_rows).
@@ -248,7 +249,7 @@ replace_day([("d1", 9)], "d1", [1]) == [("d1", 1)] ## Baris lama d1 diganti, tid
 replace_day([("d0", 5), ("d1", 9)], "d1", [1]) == [("d0", 5), ("d1", 1)] ## Hari lain tidak disentuh.
 replace_day(replace_day([], "d1", [1, 2]), "d1", [1, 2]) == [("d1", 1), ("d1", 2)] ## Dijalankan dua kali memberi tabel sama: idempoten.
 @hint
-Pertahankan baris yang harinya bukan `ds`: `[r for r in table if r[0] != ds]`, lalu tambahkan `[(ds, v) for v in new_rows]`.
+Saring `table` terlebih dahulu agar hanya menyimpan tuple yang harinya bukan `ds`, lalu gabungkan dengan daftar tuple `(ds, nilai)` untuk setiap nilai di `new_rows`.
 @solution
 def replace_day(table, ds, new_rows):
     kept = [row for row in table if row[0] != ds]
@@ -261,51 +262,51 @@ tanggal tidak tersedia di dalam task Airflow
 Airflow melarang membaca file apa pun di dalam task
 * run ulang akan membaca file hari ini, bukan hari itu
 @why
-Setiap nama file, klausa WHERE, dan jalur keluaran harus dibangun dari tanggal run (`ds`), bukan dari jam. Maka menjalankan ulang 5 Maret memproses 5 Maret, selambat apa pun kamu menjalankannya.
+Setiap nama file, klausa WHERE, dan jalur keluaran harus dibangun dari tanggal run (`ds`), bukan dari jam. Maka menjalankan ulang 5 Maret memproses 5 Maret, selambat apa pun Anda menjalankannya.
 :::
 
 ## @lesson Cetak biru tugas teknis take-home 48 jam dan rubrik 10 poin manajer perekrutan
 
 Banyak proses rekrutmen data engineer menyertakan **tugas take-home**, sering dengan batas 48 jam, atau peninjauan repositori proyek (*DataTalksClub Data Engineering Zoomcamp* menilai proyek capstone-nya dengan rubrik peer-review). Peninjau hanya punya sedikit waktu untuk setiap kiriman, jadi mereka memeriksa kebersihan produksi lebih dulu: apakah bisa dijalankan dari clone baru, apakah ada tesnya, apakah aman dijalankan dua kali.
 
-Sebelum Anda mengumpulkan tugas take-home atau proyek portofolio apa pun, periksa repositori Anda menggunakan **Rubrik 10 Poin Manajer Perekrutan & Capstone Zoomcamp** ini (serta jalankan `python3 scripts/verify_portfolio.py /path/ke/repo/anda` di terminal):
+Sebelum Anda mengumpulkan tugas take-home atau proyek portofolio apa pun, periksa repositori Anda menggunakan **Rubrik 10 Poin Manajer Perekrutan & Capstone Zoomcamp** ini (serta jalankan `python3 scripts/verify_portfolio.py proj-1 /path/ke/repo/anda` di terminal):
 
 | # | Kriteria Penilaian | Apa yang Membuat Kiriman Ditolak dalam 60 Detik (❌) | Apa yang Meloloskan Anda ke Wawancara Final (✅) |
 |---|---|---|---|
 | **1** | **Reproduksibilitas Satu Perintah** | Notebook Jupyter dengan path lokal `/Users/budi/Desktop/data.csv` yang langsung crash di baris ke-3. | `Makefile` atau `docker compose up --build` di mana `make setup && make test && make run` langsung berjalan mulus di mesin baru. |
 | **2** | **Eksekusi Ulang & Backfill Idempoten** | Memakai `INSERT INTO` polos sehingga menjalankan skrip dua kali melipatgandakan angka omzet. | Penggantian partisi atomik (`DELETE WHERE ds = ?` + `INSERT`, atau `insert_overwrite` / `MERGE`), dibuktikan oleh tes yang menjalankan pipeline dua kali. |
 | **3** | **Validasi Batas & Dead-Letter Quarantine (DLQ)** | Memanggil `pd.to_numeric(..., errors="coerce")` atau membiarkan seluruh batch gagal hanya karena 1 baris rusak. | Kontrak skema Pydantic ketat di pintu masuk yang mengarahkan baris rusak beserta alasannya ke `quarantine_dlq.jsonl` dan memberi peringatan jika melebihi ambang SLA. |
-| **4** | **Kontrak Grain & Pemodelan Data Eksplisit** | Membuang satu tabel rata tanpa primary key, tipe data, maupun pemodelan. | Pemisahan lapisan `Staging → Core/Dimensional (Star Schema / SCD2 atau Data Vault) → BI Rollup Mart` dengan dokumentasi grain per tabel. |
+| **4** | **Kontrak Grain & Pemodelan Data Eksplisit** | Memuat satu tabel datar tanpa primary key, tipe data, maupun pemodelan. | Pemisahan lapisan `Staging → Core/Dimensional (Star Schema / SCD2 atau Data Vault) → BI Rollup Mart` dengan dokumentasi grain per tabel. |
 | **5** | **Partisi, Clustering & Penjaga Biaya Cloud** | Tabel warehouse tanpa partisi yang di-query dengan `SELECT *`. | Tabel dipartisi berdasarkan tanggal (`PARTITION BY order_date`) dan diklaster pada kunci filter utama (`CLUSTER BY store_id, status`). |
 | **6** | **Rangkaian Tes Kasus Tepi Otomatis (`pytest` + `dbt test`)** | Nol tes, atau hanya satu tes jalur normal pada 3 baris data bersih. | Unit test + integration test `pytest` yang menguji `NULL`, duplikat retry, angka negatif, event terlambat, dan konversi uang integer. |
 | **7** | **Infrastructure as Code (IaC) & Kebersihan Rahasia** | Klik manual di konsol cloud atau password tertulis langsung di file Python. | Terraform deklaratif (`main.tf`, `variables.tf`), `.env.example`, dan pemindai rahasia `.pre-commit-config.yaml`. |
 | **8** | **Continuous Integration (`.github/workflows/ci.yml`)** | Tanpa CI; kode rusak langsung di-push ke `main`. | Workflow GitHub Actions yang menjalankan `ruff`, `pytest`, dan `dbt build` pada setiap Push / Pull Request. |
-| **9** | **Observabilitas & Ringkasan Eksekusi** | Eksekusi bisu (`print("done")`). | Log JSON terstruktur yang mencatat `rows_read`, `rows_loaded`, `rows_quarantined`, `net_revenue_sum`, dan `duration_ms`. |
-| **10** | **Design doc satu halaman (`DESIGN.md`)** | `README.md` yang hanya berisi daftar pustaka yang diinstal. | `README.md` ringkas ditambah `DESIGN.md` satu halaman dari Modul 2.5 (ADR punya fungsi yang sama), yang menjelaskan: **(a) Masalah Bisnis & KPI Stakeholder**, **(b) Diagram Arsitektur & Grain**, **(c) Trade-off yang Dipilih**, dan **(d) Apa yang Diubah jika Skala Tumbuh 100×**. |
+| **9** | **Observabilitas & Ringkasan Eksekusi** | Eksekusi senyap tanpa log (`print("done")`). | Log JSON terstruktur yang mencatat `rows_read`, `rows_loaded`, `rows_quarantined`, `net_revenue_sum`, dan `duration_ms`. |
+| **10** | **Design doc satu halaman (`DESIGN.md`)** | `README.md` yang hanya berisi daftar pustaka yang diinstal. | `README.md` ringkas ditambah `DESIGN.md` satu halaman dari Modul 2.5 (**ADR, Architecture Decision Record** punya fungsi yang sama), yang menjelaskan: **(a) Masalah Bisnis & KPI Stakeholder**, **(b) Diagram Arsitektur & Grain**, **(c) Trade-off yang Dipilih**, dan **(d) Apa yang Diubah jika Skala Tumbuh 100×**. |
 
 > 🛠 **Coba sendiri (15 menit, terminal).** Buat repositori yang sengaja lemah: `git init`, `README.md` yang hanya berisi judul, dan `pipeline.py` yang membaca `/Users/budi/Desktop/data.csv` lalu mencetak `done`, dalam satu commit. Jalankan `python3 scripts/verify_portfolio.py proj-1 <folder itu>`. Lalu telusuri sepuluh baris rubrik di atas dan tandai masing-masing: apakah verifier memeriksanya, atau perlu orang yang membaca kodenya?
 >
 > **Seharusnya Anda melihat:** `Not yet: 7 check(s) failed`: kurang dari 3 commit, tidak ada `.gitignore`, tidak ada catatan keputusan di README, tidak ada workflow CI, tidak ada tes untuk kode Anda sendiri, tidak ada alat lakehouse, dan tidak ada dashboard. Baris 6, 7, 8, dan 10 punya pemeriksaan mesin, baris 4 dan 5 sebagian. Baris 1 (apakah berjalan dari clone baru?), 2 (apakah aman dijalankan dua kali?), 3 (ke mana baris rusak pergi?), dan 9 (apa yang dilaporkan sebuah run?) butuh peninjau yang membaca dan menjalankan kode Anda, itulah sebabnya tugas take-home butuh README dan design doc yang menjelaskannya.
 
-:::ask Seorang peninjau punya lima menit untuk proyek take-home-mu. Apa yang diperiksanya lebih dulu?
+:::ask Seorang peninjau punya lima menit untuk proyek take-home Anda. Apa yang diperiksanya lebih dulu?
 @options
-* kebersihan: README, tes, run ulang aman, tanpa rahasia
-seberapa cerdas algoritmenya
+* kerapian: README, tes, tanpa rahasia
+seberapa cerdas dan rumit algoritmenya
 berapa banyak alat yang dipakai stack-nya
 @why
-Peninjau punya sedikit waktu per kiriman, jadi mereka mencari tanda bahwa kamu bisa dipercaya dengan produksi: README yang jelas, tes, run ulang yang aman, dan tidak ada rahasia di repositori.
+Peninjau punya sedikit waktu per kiriman, jadi mereka mencari tanda bahwa Anda bisa dipercaya dengan produksi: README yang jelas, tes, run ulang yang aman, dan tidak ada rahasia di repositori.
 :::
 
 ## @lab Lab: lima langkah membangun pipeline produksi harian di Airflow
-Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan mengeksekusi DAG Anda pada file pengiriman riil serta file yang sengaja dirusak, lalu membandingkan isi database warehouse Anda dengan hasil perhitungan independen.
+Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa akan mengeksekusi DAG Anda pada ketujuh file pengiriman serta file yang sengaja dirusak, lalu membandingkan isi database warehouse Anda dengan hasil perhitungan independen.
 
 ### @steps
 1. **Persiapan lingkungan.** Ikuti panduan persiapan di pelajaran pertama (buat virtual environment, instal paket dengan constraint file resmi, jalankan `fetch_data.py`, dan salin template awal ke direktori kerja Anda). Buka salah satu file pengiriman harian dan periksa seratus baris data pertama secara manual untuk memahami variasinya.
 2. **Pemeriksa langkah 1: profiling data.** Buat file `profile.json` yang memuat sembilan metrik hasil analisis dari ketujuh file pengiriman mentah: `files` (jumlah file pengiriman), `lines_total` (total baris tidak kosong), `invalid_json_lines`, `lines_missing_required` (JSON valid namun ada kolom wajib yang hilang atau kosong), `lines_bad_date` (JSON valid, kolom wajib lengkap, namun `posted_at` bukan tanggal ISO), `distinct_sources` (jumlah portal sumber unik di antara baris JSON valid), `busiest_source` (nilai `source` dengan baris terbanyak), `lines_with_salary` (baris JSON valid yang memiliki teks `salary_text` tidak kosong), dan `worst_day` (tanggal pengiriman, seperti `2026-03-04`, yang memiliki persentase baris rusak tertinggi). Uji dengan perintah: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 1`.
 3. **Pemeriksa langkah 2: struktur DAG.** Tuliskan struktur DAG sesuai spesifikasi kontrak teknis beserta lima task yang terhubung dalam satu rantai dependensi, meskipun task-task tersebut belum memproses data nyata (cukup mengembalikan nilai sederhana terlebih dahulu). Jalankan pengujian `--step 2` dan perbaiki konfigurasi yang ditandai oleh sistem penguji.
 4. **Pemeriksa langkah 3: pemrosesan satu hari.** Lengkapi logika di dalam fungsi-fungsi task agar mampu memproses satu hari pengiriman secara penuh: validasi, transformasi, pemuatan ke tabel DuckDB, dan pembaruan mart analitik. Uji secara mandiri terlebih dahulu menggunakan fungsi `dag.test()` untuk satu tanggal, cocokkan jumlah barisnya dengan profil yang Anda peroleh di langkah 1, lalu jalankan pengujian `--step 3`.
-5. **Pemeriksa langkah 4: idempotensi dan urutan eksekusi.** Skrip penguji akan mengeksekusi enam hari data dengan urutan acak, termasuk dua pengujian rerun pada tanggal yang sama. Pastikan operasi pemuatan data Anda menimpa data lama untuk tanggal yang bersangkutan dan tabel mart dibangun ulang dengan benar. Cobalah merusak kode Anda secara sengaja terlebih dahulu (misalnya hapus perintah DELETE, lalu jalankan tanggal yang sama dua kali) untuk melihat dampak penggandaan data di tabel. Jalankan pengujian `--step 4`.
-6. **Pemeriksa langkah 5: ketahanan terhadap kegagalan.** Sebuah file pengiriman disimulasikan datang terlambat beberapa detik; kiriman tanggal 5 Maret disimulasikan memuat mayoritas data rusak. Pastikan skrip Anda mampu memulihkan diri pada kasus pertama dan menghentikan pemrosesan secara aman tanpa memodifikasi database pada kasus kedua. Jalankan pengujian `--step 5`.
+5. **Pemeriksa langkah 4: idempotensi dan urutan eksekusi.** Skrip penguji akan mengeksekusi empat hari berbeda dalam enam kali run dengan urutan acak, termasuk dua pengujian rerun pada tanggal yang sama. Pastikan operasi pemuatan data Anda menimpa data lama untuk tanggal yang bersangkutan dan tabel mart dibangun ulang dengan benar. Cobalah merusak kode Anda secara sengaja terlebih dahulu (misalnya hapus perintah DELETE, lalu jalankan tanggal yang sama dua kali) untuk melihat dampak penggandaan data di tabel. Jalankan pengujian `--step 4`.
+6. **Pemeriksa langkah 5: ketahanan terhadap kegagalan.** Sebuah file pengiriman disimulasikan datang terlambat beberapa detik; kiriman pada salah satu hari disimulasikan memuat mayoritas data rusak. Pastikan skrip Anda mampu memulihkan diri pada kasus pertama dan menghentikan pemrosesan secara aman tanpa memodifikasi database pada kasus kedua. Jalankan pengujian `--step 5`.
 7. **Mengalami kendala?** Baca kembali materi pelajaran yang relevan, periksa struktur data mentah serta teks pesan kesalahan dari Airflow, lalu gunakan petunjuk bertingkat jika diperlukan: `python3 labs/mod-4-4/check.py ~/airflow-lab --step 3 --hint 1` (kemudian 2, lalu 3).
 8. **Penyelesaian.** Ketika pengujian `--step all` berhasil lulus seutuhnya, jalankan perintah `python3 scripts/prove.py mod-4-4 ~/airflow-lab` untuk menghasilkan kode verifikasi kelulusan. Tuliskan file `NOTES.md` di direktori kerja Anda: tuliskan tiga kalimat mengenai hal yang paling mengejutkan Anda dalam Airflow, serta aspek apa saja yang akan Anda pantau jika pipeline ini berjalan setiap malam di produksi (misalnya persentase baris data yang ditolak per hari dan usia keterlambatan file kiriman terbaru).
 
@@ -319,7 +320,7 @@ Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda 
 
 ### @files
 - labs/mod-4-4/starter/jobs_pipeline.py :: File template awal kerja: salin ke ruang kerja Anda dan kembangkan DAG di sana :: starter
-- labs/mod-4-4/check.py :: Skrip pemeriksa otomatis: lima langkah pengujian, petunjuk bertingkat, dan kode bukti :: test
+- labs/mod-4-4/check.py :: Skrip pemeriksa otomatis: lima langkah pengujian dan petunjuk bertingkat :: test
 - labs/mod-4-4/fetch_data.py :: Menghasilkan tujuh file pengiriman sintetis dan memverifikasi hash integritasnya :: config
 - labs/mod-4-4/requirements.txt :: Spesifikasi versi Airflow 3.1.8 dan DuckDB beserta panduan instalasi :: config
 
@@ -329,7 +330,7 @@ Bangun file `jobs_pipeline.py` dan `profile.json` di direktori ruang kerja Anda 
 - Anda mampu menguraikan mengapa operasi `load` wajib menjalankan delete dan insert dalam satu transaksi database, dan apa konsekuensi fatal jika task melakukan append pada setiap percobaan retry
 - Anda mampu menjelaskan mengapa file yang hilang wajib melempar exception alih-alih mengembalikan hasil kosong, serta mengapa kiriman rusak harus menggagalkan task sebelum data sempat ditulis
 - File `NOTES.md` Anda mencatat evaluasi teknis mengenai hal yang Anda pelajari serta strategi pemantauan harian pipeline di produksi
-- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design ~/airflow-lab/DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

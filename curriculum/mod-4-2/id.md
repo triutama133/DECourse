@@ -16,7 +16,7 @@ why: Di dunia kerja data engineering nyata, data jarang sekali tiba dalam berkas
 Modul 0.1 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 1.6 (ingesti API, paginasi, dan watermark), serta 2.1 (DuckDB dan Parquet). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan instalasi DuckDB.
 
 ## @lesson Cara kerja capstone ini
-> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (exponential backoff, retry & idempotensi), **Modul 1.6** (paginasi API cursor/offset & checkpoint atomik), serta **Modul 2.1** (penyimpanan tabel DuckDB & upsert CDC). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (exponential backoff, retry & idempotensi), **Modul 1.6** (paginasi API cursor/offset & checkpoint atomik), serta **Modul 2.1** (penyimpanan tabel DuckDB & upsert CDC). Pelajaran 2–6 selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
 
 Setiap lab pada modul-modul sebelumnya memberi Anda fungsi-fungsi yang telah ditentukan rangkanya, berkas pengujian otomatis, dan petunjuk langkah demi langkah. Capstone ini sengaja dirancang berbeda: **Anda menerima kontrak teknis, data publik nyata, dan sebuah suite pemeriksa otomatis yang menyerang pipeline Anda.**
 
@@ -41,11 +41,11 @@ Aturan main capstone:
 3. **Gunakan petunjuk bertingkat jika buntu:** Anda dapat meminta `--hint 1` (dorongan kecil), `--hint 2` (penjelasan konsep), atau `--hint 3` (bocoran teknis detail). Usahakan menganalisis masalah minimal 30 menit sebelum meminta bantuan petunjuk.
 4. **Pemeriksa menyerang pipeline Anda.** Pada langkah 3, 4, dan 5, sistem pengujian menjalankan server HTTP lokal yang menyuntikkan pemutusan koneksi soket mendadak, rate limit HTTP 429, pemadaman server 503, payload beracun, dan pembaruan rekaman CDC. Sistem produksi di dunia nyata menghadapi hal-hal ini setiap minggunya.
 
-**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-2`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-2/check.py ~/seismic --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-2`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika semua lolos, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-2/check.py ~/seismic --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
 
 Siapkan workspace Anda:
 ```bash
-cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana
+cd ~/projects/DECourse          # contoh path: ganti dengan folder tempat Anda meng-clone kursus
 mkdir -p ~/seismic
 python3 -m venv ~/seismic/venv && source ~/seismic/venv/bin/activate
 pip install -r labs/mod-4-2/requirements.txt
@@ -57,11 +57,11 @@ cp labs/mod-4-2/starter/pipeline.py ~/seismic/pipeline.py
 >
 > **Seharusnya Anda melihat:** `fetch_data.py` melaporkan `earthquakes_seed.json` dengan hash yang cocok. Pemeriksa mencetak `--- Step 1: Raw data profiling (profile.json) ---`, `FAIL  profile.json exists in workspace`, dan `Summary: 0 passed, 1 failed`; petunjuk 1 menyuruh Anda memuat file seed dengan `json.load()` dan melihat properti serta geometri setiap feature. Tidak lebih: pekerjaannya milik Anda.
 
-:::ask Di capstone ini suite verifikasi 'menyerang' pipeline-mu. Apa yang diperiksanya?
+:::ask Di capstone ini suite verifikasi 'menyerang' pipeline Anda. Apa yang diperiksanya?
 @options
-apakah kodemu tampak rapi bagi peninjau
-berapa banyak baris yang dimiliki pipeline-mu
-* perilaku teramati: skema, melanjutkan, tanpa duplikat
+apakah kode Anda tampak rapi bagi peninjau
+berapa banyak baris yang dimiliki pipeline Anda
+* perilaku teramati: skema, resume, nol duplikat
 @why
 Tidak ada yang menilai gaya. Suite memeriksa hasil: skema DuckDB yang tepat, melanjutkan dengan bersih setelah server memutus koneksi di tengah sinkronisasi, penanganan rate limit, dan hitungan yang cocok.
 :::
@@ -81,11 +81,11 @@ GeoJSON Feature Collection
     ├── properties:
     │   ├── mag: 7.5                <-- Magnitudo (Double, bisa null)
     │   ├── place: "2024 Noto..."   <-- Deskripsi wilayah
-    │   ├── time: 1704067395140     <-- Waktu kejadian dalam epoch ms (UTC)
-    │   ├── updated: 1708819584040  <-- Waktu revisi dalam epoch ms (UTC)
+    │   ├── time: 1704093009476     <-- Waktu kejadian dalam epoch ms (UTC)
+    │   ├── updated: 1791612789213  <-- Waktu revisi dalam epoch ms (UTC)
     │   ├── status: "reviewed"      <-- "automatic" vs "reviewed"
     │   ├── tsunami: 1              <-- 1 jika ada peringatan tsunami, 0 jika tidak
-    │   ├── sig: 2470               <-- Tingkat signifikansi
+    │   ├── sig: 2376               <-- Tingkat signifikansi
     │   └── type: "earthquake"
     └── geometry:
         ├── type: "Point"
@@ -98,7 +98,7 @@ GeoJSON Feature Collection
    - `coordinates[1]` adalah **Latitude / Lintang** (rentang valid: -90,0 sampai 90,0)
    - `coordinates[2]` adalah **Kedalaman (depth) dalam kilometer**
    Jika Anda memetakan `lat = coords[0]`, gempa bumi dengan bujur di luar +/-90 derajat (seperti Jepang atau Indonesia, kira-kira 95 sampai 145 derajat Bujur Timur) akan langsung menggagalkan validasi rentang lintang Anda!
-2. **SCD Type 1 & Waktu Revisi (`updated`):** Data kegempaan berevolusi seiring waktu. Ketika getaran terdeteksi, stasiun seismik otomatis membuat rekaman awal (`status: "automatic"`). Beberapa jam kemudian, ahli geofisika mengoreksi episentrum dan magnitudo, lalu memperbarui status menjadi `status: "reviewed"` dengan nilai timestamp `updated > time`. Pipeline yang watermark-nya hanya mengikuti `time` kejadian tidak akan pernah melihat revisi ini. **Lacak watermark pada `updated`** (waktu perubahan terakhir) dan minta ke API hanya yang berubah dengan `updatedafter`; lakukan upsert berdasarkan id event.
+2. **SCD Type 1 (timpa di tempat dengan versi terbaru, Modul 1.4) & Waktu Revisi (`updated`):** Data kegempaan berevolusi seiring waktu. Ketika getaran terdeteksi, stasiun seismik otomatis membuat rekaman awal (`status: "automatic"`). Beberapa jam kemudian, ahli geofisika mengoreksi episentrum dan magnitudo, lalu memperbarui status menjadi `status: "reviewed"` dengan nilai timestamp `updated > time`. Pipeline yang watermark-nya hanya mengikuti `time` kejadian tidak akan pernah melihat revisi ini. **Lacak watermark pada `updated`** (waktu perubahan terakhir) dan minta ke API hanya yang berubah dengan `updatedafter`; lakukan upsert berdasarkan id event.
 3. **Nilai Null dan Pengukuran Negatif:** Gempa mikro atau ledakan tambang dapat memiliki magnitudo null atau bernilai negatif (skala logaritmik Richter memperbolehkan angka di bawah 0). Kedalaman dapat bernilai 0 atau negatif (gempa di pegunungan di atas permukaan laut). Skema Anda harus menerima float nullable tanpa mengalami error.
 4. **Strategi Paginasi (Offset vs Keyset Watermark):** REST API umumnya menawarkan paginasi offset (`limit` dan `offset`). Walau mudah dipahami, paginasi murni offset mengalami pemindaian O(N) pada offset dalam dan dapat bergeser jika ada data baru masuk bersamaan. Dalam arsitektur data modern, kita menggabungkan watermark pada waktu `updated` (filter `updatedafter`) dengan offset halaman di dalam satu sesi sinkronisasi untuk menjamin eksekusi yang cepat dan idempoten. Filter tetap konstan selama offset bergerak.
 5. **Menjaga Kamus Data Domain:** API ilmiah memuat kode spesifik domain seperti `magType` (`ml` skala Richter lokal, `mw` magnitudo momen, `md` durasi). Jangan pernah membuang atribut domain ini saat ekstraksi; analis bergantung pada tipe magnitudo untuk memvalidasi akurasi kalibrasi sensor fisik.
@@ -113,7 +113,7 @@ GeoJSON Feature Collection
 :::drill python Bujur dulu, lalu lintang
 GeoJSON menyimpan koordinat sebagai `[longitude, latitude, depth]`, kebalikan dari cara orang menyebut "lintang, bujur". Tulis `to_event(feature)`: `feature` adalah dictionary seperti `{"id": "x1", "geometry": {"coordinates": [139.2, 37.5, 10.0]}}`. Kembalikan dictionary dengan kunci `id`, `longitude`, `latitude`, dan `depth_km`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("to_event") ## Definisikan to_event(feature).
@@ -131,13 +131,13 @@ def to_event(feature):
 ## @lesson Kontrak ingesti baseline: paginasi, koordinat & penyimpanan DuckDB
 Sebelum menambahkan logika retry atau dead-letter routing, pastikan **kontrak ingesti inti** berjalan rapi dari halaman API ke tabel analitik:
 
-1. **Lakukan paginasi dengan `limit` dan `offset` berbasis 1:** Iterasi halaman demi halaman (`offset = 1`, maju sesuai panjang halaman) hingga daftar `features` yang dikembalikan kosong.
+1. **Lakukan paginasi dengan `limit` dan `offset` berbasis 1:** Iterasi halaman demi halaman (`offset = 1`, maju sesuai panjang halaman) hingga daftar `features` yang dikembalikan kosong atau lebih pendek dari `limit` (`len(features) < limit`).
 2. **Tegakkan urutan koordinat:** Selalu petakan `longitude = coords[0]`, `latitude = coords[1]`, dan `depth_km = coords[2]`, serta konversi stempel waktu ke UTC secara konsisten.
 3. **Buat tabel target DuckDB `events` secara idempoten:** Gunakan `event_id` sebagai primary key dan simpan kolom `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, serta `status`, sambil memperbarui baris yang ada dengan rapi jika event direvisi daripada menambahkan duplikat.
 
 > 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Ingesti Baseline & Penyimpanan DuckDB):**
 > 1. Buka file `pipeline.py` di workspace Anda (`~/seismic/pipeline.py`) menggunakan teks editor.
-> 2. Implementasikan subperintah CLI `pipeline.py ingest` dengan paginasi (`limit` dan `offset`), ekstraksi koordinat presisi (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), pembuatan tabel `events` di DuckDB, dan penulisan awal `state.json`.
+> 2. Implementasikan subperintah CLI `pipeline.py ingest` dengan argumen `--api-url`, `--output-dir`, `--state-file`, dan `--batch-size`: lakukan paginasi (`limit` dan `offset`), ekstraksi koordinat presisi (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), buat tabel `events` di `<output-dir>/warehouse.duckdb`, dan tulis `state.json` awal.
 > 3. Jalankan pemeriksaan langkah 2 di terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 2`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema tabel DuckDB, rentang koordinat geografis, dan ketepatan paginasi API.
@@ -182,7 +182,7 @@ Atau kebalikannya:
 2. **Perbarui nilai watermark di memori hanya setelah penulisan data berhasil.**
 3. **Tulis berkas `state.json` melalui pola atomic rename:**
    ```python
-   tmp_file = state_path.with_suffix(".tmp")
+   tmp_file = state_path.with_suffix(".json.tmp")
    tmp_file.write_text(json.dumps(state_data))
    os.replace(tmp_file, state_path)  # Operasi atomik pada filesystem POSIX
    ```
@@ -192,15 +192,15 @@ Atau kebalikannya:
 :::ask Run ingesti Anda mengambil 500 record, menulisnya, dan baru kemudian memajukan checkpoint. Ia crash tepat setelah menulis. Apa yang terjadi pada run berikutnya?
 @options
 500 record itu hilang selamanya
-ia menolak mulai sampai Anda mereset
-* ia mengambilnya lagi dan load idempoten menyerapnya
+ia menolak mulai sampai Anda mereset state.json
+* ia mengambil ulang, diserap load idempoten
 @why
 Checkpoint hanya boleh menggambarkan data yang tersimpan dengan aman. Crash di antara penulisan dan checkpoint hanya memakan pengambilan ulang, yang dibuat tidak berbahaya oleh load yang melakukan deduplikasi.
 :::
 
 > 💡 **Jeda Praktik 3 (Langkah 3: Watermarking Stateful & Atomic Crash Recovery):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
-> 2. Implementasikan pelacakan `high_watermark_epoch_ms` berbasis timestamp `updated` terbesar yang telah di-commit, kirim filter `updatedafter` pada pemanggilan berikutnya, dan amankan penulisan `state.json` via atomic rename (`.tmp` + `os.replace`).
+> 2. Implementasikan pelacakan `high_watermark_epoch_ms` berbasis timestamp `updated` terbesar yang telah di-commit, kirim parameter query `updatedafter` sebagai **string ISO-8601 UTC** (misalnya `2024-01-04T13:50:49Z`, bukan angka epoch ms) pada pemanggilan berikutnya, dan amankan penulisan `state.json` via atomic rename (`state.json.tmp` + `os.replace`).
 > 3. Jalankan pemeriksaan langkah 3 di terminal:
 >    `python3 labs/mod-4-2/check.py ~/seismic --step 3`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 3 berstatus `PASS`, memvalidasi bahwa pemutusan koneksi soket di tengah jalan tidak merusak watermark dan eksekusi lanjutan menghasilkan nol data hilang serta nol duplikasi.
@@ -208,7 +208,7 @@ Checkpoint hanya boleh menggambarkan data yang tersimpan dengan aman. Crash di a
 :::drill python Watermark tidak pernah mundur
 Setelah tiap halaman, pipeline menyimpan waktu `updated` terbesar yang sudah **di-commit**. Tulis `next_watermark(current, updated_values)`: `current` adalah angka tersimpan (atau `None` pada run pertama) dan `updated_values` adalah daftar angka `updated` yang baru di-commit. Kembalikan watermark baru: yang terbesar dari semuanya, tidak pernah lebih rendah dari `current`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("next_watermark") ## Definisikan next_watermark(current, updated_values).
@@ -227,7 +227,7 @@ def next_watermark(current, updated_values):
     return max(candidates) if candidates else None
 :::
 
-:::ask Extractor menulis halaman 3 ke file, dan mesin crash sebelum state.json diperbarui. Saat restart ia mengambil ulang halaman 3. Apa yang melindungimu dari duplikat?
+:::ask Extractor menulis halaman 3 ke file, dan mesin crash sebelum state.json diperbarui. Saat restart ia mengambil ulang halaman 3. Apa yang melindungi Anda dari duplikat?
 @options
 tidak ada: duplikat tak terhindarkan pada rancangan ini
 * upsert menurut id event, data dulu baru state
@@ -248,12 +248,16 @@ Request ───────> [Server API]
 ```
 
 ### 1. HTTP 429 Too Many Requests & `Retry-After`:
-Ketika API membatasi panggilan Anda, server REST standar mengembalikan status HTTP 429 disertai header `Retry-After` yang menyatakan berapa detik klien harus berhenti sejenak:
+Ketika API membatasi panggilan Anda, server REST standar mengembalikan status HTTP 429 disertai header `Retry-After` yang menyatakan berapa detik klien harus berhenti sejenak (menggunakan `urllib.request` dari pustaka standar Python):
 ```python
-if response.status_code == 429:
-    retry_after = response.headers.get("Retry-After")
-    delay = float(retry_after) if retry_after else base_backoff
-    time.sleep(delay)
+try:
+    with urllib.request.urlopen(url, timeout=15) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+except urllib.error.HTTPError as e:
+    if e.code == 429:
+        retry_after = e.headers.get("Retry-After")
+        delay = float(retry_after) if retry_after else base_backoff
+        time.sleep(delay)
 ```
 
 ### 2. Exponential Backoff dengan Jitter:
@@ -271,8 +275,8 @@ Kesalahan umum pemula adalah mengeksekusi panggilan HTTP tanpa menyertakan batas
 
 :::ask API menjawab HTTP 429 dengan header `Retry-After: 30`. Apa yang Anda lakukan?
 @options
-* tunggu 30 detik atau lebih, lalu ulangi, dengan batas
-ulangi seketika, secepat mungkin
+* tunggu minimal 30 detik, lalu retry
+ulangi seketika tanpa jeda, secepat mungkin
 menyerah dan langsung menggagalkan run
 @why
 429 berarti "Anda meminta terlalu cepat", kegagalan sementara. Hormati `Retry-After`, tambahkan jitter agar banyak klien tidak kembali pada saat yang sama, dan batasi percobaan. Error seri-400 seperti 404 tidak sementara: mengulang tidak pernah memperbaikinya.
@@ -288,7 +292,7 @@ menyerah dan langsung menggagalkan run
 :::drill python Berapa lama menunggu?
 Setelah gagal, pipeline menunggu sebelum mencoba lagi. Tulis `retry_wait(attempt, base, retry_after)`: `attempt` dihitung dari 0. Jika server mengirim `Retry-After` dalam detik (`retry_after` bukan `None`), tunggu **persis selama itu**. Jika tidak, pakai exponential backoff: `base * 2 ** attempt`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("retry_wait") ## Definisikan retry_wait(attempt, base, retry_after).
@@ -297,7 +301,7 @@ retry_wait(3, 1, None) == 8 ## 1, 2, 4, 8.
 retry_wait(2, 1, 30) == 30 ## Server meminta 30 detik: patuhi.
 retry_wait(1, 5, None) == 10 ## Base lain: 5, 10, 20...
 @hint
-`if retry_after is not None: return retry_after`, selain itu `return base * 2 ** attempt`.
+Periksa apakah server mengirim nilai `retry_after` terlebih dahulu; jika ada, langsung kembalikan nilai tersebut. Jika tidak ada (`None`), gandakan `base` sebanyak `attempt` kali (`2` pangkat `attempt`).
 @solution
 def retry_wait(attempt, base, retry_after):
     if retry_after is not None:
@@ -309,7 +313,7 @@ def retry_wait(attempt, base, retry_after):
 @options
 agar waktu tunggu menjadi lebih pendek rata-rata
 agar server bisa membedakan permintaannya
-* agar worker tidak mencoba ulang bersamaan
+* agar worker tidak retry bersamaan
 @why
 Tanpa jitter, klien yang gagal bersama akan mencoba ulang bersama dan menghantam server dalam gelombang lagi. Selisih acak kecil menyebarkan mereka.
 :::
@@ -331,18 +335,18 @@ Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dap
 
 ### Backfill Historis & Rekonsiliasi Data:
 Seringkali tim hulu memperbaiki kalibrasi sensor masa lalu dan meminta: *"Tolong ambil ulang seluruh data untuk bulan Desember 2023."*
-Pipeline Anda menyediakan subperintah `backfill`:
+Pipeline Anda menyediakan subperintah `backfill` yang mengirim parameter query `starttime` dan `endtime` ke endpoint API:
 ```bash
 python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/state.json --start 2023-12-01 --end 2023-12-31
 ```
 **Aturan Emas Backfill:** Perintah backfill harus memuat data historis ke dalam warehouse menggunakan aturan upsert yang sama, **TETAPI SAMA SEKALI TIDAK BOLEH MENGUBAH ATAU MENGGESER WATERMARK DI `state.json`!** Jika proses backfill Desember 2023 mengubah `state.json`, eksekusi terjadwal berikutnya akan mengira watermark saat ini berada di bulan Desember 2023 dan menyedot ulang seluruh data berbulan-bulan secara mubazir.
 
-Terakhir, selalu terapkan perhitungan **rekonsiliasi** yang ketat: di akhir setiap sesi sinkronisasi, verifikasi hukum invariansi `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. Jika penjumlahan angka ini tidak cocok, berarti ada baris data yang bocor diam-diam di memori tanpa jejak audit.
+Pastikan pula validasi DLQ menolak rekaman dengan ID kosong, koordinat di luar rentang, `geometry` bernilai `None`, atau timestamp `time < 0`. Terakhir, selalu terapkan perhitungan **rekonsiliasi** yang ketat: di akhir setiap sesi sinkronisasi, verifikasi hukum invariansi `total_records_fetched == valid_records_persisted + dlq_records_quarantined`. Jika penjumlahan angka ini tidak cocok, berarti ada baris data yang bocor diam-diam di memori tanpa jejak audit.
 
 :::drill python Arahkan rekaman
 Sebuah rekaman **valid** hanya jika punya `id` tak kosong dan `latitude` antara -90 dan 90 dan `longitude` antara -180 dan 180. Selain itu masuk ke dead-letter queue. Tulis `route(record)`: kembalikan `"valid"` atau `"dlq"`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("route") ## Definisikan route(record).
@@ -352,7 +356,7 @@ route({"id": "", "latitude": 10.0, "longitude": 20.0}) == "dlq" ## Id kosong.
 route({"latitude": 10.0, "longitude": 20.0}) == "dlq" ## Id tidak ada.
 route({"id": "a", "latitude": -90, "longitude": 180}) == "valid" ## Tepi rentang tetap valid.
 @hint
-Pakai `record.get("id")`. Periksa `-90 <= record["latitude"] <= 90` dan hal sama untuk longitude dengan 180; rekaman yang tak punya keduanya juga dlq.
+Ambil `id`, `latitude`, dan `longitude` secara aman dengan `.get(...)` agar tidak terjadi `KeyError`. Jika `id` kosong atau salah satu koordinat bernilai `None`, kembalikan `"dlq"`; selain itu pastikan lintang berada di `[-90, 90]` dan bujur di `[-180, 180]`.
 @solution
 def route(record):
     if not record.get("id"):
@@ -369,7 +373,7 @@ def route(record):
 :::drill python Apakah hitungannya cocok?
 Di akhir sinkronisasi, setiap rekaman yang diambil harus terhitung. Tulis `reconciles(fetched, valid, dlq)`: kembalikan `True` bila `fetched == valid + dlq`, selain itu `False`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("reconciles") ## Definisikan reconciles(fetched, valid, dlq).
@@ -377,7 +381,7 @@ reconciles(100, 97, 3) == True ## Setiap rekaman terhitung.
 reconciles(100, 97, 2) == False ## Satu rekaman bocor.
 reconciles(0, 0, 0) == True ## Sinkronisasi kosong tidak masalah.
 @hint
-`return fetched == valid + dlq`
+Bandingkan total rekaman yang diambil (`fetched`) terhadap jumlah rekaman valid ditambah rekaman yang masuk karantina (`dlq`).
 @solution
 def reconciles(fetched, valid, dlq):
     return fetched == valid + dlq
@@ -396,12 +400,12 @@ Backfill boleh mengisi riwayat dengan aturan upsert yang sama, tetapi jika ia me
 Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi langkah, menggunakan alat pemeriksa setelah setiap tahap. Pemeriksa menjalankan pipeline Anda pada data nyata USGS, menyimulasikan pemutusan koneksi, memicu throttle HTTP 429, menyuntikkan data beracun, dan menguji isolasi backfill.
 
 ### @steps
-1. **Setup.** Ikuti petunjuk setup di Lesson 1 (buat folder `~/seismic`, aktifkan venv, instal requirements, jalankan `fetch_data.py`, salin `starter/pipeline.py`). Periksa berkas `earthquakes_seed.json` dengan Python atau DuckDB.
+1. **Setup.** Ikuti petunjuk setup di Pelajaran 1 (buat folder `~/seismic`, aktifkan venv, instal requirements, jalankan `fetch_data.py`, salin `starter/pipeline.py`). Periksa berkas `earthquakes_seed.json` dengan Python atau DuckDB.
 2. **Langkah 1: Profiling data mentah.** Analisis dataset mentah dan buat `profile.json` dengan 9 nilai kunci: `total_features`, `max_magnitude`, `min_magnitude`, `tsunami_alert_count`, `max_depth_km`, `min_depth_km`, `min_time_epoch_ms`, `max_time_epoch_ms`, dan `noto_peninsula_event_id`. Periksa dengan `--step 1`.
 3. **Langkah 2: Kontrak ingesti baseline.** Implementasikan subperintah `pipeline.py ingest` dengan argumen CLI (`--api-url`, `--output-dir`, `--state-file`, `--batch-size`). Lakukan paginasi (`limit` dan `offset` berbasis 1), ekstrak koordinat dengan benar (`lon = coords[0]`, `lat = coords[1]`, `depth = coords[2]`), simpan data bersih ke `<output-dir>/warehouse.duckdb` dalam tabel `events` dengan minimal kolom `event_id` (primary key), `time_utc`, `updated_epoch_ms`, `latitude`, `longitude`, `depth_km`, `magnitude`, dan `status`, lalu simpan `state.json`. Periksa dengan `--step 2`.
 4. **Langkah 3: Watermarking stateful & pemulihan crash.** Catat timestamp `updated` terbesar yang sudah di-commit sebagai `high_watermark_epoch_ms`, dan pada eksekusi berikutnya kirim `updatedafter` (waktu ISO-8601 UTC, misalnya `2024-01-04T11:30:49.415`) agar hanya event baru atau yang direvisi yang kembali; mengurangi satu detik sebagai tumpang tindih aman karena upsert Anda idempoten. Gunakan penulisan file sementara atomik (`.tmp` + `os.replace`) untuk `state.json`. Pemeriksa menyimulasikan pemutusan soket di tengah jalan, memastikan checkpoint tidak pernah mendahului data, mengunci warehouse agar penulisan gagal dan checkpoint tidak boleh bergerak, serta memverifikasi bahwa eksekusi lanjutan menghasilkan nol duplikat dan nol data hilang. Periksa dengan `--step 3`.
 5. **Langkah 4: Ketahanan jaringan.** Tambahkan mekanisme retry dengan exponential backoff untuk error 5xx. Periksa header HTTP 429 `Retry-After` dan tunggu setidaknya selama itu (pemeriksa mengukur jeda antar permintaan). Keluar dengan kode `2`, tanpa retry, jika terjadi error fatal 4xx. Periksa dengan `--step 4`.
-6. **Langkah 5: DLQ, CDC upsert & backfill.** Validasi koordinat, timestamp, dan ID. Arahkan rekaman rusak ke `<output-dir>/dlq/rejected.jsonl`. Lakukan upsert rekaman hasil revisi di DuckDB tanpa membuat baris ganda. Implementasikan subperintah `backfill` (`--api-url --output-dir --state-file --start --end --batch-size`); ia menerima `--state-file` hanya agar pemeriksa dapat membuktikan Anda tidak pernah menulisnya, dan revisi yang lebih lama dari sebuah event tidak boleh menimpa yang lebih baru. Periksa dengan `--step 5` dan `--step all`.
+6. **Langkah 5: DLQ, CDC upsert & backfill.** Validasi koordinat, `geometry` (tolak jika `None`), timestamp (`time >= 0`), dan ID. Arahkan rekaman rusak ke `<output-dir>/dlq/rejected.jsonl`. Lakukan upsert rekaman hasil revisi di DuckDB tanpa membuat baris ganda. Implementasikan subperintah `backfill` (`--api-url --output-dir --state-file --start --end --batch-size`), mengirim `starttime` dan `endtime` sebagai parameter query ke API; ia menerima `--state-file` hanya agar pemeriksa dapat membuktikan Anda tidak pernah menulisnya, dan revisi yang lebih lama dari sebuah event tidak boleh menimpa yang lebih baru. Periksa dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Saat `--step all` lulus, jalankan `python3 scripts/prove.py mod-4-2 ~/seismic` untuk mencetak kode bukti bagi aplikasi kursus.
 
 > 💡 **Jeda Praktik 5 (Langkah 5: Isolasi DLQ, CDC Upsert, Backfill Historis & Bukti Kelulusan):**
@@ -424,7 +428,7 @@ Bangun `pipeline.py` dan `profile.json` di workspace Anda sendiri, langkah demi 
 - Anda dapat menjelaskan mengapa berkas state checkpoint wajib diperbarui secara atomik setelah penulisan data selesai
 - Anda dapat menjelaskan bagaimana Dead-Letter Queue memungkinkan ketersediaan tinggi tanpa menyembunyikan kerusakan data
 - Berkas `NOTES.md` di workspace Anda memuat analisis arsitektural tentang isolasi state antara backfill dan proses inkremental
-- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design ~/seismic/DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash
@@ -461,7 +465,7 @@ Pipeline ingesti harus memperlakukan jaringan dan penyedia data hulu sebagai kom
 
 ### Saat REST API hulu membatasi panggilan ekstraktor dengan respon HTTP 429 (Too Many Requests), apa tindakan arsitektural yang benar?
 - [ ] Segera melakukan pengulangan request dua puluh kali dalam perulangan tanpa henti sampai koneksi diterima kembali oleh server hulu jaringan
-- [x] Memeriksa header Retry-After, tidur selama durasi waktu yang diminta server, dan menerapkan pola exponential backoff jika header absen
+- [x] Memeriksa header Retry-After, menjeda eksekusi selama durasi waktu yang diminta server, dan menerapkan pola exponential backoff jika header absen
 - [ ] Menghentikan eksekusi pipeline secara permanen, menghapus berkas basis data lokal di disk, dan mengirim email ke penyedia layanan API
 - [ ] Mengubah request menjadi metode HTTP GET tanpa menyertakan user-agent guna mengelabui pembatas IP hulu agar ekstraksi data berlanjut
 
@@ -487,7 +491,7 @@ Pipeline ingesti harus memperlakukan jaringan dan penyedia data hulu sebagai kom
 - [ ] Ingesti inkremental membaca berkas Parquet sedangkan proses backfill historis hanya diperbolehkan mengekstrak berkas mentah CSV tanpa kompresi
 - [x] Ingesti inkremental menaikkan nilai high-watermark pada state, sedangkan proses backfill wajib membiarkan watermark produksi tidak berubah
 - [ ] Ingesti inkremental berjalan di DuckDB lokal sedangkan proses backfill historis wajib dijalankan pada kluster besar Apache Spark di cloud
-- [ ] Ingesti inkremental membuang rekaman yang salah sedangkan proses backfill wajib mengalami crash seketika jika menemukan nilai bernilai null
+- [ ] Ingesti inkremental membuang rekaman yang salah sedangkan proses backfill wajib mengalami crash seketika jika menemukan nilai null
 
 > Eksekusi inkremental memajukan checkpoint high-watermark pada state.json agar jadwal berikutnya mengambil data terbaru. Backfill mengambil rentang masa lampau; jika backfill mengubah state.json, watermark produksi akan tergeser mundur sehingga merusak jadwal produksi berikutnya.
 

@@ -155,7 +155,7 @@ def run_stream(args):
     
     lines = stream_file.read_text(encoding="utf-8").strip().splitlines()
     
-    current_offset = 0
+    current_offset = last_offset
     late_records = []
     
     for idx, line in enumerate(lines, start=1):

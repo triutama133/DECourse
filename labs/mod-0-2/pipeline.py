@@ -1,9 +1,10 @@
 """Lab 0.2: clean the KopiKu orders file.
 
 Run the tests:   pytest labs/mod-0-2/test_lab.py -v
-Generate data:   python3 labs/shared/shopgen.py --out data
+Generate data:   python labs/shared/shopgen.py --out data
 """
 import csv
+from datetime import datetime
 
 
 def load_orders(path):
@@ -15,7 +16,7 @@ def load_orders(path):
 def parse_total(raw):
     """Turn a raw total into an int number of rupiah, or None if it cannot be understood.
 
-    Real examples from the file:  "150000"   "Rp 1.250.000"   "-45000"   ""   "abc"
+    Examples (from the file and edge-case tests):  "150000"   "Rp 1.250.000"   "-45000"   ""   "abc"
     """
     raise NotImplementedError("TODO: implement parse_total")
 
@@ -35,6 +36,8 @@ def clean_orders(rows):
               status (lower-case, stripped), payment_method, total_idr (int > 0)
     rejected: list of {"row": <original row>, "reason": <short text>} for every row you drop.
               Duplicates (same order_id as an earlier row) are rejected, keeping the first.
+              Note: orphan customer IDs are kept in this lab because checking them requires
+              customers.csv (taught in Module 0.3).
     """
     raise NotImplementedError("TODO: implement clean_orders")
 

@@ -42,13 +42,13 @@ Model mental yang paling penting: **pandas bekerja pada seluruh kolom sekaligus.
 
 Dua kebiasaan untuk dimulai. Pertama, **lihat sebelum mengubah**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df["country"].value_counts()`. Kedua, **jangan mengedit di tempat tanpa alasan**: bangun frame baru dari yang lama (`assign`, `rename`, `dropna`), yang juga membuat fungsi Anda mudah diuji, seperti di lab.
 
-> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install pandas`. Muat `data/orders.csv` dengan `pd.read_csv`. Cetak `df.shape` dan `df.dtypes`. Terjemahkan tiga query SQL ke pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, dan jumlah baris dengan `WHERE status = 'delivered'`. Lalu ulangi hitungan status setelah `df["status"].str.strip().str.lower()` dan bandingkan.
+> 🛠 **Coba sendiri (10 menit, Python).** Dengan virtual environment Anda aktif, jalankan `pip install pandas`. Muat `data/orders.csv` dengan `pd.read_csv`. Cetak `df.shape` dan `df.dtypes`. Terjemahkan tiga query SQL ke pandas: `SELECT COUNT(*) FROM orders`, `SELECT status, COUNT(*) FROM orders GROUP BY status ORDER BY 2 DESC`, dan jumlah baris dengan `WHERE status = 'delivered'`. Lalu ulangi hitungan status setelah `df["status"].str.strip().str.lower()` dan bandingkan.
 >
 > **Seharusnya Anda melihat:** `(3634, 6)`; hitungan status mentah yang memuat varian seperti `DELIVERED`, tepat `2080` baris `delivered` pada hitungan yang persis sama, dan setelah huruf kecil lima status: `delivered 2148`, `shipped 576`, `paid 374`, `cancelled 362`, `refunded 174`.
 
 :::ask Mengapa pengguna pandas hampir tidak pernah menulis `for` loop atas baris?
 @options
-* satu panggilan kolom berulang dalam kode terkompilasi
+* panggilan kolom di kode terkompilasi
 pandas melarang loop dalam bentuk apa pun
 loop memberi jawaban berbeda dari kolom
 @why
@@ -104,7 +104,7 @@ Sebagian besar agregasi pandas **melewati** `NaN`: rata-ratanya (1 + 3) / 2 = 2.
 
 > 💡 **Jeda Praktik 1 (Memuat Data & Laporan Kualitas Data):**
 > Mulai bangun modul analitik data dengan pemuatan tipe yang presisi:
-> 1. Buka file `labs/mod-1-5/orders_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
+> 1. Pastikan virtual environment Anda aktif dan pasang dependensi lab (`pip install -r labs/mod-1-5/requirements.txt`), lalu buka file `labs/mod-1-5/orders_lab.py` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash!).
 > 2. Implementasikan fungsi `load_orders(source)` dengan parameter tipe ketat (`dtype={"order_id": "string", "customer_id": "string"}`, integer nullable `"Int64"` untuk quantity, `na_values=["-"]` agar unit_price_idr menjadi float64 NaN, dan `pd.to_datetime` dengan `errors="coerce"`).
 > 3. Implementasikan fungsi `data_quality_report(df)` yang menghitung jumlah total baris, jumlah null per kolom, dan jumlah id pesanan duplikat.
 > 4. Uji di terminal:
@@ -122,7 +122,7 @@ Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bent
 - **Kolom baru**: `df.assign(revenue_idr=df["quantity"] * df["unit_price_idr"])`.
 - **Tipe**: `astype("int64")`, `pd.to_numeric(..., errors="coerce")`.
 
-**Mengapa bukan `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` memberi jawaban yang benar dan begitulah banyak tutorial menulisnya. Kami mengukurnya pada tabel **1.000.000 baris**: perkalian kolom memakan **1,8 milidetik**, `apply` per baris memakan **5,7 detik**, sekitar **3.100 kali lebih lambat**, dan loop `itertuples` biasa atas hanya 200.000 baris memakan 0,9 detik. Loop menjalankan kode Python sejuta kali; operasi kolom menjalankan satu loop yang sudah dikompilasi. Ketika Anda tergoda menulis `apply`, cari fungsi bawaan: `.str`, `.dt`, `np.where`, `clip`, `map` dengan dictionary, `groupby`. Tes lab melarang `apply`, `iterrows`, dan `itertuples` di tempat jawaban vektor tersedia, agar kebiasaan itu terbentuk.
+**Mengapa bukan `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` memberi jawaban yang benar dan begitulah banyak tutorial menulisnya. Kami mengukurnya pada tabel **1.000.000 baris**: perkalian kolom memakan **1,8 milidetik**, `apply` per baris memakan **5,7 detik**, sekitar **3.100 kali lebih lambat**, dan loop `itertuples` biasa atas hanya 200.000 baris memakan 0,9 detik. Loop menjalankan kode Python sejuta kali; operasi kolom menjalankan satu loop yang sudah dikompilasi. Ketika Anda tergoda menulis `apply`, cari fungsi bawaan: `.str`, `.dt`, `np.where` (setelah `import numpy as np`, untuk if-else vektor), `clip`, `map` dengan dictionary, `groupby`. Tes lab melarang `apply`, `iterrows`, dan `itertuples` di tempat jawaban vektor tersedia, agar kebiasaan itu terbentuk.
 
 **Jangan merantai assignment.** `df[df["a"] > 1]["b"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df["b"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).
 
@@ -162,12 +162,14 @@ print(utc_ts.date(), "->", wib_ts.date())
 WIB (`Asia/Jakarta`) adalah `UTC+7`. Menambah 7 jam pada pukul `18:00` tanggal 31 Januari menghasilkan `01:00` tanggal **1 Februari** (`2026-02-01`). Menyimpan UTC lalu mengonversi secara eksplisit menghindari selisih tutup buku akhir bulan.
 :::
 
+Untuk mengurai string timestamp ISO di Python biasa (termasuk yang berakhiran `"Z"` untuk UTC), gunakan `datetime.fromisoformat(s.replace("Z", "+00:00"))`, lalu konversi dengan `.astimezone(...)` dan format dengan `.strftime("%Y-%m-%d")`.
+
 :::drill python Ubah timestamp UTC menjadi tanggal bisnis WIB
 Tulis `wib_date(iso_utc)`: `iso_utc` adalah string timestamp ISO dalam UTC seperti `"2026-01-31T18:30:00Z"` atau `"2026-01-31T10:00:00+00:00"`. Ubah ke WIB (`UTC+7`) dan kembalikan tanggalnya dalam format `"YYYY-MM-DD"`.
 @starter
 from datetime import datetime, timedelta, timezone
 
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("wib_date") ## Definisikan wib_date(iso_utc).
@@ -175,7 +177,7 @@ wib_date("2026-01-31T18:30:00Z") == "2026-02-01" ## 18:30 UTC + 7 jam melewati t
 wib_date("2026-01-31T10:00:00+00:00") == "2026-01-31" ## 10:00 UTC + 7 jam adalah 17:00 WIB di hari yang sama.
 wib_date("2026-03-01T17:00:00Z") == "2026-03-02" ## Tepat 17:00 UTC adalah pukul 00:00 hari berikutnya di WIB.
 @hint
-Ganti `"Z"` dengan `"+00:00"`, parse dengan `datetime.fromisoformat(...)`, panggil `.astimezone(timezone(timedelta(hours=7)))`, lalu format dengan `.strftime("%Y-%m-%d")`.
+Urai string ISO menjadi datetime UTC (ingat `"Z"` berarti `"+00:00"`), konversi ke zona waktu tetap `+7` jam, lalu format tanggal hasilnya sebagai `"YYYY-MM-DD"`.
 @solution
 from datetime import datetime, timedelta, timezone
 
@@ -246,7 +248,7 @@ long_df = pd.melt(
 :::drill python Unpivot spreadsheet lebar
 Inilah yang dilakukan `pd.melt()` di balik layar. Tulis `unpivot(rows, id_col)`: `rows` adalah daftar dictionary lebar (setiap key selain `id_col` adalah kolom bulan). Kembalikan list berisi dictionary panjang `{id_col: ..., "month": ..., "value": ...}` sesuai urutan masukan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("unpivot") ## Definisikan unpivot(rows, id_col).
@@ -254,7 +256,7 @@ unpivot([{"branch": "JKT", "Jan": 10, "Feb": 20}], "branch") == [{"branch": "JKT
 unpivot([{"store": "BDG", "Q1": 5}], "store") == [{"store": "BDG", "month": "Q1", "value": 5}] ## Berlaku untuk nama id_col apa pun.
 unpivot([], "branch") == [] ## Masukan kosong mengembalikan list kosong.
 @hint
-Ulangi tiap `row` di `rows`, lalu tiap `k, v` di `row.items()`; setiap kali `k != id_col`, tambahkan `{id_col: row[id_col], "month": k, "value": v}`.
+Gunakan loop bersarang: untuk setiap dictionary di `rows`, telusuri pasangan key-value-nya dan buat dictionary baru berisi 3 key (`id_col`, `"month"`, `"value"`) untuk setiap key yang bukan `id_col`.
 @solution
 def unpivot(rows, id_col):
     out = []
@@ -271,7 +273,7 @@ def unpivot(rows, id_col):
 out = df.sort_values(["customer_id", "order_date", "order_id"])
 by_customer = out.groupby("customer_id")
 out["order_number"] = by_customer.cumcount() + 1                 # 1, 2, 3 ... per customer
-out["revenue_to_date"] = by_customer["revenue_idr"].cumsum()      # running total
+out["customer_revenue_to_date"] = by_customer["revenue_idr"].cumsum()  # running total
 out["days_since_previous"] = by_customer["order_date"].diff().dt.days   # LAG-style gap
 ```
 
@@ -287,13 +289,13 @@ Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang s
 >    - `top_products_per_country(df, n=2)`: ambil N produk terlaris per negara dengan pemutus seri alfabet nama produk.
 >    - `add_customer_history(df)`: hitung urutan pesanan per pelanggan (`cumcount() + 1`), total berjalan kumulatif (`cumsum()`), dan selisih hari (`diff().dt.days`).
 > 2. Uji di terminal:
-> `pytest labs/mod-1-5/test_lab.py -k "revenue_by_country or monthly_revenue or top_products or customer_history" -v`
+> `pytest labs/mod-1-5/test_lab.py -k "TestAggregate or TestPivot or TestTopN or TestWindow" -v`
 > Ketika tes PASSED, lanjut ke Pelajaran 5 tentang penggabungan tabel defensif!
 
 :::drill python Total per kelompok
 Inilah yang dilakukan `groupby(...).sum()`. Tulis `group_sum(rows, key, value)`: `rows` adalah daftar dictionary; kembalikan dictionary yang memetakan tiap nilai field `key` ke **jumlah** field `value` atas barisnya.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("group_sum") ## Definisikan group_sum(rows, key, value).
@@ -330,7 +332,7 @@ Pertahanannya satu argumen: **`validate="m:1"`** ("banyak pesanan ke satu pelang
 
 Kebiasaan join lain:
 
-- **Temukan baris yang tidak cocok (anti-join).** Pesanan kita menyebut 20 id pelanggan yang tidak ada di daftar pelanggan (`00201` sampai `00220`). `set(orders["customer_id"]) - set(customers["customer_id"])` menemukannya; atau `merge(..., how="left", indicator=True)` menambah kolom `_merge` yang menampilkan baris `left_only`. Yatim adalah temuan kualitas data untuk dilaporkan, bukan untuk disembunyikan.
+- **Temukan baris yang tidak cocok (anti-join).** Pesanan kita menyebut 20 id pelanggan yang tidak ada di daftar pelanggan (`00201` sampai `00220`). `set(orders["customer_id"]) - set(customers["customer_id"])` menemukannya; atau `merge(..., how="left", indicator=True)` menambah kolom `_merge` yang menampilkan baris `left_only`. Data yatim (orphan) adalah temuan kualitas data untuk dilaporkan, bukan untuk disembunyikan.
 - **Isi dengan sengaja.** Setelah join, pesanan tanpa pelanggan punya `NaN` di `tier`. Di lab mereka menjadi `"unknown"`, kategori yang terlihat, alih-alih diam-diam hilang dari `groupby` berikutnya (yang melewati kunci kosong).
 - **Tipe kunci sama di kedua sisi.** Masalah int versus teks dari pelajaran 2 muncul di sini sebagai error; dengan dua kolom teks yang berbeda spasi atau huruf besar-kecil ia muncul sebagai *nol kecocokan* tanpa error. Periksa tingkat kecocokan segera setelah join.
 - **Nama kolom berbeda**: `left_on="cust"`, `right_on="customer_id"`. **Nama sama untuk kolom lain** mendapat akhiran `_x`/`_y`: pilih akhiran eksplisit dengan `suffixes=`.
@@ -347,7 +349,7 @@ error dimunculkan karena key berulang
 Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% terlalu tinggi. Pertahanannya satu argumen, `validate="m:1"`, yang memunculkan `MergeError` begitu sebuah key berulang di sisi kanan.
 :::
 
-> 💡 **Jeda Praktik 4 (Join Defensif & Anti-Join Deteksi Yatim):**
+> 💡 **Jeda Praktik 4 (Join Defensif & Anti-Join Deteksi Data Yatim (Orphan)):**
 > Gabungkan dataset secara aman tanpa risiko fan-out pengganda omset:
 > 1. Di `labs/mod-1-5/orders_lab.py` pada text editor, implementasikan 2 fungsi penggabungan:
 >    - `join_customers(orders, customers)`: left join ke tabel pelanggan dengan `validate="m:1"` untuk mencegah duplikasi baris, serta isi tier yang tidak ditemukan dengan `"unknown"`.
@@ -359,7 +361,7 @@ Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% t
 :::drill python Berapa baris setelah join?
 Inner join menghasilkan satu baris keluaran untuk **setiap pasangan yang cocok**. Tulis `rows_after_join(left_keys, right_keys)`: keduanya adalah daftar kunci (satu kunci per baris). Kembalikan berapa baris yang dihasilkan inner join pada kunci itu.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("rows_after_join") ## Definisikan rows_after_join(left_keys, right_keys).
@@ -377,7 +379,7 @@ def rows_after_join(left_keys, right_keys):
 ## @lesson Memori, chunk, dan Parquet
 pandas menyimpan seluruh tabel di RAM. Berapa banyak RAM? Lebih dari ukuran file. Kami membuat tabel pesanan **1.000.000 baris** (CSV **47,7 MB**) dan membacanya dengan pengaturan default: pada pandas 3.0.6 ia menempati **83 MB** di memori (1,75 kali file), dan pada pandas 2.2.3 **247 MB, 5,2 kali file**, karena pandas lama menyimpan setiap nilai teks sebagai objek Python tersendiri. Aturan praktis: **rencanakan 2 sampai 10 kali ukuran file**, ukur dengan `df.memory_usage(deep=True).sum()`, dan periksa sebelum membaca ekspor 20 GB di laptop 16 GB.
 
-**Kecilkan.** Kolom dengan sedikit nilai berbeda (negara, produk, status) bisa disimpan sebagai **kategori**: tabel menyimpan tiap nilai berbeda sekali dan satu kode integer kecil per baris. Kolom integer jarang butuh 64 bit. Pada sejuta baris yang sama, mengubah teks beragam-rendah menjadi `category` dan men-downcast integer menurunkan memori dari **78 MB menjadi 40 MB di pandas 3.0.6, dan dari 242 MB menjadi 84 MB di 2.2.3** (`shrink_memory` di lab). Nilainya identik. Jangan ubah id unik menjadi kategori: ia akan menyimpan satu kode *dan* satu label per baris, yang justru lebih besar. Aturan lab adalah "nilai berbeda kurang dari setengah jumlah baris".
+**Kecilkan.** Kolom dengan sedikit nilai berbeda (negara, produk, status) bisa disimpan sebagai **kategori**: tabel menyimpan tiap nilai berbeda sekali dan satu kode integer kecil per baris. Kolom integer jarang butuh 64 bit. Pada sejuta baris yang sama (setelah pembersihan dan penguraian tanggal, yang mengurangi memori sekitar 5 MB), mengubah teks beragam-rendah menjadi `category` dan men-downcast integer menurunkan memori dari **78 MB menjadi 40 MB di pandas 3.0.6, dan dari 242 MB menjadi 84 MB di 2.2.3** (`shrink_memory` di lab). Nilainya identik. Jangan ubah id unik menjadi kategori: ia akan menyimpan satu kode *dan* satu label per baris, yang justru lebih besar. Aturan lab adalah "nilai berbeda kurang dari setengah jumlah baris".
 
 **Baca per chunk.** Ketika file tidak muat, `pd.read_csv(path, usecols=[...], chunksize=100_000)` mengembalikan iterator DataFrame. Untuk tiap chunk, hitung **hasil parsial**, lalu gabungkan hasil parsialnya:
 
@@ -402,20 +404,21 @@ Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum
 >    - `write_parquet(df, path)` & `read_parquet_columns(path, columns)`: simpan dan baca kolom spesifik file Parquet tanpa index pandas.
 > 2. Jalankan seluruh suite pengujian di terminal:
 > `pytest labs/mod-1-5/test_lab.py -v`
-> Ketika semua 35 tes berstatus PASSED, lab pandas produksi Anda 100% selesai!
+> 3. Ketika semua 35 tes berstatus PASSED, hasilkan kode bukti untuk halaman lab:
+> `python3 scripts/prove.py mod-1-5`
 
 :::drill python Rata-rata dari rata-rata itu salah
-Kamu membaca file besar dalam chunk, dan tiap chunk menghasilkan `(sum, count)`. Tulis `combined_mean(parts)`: `parts` adalah daftar pasangan `(sum, count)`; kembalikan rata-rata dari **semua** nilai bersama-sama. Daftar kosong menghasilkan `0`.
+Anda membaca file besar dalam chunk, dan tiap chunk menghasilkan `(sum, count)`. Tulis `combined_mean(parts)`: `parts` adalah daftar pasangan `(sum, count)`; kembalikan rata-rata dari **semua** nilai bersama-sama. Daftar kosong menghasilkan `0`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("combined_mean") ## Definisikan combined_mean(parts).
 combined_mean([(10, 2), (30, 2)]) == 10 ## 40 atas 4 nilai.
-combined_mean([(10, 1), (100, 9)]) == 11 ## 110 atas 10 nilai. Rata-rata dari dua rata-rata chunk adalah 30: salah.
+combined_mean([(50, 1), (90, 9)]) == 14 ## 140 atas 10 nilai. Rata-rata dari dua rata-rata chunk (50 dan 10) adalah 30: salah.
 combined_mean([]) == 0 ## Tanpa chunk, tanpa rata-rata.
 @hint
-Jumlahkan semua sum, jumlahkan semua count, bagi sekali: `sum(s for s, _ in parts) / sum(c for _, c in parts)`.
+Tangani list kosong terlebih dahulu (kembalikan `0`). Selain itu, jumlahkan seluruh sum dari semua chunk dan seluruh count dari semua chunk, lalu bagi satu kali di akhir.
 @solution
 def combined_mean(parts):
     if not parts:
@@ -423,11 +426,11 @@ def combined_mean(parts):
     return sum(s for s, _ in parts) / sum(c for _, c in parts)
 :::
 
-:::ask CSV 40 GB tidak muat di memori, dan kamu membacanya per chunk. Perhitungan mana yang aman dilakukan per chunk lalu digabung?
+:::ask CSV 40 GB tidak muat di memori, dan Anda membacanya per chunk. Perhitungan mana yang aman dilakukan per chunk lalu digabung?
 @options
 median, dengan mengambil median tiap chunk
 menghapus duplikat hanya di dalam tiap chunk
-* jumlah atau hitungan: hasil sebagian tinggal dijumlah
+* sum atau count: hasilnya tinggal dijumlah
 @why
 Jumlah, hitungan, minimum, dan maksimum bisa digabung dengan bersih. Rata-rata butuh jumlah dan hitungan digabung dulu. Duplikat yang jatuh di chunk berbeda terlewat jika tiap chunk dideduplikasi sendiri.
 :::
@@ -478,7 +481,7 @@ result_df = lazy_plan.collect(engine="streaming")   # Polars 1.25+; kode lama me
 arrow_tbl = result_df.to_arrow()
 ```
 
-> 🛠 **Coba sendiri (15 menit, Python dengan `polars`, `pandas`, dan `pyarrow`).** Baca `data/orders.csv` dengan pandas sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka lalu jadikan integer, ulang barisnya 30 kali (`pd.concat([df] * 30)`), dan tulis sebagai 10 file Parquet `big/part-00.parquet` … `big/part-09.parquet`. Bangun rencana lazy dengan `pl.scan_parquet("big/*.parquet")`: simpan `status == "delivered"` (persis ejaan itu, seperti di Coba sendiri pertama modul ini), kelompokkan per `payment_method`, hitung pesanan dan jumlahkan `total_idr`, urutkan menurut jumlahnya. Cetak `.explain()` sebelum collect, lalu collect dengan `engine="streaming"` dan bandingkan dengan hal yang sama di pandas.
+> 🛠 **Coba sendiri (15 menit, Python dengan `polars`, `pandas`, dan `pyarrow`).** Baca `data/orders.csv` dengan pandas sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka lalu jadikan integer, ulang barisnya 30 kali (`pd.concat([df] * 30)`), dan tulis sebagai 10 file Parquet `big/part-00.parquet` … `big/part-09.parquet`. Bangun rencana lazy dengan `pl.scan_parquet("big/*.parquet")`: simpan `status == "delivered"` (persis ejaan itu, seperti di Coba sendiri pertama modul ini), kelompokkan per `payment_method`, hitung pesanan dan jumlahkan `total_idr`, urutkan menurut jumlahnya secara menurun (descending). Cetak `.explain()` sebelum collect, lalu collect dengan `engine="streaming"` dan bandingkan dengan hal yang sama di pandas.
 >
 > **Seharusnya Anda melihat:** `107400` baris di disk. Di dalam node `Parquet SCAN` plan-nya menyebut `PROJECT 3/6 COLUMNS` dan `SELECTION: col("status") == "delivered"`: filter dan daftar kolom pindah ke dalam scan, jadi tiga kolom lainnya tidak pernah dibaca. Empat metode pembayaran, dipimpin `cod` dengan `15600` pesanan dan `5349150000`, persis sama dengan hitungan dan jumlah dari pandas. Diukur dengan Polars 2.1.0 dan pandas 3.1.1 pada data bawaan kursus.
 
@@ -495,6 +498,8 @@ ia mengubah file menjadi CSV terlebih dahulu
 Bersihkan ekspor pesanan KopiKu dengan pandas: muat dengan tipe yang benar, profil, bersihkan, hitung omset per negara dan bulan, ranking produk, tambah riwayat per pelanggan, gabungkan daftar pelanggan dengan aman, lalu kecilkan, baca per chunk, dan tulis Parquet. Ke-35 tes memeriksa tiap fungsi secara mandiri terhadap jawaban yang dihitung dengan Python biasa, dan melarang loop per baris.
 
 ### @steps
+> **Sudah menyelesaikan Jeda Praktik 1–5?** File `labs/mod-1-5/orders_lab.py` Anda sudah selesai diimplementasikan! Anda bisa langsung melompat ke pemeriksaan refleksi pada langkah 4–7 dan menjalankan `python3 scripts/prove.py mod-1-5` di langkah 8.
+
 1. Buat atau aktifkan virtual environment Anda (Modul 0.1) dan pasang requirements lab: `pip install -r labs/mod-1-5/requirements.txt`.
 2. Baca bagian atas `labs/mod-1-5/orders_data.py`, tulis filenya dengan `python3 -c "from orders_data import make_orders; open('orders_raw.csv','w').write(make_orders()[0])"` (jalankan di dalam `labs/mod-1-5`), dan **jelajahi sebelum menulis kode**: `head`, `dtypes`, `isna().sum()`, `value_counts()` pada country, berapa id pesanan yang berulang. Catat temuan Anda.
 3. Kerjakan `labs/mod-1-5/orders_lab.py` dari atas dan jalankan tes setelah SETIAP fungsi:
@@ -573,7 +578,7 @@ Join adalah klaim tentang kunci. Tuliskan klaimnya (`validate=`), periksa jumlah
 
 ### `pd.Series([1, None, 3]).mean()` mengembalikan 2.0. Mengapa?
 - [ ] pandas mengganti nilai kosong dengan nol sebelum merata-ratakan, yang akan memberi 1,33 sebagai hasilnya
-- [x] Nilai kosong dilewati, sehingga hasilnya (1 + 3) / 2, dan Anda harus menghitung berapa yang dilewati itu.
+- [x] Nilai kosong dilewati, sehingga hasilnya (1 + 3) / 2, dan Anda harus menghitung berapa yang dilewati itu
 - [ ] pandas memberi peringatan dan mengembalikan median karena tidak bisa menghitung rata-rata dari data kosong
 - [ ] Nilai kosong diperlakukan sebagai nilai sebelumnya, sehingga seri itu dibaca sebagai 1, 1, 3 secara default
 

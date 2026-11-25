@@ -16,7 +16,7 @@ why: Dalam rekayasa data produksi modern, data tidak datang dalam file CSV bulan
 Modul 0.1 (terminal dan virtual environment), 1.2 (idempotensi, retry, dan operasi atomik), 2.1 (DuckDB dan penyimpanan analitis), 3.2 (Kafka, Redpanda, dan log event), serta 3.3 (Stream processing, windowing, dan watermark). Anda memerlukan Python 3.10+, ruang disk kosong sekitar 1 GB, dan DuckDB terpasang.
 
 ## @lesson Cara kerja capstone ini
-> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (tukar file atomik & idempotensi), **Modul 2.1** (upsert tabel DuckDB), **Modul 3.2** (consumer offset & partisi), dan **Modul 3.3** (tumbling/sliding window & watermark monotonik). Setiap pelajaran kini selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
+> **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (terminal & venv), **Modul 1.2** (tukar file atomik & idempotensi), **Modul 2.1** (upsert tabel DuckDB), **Modul 3.2** (consumer offset & partisi), dan **Modul 3.3** (tumbling/sliding window & watermark monotonik). Pelajaran 2–6 selaras 1-banding-1 dengan `check.py --step 1` sampai `--step 5`.
 
 Setiap lab di modul-modul sebelumnya memberi Anda fungsi bawaan, file pengujian unit yang terstruktur, dan kode kerangka yang terarah. Pada capstone ini, pendekatannya sengaja berbeda: **Anda menerima kontrak arsitektur teknis, data streaming telemetri realistis, dan suite pengujian otomatis yang menguji ketahanan kode Anda secara mendalam.**
 
@@ -28,7 +28,7 @@ Pemeriksa otomatis tidak menilai keindahan gaya penulisan kode Anda; sistem meme
 - Ketika dikonfigurasi untuk sliding window (`--window-slide 60`), apakah setiap event yang masuk memperbarui seluruh bucket window yang saling tumpang-tindih dengan benar?
 
 Aturan pengerjaan:
-1. **Bangun sendiri secara mandiri.** Kerjakan di direktori terisolasi Anda sendiri (misalnya `~/fleet`) di dalam virtual environment. Ruang kerja Anda memuat dua file utama: `stream_processor.py` dan `profile.json`.
+1. **Bangun sendiri secara mandiri.** Kerjakan di direktori terisolasi Anda sendiri (misalnya `~/fleet`) di dalam virtual environment. Ruang kerja Anda memuat file kode dan profil utama (`stream_processor.py` dan `profile.json`) bersama dokumen desain dan catatan Anda (`DESIGN.md` dan `NOTES.md`).
 2. **Lakukan verifikasi secara bertahap setelah setiap langkah:**
    ```bash
    python3 labs/mod-4-3/check.py ~/fleet --step 1
@@ -41,11 +41,11 @@ Aturan pengerjaan:
 3. **Gunakan petunjuk bertingkat jika mengalami kebuntuan:** Anda dapat meminta `--hint 1` (petunjuk halus), `--hint 2` (penjelasan konseptual), atau `--hint 3` (bocoran teknis mendalam). Usahakan menganalisis masalah sendiri minimal 30 menit sebelum meminta petunjuk.
 4. **Pemeriksa akan menyerang ketahanan engine Anda.** Pada langkah 3, 4, dan 5, rangkaian uji coba menginjeksikan event buatan yang terlambat, memutus proses secara mendadak, dan menguji matematika sliding window terhadap tolok ukur kebenaran data.
 
-**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-3`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-3/check.py ~/fleet --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-3`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika semua lolos, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-3/check.py ~/fleet --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
 
 Langkah persiapan workspace Anda:
 ```bash
-cd ~/projects/DECourse          # jalankan dari folder kursus: path labs/ di bawah ada di sana
+cd ~/projects/DECourse          # contoh path: ganti dengan folder tempat Anda meng-clone kursus
 mkdir -p ~/fleet
 python3 -m venv ~/fleet/venv && source ~/fleet/venv/bin/activate
 pip install -r labs/mod-4-3/requirements.txt
@@ -98,11 +98,11 @@ Dataset seed kita (`labs/mod-4-3/data/events_seed.jsonl`) berisi 1.000 event tel
 ```json
 {
   "event_id": "evt_0001",
-  "vehicle_id": "taxi_29",
-  "event_time": 1704067266,
-  "zone_id": 186,
-  "fare_amount": 28.53,
-  "trip_distance": 5.48,
+  "vehicle_id": "taxi_08",
+  "event_time": 1704067318,
+  "zone_id": 161,
+  "fare_amount": 49.49,
+  "trip_distance": 3.32,
   "passenger_count": 1
 }
 ```
@@ -139,7 +139,7 @@ Tumbling window mempartisi aliran waktu menjadi blok-blok tetap yang tidak salin
 Tumbling window sangat ideal untuk penyelesaian transaksi finansial periodik (misalnya rekonsiliasi pendapatan per jam, rekap komisi harian pengemudi).
 
 ### 2. Skema Target Idempoten di DuckDB:
-Setiap baris `(window_start, window_end, zone_id)` yang dipancarkan wajib memiliki primary key komposit agar pengulangan atau pemancaran ulang menimpa lewat staging sementara secara bersih tanpa menciptakan metrik ganda:
+Setiap baris `(window_start, window_end, zone_id)` yang dipancarkan wajib memiliki primary key komposit agar pengulangan atau pemancaran ulang menimpa lewat staging sementara secara bersih tanpa menciptakan metrik ganda. Konversikan setiap timestamp epoch detik ke UTC naive (`datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)`) agar cocok dengan kolom `TIMESTAMP` DuckDB lintas zona waktu mesin:
 ```sql
 CREATE TABLE IF NOT EXISTS windowed_metrics (
     window_start TIMESTAMP,
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 
 > 💡 **Jeda Praktik 2 (Langkah 2: Kontrak Tumbling Event-Time Window & Penyimpanan DuckDB):**
 > 1. Buka file `stream_processor.py` di workspace Anda (`~/fleet/stream_processor.py`) menggunakan teks editor.
-> 2. Implementasikan argumen CLI (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), kalkulasi tumbling window (`start = floor(ts / size) * size`), dan buat tabel `windowed_metrics` di DuckDB secara idempoten.
+> 2. Implementasikan argumen CLI (`--input-stream`, `--output-dir`, `--state-file`, `--window-size`, `--watermark-delay`), kalkulasi tumbling window (`start = floor(ts / size) * size`), konversi UTC untuk `window_start`/`window_end`, flush akhir file (EOF) untuk window yang masih terbuka ke DuckDB, dan buat tabel `windowed_metrics` di DuckDB secara idempoten.
 > 3. Jalankan pemeriksaan langkah 2 di terminal:
 >    `python3 labs/mod-4-3/check.py ~/fleet --step 2`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 2 berstatus `PASS`, memvalidasi skema DuckDB, pengelompokan tumbling window, dan pemancaran metrik agregasi.
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS windowed_metrics (
 :::drill python Window lima menit yang mana?
 Window tumbling berukuran `size` detik mulai di setiap kelipatan `size`. Tulis `tumbling_start(ts, size)`: kembalikan awal window yang memuat detik `ts`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("tumbling_start") ## Definisikan tumbling_start(ts, size).
@@ -173,7 +173,7 @@ tumbling_start(300, 300) == 300 ## Event tepat di batas memulai window berikutny
 tumbling_start(1704067250, 300) == 1704067200 ## Timestamp Unix nyata dibulatkan ke bawah ke tanda 5 menit.
 tumbling_start(59, 60) == 0 ## Window satu menit.
 @hint
-Bulatkan `ts` ke bawah ke kelipatan `size`: `ts - ts % size`, atau `ts // size * size`.
+Bagi bulat `ts` dengan `size` untuk mendapatkan indeks window, lalu kalikan kembali dengan `size` (atau kurangkan sisa baginya).
 @solution
 def tumbling_start(ts, size):
     return ts // size * size
@@ -215,7 +215,7 @@ Nilai watermark **tidak boleh bergerak mundur**, bahkan ketika event yang out of
 ### 2. Siklus Hidup dan Penggusuran Window (Eviction):
 Sebuah window didefinisikan oleh interval setengah terbuka `[t_start, t_end)`.
 - **Window Terbuka:** Selama `t_end > W`, window berstatus terbuka di memori RAM. Setiap event yang berada di rentang waktu tersebut ditambahkan ke akumulator window.
-- **Penggusuran / Penutupan Window:** Begitu watermark bergerak maju hingga `t_end <= W`, window dinyatakan ditutup. Hasil agregasi final dipancarkan ke database analitik (DuckDB), dan akumulator di memori dihapus untuk menghemat RAM.
+- **Penggusuran / Penutupan Window:** Begitu watermark bergerak maju hingga `t_end <= W`, window dinyatakan ditutup. Hasil agregasi final dipancarkan ke database analitik (DuckDB), dan akumulator di memori dihapus untuk menghemat RAM. Di akhir file stream (EOF), pancarkan juga hasil sementara dari window yang masih terbuka ke DuckDB agar total agregasi batch lengkap, sambil tetap menyimpan akumulator terbuka tersebut di `open_windows` pada `offsets.json` jika proses dilanjutkan lagi dengan baris tambahan.
 
 ### 3. Out-of-Order vs. Late Data & Karantina Dead-Letter Queue (DLQ):
 Sangat penting membedakan **event yang out of order** dengan **event yang late (terlambat)**:
@@ -243,7 +243,7 @@ Tim keandalan sistem (SRE) dapat memantau laju data yang masuk ke DLQ, memicu pe
 :::drill python Majukan watermark
 Watermark out-of-orderness terbatas tertinggal dari event terbaru sebesar jeda `D`, dan **tidak pernah mundur**. Tulis `advance_watermark(w, event_time, delay)`: `w` adalah watermark saat ini (atau `None` di awal). Kembalikan `max(w, event_time - delay)`; bila `w` adalah `None`, kembalikan `event_time - delay`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("advance_watermark") ## Definisikan advance_watermark(w, event_time, delay).
@@ -252,7 +252,7 @@ advance_watermark(70, 250, 30) == 220 ## Event yang lebih baru memajukannya.
 advance_watermark(220, 190, 30) == 220 ## Event lebih lama (tak berurutan) tidak boleh memundurkannya.
 advance_watermark(220, 250, 30) == 220 ## Kandidat yang sama memberi watermark yang sama.
 @hint
-`candidate = event_time - delay`; jika `w is None` kembalikan itu, selain itu `return max(w, candidate)`.
+Hitung nilai kandidat watermark dari `event_time` dikurangi `delay`. Jika watermark sebelumnya masih `None`, pakai kandidat itu; selain itu ambil nilai yang lebih besar antara watermark lama dan kandidat.
 @solution
 def advance_watermark(w, event_time, delay):
     candidate = event_time - delay
@@ -264,7 +264,7 @@ def advance_watermark(w, event_time, delay):
 :::drill python Terlambat untuk window-nya?
 Window tumbling **tertutup** begitu watermark mencapai ujungnya. Event yang window-nya sudah tertutup terlalu terlambat dan masuk dead-letter queue. Tulis `is_too_late(event_time, size, watermark)`: kembalikan `True` bila ujung window event itu sama dengan atau sebelum watermark.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("is_too_late") ## Definisikan is_too_late(event_time, size, watermark).
@@ -273,7 +273,7 @@ is_too_late(150, 300, 300) == True ## Watermark mencapai ujung window.
 is_too_late(450, 300, 300) == False ## Event ini milik [300, 600), yang terbuka.
 is_too_late(299, 300, 1000) == True ## Window yang sudah lama tertutup.
 @hint
-Ujung window adalah `(event_time // size + 1) * size`. Bandingkan dengan watermark: `end <= watermark`.
+Cari batas awal window tumbling milik `event_time` lalu tambahkan `size` untuk mendapatkan ujung window-nya, kemudian periksa apakah ujung tersebut tidak lebih besar daripada `watermark`.
 @solution
 def is_too_late(event_time, size, watermark):
     end = (event_time // size + 1) * size
@@ -283,7 +283,7 @@ def is_too_late(event_time, size, watermark):
 :::ask Sebuah event tak berurutan tiba dengan timestamp lebih lama dari event terbaru sejauh ini. Apa yang terjadi pada watermark?
 @options
 ia mundur ke timestamp yang lebih lama
-* tidak ada: ia hanya pernah maju
+* tidak ada, watermark hanya bergerak maju
 ia diatur ulang ke nol dan mulai lagi
 @why
 W = max(W_sebelumnya, t_event - D), jadi kandidat yang lebih kecil tidak mengubah apa pun. Jika watermark bisa mundur, window yang sudah dinyatakan lengkap akan terbuka lagi.
@@ -311,7 +311,7 @@ Aliran Data Masuk (JSONL / Kafka)
 ```
 
 ### 1. Kontrak Checkpoint (`offsets.json`):
-Untuk melanjutkan pemrosesan tanpa harus mengulang pembacaan dari baris pertama, engine mencatat progres konsumsinya ke file checkpoint state:
+Untuk melanjutkan pemrosesan tanpa harus mengulang pembacaan dari baris pertama, engine mencatat progres konsumsinya ke file checkpoint state (`last_offset` menggunakan hitungan baris berbasis 1, misalnya `enumerate(lines, start=1)` sehingga 200 baris pertama menghasilkan `last_offset: 200`):
 ```json
 {
   "last_offset": 200,
@@ -332,7 +332,7 @@ Untuk melanjutkan pemrosesan tanpa harus mengulang pembacaan dari baris pertama,
 ### 2. Aturan Pelestarian Akumulator In-Flight:
 Kesalahan fatal yang sering dilakukan pemula adalah *hanya* menyimpan angka offset (`last_offset: 200`) dan melupakan akumulator window yang sedang berjalan di memori.
 Jika proses terhenti saat window 5 menit baru terisi separuh, proses yang dimulai ulang dengan memori kosong akan memecah window tersebut menjadi dua fragmen: perjalanan sebelum crash dipancarkan dengan angka yang belum lengkap, dan perjalanan pasca-crash membentuk window terpisah yang cacat!
-Untuk menjamin kontinuitas stream yang sempurna, checkpoint state wajib menyimpan angka offset **sekaligus data akumulator window yang masih terbuka (`open_windows`)**. Saat restart, akumulator terbuka dipulihkan kembali ke memori secara utuh.
+Untuk menjamin kontinuitas stream yang sempurna, checkpoint state wajib menyimpan angka offset berbasis 1 **sekaligus data akumulator window yang masih terbuka (`open_windows`)**. Saat akhir file tercapai (EOF), pancarkan juga hasil window terbuka ke DuckDB agar laporan lengkap, tetapi jangan hapus `open_windows` dari `offsets.json`, sehingga jika proses dilanjutkan lagi pada file yang lebih panjang, akumulator terbuka dipulihkan utuh dan upsert DuckDB menimpa baris yang sama secara idempoten.
 
 ### 3. Commit State Atomik via Rename POSIX:
 Menulis langsung ke file `offsets.json` sangat berbahaya jika sistem operasi mati mendadak saat operasi tulis berlangsung:
@@ -348,9 +348,9 @@ Ketika engine pulih dari kegagalan, sistem biasanya membaca ulang beberapa event
 
 :::ask Consumer stream memproses sebuah batch dan harus menyimpan offset-nya. Urutan mana yang paling selamat dari crash?
 @options
-simpan offset dulu, lalu proses batch
-* proses dan tulis hasilnya, lalu simpan offset
-urutannya tidak penting
+simpan offset dulu, lalu proses batch-nya
+* tulis hasil dulu, lalu simpan offsetnya
+urutannya bebas, konsumen akan retry
 @why
 Jika Anda menyimpan offset dulu dan crash saat memproses, batch itu terlewat selamanya. Menyimpannya setelah hasil ditulis berarti crash hanya memutar ulang batch, yang diserap oleh penulisan yang idempoten. Aturan yang sama dengan checkpoint di capstone ingesti.
 :::
@@ -391,7 +391,7 @@ Rentang nilai integer `k` bergerak dari:
 `k_min = floor((t - L + S) / S)` hingga `k_max = floor(t / S)`
 Untuk `L = 300 detik` dan `S = 60 detik`, setiap event masuk ke tepat `(300 / 60) = 5` window yang saling tumpang-tindih! Logika akumulator Anda harus memperbarui kelima bucket tersebut secara simultan.
 
-- **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan parsial seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
+- **Sliding window (keterbatasan yang diketahui):** sebuah event baru dikirim ke dead-letter hanya jika *semua* window-nya sudah tertutup. Jika sebagian tertutup dan sebagian masih terbuka, event memperbarui yang terbuka dan window yang sudah tertutup diam-diam tidak memilikinya. Engine sungguhan menghitung penjatuhan sebagian data seperti ini dalam sebuah metrik; ingat hal ini saat membandingkan hasil sliding dengan hitung ulang batch.
 
 :::ask Dengan window 300 detik yang bergeser tiap 60 detik, dalam berapa window satu event biasa berada?
 @options
@@ -403,14 +403,14 @@ Event pada waktu t berada di setiap window yang mulai pada kelipatan slide S den
 :::
 
 ## @lab Lab: lima langkah membangun engine streaming produksi
-Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat pelajaran pertama) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.
+Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara bertahap, dan jalankan modul pemeriksa setelah menyelesaikan setiap langkah. Pemeriksa memakai aliran seed (sintetis, lihat Pelajaran 2) dan aliran pendek yang dibuatnya sendiri, lengkap dengan event out-of-order dan terlambat, menguji jitter jaringan, memutus proses secara mendadak, memverifikasi routing DLQ late data, dan memastikan kebenaran kalkulasi sliding window.
 
 ### @steps
-1. **Persiapan.** Ikuti instruksi persiapan di Lesson 1 (buat direktori `~/fleet`, aktifkan virtual environment, pasang dependensi, jalankan `fetch_data.py`, salin template `starter/stream_processor.py`). Teliti struktur `events_seed.jsonl` menggunakan Python atau DuckDB.
+1. **Persiapan.** Ikuti instruksi persiapan di Pelajaran 1 (buat direktori `~/fleet`, aktifkan virtual environment, pasang dependensi, jalankan `fetch_data.py`, salin template `starter/stream_processor.py`). Teliti struktur `events_seed.jsonl` menggunakan Python atau DuckDB.
 2. **Langkah 1: Profiling data stream.** Lakukan profiling terhadap 1.000 event seed dan tuliskan hasilnya ke `profile.json` dengan 7 kunci utama: `total_stream_events`, `min_event_time`, `max_event_time`, `distinct_vehicles`, `out_of_order_count`, `busiest_zone_id`, dan `busiest_zone_event_count`. Uji dengan opsi `--step 1`.
-3. **Langkah 2: Kontrak dasar tumbling event-time window.** Bangun penguraian argumen CLI dan kalkulasi tumbling window (`--window-size 300`, `--watermark-delay 120`). Agregasikan `total_trips`, `total_passengers`, `total_fare`, dan `avg_fare` ke file `<output-dir>/warehouse.duckdb` (tabel `windowed_metrics`). Pastikan eksekusi ulang menghasilkan nol duplikasi data. Uji dengan `--step 2`.
+3. **Langkah 2: Kontrak dasar tumbling event-time window.** Bangun penguraian argumen CLI dan kalkulasi tumbling window (`--window-size 300`, `--watermark-delay 120`). Konversikan epoch detik ke UTC naive (`datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)`), agregasikan `total_trips`, `total_passengers`, `total_fare`, dan `avg_fare` ke file `<output-dir>/warehouse.duckdb` (tabel `windowed_metrics`), termasuk flush window yang masih terbuka saat EOF. Pastikan eksekusi ulang menghasilkan nol duplikasi data. Uji dengan `--step 2`.
 4. **Langkah 3: Perkembangan watermark & DLQ data terlambat.** Lacak high watermark monotonik (`W = max(W, t - delay)`). Gusur window yang telah tertutup ketika `t_end <= W`. Karantina event terlambat yang berada di luar window terbuka ke file `<output-dir>/dlq/late_events.jsonl` dengan kode kesalahan `error_code: "LATE_EVENT"`. Pemeriksa juga memberi aliran di mana event out-of-order akan menurunkan watermark yang ceroboh, dan aliran di mana watermark jatuh tepat di akhir sebuah window (window ditutup ketika `t_end <= W`, sama dengan termasuk). Uji dengan `--step 3`.
-5. **Langkah 4: Checkpointing consumer offset & pemulihan crash.** Simpan offset stream dan akumulator window terbuka secara atomik ke `--state-file` (`.tmp` + `os.replace`). Penguji akan menyimulasikan proses mati mendadak setelah 150 event, melanjutkan kembali dengan stream penuh, dan memastikan engine berhasil menyelesaikan tugas tanpa ada data ganda atau hilang. Uji dengan `--step 4`.
+5. **Langkah 4: Checkpointing consumer offset & pemulihan crash.** Simpan `last_offset` (berbasis 1, mis. `enumerate(lines, start=1)`) dan akumulator window terbuka (`open_windows`) secara atomik ke `--state-file` (`.tmp` + `os.replace`), sambil tetap mem-flush window terbuka ke DuckDB saat EOF tanpa menghapusnya dari `open_windows`. Penguji akan menyimulasikan proses mati mendadak setelah 150 event, melanjutkan kembali dengan stream penuh, dan memastikan engine berhasil menyelesaikan tugas tanpa ada data ganda atau hilang. Uji dengan `--step 4`.
 6. **Langkah 5: Sliding window.** Tambahkan dukungan untuk argumen `--window-slide` (misalnya ukuran 300 detik dengan pergeseran 60 detik). Salurkan setiap event masuk ke seluruh bucket window tumpang-tindih yang aktif. Buktikan total perjalanan dan tarif teragregasi cocok dengan rasio perkalian teoritis (`(size / slide) * raw`). Uji dengan `--step 5` dan `--step all`.
 7. **Bukti kelulusan.** Setelah opsi `--step all` berhasil lolos tanpa kegagalan, jalankan perintah `python3 scripts/prove.py mod-4-3 ~/fleet` untuk memperoleh kode verifikasi yang dapat dimasukkan ke aplikasi kursus.
 
@@ -434,7 +434,7 @@ Bangun file `stream_processor.py` dan `profile.json` di ruang kerja Anda secara 
 - Anda mampu menguraikan bagaimana bounded watermark memfasilitasi data out of order sekaligus membatasi penggunaan memori RAM
 - Anda mampu menjelaskan mengapa checkpointing stream wajib menyimpan akumulator in-flight bersamaan dengan nilai consumer offset
 - File `NOTES.md` Anda mencatat analisis arsitektur mengenai kompromi antara latensi rendah dan kelengkapan data terlambat
-- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design ~/fleet/DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash
@@ -461,16 +461,16 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 
 ## @quiz
 ### Mengapa pengelompokan telemetri streaming berdasarkan processing time menimbulkan bias analitik yang fatal saat terjadi gangguan sinyal seluler?
-- [ ] Processing time membutuhkan akselerasi perangkat keras grafis khusus yang menguras daya baterai perangkat seluler pelacak armada kendaraan
-- [x] Lonjakan latensi jaringan memusatkan data tertunda menjadi lonjakan semu dan mengabaikan waktu kejadian fisik sebenarnya di lapangan
+- [ ] Processing time membutuhkan akselerasi perangkat keras khusus yang menguras daya baterai perangkat seluler pelacak armada kendaraan
 - [ ] Processing time memaksa database analitik mengunci seluruh tabel transaksi dan menolak koneksi pembacaan concurrent dari dasbor
+- [x] Lonjakan latensi jaringan memusatkan data tertunda menjadi lonjakan semu dan mengabaikan waktu kejadian fisik sebenarnya di lapangan
 - [ ] Format serialisasi JSON secara ketat melarang timestamp yang diproduksi oleh jam sistem operasi internal pada kontainer Linux
 
 > Ketika klien seluler melintasi area tanpa sinyal, perangkat menyimpan data di buffer lokal dan memancarkannya secara serentak begitu sinyal pulih. Jika dihitung berdasarkan processing time, seluruh data tertimbun masuk ke satu window penerimaan yang sama, memicu lonjakan semu dan menggambarkan periode sebelumnya seolah-olah kosong.
 
 ### Bagaimana perilaku bounded out-of-orderness watermark ketika menerima event yang memiliki timestamp lebih kecil daripada timestamp tertinggi yang pernah dilihat?
-- [ ] Watermark langsung mundur ke belakang mengikuti timestamp yang lebih kecil tersebut dan membuka kembali bucket window yang telah ditutup sebelumnya
 - [x] Watermark tidak berubah sama sekali karena nilai watermark bersifat monotonik dan hanya diperbolehkan bergerak maju ke waktu yang lebih baru
+- [ ] Watermark langsung mundur ke belakang mengikuti timestamp yang lebih kecil tersebut dan membuka kembali bucket window yang telah ditutup sebelumnya
 - [ ] Processor langsung mengalami crash fatal dan menghapus seluruh riwayat consumer offset yang tersimpan pada klaster broker streaming
 - [ ] Watermark menghentikan sementara seluruh pemrosesan pipeline terdistribusi sampai administrator manusia mengonfirmasi status jaringan
 
@@ -478,9 +478,9 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 
 ### Dalam pemrosesan streaming berbasis event time, apa perbedaan mendasar antara out-of-order event dan late event?
 - [ ] Out-of-order event berasal dari modem seluler sedangkan late event dihasilkan secara eksklusif oleh sensor IoT berbasis kabel serat optik
-- [x] Out-of-order event jatuh ke window terbuka yang batas akhirnya melebihi watermark, sedangkan late event masuk ke window yang sudah ditutup
 - [ ] Out-of-order event dialihkan menuju Dead-Letter Queue sedangkan late event langsung dibuang tanpa meninggalkan catatan log audit sama sekali
 - [ ] Out-of-order event tidak memiliki primary key yang valid sedangkan late event memiliki nilai nominal transaksi keuangan yang bernilai negatif
+- [x] Out-of-order event jatuh ke window terbuka yang batas akhirnya melebihi watermark, sedangkan late event masuk ke window yang sudah ditutup
 
 > Event berstatus out of order jika tiba setelah event lain dengan timestamp lebih baru, tetapi window tujuannya masih terbuka (`t_end > W`). Event ini berhasil diakumulasikan. Event berstatus late (terlambat) jika window tujuannya sudah ditutup (`t_end <= W`); karena metrik window tersebut sudah terlanjur dipancarkan, data terlambat dikarantina ke DLQ.
 
@@ -490,11 +490,11 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 - [ ] Tepat sepuluh window tumpang-tindih karena setiap bucket sliding window mewajibkan pasangan dua arah dengan batas interval di sebelahnya
 - [ ] Tepat nol window sampai high watermark bergerak melampaui batas atas seluruh blok partisi analitik per jam pada database target
 
-> Pada sliding window, jumlah window tumpang-tindih yang mencakup suatu timestamp adalah `(durasi / slide)`. Dengan durasi 300 detik dan slide 60 detik, didapat `(300 / 60) = 5`. Event tersebut masuk ke lima window mulai dari `[1704067020, 1704067320)` hingga `[1704067260, 1704067560)`.
+> Pada sliding window, jumlah window tumpang-tindih yang mencakup suatu timestamp adalah `(durasi / slide)`. Dengan durasi 300 detik dan slide 60 detik, didapat `(300 / 60) = 5`. Event tersebut masuk ke lima window mulai dari `[1704066960, 1704067260)` hingga `[1704067200, 1704067500)`.
 
-### Mengapa stream processor wajib menyimpan akumulator window di memori bersamaan dengan consumer offset ke dalam state.json?
-- [ ] Karena storage engine DuckDB membutuhkan file state JSON eksternal untuk merekonstruksi tabel kamus kompresi data berbasis kolom
+### Mengapa stream processor wajib menyimpan akumulator window di memori bersamaan dengan consumer offset ke dalam offsets.json?
 - [x] Untuk mencegah pemecahan window yang sedang berjalan menjadi fragmen parsial jika processor mengalami crash sebelum window tertutup
+- [ ] Karena storage engine DuckDB membutuhkan file state JSON eksternal untuk merekonstruksi tabel kamus kompresi data berbasis kolom
 - [ ] Karena kernel Linux POSIX secara otomatis mengosongkan seluruh tabel analitik database saat skrip Python berhenti mendadak tanpa izin
 - [ ] Untuk mengenkripsi angka consumer offset dengan tanda tangan kriptografi guna mencegah serangan replay data pada jaringan cloud publik
 
@@ -502,17 +502,17 @@ Pisahkan secara mutlak antara event time dan waktu kedatangan jaringan dalam sel
 
 ### Bagaimana analytical warehouse menjamin idempotensi saat stream processor memancarkan ulang metrik window setelah pulih dari crash?
 - [ ] Dengan menolak setiap batch baru yang memuat timestamp serupa dengan data yang telah diproses sebelumnya melalui kode respon error
-- [x] Dengan menetapkan primary key gabungan pada batas window dan zone ID, menghapus baris lama yang cocok, lalu menyisipkan data terbaru
 - [ ] Dengan mematikan seluruh pipeline pemrosesan data secara otomatis begitu ditemukan data dengan identitas zona wilayah yang serupa
+- [x] Dengan menetapkan primary key gabungan pada batas window dan zone ID, menghapus baris lama yang cocok, lalu menyisipkan data terbaru
 - [ ] Dengan menyimpan seluruh metrik ke file log teks tanpa versi dan menyerahkan proses pembersihan duplikasi kepada analis bisnis di dasbor
 
 > Operasi tulis yang idempoten menjamin bahwa pemutaran ulang batch event yang sama akan menghasilkan kondisi database yang identik. Dengan menetapkan primary key komposit pada `(window_start, window_end, zone_id)` dan menjalankan upsert (staging lalu replace atomik), penulisan ulang window akan memperbarui data tanpa menambah baris ganda.
 
 ### Mengapa pola pertukaran file atomik (menulis ke .tmp lalu memanggil os.replace) diwajibkan saat menyimpan checkpoint stream ke disk?
 - [ ] Karena fungsi penulisan file bawaan Python tidak mampu memproses objek dictionary kompleks yang memuat nilai pecahan desimal presisi tinggi
-- [x] Karena menulis langsung ke file target dapat meninggalkan data JSON yang rusak dan terpotong separuh jika proses terhenti di tengah jalan
 - [ ] Karena sistem operasi POSIX mewajibkan ekstensi file sementara sebelum mengizinkan hak akses tulis bagi proses aplikasi pengguna biasa
 - [ ] Karena penggantian nama secara atomik secara otomatis menyinkronkan isi file ke berbagai server fisik pada klaster terdistribusi cloud
+- [x] Karena menulis langsung ke file target dapat meninggalkan data JSON yang rusak dan terpotong separuh jika proses terhenti di tengah jalan
 
 > Jika server kehilangan daya atau sistem operasi mematikan proses di tengah operasi simpan, menulis langsung ke `offsets.json` akan meninggalkan file yang korup dan terpotong separuh, memusnahkan riwayat checkpoint. Menulis ke file `.tmp` lalu memanggil `os.replace` menjamin file selalu dalam kondisi versi lama yang utuh atau versi baru yang lengkap.
 

@@ -39,7 +39,7 @@ Penerapan umum bagi data engineer: **Change Data Capture (CDC)** (mengalirkan mu
 
 > 🛠 **Coba sendiri (10 menit, Python).** Bangun sebuah log dalam 10 baris: list `log`, `append(x)` yang menambah di akhir dan mengembalikan offset-nya, dan `read(offset, n=100)` yang mengembalikan potongan tanpa menghapus apa pun. Tambahkan `order-1` sampai `order-5`. Pembaca A membaca semuanya; pembaca B hanya membaca dua yang pertama dan mengingat offset-nya. Tambahkan `order-6` sampai `order-8`, lalu biarkan setiap pembaca melanjutkan dari offset-nya sendiri. Terakhir, putar ulang dari offset 0.
 >
-> **Seharusnya Anda melihat:** A sudah membaca 5 dan berikutnya melanjutkan dengan `order-6`, `order-7`, `order-8`; B melanjutkan dari offset 2 dengan `order-3` sampai `order-8`; pemutaran ulang dari 0 mengembalikan lima record yang sama dengan bacaan pertama A. Membaca tidak menghapus apa pun, dan setiap pembaca memegang posisinya sendiri, persis hal yang tidak bisa dilakukan sebuah antrean.
+> **Seharusnya Anda melihat:** A sudah membaca 5 dan berikutnya melanjutkan dengan `order-6`, `order-7`, `order-8`; B melanjutkan dari offset 2 dengan `order-3` sampai `order-8`; pemutaran ulang dari 0 mengembalikan seluruh delapan record (`order-1` sampai `order-8`) dari awal log. Membaca tidak menghapus apa pun, dan setiap pembaca memegang posisinya sendiri, persis hal yang tidak bisa dilakukan sebuah antrean.
 
 :::trace Satu log dengan dua pembaca
 @code
@@ -59,9 +59,9 @@ print(log[offsets["billing"]:])
 
 :::ask Apa beda topic Kafka dengan antrean pesan klasik?
 @options
-* rekaman tetap ada, jadi banyak konsumen bisa membaca
+* rekaman tetap di log untuk konsumen lain
 rekaman dihapus begitu satu konsumen membacanya
-rekaman bisa diedit setelah ditulis
+rekaman bisa diedit langsung setelah ditulis
 @why
 Log bersifat append-only dan tahan lama; tiap consumer group melacak offsetnya sendiri. Ini memungkinkan tim baru membaca seluruh riwayat, dan konsumen memutar ulang setelah bug diperbaiki.
 :::
@@ -75,7 +75,7 @@ Log bersifat append-only dan tahan lama; tiap consumer group melacak offsetnya s
 
 Jaminan urutan adalah konsep yang paling sering disalahpahami. Kafka menjamin keterurutan data **hanya di dalam partisi yang sama (within a partition)**. Jika seluruh event transaksi milik pelanggan nomor 7 harus diproses secara berurutan, berikan key berupa `customer_id` agar seluruh event pelanggan tersebut selalu dialirkan ke satu partisi yang sama; event milik pelanggan yang berbeda dapat bercampur tanpa masalah. Pilihlah key yang selaras dengan kebutuhan urutan bisnis dan mendistribusikan volume secara merata (hot key akan menghasilkan partisi yang timpang: masalah data skew yang kita pelajari di Modul 3.1).
 
-**Berapa jumlah partisi yang ideal?** Jumlah partisi menentukan batas throughput maksimum dan batas paralelisme dari sebuah consumer group. Partisi yang terlalu sedikit membatasi skalabilitas; partisi yang terlalu banyak menambah overhead memori broker. Yang terpenting: Anda **hanya dapat menambah jumlah partisi dan tidak dapat menguranginya**, dan menambah partisi akan mengubah pemetaan hash key di masa depan sehingga merusak konsistensi urutan per-key data lama. Rencanakan jumlah partisi dengan kapasitas cadangan masa depan (misalnya 6 hingga 30 partisi untuk topic berukuran sedang).
+**Berapa jumlah partisi yang ideal?** Jumlah partisi menentukan batas throughput maksimum dan batas paralelisme dari sebuah consumer group, di dalam satu group, setiap partisi hanya dibaca oleh paling banyak satu consumer pada satu waktu, sehingga consumer berlebih akan menganggur (Pelajaran 4 menjelaskan cara kerja assignment dan rebalancing). Partisi yang terlalu sedikit membatasi skalabilitas; partisi yang terlalu banyak menambah overhead memori broker. Yang terpenting: Anda **hanya dapat menambah jumlah partisi dan tidak dapat menguranginya**, dan menambah partisi akan mengubah pemetaan hash key di masa depan sehingga merusak konsistensi urutan per-key data lama. Rencanakan jumlah partisi dengan kapasitas cadangan masa depan (misalnya 6 hingga 30 partisi untuk topic berukuran sedang).
 
 **Kebijakan Retensi (Retention).** Secara default, broker Kafka menghapus data yang lebih tua dari batas retensi waktu (misalnya 7 hari) atau saat batas ukuran storage terlampaui. Namun jika Anda mengonfigurasi `cleanup.policy=compact`, broker akan mempertahankan **rekaman data paling mutakhir untuk setiap key** selamanya: mekanisme ini disebut **log compaction**, yang mengubah topic Kafka menjadi changelog representasi *state terkini* dari setiap entitas. Pesan yang membawa key namun bernilai **value null** disebut **tombstone**, yang menginstruksikan proses compaction untuk menghapus key tersebut dari log. Compacted topic adalah cara utama tabel database direpresentasikan di dalam Kafka.
 
@@ -103,7 +103,7 @@ print(produce("cd", "order-3"))
 4 | Key menentukan partisi (di sini pengganti hash). Key yang sama selalu mendarat di partisi yang sama, yang menjaga urutan event key itu.
 5 | Record ditambahkan di akhir log partisinya.
 6 | Offset adalah posisi di dalam partisi **itu**: 0 untuk record pertama, 1 untuk kedua...
-9 | `"cd"` sepanjang `"ab"`, jadi ia bergabung ke partisi yang sama, di offset berikutnya.
+10 | `"cd"` sepanjang `"ab"`, jadi ia bergabung ke partisi yang sama, di offset berikutnya.
 :::
 
 Sekarang aturan kompaksi log: simpan **record terbaru per key**, dan perlakukan nilai `None` (sebuah **tombstone**) sebagai "key ini dihapus".
@@ -117,16 +117,15 @@ for key, value in log:
 compacted = {k: v for k, v in latest.items() if v is not None}
 print(compacted)
 @notes
-4 | Record yang lebih baru untuk key yang sama **menggantikan** yang lebih lama: `c1` pindah dari Jakarta ke Bandung.
-4 | Record terakhir untuk `c2` bernilai `None`: sebuah tombstone.
+4 | Record yang lebih baru untuk key yang sama **menggantikan** yang lebih lama (`c1` pindah dari Jakarta ke Bandung), dan nilai `None` (`c2`) mencatat sebuah **tombstone**.
 5 | Tombstone menghapus key dari hasil kompaksi: `c2` hilang, `c1` adalah Bandung.
 :::
 
 :::ask Sebuah topic punya 3 partisi dan consumer group berisi 4 consumer. Berapa consumer yang menganggur?
 @options
-tidak ada: Kafka menambah partisi keempat sendiri
-* satu: setiap partisi punya paling banyak satu pembaca
-keempatnya berbagi setiap partisi secara merata
+tidak ada: Kafka otomatis menambah partisi keempat
+* satu: tiap partisi paling banyak satu pembaca
+keempatnya berbagi tiap partisi secara merata
 @why
 Dalam sebuah consumer group setiap partisi ditugaskan ke tepat satu consumer, jadi paralelisme group dibatasi jumlah partisi. Consumer keempat tidak punya apa pun untuk dibaca sampai sebuah consumer pergi atau partisi ditambah.
 :::
@@ -151,6 +150,8 @@ def compact(log):
         latest[key] = value
     return {k: v for k, v in latest.items() if v is not None}
 :::
+
+Karena consumer Kafka umumnya berjalan dengan jaminan **at-least-once delivery** (Pelajaran 4), crash sebelum offset di-commit bisa membuat pasangan `(partition, offset)` yang sama terkirim dua kali:
 
 :::drill python Lewati yang sudah diproses
 Consumer tidak boleh menerapkan record dua kali (pengiriman bisa berulang). Tulis `fresh(events)`: `events` adalah list dict dengan `"partition"` dan `"offset"`; kembalikan event dengan urutan sama, **membuang yang pasangan `(partition, offset)`-nya sudah terlihat sebelumnya** dalam list.
@@ -198,11 +199,11 @@ Setiap partisi punya satu **leader** (semua baca dan tulis lewat dia) dan dua **
 
 **Arti `acks=all` dan `min.insync.replicas` bersama-sama.** Dengan `acks=all`, leader menjawab hanya setelah **setiap replika yang saat ini ada di ISR** memiliki record itu. `min.insync.replicas=2` menambahkan batas bawah: jika ISR lebih kecil dari 2, leader **menolak** tulisan alih-alih menerimanya dengan salinan lebih sedikit. Jadi `replication.factor=3`, `min.insync.replicas=2`, dan `acks=all` adalah resep standar: satu broker mana pun boleh gagal tanpa kehilangan record yang sudah di-acknowledge *dan* tanpa menghentikan penulis.
 
-**Eksperimen 1: crash leader saat ada beban.** Kami menjalankan producer yang mengirim 20 record per detik dengan `acks=all` dan, setelah sekitar 9 detik, mematikan paksa (`docker kill`, sebuah crash, bukan shutdown bersih) broker yang memimpin partisi 0. Producer menerima `NOT_LEADER_OR_FOLLOWER`, **mencoba ulang sendiri**, dan selesai: semua 500 record terkirim, yang paling lambat memakan **7,46 detik**, dan throughput pada interval itu turun dari 20 menjadi 7,5 record per detik. `describe` lalu menunjukkan dunia baru para penyintas: `Leader: 3, Isr: 3,1`. Setelah broker dihidupkan kembali ia bergabung lagi ke setiap ISR (`Isr: 3,1,2`) dalam 40 detik yang kami tunggu, tetapi kepemimpinan tetap di broker 3; Kafka memindahkan leader kembali ke broker pilihan utama kemudian, di latar belakang. Offset akhir berjumlah **507 = 6 + 500 + 1**, persis record yang kami kirim: tanpa kehilangan dan tanpa duplikat, karena producer Java bersifat idempoten secara default ketika `acks=all` (sejak Kafka 3.0).
+**Eksperimen 1: crash leader saat ada beban.** Kami menjalankan producer yang mengirim 20 record per detik dengan `acks=all` dan, setelah sekitar 9 detik, mematikan paksa (`docker kill`, sebuah crash, bukan shutdown bersih) broker yang memimpin partisi 0. Producer menerima `NOT_LEADER_OR_FOLLOWER`, **mencoba ulang sendiri**, dan selesai: semua 500 record terkirim, yang paling lambat memakan **7,46 detik**, dan throughput pada interval itu turun dari 20 menjadi 7,5 record per detik. `describe` lalu menunjukkan dunia baru para penyintas: `Leader: 3, Isr: 3,1`. Setelah broker dihidupkan kembali ia bergabung lagi ke setiap ISR (`Isr: 3,1,2`) dalam 40 detik yang kami tunggu, tetapi kepemimpinan tetap di broker 3; Kafka memindahkan leader kembali ke broker pilihan utama kemudian, di latar belakang. Offset akhir berjumlah **507 = 6 + 500 + 1** (6 record uji awal + 500 record beban + 1 sentinel), persis record yang kami kirim: tanpa kehilangan dan tanpa duplikat, karena producer Java bersifat idempoten secara default ketika `acks=all` (sejak Kafka 3.0).
 
-**Eksperimen 2: harga batas bawah yang ketat.** Kami membuat topik kedua dengan `min.insync.replicas=3` (setiap replika harus ada) dan mematikan satu broker. Producer dengan `acks=all` gagal dengan **`NOT_ENOUGH_REPLICAS`** sampai broker kembali: topik itu memilih *konsistensi daripada ketersediaan*. Producer dengan `acks=1` terus berhasil, menulis ke leader yang hanya punya dua salinan: **ketersediaan menang dan janji durabilitas diturunkan secara diam-diam**. Topik dengan `min.insync.replicas=2` menerima tulisan `acks=all` dengan satu broker mati, itulah mengapa 2 adalah nilai yang umum. Ingat bahwa `acks=1` atau `acks=0` bisa kehilangan record yang hanya di-acknowledge oleh leader yang kemudian crash.
+**Eksperimen 2: harga batas bawah yang ketat.** Kami membuat topik kedua berpartisi 1 dengan `min.insync.replicas=3` (setiap replika harus ada) dan mematikan satu broker. Producer dengan `acks=all` gagal dengan **`NOT_ENOUGH_REPLICAS`** sampai broker kembali: topik itu memilih *konsistensi daripada ketersediaan*. Producer dengan `acks=1` terus berhasil, menulis ke leader yang hanya punya dua salinan: **ketersediaan menang dan janji durabilitas diturunkan secara diam-diam**. Topik dengan `min.insync.replicas=2` menerima tulisan `acks=all` dengan satu broker mati, itulah mengapa 2 adalah nilai yang umum. Ingat bahwa `acks=1` atau `acks=0` bisa kehilangan record yang hanya di-acknowledge oleh leader yang kemudian crash.
 
-**Pantau.** `kafka-topics.sh --describe --under-replicated-partitions` mendaftar partisi dengan replika in-sync lebih sedikit daripada replikanya (pada eksperimen: keempat partisi saat satu broker mati), dan `--under-min-isr-partitions` mendaftar yang **menolak tulisan `acks=all`** (topik yang ketat). Keduanya harus kosong dan merupakan alert pertama seorang operator Kafka. Pengaturan terkait: `unclean.leader.election.enable` (default `false`) akan membiarkan replika yang *tidak in-sync* menjadi leader ketika tidak ada yang in-sync, memulihkan ketersediaan dengan **membuang record yang sudah di-acknowledge**; biarkan mati untuk data penting. Penempatan sadar rak (`broker.rack`) menyebar replika ke seluruh zona kegagalan.
+**Pantau.** `kafka-topics.sh --describe --under-replicated-partitions` mendaftar partisi dengan replika in-sync lebih sedikit daripada replikanya (pada eksperimen: keempat partisi, 3 pada `orders` ditambah 1 pada topik ketat, saat satu broker mati), dan `--under-min-isr-partitions` mendaftar yang **menolak tulisan `acks=all`** (topik yang ketat). Keduanya harus kosong dan merupakan alert pertama seorang operator Kafka. Pengaturan terkait: `unclean.leader.election.enable` (default `false`) akan membiarkan replika yang *tidak in-sync* menjadi leader ketika tidak ada yang in-sync, memulihkan ketersediaan dengan **membuang record yang sudah di-acknowledge**; biarkan mati untuk data penting. Penempatan sadar rak (`broker.rack`) menyebar replika ke seluruh zona kegagalan.
 
 **Siapa yang menentukan leader?** Dalam mode KRaft, sebuah kuorum node **controller** menyimpan metadata cluster dengan protokol Raft dan memilih leader partisi. Pada cluster kecil kami setiap node adalah broker sekaligus controller. Broker yang kami matikan pada percobaan pertama juga controller aktif, dan yang lain memilih controller baru dalam **5 detik** (log menunjukkan controller baru tercatat tepat 5,0 detik setelah dimatikan). Raft butuh **mayoritas**: tiga controller bertahan dari satu kegagalan, lima bertahan dari dua. Cluster produksi karena itu menjalankan 3 atau 5 node controller khusus yang terpisah dari broker, agar broker yang sibuk tidak menghabiskan sumber daya otak cluster.
 
@@ -212,9 +213,9 @@ Setiap partisi punya satu **leader** (semua baca dan tulis lewat dia) dan dua **
 
 :::ask Sebuah partisi punya replication factor 3, `acks=all`, dan `min.insync.replicas=2`. Dua broker mati, menyisakan satu di ISR. Apa yang terjadi pada penulisan produser?
 @options
-berhasil, karena leader masih hidup
-* ditolak: ISR di bawah 2, keamanan tak bisa dijamin
-berhasil dan disalin belakangan nanti
+berhasil, karena leader partisi masih hidup
+* ditolak: ISR jatuh di bawah batas 2
+berhasil lalu disalin ulang nanti
 @why
 `min.insync.replicas=2` menetapkan batas bawah. Dengan hanya satu replika yang sinkron, leader menolak penulisan (NotEnoughReplicas) daripada menerima data yang bisa hilang jika broker terakhir itu juga gagal.
 :::
@@ -247,7 +248,7 @@ Pilihan standar industri enterprise adalah **at-least-once dengan pemrosesan ide
 
 **Consumer Lag** adalah selisih antara offset data paling akhir yang ada di partisi broker dengan offset terakhir yang telah di-commit oleh consumer group. Lag adalah **metrik kesehatan paling vital** dalam ekosistem streaming. Lag yang terus merangkak naik menandakan bahwa consumer Anda kewalahan dan kalah cepat dibandingkan laju kedatangan data dari producer. Pantau metrik lag ini dan siapkan alarm peringatan. Bagian B lab membacanya dari broker sungguhan: consumer group baru di atas 60 pesan menunjukkan lag 60, dan 0 setelah semua pesan dikonsumsi.
 
-**Pesan Beracun (Poison Messages).** Sebuah rekaman data yang cacat atau berformat korup tidak boleh menghentikan pemrosesan seluruh partisi selamanya, dan tidak boleh dibuang diam-diam tanpa jejak. Tangkap error tersebut, kirimkan pesan cacat beserta konteks error dan koordinat partisinya ke sebuah **Dead-Letter Topic (DLQ)**, lakukan commit offset pada partisi utama, dan lanjutkan pembacaan: ini adalah pola karantina yang konsisten dengan Modul 1.2 dan 2.5.
+**Pesan Beracun (Poison Messages).** Sebuah rekaman data yang cacat atau berformat korup tidak boleh menghentikan pemrosesan seluruh partisi selamanya, dan tidak boleh dibuang diam-diam tanpa jejak. Tangkap error tersebut, kirimkan pesan cacat beserta konteks error dan koordinat partisinya ke sebuah **Dead-Letter Topic (DLT)**, lakukan commit offset pada partisi utama, dan lanjutkan pembacaan: ini adalah pola karantina yang konsisten dengan Modul 1.2 dan 2.5.
 
 > 💡 **Jeda Praktik 2 (Consumer Groups, Range Assignment & Idempoten Commit):**
 > 1. Buka file `labs/mod-3-2/minilog.py` di teks editor Anda.
@@ -267,19 +268,19 @@ Commit lebih dulu berarti crash setelah commit tetapi sebelum kerja akan melewat
 :::
 
 ## @lesson Skema, serialisasi, dan Kafka Connect
-Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya ditentukan oleh aplikasi Anda. Format **JSON** sangat ramah manusia dan mudah di-debug, namun mengulang nama setiap field di setiap pesan dan tidak memiliki penegakan tipe yang kaku. Format biner seperti **Apache Avro** (baris biner ringkas yang menyimpan skemanya terpisah dan hanya menyematkan ID skema 4-byte pada pesan) dan **Protocol Buffers (Protobuf)** (field biner bertipe yang diidentifikasi lewat nomor tag) jauh lebih hemat dan dirancang untuk evolusi skema jangka panjang. Penggunaan Avro umumnya dipadukan dengan **Confluent Schema Registry**: sebuah layanan terpusat yang menyimpan versi skema data, menyematkan ID skema berukuran 4 byte pada setiap payload pesan, dan menegakkan **aturan kompatibilitas skema** saat skema diperbarui (Backward, Forward, atau Full Compatibility). Ini adalah wujud nyata dari konsep data contract (Modul 2.5) pada dunia streaming: producer tidak akan diizinkan mempublikasikan perubahan skema yang merusak aplikasi consumer downstream.
+Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya ditentukan oleh aplikasi Anda. Format **JSON** sangat ramah manusia dan mudah di-debug, namun mengulang nama setiap field di setiap pesan dan tidak memiliki penegakan tipe yang kaku. Format biner seperti **Apache Avro** (baris biner ringkas yang menyimpan skemanya terpisah dan hanya menyematkan ID skema 4-byte pada pesan) dan **Protocol Buffers (Protobuf)** (field biner bertipe yang diidentifikasi lewat nomor tag) jauh lebih hemat dan dirancang untuk evolusi skema jangka panjang. Penggunaan Avro umumnya dipadukan dengan **schema registry**: sebuah layanan terpusat yang menyimpan versi skema data, menyematkan ID skema berukuran 4 byte pada setiap payload pesan, dan menegakkan **aturan kompatibilitas skema** saat skema diperbarui (Backward, Forward, atau Full Compatibility). Ini adalah wujud nyata dari konsep data contract (Modul 2.5) pada dunia streaming: producer tidak akan diizinkan mempublikasikan perubahan skema yang merusak aplikasi consumer downstream.
 
 **Kafka Connect** adalah kerangka kerja siap pakai untuk memindahkan data masuk dan keluar dari Apache Kafka **tanpa perlu menulis kode aplikasi dari nol**. **Source Connectors** menarik data dari sistem eksternal ke dalam Kafka topic (seperti Debezium untuk database PostgreSQL); sedangkan **Sink Connectors** menyalurkan isi topic ke sistem penyimpanan tujuan (seperti Amazon S3, Google Cloud Storage, Apache Iceberg, Snowflake, Elasticsearch, atau ClickHouse). Kafka Connect secara otomatis mengelola skalabilitas worker, pelacakan offset, penanganan retry, transformasi pesan ringan (**Single Message Transforms / SMT**), dan perutean error ke Dead-Letter Queue. Untuk pipeline "database replika menuju data lakehouse", kombinasi Debezium source connector dan cloud storage sink connector sering kali sudah mencukupi kebutuhan produksi tanpa ribuan baris kode kustom.
 
 > 🛠 **Coba sendiri (20 menit, Python).** Encode record `{"id": 1, "customer": "Budi", "total": 150000}` dengan cara producer Avro berbasis registry, dengan tangan. Aturannya: pesan dimulai dengan byte `0` dan schema id (1) sebagai 4 byte, big-endian. Sebuah integer Avro dikodekan **zig-zag** (`(n << 1) ^ (n >> 63)`), lalu ditulis dalam kelompok 7 bit, kelompok terendah lebih dulu, dengan bit tertinggi menyala di setiap byte kecuali yang terakhir. Sebuah string adalah panjangnya yang ditulis sebagai integer, lalu byte UTF-8-nya. Cetak hasilnya sebagai hex dengan `.hex()` beserta panjangnya, dan bandingkan dengan panjang record yang sama sebagai JSON ringkas (`json.dumps(rec, separators=(",", ":"))`).
 >
-> **Seharusnya Anda melihat:** `0000000001020842756469e0a712`, yaitu `14` byte, dibanding `41` byte JSON. Bandingkan dengan byte di pelajaran: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. Record itu sama sekali tidak memuat nama field: siapa pun yang membacanya butuh skemanya, itulah sebabnya schema id ikut dikirim bersamanya.
+> **Seharusnya Anda melihat:** `0000000001020842756469e0a712`, yaitu `14` byte, dibanding `41` byte JSON. Bandingkan dengan wire format Schema Registry yang ditunjukkan di Pelajaran 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. Record itu sama sekali tidak memuat nama field: siapa pun yang membacanya butuh skemanya, itulah sebabnya schema id ikut dikirim bersamanya.
 
 :::ask Mengapa tim memasang Avro dengan schema registry pada topic, bukan JSON biasa?
 @options
-* rekaman ringkas dan skema berversi yang diperiksa
-JSON sama sekali tak bisa dibaca oleh Kafka
-Avro menghilangkan kebutuhan produser apa pun
+* rekaman ringkas dan versi skema tervalidasi
+broker Kafka tidak bisa menyimpan pesan JSON biasa
+Avro menghilangkan kebutuhan produser
 @why
 JSON mengulang setiap nama field di setiap pesan dan tidak menegakkan tipe. Avro menyimpan skema sekali di registry dan mengirim id pendek, dan registry menolak perubahan yang akan merusak konsumen.
 :::
@@ -313,8 +314,8 @@ Aturan praktis:
 :::ask Seorang produser ingin mengubah tipe field dari `int` menjadi `string` di bawah kompatibilitas BACKWARD. Apa yang dilakukan registry?
 @options
 ia menerima dan mengonversi semua pesan lama
-* ia menolaknya: Avro hanya menaikkan angka seperti int
-ia menerima dan diam-diam membuang field itu
+* ia menolak perubahan tipe yang merusak
+ia menerima dan membuang field itu
 @why
 Kompatibilitas BACKWARD berarti konsumen dengan skema baru bisa membaca data lama. int ke string merusaknya, jadi ditolak; menambah field opsional dengan nilai default adalah perubahan yang aman.
 :::
@@ -391,14 +392,16 @@ Praktik operasional terbaik: simpan seluruh aliran **raw event log** ke storage 
 > 1. Buka file `labs/mod-3-2/cdc.py` di teks editor Anda.
 > 2. Implementasikan fungsi `to_events(changes, pk)` untuk memetakan mutasi WAL PostgreSQL ke dalam format envelope event Debezium standar.
 > 3. Implementasikan `apply_events(state, events)` dengan pelacakan posisi `(lsn, seq)` per primary key untuk mengabaikan duplikasi dan event out-of-order, serta `materialize(state, table)`.
-> 4. Jalankan pengujian di terminal (jika dependensi PostgreSQL aktif):
+> 4. Jalankan pengujian di terminal (butuh PostgreSQL; pada Python 3.14 `pgserver` dilewati, jadi mulai Postgres lokal lewat Docker dan set `DATABASE_URL` seperti di bagian `@verify` lab):
 >    `pytest labs/mod-3-2/test_cdc.py -v`
 > 5. **Indikator Sukses:** Seluruh pengujian CDC lulus (atau dilewati secara anggun jika service database lokal belum aktif), mengonfirmasi replikasi state yang idempoten dan bebas bug kebangkitan baris yang telah dihapus.
+
+*(Pemanasan di browser, versi ringkas dengan LSN tunggal dan tanpa menghapus baris; di `labs/mod-3-2/cdc.py` Anda memakai pasangan `(lsn, seq)` dan menangani tombstone.)*
 
 :::drill python Terapkan hanya event yang lebih baru
 Sebuah konsumen CDC menjaga replika sebuah tabel. Tulis `apply_events(events)`: tiap event adalah dictionary `{"key": ..., "lsn": angka, "value": ...}`. Kembalikan replika sebagai dictionary `{key: value}`. Untuk tiap key simpan hanya event dengan `lsn` **tertinggi**; event dengan `lsn` lebih lama (atau sama) dari yang sudah diterapkan dilewati, walaupun datang belakangan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("apply_events") ## Definisikan apply_events(events).
@@ -432,6 +435,8 @@ Pengiriman bersifat at-least-once dan konsumen restart serta rebalance, jadi eve
 Lab ini terbagi ke dalam tiga tingkatan yang dapat diuji secara terpisah: Bagian A membangun implementasi mini Kafka in-memory untuk menguasai semantik dasar commit log. Bagian B berinteraksi langsung dengan broker Kafka/Redpanda nyata (producer dengan idempotensi, consumer dengan manual offset commit, serta kalkulasi metrik lag). Bagian C mendecode aliran replikasi biner PostgreSQL nyata dan mengonsumsi event CDC ke dalam tabel replika yang idempoten terhadap replay dan pengacakan urutan event.
 
 ### @steps
+> Sudah menyelesaikan Bagian A dan C lewat Jeda Praktik 1–3? Langsung loncat ke Langkah 3 (Bagian B broker nyata) dan Jeda Praktik 5 untuk membuat kode bukti.
+
 1. Instal dependensi yang dibutuhkan (Bagian A hanya membutuhkan pytest):
 
 ```bash
@@ -447,16 +452,16 @@ python -m pip install -r labs/mod-3-2/requirements.txt
 >    `LAB_DIR=reference pytest labs/mod-3-2/test_minilog.py -v`
 > 3. **Indikator Sukses:** Seluruh 15 pengujian di `test_minilog.py` berstatus `PASSED` dalam < 0.1 detik murni Python tanpa server eksternal apa pun.
 
-3. **Bagian B: Broker Kafka Riil.** Jalankan klaster Kafka atau Redpanda. Menggunakan Docker dari repositori course: jalankan perintah `docker compose up -d redpanda` (port eksternal `localhost:19092`). Implementasikan lima fungsi di `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, dan `group_lag`), lalu jalankan pengujian:
+3. **Bagian B: Broker Kafka Riil.** Jalankan klaster Kafka atau Redpanda (beserta web UI-nya). Menggunakan Docker dari repositori course: jalankan perintah `docker compose up -d redpanda redpanda-console` (port eksternal `localhost:19092`). Implementasikan lima fungsi di `labs/mod-3-2/real_kafka.py` (`create_topic`, `topic_config`, `produce_orders`, `consume_with_manual_commit`, dan `group_lag`), lalu jalankan pengujian:
 
 ```bash
 KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v
 ```
 
    Tanpa environment variable `KAFKA_BOOTSTRAP`, pengujian ini akan dilewati secara otomatis. Amati topic Anda melalui web console (Redpanda Console di http://localhost:8080) dan saksikan nilai consumer lag group bergerak dari 60 menjadi 0 setelah seluruh pesan dikonsumsi.
-4. **Bagian C: CDC PostgreSQL.** Pelajari docstring modul `labs/mod-3-2/pgoutput.py` yang telah disediakan dan pahami alur decode binernya. Buka file kerja `labs/mod-3-2/cdc.py`, implementasikan fungsi `to_events`, `apply_events`, dan `materialize`, lalu jalankan suite pengujian via `pytest labs/mod-3-2/test_cdc.py -v`. Pengujian akan menyalakan instance embedded PostgreSQL dengan konfigurasi `wal_level=logical`, membuat publication dan replication slot, mengeksekusi operasi insert, update, delete, serta mutasi primary key, dan membandingkan integritas data tabel replika Anda dengan tabel sumber di database.
+4. **Bagian C: CDC PostgreSQL.** Pelajari docstring modul `labs/mod-3-2/pgoutput.py` yang telah disediakan dan pahami alur decode binernya. Buka file kerja `labs/mod-3-2/cdc.py`, implementasikan fungsi `to_events`, `apply_events`, dan `materialize`, lalu jalankan suite pengujian via `pytest labs/mod-3-2/test_cdc.py -v` (di Python 3.14, ekspor `DATABASE_URL` ke container Docker PostgreSQL dari Prasyarat terlebih dahulu). Pengujian akan menyalakan instance embedded PostgreSQL dengan konfigurasi `wal_level=logical` (atau memakai `DATABASE_URL`), membuat publication dan replication slot, mengeksekusi operasi insert, update, delete, serta mutasi primary key, dan membandingkan integritas data tabel replika Anda dengan tabel sumber di database.
 5. Eksplorasi mandiri: cetak pesan mutasi biner yang didecode untuk melihat perbedaan struktur payload dengan dan tanpa konfigurasi `REPLICA IDENTITY FULL`; aplikasikan event-event mutasi dalam urutan acak dan buktikan bahwa replika Anda menghasilkan kondisi akhir yang tetap identik; buka sesi terminal `psql`, buat slot baru secara manual, lakukan serangkaian transaksi tanpa membacanya, dan amati bagaimana view `pg_replication_slots` menahan akumulasi file segmen WAL di disk.
-6. Opsional, menggunakan Docker: nyalakan seluruh stack microservices dari repositori (`docker compose up -d --wait postgres redpanda connect`), daftarkan konfigurasi konektor Debezium menggunakan file `labs/mod-3-2/debezium-orders.json`, dan saksikan aliran event nyata tiba di Kafka saat Anda mengubah data pada tabel `orders`:
+6. Opsional, menggunakan Docker: nyalakan seluruh stack dari repositori (`docker compose up -d --wait postgres redpanda redpanda-console connect`), daftarkan konfigurasi konektor Debezium menggunakan file `labs/mod-3-2/debezium-orders.json`, dan saksikan aliran event nyata tiba di Kafka saat Anda mengubah data pada tabel `orders` (bagian ini memakai Docker dan tidak tercakup tes otomatis; sudah diverifikasi manual pada Debezium 2.7 dan Redpanda):
 
 ```bash
 curl -s -X POST -H 'Content-Type: application/json' --data @labs/mod-3-2/debezium-orders.json localhost:8083/connectors
@@ -480,11 +485,11 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
    Sebelum mematikan broker, **prediksikan** `Leader` dan `Isr` baru tiap partisi, lalu bandingkan. Berikutnya buat topik dengan `--config min.insync.replicas=3`, matikan satu broker, dan produksi dengan `kafka-console-producer.sh ... --producer-property acks=all`; jelaskan `NOT_ENOUGH_REPLICAS` yang Anda dapat. Untuk schema registry, `docker compose up -d redpanda` juga membukanya di `localhost:8081`: daftarkan skema Avro dengan `POST /subjects/orders-value/versions`, lalu periksa perubahan yang tidak kompatibel lewat `POST /compatibility/subjects/orders-value/versions/latest` dan lihat jawabannya berubah ketika Anda mengatur `FORWARD` atau `FULL` dengan `PUT /config/orders-value`. (Bagian-bagian ini dijalankan manual terhadap Apache Kafka 4.0.0 dan Redpanda; tidak tercakup tes otomatis.)
 
 > 💡 **Jeda Praktik 5 (Verifikasi Penuh Broker & CDC):**
-> 1. Jalankan pengujian broker Kafka nyata (opsional, jika container Redpanda menyala):
+> 1. Pastikan Redpanda berjalan (`docker compose up -d redpanda redpanda-console`) lalu jalankan pengujian broker Kafka nyata:
 >    `KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v`
-> 2. Hasilkan token bukti verifikasi:
->    `python3 scripts/prove.py mod-3-2`
-> 3. **Indikator Sukses:** Seluruh pengujian aktif berstatus `PASSED` dan token bukti kelulusan dicetak ke terminal.
+> 2. Hasilkan token bukti verifikasi (sertakan `KAFKA_BOOTSTRAP` agar `prove.py` memverifikasi Bagian B bersama Bagian A dan C; di Python 3.14 pertahankan `DATABASE_URL` tetap terekspor):
+>    `KAFKA_BOOTSTRAP=localhost:19092 python3 scripts/prove.py mod-3-2`
+> 3. **Indikator Sukses:** Seluruh 27 pengujian (15 Bagian A + 4 Bagian B + 8 Bagian C) berstatus `PASSED` dan token bukti kelulusan dicetak ke terminal.
 
 ### @files
 - labs/mod-3-2/minilog.py :: File kerja Bagian A: implementasi mini Kafka in-memory :: starter
@@ -511,6 +516,7 @@ docker compose -f labs/mod-3-2/cluster/docker-compose.yml down -v               
 ```bash
 pytest labs/mod-3-2/test_minilog.py labs/mod-3-2/test_cdc.py -v
 KAFKA_BOOTSTRAP=localhost:19092 pytest labs/mod-3-2/test_real_kafka.py -v
+KAFKA_BOOTSTRAP=localhost:19092 python3 scripts/prove.py mod-3-2
 ```
 
 Verifikasi terhadap kode referensi: tambahkan prefix `LAB_DIR=reference`.
@@ -524,11 +530,11 @@ Pada Minggu malam, server database utama PostgreSQL produksi tiba-tiba menolak s
 ### @cause
 Replication slot logis di PostgreSQL terikat langsung pada konektor Debezium. Engine PostgreSQL diwajibkan secara internal untuk mempertahankan seluruh file segmen WAL yang belum dikonfirmasi posisinya oleh replication slot tersebut, karena sistem berasumsi sang konsumen sewaktu-waktu akan kembali aktif dan membutuhkannya. Karena konektor Debezium mati selama dua hari penuh, slot tidak pernah mengonfirmasi pembacaan baru, sehingga seluruh file WAL hasil transaksi normal akhir pekan menumpuk tanpa pernah dibersihkan hingga memenuhi seluruh kapasitas disk. Di sisi lain, parameter `max_slot_wal_keep_size` dibiarkan pada nilai default `-1`, yang berarti *tanpa batas retensi maksimum*.
 
-Pipa analitik data hilir yang seharusnya hanya membaca data pasif secara tidak sengaja melumpuhkan sistem transaksional operasional yang menjadi urat nadi bisnis perusahaan.
+(Efek ini mudah direproduksi: di lab, slot yang tidak dibaca menahan 118 MB WAL hanya setelah 450.000 perubahan baris.) Pipa analitik data hilir yang seharusnya hanya membaca data pasif secara tidak sengaja melumpuhkan sistem transaksional operasional yang menjadi urat nadi bisnis perusahaan.
 
 ### @fix
 1. **Tindakan Darurat (Immediate)**: kosongkan ruang disk secara aman. Menghapus replication slot yang bermasalah (`SELECT pg_drop_replication_slot('debezium_orders')`) akan langsung membebaskan file-file segmen WAL yang tertahan sehingga database produksi dapat kembali menerima transaksi, dengan konsekuensi konektor CDC nantinya harus melakukan **snapshot ulang dari awal**.
-2. Tetapkan nilai batas aman pada parameter `max_slot_wal_keep_size` (misalnya dialokasikan sebesar batas kuota persentase disk tertentu), sehingga slot yang macet akan otomatis diinvaliasi oleh PostgreSQL *sebelum* kapasitas disk habis dan melumpuhkan database produksi (pengambilan snapshot ulang jauh lebih dapat diterima daripada downtime sistem checkout).
+2. Tetapkan nilai batas aman pada parameter `max_slot_wal_keep_size` (misalnya dialokasikan sebesar batas kuota persentase disk tertentu), sehingga slot yang macet akan otomatis diinvalidasi oleh PostgreSQL *sebelum* kapasitas disk habis dan melumpuhkan database produksi (pengambilan snapshot ulang jauh lebih dapat diterima daripada downtime sistem checkout).
 3. **Pasang pemantauan dan alert terpusat pada metrik slot lag dan status konektor** yang diarahkan ke kanal siaga on-call 24/7: pantau metrik `pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)` pada setiap slot, serta utilisasi ruang disk volume WAL.
 4. Perlakukan layanan CDC connector sebagai **layanan tier-1 berstatus produksi** yang dilengkapi infrastruktur redundansi otomatis dan runbook insiden; kirimkan sinyal event heartbeat berkala agar slot tetap memperbarui posisinya meskipun tabel sedang sepi transaksi.
 5. Gelar sesi evaluasi post-mortem dan lakukan simulasi berkala: matikan konektor di staging environment untuk memvalidasi bahwa sistem pemantauan dan alert darurat berfungsi dengan benar.

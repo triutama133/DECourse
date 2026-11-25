@@ -17,6 +17,7 @@ Modul 0.1 (terminal, virtual environment), 1.2 (idempotensi, retries), 1.4 (pemo
 
 ## @lesson Cara kerja capstone ini
 > **Modul Sebelumnya yang Digabung:** Capstone ini menyatukan **Modul 0.1** (virtual environment & runner CLI), **Modul 1.2** (karantina & idempotensi), **Modul 1.4** (star schema, grain & surrogate key), **Modul 1.5/2.1** (Parquet & analitik DuckDB), serta **Modul 2.5** (data contract & gerbang kualitas).
+
 Setiap lab sejauh ini memberitahu Anda fungsi mana yang harus ditulis dan menjalankan pengujian otomatis terhadapnya. Capstone ini sengaja dirancang berbeda. **Anda menerima kontrak kerja, data nyata, dan sebuah skrip pemeriksa (checker).** Anda bebas menentukan cara membangunnya: DuckDB atau pandas, satu skrip atau modular, SQL atau Python murni. Tidak ada yang memeriksa gaya penulisan kode Anda. Pemeriksa hanya menilai **hasil akhir**: berkas-berkas yang dihasilkan pipeline Anda, keakuratan angka di dalamnya, dan bagaimana perilaku pipeline saat menghadapi anomali data.
 
 Aturan main capstone:
@@ -27,7 +28,7 @@ Aturan main capstone:
 4. **Petunjuk bertingkat sesuai kebutuhan Anda.** Opsi `--hint 1` memberi senggolan arah (*nudge*), `--hint 2` menjelaskan model mental/konsepnya, dan `--hint 3` memberikan panduan teknis yang sangat mendalam. Berusahalah minimal 30 menit sebelum membuka level 1, dan buka level 3 hanya jika Anda sudah meneliti datanya sendiri. Proses menganalisis masalah adalah inti pembelajarannya.
 5. **Pemeriksa juga akan menguji ketahanan pipeline Anda.** Pada step 5, pemeriksa akan menjalankan kode Anda di atas beberapa skenario pengiriman yang sengaja dirusak: file yang sama dikirim dua kali, file dengan kolom yang diganti namanya, serta file dengan 40% data cacat. Pipeline di dunia nyata menghadapi insiden seperti ini setiap hari.
 
-**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-1`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika ia puas, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-1/check.py ~/taxi --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
+**Saat sebuah pemeriksaan gagal, cari tahu siapa yang salah.** Jalankan dulu `python3 scripts/doctor.py mod-4-1`: ia memeriksa komputer Anda (Python, alat, paket), bukan kode Anda. Jika semua lolos, jalankan ulang hanya langkah yang gagal, misalnya `python3 labs/mod-4-1/check.py ~/taxi --step 3`, dan baca baris pertama pesannya: ia menyebut file, angka, atau perilaku yang salah. Tambahkan `--keep` agar folder `.check/` pribadi milik checker tetap ada, sehingga Anda bisa membaca log dan keluaran sebenarnya dari langkah yang gagal. Kegagalan yang menyebut perintah yang hilang, port yang sibuk, atau ruang yang habis adalah urusan laptop Anda; kegagalan yang menyebut angka atau file yang Anda tulis adalah urusan kode Anda.
 
 Persiapan awal (dijalankan satu kali):
 
@@ -42,15 +43,15 @@ Alokasikan waktu sekitar 15 hingga 25 jam secara keseluruhan. Setiap eksekusi pe
 
 > 🛠 **Coba sendiri (20 menit, terminal).** Kerjakan persiapan di atas persis seperti tertulis, di folder `~/taxi` milik Anda. Sebelum menulis satu baris pun dari pipeline, jalankan pemeriksa untuk langkah 1 pada starter yang belum disentuh: `python3 labs/mod-4-1/check.py ~/taxi --step 1`. Baca output-nya pelan-pelan. Lalu minta petunjuk terendah dengan `--hint 1` dan putuskan apakah petunjuk itu membocorkan jawabannya.
 >
-> **Seharusnya Anda melihat:** `fetch_data.py` mencetak `ok` untuk file Parquet dan untuk zone lookup. Pemeriksa mencetak judul `== Step 1: profile the raw data (profile.json)`, satu baris `FAIL  profile.json exists in your workspace` dengan petunjuk singkat, dan `0 passed, 1 failed`. Petunjuk 1 hanya mengarah ke DuckDB (`DESCRIBE`, `SELECT count(*)`): ia mendorong, tidak menjawab. Putaran merah-lalu-hijau inilah cara Anda bekerja selama beberapa jam ke depan.
+> **Seharusnya Anda melihat:** `fetch_data.py` mencetak `ok` untuk file Parquet dan untuk zone lookup. Pemeriksa mencetak judul `== Step 1: profile the raw data (profile.json)`, satu baris `FAIL  profile.json exists in your workspace` dengan petunjuk singkat, dan `0 passed, 1 failed`. Petunjuk 1 hanya mengarah ke DuckDB (`DESCRIBE`, `SELECT count(*)`): sekadar memberi dorongan, bukan jawaban. Siklus merah-lalu-hijau inilah cara Anda bekerja selama beberapa jam ke depan.
 
-:::ask Di capstone ini, apa yang dilihat checker untuk menilai pipeline-mu?
+:::ask Di capstone ini, apa yang dilihat checker untuk menilai pipeline Anda?
 @options
-gaya kodemu dan panjang skripmu
-library mana yang kamu pilih untuk diimpor
-* hanya hasilnya: file, angka, dan perilakunya
+gaya kode dan panjang skrip Anda
+library mana yang Anda pilih untuk diimpor
+* hanya hasilnya: file, angka, perilakunya
 @why
-Kamu mendapat kontrak, data nyata, dan checker. Cara membangunnya terserah kamu (DuckDB atau pandas, satu skrip atau banyak); checker melihat file yang ditulis pipeline-mu, angka di dalamnya, dan perilakunya saat ada yang salah.
+Anda mendapat kontrak, data nyata, dan checker. Cara membangunnya terserah Anda (DuckDB atau pandas, satu skrip atau banyak); checker melihat file yang ditulis pipeline Anda, angka di dalamnya, dan perilakunya saat ada yang salah.
 :::
 
 ## @lesson Mengenal datanya
@@ -62,16 +63,16 @@ Kamu mendapat kontrak, data nyata, dan checker. Cara membangunnya terserah kamu 
 | `tpep_pickup_datetime`, `tpep_dropoff_datetime` | Waktu penjemputan dan penurunan penumpang |
 | `passenger_count` | Jumlah penumpang yang dimasukkan oleh pengemudi |
 | `trip_distance` | Jarak tempuh perjalanan dalam mil pada odometer |
-| `RatecodeID` | 1 Standar, 2 JFK, 3 Newark, 4 Nassau/Westchester, 5 Negosiasi, 6 Rombongan, 99 Lainnya |
+| `RatecodeID` | 1 Standard (Standar), 2 JFK, 3 Newark, 4 Nassau/Westchester, 5 Negotiated (Negosiasi), 6 Group ride (Rombongan), 99 Unknown (Tidak diketahui) |
 | `store_and_fwd_flag` | Status apakah rekaman disimpan di memori kendaraan sebelum dikirim |
 | `PULocationID`, `DOLocationID` | ID zona lokasi jemput dan antar (1 s.d. 265) |
-| `payment_type` | 0 Flex Fare, 1 Kartu kredit, 2 Tunai, 3 Tanpa biaya, 4 Sengketa, 5 Tidak diketahui, 6 Dibatalkan |
+| `payment_type` | 0 Flex Fare, 1 Credit card (Kartu kredit), 2 Cash (Tunai), 3 No charge (Tanpa biaya), 4 Dispute (Sengketa), 5 Unknown (Tidak diketahui), 6 Voided (Dibatalkan) |
 | `fare_amount`, `extra`, `mta_tax`, `tip_amount`, `tolls_amount`, `improvement_surcharge`, `congestion_surcharge`, `Airport_fee` | Komponen rincian biaya tagihan |
 | `total_amount` | Total nominal yang dibayar penumpang (tip tunai tidak terekam di sistem) |
 
 File pendukung kedua, `taxi_zone_lookup.csv`, mendeskripsikan **265 zona lokasi**: `LocationID`, `Borough`, `Zone`, `service_zone`.
 
-**Temuan anomali saat data ini di-profile** (Anda akan menemukan angka yang sama, dan step 1 meminta sembilan angka ini):
+**Temuan anomali saat data ini di-profile** (kami sengaja tidak mencantumkan angkanya di sini: step 1 meminta Anda menemukannya sendiri, dan Anda akan menemukan hal yang sama):
 
 - File "Januari" ini memuat perjalanan dengan waktu penjemputan seawal **2002-12-31** dan selambat **2024-02-01**: ada sejumlah perjalanan di luar bulan Januari.
 - Sebagian perjalanan berakhir sebelum dimulai, dan sebagian berakhir tepat di detik yang sama. Beberapa berdurasi lebih dari 24 jam.
@@ -87,7 +88,7 @@ File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dap
 
 > 💡 **Jeda Praktik 1 (Langkah 1: Profiling Data Mentah & Pembuatan profile.json):**
 > 1. Buat file `profile.json` di folder workspace Anda (`~/taxi/profile.json`) menggunakan teks editor.
-> 2. Hitung 9 metrik statistik langsung dari file mentah Parquet menggunakan query DuckDB: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, dan `cash_trips_with_tip`.
+> 2. Hitung 9 metrik statistik langsung dari file mentah Parquet menggunakan query DuckDB: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, dan `cash_trips_with_tip`. (Lihat Pelajaran 3 untuk sintaks DuckDB dan Langkah 2 pada bagian Lab di bawah untuk definisi batas persis seperti `total_amount <= 0`, `>= 2024-02-01`, dan `payment_type = 2 AND tip_amount > 0`.)
 > 3. Jalankan pemeriksaan langkah 1 di terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan pemahaman profiling data mentah Anda cocok 100% dengan standar referensi.
@@ -95,8 +96,8 @@ File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dap
 :::drill python Apa yang salah dengan perjalanan ini?
 Data nyata punya perjalanan yang selesai sebelum dimulai. (Latihan pemanasan dengan aturan karangan, bukan kontrak capstone.) Tulis `trip_problem(pickup, dropoff)`: keduanya teks ISO seperti `"2024-01-05 10:00:00"`. Kembalikan `"ends_before_start"` jika dropoff sebelum pickup, `"zero_length"` jika sama persis detiknya, `"over_24h"` jika perjalanan lebih dari 24 jam, selain itu `"ok"`. Periksa masalah dalam urutan itu.
 @starter
-from datetime import datetime
-# tulis fungsimu di bawah baris ini
+from datetime import datetime, timedelta
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("trip_problem") ## Definisikan trip_problem(pickup, dropoff).
@@ -120,9 +121,9 @@ def trip_problem(pickup, dropoff):
     return "ok"
 :::
 
-:::ask File Januari berisi perjalanan dari Desember 2002 dan Februari 2024. Apa yang sebaiknya dilakukan pipeline-mu?
+:::ask File Januari berisi perjalanan dari Desember 2002 dan Februari 2024. Apa yang sebaiknya dilakukan pipeline Anda?
 @options
-* menolaknya dengan alasan, lalu menghitungnya
+* tolak dan hitung beserta alasannya
 diam-diam mengubah tanggalnya menjadi Januari
 menghapusnya tanpa menyimpan catatan apa pun
 @why
@@ -135,8 +136,8 @@ Pemeriksa tidak membatasi perkakas apa yang Anda pakai. Kami menyarankan **DuckD
 ```python
 import duckdb
 con = duckdb.connect()                                   # di memori; duckdb.connect("file.duckdb") membuat FILE database
-con.sql("DESCRIBE SELECT * FROM 'yellow_tripdata_2024-01.parquet'")    # membaca kolom dan tipe
-con.sql("SELECT count(*) AS trips, count(*) FILTER (WHERE tip_amount > 0) AS tipped FROM 'yellow_tripdata_2024-01.parquet'").fetchall()
+con.sql("DESCRIBE SELECT * FROM 'labs/mod-4-1/data/yellow_tripdata_2024-01.parquet'")    # membaca kolom dan tipe
+con.sql("SELECT count(*) AS trips, count(*) FILTER (WHERE tip_amount > 0) AS tipped FROM 'labs/mod-4-1/data/yellow_tripdata_2024-01.parquet'").fetchall()
 # [(2964624, 2254230)]: FILTER menghitung baris yang cocok di dalam satu query tunggal
 ```
 
@@ -148,9 +149,9 @@ Pola-pola SQL yang Anda butuhkan:
 - **Membuat tabel dari query di dalam file database:** `con = duckdb.connect("OUT/warehouse.duckdb")` lalu `con.execute("CREATE TABLE t AS SELECT ...")`. Selalu tutup koneksi (`con.close()`) sebelum proses lain membaca file database tersebut.
 - **Menghasilkan ID stabil dari kombinasi nilai:** `hash(col1, col2, ...)` mengembalikan angka 64-bit yang deterministik untuk kombinasi nilai yang sama pada setiap eksekusi.
 - **Durasi waktu dan kalender tanggal:** `date_diff('second', start, end) / 60.0` untuk durasi menit, `isodow(date)` untuk hari dalam sepekan (Sabtu bernilai 6), dan `unnest(generate_series(DATE '2024-01-30', DATE '2024-02-02', INTERVAL 1 DAY))` untuk deret tanggal harian.
-- **Membaca CSV lengkap dengan header:** `read_csv('taxi_zone_lookup.csv', header = true)`.
+- **Membaca CSV lengkap dengan header:** `read_csv('labs/mod-4-1/data/taxi_zone_lookup.csv', header = true)`.
 
-Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `sys.exit(2)` untuk menolak pengiriman data yang gagal uji kualitas, `print(json.dumps(...), file=sys.stderr)` untuk mencetak alasan kegagalan, serta `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) untuk operasi pergantian folder temporer secara atomik.
+Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `sys.exit(2)` untuk menolak pengiriman data yang gagal uji kualitas, `print(json.dumps(...), file=sys.stderr)` untuk mencetak alasan kegagalan, serta `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) untuk penukaran folder sementara di Pelajaran 5.
 
 **Rutinitas debugging untuk pipeline data produksi**:
 
@@ -160,14 +161,14 @@ Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `s
 4. Ketika pemeriksaan skrip checker gagal, baca pesannya secara harfiah. Pesan "expected 2,927,800, you have 2,927,801" berarti ada kelebihan satu baris; temukan baris tersebut dengan memfilter baris bersih yang melanggar aturan.
 5. Ubah satu hal dalam satu waktu lalu uji kembali. Pipeline sebesar ini selesai dalam hitungan detik, sehingga tidak ada alasan untuk menebak-nebak tanpa data.
 
-> 🛠 **Coba sendiri (20 menit, Python).** Latih pola satu baris pada file aslinya, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. Dengan DuckDB, cetak: (1) jumlah perjalanan per hari dalam seminggu dengan `isodow(tpep_pickup_datetime)` untuk penjemputan di Januari 2024 saja; (2) berapa baris yang penjemputannya di luar Januari 2024; (3) berapa baris yang waktu turunnya tidak setelah waktu jemput, dengan `date_diff('second', ...)`. Terakhir, pastikan `hash('a', 1) = hash('a', 1)` bernilai benar dan `hash('a', 1) = hash('a', 2)` bernilai salah.
+> 🛠 **Coba sendiri (20 menit, Python).** Latih pola satu baris pada file aslinya, `labs/mod-4-1/data/yellow_tripdata_2024-01.parquet`. Dengan DuckDB, cetak: (1) jumlah perjalanan per hari dalam seminggu dengan `isodow(tpep_pickup_datetime)` untuk penjemputan di Januari 2024 saja; (2) berapa baris yang penjemputannya di luar Januari 2024; (3) berapa baris yang waktu turunnya tidak setelah waktu jemput, dengan `date_diff('second', ...)`. Terakhir, di DuckDB SQL (lewat `duckdb.sql(...)`, bukan fungsi bawaan Python `hash()`), pastikan `hash('a', 1) = hash('a', 1)` bernilai benar dan `hash('a', 1) = hash('a', 2)` bernilai salah.
 >
 > **Seharusnya Anda melihat:** (1) Senin sampai Minggu: `408277`, `463662`, `495032`, `428587`, `408588`, `421158`, `339302`; (2) `18` baris di luar Januari; (3) `870` baris yang durasinya nol atau negatif; dan kedua perbandingan hash memberi `True` dan `False`. Masing-masing bisa menjadi aturan di langkah pembersihan Anda: kini Anda tahu seberapa besar setiap masalah sebelum memutuskan apa yang dilakukan terhadapnya.
 
 :::drill python Aturan pertama yang gagal
 Sebuah baris mendapat aturan **pertama** yang dilanggarnya. (Latihan pemanasan dengan aturan karangan.) Tulis `first_failure(row, rules)`: `rules` adalah daftar berurutan pasangan `(name, broken)`, dengan `broken(row)` adalah fungsi yang mengembalikan `True` bila baris melanggar aturan itu. Kembalikan nama aturan pertama yang dilanggar baris, atau `None` jika tidak melanggar satu pun.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("first_failure") ## Definisikan first_failure(row, rules).
@@ -177,7 +178,7 @@ first_failure(0, [("negative", lambda r: r < 0), ("zero", lambda r: r == 0)]) ==
 first_failure(-1, [("any", lambda r: True), ("negative", lambda r: r < 0)]) == "any" ## Kedua aturan dilanggar: yang pertama menang.
 first_failure(1, []) is None ## Tanpa aturan, tidak ada yang gagal.
 @hint
-Ulangi atas aturan secara berurutan; kembalikan namanya begitu `broken(row)` bernilai benar. Setelah loop, kembalikan `None`.
+Iterasi aturan secara berurutan; kembalikan namanya begitu `broken(row)` bernilai benar. Setelah loop, kembalikan `None`.
 @solution
 def first_failure(row, rules):
     for name, broken in rules:
@@ -216,7 +217,7 @@ Pada file data nyata, aturan ini menolak sekitar 1,2% baris, dan pemeriksa memba
 
 **Berkas Luaran.**
 
-- `OUT/clean/trips.parquet`: Memuat **2.927.800** baris dengan persis 16 kolom berikut: `trip_id` (unik, tidak boleh kosong, baris yang sama selalu menghasilkan ID yang sama; hash 64-bit dari 19 kolom asli sangat ideal), `vendor_id` integer, `pickup_at` dan `dropoff_at` timestamp, `passenger_count` integer (NULL diperbolehkan), `trip_distance_miles` double, `rate_code` teks (nama standar dari tabel di atas, selain itu "Unknown"), `pickup_zone_id` dan `dropoff_zone_id` integer, `payment_method` teks (nama standar di atas, selain itu "Unknown"), `fare_amount`, `tip_amount`, `tolls_amount`, dan `total_amount` bertipe double, `trip_minutes` double (durasi perjalanan dalam menit), `pickup_date` bertipe date.
+- `OUT/clean/trips.parquet`: Memuat **2.927.800** baris dengan persis 16 kolom berikut: `trip_id` (unik, tidak boleh kosong, baris yang sama selalu menghasilkan ID yang sama; hash 64-bit dari 19 kolom asli sangat ideal), `vendor_id` integer, `pickup_at` dan `dropoff_at` timestamp, `passenger_count` integer (NULL diperbolehkan), `trip_distance_miles` double, `rate_code` teks (**wajib menggunakan nama bahasa Inggris persis seperti pada tabel di atas**: `Standard`, `JFK`, `Newark`, `Nassau/Westchester`, `Negotiated`, `Group ride`, selain itu `Unknown`), `pickup_zone_id` dan `dropoff_zone_id` integer, `payment_method` teks (**wajib menggunakan nama bahasa Inggris persis seperti pada tabel di atas**: `Flex Fare`, `Credit card`, `Cash`, `No charge`, `Dispute`, `Unknown`, `Voided`, selain itu `Unknown`), `fare_amount`, `tip_amount`, `tolls_amount`, dan `total_amount` bertipe double, `trip_minutes` double (durasi perjalanan dalam menit), `pickup_date` bertipe date.
 - `OUT/rejected/trips_rejected.parquet`: Memuat baris-baris yang ditolak dengan **19 kolom asli ditambah kolom `reject_reason`**.
 - `OUT/quality_report.json`: Laporan dengan format `{"status": "passed", "rows_in", "duplicates_removed", "rows_rejected", "rows_clean", "reject_rate", "rejected_by_reason": {reason: count}}`. Angkanya harus terekonsiliasi: `rows_in - duplicates_removed = rows_clean + rows_rejected`. Nilai `reject_rate` adalah jumlah baris ditolak dibagi jumlah baris setelah deduplikasi.
 - `OUT/warehouse.duckdb`: Berkas database DuckDB yang memuat tabel-tabel di bawah ini.
@@ -254,7 +255,7 @@ Kontrak menyatakan apa yang valid. Baris yang tidak bisa dipercaya disisihkan **
 :::drill python Gerbang kualitas
 Sebuah kiriman ditolak jika terlalu banyak bagiannya yang ditolak. (Latihan pemanasan dengan angka karangan.) Tulis `gate_exit_code(total, rejected, max_rate)`: kembalikan `2` (tolak) bila `total` adalah `0`, atau bila `rejected / total` **di atas** `max_rate`; selain itu kembalikan `0`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("gate_exit_code") ## Definisikan gate_exit_code(total, rejected, max_rate).
@@ -271,13 +272,13 @@ def gate_exit_code(total, rejected, max_rate):
     return 2 if rejected / total > max_rate else 0
 :::
 
-:::ask Sebuah kiriman ditolak oleh gerbang kualitas (exit code 2). Apa yang harus benar pada folder OUT sesudahnya?
+:::ask Sebuah kiriman ditolak oleh gerbang kualitas (exit code 2). Bagaimana kondisi folder OUT sesudahnya?
 @options
 berisi file baru setengah jadi untuk keperluan debug
 dikosongkan agar tidak ada yang basi tersisa
 * persis seperti sebelumnya: tak satu byte pun berubah
 @why
-Kiriman yang ditolak tidak boleh mengubah apa pun. Hitung dulu semua yang dibutuhkan keputusan (kolom, jumlah baris, laju penolakan), putuskan, baru mulai menulis, sehingga run yang gagal tidak merusak keluaran yang baik.
+Kiriman yang ditolak tidak boleh mengubah apa pun. Hitung dulu semua yang dibutuhkan keputusan (kolom, jumlah baris, rasio penolakan), putuskan, baru mulai menulis, sehingga run yang gagal tidak merusak keluaran yang baik.
 :::
 
 ## @lesson Merancang agar pipeline bertahan di produksi
@@ -293,7 +294,7 @@ Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data
 
 **Rekonsiliasi angka di setiap lapisan.** Bandingkan metrik dengan lapisan sebelumnya di setiap tahap: `rows_in - duplicates = clean + rejected`, tabel fakta memiliki jumlah baris yang cocok dengan file data bersih, dan total revenue di mart cocok dengan total revenue data bersih. Operasi join yang menggandakan baris (jebakan fan-out dari Modul 0.3) akan menggelembungkan tabel fakta dan merusak angka omset tanpa memicu error exception apapun.
 
-**Bekerja dalam tahapan kecil yang terverifikasi.** Buka file Parquet dan database `warehouse.duckdb` melalui terminal DuckDB atau notebook di setiap langkah. Cetak jumlah barisnya. Cocokkan dengan angka panduan pada pelajaran ini. File `profile.json` yang Anda buat di langkah 1 bukan sekadar tugas administratif: file tersebut adalah tabel kebenaran yang akan terus Anda jadikan patokan rekonsiliasi.
+**Bekerja dalam tahapan kecil yang terverifikasi.** Buka file Parquet dan database `warehouse.duckdb` melalui terminal DuckDB atau notebook di setiap langkah. Cetak jumlah barisnya. Cocokkan dengan target jumlah di Pelajaran 3 dan 4 (`~2,93 juta` bersih, `~1,2%` ditolak). File `profile.json` yang Anda buat di langkah 1 bukan sekadar tugas administratif: file tersebut adalah tabel kebenaran yang akan terus Anda jadikan patokan rekonsiliasi.
 
 > 💡 **Jeda Praktik 3 (Langkah 3: Pemodelan Skema Bintang di DuckDB):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
@@ -304,7 +305,7 @@ Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data
 
 :::ask Mengapa menulis keluaran baru ke folder sementara di samping OUT lalu menukarnya di akhir?
 @options
-* crash tak pernah meninggalkan data separuh lama separuh baru
+* crash tak pernah menyisakan output separuh jadi
 folder sementara lebih cepat ditulis daripada yang asli
 ini menghilangkan kebutuhan menangani duplikat
 @why
@@ -329,6 +330,9 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 3. **Pemeriksa langkah 2: bersihkan dan karantina.** Di dalam `pipeline.py`, implementasikan logika deduplikasi, evaluasi 5 aturan pembersihan berurutan, pembuatan file data bersih, file data karantina, serta `quality_report.json` persis sesuai kontrak. Jalankan secara mandiri terlebih dahulu dan cocokkan angkanya dengan panduan. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 2`. Sebelum menjalankan pemeriksa, prediksi apakah angka penolakan `non_positive_total` Anda akan sama persis dengan angka di langkah 1, dan jelaskan mengapa ada selisih.
 4. **Pemeriksa langkah 3: skema bintang.** Tambahkan pembuatan berkas database `warehouse.duckdb` yang memuat tiga tabel dimensi dan tabel `fact_trip`. Rekonsiliasi jumlah baris dan total argo tabel fakta dengan file data bersih sebelum menjalankan pengujian. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 3`.
 5. **Pemeriksa langkah 4: data mart.** Tambahkan pembuatan `mart_daily` dan `mart_top_routes`. Pastikan Anda memahami rasionalisasi di balik tiap formula (mengapa tip hanya dihitung dari transaksi kartu kredit? mengapa rute didefinisikan berdasarkan ID dan bukan nama zona?). Skrip pemeriksa juga akan menguji pipeline Anda di atas file kecil yang dirancang khusus untuk menguji jebakan nama zona ganda. Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 4`.
+6. **Pemeriksa langkah 5: ketahanan produksi.** Buat pipeline Anda idempoten, atomik, dan dilindungi gerbang kualitas sesuai petunjuk pelajaran terakhir. Skrip pemeriksa akan menjalankannya lima kali lagi: dua kali pada file yang sama, satu kali pada file di mana setiap baris muncul dua kali, satu kali pada file dengan kolom yang diubah namanya, dan satu kali pada file dengan 40% data rusak (dua skenario terakhir harus keluar dengan kode 2 dan tidak mengubah folder keluaran Anda sama sekali). Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 5` (selesai di bawah satu menit pada pipeline yang optimal).
+7. **Mengalami kebuntuan?** Baca kembali materi terkait, teliti datanya dengan query, dan baru gunakan opsi petunjuk: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (kemudian level 2, lalu level 3).
+8. **Penyelesaian.** Ketika pengujian `--step all` lulus seluruhnya, jalankan `python3 scripts/prove.py mod-4-1 ~/taxi` untuk memperoleh kode bukti verifikasi dan tempelkan ke kotak **Bukti** pada halaman web lab ini. Kemudian tuliskan 3 kalimat di berkas `NOTES.md` di workspace Anda mengenai hal apa yang paling mengejutkan Anda pada data ini serta satu metrik yang wajib dipantau jika pipeline ini berjalan setiap malam.
 
 > 💡 **Jeda Praktik 4 (Langkah 4: Penerbitan Data Mart & Penanganan Ambiguitas Zona):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.
@@ -336,10 +340,6 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 > 3. Jalankan pemeriksaan langkah 4 di terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 4`
 > 4. **Indikator Sukses:** Seluruh pengujian langkah 4 berstatus `PASS` pada data Januari dan file pengujian sintetis khusus.
-
-6. **Pemeriksa langkah 5: ketahanan produksi.** Buat pipeline Anda idempoten, atomik, dan dilindungi gerbang kualitas sesuai petunjuk pelajaran terakhir. Skrip pemeriksa akan menjalankannya lima kali lagi: dua kali pada file yang sama, satu kali pada file di mana setiap baris muncul dua kali, satu kali pada file dengan kolom yang diubah namanya, dan satu kali pada file dengan 40% data rusak (dua skenario terakhir harus keluar dengan kode 2 dan tidak mengubah folder keluaran Anda sama sekali). Uji dengan: `python3 labs/mod-4-1/check.py ~/taxi --step 5` (selesai di bawah satu menit pada pipeline yang optimal).
-7. **Mengalami kebuntuan?** Baca kembali materi terkait, teliti datanya dengan query, dan baru gunakan opsi petunjuk: `python3 labs/mod-4-1/check.py ~/taxi --step 3 --hint 1` (kemudian level 2, lalu level 3).
-8. **Penyelesaian.** Ketika pengujian `--step all` lulus seluruhnya, jalankan `python3 scripts/prove.py mod-4-1 ~/taxi` untuk memperoleh kode bukti verifikasi dan tempelkan ke kotak **Bukti** pada halaman web lab ini. Kemudian tuliskan 3 kalimat di berkas `NOTES.md` di workspace Anda mengenai hal apa yang paling mengejutkan Anda pada data ini serta satu metrik yang wajib dipantau jika pipeline ini berjalan setiap malam.
 
 > 💡 **Jeda Praktik 5 (Langkah 5: Ketahanan Produksi & Bukti Kelulusan Capstone):**
 > 1. Lengkapi `pipeline.py` dengan mekanisme atomic swap (tulis ke folder staging sementara lalu ganti nama) dan evaluasi gerbang kualitas (keluar dengan kode 2 jika kolom hilang, data kosong, atau reject rate > 5%).
@@ -361,7 +361,7 @@ Bangun file `pipeline.py` dan `profile.json` di workspace Anda secara bertahap, 
 - Anda dapat menjelaskan mengapa pipeline dibangun di dalam folder sementara dan mengapa gerbang kualitas dievaluasi sebelum penulisan dilakukan
 - Anda dapat menjelaskan dua jebakan yang ada pada data (tip transaksi tunai dan kesamaan nama zona lokasi) serta cara pipeline Anda menanganinya
 - Berkas `NOTES.md` Anda mencatat temuan anomali data serta metrik observabilitas harian
-- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
+- Sebelum menulis kode: `DESIGN.md` satu halaman di workspace Anda (template: `labs/shared/writing/design_doc_template_id.md`) yang lulus `python3 scripts/check_writing.py design ~/taxi/DESIGN.md`, lalu diperbarui setiap kali sebuah keputusan berubah
 
 ### @verify
 ```bash

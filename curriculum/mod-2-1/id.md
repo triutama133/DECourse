@@ -13,7 +13,7 @@ why: Banyak tutorial menyuruh Anda langsung menyalakan cluster terdistribusi han
 - Mengambil keputusan berbasis data terukur kapan harus menggunakan pandas, Polars, DuckDB, atau beralih ke mesin terdistribusi
 
 ## @prereq
-Modul 1.2 (streaming memori) dan Modul 1.3 (SQL analitik, execution plan). Jalankan `pip install -r labs/mod-2-1/requirements.txt` untuk memasang DuckDB, Polars, dan PyArrow.
+Modul 1.2 (streaming memori) dan Modul 1.3 (SQL analitik, execution plan). Jalankan `pip install -r labs/mod-2-1/requirements.txt` untuk memasang DuckDB, Polars, PyArrow, dan pandas.
 
 ## @part Cara kerja penyimpanan kolumnar
 
@@ -26,13 +26,13 @@ Penyimpanan **berorientasi kolom (column-oriented)** menuliskan seluruh nilai da
 
 Tiga keunggulan utama format kolumnar:
 
-1. **Efisiensi I/O Disk yang Ekstrem.** Membaca 2 dari 50 kolom berarti membaca hanya sekitar 4% volume data. Pada lab praktis, Anda akan melihat laporan mesin analitik bertuliskan `PROJECT 3/7 COLUMNS`: hanya tiga dari tujuh kolom yang dimuat ke memori.
+1. **Efisiensi I/O Disk yang Ekstrem.** Membaca 2 dari 50 kolom berarti membaca hanya sekitar 4% volume data. Pada contoh benchmark 7 kolom di Pelajaran 5, Anda akan melihat laporan mesin analitik bertuliskan `PROJECT 3/7 COLUMNS`: hanya tiga dari tujuh kolom yang dimuat ke memori.
 2. **Rasio Kompresi Jauh Lebih Tinggi.** Nilai-nilai dalam satu kolom memiliki tipe data yang seragam dan pola yang berulang (`'mobile'`, `'mobile'`, `'desktop'`, ...). Karakteristik ini memungkinkan teknik kompresi tingkat tinggi seperti **dictionary encoding** (menyimpan setiap string unik satu kali lalu menggantinya dengan bilangan bulat kecil), **run-length encoding (RLE)** (mencatat `'mobile' x 1000` sekali alih-alih mengulang `'mobile'` 1.000 kali), **delta encoding** (mencatat selisih angka pada timestamp terurut), dan **bit-packing** (hanya memakai jumlah bit yang benar-benar dibutuhkan oleh nilai maksimum).
-3. **Komputasi CPU Sangat Cepat.** Menjumlahkan sebuah kolom angka menjadi perulangan sederhana pada larik array angka yang bersambungan di RAM, yang dieksekusi oleh CPU modern dengan instruksi **SIMD** (Single Instruction, Multiple Data — memproses beberapa angka sekaligus dalam satu siklus CPU).
+3. **Komputasi CPU Sangat Cepat.** Menjumlahkan sebuah kolom angka menjadi perulangan sederhana pada larik array angka yang bersambungan di RAM, yang dieksekusi oleh CPU modern dengan instruksi **SIMD** (Single Instruction, Multiple Data, menjumlahkan 4 hingga 16 angka dalam satu siklus CPU alih-alih satu baris pada satu waktu).
 
-Konsekuensinya adalah kebalikannya: membaca atau memperbarui **satu baris utuh** mengharuskan mesin membuka setiap kolom terpisah. Oleh karena itu, format kolumnar sangat ideal untuk analitik dan pemuatan data batch masif, namun buruk untuk penulisan baris tunggal frekuensi tinggi. Itulah mengapa arsitektur produksi memisahkan database OLTP untuk aplikasi dan format kolumnar untuk analitik.
+Konsekuensinya adalah kebalikannya: membaca atau memperbarui **satu baris utuh** mengharuskan mesin membuka setiap kolom terpisah. Oleh karena itu, format kolumnar sangat ideal untuk analitik dan pemuatan data batch masif, namun buruk untuk penulisan baris tunggal frekuensi tinggi. Itulah mengapa arsitektur produksi memisahkan database OLTP untuk aplikasi (Modul 0.2) dan format kolumnar untuk analitik.
 
-Pengukuran nyata pada tabel event berisi 5.000.000 baris dengan tujuh kolom (id, timestamp, kategori, dan nominal) yang dihasilkan oleh skrip lab (di mana **Snappy** mengutamakan kecepatan dekompresi dan **Zstd / Zstandard** menghasilkan ukuran file lebih kecil dengan kecepatan sebanding):
+Pengukuran nyata pada tabel benchmark ilustratif berisi 5.000.000 baris dengan tujuh kolom (id, timestamp, kategori, dan nominal) yang ditulis dengan DuckDB dan Parquet (terpisah dari tabel uji 1.000.000 baris yang lebih kecil di `test_lab.py`; di sini **Snappy** mengutamakan kecepatan dekompresi dan **Zstd / Zstandard** menghasilkan ukuran file lebih kecil dengan kecepatan sebanding):
 
 | Format File | Ukuran di Disk |
 |---|---|
@@ -43,7 +43,7 @@ Pengukuran nyata pada tabel event berisi 5.000.000 baris dengan tujuh kolom (id,
 
 Dua baris terakhir tabel di atas memperlihatkan wawasan penting: data yang *sama persis*, ketika disimpan dalam urutan acak, berukuran 65% lebih besar, karena timestamp yang terurut dan nilai berulang berada bersebelahan sehingga algoritma kompresi bekerja jauh lebih efektif. Cara Anda mengurutkan data sebelum menulisnya adalah keputusan performa arsitektur.
 
-> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install pandas pyarrow`. Muat `data/orders.csv` dengan `pd.read_csv(..., dtype={"customer_id": "string"})` dan simpan dengan `df.to_parquet("orders.parquet")`. Bandingkan ukuran kedua file dengan `os.path.getsize`. Lalu buka `pq.ParquetFile("orders.parquet").metadata.row_group(0)` dan, untuk setiap `column(i)`, cetak `path_in_schema` dan `total_compressed_size`. Kolom mana yang paling besar, mana yang paling kecil, dan mengapa? Terakhir, hitung berapa porsi byte Parquet yang harus dibaca query "total per status" (kolom `status` dan `total_idr`), dan bandingkan dengan CSV, yang setiap byte-nya harus dibaca.
+> 🛠 **Coba sendiri (10 menit, Python).** Jalankan `pip install pandas pyarrow`, lalu impor `os`, `import pandas as pd`, dan `import pyarrow.parquet as pq`. Muat `data/orders.csv` dengan `pd.read_csv(..., dtype={"customer_id": "string"})` dan simpan dengan `df.to_parquet("orders.parquet")`. Bandingkan ukuran kedua file dengan `os.path.getsize`. Lalu buka `pq.ParquetFile("orders.parquet").metadata.row_group(0)` dan, untuk setiap `column(i)`, cetak `path_in_schema` dan `total_compressed_size`. Kolom mana yang paling besar, mana yang paling kecil, dan mengapa? Terakhir, hitung berapa porsi byte Parquet yang harus dibaca query "total per status" (kolom `status` dan `total_idr`), dan bandingkan dengan CSV, yang setiap byte-nya harus dibaca.
 >
 > **Seharusnya Anda melihat:** CSV-nya `195075` byte dan file Parquet sekitar 77.000 (angka persisnya sedikit bergeser menurut versi library), jauh di bawah separuhnya. `order_ts` adalah kolom terbesar (sekitar 37 KB: hampir setiap nilainya berbeda), `status` dan `payment_method` yang terkecil (1 sampai 2 KB: segelintir nilai yang berulang), dan `status` ditambah `total_idr` sekitar 9% dari byte Parquet.
 
@@ -51,7 +51,7 @@ Dua baris terakhir tabel di atas memperlihatkan wawasan penting: data yang *sama
 @options
 * tata letak kolom: hanya membaca nilai amount
 tata letak baris: membaca tiap rekaman utuh
-keduanya sama, ukuran file-nya sama besar
+keduanya membaca sama, ukuran file-nya sama besar
 @why
 Penyimpanan kolom menyatukan semua nilai satu kolom, jadi mesin hanya membaca byte kolom itu (sekitar 1/50 tabel). Tata letak baris harus membaca setiap baris utuh untuk sampai ke satu field.
 :::
@@ -64,7 +64,7 @@ statuses = [r[1] for r in rows]
 amounts = [r[2] for r in rows]
 print(sum(amounts))
 @notes
-1 | **Tata letak baris**: setiap tuple adalah satu rekaman utuh. Untuk menjumlahkan satu field, kamu tetap melewati setiap rekaman.
+1 | **Tata letak baris**: setiap tuple adalah satu rekaman utuh. Untuk menjumlahkan satu field, Anda tetap melewati setiap rekaman.
 2 | **Tata letak kolom, langkah 1**: semua id berdampingan.
 4 | **Tata letak kolom, langkah 3**: semua amount berdampingan. Query total hanya menyentuh daftar ini.
 5 | Penjumlahan membaca satu daftar dan mengabaikan dua lainnya. Data sama, urutan di disk berbeda.
@@ -73,7 +73,7 @@ print(sum(amounts))
 :::drill python Baris ke kolom
 Tulis `to_columns(rows, names)`: `rows` adalah daftar tuple, `names` nama kolom. Kembalikan dictionary yang memetakan tiap nama ke daftar nilai kolom itu, sesuai urutan baris.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("to_columns") ## Definisikan to_columns(rows, names).
@@ -81,7 +81,7 @@ to_columns([(1, "a"), (2, "b")], ["id", "tag"]) == {"id": [1, 2], "tag": ["a", "
 to_columns([], ["x"]) == {"x": []} ## Tanpa baris: setiap kolom berupa daftar kosong.
 to_columns([(5, 6, 7)], ["a", "b", "c"]) == {"a": [5], "b": [6], "c": [7]} ## Berlaku untuk jumlah kolom berapa pun.
 @hint
-`{name: [row[i] for row in rows] for i, name in enumerate(names)}`
+Pasangkan setiap indeks kolom `i` dengan nama kolomnya memakai `enumerate(names)`, lalu petakan tiap nama ke daftar yang mengumpulkan `row[i]` dari setiap tuple di `rows`.
 @solution
 def to_columns(rows, names):
     return {name: [row[i] for row in rows] for i, name in enumerate(names)}
@@ -108,7 +108,7 @@ file
 
 > 💡 **Jeda Praktik: Konversi CSV ke Parquet dengan DuckDB**
 > 1. Buka file `labs/mod-2-1/analytics.py` di Text Editor (VS Code / Cursor). Jangan mengeksekusi file Python langsung di bash terminal tanpa interpreter.
-> 2. Temukan fungsi `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Gunakan perintah DuckDB `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` untuk mengonversi CSV ke Parquet terkompresi zstd dengan ukuran row group yang ditentukan. Ingat bahwa klausa target path pada `COPY ... TO` tidak menerima placeholder parameter `?`, jadi susun query SQL sebagai f-string dengan path yang dibersihkan.
+> 2. Temukan fungsi `to_parquet(csv_path, parquet_path, row_group_size=100_000)`. Jalankan SQL DuckDB dari Python dengan `duckdb.connect().execute("...")` (dibahas lengkap di Pelajaran 4), menggunakan perintah `COPY (SELECT * FROM read_csv('...', header=true)) TO '...' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE ...)` untuk mengonversi CSV ke Parquet terkompresi zstd dengan ukuran row group yang ditentukan. Ingat bahwa klausa target path pada `COPY ... TO` tidak menerima placeholder parameter `?`, jadi susun query SQL sebagai f-string dengan path yang dibersihkan.
 > 3. Buka terminal Anda dan jalankan pengujian unit konversi Parquet:
 > `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
 > 4. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana tipe data berhasil diinferensikan secara otomatis dan kompresi ZSTD diterapkan pada tiap row group.
@@ -118,18 +118,18 @@ file
 - **Projection Pushdown (Column Pruning).** Mesin analitik hanya membaca kolom-kolom yang secara eksplisit diminta oleh query dan mengabaikan sisa kolom lainnya.
 - **Predicate Pushdown (Filter Pushdown).** Sebelum membaca halaman data dari disk, mesin membandingkan klausa filter WHERE dengan statistik min/max di footer, lalu **melewati (skipping) seluruh row group yang mustahil memuat data target**. Jika rentang timestamp suatu row group adalah pukul 09:00 s.d. 09:15 dan query meminta data pukul 14:00 s.d. 15:00, seluruh row group tersebut dilewati tanpa dibaca sama sekali.
 
-Efektivitas predicate pushdown sangat bergantung pada **urutan sortir baris (sort order)**. Pada file lab berisi 5 juta baris (50 row group masing-masing 100.000 baris), filter rentang waktu satu jam hanya perlu membaca **5 dari 50 row group** pada file yang terurut waktu, namun harus membaca **seluruh 50 row group** pada file dengan data acak: rentang min/max setiap row group pada data acak mencakup rentang sepanjang hari, sehingga tidak ada satu pun yang dapat dilewati. Di lab praktis, Anda akan mengimplementasikan fungsi keputusan ini sendiri (`row_groups_to_read`): hanya bermodalkan metadata footer, tentukan row group mana saja yang wajib dibaca.
+Efektivitas predicate pushdown sangat bergantung pada **urutan sortir baris (sort order)**. Pada contoh benchmark 5 juta baris (50 row group masing-masing 100.000 baris), filter rentang waktu satu jam hanya perlu membaca **5 dari 50 row group** pada file yang terurut waktu, namun harus membaca **seluruh 50 row group** pada file dengan data acak: rentang min/max setiap row group pada data acak mencakup rentang sepanjang hari, sehingga tidak ada satu pun yang dapat dilewati. Statistiknya sama persis; tata letaknyalah yang menentukan apakah statistik itu berguna. Di lab praktis, Anda akan mengimplementasikan fungsi keputusan ini sendiri (`row_groups_to_read`, di mana `test_lab.py` menguji tabel 1 juta baris dengan 20 row group dan mengharapkan 1 hingga 3 row group pada data terurut): hanya bermodalkan metadata footer, tentukan row group mana saja yang wajib dibaca.
 
 Pelajaran praktis untuk perancangan pipeline:
 
 - **Urutkan atau kelompokkan data berdasarkan kolom yang paling sering difilter** (biasanya kolom tanggal/waktu transaksi) saat menulis file Parquet.
-- **Ukuran row group dan file yang ideal.** Ukuran row group sekitar 100.000 hingga 1.000.000 baris memberikan keseimbangan terbaik antara efektivitas skipping dan overhead metadata. Target ukuran satu file Parquet adalah 100 MB hingga 1 GB. Ribuan file berukuran kecil (beberapa kilobyte) akan memperlambat query (dikenal sebagai **small files problem**), yang harus diperbaiki melalui proses pemadatan (compaction).
-- **File Parquet bersifat immutable.** Anda tidak dapat memperbarui satu baris di tempat; modifikasi data berarti menulis file Parquet baru.
+- **Ukuran row group dan file yang ideal.** Ukuran row group sekitar 100.000 hingga 1.000.000 baris memberikan keseimbangan terbaik antara efektivitas skipping dan overhead metadata. Target ukuran satu file Parquet adalah 100 MB hingga 1 GB. Ribuan file berukuran kecil lambat diproses (masing-masing butuh pembukaan file, pembacaan footer, dan pencatatan metadata); inilah **small files problem**, yang diperbaiki melalui proses pemadatan (compaction, Modul 2.2).
+- **File Parquet bersifat immutable.** Anda tidak dapat memperbarui satu baris di tempat; modifikasi data berarti menulis file Parquet baru. Format tabel terbuka (Modul 2.2) membangun pembaruan yang aman di atas fondasi ini.
 
 :::ask Satu file Parquet punya 3 row group. Footer menyatakan `total` 0 sampai 100 di group 0, 100 sampai 200 di group 1, dan 200 sampai 300 di group 2. Anda menjalankan query `WHERE total > 250`. Berapa row group yang harus dibaca engine?
 @options
-ketiganya, untuk memastikan
-* satu: hanya group 2 yang bisa berisi nilai di atas 250
+ketiga row group, untuk memastikan
+* hanya satu (group 2)
 tidak ada, footer tidak bisa dipercaya
 @why
 Setiap row group menyimpan statistik min/max di footer. Group 0 dan 1 punya maksimum di bawah 250, jadi engine **melewatinya** tanpa membaca datanya. Inilah predicate pushdown, dan mengapa data yang terurut (rentang sempit) lebih banyak dilewati.
@@ -145,18 +145,18 @@ Setiap row group menyimpan statistik min/max di footer. Group 0 dan 1 punya maks
 ## @lesson Apache Arrow dan eksekusi tervektorisasi (vectorized)
 **Apache Arrow** adalah format data kolumnar standar untuk representasi **di dalam memori RAM**, pasangan serasi dari Parquet yang berada di disk. Nilai terbesar Arrow adalah standardisasi memori bersama: DuckDB, Polars, pandas (dengan backend PyArrow), Spark, dan database dapat bertukar data di RAM **tanpa serialisasi dan tanpa penyalinan memori (zero-copy)**. Itulah mengapa konversi `duckdb_result.pl()` (ke Polars) atau `.arrow()` berlangsung seketika.
 
-Bagaimana mesin query modern menghitung data kolom secara kilat? Basis data konvensional memproses data **satu baris demi satu baris** ("tuple-at-a-time" / model iterator Volcano), yang membayar overhead pemanggilan fungsi dan conditional branch pada setiap nilai. Mesin analitik kolumnar modern menerapkan **eksekusi tervektorisasi (vectorized execution)**: mereka memproses **satu batch larik nilai** (DuckDB memproses vektor berisi 2.048 nilai) sekaligus dalam perulangan loop CPU yang rapat. Manfaatnya: data tetap berada di CPU L1/L2 cache, overhead loop diamortisasi melintasi ribuan nilai, compiler dapat mengaktifkan instruksi **SIMD** (Single Instruction Multiple Data: satu instruksi CPU memproses banyak angka sekaligus), dan filter dievaluasi sebelum kolom lain dimuat ke memori (**late materialization**). Dipadukan dengan multi-threading, sebuah laptop mampu memaksimalkan seluruh bandwidth memori perangkat kerasnya.
+Bagaimana mesin query modern menghitung data kolom secara kilat? Basis data konvensional memproses data **satu baris demi satu baris** ("tuple-at-a-time"), yang membayar overhead pemanggilan fungsi dan conditional branch pada setiap nilai. Mesin analitik kolumnar modern menerapkan **eksekusi tervektorisasi (vectorized execution)**: mereka memproses **satu batch larik nilai** (DuckDB memproses vektor berisi 2.048 nilai) sekaligus dalam perulangan loop CPU yang rapat. Manfaatnya: data tetap berada di CPU L1/L2 cache, overhead loop diamortisasi melintasi ribuan nilai, compiler dapat mengaktifkan instruksi **SIMD** (Single Instruction Multiple Data: satu instruksi CPU memproses banyak angka sekaligus), dan filter dievaluasi sebelum kolom lain dimuat ke memori (**late materialization**). Dipadukan dengan multi-threading, sebuah laptop mampu memaksimalkan seluruh bandwidth memori perangkat kerasnya.
 
-Prinsip penting yang harus menjadi kebiasaan kerja Anda: **nyatakan logika transformasi sebagai operasi berbasis kolom utuh** (melalui query SQL atau ekspresi dataframe) dan biarkan mesin C++/Rust yang menjalankan loop-nya. Perulangan loop `for` Python baris demi baris membayar overhead interpreter Python yang sangat mahal pada tiap elemen; logika yang sama jika ditulis sebagai ekspresi SQL DuckDB atau Polars akan berjalan ratusan kali lebih cepat.
+Prinsip penting yang harus menjadi kebiasaan kerja Anda: **nyatakan logika transformasi sebagai operasi berbasis kolom utuh** (melalui query SQL atau ekspresi dataframe) dan biarkan mesin C++/Rust yang menjalankan loop-nya. Perulangan loop `for` Python baris demi baris membayar overhead interpreter Python yang sangat mahal pada tiap elemen (Modul 1.2); logika yang sama jika ditulis sebagai ekspresi SQL DuckDB atau Polars akan berjalan jauh lebih cepat.
 
-> 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB atas `range(2000000) t(x)`. Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
+> 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB lewat `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchone()[0]` (di SQL DuckDB, `range(N) t(x)` adalah fungsi generator tabel bawaan yang menghasilkan baris `0..N-1` pada kolom `x`, dibahas lebih lanjut di Pelajaran 4). Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
 >
 > **Seharusnya Anda melihat:** kedua jawaban bernilai `1333332666666`; loop-nya butuh sekitar 160 ms dan DuckDB sekitar 20 ms. Rasio persisnya tergantung mesin Anda (harapkan antara 5 dan 15 kali), tetapi arahnya tidak pernah berubah: logika yang sama sebagai satu operasi kolom mengalahkan loop baris demi baris.
 
 :::ask Sebuah job melakukan `for` loop Python atas 10 juta baris untuk menambah 1 pada tiap harga. Kebiasaan mana yang lebih baik?
 @options
 pertahankan loop dan jalankan di mesin lebih besar
-* tulis satu ekspresi seluruh kolom untuk mesin
+* tulis satu ekspresi seluruh kolom
 ubah harga ke teks agar penambahan lebih mudah
 @why
 Operasi seluruh kolom menjalankan loop di dalam kode terkompilasi atas memori yang berurutan, sering puluhan kali lebih cepat daripada loop Python yang membayar overhead interpreter per nilai.
@@ -199,7 +199,7 @@ READ_PARQUET
 
 Perhatikan bahwa **proyeksi kolom** (hanya dua kolom yang dibaca) dan **filter** dieksekusi langsung di dalam node pembacaan file: inilah bukti nyata projection pushdown dan predicate pushdown. Jika filter muncul di node terpisah di *atas* node pembacaan, itu menandakan data dibaca seluruhnya terlebih dahulu baru kemudian disaring. Gunakan `EXPLAIN ANALYZE` untuk melihat metrik durasi waktu nyata per node.
 
-**Mengolah data yang lebih besar dari kapasitas RAM (Out-of-Core Processing).** DuckDB secara otomatis menumpahkan data sementara ke disk (spill to disk) saat kebutuhan memori query melebihi batas yang ditentukan: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. Pada pengujian lab, pengurutan 5.000.000 baris di bawah batas memori 200 MB selesai dalam 0,3 detik dengan puncak konsumsi RAM hanya 194 MB tanpa mengalami crash OOM. Konfigurasi berguna lainnya: `SET threads = 4` untuk membatasi pemakaian core CPU di lingkungan container bersama.
+**Mengolah data yang lebih besar dari kapasitas RAM (Out-of-Core Processing).** DuckDB secara otomatis menumpahkan data sementara ke disk (spill to disk) saat kebutuhan memori query melebihi batas yang ditentukan: `SET memory_limit = '2GB'; SET temp_directory = '/tmp/duck'`. Pada pengujian, pengurutan 5.000.000 baris di bawah batas memori 200 MB selesai dalam 0,3 detik dengan puncak konsumsi RAM hanya 194 MB tanpa dihentikan paksa oleh OS akibat kehabisan memori (Modul 1.1). Konfigurasi berguna lainnya: `SET threads = 4` untuk membatasi pemakaian core CPU di lingkungan container bersama.
 
 **File di object storage.** Di platform sungguhan, file Parquet ini tinggal di object storage seperti Amazon S3, bukan di laptop, dan setiap file yang dibuka DuckDB adalah satu request jaringan yang memakan waktu dan, di S3, uang. Anda bisa melihatnya tanpa akun AWS: **moto** adalah program open-source yang menjawab seperti S3 di komputer Anda sendiri (Modul 3.4 memakainya untuk Terraform). Jalankan di terminalnya sendiri dan biarkan tetap berjalan, lalu arahkan DuckDB ke sana:
 
@@ -264,7 +264,7 @@ SELECTION: col("event_type") == "purchase"
 
 Hanya tiga dari tujuh kolom yang dimuat, dan filter dieksekusi di dalam pembacaan file. (`pl.read_parquet` adalah versi *eager*: memuat seluruh data ke memori terlebih dahulu dan kehilangan optimasi pushdown; selalu prioritaskan `scan_*` untuk memproses file). Polars secara default memanfaatkan seluruh core CPU dan memiliki fitur streaming untuk data yang melebihi kapasitas RAM.
 
-**Bagaimana dengan pandas?** pandas sangat populer dan sangat bagus untuk dataset kecil, eksplorasi awal, serta ekosistem visualisasi/machine learning. Namun kelemahannya muncul saat skala data membesar: pandas memuat tabel utuh ke RAM, merepresentasikan teks string sebagai Python object (yang memboroskan memori), dan sebagian besar operasinya berjalan di single thread. Pengujian terukur pada file yang sama berisi 5 juta baris, masing-masing dijalankan pada proses Python bersih:
+**Bagaimana dengan pandas?** pandas sangat populer dan sangat bagus untuk dataset kecil, eksplorasi awal, serta ekosistem visualisasi/machine learning. Namun kelemahannya muncul saat skala data membesar: pandas memuat tabel utuh ke RAM, merepresentasikan teks string sebagai Python object (yang memboroskan memori), dan sebagian besar operasinya berjalan di single thread. Pengujian terukur pada tabel benchmark ilustratif 5 juta baris dengan 7 kolom yang sama dari Pelajaran 1 (terpisah dari tabel uji 1 juta baris yang lebih kecil di `test_lab.py`), masing-masing dijalankan pada proses Python bersih (pada pengujian pandas, puncak konsumsi memori mencakup baseline sekitar 100 hingga 150 MB untuk mengimpor Python bersama `pandas` dan `pyarrow`; `duckdb` mandiri memiliki jejak impor yang lebih kecil):
 
 | Percobaan: Agregasi `amount` berdasarkan `event_type` | Durasi Waktu | Puncak Konsumsi RAM |
 |---|---|---|
@@ -275,7 +275,7 @@ Hanya tiga dari tujuh kolom yang dimuat, dan filter dieksekusi di dalam pembacaa
 | DuckDB langsung membaca file Parquet | **0.1 detik** | **80 MB** |
 | Polars lazy membaca file Parquet | 0.2 detik | 160 MB |
 
-Perhatikan baris kedua: membaca Parquet ke pandas mengonsumsi memori *lebih banyak* daripada membaca CSV, karena pandas harus mewujudkan seluruh tujuh kolom sebagai Python object di RAM. Membatasi kolom yang dibaca (`columns=[...]`) memangkas konsumsi RAM hingga separuhnya. Mesin modern seperti DuckDB dan Polars yang mendorong filter dan proyeksi langsung ke pembacaan file sama sekali tidak pernah menyusun tabel utuh di RAM.
+Perhatikan baris kedua: membaca Parquet ke pandas mengonsumsi memori *lebih banyak* daripada membaca CSV, karena pandas harus mewujudkan seluruh tujuh kolom sebagai Python object di RAM. Membatasi kolom yang dibaca (`columns=[...]`) memangkas konsumsi RAM hingga separuhnya. Mesin modern seperti DuckDB dan Polars yang mendorong filter dan proyeksi langsung ke pembacaan file sama sekali tidak pernah menyusun tabel utuh di RAM. (Angka pastinya bergantung pada mesin dan versi library Anda; ukur sendiri seperti pada Langkah 6 lab. Rasio perbandingannyalah pelajarannya.)
 
 Panduan praktis memilih alat:
 
@@ -290,45 +290,47 @@ DuckDB dan Polars saling terhubung erat melalui format memori Apache Arrow, sehi
 
 > 💡 **Jeda Praktik: Analisis Kolumnar Lazy dengan Polars**
 > 1. Di Text Editor pada `labs/mod-2-1/analytics.py`, buka fungsi `revenue_by_month_roast_polars(data_dir)`.
-> 2. Implementasikan pipeline analitik yang sama secara **lazy** menggunakan `pl.scan_parquet(...)`. Gabungkan items dengan orders dan products (`join`), tambahkan kolom turunan bulan transaksi dan subtotal menggunakan `.with_columns()`, lakukan `.group_by("month", "roast_level")`, lalu agregasikan `.agg(pl.col("line").sum().alias("revenue"))`, urutkan dengan `.sort()`, dan jalankan eksekusi dengan `.collect()`.
+> 2. Implementasikan pipeline analitik yang sama secara **lazy** menggunakan `pl.scan_parquet(...)`. Rangkai `.join(orders, on="order_id").join(products, on="product_id")` untuk menggabungkan tabel, tambahkan kolom turunan dengan `.with_columns(month=pl.col("order_ts").dt.strftime("%Y-%m"), line=pl.col("qty") * pl.col("unit_price_idr"))`, kelompokkan dengan `.group_by("month", "roast_level")`, agregasikan dengan `.agg(pl.col("line").sum().alias("revenue"))`, urutkan dengan `.sort("month", "roast_level")`, jalankan dengan `.collect()`, lalu ubah baris hasilnya menjadi tuple Python biasa dengan `.iter_rows()`.
 > 3. Jalankan pengujian engine di terminal:
 > `pytest labs/mod-2-1/test_lab.py -v -k TestEngines`
 > 4. Pastikan seluruh 3 pengujian engine lulus (`3 passed`). Amati bagaimana dua mesin berbeda (DuckDB dan Polars) menghasilkan output yang 100% identik dengan hasil independen SQLite.
 
-:::ask Di Polars kamu menulis `scan_parquet(...).filter(...).select(...)` dan sepertinya tidak terjadi apa-apa. Mengapa?
+:::ask Di Polars Anda menulis `scan_parquet(...).filter(...).select(...)` dan sepertinya tidak terjadi apa-apa. Mengapa?
 @options
 filenya kosong, jadi tidak ada yang dijalankan
 ia menunggu thread latar belakang memuat data
-* ia hanya membangun rencana; collect() menjalankannya
+* ia hanya menyusun rencana; collect() pemicunya
 @why
 Itulah lazy evaluation: rantai itu mendeskripsikan kerja, dan `.collect()` memicunya. Karena optimizer melihat seluruh rencana, ia bisa mendorong filter ke dalam scan dan hanya membaca kolom yang dipilih.
 :::
 
 ## @lesson Tata letak partisi, tipe data, dan jebakan umum
-**Partisi Direktori (Partitioning).** Membagi data ke dalam sub-folder berdasarkan nilai kolom tertentu (`month=2026-01/`) memungkinkan mesin query melewati seluruh folder yang tidak relevan saat ada filter pada kolom tersebut (partition pruning). Panduan praktis: partisi data hanya pada **kolom ber-kardinalitas rendah yang rutin difilter** (seperti tanggal atau wilayah), jangan pernah partisi pada ID transaksi; hindari pembagian partisi yang melahirkan ribuan file mini; dan prioritaskan **pengurutan data di dalam file** untuk kolom ber-kardinalitas tinggi karena statistik row group Parquet dapat menanganinya dengan sangat efisien. Partisi berlebihan (*over-partitioning*) adalah kesalahan paling umum data engineer pemula.
+**Partisi Direktori (Partitioning).** Membagi data ke dalam sub-folder berdasarkan nilai kolom tertentu (`month=2026-01/`) memungkinkan mesin query melewati seluruh folder yang tidak relevan saat ada filter pada kolom tersebut (partition pruning). Panduan praktis: partisi data hanya pada **kolom ber-kardinalitas rendah yang rutin difilter** (seperti tanggal atau wilayah), jangan pernah partisi pada ID transaksi; hindari pembagian partisi yang melahirkan ribuan file mini (100 pelanggan × 365 hari = puluhan ribu file kecil); dan prioritaskan **pengurutan data di dalam file** untuk kolom ber-kardinalitas tinggi karena statistik row group Parquet dapat menanganinya dengan sangat efisien. Partisi berlebihan (*over-partitioning*) adalah kesalahan paling umum data engineer pemula.
 
 **Disiplin Tipe Data:**
 
 - **Uang dan Nilai Moneter.** Jangan pernah menyimpan nilai mata uang sebagai floating-point IEEE 754 (`0.1 + 0.2 != 0.3`). Gunakan integer dalam satuan terkecil (rupiah atau sen, seperti di KopiKu) atau tipe data `DECIMAL` berpresisi tetap. Seluruh perhitungan omset pada lab ini wajib menghasilkan integer karena alasan tersebut.
 - **Timestamp dan Zona Waktu.** Tentukan secara tegas apakah kolom disimpan dalam waktu lokal atau UTC; tipe data `TIMESTAMP` tanpa zona waktu bersifat ambigu. Praktik terbaik: selalu simpan data dalam standar UTC di lapisan penyimpanan.
-- **Identitas Berupa Angka.** Inferensi otomatis pada file CSV sering membaca nomor telepon atau kode pos `00123` sebagai angka numerik 123, yang menghilangkan nol di depan. Nyatakan kolom tersebut secara eksplisit sebagai string/teks.
+- **Identitas Berupa Angka.** Inferensi otomatis pada file CSV sering membaca nomor telepon atau kode pos `00123` sebagai angka numerik 123, yang menghilangkan nol di depan. Nyatakan kolom tersebut secara eksplisit sebagai string/teks. Inferensi mengambil sampel dari awal file, sehingga kolom yang berupa angka pada 10.000 baris pertama lalu berisi teks di bagian bawah akan memicu kegagalan; tetapkan tipe data secara eksplisit atau perbesar sampel baris.
 - **Pergeseran Skema (Schema Drift).** Kolom yang bertipe `int` pada file bulan Januari namun berubah menjadi `string` pada bulan Maret akan menggagalkan query pembacaan banyak file. Lakukan validasi skema ketat pada gerbang ingestion (Modul 2.5).
 
-Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena mematikan column pruning; lakukan filter sedini mungkin pada kolom yang terurut; tulis file Parquet dengan kompresi zstd dan ukuran row group eksplisit; prioritaskan sedikit file berukuran besar daripada ribuan file mini; dan selalu lakukan verifikasi dengan perintah `EXPLAIN` serta pengujian benchmark nyata sebelum mempercayai klaim performa apa pun.
+Kebiasaan rekayasa yang baik: hindari `SELECT *` pada data kolumnar karena mematikan column pruning; lakukan filter sedini mungkin pada kolom yang terurut; tulis file Parquet dengan kompresi zstd dan ukuran row group eksplisit; prioritaskan sedikit file berukuran besar daripada ribuan file mini; pisahkan data mentah dari salinan hasil konversi (lapisan raw dari Modul 0.2); dan selalu lakukan verifikasi dengan perintah `EXPLAIN` serta pengujian benchmark nyata sebelum mempercayai klaim performa apa pun.
 
 > 💡 **Jeda Praktik: Verifikasi Seluruh Rangkaian Pengujian Kolumnar**
 > 1. Setelah semua empat fungsi dalam `labs/mod-2-1/analytics.py` selesai diimplementasikan, jalankan seluruh rangkaian tes dari terminal:
 > `pytest labs/mod-2-1 -v`
 > 2. Pastikan ke-10 pengujian lulus sempurna tanpa hambatan (`10 passed`).
-> 3. Amati perbedaan waktu eksekusi dan konsumsi memori antara DuckDB dan Polars untuk membuktikan kekuatan komputasi kolumnar in-process di mesin lokal Anda.
+> 3. Hasilkan kode bukti penyelesaian Anda dengan menjalankan:
+> `python3 scripts/prove.py mod-2-1`
+> 4. Perhatikan bahwa `pytest` hanya memverifikasi kebenaran hasil, untuk mengukur dan membandingkan waktu eksekusi serta puncak konsumsi memori antara pandas, DuckDB, dan Polars, lakukan benchmark pada Langkah 6 di bagian lab di bawah.
 
-:::ask Tabelmu berisi data harian 5 tahun, dan query hampir selalu memfilter satu tanggal. Kolom partisi mana yang masuk akal?
+:::ask Tabel Anda berisi data harian 5 tahun, dan query hampir selalu memfilter satu tanggal. Kolom partisi mana yang masuk akal?
 @options
 * tanggal atau bulan, yang dipakai untuk filter
 id pesanan, sehingga tiap baris punya folder
 nama pelanggan, karena paling deskriptif
 @why
-Partisi pada kolom yang kamu filter dan yang jumlah nilainya wajar. Id akan membuat jutaan folder dan file kecil, yaitu masalah file kecil lagi.
+Partisi pada kolom yang Anda filter dan yang jumlah nilainya wajar. Id akan membuat jutaan folder dan file kecil, yaitu masalah file kecil lagi.
 :::
 
 :::ask Sebuah pipeline menyimpan uang sebagai floating point. Total pendapatan kadang menjadi 0.30000000000000004, bukan 0.3. Apa perbaikannya?
@@ -353,7 +355,7 @@ Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab
 | **Apache Parquet** | **Kolumnar** (Row Group → Column Chunk → Page + statistik Footer) | Baik (tambah/hapus kolom; berbasis ID di Iceberg/Delta) | Tinggi (`4×–10×` via Dictionary + RLE + Bit-packing + **Zstd / Snappy**). Dapat dibagi (splittable) per row group. | **Standar utama penyimpanan lakehouse & warehouse analitik** (`S3/GCS`, Spark, DuckDB, Polars, BigQuery, Snowflake). |
 | **Apache ORC** | **Kolumnar** (Stripe + Index/Data/Footer) | Baik | Kompresi sangat tinggi dengan **Zstd / Zlib**. Splittable per stripe. | Klaster analitik skala besar berbasis Hive / Trino / Presto. |
 | **Apache Avro** | **Biner berbasis baris** (skema JSON di dalam header file) | **Terbaik di kelasnya** (resolusi skema reader/writer penuh di Schema Registry) | Penanda blok splittable; dipadukan dengan **Snappy / Deflate**. | **Payload event streaming Kafka**, log CDC, dan landing zone padat-tulis yang membaca satu baris utuh sekaligus. |
-| **Protocol Buffers (Protobuf)** | **Biner berbasis baris** (tag nomor field `1, 2, 3`) | **Terbaik di kelasnya** (aman backward/forward lewat ID tag nomor) | Ukuran paket jaringan sangat ringkas. | **Microservice gRPC, telemetri mobile, dan topik Kafka berkecepatan tinggi**. |
+| **Protocol Buffers (Protobuf)** | **Biner berbasis baris** (tag nomor field `1, 2, 3`) | **Terbaik di kelasnya** (aman backward/forward lewat ID tag nomor) | Ukuran paket jaringan sangat ringkas; memerlukan framing agar file dapat dibagi (splittable). | **Microservice gRPC, telemetri mobile, dan topik Kafka berkecepatan tinggi**. |
 | **Apache Arrow (IPC / Feather)** | **Kolumnar di memori** (buffer byte zero-copy) | Spesifikasi tipe memori yang presisi | Framing **LZ4 / Zstd** opsional untuk transfer jaringan cepat. | **Pertukaran memori zero-copy** antara Python, Polars, DuckDB, Spark Pandas UDF, dan Flight RPC. |
 | **CSV / JSONL** | **Teks berbasis baris** | Tidak ada (teks tanpa tipe, rawan schema drift diam-diam) | Hanya splittable jika tidak dikompresi atau memakai `bzip2`; **CSV Gzip TIDAK splittable**! | Pertukaran file manual atau pendaratan awal API pihak ketiga sebelum diubah ke Parquet Bronze. |
 
@@ -363,7 +365,7 @@ Dua pertanyaan arsitektur penyimpanan selalu muncul dalam tinjauan produksi (Bab
 
 | Mesin Penyimpanan | Digunakan Oleh | Jalur Tulis (Write Path) | Jalur Baca (Read Path) | Dampak bagi Data Engineer (Ingestion & Serving) |
 |---|---|---|---|---|
-| **B+Tree** (Berorientasi halaman, update halaman di tempat + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Menulis ke WAL, lalu memodifikasi halaman B-Tree berukuran tetap `8 KB / 16 KB` di tempat (memicu I/O disk acak saat penulisan padat). | **Pembacaan titik & rentang O(log N) yang sangat cepat** menelusuri pointer pohon berimbang. | Tarik data menggunakan **WAL Change Data Capture (Debezium)** alih-alih melakukan polling `SELECT *`, agar tidak berebut kunci halaman (page lock) dengan transaksi OLTP. |
+| **B+Tree** (Berorientasi halaman, update halaman di tempat + WAL) | PostgreSQL, MySQL, SQL Server, Oracle | Menulis ke **WAL** (*Write-Ahead Log*, log append-only untuk ketahanan data sebelum halaman data diubah), lalu memodifikasi halaman B-Tree berukuran tetap `8 KB / 16 KB` di tempat (memicu I/O disk acak saat penulisan padat). | **Pembacaan titik & rentang O(log N) yang sangat cepat** menelusuri pointer pohon berimbang. | Tarik data menggunakan **WAL Change Data Capture (Debezium)** alih-alih melakukan polling `SELECT *`, agar tidak berebut kunci halaman (page lock) dengan transaksi OLTP. |
 | **LSM-Tree** (Append-only MemTable → SSTable immutable + Compaction) | Cassandra, RocksDB, Bigtable, HBase, ScyllaDB | Menulis ke WAL + **MemTable** terurut di RAM; menguras secara berurutan ke file **SSTable (Sorted String Table)** immutable di disk; proses latar **Compaction** menggabungkan SSTable. | Memeriksa MemTable + memeriksa SSTable dengan bantuan **Bloom Filter** (yang memberi tahu dalam O(1) apakah suatu kunci *pasti tidak ada* di sebuah SSTable). | **Throughput tulis super tinggi** untuk telemetri IoT dan online feature store. Tarik perubahan ke hilir melalui **DynamoDB Streams / MongoDB Change Streams** ke Parquet Bronze. |
 
 > 🛠 **Coba sendiri (15 menit, Python dengan `pandas` dan `pyarrow`).** Baca `data/orders.csv` sebagai teks, simpan baris yang `total_idr`-nya hanya berisi angka dan jadikan `order_id`, `customer_id`, dan `total_idr` integer, lalu ulang barisnya 30 kali. Tulis tabel yang sama dengan enam cara: CSV, CSV ber-gzip, dan Parquet dengan `compression=` `"none"`, `"snappy"`, `"gzip"`, dan `"zstd"` (`pyarrow.parquet.write_table`). Bandingkan ukuran filenya, dan tebak urutannya sebelum melihat.
@@ -381,10 +383,10 @@ Bab 6 *Fundamentals of Data Engineering* dimulai di bawah warehouse dan lake, de
 | Contoh di cloud | AWS EBS, Azure Managed Disks, Google Persistent Disk | AWS EFS, Azure Files, Google Filestore | S3, Azure Blob dan ADLS Gen2, Google Cloud Storage |
 | Mengubah sebagian | Bisa: tulis ulang blok mana pun | Bisa: tambahkan ke atau edit file | Tidak: ganti seluruh objek |
 | Rename folder | Satu operasi | Satu operasi | Tidak ada folder sungguhan: salin dan hapus setiap objek (ADLS Gen2 dengan hierarchical namespace adalah pengecualiannya) |
-| Pemakaian umum | File data database, boot disk VM | Folder home bersama, alat yang butuh file system POSIX | Data lake, tabel lakehouse, backup, apa pun yang besar |
+| Pemakaian umum | File data database, boot disk VM | Folder home bersama, alat yang butuh file system POSIX (antarmuka file-dan-folder standar Unix/Linux) | Data lake, tabel lakehouse, backup, apa pun yang besar |
 | Biaya dan skala | Termahal per GB, umumnya satu mesin pada satu waktu | Di tengah | Termurah per GB, praktis tak terbatas |
 
-Dua nama lama yang akan Anda temui di pekerjaan brownfield: **RAID** menggabungkan beberapa disk menjadi satu, untuk kecepatan (striping), untuk keamanan (mirroring atau parity), atau keduanya; **SAN** (storage area network) melayani block storage ke banyak server lewat jaringan khusus. Block storage di cloud adalah gagasan yang sama sebagai layanan terkelola.
+Dua nama lama yang akan Anda temui di pekerjaan **brownfield** (proyek yang memodernisasi sistem lama yang sudah berjalan, bukan membangun dari nol): **RAID** menggabungkan beberapa disk menjadi satu, untuk kecepatan (striping), untuk keamanan (mirroring atau parity), atau keduanya; **SAN** (storage area network) melayani block storage ke banyak server lewat jaringan khusus. Block storage di cloud adalah gagasan yang sama sebagai layanan terkelola.
 
 **Mengapa object storage membentuk lakehouse.** Karena objek tidak bisa diedit atau di-rename dengan murah, kebiasaan lama Hadoop menulis hasil ke folder sementara lalu me-rename-nya di akhir berubah menjadi ribuan request copy di S3. Format tabel seperti Delta Lake dan Iceberg (Modul 2.2) tidak pernah me-rename file data: mereka menulis file baru lalu meng-commit satu perubahan metadata kecil, itulah sebabnya mereka bekerja di object storage.
 
@@ -400,7 +402,7 @@ Dua nama lama yang akan Anda temui di pekerjaan brownfield: **RAID** menggabungk
 @options
 object storage terlalu lambat untuk tabel apa pun
 object storage hanya menerima file CSV
-* objek tak bisa diganti nama murah, jadi commit butuh log
+* rename menyalin data, jadi commit butuh log
 @why
 Menulis ke folder sementara lalu mengganti namanya bekerja di file system, tetapi di object storage rename menyalin setiap objek. Format tabel menyelesaikan perubahan dengan menulis satu file metadata kecil.
 :::
@@ -409,6 +411,8 @@ Menulis ke folder sementara lalu mengganti namanya bekerja di file system, tetap
 Konversikan tabel operasional KopiKu ke dalam format Parquet terkompresi, jawab pertanyaan bisnis yang sama menggunakan SQL di DuckDB dan lazy dataframe di Polars (buktikan kedua mesin menghasilkan angka omset yang identik dengan verifikasi independen SQLite), serta implementasikan logika predicate pushdown sendiri langsung dari metadata footer Parquet. Terakhir, lakukan pengujian benchmark mandiri pada data berskala lebih besar untuk membandingkan performa ketiga alat.
 
 ### @steps
+> **Sudah menyelesaikan Jeda Praktik 1–5?** File `labs/mod-2-1/analytics.py` Anda sudah selesai diimplementasikan dan lulus seluruh 10 pengujian! Anda dapat langsung melompat ke Langkah 6 (benchmark pandas vs. DuckDB vs. Polars), Langkah 7, dan **@verify** (`python3 scripts/prove.py mod-2-1`) di bawah.
+
 1. Pasang dependensi yang diperlukan dan jalankan pengujian awal untuk melihat spesifikasi yang diharapkan:
 
 ```bash
@@ -420,11 +424,13 @@ pytest labs/mod-2-1 -v          # Seluruh pengujian akan gagal pada awalnya
 3. Implementasikan fungsi `revenue_by_month_roast_duckdb`: join data baris item pesanan, pesanan, dan produk (dari tiga file Parquet terpisah), lalu kembalikan tuple `(month, roast_level, revenue)` terurut berdasarkan bulan dan tingkat sangrai. Pastikan nilai omset bertipe integer.
 4. Implementasikan logika analitik yang sama persis di Polars secara **lazy** (`scan_parquet` ... `collect()`). Kesesuaian output membuktikan dua mesin analitik modern berbeda menghasilkan angka yang konsisten dan identik dengan hasil kalkulasi SQLite independen.
 5. Implementasikan fungsi `row_groups_to_read(path, column, lo, hi)` hanya dengan membaca metadata `pyarrow.parquet.ParquetFile(path).metadata` dan atribut `statistics` tiap row group. Sebuah row group boleh dilewati hanya jika nilai max berada di bawah `lo` atau nilai min berada di atas `hi`. Jalankan pengujian pushdown: pada data terurut waktu, fungsi Anda seharusnya hanya membaca 1 s.d. 3 row group; sedangkan pada data acak hampir seluruh row group harus dibaca.
-6. Lakukan benchmark mandiri. Buat dataset sintetis berukuran lebih besar dan bandingkan durasi serta puncak konsumsi RAM antara pandas, DuckDB, dan Polars untuk kalkulasi agregasi yang sama (gunakan utilitas `/usr/bin/time -v python script.py` di Linux):
+6. Lakukan benchmark mandiri. Buat dataset sintetis berukuran lebih besar dan bandingkan durasi serta puncak konsumsi RAM antara pandas, DuckDB, dan Polars untuk kalkulasi agregasi yang sama (gunakan utilitas `/usr/bin/time -v python script.py` di Linux, atau `resource.getrusage` di dalam proses yang *baru*):
 
 ```python
 import duckdb
 duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (hash(i) % 20000)::INT AS customer_id,
+                    CASE i % 3 WHEN 0 THEN 'purchase' WHEN 1 THEN 'view' ELSE 'click' END AS event_type,
+                    CASE i % 2 WHEN 0 THEN 'mobile' ELSE 'desktop' END AS device,
                     round((hash(i * 17) % 100000) / 100.0, 2) AS amount
              FROM range(5000000) t(i) ORDER BY event_ts)
              TO 'events.parquet' (FORMAT PARQUET, COMPRESSION zstd, ROW_GROUP_SIZE 100000)""")
@@ -435,7 +441,7 @@ duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (ha
 ### @files
 - labs/mod-2-1/analytics.py :: File kerja utama Anda: empat fungsi inti yang harus diimplementasikan :: starter
 - labs/mod-2-1/test_lab.py :: Rangkaian 10 pengujian otomatis validasi komparatif :: test
-- labs/mod-2-1/requirements.txt :: Dependensi library: duckdb, polars, pyarrow, pytest :: config
+- labs/mod-2-1/requirements.txt :: Dependensi library: duckdb, polars, pyarrow, pandas, pytest :: config
 - labs/mod-2-1/reference/analytics.py :: Solusi referensi lengkap (coba kerjakan sendiri dulu!) :: reference
 
 ### @deliverables
@@ -446,6 +452,7 @@ duckdb.sql("""COPY (SELECT i AS event_id, 1767225600 + i // 100 AS event_ts, (ha
 ### @verify
 ```bash
 pytest labs/mod-2-1 -v
+python3 scripts/prove.py mod-2-1
 ```
 
 Jalankan pengujian terhadap solusi referensi pembanding: `LAB_DIR=reference pytest labs/mod-2-1 -v`.
@@ -491,7 +498,7 @@ Perbaiki format file dan tata letak data sebelum Anda terburu-buru meningkatkan 
 - [x] File terurut membuat sebagian besar row group dilewati, sedangkan pada file acak rentangnya saling tumpang tindih
 - [ ] File yang terurut tidak dapat difilter sama sekali karena algoritma filter membutuhkan kolom dengan distribusi nilai acak
 
-> Statistik metadata hanya efektif jika nilai data mengelompok secara teratur. Pada pengujian lab, hanya 5 dari 50 row group yang perlu dibaca pada data terurut, sedangkan pada data acak seluruh 50 row group wajib dibaca.
+> Statistik metadata hanya efektif jika nilai data mengelompok secara teratur. Pada contoh benchmark, hanya 5 dari 50 row group yang perlu dibaca pada data terurut dan seluruh 50 pada data acak (sedangkan pada pengujian lab 1 juta baris / 20 row group, hanya 1–3 dari 20 pada data terurut vs hampir seluruhnya pada data acak).
 
 ### Pada execution plan DuckDB, di manakah filter `WHERE event_type = 'purchase'` seharusnya berada untuk performa yang paling optimal?
 - [ ] Di dalam node FILTER terpisah setelah proses agregasi agar kelompok yang dihitung menjadi lebih sedikit

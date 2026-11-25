@@ -13,20 +13,20 @@ why: Tutorial menjalankan semuanya di laptop dengan RAM 16 GB dan terminal yang 
 - Menulis Dockerfile yang cepat dibangun, berjalan sebagai pengguna non-root dan dapat direproduksi, serta mendiagnosis container yang dimatikan karena memakai terlalu banyak memori
 
 ## @prereq
-Modul 0.1 dan 0.3: dasar terminal, Git, dan gagasan virtual environment Python. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
+Modul 0.0 dan 0.1: dasar Python, dasar terminal, Git, dan gagasan virtual environment Python. Pasang `jq` (misalnya `brew install jq` di macOS atau `sudo apt install jq` di Debian/Ubuntu) untuk Pelajaran 3–4 dan lab, serta `pytest` (`pip install pytest`) jika Anda ingin menjalankan `scripts/prove.py`. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
 
 ## @part Alat shell dan skrip
 
 ## @lesson Cara program Unix berpikir: proses, stream, dan exit code
 Setiap kali Anda menjalankan perintah, komputer memulai sebuah **proses**: salinan program yang sedang berjalan. Bayangkan seorang pekerja di mejanya. Ia punya buku catatan sendiri (**memori**-nya) dan nomor lencana (**PID**-nya, id proses). Ia juga punya tiga saluran standar ke dunia luar: **stdin**, tempat masukannya datang; **stdout**, tempat keluaran normalnya pergi; dan **stderr**, tempat ia melaporkan error, dipisahkan dari keluaran normal. Setiap perintah membaca teks masuk dan menulis teks keluar, sehingga Anda bisa menyambung perintah apa pun ke perintah lain dengan **pipe** `|`: keluaran yang satu menjadi masukan yang berikutnya. Alat kecil, satu tugas masing-masing, disambung bersama: itulah yang membuat shell kuat.
 
-Setiap proses berakhir dengan **exit code**, angka 0 sampai 255. Menurut konvensi **0 berarti sukses** dan selain itu berarti gagal. Shell menyimpan yang terakhir di `$?`:
+Setiap proses berakhir dengan **exit code**, angka 0 sampai 255. Menurut konvensi **0 berarti sukses** dan selain itu berarti gagal. Shell menyimpan yang terakhir di `$?` (jika `data/orders.csv` belum dibuat, buat file contoh KopiKu lebih dulu dengan `python3 labs/shared/shopgen.py --out data`):
 
 ```bash
 grep -q "paid" data/orders.csv ; echo $?     # 0 bila ditemukan, 1 bila tidak, 2 bila error
 ```
 
-Exit code adalah cara scheduler, sistem CI, dan container memutuskan apakah job Anda berhasil. Skrip yang mencetak "ERROR" tetapi tetap keluar dengan 0 berbohong kepada semua sistem di sekitarnya. Dua operator memakai exit code secara langsung: `a && b` menjalankan `b` hanya jika `a` sukses, dan `a || b` menjalankan `b` hanya jika `a` gagal.
+Exit code adalah cara scheduler (seperti **cron**, dibahas di Pelajaran 5), sistem **CI** (Continuous Integration, yang menjalankan pemeriksaan otomatis atas kode Anda), dan container memutuskan apakah job Anda berhasil. Skrip yang mencetak "ERROR" tetapi tetap keluar dengan 0 berbohong kepada semua sistem di sekitarnya. Dua operator memakai exit code secara langsung: `a && b` menjalankan `b` hanya jika `a` sukses, dan `a || b` menjalankan `b` hanya jika `a` gagal.
 
 :::ask Apa yang dicetak ini jika `data/orders.csv` TIDAK mengandung kata `zzzz`?
 ```bash
@@ -50,7 +50,7 @@ Kode yang akan Anda temui lebih dulu:
 | 127 | Perintah tidak ditemukan |
 
 :::advanced Nanti saja: kode lain dan perintah untuk memantau serta menghentikan program
-Anda tidak membutuhkannya hari ini. Materi 7 memakai kode 137 lagi, lengkap dengan ceritanya.
+Anda tidak membutuhkannya hari ini. Pelajaran 7 memakai kode 137 lagi, lengkap dengan ceritanya.
 
 | Kode | Arti |
 |---|---|
@@ -61,14 +61,14 @@ Anda tidak membutuhkannya hari ini. Materi 7 memakai kode 137 lagi, lengkap deng
 Perintah proses yang berguna: `ps aux` (daftar proses), `top` atau `htop` (tampilan langsung CPU dan memori), `kill <pid>` (kirim SIGTERM), `kill -9 <pid>` (SIGKILL, tidak bisa ditangkap, pakai sebagai pilihan terakhir), dan `Ctrl+C` (kirim SIGINT ke proses latar depan).
 :::
 
-> 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus, jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash`, `set -e`, `echo start`, `false`, `echo never printed`, jalankan `bash job.sh` dan periksa `echo $?`.
+> 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus (jalankan `python3 labs/shared/shopgen.py --out data` lebih dulu jika `data/orders.csv` belum ada), jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash` (memberi tahu sistem untuk menjalankannya dengan Bash), `set -e` (berhenti pada perintah pertama yang gagal, keduanya dibahas tuntas di Pelajaran 4), `echo start`, `false`, `echo never printed`; jalankan `bash job.sh` dan periksa `echo $?`. Setelah selesai, bersihkan dengan `rm job.sh`.
 >
-> **Seharusnya Anda melihat:** `0`, `1`, `2`, `1`, `7`; dan untuk skripnya `start` lalu exit code `1`. Hapus `set -e` dan jalankan lagi: baris terakhir kini ikut tercetak, dan exit code-nya menjadi `0`, sebuah kebohongan kepada setiap penjadwal.
+> **Seharusnya Anda melihat:** `0`, `1`, `2`, `1`, `7`; dan untuk skripnya `start` lalu exit code `1`. Hapus `set -e` dan jalankan lagi: baris terakhir kini ikut tercetak, dan exit code-nya menjadi `0`, sebuah kebohongan kepada setiap scheduler.
 
 :::drill python Perintah mana yang jalan?
 Di shell, `a && b && c` menjalankan perintah berikutnya hanya jika yang sebelumnya **berhasil** (exit code 0). Tulis `commands_run(codes)`: `codes` adalah daftar exit code yang *akan* dikembalikan tiap perintah, berurutan. Kembalikan berapa banyak yang benar-benar dijalankan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("commands_run") ## Definisikan commands_run(codes).
@@ -90,7 +90,7 @@ def commands_run(codes):
 
 :::ask Sebuah skrip mencetak 'ERROR: file missing' lalu selesai normal dengan exit code 0. Apa kesimpulan cron atau sistem CI?
 @options
-* job berhasil, karena yang dihitung hanya exit code
+* berhasil: hanya exit code yang dihitung
 job gagal, karena kata ERROR dicetak oleh skrip
 tidak ada, karena ia abaikan teks dan kode
 @why
@@ -137,12 +137,12 @@ Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `re
 :::drill python Jebakan uniq
 Perintah shell `uniq -c` hanya menggabungkan duplikat yang **bertetangga**. Tulis `uniq_c(lines)`: kembalikan daftar pasangan `(count, line)`, tiap pasangan adalah deretan baris identik yang berdampingan.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("uniq_c") ## Definisikan uniq_c(lines).
 uniq_c(["a", "a", "b"]) == [(2, "a"), (1, "b")] ## Dua baris a yang bertetangga menjadi satu pasangan.
-uniq_c(["a", "b", "a"]) == [(1, "a"), (1, "b"), (1, "a")] ## Tidak bertetangga: a TIDAK digabung. Karena itu kamu `sort` dulu.
+uniq_c(["a", "b", "a"]) == [(1, "a"), (1, "b"), (1, "a")] ## Tidak bertetangga: a TIDAK digabung. Karena itu Anda `sort` dulu.
 uniq_c(sorted(["a", "b", "a"])) == [(2, "a"), (1, "b")] ## Setelah diurutkan, duplikat menjadi bertetangga.
 uniq_c([]) == [] ## Tidak ada masukan, tidak ada keluaran.
 @hint
@@ -158,7 +158,7 @@ def uniq_c(lines):
     return out
 :::
 
-:::ask Kamu menjalankan `cut -d, -f4 orders.csv | uniq -c` pada file tak terurut dan status yang sama muncul tiga kali. Mengapa?
+:::ask Anda menjalankan `cut -d, -f4 orders.csv | uniq -c` pada file tak terurut dan status yang sama muncul tiga kali. Mengapa?
 @options
 file berisi karakter tersembunyi di setiap barisnya
 * uniq hanya menggabung tetangga, jadi urutkan kolomnya dulu
@@ -197,11 +197,13 @@ Kapan berhenti memakai alat shell? Ketika logikanya butuh percabangan, state, re
 > 2. Uji parsing defensif yang menahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
 > Perhatikan bagaimana baris buruk diabaikan tanpa membuat proses crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
 
+Di modul `json` Python, `json.loads(line)` mengurai satu string JSON dan melempar `json.JSONDecodeError` jika barisnya rusak. Karena JSON yang valid juga bisa berupa angka, string, atau list, periksa `isinstance(obj, dict)` bila Anda hanya menginginkan objek JSON.
+
 :::drill python Lewati baris yang rusak
 Sebuah file event berisi satu objek JSON per baris, dan sebagian baris terpotong. `jq 'fromjson?'` melewati yang rusak. Tulis `good_events(lines)`: kembalikan daftar objek hasil parse (dictionary) dari setiap baris yang JSON-nya valid **dan** berupa objek. Lewati yang lain tanpa melempar error.
 @starter
 import json
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("good_events") ## Definisikan good_events(lines).
@@ -210,7 +212,7 @@ good_events(["5", '"text"', "[1]"]) == [] ## JSON valid, tetapi bukan objek: dil
 good_events([]) == [] ## Tanpa baris, tanpa event.
 good_events(["", '{"x": null}']) == [{"x": None}] ## Baris kosong dilewati; null di dalam objek tidak masalah.
 @hint
-`try: obj = json.loads(line)` dan `except json.JSONDecodeError: continue`; simpan hanya jika `isinstance(obj, dict)`.
+Telusuri tiap baris dan urai di dalam blok `try` / `except` yang melewati JSON rusak; simpan hasil urai hanya jika bertipe dictionary.
 @solution
 import json
 def good_events(lines):
@@ -246,7 +248,7 @@ set -euo pipefail
 
 - `-e`: langsung keluar ketika sebuah perintah gagal.
 - `-u`: perlakukan pemakaian variabel yang belum diset sebagai error (menangkap salah ketik seperti `$DATAA_DIR`).
-- `-o pipefail`: pipeline gagal bila *tahap mana pun* gagal, bukan hanya yang terakhir. Tanpanya, `zcat rusak.gz | wc -l` keluar dengan 0 meski `zcat` gagal di tengah jalan.
+- `-o pipefail`: pipeline gagal bila *tahap mana pun* gagal, bukan hanya yang terakhir. Tanpanya, `zcat broken.gz | wc -l` keluar dengan 0 meski `zcat` gagal di tengah jalan.
 
 :::ask Sebuah pipeline adalah `zcat broken.gz | wc -l`. `zcat` gagal di tengah karena file rusak, `wc` tetap menghitung apa yang diterimanya. Tanpa `-o pipefail`, exit code apa yang dilaporkan pipeline?
 @options
@@ -259,15 +261,6 @@ Secara default pipeline melaporkan exit code **tahap terakhirnya**. `wc -l` berh
 
 Catatan: `-e` tidak terpicu di dalam kondisi `if`, di rantai `&&`/`||`, atau pada perintah yang kegagalannya Anda uji sendiri. Ia jaring pengaman, bukan pengganti berpikir.
 
-:::ask `file="my report.csv"` dan skrip menjalankan `wc -l $file` (tanpa tanda kutip). Apa yang diterima `wc`?
-@options
-satu argumen: nama `my report.csv`
-* dua argumen: `my` dan `report.csv`
-tidak ada: shell berhenti sebelum menjalankannya
-@why
-Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `shellcheck` menandai persis kesalahan ini.
-:::
-
 Kebiasaan yang menjaga skrip tetap andal:
 
 - **Beri tanda kutip pada variabel**: `"$file"`, bukan `$file`. Tanpa kutip, nama yang mengandung spasi menjadi dua argumen.
@@ -278,10 +271,19 @@ Kebiasaan yang menjaga skrip tetap andal:
 - **Buat idempoten**: jalankan dua kali, hasil sama. Pakai path keluaran yang deterministik lalu timpa, atau tulis per partisi tanggal.
 - **Lint**: `shellcheck script.sh` menemukan sebagian besar kesalahan kutip dan logika secara otomatis. Jalankan di CI.
 
+:::ask `file="my report.csv"` dan skrip menjalankan `wc -l $file` (tanpa tanda kutip). Apa yang diterima `wc`?
+@options
+satu argumen: nama `my report.csv`
+* dua argumen: `my` dan `report.csv`
+tidak ada: shell berhenti sebelum menjalankannya
+@why
+Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `shellcheck` menandai persis kesalahan ini.
+:::
+
 > 💡 **Jeda Praktik 3 (Bangun report.sh - Bagian A):**
 > Saatnya mengerjakan Bagian A dari lab ini!
-> 1. Buka `labs/mod-1-1/report.sh` di Text Editor Anda (ingat: jangan dieksekusi langsung di bash tanpa argumen file!).
-> 2. Terapkan mode ketat `set -euo pipefail`, validasi argumen input `$1`, dan bangun pipeline ringkasan metrik menggunakan `jq`, `sort -u`, dan `wc -l`.
+> 1. Buka `labs/mod-1-1/report.sh` di editor teks Anda dan baca komentar header-nya, di sana tercantum 6 jenis baris keluaran `key=value` (`lines_total`, `malformed_lines`, `valid_events`, `unique_event_ids`, `distinct_users`, dan `type.<event_type>`) serta pemakaian `mktemp` dengan `trap` untuk pembersihan. Saat menjalankannya secara manual, selalu sertakan file masukan, misalnya `bash labs/mod-1-1/report.sh data/events.ndjson`.
+> 2. Terapkan mode ketat `set -euo pipefail`, validasi argumen input `$1`, bersihkan file sementara dengan `mktemp` dan `trap`, lalu bangun pipeline ringkasan metrik menggunakan `jq`, `sort -u`, dan `wc -l`.
 > 3. Uji pekerjaan Anda di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
 > Jika semua pengujian Bagian A berwarna HIJAU (PASSED), Anda telah menyelesaikan skrip stream Unix profesional! Lanjut ke Pelajaran 5 tentang Cron.
@@ -297,19 +299,19 @@ Kebiasaan yang menjaga skrip tetap andal:
  */15 *  *   *   *   /opt/kopiku/check_inbox.sh
 ```
 
-Baris pertama berjalan pukul 02.00 setiap hari. Ketahui kejutan-kejutan ini sebelum ia menghabiskan satu malam Anda:
+Lima field tersebut adalah **menit** (`m`, 0–59), **jam** (`h`, 0–23), **tanggal dalam bulan** (`dom`, 1–31), **bulan** (`mon`, 1–12), dan **hari dalam seminggu** (`dow`, 0–7, dengan 0 dan 7 adalah Minggu serta `1-5` berarti Senin sampai Jumat). Tanda `*` berarti "setiap", `*/15` berarti "setiap kelipatan 15" (sintaks langkah), dan `a-b` berarti rentang inklusif. Jadi baris pertama berjalan pukul 02.00 setiap hari, dan baris kedua berjalan setiap 15 menit. Ketahui kejutan-kejutan ini sebelum ia menghabiskan satu malam Anda:
 
 - **Environment minimal.** cron tidak memuat profil shell Anda. `PATH` pendek, virtual environment Anda tidak aktif, environment variable Anda tidak ada. Pakai path absolut, set variabel di dalam skrip, dan panggil `/opt/kopiku/venv/bin/python` secara langsung.
 - **Keluaran senyap.** Keluaran dikirim ke email atau tidak ke mana-mana. Arahkan kedua aliran ke file log (`>> log 2>&1`) agar Anda bisa melihat apa yang terjadi.
 - **Eksekusi tumpang tindih.** Jika satu putaran lebih lama dari interval, salinan kedua mulai dan keduanya bertabrakan. Jaga dengan kunci: `flock -n /tmp/report.lock /opt/kopiku/run_report.sh`.
-- **Zona waktu.** cron memakai zona waktu server, dan pergeseran jam musim panas bisa melewati atau mengulang satu jam. Server sebaiknya berjalan di UTC, dan jadwal ditulis dengan itu dalam benak.
+- **Zona waktu.** cron memakai zona waktu server, dan pergeseran jam musim panas bisa melewati atau mengulang satu jam. Server sebaiknya berjalan di UTC, dan jadwal ditulis dengan mempertimbangkan hal tersebut.
 - **Tanpa dependensi, tanpa retry, tanpa riwayat.** cron tidak tahu bahwa job B harus menunggu job A, tidak akan mencoba ulang, dan tidak menyimpan catatan eksekusi.
 
 :::ask Skrip Anda berjalan di terminal tetapi gagal di bawah cron dengan `python: command not found`. Apa penyebab yang paling mungkin?
 @options
 cron tidak mendukung skrip Python
 ekspresi jadwalnya salah
-* cron punya environment kosong: `PATH` pendek, tanpa venv
+* cron punya environment minimal: `PATH` pendek, tanpa venv
 @why
 cron tidak memuat profil shell Anda. Pakai path absolut (`/opt/kopiku/venv/bin/python`), atur variabel di dalam skrip, dan alihkan output ke log (`>> log 2>&1`) supaya Anda bisa melihat apa yang terjadi.
 :::
@@ -318,10 +320,10 @@ Poin terakhir itulah alasan pipeline sungguhan pindah ke **orchestrator** sepert
 
 > 🛠 **Coba sendiri (10 menit, terminal).** Anda tidak bisa menunggu sampai tengah malam, jadi latih tiga hal yang paling sering menjebak orang.
 > 1. Tulis baris cron lima kolom untuk: setiap hari pukul 02:30; setiap 15 menit; pukul 06:00 hanya di hari kerja; tengah malam pada hari pertama setiap bulan.
-> 2. Lihat seperti apa environment cron yang kosong: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, lalu `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` di shell Anda sendiri.
-> 3. Run yang tumpang tindih: di satu terminal jalankan `flock -n /tmp/demo.lock sleep 20`; di terminal kedua jalankan `flock -n /tmp/demo.lock echo second; echo $?`.
+> 2. Lihat seperti apa environment minimal cron: `env -i PATH=/usr/bin:/bin sh -c 'echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"'`, lalu `echo "HOME=[$HOME] VIRTUAL_ENV=[$VIRTUAL_ENV]"` di shell Anda sendiri (catatan: `VIRTUAL_ENV` hanya terisi saat virtual environment Python sedang aktif).
+> 3. Run yang tumpang tindih (khusus Linux; macOS tidak menyertakan `flock` secara bawaan): di satu terminal jalankan `flock -n /tmp/demo.lock sleep 20`; di terminal kedua jalankan `flock -n /tmp/demo.lock echo second; echo $?`.
 >
-> **Seharusnya Anda melihat:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` di environment kosong (shell Anda punya keduanya); dan `1` dari `flock` kedua tanpa `second` tercetak: kuncinya sedang dipegang, jadi salinan yang tumpang tindih menolak berjalan.
+> **Seharusnya Anda melihat:** `30 2 * * *`, `*/15 * * * *`, `0 6 * * 1-5`, `0 0 1 * *`; `HOME=[] VIRTUAL_ENV=[]` di environment minimal (shell Anda memiliki `HOME`, dan `VIRTUAL_ENV` saat venv aktif); dan `1` dari `flock` kedua tanpa `second` tercetak: kuncinya sedang dipegang, jadi salinan yang tumpang tindih menolak berjalan.
 
 :::ask Apa yang dilakukan baris cron `*/15 * * * * /opt/kopiku/check_inbox.sh`?
 @options
@@ -365,32 +367,32 @@ docker run --rm -v "$PWD/data:/data:ro" kopiku-etl
 
 Mengapa setiap baris tampak seperti itu:
 
-- **`FROM python:3.12-slim`**: selalu pin tag versi. `latest` berubah di bawah Anda dan merusak reprodusibilitas. Image `slim` jauh lebih kecil daripada yang penuh; Alpine lebih kecil lagi tetapi memakai library C yang berbeda, yang sering berarti paket Python harus dikompilasi dari sumber, jadi slim adalah bawaan yang lebih aman.
+- **`FROM python:3.12-slim`**: selalu pin tag versi. `latest` berubah sewaktu-waktu tanpa sepengetahuan Anda dan merusak reprodusibilitas. Image `slim` jauh lebih kecil daripada yang penuh; Alpine lebih kecil lagi tetapi memakai library C yang berbeda, yang sering berarti paket Python harus dikompilasi dari sumber, jadi slim adalah bawaan yang lebih aman.
 - **Layer caching.** Setiap instruksi membuat sebuah **layer**, dan Docker memakai ulang layer bila masukannya tidak berubah. Menyalin hanya `requirements.txt` lebih dulu, memasang, *baru* menyalin kode berarti suntingan kode sehari-hari tidak memicu instalasi ulang semua dependensi. Taruh yang paling jarang berubah di atas.
 - **`--no-cache-dir`** menghentikan pip menyimpan paket unduhan di dalam image, menjaganya tetap kecil.
 - **Pengguna non-root.** Proses di container berjalan sebagai root secara bawaan. Jika aplikasi dibobol, root di dalam container adalah masalah yang jauh lebih besar. Jalankan sebagai pengguna biasa. (Saat memasang folder, kepemilikan file kemudian penting: pastikan pengguna itu bisa membaca data yang dipasang.)
 - **Bentuk exec (`["python", "etl.py"]`)** menjalankan program Anda langsung sebagai proses utama, sehingga ia menerima sinyal berhenti dan keluar dengan bersih. Bentuk shell (`CMD python etl.py`) membungkusnya dalam shell yang bisa menelan sinyal.
 - **`ENTRYPOINT` plus `CMD`**: entrypoint adalah programnya, `CMD` memberi argumen bawaan yang bisa ditimpa oleh `docker run`.
-- **`.dockerignore`** mendaftar file yang tidak boleh dikirim ke proses build: virtual environment, data, `.git`, `.env`. Ia mempercepat build dan mencegah rahasia terpanggang ke dalam image.
+- **`.dockerignore`** mendaftar file yang tidak boleh dikirim ke proses build: virtual environment, data, `.git`, `.env`. Ia mempercepat build dan mencegah rahasia ikut tertanam ke dalam image.
 
 Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar container (container itu sekali pakai: apa pun yang ditulis di dalamnya hilang bersamanya); **environment variable** (`-e KEY=value`) mengirim konfigurasi; **`docker compose`** menggambarkan beberapa layanan (database, broker, job Anda) dalam satu file YAML dan menaruhnya di jaringan bersama tempat mereka saling menemukan lewat nama layanan; dan **multi-stage build** mengompilasi di satu tahap dan hanya menyalin hasilnya ke image akhir yang kecil.
 
 > 💡 **Jeda Praktik 4 (Optimasi Dockerfile & .dockerignore - Bagian B):**
 > Saatnya mengemas aplikasi ke container standar produksi:
-> 1. Buka `labs/mod-1-1/Dockerfile` dan `labs/mod-1-1/.dockerignore` di Text Editor Anda.
-> 2. Perbaiki Dockerfile: gunakan pin image `python:3.12-slim`, pasang dependencies sebelum copy kode, tambahkan non-root `USER appuser`, dan gunakan bentuk exec `ENTRYPOINT ["python", "etl.py"]`.
+> 1. Buka `labs/mod-1-1/Dockerfile` dan `labs/mod-1-1/.dockerignore` di editor teks Anda.
+> 2. Perbaiki Dockerfile: pin `FROM python:3.12-slim`, tetapkan `WORKDIR /app`, salin `app/requirements.txt` dan jalankan `pip install --no-cache-dir -r requirements.txt` (atau atur `PIP_NO_CACHE_DIR`) sebelum menyalin `app/`, buat lalu beralih ke pengguna non-root (`RUN useradd --create-home appuser` lalu `USER appuser`), dan ganti `CMD` bentuk shell di starter dengan bentuk exec `ENTRYPOINT ["python", "etl.py"]` serta `CMD ["/data/orders.csv"]`.
 > 3. Pastikan `.dockerignore` mengecualikan folder `venv/`, `data/`, `.git/`, dan `.env`.
 > 4. Uji di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
 > Jika semua tes Dockerfile PASSED, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
 
-:::ask Kamu memulai tiga container dari image yang sama. Berapa image yang ada?
+:::ask Anda memulai tiga container dari image yang sama. Berapa image yang ada?
 @options
 tiga: setiap container punya image sendiri-sendiri
 * satu: container hanya salinan berjalannya
 nol, karena image hilang begitu ia dijalankan
 @why
-Image adalah templat read-only yang dibangun sekali dari Dockerfile. Container adalah instans yang berjalan (atau berhenti) darinya, dan kamu bisa memulai sebanyak yang kamu mau dari image yang sama.
+Image adalah templat read-only yang dibangun sekali dari Dockerfile. Container adalah instans yang berjalan (atau berhenti) darinya, dan Anda bisa memulai sebanyak yang Anda mau dari image yang sama.
 :::
 
 :::ask Mengapa tim mengemas job dalam container, bukan sekadar menyalin skrip ke server?
@@ -399,7 +401,7 @@ container membuat kodenya sendiri berjalan jauh lebih cepat
 container berarti tidak ada server yang dibutuhkan lagi
 * job membawa Python dan library-nya sendiri
 @why
-Container mengemas aplikasi beserta semua kebutuhannya, terisolasi dari host. Itu mengakhiri 'di komputerku jalan': laptop, uji, dan produksi memakai lingkungan yang sama.
+Container mengemas aplikasi beserta semua kebutuhannya, terisolasi dari host. Itu mengakhiri 'di mesin saya jalan': laptop, uji, dan produksi memakai lingkungan yang sama.
 :::
 
 ## @lesson Batas sumber daya dan job yang mati dengan kode 137
@@ -420,15 +422,15 @@ Penyebab yang lazim dalam kerja data:
 - **Pertumbuhan tanpa batas**: mengumpulkan hasil dalam list atau dictionary yang tumbuh mengikuti masukan.
 - **Fan-out**: join atau explode yang melipatgandakan baris.
 
-Perbaikannya mengikuti prinsip yang sama: **proses secara stream atau dalam potongan terbatas, dan jaga memori sebanding dengan satu batch, bukan dengan seluruh masukan.** Alat shell di modul ini melakukannya secara alami; Modul 1.2 menunjukkan versi Python-nya (generator), dan Modul 2.1 menunjukkan engine (DuckDB, Polars) yang menumpahkan ke disk alih-alih mati.
+Perbaikannya mengikuti prinsip yang sama: **proses secara stream atau dalam potongan terbatas, dan jaga memori sebanding dengan satu batch, bukan dengan seluruh masukan.** Alat shell di modul ini melakukannya secara alami; Modul 1.2 menunjukkan versi Python-nya (generator), dan Modul 2.1 menunjukkan engine (DuckDB, Polars) yang memindahkan sementara ke disk (spill to disk) alih-alih mati.
 
 Batas terkait yang perlu dipantau: **disk** (disk penuh membuat penulisan gagal dengan cara aneh, jadi bersihkan file sementara dan pantau pemakaian), throttling **CPU** (job Anda hanya jadi lambat), dan **file terbuka**. Ketika container berperilaku aneh, perintah pertama adalah `docker logs <nama>`, `docker stats` (memori dan CPU langsung), `docker inspect <nama>` (exit code, OOMKilled), dan `docker exec -it <nama> sh` (melihat-lihat di dalam).
 
 > 🛠 **Coba sendiri (10 menit).**
 > 1. Exit code 137 adalah 128 + 9, sinyal SIGKILL yang membunuh container yang melewati batas memorinya. Buktikan: `sleep 100 & kill -9 $!; wait $!; echo $?`.
-> 2. Bandingkan memori. Di Python, tulis dua fungsi yang menjumlahkan total yang valid dari `data/orders.csv`: satu membaca seluruh file ke list dulu (`list(csv.reader(...))`), yang lain menjumlahkan baris demi baris. Bungkus setiap pemanggilan dengan `tracemalloc` (`tracemalloc.start()` sebelumnya, `tracemalloc.get_traced_memory()[1]` sesudahnya, lalu `tracemalloc.stop()`) dan cetak puncaknya dalam KiB.
+> 2. Bandingkan memori. Di Python, tulis dua fungsi yang menjumlahkan total yang valid dari `data/orders.csv` (ingat untuk membersihkan awalan `"Rp "` atau koma serta mengabaikan nilai negatif atau non-angka): satu membaca seluruh file ke list dulu (`list(csv.reader(...))`), yang lain menjumlahkan baris demi baris. Bungkus setiap pemanggilan dengan `tracemalloc` (`tracemalloc.start()` sebelumnya, `tracemalloc.get_traced_memory()[1]` sesudahnya, lalu `tracemalloc.stop()`) dan cetak puncaknya dalam KiB.
 >
-> **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dibanding sekitar 50 KiB untuk versi streaming (kira-kira 30 kali lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
+> **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dibanding sekitar 150–170 KiB untuk versi streaming (kira-kira 10× lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
 
 :::ask Sebuah container yang menjalankan job pandas berhenti dengan exit code 137 tanpa pesan error Python. Apa yang paling mungkin terjadi?
 @options
@@ -441,6 +443,8 @@ ekspresi jadwalnya ditulis dengan cara yang salah
 
 ## @lab Lab: laporan shell dan container untuk job KopiKu
 Bagian A: tulis skrip shell yang tangguh untuk meringkas file event website, yang berisi baris rusak dan duplikat. Bagian B: kemas job Python kecil menjadi image Docker yang baik. Keduanya diperiksa otomatis.
+
+> **Sudah menyelesaikan Jeda Praktik 3 dan 4?** Anda sudah membangun dan menguji kedua bagiannya, langsung lompat ke **@verify** di bawah (dan opsional Langkah 7 jika Docker terpasang).
 
 ### @steps
 1. Buat data jika belum, dan lihat file event sebelum menulis apa pun:
@@ -459,7 +463,7 @@ wc -l data/events.ndjson
 python3 labs/mod-1-1/test_lab.py TestReportScript -v
 ```
 
-5. Bagian B. Buka `labs/mod-1-1/Dockerfile` dan `.dockerignore`. Starter-nya bisa dibangun, tetapi melanggar beberapa praktik baik: base image tanpa pin, tanpa layer caching, pengguna root, perintah bentuk shell, tanpa daftar abaikan. Perbaiki satu per satu dengan materi sebagai panduan.
+5. Bagian B. Buka `labs/mod-1-1/Dockerfile` dan `.dockerignore`. Starter-nya bisa dibangun, tetapi melanggar beberapa praktik baik yang diperiksa `TestDockerfile`: base image tanpa pin, tanpa `WORKDIR`, tanpa layer caching, cache pip masih disimpan (`--no-cache-dir` / `PIP_NO_CACHE_DIR`), pengguna root, perintah bentuk shell, tanpa daftar abaikan (`venv`, `data`, `.git`, `.env`), serta memastikan tidak ada rahasia tertanam di Dockerfile. Perbaiki satu per satu dengan pelajaran sebagai panduan.
 6. Jalankan pemeriksaan Dockerfile:
 
 ```bash
@@ -483,17 +487,19 @@ docker run --rm --memory 64m -v "$PWD/data:/data:ro" kopiku-etl
 - labs/mod-1-1/test_lab.py :: Tes yang memeriksa kedua bagian :: test
 - labs/mod-1-1/reference/report.sh :: Solusi referensi bagian A (coba sendiri dulu!) :: reference
 - labs/mod-1-1/reference/Dockerfile :: Solusi referensi bagian B :: reference
+- labs/mod-1-1/reference/.dockerignore :: Daftar abaikan referensi untuk bagian B :: reference
 
 ### @deliverables
 - `python3 labs/mod-1-1/test_lab.py` lulus semua tes
 - report.sh memberi angka yang benar pada `data/events.ndjson` dan gagal dengan exit code bukan nol bila tidak diberi file atau filenya tidak ada
-- Anda bisa menjelaskan apa yang dicegah oleh masing-masing dari enam perbaikan di Dockerfile Anda
+- Anda bisa menjelaskan apa yang dicegah oleh masing-masing dari delapan pemeriksaan di `TestDockerfile` (Dockerfile dan `.dockerignore`)
 
 ### @verify
 Jalankan kedua bagian sekaligus dari root repositori:
 
 ```bash
 python3 labs/mod-1-1/test_lab.py -v
+python3 scripts/prove.py mod-1-1    # membutuhkan pytest (pip install pytest)
 ```
 
 Untuk membandingkan dengan hasil yang sudah benar: `LAB_DIR=reference python3 labs/mod-1-1/test_lab.py`.

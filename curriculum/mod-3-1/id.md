@@ -72,7 +72,7 @@ Cara kerja kode PySpark: Anda menulis ekspresi DataFrame atau query SQL di Pytho
 :::ask Di Spark UI sebuah stage menunjukkan 200 task. Apa itu task?
 @options
 * kerja atas satu partisi, pada satu core
-satu pernyataan SQL di notebook-mu
+satu pernyataan SQL di notebook Anda
 satu mesin utuh di dalam klaster
 @why
 Driver memotong sebuah stage menjadi satu task per partisi. Executor menjalankan task secara paralel, satu per core, jadi partisi yang lebih banyak daripada core hanya mengantre.
@@ -84,7 +84,7 @@ Operasi komputasi di Apache Spark terbagi menjadi dua kategori fundamental:
 - **Transformations** (`filter`, `select`, `withColumn`, `join`, `groupBy`): mendeskripsikan DataFrame baru dan **tidak mengeksekusi komputasi apa pun**. Pemanggilan fungsi ini hanya menyusun execution plan di memori driver.
 - **Actions** (`count`, `collect`, `show`, `write`): memerintahkan engine untuk mengeksekusi keseluruhan rancangan plan yang telah disusun.
 
-Sifat **eksekusi malas (lazy evaluation)** ini memungkinkan Spark melihat seluruh rantai pipeline data dari awal hingga akhir sebelum memutar roda komputasi. Dengan demikian, pengoptimal query dapat melakukan optimasi tingkat tinggi: membuang kolom yang tidak terpakai (column pruning), mendorong filter langsung ke pembacaan file Parquet di disk (predicate pushdown), dan menyusun ulang urutan join. Namun konsekuensinya, error logika baru akan meledak saat action dipanggil, dan memanggil dua action pada DataFrame yang sama akan mengeksekusi ulang seluruh pipeline dari nol kecuali jika Anda menyimpannya di cache (`cache()` atau `persist()`).
+Sifat **evaluasi tunda (lazy evaluation)** ini memungkinkan Spark melihat seluruh rantai pipeline data dari awal hingga akhir sebelum memutar roda komputasi. Dengan demikian, pengoptimal query dapat melakukan optimasi tingkat tinggi: membuang kolom yang tidak terpakai (column pruning), mendorong filter langsung ke pembacaan file Parquet di disk (predicate pushdown), dan menyusun ulang urutan join. Namun konsekuensinya, error logika baru akan meledak saat action dipanggil, dan memanggil dua action pada DataFrame yang sama akan mengeksekusi ulang seluruh pipeline dari nol kecuali jika Anda menyimpannya di cache (`cache()` atau `persist()`).
 
 Transformasi data dibedakan berdasarkan pola aliran datanya:
 
@@ -106,13 +106,13 @@ Baca rencana eksekusi dari baris paling bawah ke atas. Perhatikan bahwa Spark me
 Dua kaidah emas performa: (1) action mahal pada DataFrame yang tidak di-cache akan dihitung ulang setiap kali dipanggil, maka gunakan `df.cache()` pada DataFrame yang digunakan berulang kali dan lepaskan dengan `df.unpersist()`; (2) rancangan query yang unggul adalah rancangan dengan **jumlah shuffle paling minimal** dan **volume data shuffle sekecil mungkin**, yang berarti memfilter baris dan membuang kolom yang tidak perlu sebelum operasi join atau group-by dilakukan.
 
 > 💡 **Jeda Praktik 1 (Rencana Eksekusi & Penghitungan Shuffle):**
-> 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda. Jangan jalankan file Python ini langsung di terminal tanpa modul penguji.
+> 1. Pastikan Java 17+ sudah terpasang (`java -version`) dan dependensi sudah diinstal (`pip install -r labs/mod-3-1/requirements.txt`), lalu buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda. Jangan jalankan file Python ini langsung di terminal tanpa modul penguji.
 > 2. Implementasikan fungsi `count_exchanges(df)` untuk menghitung kemunculan node `Exchange` pada teks physical plan berformat (`df.explain("formatted")`). Ingat bahwa `BroadcastExchange` bukan shuffle data tabel besar dan tidak boleh dihitung.
 > 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
 > 4. **Indikator Sukses:** Sebanyak 3 pengujian berstatus `PASSED`, memvalidasi bahwa transformasi narrow menghasilkan 0 exchange, group-by memicu 1 exchange, dan sort-merge join membutuhkan 2 exchange.
 
-:::trace Malas sampai ada action
+:::trace Lazy sampai ada action
 @code
 class Plan:
     def __init__(self, data, steps=()):
@@ -130,9 +130,9 @@ p = Plan([1, 2, 3, 4]).filter(lambda x: x > 1).map(lambda x: x * 10)
 print(len(p.steps))
 print(p.collect())
 @notes
-12 | Dua **transformasi**. Belum ada yang dihitung: rencana hanya menyimpan dua langkah tercatat. Belum ada angka yang dikalikan.
-13 | Rencana punya 2 langkah dan belum ada hasil. Inilah sebabnya salah ketik di sebuah transformasi bisa baru gagal kemudian.
-14 | **Action** `collect` akhirnya menjalankan langkah tercatat, berurutan, atas data: filter menyisakan 2, 3, 4; map menghasilkan 20, 30, 40.
+13 | Dua **transformasi**. Belum ada yang dihitung: rencana hanya menyimpan dua langkah tercatat. Belum ada angka yang dikalikan.
+14 | Rencana punya 2 langkah dan belum ada hasil. Inilah sebabnya salah ketik di sebuah transformasi bisa baru gagal kemudian.
+15 | **Action** `collect` akhirnya menjalankan langkah tercatat, berurutan, atas data: filter menyisakan 2, 3, 4; map menghasilkan 20, 30, 40.
 :::
 
 :::ask Pemanggilan Spark mana yang memicu komputasi sungguhan?
@@ -144,13 +144,13 @@ select(...), karena ia memilih beberapa kolom
 `filter`, `select`, `withColumn`, `join`, dan `groupBy` adalah transformasi yang hanya membangun rencana. Action seperti `count`, `collect`, `show`, dan `write` membuat Spark menjalankannya.
 :::
 
-:::ask Sebuah `groupBy` yang diikuti sum adalah transformasi lebar. Apa arti 'lebar' bagi biayanya?
+:::ask Sebuah `groupBy` yang diikuti sum adalah transformasi wide. Apa arti 'wide' bagi biayanya?
 @options
 setiap baris dibaca dua kali dari disk
 hasilnya butuh memori dua kali dari input
 * baris berkunci sama harus pindah: shuffle
 @why
-Transformasi sempit (filter, select) bekerja pada tiap partisi sendiri. Yang lebar membutuhkan semua baris satu kunci di tempat yang sama, sehingga data melewati jaringan: shuffle yang mahal dan stage baru.
+Transformasi narrow (filter, select) bekerja pada tiap partisi sendiri. Transformasi wide membutuhkan semua baris satu kunci di tempat yang sama, sehingga data melewati jaringan: shuffle yang mahal dan stage baru.
 :::
 
 ## @lesson Sang pengoptimal: Catalyst, Tungsten, dan Adaptive Query Execution (AQE)
@@ -162,15 +162,17 @@ Baik Anda menulis query menggunakan DataFrame API maupun Spark SQL murni, seluru
 
 Keahlian membaca physical plan adalah kompetensi wajib data engineer senior: gunakan perintah `df.explain("formatted")` dan cermati (a) **tipe strategi join**, (b) node **Exchange** dan skema partisi hash-nya, (c) apakah **filter dan seleksi kolom didorong langsung ke dalam scan storage** (pushdown), serta (d) **jumlah partisi eksekusi**. Tab SQL pada antarmuka web Spark UI menampilkan diagram visual yang sama lengkap dengan jumlah baris nyata dan durasi waktu eksekusi setiap operator.
 
+**Catatan singkat sintaks Scala Spark:** Karena Spark sendiri ditulis dalam Scala, Anda akan sering membaca kode DataFrame Scala berdampingan dengan PySpark (Pelajaran 9 opsional membahas Scala dan Java secara lengkap). Waspadai satu jebakan umum: kesetaraan kolom di Scala memakai `===` (dan `=!=`), bukan `==`, menulis `orders.filter($"status" == "paid")` menghasilkan `Boolean` Scala biasa, bukan ekspresi `Column`, sehingga gagal dikompilasi.
+
 > 🛠 **Coba sendiri (10 menit, Python).** DuckDB punya optimizer dengan gagasan pushdown yang sama. Simpan `orders.parquet` seperti di Modul 2.1 dan jalankan `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, lalu cetak teks rencananya (`.fetchall()[0][1]`). Lalu jelaskan `SELECT * FROM 'orders.parquet'`. Temukan node scan di keduanya dan baca `Projections` dan `Filters`-nya.
 >
 > **Seharusnya Anda melihat:** di rencana pertama scan Parquet hanya mencantumkan `payment_method` di bawah `Projections` dan `status='delivered'` di bawah `Filters`: optimizer mendorong keduanya ke dalam scan, sehingga kolom lain tidak pernah dibaca dan baris difilter saat dibaca. Di rencana kedua scan memproyeksikan keenam kolom dan tidak punya filter. `explain("formatted")` milik Spark menampilkan gagasan yang sama sebagai `PushedFilters` dan `ReadSchema`.
 
 :::ask Pada keluaran `explain()` filter muncul di dalam node scan file. Apa artinya?
 @options
-* filter didorong ke bawah: lebih sedikit data dibaca
+* filter di-pushdown: lebih sedikit data dibaca
 filter diabaikan oleh seluruh mesin
-query hanya akan berjalan di mesin driver
+query hanya akan berjalan di mesin driver saja
 @why
 Predicate pushdown membuat scan melewati data (misalnya row group Parquet) yang tidak mungkin cocok, sebelum dibaca. Filter yang muncul di atas scan berarti semua data dibaca lebih dulu.
 :::
@@ -187,7 +189,7 @@ Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang me
 | **Shuffle Hash Join (SHJ)** | Kedua tabel di-shuffle berdasarkan join key; hash table dibangun di memori dari sisi yang lebih kecil | Ukuran data sedang dan biaya sorting dinilai terlalu mahal |
 | **Broadcast Nested Loop / Cartesian** | Membandingkan setiap pasang baris data secara cross product | Query join tanpa kondisi kesamaan (non-equality joins): sangat berbahaya dan boros |
 
-Dampak pemilihan strategi join sangat dramatis bahkan di laptop pengujian lokal. Pada pengujian join antara 3 juta baris tabel event dan 1.001 baris tabel customer menggunakan 4 CPU cores di lab modul ini, query yang sama membutuhkan waktu **2,58 detik dengan Sort-Merge Join** dan melesat menjadi hanya **0,85 detik dengan Broadcast Hash Join**—tiga kali lipat lebih kencang—karena tabel event raksasa sama sekali tidak perlu di-shuffle lewat jaringan. Perbedaan ini terlihat jelas pada physical plan:
+Dampak pemilihan strategi join sangat dramatis bahkan di laptop pengujian lokal. Pada pengujian join antara 3 juta baris tabel event (`N = 3,000,000`; suite pengujian memakai `600,000` agar cepat) dan 1.001 baris tabel customer menggunakan 4 CPU cores di lab modul ini, query yang sama membutuhkan waktu **2,58 detik dengan Sort-Merge Join** dan melesat menjadi hanya **0,85 detik dengan Broadcast Hash Join**, tiga kali lipat lebih kencang, karena tabel event raksasa sama sekali tidak perlu di-shuffle lewat jaringan. Perbedaan ini terlihat jelas pada physical plan:
 
 ```text
 SortMergeJoin Inner          BroadcastHashJoin Inner BuildRight
@@ -208,13 +210,13 @@ Aturan praktis lapangan: **jika salah satu tabel berukuran kecil, lakukan broadc
 >    `pytest labs/mod-3-1/test_lab.py -k test_a_broadcast_join_does_not_shuffle_the_big_table -v`
 > 4. **Indikator Sukses:** Pengujian berstatus `PASSED`, membuktikan terbentuknya node `BroadcastHashJoin` pada physical plan dengan 0 exchange pada tabel besar.
 
-:::ask Kamu melakukan join 3 juta event dengan tabel customers 1.001 baris. Bagaimana membuat join lebih murah?
+:::ask Anda melakukan join 3 juta event dengan tabel customers 1.001 baris. Bagaimana membuat join lebih murah?
 @options
 shuffle kedua sisi, yang selalu paling cepat
 * broadcast tabel kecil, lewati shuffle besar
 urutkan tabel kecil sebelum join
 @why
-Broadcast join mengirim tabel kecil ke setiap executor, dan tabel besar tetap di tempatnya. Di lab ini memakan sekitar seperempat waktu sort-merge join yang mengacak kedua sisi.
+Broadcast join mengirim tabel kecil ke setiap executor, dan tabel besar tetap di tempatnya. Di lab ini memakan sekitar sepertiga waktu sort-merge join yang mengacak kedua sisi.
 :::
 
 ## @lesson Data skew: ketika satu task memikul seluruh beban komputasi
@@ -222,7 +224,7 @@ Operasi shuffle memetakan seluruh baris data yang memiliki nilai hash key yang s
 
 Data skew hampir selalu disebabkan oleh keberadaan **hot key**. Penyebab paling lazim di industri: nilai default atau placeholder (`customer_id = 0` atau `-1` untuk transaksi anonim tanpa akun, string kosong `''`), nilai `NULL` (seluruh null dikelompokkan ke satu partisi dalam group-by), produk viral yang mendominasi transaksi toko, aktivitas akun bot crawling, atau kode wilayah negara tertentu yang mendominasi populasi pengguna.
 
-Dataset praktikum modul ini mensimulasikan kondisi nyata di mana 70% event transaksi dimiliki oleh `customer_id = 0`. Setelah dilakukan hash partitioning ke dalam 8 partisi, sebaran ukuran partisi menjadi:
+Dataset praktikum modul ini mensimulasikan kondisi nyata di mana 70% event transaksi dimiliki oleh `customer_id = 0` (diukur di bawah dengan `N = 3,000,000`; suite pengujian memakai `600,000` agar cepat). Setelah dilakukan hash partitioning berdasarkan `customer_id` ke dalam 8 partisi, sebaran ukuran partisi menjadi:
 
 ```text
 [2,200,366  121,618  121,124  120,272  113,221  112,257  109,813  101,329]    (3,000,000 rows)
@@ -249,13 +251,13 @@ print({p: len(rows) for p, rows in partitions.items()})
 5 | Satu partisi memegang 6 dari 8 baris. Di Spark itu berarti satu task berjalan lama sementara yang lain menganggur: stage selesai hanya ketika task paling lambat selesai.
 :::
 
-:::ask Sebuah key join bernilai NULL pada 60% baris. Setelah shuffle, ke mana semua baris itu pergi?
+:::ask Sebuah key `LEFT JOIN` (atau `groupBy`) bernilai NULL pada 60% baris. Setelah shuffle, ke mana semua baris itu pergi?
 @options
 * semuanya ke satu partisi: satu task mengerjakannya
 mereka tersebar merata ke semua partisi
 join membuangnya sebelum shuffle
 @why
-Hash partitioning bersifat deterministik: key yang sama (termasuk NULL) selalu pergi ke tempat yang sama. Key panas karena itu membuat satu task kelebihan beban, sementara executor lain menganggur. Perbaikan: tangani NULL secara terpisah, broadcast sisi yang kecil, atau **salt** key panasnya.
+Hash partitioning bersifat deterministik: key yang sama (termasuk NULL) selalu pergi ke tempat yang sama. Berbeda dengan inner join (di mana Spark bisa membuang key NULL sebelum shuffle), `LEFT JOIN` atau `groupBy` mempertahankannya dan membuat satu task kelebihan beban sementara executor lain menganggur. Perbaikan: filter atau tangani NULL secara terpisah, broadcast sisi yang kecil, atau **salt** key panasnya.
 :::
 
 :::drill python Beri salt pada key panas
@@ -270,14 +272,7 @@ salted_counts(["a", "a", "b"], 2) == {"a#0": 1, "a#1": 1, "b#0": 1} ## Nomor bar
 salted_counts([], 4) == {} ## Tanpa baris, tanpa hitungan.
 max(salted_counts(["x"] * 100, 4).values()) == 25 ## 100 baris satu key di 4 bucket: masing-masing 25, kelompok terbesar 25 (bukan 100).
 @hint
-```python
-def salted_counts(keys, buckets):
-    counts = {}
-    for i, key in enumerate(keys):
-        salted = key + "#" + str(i % buckets)
-        counts[salted] = counts.get(salted, 0) + 1
-    return counts
-```
+Mulai dengan dictionary `counts` kosong, ulangi `keys` bersama indeks `i` (pakai `enumerate`), bentuk setiap key bersalt dari key, `"#"`, dan `i % buckets`, lalu tambahkan hitungannya di `counts`.
 @solution
 def salted_counts(keys, buckets):
     counts = {}
@@ -311,7 +306,7 @@ joined = large_salted.join(small_salted, ["key", "salt"]).drop("salt")
 
 Pada lab modul ini, teknik salting berhasil memangkas skew ratio dari 18,8 menjadi hanya **1,7** dan memangkas waktu join menjadi 1,82 detik. Teknik ini membutuhkan memori tambahan pada tabel pasangan (karena digandakan N kali) serta kode yang lebih kompleks, gunakan salting ketika broadcast tidak memungkinkan dan optimasi AQE tidak mencukupi (misalnya saat kedua tabel sama-sama raksasa).
 
-Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 s), Salting (1,82 s), dan Plain Sort-Merge Join (2,58 s). Di klaster berskala terabyte, jurang perbedaan waktu ini melonjak dari hitungan detik menjadi selisih berjam-jam lamanya.
+Pada data ini (`N = 3,000,000`; suite pengujian memakai `600,000` agar cepat), urutan kecepatannya adalah Broadcast Join (0,85 s), AQE Skew Join (0,93 s), Salting (1,82 s), dan Plain Sort-Merge Join (2,58 s). Perbedaannya masih sedang di laptop dengan 3 juta baris dan membesar drastis di klaster berskala besar, tempat satu straggler memakan waktu berjam-jam. (Angka ini berasal dari satu mesin dalam mode lokal; *rasio* dan mekanismenyalah yang menjadi pelajaran, bukan angka detiknya.)
 
 > 💡 **Jeda Praktik 4 (Penanganan Skew: Salting & Adaptive Query Execution):**
 > 1. Buka file `labs/mod-3-1/spark_lab.py` di teks editor Anda.
@@ -322,15 +317,15 @@ Urutan kecepatan pada dataset lab: Broadcast Join (0,85 s), AQE Skew Join (0,93 
 > 5. **Indikator Sukses:** Sebanyak 5 pengujian berstatus `PASSED`, membuktikan bahwa teknik salting meratakan rasio partisi menjadi < 3 dan konfigurasi AQE berhasil memicu `SortMergeJoin(skew=true)` saat runtime.
 
 ## @lesson Manajemen memori, Python UDFs, tata letak file, dan aturan praktis
-**Dua kata dulu: JVM dan garbage collection.** **JVM** (Java Virtual Machine) adalah mesin yang menjalankan program Java dan Scala. Spark ditulis dalam Scala, jadi setiap executor adalah proses JVM dengan irisan memorinya sendiri. JVM membersihkan memori itu sendiri: **garbage collection (GC)** menemukan objek yang tak dipakai lagi dan membebaskannya. Saat ia bekerja, program bisa berhenti sejenak. Job yang membuat jutaan objek kecil bisa lebih banyak menghabiskan waktu di GC daripada di logikamu, dan di Spark UI Anda akan melihat "GC time" naik. Itulah mengapa Spark lebih suka data biner ringkas daripada jutaan objek Java, dan mengapa UDF Python merugikan: setiap baris diubah menjadi objek lalu kembali.
+**Dua kata dulu: JVM dan garbage collection.** **JVM** (Java Virtual Machine) adalah mesin yang menjalankan program Java dan Scala. Spark ditulis dalam Scala, jadi setiap executor adalah proses JVM dengan irisan memorinya sendiri. JVM membersihkan memori itu sendiri: **garbage collection (GC)** menemukan objek yang tak dipakai lagi dan membebaskannya. Saat ia bekerja, program bisa berhenti sejenak. Job yang membuat jutaan objek kecil bisa lebih banyak menghabiskan waktu di GC daripada di logika Anda, dan di Spark UI Anda akan melihat "GC time" naik. Itulah mengapa Spark lebih suka data biner ringkas daripada jutaan objek Java, dan mengapa UDF Python merugikan: setiap baris diubah menjadi objek lalu kembali.
 
 :::ask Spark UI menunjukkan sebuah executor menghabiskan 40% waktunya di garbage collection. Apa yang disarankan hal itu?
 @options
 jaringan antar executor terlalu lambat
-* ia membuat atau menahan terlalu banyak objek kecil: pakai lebih sedikit memori per baris, atau hindari Python baris-demi-baris
+* tekanan memori akibat banyak objek kecil
 klaster punya terlalu sedikit executor untuk jumlah partisinya
 @why
-Waktu GC adalah waktu yang dipakai membebaskan memori alih-alih mengerjakan pekerjaanmu. Porsi tinggi menunjuk ke tekanan memori: banyak objek kecil, terlalu banyak data di-cache, atau serialisasi berat seperti UDF Python. Jaringan dan jumlah executor tampak di metrik lain, bukan di waktu GC.
+Waktu GC adalah waktu yang dipakai membebaskan memori alih-alih mengerjakan pekerjaan Anda. Porsi tinggi menunjuk ke tekanan memori: banyak objek kecil, terlalu banyak data di-cache, atau serialisasi berat seperti UDF Python. Jaringan dan jumlah executor tampak di metrik lain, bukan di waktu GC.
 :::
 
 **Memori Executor JVM** dialokasikan ke dalam dua ruang utama: **Execution Memory** (digunakan untuk operasi komputasi shuffle, buffer join hash table, sorting, dan agregasi) dan **Storage Memory** (digunakan untuk menampung cache DataFrame). Kedua area ini berada di bawah model Unified Memory Management dan dapat saling meminjam ruang secara dinamis, ditambah cadangan **Overhead Memory** untuk kebutuhan internal OS, network buffer, dan runtime PySpark. Jika kebutuhan komputasi melampaui kapasitas RAM yang tersedia, Spark melakukan **spill** (menulis kelebihan data ke disk lokal—proses melambat drastis namun aplikasi tidak mati); jika disk spill pun kehabisan ruang atau alokasi kontainer terlampaui, executor akan di-kill oleh cluster manager (`OOMKilled`). Tanda-tanda di Spark UI: metrik "Spill (Memory/Disk)", jeda panjang pada Garbage Collection (GC), atau executor yang restart berulang kali. Solusi: perbesar memori per executor; naikkan jumlah partisi agar data per task lebih kecil; bereskan anomali data skew (salah satu penyebab OOM yang paling sering); dan jangan pernah memanggil `collect()` untuk dataset besar ke memori driver.
@@ -414,7 +409,7 @@ Di Databricks, pipeline disusun mengikuti **Arsitektur Medallion** (pola lapisan
 
 **Mengapa Auto Loader (`cloudFiles`) jauh lebih unggul daripada `spark.read.parquet("s3://...")` biasa:**
 Saat sebuah bucket S3 menampung 2 juta file JSON atau CSV setelah berjalan setahun, memanggil `spark.read.json("s3://bucket/events/*")` memaksa Spark melakukan operasi `LIST` direktori S3 atas 2 juta file tersebut di setiap eksekusi. **Databricks Auto Loader (`cloudFiles`)** menyelesaikannya dengan:
-1. Menggunakan notifikasi event cloud (SNS/SQS di AWS, Event Grid di Azure, Pub/Sub di GCP) atau incremental listing yang dicatat di dalam **checkpoint RocksDB**, sehingga hanya menemukan *file yang baru mendarat* dalam waktu $O(1)$.
+1. Menggunakan notifikasi event cloud (SNS/SQS di AWS, Event Grid di Azure, Pub/Sub di GCP) atau incremental listing yang dicatat di dalam **checkpoint RocksDB**, sehingga hanya menemukan *file yang baru mendarat* dalam waktu `O(1)`.
 2. Mendukung evolusi skema otomatis dan menampung field JSON yang rusak atau berubah tipe ke dalam kolom khusus **`_rescued_data`** alih-alih membuat pipeline malam Anda mati total pada jam 3 pagi!
 
 ```python
@@ -473,7 +468,7 @@ Di Databricks, tagihan bulanan Anda terdiri dari dua komponen: **Biaya VM Cloud 
 
 | Jenis Komputasi | Tarif DBU Relatif | Kapan Digunakan | Kesalahan FinOps Klasik yang Wajib Dihindari |
 |---|---|---|---|
-| **All-Purpose (Interactive) Cluster** | **Paling Mahal** | Eksplorasi ad-hoc dan debugging notebook di jam kerja | **Jangan pernah menjalankan pipeline produksi terjadwal di All-Purpose Cluster.** Tarif DBU-nya lebih tinggi daripada jobs compute dan klaster tetap menyala selama ekor idle sebelum auto-termination. |
+| **All-Purpose (Interactive) Cluster** | **Paling Mahal** | Eksplorasi ad-hoc dan debugging notebook di jam kerja | **Jangan pernah menjalankan pipeline produksi terjadwal di All-Purpose Cluster.** Tarif DBU-nya lebih tinggi daripada jobs compute dan klaster tetap menyala selama masa tunggu idle sebelum auto-termination. |
 | **Jobs Compute (Ephemeral Job Cluster)** | **Paling Hemat** | Job PySpark, dbt, dan Auto Loader terjadwal di Databricks Workflows | Selalu gunakan Job Cluster sementara (atau Serverless Jobs) yang menyala saat job mulai, memakai worker Spot/Preemptible (dengan node Driver On-Demand), dan langsung mati saat job selesai. |
 | **SQL Warehouse (Serverless + Photon)** | **Di tengah** (warehouse serverless bisa turun ke nol) | Dashboard BI (Power BI, Tableau, Looker), model SQL dbt, dan query analis | Gunakan **Serverless SQL Warehouse** dengan **Photon** (mesin eksekusi C++ tervektorisasi milik Databricks) dan auto-stop yang pendek, agar lonjakan query BI cepat mendapat kapasitas dan waktu idle tidak ditagih. |
 
@@ -557,6 +552,8 @@ Di PySpark, trace Java yang sama dibungkus trace Python, dan baris yang perlu di
 Eksekusi Spark dalam local mode langsung di komputer Anda. Anda akan membangun serangkaian fungsi Python untuk **menginspeksi** karakteristik internal query (menghitung jumlah node shuffle Exchange, mengukur rasio skew partisi) serta fungsi untuk **memperbaiki** anomali performa (broadcast join, teknik salting, dan aktivasi konfigurasi adaptive skew join). Seluruh perbaikan akan diuji secara otomatis untuk membuktikan bahwa hasil kalkulasi data tetap identik dengan join standar namun dengan karakteristik plan dan keseimbangan partisi yang jauh lebih unggul.
 
 ### @steps
+> 💡 **Sudah menyelesaikan Jeda Praktik 1–4?** Fungsi Anda di `labs/mod-3-1/spark_lab.py` sudah selesai diimplementasikan, langsung lompat ke **Langkah 8 / Jeda Praktik 5** di bawah untuk benchmark ukuran lebih besar, memverifikasi ke-12 tes, dan menghasilkan token bukti Anda.
+
 1. Verifikasi instalasi runtime Java dan instal dependensi Python. Spark berjalan di Java virtual machine, jadi `java -version` harus mencetak versi 17 atau lebih baru. Jika muncul `command not found` (hal biasa di Ubuntu atau WSL2 yang baru dipasang), pasang dulu:
 
 ```bash
@@ -572,7 +569,7 @@ python -m pip install -r labs/mod-3-1/requirements.txt
 pytest labs/mod-3-1 -v       # seluruh pengujian akan gagal pada awalnya (membutuhkan ~20 detik setelah selesai)
 ```
 
-2. Pelajari file pengujian `labs/mod-3-1/test_lab.py`. Test suite ini membangun dataset simulasi dengan skew ekstrem (70% event transaksi dimiliki oleh `customer_id = 0`) serta tabel dimensi customer berisi 1.001 baris, dan secara sengaja menonaktifkan fitur broadcast otomatis agar struktur physical plan dapat diuji secara deterministik.
+2. Pelajari file pengujian `labs/mod-3-1/test_lab.py`. Test suite ini membangun dataset simulasi dengan skew ekstrem (70% event transaksi dimiliki oleh `customer_id = 0`) serta tabel dimensi customer berisi 1.001 baris, dan secara sengaja menonaktifkan adaptive execution serta fitur broadcast otomatis agar struktur physical plan dapat diuji secara deterministik.
 3. Buka file starter `labs/mod-3-1/spark_lab.py`. Fungsi pembantu `plan_text` telah disediakan untuk menangkap output `df.explain("formatted")` ke dalam string teks. Implementasikan fungsi `count_exchanges` (bagian details pada formatted plan mencantumkan node seperti `(5) Exchange`; perhatikan bahwa `BroadcastExchange` tidak dihitung sebagai shuffle jaringan). Jalankan pengujian pada `TestPlans`.
 4. Implementasikan fungsi `partition_sizes` dan `skew_ratio`. Amati output statistik untuk dataset dengan hot key dibandingkan dengan dataset yang terdistribusi seragam, dan pahami mengapa satu partisi menampung data masif.
 5. Implementasikan fungsi `add_salt`, `explode_salt`, dan `salted_join`. Buktikan bahwa output data hasil salted join identik dengan plain join, dan bahwa nilai skew ratio pada partisi majemuk `(customer_id, salt)` menurun drastis menjadi seimbang.
@@ -580,19 +577,21 @@ pytest labs/mod-3-1 -v       # seluruh pengujian akan gagal pada awalnya (membut
 7. Implementasikan fungsi konfigurasi `enable_skew_join` (parameter konfigurasi tercantum pada docstring) serta fungsi verifikasi `uses_skew_join`. Pengujian akan mengeksekusi join dan memverifikasi bahwa plan adaptif akhir memuat atribut `skew=true`.
 8. Eksplorasi mandiri: bandingkan durasi eksekusi antara versi plain join, broadcast, salting, dan AQE untuk ukuran baris data yang lebih besar (`N` jutaan baris) menggunakan modul `time.time()`; cetak physical plan ke terminal; coba ubah parameter `spark.sql.shuffle.partitions`. Buka Spark UI di browser (hapus konfigurasi `spark.ui.enabled=false`; buka port http://localhost:4040) dan temukan task terpanjang pada stage plain join.
 
-> 💡 **Jeda Praktik 5 (Verifikasi Lengkap Spark Lab & Pemeriksaan Java 17):**
+> 💡 **Jeda Praktik 5 (Verifikasi Lengkap & Token Bukti):**
 > 1. Pastikan runtime Java 17+ telah aktif di komputer Anda (`java -version`).
 > 2. Di terminal, jalankan seluruh rangkaian pengujian:
 >    `pytest labs/mod-3-1/test_lab.py -v`
-> 3. Jalankan pengujian pembanding terhadap solusi referensi:
->    `LAB_DIR=reference pytest labs/mod-3-1/test_lab.py -v`
-> 4. **Indikator Sukses:** Seluruh 12 pengujian berstatus `PASSED`, memvalidasi pemahaman komprehensif Anda tentang rencana eksekusi, join terdistribusi, dan penanganan data skew di Apache Spark.
+> 3. Hasilkan token bukti verifikasi:
+>    `python3 scripts/prove.py mod-3-1`
+> 4. **Indikator Sukses:** Seluruh 12 pengujian berstatus `PASSED` dan token bukti tercetak, memvalidasi penguasaan rencana eksekusi, join terdistribusi, dan penanganan data skew di Apache Spark.
 
 ### @files
 - labs/mod-3-1/spark_lab.py :: File kerja implementasi: fungsi inspeksi physical plan dan penanganan skew :: starter
 - labs/mod-3-1/test_lab.py :: Suite pengujian otomatis (membangun dataset skew dan memverifikasi plan) :: test
 - labs/mod-3-1/requirements.txt :: Dependensi pyspark dan pytest :: config
 - labs/mod-3-1/reference/spark_lab.py :: Referensi solusi lengkap (jadikan pembanding setelah mencoba mandiri!) :: reference
+- labs/mod-3-1/scala/revenue_job.scala :: Contoh job Spark Scala untuk Pelajaran 9 opsional :: data
+- labs/mod-3-1/scala/typo_job.scala :: Job Scala Pelajaran 9 opsional dengan typo nama kolom untuk membaca stack trace JVM :: data
 
 ### @deliverables
 - Seluruh 12 skenario pengujian di `test_lab.py` lulus dengan sukses
@@ -602,6 +601,7 @@ pytest labs/mod-3-1 -v       # seluruh pengujian akan gagal pada awalnya (membut
 ### @verify
 ```bash
 pytest labs/mod-3-1 -v
+python3 scripts/prove.py mod-3-1
 ```
 
 Verifikasi terhadap solusi referensi: `LAB_DIR=reference pytest labs/mod-3-1 -v`. Pengujian akan dilewati secara otomatis jika runtime Java tidak terdeteksi di sistem.

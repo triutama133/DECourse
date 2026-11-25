@@ -24,7 +24,7 @@ Database relasional unggul dalam satu hal: menjaga **data terstruktur dan saling
 Keluarga lain muncul karena **tekanan** yang kurang ditangani baik oleh satu server relasional:
 
 - **Skala dan volume tulis.** Satu mesin punya batas. Menyebar satu database logis ke banyak mesin (sharding) mungkin dilakukan dengan SQL tetapi sulit, karena join dan transaksi lintas mesin lambat dan rumit.
-- **Latensi.** Beberapa pertanyaan harus dijawab dalam semilidetik ("apakah sesi ini valid?"), yang menyarankan menyimpan data di memori dengan pencarian paling sederhana.
+- **Latensi.** Beberapa pertanyaan harus dijawab dalam satu milidetik ("apakah sesi ini valid?"), yang menyarankan menyimpan data di memori dengan pencarian paling sederhana.
 - **Bentuk data.** Sebagian data bersarang dan berbeda dari record ke record (katalog produk yang tiap kategorinya punya atribut berbeda), atau sebagian besar berupa *relasi* (jejaring sosial).
 - **Ketersediaan.** Keranjang belanja yang tidak bisa ditulis ketika satu pusat data tidak terjangkau kehilangan penjualan.
 
@@ -34,7 +34,7 @@ Dua gagasan membantu Anda bernalar tentang pertukaran itu. **Teorema CAP** menya
 
 ACID (transaksi atomik, konsisten, terisolasi, tahan lama) adalah janji relasional. Sebagian sistem NoSQL melonggarkannya (kadang bercanda disebut BASE: basically available, soft state, eventually consistent), dan banyak yang kemudian menambahkan transaksi terbatas. Selalu baca apa yang dijamin produk tertentu.
 
-> 🛠 **Coba sendiri (5 menit, pena dan kertas).** Untuk setiap kebutuhan, sebutkan keluarganya (relasional, key-value, dokumen, wide-column, graf, pencarian, atau time-series) dan tekanan yang dijawabnya: (a) "apakah sesi login ini masih berlaku?" dalam waktu di bawah satu milidetik; (b) katalog produk yang setiap kategorinya punya atribut berbeda; (c) 5 juta pembacaan sensor per jam, di-query berdasarkan rentang waktu; (d) teman dari teman yang membeli barang ini; (e) pencarian teks bebas dengan peringkat; (f) faktur yang tidak boleh pernah tidak konsisten.
+> 🛠 **Coba sendiri (5 menit, pena dan kertas, pemanasan intuisi).** Tebak dulu memakai intuisi Anda, lalu baca *Bandingkan*, Pelajaran 2–5 membahas tiap keluarga secara rinci. Untuk setiap kebutuhan, sebutkan keluarganya, relasional (tabel SQL), key-value (pencarian cepat lewat key), dokumen (JSON bersarang), wide-column (tabel berpartisi untuk volume tulis tinggi), graf (node/edge yang saling terhubung), pencarian (peringkat teks penuh), atau time-series (metrik berstempel waktu), dan tekanan yang dijawabnya: (a) "apakah sesi login ini masih berlaku?" dalam waktu di bawah satu milidetik; (b) katalog produk yang setiap kategorinya punya atribut berbeda; (c) 5 juta pembacaan sensor per jam, di-query berdasarkan rentang waktu; (d) teman dari teman yang membeli barang ini; (e) pencarian teks bebas dengan peringkat; (f) faktur yang tidak boleh pernah tidak konsisten.
 >
 > *Bandingkan:* (a) key-value (latensi), (b) dokumen (bentuk data), (c) time-series atau wide-column (volume tulis), (d) graf, (e) mesin pencari, (f) relasional (kebenaran). Lalu tulis satu kalimat tentang apa yang Anda korbankan saat meninggalkan SQL untuk (a).
 
@@ -54,8 +54,8 @@ Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah se
 
 Dua fitur menentukan bagaimana key-value store dipakai:
 
-- **TTL (time to live).** Sebuah key bisa kedaluwarsa otomatis setelah sejumlah detik. Sesi, one-time password, dan hasil cache memakainya. `KeyValueStore` di lab mengedaluwarsakan key ketika `clock() >= waktu_set + ttl`; jam disuntikkan sehingga tes tidak perlu tidur.
-- **Eviction.** Memori terbatas. Ketika penuh, store harus membuang sesuatu; **LRU** (least recently used) membuang key yang paling lama tidak disentuh. `collections.OrderedDict` di Python mengingat urutan penyisipan: `od.move_to_end(key)` memindahkan key yang diakses ke ujung "terbaru" dalam O(1), dan `od.popitem(last=False)` membuang key paling lama dari ujung depan (`del` menghapus key apa pun).
+- **TTL (time to live).** Sebuah key bisa kedaluwarsa otomatis setelah sejumlah detik. Sesi, one-time password, dan hasil cache memakainya. `KeyValueStore` di lab mengedaluwarsakan key ketika `clock() >= waktu_set + ttl`; fungsi clock diteruskan sebagai argumen sehingga tes tidak perlu menunggu.
+- **Eviction.** Memori terbatas. Ketika penuh, store harus membuang sesuatu; **LRU** (least recently used) membuang key yang paling lama tidak disentuh. `collections.OrderedDict` di Python mengingat urutan penyisipan: `od.move_to_end(key)` memindahkan key yang diakses ke ujung "terbaru" dalam O(1) (waktu konstan, dijelaskan di bawah), dan `od.popitem(last=False)` membuang key paling lama dari ujung depan (`del` menghapus key apa pun).
 
 **Untuk apa:** meng-cache hasil query mahal, sesi, rate limiting (hitung permintaan per pengguna per menit), penghitung, papan peringkat, feature flag, antrean job kecil. **Bukan untuk:** menanyakan "semua pelanggan di Jakarta yang belanja di atas 1 juta", karena satu-satunya pintu masuk adalah key. Jika Anda perlu menemukan data lewat hal selain key, Anda harus memelihara key tambahan sendiri, dan pada titik itu keluarga lain mungkin lebih cocok.
 
@@ -139,13 +139,7 @@ defines("put") ## Definisikan put(cache, key, value, capacity).
 (lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "c", 3, 2), list(c))[-1] == ["b", "c"])(OrderedDict()) ## Setelah a, b, c dengan kapasitas 2, key tertua (a) dibuang: ["b", "c"].
 (lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "a", 9, 2), put(c, "c", 3, 2), list(c), c["a"])[-2:] == (["a", "c"], 9))(OrderedDict()) ## Menulis "a" lagi membuatnya baru: setelah a, b, a(9), c, key-nya ["a", "c"] dan a berisi 9.
 @hint
-```python
-def put(cache, key, value, capacity):
-    cache[key] = value
-    cache.move_to_end(key)
-    if len(cache) > capacity:
-        cache.popitem(last=False)
-```
+Tetapkan nilai key di `cache`, lalu pindahkan key tersebut ke ujung paling baru dipakai pada `OrderedDict`. Jika jumlah entri melebihi `capacity`, buang satu item dari ujung paling lama (depan).
 @solution
 from collections import OrderedDict
 
@@ -175,7 +169,7 @@ Seluruh pesanan, beserta barisnya, adalah **satu dokumen**: Anda membaca dan men
 
 Database ini **tidak menegakkan skema secara bawaan**; strukturnya adalah apa pun yang ditulis aplikasi. Ini **schema on read**, gagasan yang sama dengan Hive (Modul 3.0). Cepat untuk memulai dan berbahaya kemudian: field yang dieja dua cara, angka yang disimpan sebagai teks di sebagian dokumen, field yang hilang di dokumen lama. Aturan validasi ada, tetapi Anda harus mengaktifkannya.
 
-Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (`DocumentStore.find` di lab mendukung path bertitik dan operator `$gt $gte $lt $lte $ne $in`). **Index** penting persis seperti di SQL: tanpanya, sebuah query **memindai setiap dokumen**. Di lab, mencari satu pengguna di antara 10.000 dokumen memindai **10.000** dokumen tanpa index, dan **10** dengan index. Aggregation pipeline (filter, group, sort, project secara bertahap) mencakup pertanyaan bergaya analitik, dan sejak versi 4.0 MongoDB mendukung transaksi multi-dokumen, meskipun tujuan desainnya tetap menyimpan data terkait dalam satu dokumen.
+Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (`DocumentStore.find` di lab mendukung path bertitik dan operator `$gt $gte $lt $lte $ne $in`). **Index** penting persis seperti di SQL: tanpanya, sebuah query **memindai setiap dokumen**. Mencari satu pengguna di antara 10.000 dokumen memindai **10.000** dokumen tanpa index dibanding hanya dokumen yang cocok (misalnya **10**) dengan index; `TestDocumentStore` di lab memverifikasi hal ini langsung pada fixture 4 dokumen (`last_scanned` turun dari **4** menjadi **1**). Aggregation pipeline (filter, group, sort, project secara bertahap) mencakup pertanyaan bergaya analitik, dan sejak versi 4.0 MongoDB mendukung transaksi multi-dokumen, meskipun tujuan desainnya tetap menyimpan data terkait dalam satu dokumen.
 
 **Untuk apa:** konten, katalog, profil pengguna, apa pun yang bersarang dan berkembang, tempat aplikasi membaca objek utuh. **Jebakan:** array tanpa batas di dalam dokumen, tanpa join (sehingga data yang berulang harus diperbarui di banyak tempat), dan schema drift.
 
@@ -187,13 +181,13 @@ Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "t
 > 3. Implementasikan `create_index(field)` dan pastikan atribut `last_scanned` mencerminkan jumlah dokumen yang benar-benar dipindai (hanya subset index, bukan seluruh koleksi).
 > 4. Jalankan pengujian unit dokumen di terminal Anda:
 > `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
-> 5. Pastikan ke-9 pengujian lulus (`9 passed`). Perhatikan bagaimana pembuatan index memangkas jumlah dokumen yang dipindai dari ribuan menjadi hanya yang cocok.
+> 5. Pastikan ke-9 pengujian lulus (`9 passed`). Perhatikan bagaimana pembuatan index memangkas `last_scanned` dari seluruh dokumen di fixture (4) menjadi hanya yang cocok (1), lompatan yang sama yang berskala dari 10.000 dokumen menjadi segelintir di produksi.
 
 :::ask Sebuah pesanan dan item-itemnya selalu dibaca bersamaan. Di database dokumen, bagaimana sebaiknya menyimpannya?
 @options
 taruh tiap item di koleksinya sendiri dan join belakangan
 simpan hanya tautan dan ambil item dari sebuah CSV
-* sematkan item di dalam pesanan: sekali baca, tanpa join
+* sematkan item di pesanan: sekali baca, tanpa join
 @why
 Sematkan data yang milik induk dan dibaca bersamanya. Referensikan (simpan id) data yang dibagi atau tumbuh tanpa batas, seperti daftar komentar yang tidak terbatas.
 :::
@@ -206,7 +200,7 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 
 `WideColumnTable("customer_id", "order_ts")` di lab memodelkan ini: semua pesanan seorang pelanggan membentuk satu partisi, diurutkan menurut waktu, sehingga "10 pesanan terakhir pelanggan 7" atau "pesanan pelanggan 7 pada Januari" adalah pembacaan cepat atas **satu** irisan terurut. Menanyakan "semua pesanan Januari untuk setiap pelanggan" tidak punya jawaban efisien, dan lab menolak query tanpa partition key. Inilah **pemodelan berbasis query**: di database relasional Anda merancang tabel dari data dan menulis query apa pun kemudian; di sini Anda **mendaftar query lebih dulu**, lalu merancang satu tabel per query, mengulang (denormalisasi) data seperlunya. Ini pergeseran mental terbesar.
 
-**Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Lab mengukurnya pada 10.000 key dari 4 ke 5 node: **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Di Python, `zlib.crc32(text.encode())` mengubah string apa pun secara deterministik menjadi integer 32-bit (`0` sampai `2**32 - 1`), dan modul bawaan `bisect.bisect_left(positions, target)` menemukan posisi pertama `>= target` di list terurut menggunakan binary search O(log n) — memutar kembali ke indeks `0` bila `target` melampaui posisi terbesar. Menambah node hanya mengambil bagiannya: `HashRing` di lab memindahkan **19,9%** key, sekitar seperlima, dan setiap key yang pindah menuju node baru. Virtual node penting untuk keseimbangan: dengan satu posisi per node, ketiga node di lab memegang 0,2%, 99,4%, dan 0,4% key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
+**Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Saat diukur pada 10.000 key dari 4 ke 5 node, **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Di Python, `zlib.crc32(text.encode())` mengubah string apa pun secara deterministik menjadi integer 32-bit (`0` sampai `2**32 - 1`), dan modul bawaan Python `bisect` (`bisect` atau `bisect_left` pada list terurut berisi tuple `(position, node)`) menemukan posisi pertama `>= target` menggunakan binary search dalam O(log n) (membelah dua sisa list di tiap langkah, sekitar 10 langkah untuk 1.000 entri), lalu memutar kembali ke indeks `0` bila `target` melampaui posisi terbesar. Menambah node hanya mengambil bagiannya: pada 10.000 key tersebut `HashRing` memindahkan **19,9%**, sekitar seperlima, dan setiap key yang pindah menuju node baru (dan `test_lab.py` memverifikasi pada 3.000 key bahwa perpindahan tetap di kisaran 10%–32%). Virtual node penting untuk keseimbangan: dengan satu posisi per node, tiga node memegang 0,2%, 99,4%, dan 0,4% dari 10.000 key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
 
 ### Lihat sendiri: mengapa penempatan modulo adalah jebakan
 
@@ -222,7 +216,7 @@ print(len(moved), "of", len(keys), "keys moved")
 @notes
 2 | Penempatan dengan 3 node: nomor node adalah `hash % 3`.
 3 | Key yang sama dengan 4 node: `hash % 4`. Bandingkan kedua dictionary di kanan.
-4 | Hanya key yang nomor node-nya tetap yang tidak pindah. Sebagian besar pindah.
+4 | Hanya key yang nomor node-nya tetap yang tidak pindah. Separuhnya (3 dari 6) pindah di sini; dengan hash sungguhan, ~75% pindah.
 5 | Memindahkan sebanyak itu berarti menyalin data sebanyak itu antar mesin. Consistent hashing hanya memindahkan sekitar 1/N di antaranya.
 :::
 
@@ -255,8 +249,8 @@ Dengan `N` replika, penulisan yang diakui oleh `W` di antaranya, dan pembacaan y
 :::ask Dengan N = 3 replika, apakah W = 1 dan R = 1 aman (pembacaan selalu melihat penulisan terakhir yang diakui)?
 @options
 ya, satu replika sudah cukup untuk quorum
-hanya jika jamnya cukup akurat
-* tidak: pembacaan bisa mengenai replika yang terlewat penulisan
+hanya jika jam semua server cukup akurat
+* tidak: baca bisa kena replika lama
 @why
 Penulisan mungkin mencapai replika A; pembacaan mungkin bertanya ke replika B, yang belum mendengarnya. Dengan W = 2 dan R = 2 dua replika mana pun beririsan di setidaknya satu, jadi pembacaan selalu bertemu replika yang memegang penulisan terakhir.
 :::
@@ -274,7 +268,7 @@ quorum_ok(5, 3, 3) is True ## N=5, W=3, R=3: True.
 quorum_ok(3, 3, 1) is True ## Menulis ke ketiganya berarti satu pembacaan pun melihatnya: True.
 quorum_ok(5, 2, 3) is False ## 2 + 3 tidak lebih besar dari 5: False.
 @hint
-`return r + w > n`
+Pikirkan soal irisan: jika penulisan menyentuh `w` replika dari `n` dan pembacaan menghubungi `r` replika dari `n`, kapan kedua himpunan pasti berbagi minimal satu replika? Bandingkan jumlah gabungan keduanya dengan `n`.
 @solution
 def quorum_ok(n, w, r):
     return r + w > n
@@ -282,7 +276,7 @@ def quorum_ok(n, w, r):
 
 > 💡 **Jeda Praktik: Quorum Replication & Wide-Column Table**
 > 1. Di Text Editor pada `labs/mod-1-7/nosql_lab.py`, buka Bagian 4 (`quorum_overlaps`, `ReplicaSet`) dan Bagian 5 (`WideColumnTable`).
-> 2. Lengkapi fungsi `quorum_overlaps(n, r, w)` dengan rumus `r + w > n`, serta kelas `ReplicaSet` yang mensimulasikan penulisan versi dan pembacaan dengan node replika yang sedang down.
+> 2. Lengkapi fungsi `quorum_overlaps(n, r, w)` dengan rumus `r + w > n`, serta kelas `ReplicaSet` (menyimpan daftar `(version, value)` tiap node di `self.replicas`) yang mensimulasikan penulisan versi dan pembacaan dengan node replika yang sedang down.
 > 3. Lengkapi kelas `WideColumnTable`: kelompokkan baris berdasarkan `partition_key`, urutkan berdasarkan `clustering_key`, dukung upsert jika primary key sama, serta tolak query tanpa partition key (`ValueError`).
 > 4. Jalankan pengujian untuk replikasi dan wide-column di terminal:
 > `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
@@ -303,13 +297,13 @@ Pelajaran untuk disimpan: sebuah keluarga database adalah kumpulan **optimasi un
 
 > 🛠 **Coba sendiri (12 menit, Python).**
 > 1. Bangun **inverted index** untuk enam nama produk KopiKu (`Gayo Medium 250g`, `Toraja Dark 250g`, `Kintamani Light 250g`, `Flores Medium 250g`, `Mandheling Dark 250g`, `Java Preanger Light 250g`): sebuah dict dari setiap kata huruf kecil ke himpunan posisi nama-nama yang memuatnya. Cari `dark`, lalu `dark` dan `250g` bersama-sama.
-> 2. Bangun dict pertemanan (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) dan tulis breadth-first search yang mengembalikan jalur terpendek dari `budi` ke `rina`.
+> 2. Bangun dict pertemanan (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) dan tulis **breadth-first search**, simpan antrean jalur mulai dari `[["budi"]]` dan set `visited`, ambil dari depan, lalu masukkan tiap tetangga yang belum dikunjungi lapis demi lapis sampai mencapai `"rina"`, untuk mengembalikan jalur terpendek dari `budi` ke `rina`.
 >
 > **Seharusnya Anda melihat:** `dark` menghasilkan posisi `[1, 4]` (Toraja Dark dan Mandheling Dark), `dark` dan `250g` bersama-sama menghasilkan dua yang sama, dan jalur `['budi', 'siti', 'dewi', 'rina']`. Dalam sekitar 15 baris, Anda sudah membangun inti sebuah mesin pencari dan penelusuran graf.
 
 :::ask Pertanyaan mana yang cocok untuk database graf?
 @options
-* teman dari teman dari teman: lompatan demi lompatan
+* teman dari teman: lompatan demi lompatan
 total penjualan tiap bulan selama setahun terakhir
 teks persis dari satu halaman web yang tersimpan
 @why
@@ -336,7 +330,7 @@ Perusahaan memakai beberapa sekaligus (**polyglot persistence**): PostgreSQL unt
 
 1. **Jangan pernah menjalankan analitik di operational store.** Pemindaian atas MongoDB atau Cassandra produksi bersaing dengan pelanggan dan sering gagal karena timeout. Salin data ke analytical store.
 2. **Ekstrak secara inkremental.** Pakai change feed sistemnya: change stream MongoDB, DynamoDB Streams, CDC Cassandra, atau konektor Debezium (Modul 3.2). Gunakan ekspor penuh ke object storage untuk data kecil atau yang jarang berubah.
-3. **Ratakan dan beri tipe.** Ubah dokumen menjadi tabel seperti pelajaran 3, putuskan cara menangani field yang hilang dan polimorfik, dan catat skema yang Anda asumsikan.
+3. **Ratakan dan beri tipe.** Ubah dokumen menjadi tabel seperti pelajaran 3, putuskan cara menangani field yang hilang dan **field polimorfik** (field yang tipenya berubah-ubah antar baris, misalnya berupa string di satu dokumen dan list di dokumen lain), serta catat skema yang Anda asumsikan.
 4. **Perhatikan konsistensi.** Membaca dari replika bisa mengembalikan data lama, dan snapshot yang diambil saat penulisan berlanjut bisa tidak konsisten antar partisi. Catat kapan dan dari mana Anda membaca.
 5. **Hormati pola akses.** Jika Anda harus mengkueri atribut yang tidak diindeks store, minta tim aplikasi menambah index atau tabel turunan, daripada memindai.
 
@@ -349,22 +343,31 @@ Kini Anda bisa menjawab pertanyaan yang lazim: "Mengapa tidak MongoDB untuk semu
 > 3. Hasilkan kode bukti resmi untuk disalin ke portal pembelajaran dengan menjalankan perintah:
 > `python3 scripts/prove.py mod-1-7`
 
-:::drill python Apakah pembacaan melihat tulisan terbaru?
-Sebuah kunci disimpan di `n` replika. Sebuah penulisan menunggu `w` di antaranya; sebuah pembacaan menanyakan `r` di antaranya. Pembacaan dijamin beririsan dengan penulisan terbaru hanya jika `r + w > n`. Tulis `reads_see_latest(n, r, w)`: kembalikan `True` atau `False`.
+:::drill python Ratakan dokumen pesanan bersarang menjadi baris tabel
+Untuk memuat dokumen JSON bersarang ke tabel warehouse, Anda meratakan objek bersarang menjadi kolom dan memecah array menjadi satu baris per item. Tulis `flatten_order(doc)`: `doc` adalah dictionary dengan `"_id"`, dictionary `"customer"` opsional (yang mungkin memuat `"city"`), dan list `"items"` berisi dictionary `{"sku": ..., "qty": ...}`. Kembalikan list berisi dictionary datar `{"order_id": ..., "customer_city": ..., "sku": ..., "qty": ...}`, satu per item. Jika `"customer"` atau `"city"` tidak ada, gunakan `"unknown"` untuk `customer_city`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
-defines("reads_see_latest") ## Definisikan reads_see_latest(n, r, w).
-reads_see_latest(3, 2, 2) == True ## 2 + 2 > 3: pembacaan dan penulisan pasti berbagi satu replika.
-reads_see_latest(3, 1, 1) == False ## 1 + 1 tidak lebih dari 3: pembacaan bisa melewatkan penulisan.
-reads_see_latest(5, 3, 3) == True ## 6 > 5.
-reads_see_latest(3, 1, 3) == True ## Menulis ke semua replika: satu pembacaan pun aman.
+defines("flatten_order") ## Definisikan flatten_order(doc).
+flatten_order({"_id": "1001", "customer": {"city": "Jakarta"}, "items": [{"sku": "KS-1", "qty": 2}, {"sku": "ES-9", "qty": 1}]}) == [{"order_id": "1001", "customer_city": "Jakarta", "sku": "KS-1", "qty": 2}, {"order_id": "1001", "customer_city": "Jakarta", "sku": "ES-9", "qty": 1}] ## Satu baris datar per item, membawa order_id dan customer_city.
+flatten_order({"_id": "1002", "items": [{"sku": "BL-3", "qty": 4}]}) == [{"order_id": "1002", "customer_city": "unknown", "sku": "BL-3", "qty": 4}] ## Objek customer yang hilang memakai "unknown" untuk customer_city.
+flatten_order({"_id": "1003", "customer": {"name": "Budi"}, "items": [{"sku": "KS-1", "qty": 1}]}) == [{"order_id": "1003", "customer_city": "unknown", "sku": "KS-1", "qty": 1}] ## Field city yang hilang di dalam customer juga memakai "unknown".
+flatten_order({"_id": "1004", "customer": {"city": "Bandung"}, "items": []}) == [] ## Daftar items kosong mengembalikan list baris kosong.
 @hint
-`return r + w > n`
+Baca `customer_city` secara aman dengan `.get(...)` sehingga `"customer"` atau `"city"` yang hilang bernilai `"unknown"`. Lalu ulangi setiap elemen di `doc.get("items", [])` dan tambahkan satu dictionary datar per item berisi `order_id`, `customer_city`, `sku`, dan `qty`.
 @solution
-def reads_see_latest(n, r, w):
-    return r + w > n
+def flatten_order(doc):
+    city = doc.get("customer", {}).get("city", "unknown")
+    rows = []
+    for item in doc.get("items", []):
+        rows.append({
+            "order_id": doc["_id"],
+            "customer_city": city,
+            "sku": item["sku"],
+            "qty": item["qty"],
+        })
+    return rows
 :::
 
 :::ask Analis ingin menjalankan laporan besar pada MongoDB produksi yang melayani aplikasi. Apa yang sebaiknya dilakukan data engineer?
@@ -377,10 +380,12 @@ Pemindaian atas penyimpanan operasional produksi bersaing dengan pelanggan dan s
 :::
 
 ## @lab Lab: lima gagasan database dalam Python murni
-Bangun lima model kecil yang deterministik: **key-value store** dengan TTL dan eviction LRU, **document store** dengan query dan index, **cincin consistent hashing**, **replikasi quorum**, dan **tabel wide-column**. Tesnya (36) memeriksa setiap perilaku yang dijelaskan pelajaran, termasuk angkanya: index yang memangkas pemindaian dari 10.000 dokumen menjadi 10, modulo hashing yang memindahkan 79,5% key dibanding 19,9% untuk cincin, dan aturan quorum.
+Bangun lima model kecil yang deterministik: **key-value store** dengan TTL dan eviction LRU, **document store** dengan query dan index, **cincin consistent hashing**, **replikasi quorum**, dan **tabel wide-column**. Tesnya (36) memeriksa setiap perilaku yang dijelaskan pelajaran: index yang memangkas `last_scanned` dari seluruh 4 dokumen fixture menjadi 1 (mekanisme yang sama yang berskala dari 10.000 dokumen menjadi ~10), consistent hashing atas 3.000 key di mana menambah node ke-5 memindahkan 10%–32% key (dibanding ~79,5% untuk modulo hashing pada 10.000 key), dan aturan quorum.
 
 ### @steps
-1. Baca `labs/mod-1-7/nosql_lab.py` dari atas ke bawah. Docstring tiap class adalah spesifikasinya, beserta pelajaran yang menjelaskannya.
+> **Sudah menyelesaikan Jeda Praktik di Pelajaran 2–6?** File `labs/mod-1-7/nosql_lab.py` Anda sudah selesai diimplementasikan! Anda bisa langsung melompat ke latihan refleksi pada langkah 3–6 dan menjalankan `python3 scripts/prove.py mod-1-7` di langkah 7.
+
+1. Aktifkan virtual environment Anda (Modul 0.1), pasang requirements lab (`pip install -r labs/mod-1-7/requirements.txt`), lalu baca `labs/mod-1-7/nosql_lab.py` dari atas ke bawah. Docstring tiap class adalah spesifikasinya, beserta pelajaran yang menjelaskannya.
 2. Kerjakan sesuai urutan file dan jalankan tes setelah SETIAP class:
 
 ```bash
@@ -390,12 +395,12 @@ pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # satu kelompok pa
 
 3. **Key-value dulu.** Sebelum menjalankan, tebak apa yang dikembalikan `keys()` setelah `set a, set b, get a, set c` dengan `max_items=2`. Lalu tulis class-nya dan periksa.
 4. **Dokumen.** Bangun `insert` dan `find` biasa; lalu operator; lalu index. Cetak `last_scanned` sebelum dan sesudah `create_index` dan catat selisihnya.
-5. **Cincin dan quorum.** Setelah `HashRing` lulus, ukur sendiri berapa dari 10.000 key yang pindah dengan `zlib.crc32(key) % n` ketika n naik dari 4 ke 5, dan bandingkan dengan cincin Anda. Untuk `ReplicaSet`, isi tabel pasangan (R, W) untuk N = 3 dan tandai mana yang bisa mengembalikan data basi; periksa dengan kode Anda.
+5. **Cincin dan quorum.** Setelah `HashRing` lulus, ukur sendiri berapa dari 10.000 key yang pindah dengan `zlib.crc32(key.encode()) % n` ketika n naik dari 4 ke 5, dan bandingkan dengan cincin Anda. Untuk `ReplicaSet`, isi tabel pasangan (R, W) untuk N = 3 dan tandai mana yang bisa mengembalikan data basi; periksa dengan kode Anda.
 6. **Wide-column.** Tebak apa yang dilakukan `query` dengan partition key yang hilang dan mengapa sistem sungguhan menolaknya.
 7. **Kerjakan yang sesungguhnya.** Tulis kodenya lagi di virtual environment Anda sendiri **tanpa menyalin**, lalu jalankan `python3 scripts/prove.py mod-1-7` untuk mendapat kode bukti bagi kotak **Bukti** di halaman lab ini.
 
 ### @files
-- labs/mod-1-7/nosql_lab.py :: File kerja Anda: implementasikan lima class TODO :: starter
+- labs/mod-1-7/nosql_lab.py :: File kerja Anda: implementasikan lima class TODO dan satu fungsi TODO :: starter
 - labs/mod-1-7/test_lab.py :: Ke-36 tes yang memeriksa pekerjaan Anda :: test
 - labs/mod-1-7/requirements.txt :: pytest :: config
 - labs/mod-1-7/reference/nosql_lab.py :: Satu solusi yang mungkin (coba sendiri dulu!) :: reference
@@ -428,7 +433,7 @@ Query "semua event suatu hari" tampak seperti pola akses, tetapi itu pola **baca
 ### @fix
 1. Ganti partition key menjadi sesuatu dengan **kardinalitas tinggi yang menyebar penulisan**: misalnya `(event_date, bucket)` dengan `bucket = hash(event_id) % 64`, atau `(customer_id, event_date)`. Membaca satu hari penuh lalu berarti mengkueri 64 bucket secara paralel dan menggabungkan, pertukaran yang disengaja.
 2. Jaga **ukuran partisi tetap terbatas** (partisi tidak boleh tumbuh tanpa batas): masukkan bucket waktu seperti jam ke dalam key.
-3. **Uji dengan kemiringan yang realistis**, bukan beberapa ribu baris yang merata: uji beban dengan laju puncak sebenarnya dan lihat beban per partisi dan per node, bukan rata-rata klaster.
+3. **Uji dengan ketimpangan data (skew) yang realistis**, bukan beberapa ribu baris yang merata: uji beban dengan laju puncak sebenarnya dan lihat beban per partisi dan per node, bukan rata-rata klaster.
 4. **Pantau metrik per partisi** (partisi terpanas, permintaan yang di-throttle), bukan hanya CPU rata-rata. DynamoDB dan Cassandra sama-sama menyediakannya.
 5. Untuk analitik ("semua event satu hari untuk setiap pelanggan"), jangan pakai tabel ini: alirkan event ke lakehouse (Modul 2.2) dan kueri di sana.
 
@@ -450,7 +455,7 @@ Rancang partition key untuk pola tulis sekaligus pola baca. Kapasitas store terd
 - [x] Ia membiarkan database langsung melompat ke dokumen yang cocok, bukan memindai semuanya satu per satu
 - [ ] Ia mengubah setiap dokumen menjadi baris tabel, sehingga database bisa memakai join SQL biasa
 
-> Di lab, mencari satu pengguna di antara 10.000 dokumen memindai 10.000 dokumen tanpa index dan 10 dengan index.
+> Index memungkinkan database hanya membuka entri yang cocok: pada 10.000 dokumen itu memangkas pemindaian dari 10.000 menjadi segelintir kecocokan (dan `TestDocumentStore` memverifikasi lompatan yang sama persis dari 4 dokumen yang dipindai menjadi 1).
 
 ### Apa yang dikatakan teorema CAP tentang partisi jaringan?
 - [ ] Sistem hanya bisa terpartisi bila memakai database relasional dengan transaksi yang ketat
@@ -474,7 +479,7 @@ Rancang partition key untuk pola tulis sekaligus pola baca. Kapasitas store terd
 - [x] Menambah atau membuang node hanya memindahkan sebagian kecil key, bukan hampir semuanya
 - [ ] Ia menghapus kebutuhan replikasi, karena setiap key otomatis tersimpan di setiap node
 
-> Di lab, naik dari 4 ke 5 node memindahkan 79,5% dari 10.000 key dengan modulo hashing dan 19,9% dengan cincin. Virtual node menjaga keseimbangan.
+> Pengukuran pada 10.000 key saat naik dari 4 ke 5 node memindahkan 79,5% dengan modulo hashing dan 19,9% dengan cincin (dan `TestHashRing` memeriksa pada 3.000 key bahwa perpindahan tetap di kisaran 10%–32%). Virtual node menjaga keseimbangan.
 
 ### Apa arti "pemodelan berbasis query" untuk database wide-column seperti Cassandra?
 - [ ] Anda menulis query aplikasi hanya setelah tabel ada, karena database akan menyesuaikan diri dengannya

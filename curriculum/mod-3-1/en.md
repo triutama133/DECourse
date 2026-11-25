@@ -106,7 +106,7 @@ Read from the bottom up. Notice that Spark aggregates *before* shuffling (a **ma
 Two more rules from this view: (1) an expensive action on an uncached DataFrame is recomputed every time, so `cache()` or `persist()` a DataFrame you reuse (and release it with `unpersist()`); (2) a good plan has **few shuffles** and shuffles **as little data as possible**, which means filtering and selecting columns first.
 
 > 💡 **Practice Pause 1 (Execution Plans & Shuffle Counting):**
-> 1. Open `labs/mod-3-1/spark_lab.py` in your text editor. Do not execute this Python file directly in terminal without a test runner.
+> 1. Ensure Java 17+ is installed (`java -version`) and dependencies are installed (`pip install -r labs/mod-3-1/requirements.txt`), then open `labs/mod-3-1/spark_lab.py` in your text editor. Do not execute this Python file directly in terminal without a test runner.
 > 2. Implement `count_exchanges(df)` to count `Exchange` nodes in the formatted physical plan (`df.explain("formatted")`). Remember that `BroadcastExchange` is not a shuffle of the large table and must be excluded.
 > 3. Run the tests in terminal:
 >    `pytest labs/mod-3-1/test_lab.py -k "test_narrow or test_a_group_by or test_a_sort_merge_join" -v`
@@ -130,9 +130,9 @@ p = Plan([1, 2, 3, 4]).filter(lambda x: x > 1).map(lambda x: x * 10)
 print(len(p.steps))
 print(p.collect())
 @notes
-12 | Two **transformations**. Nothing was computed: the plan only holds two recorded steps. No number was multiplied yet.
-13 | The plan has 2 steps and no results. This is why a typo in a transformation may only fail later.
-14 | The **action** `collect` finally runs the recorded steps, in order, over the data: filter keeps 2, 3, 4; map gives 20, 30, 40.
+13 | Two **transformations**. Nothing was computed: the plan only holds two recorded steps. No number was multiplied yet.
+14 | The plan has 2 steps and no results. This is why a typo in a transformation may only fail later.
+15 | The **action** `collect` finally runs the recorded steps, in order, over the data: filter keeps 2, 3, 4; map gives 20, 30, 40.
 :::
 
 :::ask Which of these Spark calls triggers actual computation?
@@ -162,6 +162,8 @@ Whatever API you use (DataFrame, SQL), your query goes through the same engine, 
 
 Reading a plan is a core skill: use `df.explain("formatted")` and look at (a) the **join type**, (b) the **Exchange** nodes and their partitioning, (c) whether **filters and projections appear inside the scan** (pushdown, as in Module 2.1), and (d) the **partition counts**. The Spark UI's SQL tab shows the same plan with real row counts and times after execution.
 
+**A quick note on Scala Spark syntax:** Because Spark itself is written in Scala, you will often read Scala DataFrame jobs alongside PySpark (optional Lesson 9 covers Scala and Java in full). Watch for one common trap: Scala column equality uses `===` (and `=!=`), not `==`, writing `orders.filter($"status" == "paid")` evaluates to a plain Scala `Boolean` rather than a `Column` expression and fails to compile.
+
 > 🛠 **Try it (10 min, Python).** DuckDB has an optimiser with the same pushdown ideas. Save `orders.parquet` as in Module 2.1 and run `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, printing the plan text (`.fetchall()[0][1]`). Then explain `SELECT * FROM 'orders.parquet'`. Find the scan node in both and read its `Projections` and `Filters`.
 >
 > **You should see:** in the first plan the Parquet scan lists only `payment_method` under `Projections` and `status='delivered'` under `Filters`: the optimiser pushed both into the scan, so other columns are never read and rows are filtered while reading. In the second plan the scan projects all six columns and has no filter. Spark's `explain("formatted")` shows the same ideas as `PushedFilters` and `ReadSchema`.
@@ -187,7 +189,7 @@ A join must bring matching keys together. Spark picks from several strategies:
 | **Shuffle hash join** | Both sides shuffled; a hash table is built from the smaller side | Medium sizes |
 | **Broadcast nested loop / cartesian** | Compares every pair of rows | Joins without an equality condition: dangerous |
 
-The difference is large even on a laptop. On a joined table of 3 million events and 1,001 customers, in the lab's local mode (4 cores), the same aggregation took **2.58 s with a sort-merge join** and **0.85 s with a broadcast join**, three times faster, because the big table was never shuffled. In the plans, the difference is visible:
+The difference is large even on a laptop. On a joined table of 3 million events (`N = 3,000,000`; the test suite uses `600,000` for speed) and 1,001 customers, in the lab's local mode (4 cores), the same aggregation took **2.58 s with a sort-merge join** and **0.85 s with a broadcast join**, three times faster, because the big table was never shuffled. In the plans, the difference is visible:
 
 ```text
 SortMergeJoin Inner          BroadcastHashJoin Inner BuildRight
@@ -214,7 +216,7 @@ shuffle both sides, which is always fastest
 * broadcast the small table, skip the big shuffle
 sort the small table before the join
 @why
-A broadcast join sends the small table to every executor, and the large table stays where it is. In the lab this took about a quarter of the time of the sort-merge join that shuffled both sides.
+A broadcast join sends the small table to every executor, and the large table stays where it is. In the lab this took about a third of the time of the sort-merge join that shuffled both sides.
 :::
 
 ## @lesson Data skew: when one task does all the work
@@ -222,7 +224,7 @@ A shuffle sends all rows with the same key to the same partition. If the keys ar
 
 Skew usually comes from a **hot key**. Typical culprits: a default or placeholder value (`customer_id = 0` for guest checkout, `-1`, `''`), `NULL` (all nulls hash to one partition in a group-by), a very popular product, a bot account, a country code that dominates.
 
-The lab builds a dataset where 70% of events belong to customer 0. After hash-partitioning by `customer_id` into 8 partitions, the partition sizes are:
+The lab builds a dataset where 70% of events belong to `customer_id = 0` (benchmarked below with `N = 3,000,000`; the test suite uses `600,000` for speed). After hash-partitioning by `customer_id` into 8 partitions, the partition sizes are:
 
 ```text
 [2,200,366  121,618  121,124  120,272  113,221  112,257  109,813  101,329]    (3,000,000 rows)
@@ -249,13 +251,13 @@ print({p: len(rows) for p, rows in partitions.items()})
 5 | One partition holds 6 of the 8 rows. In Spark that is one task running long while the others sit idle: the stage ends only when the slowest task ends.
 :::
 
-:::ask A join key is NULL on 60% of the rows. After the shuffle, where do all those rows go?
+:::ask A `LEFT JOIN` (or `groupBy`) key is NULL on 60% of the rows. After the shuffle, where do all those rows go?
 @options
 * all go to one partition: one task does the work
 they spread evenly over all partitions
 the join drops them before the shuffle
 @why
-Hash partitioning is deterministic: equal keys (including NULL) always go to the same place. A hot key therefore creates one overloaded task, while the other executors idle. Fixes: filter or handle the NULLs separately, broadcast the small side, or **salt** the hot key.
+Hash partitioning is deterministic: equal keys (including NULL) always go to the same place. Unlike an inner join (where Spark can drop NULL keys before shuffling), a `LEFT JOIN` or `groupBy` keeps them and creates one overloaded task while other executors idle. Fixes: filter or handle the NULLs separately, broadcast the small side, or **salt** the hot key.
 :::
 
 :::drill python Salt a hot key
@@ -270,14 +272,7 @@ salted_counts(["a", "a", "b"], 2) == {"a#0": 1, "a#1": 1, "b#0": 1} ## Row numbe
 salted_counts([], 4) == {} ## No rows, no counts.
 max(salted_counts(["x"] * 100, 4).values()) == 25 ## 100 rows of one key over 4 buckets: 25 each, the largest group is 25 (not 100).
 @hint
-```python
-def salted_counts(keys, buckets):
-    counts = {}
-    for i, key in enumerate(keys):
-        salted = key + "#" + str(i % buckets)
-        counts[salted] = counts.get(salted, 0) + 1
-    return counts
-```
+Start with an empty `counts` dict, loop over `keys` with an index `i` (using `enumerate`), build each salted key from the key, `"#"`, and `i % buckets`, and increment its count in `counts`.
 @solution
 def salted_counts(keys, buckets):
     counts = {}
@@ -311,7 +306,7 @@ joined = large_salted.join(small_salted, ["key", "salt"]).drop("salt")
 
 In the lab, salting brought the skew ratio from 18.8 down to **1.7** and the join to 1.82 s. It costs a larger small table (N copies) and more code, and it cannot be applied blindly: use it when neither a broadcast nor AQE is enough, for example when both sides are large.
 
-On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), salting (1.82 s) and the plain join (2.58 s). The differences are modest on a laptop with 3 million rows and grow dramatically at cluster scale, where a straggler costs hours. (These timings are from one machine in local mode; the *ratios* and the mechanisms are the lesson, not the exact seconds.)
+On this data (`N = 3,000,000`; the test suite uses `600,000` for speed), the ranking was broadcast (0.85 s), AQE skew join (0.93 s), salting (1.82 s) and the plain join (2.58 s). The differences are modest on a laptop with 3 million rows and grow dramatically at cluster scale, where a straggler costs hours. (These timings are from one machine in local mode; the *ratios* and the mechanisms are the lesson, not the exact seconds.)
 
 > 💡 **Practice Pause 4 (Skew Mitigation: Salting & Adaptive Query Execution):**
 > 1. Open `labs/mod-3-1/spark_lab.py` in your text editor.
@@ -326,8 +321,8 @@ On this data, the ranking was broadcast (0.85 s), AQE skew join (0.93 s), saltin
 
 :::ask The Spark UI shows an executor spending 40% of its time in garbage collection. What does that suggest?
 @options
-the network between the executors is too slow
-* it creates or holds too many small objects: use less memory per row, or avoid row-by-row Python
+the network between executors is too slow
+* high memory pressure from many small objects
 the cluster has too few executors for the number of partitions
 @why
 GC time is time spent freeing memory instead of doing your work. A high share points at memory pressure: many small objects, too much cached data, or heavy serialisation such as Python UDFs. The network and the executor count show up in other metrics, not in GC time.
@@ -414,7 +409,7 @@ On Databricks, pipelines follow the **Medallion Architecture** (the same raw →
 
 **Why Auto Loader (`cloudFiles`) beats raw `spark.read.parquet("s3://...")`:**
 When an S3 bucket accumulates 2 million JSON or CSV files over a year, running `spark.read.json("s3://bucket/events/*")` forces Spark to run an expensive S3 `LIST` operation over all 2 million files on every run. Databricks **Auto Loader (`cloudFiles`)** solves this:
-1. It uses cloud event notifications (SNS/SQS on AWS, Event Grid on Azure, Pub/Sub on GCP) or incremental directory listing backed by a **RocksDB checkpoint** so it discovers only *newly arrived* files in $O(1)$ time.
+1. It uses cloud event notifications (SNS/SQS on AWS, Event Grid on Azure, Pub/Sub on GCP) or incremental directory listing backed by a **RocksDB checkpoint** so it discovers only *newly arrived* files in `O(1)` time.
 2. It evolves schemas automatically and routes unexpected or malformed JSON fields into a **`_rescued_data`** column instead of crashing the nightly job at 3 AM!
 
 ```python
@@ -557,6 +552,8 @@ In PySpark the same Java trace is wrapped in a Python one, and the line to read 
 Spark in local mode on your laptop. You will write the functions that **inspect** a query (count its shuffles, measure partition skew) and the functions that **fix** it (broadcast, salting, adaptive skew handling), and tests prove each fix gives the same answer as the plain join while changing the plan or the balance in the way the lesson describes.
 
 ### @steps
+> 💡 **Completed Practice Pauses 1–4?** Your functions in `labs/mod-3-1/spark_lab.py` are already implemented, jump straight to **Step 8 / Practice Pause 5** below to benchmark larger sizes, verify all 12 tests, and generate your proof token.
+
 1. Check Java and install. Spark runs on the Java virtual machine, so `java -version` must print version 17 or newer. If it says `command not found` (the usual case on a fresh Ubuntu or WSL2), install it first:
 
 ```bash
@@ -580,19 +577,21 @@ pytest labs/mod-3-1 -v       # all fail at first (about 20 seconds once implemen
 7. Implement `enable_skew_join` (the configuration values are in the docstring) and `uses_skew_join`. The test runs the join, then checks that the *final* adaptive plan contains `skew=true`.
 8. Explore: run the plain, broadcast, salted and AQE versions for a larger `N` (a few million rows) with `time.time()`; print the plans; try changing `spark.sql.shuffle.partitions`. Open the Spark UI (remove `spark.ui.enabled=false`; it is on port 4040) and find the longest task of the plain join.
 
-> 💡 **Practice Pause 5 (Full Verification & Java 17 Check):**
+> 💡 **Practice Pause 5 (Full Verification & Proof Token):**
 > 1. Ensure Java 17+ is installed and active on your system (`java -version`).
 > 2. In terminal, run the complete test suite:
 >    `pytest labs/mod-3-1/test_lab.py -v`
-> 3. Verify against the reference solution:
->    `LAB_DIR=reference pytest labs/mod-3-1/test_lab.py -v`
-> 4. **Success Indicator:** All 12 tests report `PASSED`, confirming full mastery of execution plans, distributed joins, and data skew mitigation in Apache Spark.
+> 3. Generate the verification proof token:
+>    `python3 scripts/prove.py mod-3-1`
+> 4. **Success Indicator:** All 12 tests report `PASSED` and your proof token is printed, confirming mastery of execution plans, distributed joins, and data skew mitigation in Apache Spark.
 
 ### @files
 - labs/mod-3-1/spark_lab.py :: Your working file: plan inspection and skew fixes :: starter
 - labs/mod-3-1/test_lab.py :: The tests (they build a skewed dataset) :: test
 - labs/mod-3-1/requirements.txt :: pyspark and pytest :: config
 - labs/mod-3-1/reference/spark_lab.py :: One possible solution (try first!) :: reference
+- labs/mod-3-1/scala/revenue_job.scala :: Optional Lesson 9 Scala Spark example job :: data
+- labs/mod-3-1/scala/typo_job.scala :: Optional Lesson 9 Scala job with a column typo for reading JVM traces :: data
 
 ### @deliverables
 - All 12 tests pass
@@ -602,6 +601,7 @@ pytest labs/mod-3-1 -v       # all fail at first (about 20 seconds once implemen
 ### @verify
 ```bash
 pytest labs/mod-3-1 -v
+python3 scripts/prove.py mod-3-1
 ```
 
 Known-good run: `LAB_DIR=reference pytest labs/mod-3-1 -v`. Tests are skipped with a message if Java is not found.

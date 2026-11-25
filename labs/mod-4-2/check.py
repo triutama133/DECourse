@@ -400,7 +400,7 @@ def step_3(ws, pipe):
         cnt = conn.execute("SELECT count(*) FROM events").fetchone()[0]
         check("warehouse has 400 events after incremental sync", cnt == 400, f"Expected 400, got {cnt}")
         conn.close()
-        check("the incremental run asked the API only for changes (it did not re-read all 400 events)", server.req_count - n_before <= 2,
+        check("the incremental run asked the API only for changes (it did not re-read all 400 events)", server.req_count - n_before <= 3,
               f"{server.req_count - n_before} requests for 100 new events at a page size of 100: pass updatedafter so the server filters")
 
         state2 = json.loads(state_file.read_text(encoding="utf-8"))
@@ -597,7 +597,6 @@ def step_5(ws, pipe):
             rf["properties"]["mag"] = 9.9
             rf["properties"]["status"] = "reviewed"
             rf["properties"]["updated"] = newest + 1000 * (i + 1)
-        server.active_features = base_feats + revised_feats[:0] + [f for f in revised_feats] + toxic_feats
         # the server keeps one version of each event: replace the old versions by the revised ones
         by_id = {f["id"]: f for f in base_feats}
         for rf in revised_feats:

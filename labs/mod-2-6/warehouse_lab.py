@@ -84,6 +84,7 @@ def plan_load_files(total_bytes, slices, min_bytes=100 * MiB, max_bytes=250 * Mi
     - total_bytes <= max_bytes: one file [total_bytes].
     - otherwise: the smallest number of files n with total_bytes / n <= max_bytes, then rounded UP to a multiple of `slices`
       (so every parallel loader gets the same number of files). Sizes differ by at most 1 byte: the first (total_bytes % n) files get one extra byte.
+    - Note: `min_bytes` is informational only (Snowflake's general 100 MiB lower sizing guideline); do NOT enforce it as a hard floor, because rounding up to a multiple of `slices` can leave individual files slightly below `min_bytes`.
     """
     raise NotImplementedError("TODO: implement plan_load_files")
 

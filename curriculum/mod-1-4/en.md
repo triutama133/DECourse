@@ -13,7 +13,7 @@ why: Tutorials say star schemas are dead and to dump everything into one big tab
 - Test a star schema for grain, referential integrity and reconciliation with the source
 
 ## @prereq
-Modules 0.3 and 1.3 (joins, the fan-out trap, window functions such as LEAD, recursive CTEs). The lab uses plain SQL on SQLite plus a short Python helper; nothing to install.
+Modules 0.3 and 1.3 (joins, the fan-out trap, window functions such as LEAD, recursive CTEs). The lab uses plain SQL on SQLite plus a short Python helper; nothing extra to install for `test_lab.py` or `check.py` (install `pytest` via `pip install pytest` if you want to run `scripts/prove.py`).
 
 ## @part Designing a star schema
 
@@ -42,7 +42,7 @@ The design is done in four steps, in order. Skipping the order is the most commo
 3. **Choose the dimensions.** Everything that describes a row at that grain: date, customer, product.
 4. **Choose the facts (measures).** The numbers at that grain: quantity, unit price, line total.
 
-> 🛠 **Try it (10 min, SQL Sandbox).** Answer "revenue per city and tier for delivered orders" on the normalised KopiKu tables (revenue = `qty * unit_price_idr`). Count how many tables you had to join and how many `ON` conditions you had to get right. Then sketch on paper the star schema for the same question: which table holds the revenue, which tables hold city and tier?
+> 🛠 **Try it (10 min, SQL Sandbox).** Answer "revenue per city and tier for delivered orders" on the normalised KopiKu tables (revenue = `qty * unit_price_idr`), ordered with `ORDER BY revenue DESC`. Count how many tables you had to join and how many `ON` conditions you had to get right. Then sketch on paper the star schema for the same question: which table holds the revenue, which tables hold city and tier?
 >
 > **You should see:** three tables (`orders`, `customers`, `order_items`) and two joins, and a first row `Bandung, Gold, 455000` followed by `Surabaya, Bronze, 365000`. In your sketch there is one fact table of order lines (the revenue) pointing at a customer dimension (city, tier): the analyst writes one join instead of remembering three tables.
 
@@ -125,7 +125,7 @@ Show how many `(order_id, line_no)` pairs appear **more than once** in `order_it
 /group\s+by/ ## Group by the grain columns: order_id, line_no.
 /having/ ## Keep only the groups with COUNT(*) > 1.
 @hint
-`SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);`
+Use a subquery that groups `order_items` by `order_id, line_no` and keeps groups with `HAVING COUNT(*) > 1`, then count the rows of that subquery as `violations`.
 @solution
 SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GROUP BY order_id, line_no HAVING COUNT(*) > 1);
 :::
@@ -167,6 +167,8 @@ the table becomes a proper star schema
 The trouble with a one big table as the **only** model is not size: it hides the grain, makes updates expensive, and invites every team to define things differently. Build it **from** the star as a convenience layer, not instead of it.
 :::
 
+In a warehouse, each dimension row usually gets a warehouse-assigned integer id called a **surrogate key** (e.g. `product_sk`), while keeping the source system's id (the **natural key**, e.g. `product_id`) as a regular column, Lesson 4 explains why in detail.
+
 :::drill sql A product dimension with a surrogate key
 Build a tiny product dimension: `product_sk` (a surrogate key: 1, 2, 3... in the order of `product_id`), `product_id` (the natural key, kept as an ordinary column) and `name`.
 @data kopiku
@@ -177,7 +179,7 @@ Build a tiny product dimension: `product_sk` (a surrogate key: 1, 2, 3... in the
 @check
 /row_number/ ## Create the surrogate key with ROW_NUMBER() OVER (ORDER BY product_id).
 @hint
-`SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;`
+Select from `products` using `ROW_NUMBER() OVER (ORDER BY product_id)` aliased as `product_sk`, followed by `product_id` and `name`.
 @solution
 SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name FROM products;
 :::
@@ -206,14 +208,14 @@ In the lab's data, 32 order lines belong to customers who do not exist in the cu
 :::ask An order arrives for a customer who is not in the customer extract yet. The fact table is joined to the dimension with an INNER JOIN. What happens to that order?
 @options
 it is kept and shown under Unknown
-* it silently vanishes and the totals go down
+* it drops silently; totals fall
 the join stops with a clear error
 @why
 A fact row whose key matches no dimension row disappears in an inner join, with no error. The standard fix is an **unknown member** (for example key -1, "Unknown") that every orphan fact points at, so its revenue stays visible and countable.
 :::
 
 :::drill sql Keep the orphans
-Show every order's `order_id` and the customer's `name`, but show `'Unknown'` when the customer does not exist in `customers`. Every order must stay in the result. Use a `LEFT JOIN` and `COALESCE`.
+Show every order's `order_id` and the customer's `name`, but show `'Unknown'` when the customer does not exist in `customers`. Every order must stay in the result (the checker inserts an extra orphan order to verify `'Unknown'`). Use a `LEFT JOIN` and `COALESCE`.
 @data kopiku
 @names
 @starter
@@ -223,12 +225,12 @@ Show every order's `order_id` and the customer's `name`, but show `'Unknown'` wh
 /left\s+join/ ## Use LEFT JOIN so orders without a customer stay.
 /coalesce/ ## Show 'Unknown' with COALESCE(c.name, 'Unknown').
 @hint
-`SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;`
+Start from `orders`, `LEFT JOIN customers` on `customer_id`, and wrap the customer name column in `COALESCE(..., 'Unknown')` aliased as `name`.
 @solution
 SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN customers c ON c.customer_id = o.customer_id;
 :::
 
-> 🛠 **Try it (10 min, Python).** With the generated KopiKu files, find the orders whose `customer_id` does not exist in `data/customers.csv`, and how many order lines belong to them. Then decide: if the fact table required a real customer key, what would happen to those lines, and how would an "Unknown" member save them?
+> 🛠 **Try it (10 min, Python).** With the generated KopiKu files (run `python3 labs/shared/shopgen.py --out data` first if `data/` does not exist yet), find the orders whose `customer_id` does not exist in `data/customers.csv`, and how many order lines belong to them. Then decide: if the fact table required a real customer key, what would happen to those lines, and how would an "Unknown" member save them?
 >
 > **You should see:** `16` orders and `32` order lines (the number this lesson quotes). Write the one sentence you would put in the model's documentation about them.
 
@@ -255,7 +257,7 @@ Why does it matter? Using the lab's data: customers change tier over time. Reven
 | 2 | 1 | Jakarta | Gold | 2026-01-10 | 2026-01-20 | 0 |
 | 3 | 1 | Bandung | Gold | 2026-01-20 | 9999-12-31 | 1 |
 
-`valid_from` is inclusive, `valid_to` exclusive and equal to the next version's `valid_from`, so ranges tile the timeline with no gaps and no overlaps. The far-future date for the open version avoids NULL logic in range checks. You can build the whole dimension from a change feed with one window function (`LEAD(effective_ts, 1, '9999-12-31') OVER (PARTITION BY customer_id ORDER BY effective_ts)`), which is exactly challenge d-1 in the sandbox.
+`valid_from` is inclusive, `valid_to` exclusive and equal to the next version's `valid_from`, so ranges tile the timeline with no gaps and no overlaps. The far-future date for the open version avoids NULL logic in range checks. You can build the whole dimension from a change feed with one window function (`LEAD(effective_ts, 1, '9999-12-31 00:00:00') OVER (PARTITION BY customer_id ORDER BY effective_ts)`), which is exactly challenge d-1 in the sandbox (note that `warehouse.sql` uses ISO-8601 timestamps with a `T`, so its far-future sentinel is `'9999-12-31T00:00:00'`).
 
 **The as-of join.** To attach the right version to a fact, join on the natural key **and** the time range:
 
@@ -283,7 +285,7 @@ SELECT order_id, customer_id, order_ts FROM orders_small WHERE customer_id = 1 O
 @say
 Three facts, three moments in time.
 @stage 2. The three versions of customer 1 in the dimension
-SELECT customer_sk, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
+SELECT customer_sk, city, tier, valid_from, valid_to FROM dim_customer WHERE customer_id = 1 ORDER BY valid_from
 @say
 Silver until 10 January, Gold until 20 January, then Gold in Bandung. Each version has a validity range.
 @stage 3. WRONG: join on customer_id alone
@@ -331,7 +333,7 @@ Show how many **extra** rows the wrong join (on `customer_id` only) creates comp
 @check
 /join/ ## Count the rows of orders_small JOIN dim_customer ON customer_id.
 @hint
-`SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;`
+Subtract two scalar `COUNT(*)` subqueries: one counting the join of `orders_small` and `dim_customer` on `customer_id` alone, minus one counting `orders_small`, aliased as `extra_rows`.
 @solution
 SELECT (SELECT COUNT(*) FROM orders_small o JOIN dim_customer d ON d.customer_id = o.customer_id) - (SELECT COUNT(*) FROM orders_small) AS extra_rows;
 :::
@@ -347,7 +349,7 @@ Show the `tier` that customer `1` had on `'2026-01-15 00:00:00'`, using the half
 /valid_to/ ## Use the end of the range: < valid_to.
 /valid_from/ ## Use the start of the range: >= valid_from.
 @hint
-`WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to`
+Select `tier` from `dim_customer` where `customer_id = 1` and the timestamp `'2026-01-15 00:00:00'` is `>= valid_from` and `< valid_to`.
 @solution
 SELECT tier FROM dim_customer WHERE customer_id = 1 AND '2026-01-15 00:00:00' >= valid_from AND '2026-01-15 00:00:00' < valid_to;
 :::
@@ -379,17 +381,19 @@ Common mistakes to avoid: mixing grains; putting descriptive text in the fact ta
 
 > 💡 **Practice Pause 3 (Build the KopiKu Star Schema in warehouse.sql):**
 > Time to build the full production star schema warehouse!
-> 1. Prepare the staging tables first in your terminal:
+> 1. Generate the KopiKu data if not done already (`python3 labs/shared/shopgen.py --out data`), then prepare the staging tables in your terminal:
 > `python3 labs/mod-1-4/stage.py data warehouse.db`
-> 2. Open `labs/mod-1-4/warehouse.sql` in your text editor (remember: do not execute directly in bash without arguments!).
+> 2. Open `labs/mod-1-4/warehouse.sql` in your text editor.
 > 3. Write DDL & DML for the 4 tables: `dim_date` (gap-free), `dim_product` (surrogate key), `dim_customer` (SCD Type 2 with unknown member `customer_sk = -1`), and `fact_order_items` (order line grain with as-of join).
 > 4. Test the complete star schema integrity in the terminal:
 > `python3 labs/mod-1-4/test_lab.py -v`
+> 5. Because `test_lab.py` runs in `:memory:`, write the real `dim_*` and `fact_order_items` tables into `warehouse.db` on disk (needed for querying or Metabase in Lesson 8):
+> `python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"` (or `sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql`)
 > When all 13 unit tests show PASSED (OK), your KopiKu star schema meets enterprise standards!
 
 :::ask A grain test on a fact table whose grain is 'one row per order line' checks what?
 @options
-* that the natural key is unique and counts match
+* natural key is unique and row counts match
 that every column contains at least one NULL
 that dimensions have more rows than the fact
 @why
@@ -403,33 +407,30 @@ Chapter 8 of *Fundamentals of Data Engineering* compares these approaches. In th
 
 | Approach | Shape | Good at | Costs you |
 |---|---|---|---|
-| **Inmon** | A normalised (3NF) warehouse for the whole company, with star-schema marts built from it for each department | One version of each fact, little duplication | Many joins; changes need coordination across the company |
+| **Inmon** | A normalised (3NF, Third Normal Form, where each non-key attribute depends only on the table's key) warehouse for the whole company, with star-schema marts built from it for each department | One version of each fact, little duplication | Many joins; changes need coordination across the company |
 | **Kimball** (this module) | Fact tables at a declared grain, surrounded by dimensions | Easy, fast questions for analysts and BI tools | Merging many changing sources into shared dimensions takes work up front |
 | **Data Vault** | Hubs (business keys), links (relationships) and satellites (attributes over time), loaded insert-only | Absorbs new sources and changing sources; keeps the full history for audits | Too many joins for analysts, so a star schema is usually built on top |
 | **One big table** | One wide table per grain, everything joined in advance | No joins at query time; fast column scans | Hides mixed grains; one changed attribute can mean rewriting huge partitions |
 
 ### Inside a Data Vault
-Kimball uses surrogate keys 1, 2, 3 handed out in order. With fifteen sources loading at the same time, handing out numbers in order becomes a bottleneck, and the same customer gets a different number in each system. Data Vault instead derives each key from the business key itself with a hash, so every loader computes the same key on its own. The Data Vault 2.0 standard commonly uses MD5; this module uses SHA-256, which works the same way.
+Kimball uses surrogate keys 1, 2, 3 handed out in order. With fifteen sources loading at the same time, handing out numbers in order becomes a bottleneck, and the same customer gets a different number in each system. Data Vault instead derives each key from the business key itself with a hash, so every loader computes the same key on its own. The Data Vault 2.0 standard commonly uses MD5; this module uses SHA-256, which works the same way. In Python's standard library, `hashlib.sha256(s.encode("utf-8")).hexdigest()` turns a string `s` into UTF-8 bytes and returns its 64-character hexadecimal SHA-256 hash.
 
-```python
-import hashlib
+Before hashing, normalise every input by trimming surrounding whitespace and upper-casing it, and join multi-part keys with `|`:
 
-def dv_hash(text):
-    return hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()
-
-hk_customer = dv_hash("C-101")            # hub key
-hk_link     = dv_hash("C-101|O-5001")     # link key: customer and order, joined with |
-hash_diff   = dv_hash("BANDUNG|GOLD")     # satellite: a fingerprint of the attributes
+```text
+hk_customer = SHA-256("C-101")          # hub key: normalised customer_id
+hk_link     = SHA-256("C-101|O-5001")   # link key: customer and order, joined with |
+hash_diff   = SHA-256("BANDUNG|GOLD")   # satellite: a fingerprint of the tracked attributes
 ```
 
 - **Hub** (`hub_customer`): only the business key, its hash key, when it was first seen (`load_ts`) and where from (`record_source`). No descriptions.
 - **Link** (`link_customer_order`): a relationship between hubs. Links are many-to-many by design, so a business rule that changes from one-to-many to many-to-many does not break the tables.
 - **Satellite** (`sat_customer`): the attributes that change over time, such as city and tier, with a `hash_diff` fingerprint. A satellite is insert-only: a new row is added only when the fingerprint differs from that customer's *latest* row. Nothing is overwritten, so the full history stays.
 
-> 🛠 **Try it (20 min, in your own terminal).** In a file `datavault.py`, write `build_data_vault(events, record_source="kopiku_oms")`. Each event is a dict with `customer_id`, `order_id`, `city`, `tier` and `load_ts`, and the events may arrive in any order. Return a dict with four lists of dicts, using these keys:
+> 🛠 **Try it (20 min, in your own terminal).** In a file `~/practice/datavault.py`, write `build_data_vault(events, record_source="kopiku_oms")`. Each event is a dict with `customer_id`, `order_id`, `city`, `tier` and `load_ts`, and the events may arrive in any order. Return a dict with four lists of dicts, using these keys:
 > `hub_customer`: `hk_customer, customer_id, load_ts, record_source` · `hub_order`: `hk_order, order_id, load_ts, record_source`
 > `link_customer_order`: `hk_link, hk_customer, hk_order, load_ts, record_source` · `sat_customer`: `hk_customer, city, tier, hash_diff, load_ts, record_source`
-> Hash exactly as in the code above: business keys trimmed and upper-cased; the link key is `CUSTOMER|ORDER`; `hash_diff` is `CITY|TIER`, both trimmed and upper-cased. Think about what "first seen" means when events arrive out of order, and what a customer who moves to Bandung and later back to Jakarta should leave in the satellite.
+> Hash using the recipe above: business keys trimmed and upper-cased (store the trimmed, upper-cased `customer_id` and `order_id` values in `hub_customer` and `hub_order` as well); the link key is `CUSTOMER|ORDER`; `hash_diff` is `CITY|TIER`, both trimmed and upper-cased. Think about what "first seen" means when events arrive out of order, and what a customer who moves to Bandung and later back to Jakarta should leave in the satellite.
 > Check it: `python3 labs/tryit/check.py 1.4-1 ~/practice` (stuck? add `--hint 1`, then 2 and 3)
 
 :::drill python The same key, the same hash
@@ -445,7 +446,7 @@ dv_hash("c-001") != dv_hash("c-002") ## A different key gives a different hash.
 len(dv_hash("c-001")) == 64 ## SHA-256 in hex is 64 characters.
 dv_hash("c-001") == hashlib.sha256(b"C-001").hexdigest() ## It is the SHA-256 of the cleaned text "C-001".
 @hint
-`hashlib.sha256(text.strip().upper().encode("utf-8")).hexdigest()`
+Clean `text` by stripping surrounding spaces and converting to upper case, encode it to UTF-8 bytes, and return the SHA-256 hex digest with `hashlib`.
 @solution
 import hashlib
 def dv_hash(text):
@@ -485,7 +486,15 @@ The tools differ in their screens, not in these steps. Learn the steps once on a
 
 Two more habits: show when the data was last refreshed, and never compare an unfinished day, week or month with a finished one.
 
-**Practise on your own model with Metabase.** Power BI and Tableau are what job posts name most, but Power BI Desktop needs Windows (Microsoft lists Windows 10 or Windows Server 2016 as the minimum). Metabase is free, open source and runs anywhere Docker runs, and it reads the SQLite file your lab already built. Start it from the folder that holds your `warehouse.db` (port 3001, because the course site uses 3000):
+**Practise on your own model with Metabase.** Power BI and Tableau are what job posts name most, but Power BI Desktop needs Windows (Microsoft lists Windows 10 or Windows Server 2016 as the minimum). Metabase is free, open source and runs anywhere Docker runs, and it reads the SQLite file your lab builds. First make sure `warehouse.db` actually contains the `dim_*` and `fact_order_items` tables on disk (`test_lab.py` runs in `:memory:`, so it does not write them to `warehouse.db`):
+
+```bash
+python3 labs/mod-1-4/stage.py data warehouse.db
+python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"
+# or, if the sqlite3 CLI is installed: sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql
+```
+
+Then start Metabase from the folder that holds your `warehouse.db` (port 3001, because the course site uses 3000):
 
 ```bash
 docker run -d --name metabase -p 3001:3000 -v "$PWD":/data metabase/metabase:v0.65.6.3
@@ -513,7 +522,7 @@ avg_order_value([("o1", 50)]) == 50 ## One order, one line.
 avg_order_value([("a", 10), ("b", 10), ("c", 10), ("c", 10)]) == 40 / 3 ## 40 over 3 orders.
 avg_order_value([]) == 0 ## Nothing to average.
 @hint
-`sum(amount for _, amount in lines)` divided by the number of distinct order ids (`len({o for o, _ in lines})`).
+Return `0` if `lines` is empty; otherwise divide the sum of all line amounts by the number of unique `order_id` values (for example using a `set`).
 @solution
 def avg_order_value(lines):
     if not lines:
@@ -535,6 +544,8 @@ The fact has one row per order line. Average order value is revenue divided by t
 ## @lab Lab: build the KopiKu star schema
 Build a data warehouse for KopiKu in SQL: a date dimension, a product dimension (Type 1), a customer dimension (Type 2, with an unknown member), and a fact table at the order-line grain whose customer key is the version valid when the order was placed. 13 tests check grain, integrity, reconciliation and a revenue-by-tier calculation done independently in Python. You also get four sandbox challenges on SCD logic in your browser.
 
+> **Already completed Practice Pauses 1–3?** You have already built and tested both the warm-up challenges and `warehouse.sql`, jump straight to **@verify** below.
+
 ### @steps
 1. Generate the data (if you have not) and look at what the staging helper gives you:
 
@@ -555,15 +566,24 @@ python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'ta
 python3 labs/mod-1-4/test_lab.py -v
 ```
 
-7. Explore your model with real questions: revenue by tier and month, revenue by roast level, weekend versus weekday sales. Then deliberately break it (remove the range condition in the fact join) and watch the grain and reconciliation tests fail.
+7. Populate `warehouse.db` on disk. Because `test_lab.py` runs in `:memory:`, run your `warehouse.sql` script against `warehouse.db` to write the real `dim_*` and `fact_order_items` tables (needed for interactive querying or Metabase in Lesson 8):
+
+```bash
+python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"
+# or, if the sqlite3 CLI is installed: sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql
+```
+
+8. Explore your model with real questions: revenue by tier and month, revenue by roast level, weekend versus weekday sales. Then deliberately break it (remove the range condition in the fact join) and watch the grain and reconciliation tests fail.
 
 ### @files
 - labs/mod-1-4/warehouse.sql :: Your working file: build the four tables :: starter
 - labs/mod-1-4/stage.py :: Loads the cleaned KopiKu data into staging tables (provided) :: data
 - labs/mod-1-4/test_lab.py :: The 13 tests :: test
 - labs/mod-1-4/answers.sql :: Sandbox challenges in file form (SCD warm-up) :: starter
+- labs/mod-1-4/datasets/scd_demo.sql :: Small SCD Type 2 dataset used by the sandbox and check.py :: data
 - labs/mod-1-4/check.py :: Checker for the warm-up challenges :: test
 - labs/mod-1-4/reference/warehouse.sql :: One possible solution (try first!) :: reference
+- labs/mod-1-4/reference/answers.sql :: Reference answers for the four warm-up challenges :: reference
 
 ### @deliverables
 - All 13 tests in `test_lab.py` pass
@@ -574,9 +594,10 @@ python3 labs/mod-1-4/test_lab.py -v
 ```bash
 python3 labs/mod-1-4/test_lab.py -v
 python3 labs/mod-1-4/check.py
+python3 scripts/prove.py mod-1-4    # requires pytest (pip install pytest)
 ```
 
-Compare with the known-good solution: `LAB_DIR=reference python3 labs/mod-1-4/test_lab.py`.
+Compare with the known-good solutions: `LAB_DIR=reference python3 labs/mod-1-4/test_lab.py` and `python3 labs/mod-1-4/check.py reference`.
 
 ## @chaos The Gold-tier revenue that changed after the quarter closed
 ### @scenario

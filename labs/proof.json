@@ -123,7 +123,7 @@
   "reference": [
    "labs/mod-1-1/reference/report.sh",
    "labs/mod-1-1/reference/Dockerfile",
-   null
+   "labs/mod-1-1/reference/.dockerignore"
   ]
  },
  "mod-1-2": {
@@ -254,6 +254,9 @@
   "work": [
    "labs/mod-2-3/kopiku_dbt/models/staging/stg_orders.sql",
    "labs/mod-2-3/kopiku_dbt/models/staging/stg_customers.sql",
+   "labs/mod-2-3/kopiku_dbt/models/staging/stg_order_items.sql",
+   "labs/mod-2-3/kopiku_dbt/models/staging/stg_products.sql",
+   "labs/mod-2-3/kopiku_dbt/models/marts/dim_customers.sql",
    "labs/mod-2-3/kopiku_dbt/models/marts/fct_order_items.sql",
    "labs/mod-2-3/kopiku_dbt/models/marts/fct_daily_revenue.sql",
    "labs/mod-2-3/kopiku_dbt/models/staging/schema.yml",
@@ -262,6 +265,9 @@
   "reference": [
    "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_orders.sql",
    "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_customers.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_order_items.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/staging/stg_products.sql",
+   "labs/mod-2-3/reference/kopiku_dbt/models/marts/dim_customers.sql",
    "labs/mod-2-3/reference/kopiku_dbt/models/marts/fct_order_items.sql",
    "labs/mod-2-3/reference/kopiku_dbt/models/marts/fct_daily_revenue.sql",
    "labs/mod-2-3/reference/kopiku_dbt/models/staging/schema.yml",

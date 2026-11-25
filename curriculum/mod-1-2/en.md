@@ -13,7 +13,7 @@ why: Bootcamps teach pandas on a small, clean file. In production the same code 
 - Write pytest tests with fixtures and parametrisation, including tests for memory use and failure behaviour
 
 ## @prereq
-Modules 0.1 and 0.3, and basic Python (functions, loops, dictionaries, files). A virtual environment with `pip install -r labs/mod-1-2/requirements.txt`.
+Modules 0.1, 0.2, and 1.1 (or basic Python: functions, loops, dictionaries, files, virtual environments, and exit codes). A virtual environment with `pip install -r labs/mod-1-2/requirements.txt`.
 
 ## @part Building the job
 
@@ -30,6 +30,8 @@ def run(input_path, output_path):              # edge: reads, writes, logs
     for row in read_orders(input_path):
         ...
 ```
+
+(The `: str` and `-> int | None` labels on `parse_total` are *type hints*, saying it accepts text and returns an integer or `None`. You will learn them in full in **Lesson 2**; you do not need to write them yet in this lesson's exercises.)
 
 A reasonable layout for a small job:
 
@@ -49,7 +51,7 @@ For this module's lab everything is in one file to keep it readable, but the *se
 
 **Configuration** (paths, thresholds, hostnames) comes from arguments or environment variables, never hard-coded; **secrets** only from the environment (Module 0.1).
 
-**Three pieces of Python syntax are new from here on: classes, type hints and decorators.** They appear in the next lessons, so they get their own short lesson right after this one (**Lesson 2**). Nothing in this lesson needs them.
+**Three pieces of Python syntax are new from here on: classes, type hints and decorators.** You just saw a glimpse of type hints above, and all three appear throughout the rest of the module, so they get their own short lesson right after this one (**Lesson 2**). You do not need to write any of them in this lesson's exercises.
 
 > 🛠 **Try it (12 min, in `etl_try.py`).** Write a **pure** function `parse_total(raw)` that returns an int, or `None` when the text is not a non-negative whole number (it should understand the `Rp 150.000` style too). It must pass:
 > `assert parse_total("150000") == 150000`
@@ -58,7 +60,7 @@ For this module's lab everything is in one file to keep it readable, but the *se
 > `assert parse_total("abc") is None`
 > `assert parse_total("") is None`
 >
-> Then write `run(path)`, the edge: it opens `data/orders.csv`, calls `parse_total` on every `total_idr`, and returns the number of valid and invalid rows. Nothing else may touch the file.
+> Then write `run(path)`, the edge: it opens `path` (pass `"data/orders.csv"` when calling it), calls `parse_total` on every `total_idr`, and returns the number of valid and invalid rows. Nothing else may touch the file.
 >
 > **You should see:** no assertion error, and `run("data/orders.csv")` returns `(3617, 17)`. Notice that you tested `parse_total` without any file. Try to do the same with a version that opens the file inside the function and feel the difference.
 
@@ -93,8 +95,8 @@ the edges are the only place where Python allows I/O
 A pure function takes values and returns values and touches nothing else, so a test is just a call and a check. Reading files, calling APIs and writing databases stay in a thin outer layer.
 :::
 
-## @lesson Classes, type hints and decorators: the three things the next lesson reads
-In the next lesson you will meet code like `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)` and `@field_validator("status")`. They look strange until you know three small ideas: a **class**, a **type hint** and a **decorator**. Each one is only a few lines. You do not need to be an expert: you need to be able to read them, and to write the simple forms yourself.
+## @lesson Classes, type hints and decorators: the three things Lesson 4 reads
+In Lesson 4 you will meet code like `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)` and `@field_validator("status")`. They look strange until you know three small ideas: a **class**, a **type hint** and a **decorator**. Each one is only a few lines. You do not need to be an expert: you need to be able to read them, and to write the simple forms yourself.
 
 ### Class: a blueprint for things that have data and actions
 
@@ -189,7 +191,7 @@ def add_tax(price: int, rate: float = 0.11) -> int:
 
 `price: int` means "price should be a whole number"; `-> int` means "this function returns a whole number". Other hints you will see: `list[str]` (a list of texts), `dict[str, int]` (text keys, whole-number values), `int | None` (a whole number or nothing) and `Literal["paid", "shipped"]` (only one of these exact values).
 
-The most important fact: **Python itself does not check hints.** `add_tax("abc")` still runs and fails later in an ugly way. The hints are read by your editor and by libraries such as Pydantic, which *do* check data against them. That is the whole idea of the next lesson.
+The most important fact: **Python itself does not check hints.** `add_tax("abc")` still runs and fails later in an ugly way. The hints are read by your editor and by libraries such as Pydantic, which *do* check data against them. That is the whole idea of Lesson 4.
 
 :::ask What happens when you run `def f(x: int): return x` and then call `f("hello")`?
 @options
@@ -212,7 +214,7 @@ add_tax(100000) == 111000 ## The default rate is 0.11.
 add_tax(200, 0.5) == 300 ## Another rate.
 add_tax.__annotations__ == {"price": int, "rate": float, "return": int} ## The three hints are written.
 @hint
-`def add_tax(price: int, rate: float = 0.11) -> int:` and `return round(price * (1 + rate))`.
+Annotate each parameter with `: type`, put the default `= 0.11` after the type hint, add `-> int` before the colon, and use `round(...)` so floating-point arithmetic returns an exact whole number.
 @solution
 def add_tax(price: int, rate: float = 0.11) -> int:
     return round(price * (1 + rate))
@@ -304,11 +306,13 @@ In the next lessons you will mostly **use** decorators other people wrote: `@fie
 :::ask In the code `@field_validator("status")` above a method, what does the `@` line do?
 @options
 it makes the method run twice, once for each status
-* it hands the method to field_validator, which registers it as a check for the field
+* it registers the method as a check for that field
 it turns the method into a comment so Python ignores it
 @why
 A decorator receives the function underneath and returns something to use in its place. Pydantic's decorator remembers your method and calls it when it validates the field `status`.
 :::
+
+One detail to notice in `wrapper(*args)` above: putting `*args` in a function definition collects any number of positional arguments (zero, one, two, or more) into a tuple called `args`. Writing `fn(*args)` unpacks that tuple back into separate arguments when calling the original function, so the wrapper works on functions of any signature.
 
 :::drill python Write a decorator
 Write a decorator `twice(fn)`: the new function calls `fn` two times with the same arguments and returns **a list of the two results**. So `twice(lambda x: x + 1)(5)` is `[6, 6]`.
@@ -321,7 +325,7 @@ twice(lambda x: x + 1)(5) == [6, 6] ## Called twice, both results.
 twice(lambda a, b: a * b)(3, 4) == [12, 12] ## Several arguments pass through.
 (lambda c: (twice(lambda: c.append(1))(), len(c))[1])([]) == 2 ## The function really ran twice.
 @hint
-Inside `twice`, define `wrapper(*args)` that returns `[fn(*args), fn(*args)]`, then `return wrapper`.
+Follow the `shout` pattern above: define an inner `wrapper(*args)` that calls `fn(*args)` twice and collects both results in a list, then return the wrapper function itself (without calling it).
 @solution
 def twice(fn):
     def wrapper(*args):
@@ -329,7 +333,7 @@ def twice(fn):
     return wrapper
 :::
 
-### Now read the code from the next lesson
+### Now read the code from Lesson 4
 
 You can already read each line of this example:
 
@@ -410,7 +414,7 @@ apply_all([abs, str], -3) == [3, "-3"] ## Two functions.
 apply_all([], 5) == [] ## No functions.
 apply_all([lambda v: v + 1, lambda v: v * 2], 10) == [11, 20] ## Lambdas work too.
 @hint
-`[fn(x) for fn in funcs]`: a function is a value you can loop over and call.
+A function is a regular value, so you can loop over `funcs`, call each function with `x`, and collect the return values in a new list.
 @solution
 def apply_all(funcs, x):
     return [fn(x) for fn in funcs]
@@ -530,14 +534,6 @@ The pattern that follows is the **quarantine** (also called dead-letter) queue. 
 
 > **Tip:** Validation is not only for files. The same model can validate API responses, messages from a queue, and configuration. One definition of "a valid order", reused everywhere, is itself a small data contract (Module 2.5).
 
-> 💡 **Practice Pause 1 (Data Validation with Pydantic OrderRow):**
-> Start building your ETL module by crafting the boundary validation model:
-> 1. Open `labs/mod-1-2/etl.py` in your text editor (remember: do not execute directly in bash!).
-> 2. Complete the `OrderRow` class and `validate(row: dict)` function. Add validators to clean Rupiah text (`"Rp 1.250.000"` -> `1250000`), normalize status with lowercase/strip, and support both ISO and `DD/MM/YYYY` timestamps.
-> 3. Test your model in the terminal:
-> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
-> When all TestOrderRow tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 5 on streaming generators.
-
 :::drill python Why was this row rejected?
 Write `reasons(row)`: `row` is a dictionary from a CSV (all text). Return a list of reject reasons, in this order: `"bad status"` if `status` is not one of `paid`, `cancelled`, `shipped`; `"bad total"` if `total_idr` is not a whole number of zero or more. A good row gives `[]`.
 @starter
@@ -633,13 +629,21 @@ extract_codes("Paid ORD-104 and ORD-209 today") == ["ORD-104", "ORD-209"] ## Bot
 extract_codes("No orders here") == [] ## No match returns an empty list.
 extract_codes("ORD-7! and ORD-9999.") == ["ORD-7", "ORD-9999"] ## Works with any number of digits and punctuation nearby.
 @hint
-`re.findall(r"ORD-\d+", text)` finds every occurrence of `ORD-` followed by one or more digits.
+Use `re.findall` with a raw string pattern starting with `ORD-` followed by the digit shorthand (`\d`) and the one-or-more quantifier (`+`).
 @solution
 import re
 
 def extract_codes(text):
     return re.findall(r"ORD-\d+", text)
 :::
+
+> 💡 **Practice Pause 1 (Data Validation with Pydantic OrderRow):**
+> Start building your ETL module by crafting the boundary validation model:
+> 1. Open `labs/mod-1-2/etl.py` in your text editor (remember: do not execute directly in bash!).
+> 2. Complete the `OrderRow` class and `validate(row: dict)` function. Add validators to clean Rupiah text (`"Rp 1.250.000"` -> `1250000`), normalize status with lowercase/strip, and support both ISO and `DD/MM/YYYY` timestamps.
+> 3. Test your model in the terminal:
+> `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
+> When all `TestOrderRow` tests are PASSED, your validation boundary is rock solid! Proceed to Lesson 5 on streaming generators.
 
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
@@ -738,11 +742,7 @@ list(doubled([1, 2, 3])) == [2, 4, 6] ## list(doubled([1, 2, 3])) should be [2, 
 next(doubled([5, 6])) == 10 ## next(doubled([5, 6])) should be 10: the first item only.
 not isinstance(doubled([1]), list) ## It must return a generator, not a finished list.
 @hint
-```python
-def doubled(numbers):
-    for n in numbers:
-        yield n * 2
-```
+Loop over `numbers` and use `yield` (instead of building a list and using `return`) to emit each number multiplied by 2 one at a time.
 @solution
 def doubled(numbers):
     for n in numbers:
@@ -761,15 +761,7 @@ list(good_totals([{"total": "100"}, {"total": "x"}, {"total": "250"}])) == [100,
 list(good_totals([])) == [] ## An empty input gives nothing.
 has_node("Try") ## Use try / except ValueError.
 @hint
-```python
-def good_totals(rows):
-    for row in rows:
-        try:
-            yield int(row["total"])
-        except ValueError:
-            pass
-```
-(Skipping is fine **here** because this is a drill; in a real pipeline the bad row goes to quarantine, as the next lesson shows.)
+Loop over `rows` and wrap converting `row["total"]` with `int(...)` inside a `try` block, `yield` the integer if it succeeds, and catch `ValueError` to skip bad rows. (Skipping is fine **here** because this is a drill; in a real pipeline the bad row goes to quarantine, as Lesson 6 shows.)
 @solution
 def good_totals(rows):
     for row in rows:
@@ -783,9 +775,9 @@ def good_totals(rows):
 > Create a memory-efficient data reader that never loads whole files into RAM:
 > 1. In `labs/mod-1-2/etl.py` in your text editor, locate the `read_orders(path)` function.
 > 2. Implement a lazy generator using `with open(path, newline="", encoding="utf-8") as f:` and `csv.DictReader(f)` with `yield from` (never convert it to `list(csv.DictReader(f))`).
-> 3. Test memory consumption and generator laziness in the terminal:
-> `pytest labs/mod-1-2/test_lab.py -k TestStreaming -v`
-> When TestStreaming tests are PASSED (peak memory stays flat under 30 MB even across 120k rows), your stream is ready! Proceed to Lesson 6 on retries and idempotency.
+> 3. Test generator laziness in the terminal:
+> `pytest labs/mod-1-2/test_lab.py -k test_read_orders_is_a_lazy_generator -v`
+> (The other `TestStreaming` test, `test_memory_stays_flat_on_a_big_file`, calls `etl.run()` and will pass right after Practice Pause 3 implements `run()`.) When `test_read_orders_is_a_lazy_generator` is PASSED, your stream is ready! Proceed to Lesson 6 on retries and idempotency.
 
 ## @part Making it reliable
 
@@ -800,7 +792,7 @@ def good_totals(rows):
 Retry the second kind with **exponential backoff and jitter**: wait 1 s, then 2 s, then 4 s, each multiplied by a random factor so that many clients do not retry at the same instant. Always cap the number of attempts and re-raise at the end.
 
 ```python
-def retry(fn, attempts=4, base=0.5, retry_on=(ConnectionError, TimeoutError)):
+def retry(fn, attempts=4, base=1.0, retry_on=(ConnectionError, TimeoutError)):
     for n in range(1, attempts + 1):
         try:
             return fn()
@@ -885,15 +877,7 @@ retry(make_flaky(2), 4) == "ok" ## A function that fails twice and then works sh
 (lambda f: (raises_error(ConnectionError, retry, f, 3), f.calls)[1] == 3)(make_flaky(10)) ## When it always fails, retry must call it exactly 3 times and then raise the ConnectionError again.
 raises_error(ValueError, retry, lambda: int("x"), 3) ## A ValueError is bad data, not a network blip: it must be raised at once, not retried.
 @hint
-```python
-def retry(fn, attempts=3):
-    for n in range(1, attempts + 1):
-        try:
-            return fn()
-        except ConnectionError:
-            if n == attempts:
-                raise
-```
+Use a `for` loop running `attempts` times; inside `try`, return `fn()`. Catch only `ConnectionError` (so other errors propagate immediately), and on the final attempt re-raise it with a bare `raise`. Check the `retry` example earlier in this lesson if you get stuck.
 @solution
 def make_flaky(failures):
     """A function that raises ConnectionError `failures` times, then returns "ok"."""
@@ -940,7 +924,7 @@ Levels in practice: `DEBUG` (detail for developers), `INFO` (normal milestones a
 
 The most useful single log line in any pipeline is the **run summary**: how many rows were read, how many were valid, how many rejected and why, how long it took. It is your first and cheapest monitoring: a sudden change in those numbers between nights is often the first sign of an upstream problem, which is why the lab asks you to log it and the exit code reflects the reject rate.
 
-> 🛠 **Try it (12 min, Python).** Extend `run` from the previous Try it: call `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` once, in the entry point, and log the run summary as one INFO line with `read`, `valid`, `duplicates` and `invalid`. Count a row as invalid when its `total_idr` is not plain digits (so `Rp 150.000` and negative numbers are invalid here), and as a duplicate when it is valid and its `order_id` was already seen. If the invalid share is above 1%, log an ERROR and exit with `sys.exit(1)`.
+> 🛠 **Try it (12 min, Python).** Extend `run` from Lesson 1's Try it (`etl_try.py`): call `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` once, in the entry point, and log the run summary as one INFO line with `read`, `valid`, `duplicates` and `invalid`. Count a row as invalid when its `total_idr` is not plain digits (so `Rp 150.000` and negative numbers are invalid here), and as a duplicate when it is valid and its `order_id` was already seen. If the invalid share is above 1%, log an ERROR and exit with `sys.exit(1)`.
 >
 > **You should see:** a line like `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, then an ERROR (54 of 3,634 is about 1.5%) and `echo $?` printing `1`. The same run with `print` would have no time, no level and no way to be filtered or alerted on. In your lab, check your summary log line with `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
@@ -1007,14 +991,28 @@ What to test in a pipeline:
 
 Keep tests fast and independent of the network and the clock. A test suite that runs in seconds gets run on every change; one that takes ten minutes is ignored.
 
+To make your CLI testable with `pytest`, accept `argv=None` in `main` and pass it to `argparse`:
+
+```python
+parser = argparse.ArgumentParser()
+parser.add_argument("input")
+parser.add_argument("output")
+parser.add_argument("quarantine")
+parser.add_argument("--max-reject-rate", type=float, default=0.05)
+args = parser.parse_args(argv)
+```
+
+Always pass `argv` into `parser.parse_args(argv)`. When `argv` is `None` (a normal terminal run), `argparse` reads `sys.argv[1:]`; when `pytest` calls `etl.main([...])`, passing `argv` lets `argparse` parse the test arguments instead of breaking on `pytest`'s own CLI flags.
+
 > 💡 **Practice Pause 4 (CLI Entrypoint & Full Test Suite):**
 > Complete the production command-line interface and run full verification:
-> 1. In `labs/mod-1-2/etl.py` in your text editor, complete the `main(argv=None)` function using `argparse`: accept `input`, `output`, `quarantine`, and optional `--max-reject-rate` (default `0.05`). Return exit code `0` on success, `1` if reject rate exceeds threshold, and `2` if input file cannot be read.
-> 2. Test CLI and the entire suite in the terminal:
+> 1. In `labs/mod-1-2/etl.py` in your text editor, complete `main(argv=None)` using the `argparse` pattern above: accept `input`, `output`, `quarantine`, and `--max-reject-rate` (default `0.05`). Return exit code `0` on success, `1` if the reject rate exceeds the limit, and `2` if the input file cannot be read.
+> 2. Run the entire test suite (including `TestLogging`, `TestStreaming`'s 120,000-row memory check, and `TestMain`) in the terminal:
 > `pytest labs/mod-1-2/test_lab.py -v`
-> 3. Try running the script directly from terminal on KopiKu data:
+> 3. Run the script on KopiKu data and generate your lab proof code:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
-> When all tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 9 on choosing the right tools.
+> `python3 scripts/prove.py mod-1-2`
+> When all 28 tests are GREEN (PASSED), you have completed an enterprise-grade defensive Python ETL job! Proceed to Lesson 9 on choosing the right tools.
 
 :::ask You have one rule to test (a total may be 'Rp 1.250.000' or '150000') with many example inputs. Which pytest feature fits?
 @options
@@ -1051,7 +1049,7 @@ Exact or bounded versions make builds repeatable, and a lock file makes them exa
 
 As you move from small scripts to production data pipelines and technical interviews, four engineering patterns separate a job-ready Data Engineer from a beginner:
 
-**1. Bounded Concurrent I/O (`ThreadPoolExecutor` + Rate Limiting).** Fetching 400 clinic or store API endpoints sequentially at `250 ms` network latency per call takes `100 seconds` of mostly waiting on sockets. Launching 400 threads at once, however, triggers instant `HTTP 429 Too Many Requests` bans or exhausts database connections. Production Python ingestion uses a **bounded worker pool** paired with a thread-safe **Semaphore / token spacing**:
+**1. Bounded Concurrent I/O (`ThreadPoolExecutor` + Rate Limiting).** Fetching 400 clinic or store API endpoints sequentially at `250 ms` network latency per call takes `100 seconds` of mostly waiting on sockets. Launching 400 threads at once, however, triggers instant `HTTP 429 Too Many Requests` bans or exhausts database connections. Production Python ingestion uses a **bounded worker pool** paired with a **thread-safe rate limiter**:
 
 ```python
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1115,7 +1113,7 @@ seconds_needed(400, 250, 20) == 5 ## 20 at a time: 20 rounds × 0.25 s = 5 s.
 seconds_needed(3, 1000, 2) == 2 ## 3 calls on 2 workers need 2 rounds of 1 s.
 seconds_needed(0, 250, 5) == 0 ## No calls, no time.
 @hint
-`rounds = math.ceil(calls / workers)`, then `rounds * latency_ms / 1000`.
+Divide `calls` by `workers` and round up with `math.ceil` to find the number of rounds, then multiply by `latency_ms` and convert milliseconds to seconds (divide by 1000).
 @solution
 import math
 def seconds_needed(calls, latency_ms, workers):
@@ -1188,7 +1186,9 @@ A reviewer cannot see data by reading code. The description should state the tab
 Build the production version of the cleaning job from Module 0.2. It reads the dirty KopiKu orders, validates each row with a Pydantic model, writes good rows and quarantined rows to separate files, never holds the file in memory, can be run twice safely, and signals success or failure with its exit code. Tests are written for you, and they check behaviour (memory, repeat runs, failures), not just values.
 
 ### @steps
-1. Set up (continue in your `~/kopiku` project from Module 0.1, or work inside the course repository). Install the requirements and generate the data:
+> **Already completed Practice Pauses 1–4?** Your `labs/mod-1-2/etl.py` is already implemented, skip straight to Step 7 to run the full verification and generate your proof code.
+
+1. Set up inside the course repository (you will edit `labs/mod-1-2/etl.py`). Install the requirements and generate the data:
 
 ```bash
 python -m pip install -r labs/mod-1-2/requirements.txt
@@ -1198,17 +1198,19 @@ python3 labs/shared/shopgen.py --out data
 2. Read `labs/mod-1-2/test_lab.py` first. It is the specification. Notice what it checks for: counts against the generator's ground truth, memory under 30 MB on a 120,000-row file, byte-identical outputs on rerun, previous output preserved when a run fails, exit codes 0, 1 and 2.
 3. Open `labs/mod-1-2/etl.py` and implement, in this order, running the tests after each step:
    `OrderRow` (constraints and validators), then `validate`, then `read_orders` (a generator), then `run`, then `main`.
-4. In `run`, use the quarantine pattern: for each row either write it to the output or write `{"row", "reason", "raw"}` to the quarantine, and count what happens. Build the reason from the first validation error. Do the duplicate check only for rows that validated.
-5. Make `run` atomic: write to `<path>.tmp` files and `os.replace` them at the end; in a `try/except` remove the temporary files and re-raise on any failure.
-6. Run the tests, then run the program on the real data and look at the quarantine:
+4. In `run`, use the quarantine pattern: for each row either write it to the output or write `{"row", "reason", "raw"}` to the quarantine, and count what happens. Build the reason from the first validation error (starting with the failing field name). Do the duplicate check only for rows that validated.
+5. Make `run` atomic: write to `f"{output_path}.tmp"` and `f"{quarantine_path}.tmp"` and `os.replace` them at the end; in a `try/except` remove the temporary files and re-raise on any failure.
+6. In `main(argv=None)`, parse `input`, `output`, `quarantine`, and `--max-reject-rate` (default `0.05`) with `argparse` (passing `argv` to `parser.parse_args(argv)`). Return `0` on success, log an error and return `1` when `stats.reject_rate > args.max_reject_rate`, and return `2` if the input file cannot be read (`OSError`).
+7. Run the tests, run the program on the real data (writing to `/tmp/` so the repository stays clean), look at the quarantine, and generate your proof code:
 
 ```bash
 pytest labs/mod-1-2 -v
-python labs/mod-1-2/etl.py data/orders.csv clean.ndjson quarantine.ndjson; echo "exit code: $?"
-head -3 quarantine.ndjson
+python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson; echo "exit code: $?"
+head -3 /tmp/quarantine.ndjson
+python3 scripts/prove.py mod-1-2
 ```
 
-7. Stretch goals: add `--max-reject-rate` handling that logs an error and returns 1; add a retry helper and a test that uses `monkeypatch` to simulate two failures before success; add type hints and run `mypy`.
+8. Optional stretch goals: add a retry helper and a test that uses `monkeypatch` to simulate two failures before success; add type hints and run `mypy`.
 
 ### @files
 - labs/mod-1-2/etl.py :: Your working file: fill in the TODOs :: starter
@@ -1225,6 +1227,7 @@ head -3 quarantine.ndjson
 ### @verify
 ```bash
 pytest labs/mod-1-2 -v
+python3 scripts/prove.py mod-1-2
 ```
 
 Compare with a known-good run: `LAB_DIR=reference pytest labs/mod-1-2 -v`. If the memory test fails, you are probably holding all rows at once; use `tracemalloc` as shown in the lesson to find where.

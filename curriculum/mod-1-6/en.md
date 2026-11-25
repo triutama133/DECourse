@@ -23,10 +23,10 @@ Modules 0.0 and 1.2 (Python, errors, idempotence). The lab needs only the Python
 > **In short:** Data arrives as files, API calls, database reads or events. You choose pull or push, and full or incremental. A trustworthy job is complete, repeat-safe, raw-first, observable and polite to the source.
 Everything a data engineer builds starts with **ingestion**: moving data from where it is created to where it can be used. The sources fall into four families:
 
-- **Files**: CSV, JSON, Parquet dropped on a server, an SFTP folder or cloud storage by a partner or an export job.
+- **Files**: CSV, JSON, Parquet dropped on a server, an **SFTP** folder (Secure File Transfer Protocol, encrypted file transfer over SSH) or cloud storage by a partner or an export job.
 - **APIs**: a service (a payment provider, a marketing tool, a government open-data portal) that you call over HTTP.
 - **Databases**: tables in an operational database, read in bulk or incrementally (Module 3.2 covers change data capture).
-- **Events**: messages from Kafka, webhooks and queues (Module 3.2).
+- **Events**: messages from Kafka, **webhooks** (an HTTP URL of yours that another service calls automatically when an event happens) and queues (Module 3.2).
 
 Two choices shape every job. **Pull or push:** do you ask the source for data on a schedule (pull), or does it send you data when something happens (push, as with webhooks and events)? **Full or incremental:** do you copy everything every time (simple, correct, expensive as data grows), or only what changed since last time (cheap, but you must track "since when" and handle updates and deletes)?
 
@@ -81,19 +81,32 @@ The **status code** tells you what happened, and your code must react differentl
 | 429 | **too many requests**: you are rate limited | wait, then retry (see below) |
 | 500, 502, 503, 504 | the server has a problem | wait and retry |
 
-**Authentication** is how the API knows who you are: an **API key** in a header or query string, a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a secret manager, never in the code or in Git (Module 0.1), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.
+**Authentication** is how the API knows who you are: an **API key** in a header or **query string** (the `?key=value&...` parameters at the end of a URL), a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a **secret manager** (a dedicated vault service such as AWS Secrets Manager or GCP Secret Manager that stores and rotates credentials), never in the code or in Git (Module 0.1), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.
 
 Always set a **timeout**. Without one, a hung connection blocks your job forever. Connection problems (the server unreachable, a reset, a timeout) are different from HTTP errors: there is no status code, so you treat them like a 5xx, as something temporary.
 
 Read the API documentation for four things before writing code: how **authentication** works, how **pagination** works, what the **rate limit** is, and how to ask for **only the changes** (a parameter such as `updated_since`). Many APIs are versioned (`/v2/orders`); pin the version, because an unannounced change is a way for your job to break.
 
-You can do all of this with Python's standard library (`urllib.request`), as the lab does, or with the popular `requests` package; the ideas are identical.
+You can do all of this with Python's standard library (`urllib.request`), as the lab does, or with the popular `requests` package; the ideas are identical:
+
+```python
+import json, urllib.error, urllib.request
+
+req = urllib.request.Request("http://localhost:8765/orders?limit=3", headers={"Authorization": "Bearer learner-token"})
+try:
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        data = json.load(resp)                       # resp.status is 200
+except urllib.error.HTTPError as e:                  # 4xx / 5xx: read e.code and e.headers
+    print("HTTP error:", e.code, e.headers.get("Retry-After"))
+except urllib.error.URLError as e:                   # connection problem or timeout (no status code)
+    print("Network error:", e.reason)
+```
 
 > 💡 **Practice Pause 1 (HTTP Request Construction & Auth Headers):**
 > Start building your ingestion module with deterministic HTTP request formatting:
 > 1. Open `labs/mod-1-6/ingest_lab.py` in your text editor (remember: do not execute directly in bash!).
 > 2. Implement `build_request(url, token, params=None)`: drop None query values, sort parameters with `urllib.parse.urlencode` (ensuring reproducible URLs), and attach headers `Authorization: Bearer <token>` and `Accept: application/json`.
-> 3. Test in the terminal:
+> 3. Test in the terminal (if `pytest` is not installed yet, run `pip install -r labs/mod-1-6/requirements.txt` once):
 > `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
 > When TestBuildRequest tests are PASSED, proceed to Lesson 3 to handle pagination and network retries!
 
@@ -110,7 +123,7 @@ You can do all of this with Python's standard library (`urllib.request`), as the
 @options
 retry both the same number of times
 stop at the first error and discard everything
-* retry the 503 (temporary), but not the 404
+* retry 503 (temporary), not 404
 @why
 4xx means the request itself is wrong (a 404 will not fix itself), so retrying wastes calls. 5xx and connection problems are usually temporary, and so is 429 after waiting the time the server asks for.
 :::
@@ -120,9 +133,9 @@ stop at the first error and discard everything
 > **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
 An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
 
-- **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched for 25 real orders**: 3 duplicates (an older row slides into the next page). Deleted rows cause the opposite, skipped records. It is also slow on large offsets.
+- **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched covering only the 25 distinct original orders**, 3 duplicates (older rows slide into the next page), and the 3 new orders are missed. Deleted rows cause the opposite, skipped records. It is also slow on large offsets.
 - **Page numbers** (`?page=3`): the same weakness.
-- **Cursor (keyset) pagination** (`?cursor=abc`): each response contains a `next_cursor` that marks exactly where to continue. Reading the same feed this way gives the 25 orders with no duplicates and none missing. **Prefer cursors whenever the API offers them.** The lab's `fetch_all_cursor` follows `next_cursor` until it is missing, and `fetch_all_offset` shows the offset loop (stop when a page is shorter than `limit`; note that when the total is an exact multiple of `limit` you need one extra request to see the empty page).
+- **Cursor (keyset) pagination** (`?cursor=abc`): each response contains a `next_cursor` that marks exactly where to continue. Reading the same feed this way gives every order once, with no duplicates and none skipped. **Prefer cursors whenever the API offers them.** The lab's `fetch_all_cursor` follows `next_cursor` until it is missing, and `fetch_all_offset` shows the offset loop (stop when a page is shorter than `limit`; note that when the total is an exact multiple of `limit` you need one extra request to see the empty page).
 
 **Rate limits.** To protect itself, an API limits how many requests you may send, for example 100 per minute. When you exceed it you receive **429 Too Many Requests**, often with a **`Retry-After`** header saying how many seconds to wait. The polite and effective response is to **wait exactly that long**. Hammering the API makes things worse and can get you banned.
 
@@ -136,7 +149,7 @@ In the lab you test all this against a **real HTTP server running on your comput
 > Handle network volatility, 429 rate limits, and multi-page responses:
 > 1. In `labs/mod-1-6/ingest_lab.py` in your text editor, implement:
 >    - `backoff_delay(attempt, base=1.0, cap=30.0)`: exponential delay `min(cap, base * 2 ** (attempt - 1))`.
->    - `get_json(...)`: retry on 429 (respecting `Retry-After`), 5xx, and connection errors, while failing immediately on non-retryable 4xx codes (401, 404).
+>    - `get_json(...)`: retry on 429 (respecting `Retry-After`), 5xx, and connection errors, while raising `ApiError` immediately on non-retryable 4xx codes (401, 404).
 >    - `fetch_all_cursor(...)`: walk cursor-paginated endpoints until `next_cursor` is None.
 >    - `fetch_all_offset(...)`: loop offset pages until record count < limit.
 > 2. Test in the terminal:
@@ -144,11 +157,11 @@ In the lab you test all this against a **real HTTP server running on your comput
 > When tests show PASSED, proceed to Lesson 4 for incremental checkpoints!
 
 > 🛠 **Try it (15 min, hands on).** Keep the practice API running. Start every step from a clean state with `curl localhost:8765/reset`.
-> 1. *Offset pages drift.* Read page 1 with `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Now let 3 new orders arrive (`.../arrive?n=3`, same header). Read page 2 with `offset=10`. Which ids does page 2 contain that page 1 already had?
+> 1. *Offset pages drift.* Read page 1 with `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Now let 3 new orders arrive (`http://localhost:8765/arrive?n=3`, same header). Read page 2 with `offset=10`. Which ids does page 2 contain that page 1 already had?
 > 2. *Cursors do not.* In `cursor_all.py`, read **all** orders from `/orders?limit=10` by following `next_cursor` until it is empty, and call `/arrive?n=3` once right after the first page. Print how many ids you collected and how many are distinct.
 > 3. *Rate limits.* Call `/limited` from `limited.py`. On a 429, print the status and the `Retry-After` value, sleep exactly that long, call again and print the new status.
 >
-> **You should see:** page 1 has ids 25 down to 16, and page 2 repeats 18, 17 and 16; the cursor script prints `28 28`; the rate-limit script prints `429 2.0` and then `200`.
+> **You should see:** page 1 has ids 25 down to 16, and page 2 repeats 18, 17 and 16; the cursor script prints `28 28`; the rate-limit script prints `429 2` (or `429 2.0`) and then `200`.
 >
 > **Check it:** `python3 labs/tryit/check.py 1.6-3 ~/practice` (it needs `cursor_all.py` and `limited.py`; stop your own practice API first). It also tries your `limited.py` against a server that asks for a different wait, so read the header instead of hard-coding the number.
 
@@ -164,7 +177,7 @@ backoff_delay(4, 1, 30) == 8 ## 1, 2, 4, 8.
 backoff_delay(6, 1, 30) == 30 ## 32 would be too long: the cap wins.
 backoff_delay(3, 5, 100) == 20 ## Another base: 5, 10, 20.
 @hint
-`return min(cap, base * 2 ** (attempt - 1))`
+Double `base` for each retry after the first (`attempt - 1` doublings using powers of 2), then cap the result with `min()`.
 @solution
 def backoff_delay(attempt, base, cap):
     return min(cap, base * 2 ** (attempt - 1))
@@ -234,10 +247,10 @@ One run then looks like this:
 How to make the load idempotent:
 
 - **Name the output after the run** (`orders_<run_id>.jsonl`). A rerun of the same run overwrites the same file instead of adding a second one.
-- **Write atomically**: write a temporary file in the same folder, then rename it over the final name (`os.replace`). The file is either complete or absent, never half written. The lab applies the same idea to the checkpoint file itself, so a crash cannot leave a corrupt checkpoint.
+- **Write atomically**: write a temporary file in the same folder, then rename it over the final name (`os.replace`). The file is either complete or absent, never half written. In Python, `fd, tmp = tempfile.mkstemp(dir=folder)` creates a unique temporary file in that folder and `with os.fdopen(fd, "w", encoding="utf-8") as f:` writes to it before `os.replace(tmp, final_path)`. The lab applies the same idea to the checkpoint file itself, so a crash cannot leave a corrupt checkpoint.
 - **Deduplicate** by the record's id, keeping the version with the greatest `updated_at`, because the same record may appear twice (an update arrived between pages).
 
-Edge cases to design for. **Updates**: a changed old record has a new `updated_at`, so it shows up again, and your load must treat it as a new version (the lab test changes order 3 to "refunded"). **Deletes**: an API based on `updated_since` usually cannot tell you that a record was deleted; look for a soft-delete flag or a "deleted since" endpoint, or reconcile with an occasional full load, or use change data capture (Module 3.2). **Ties and late updates**: several records may share one timestamp, and clocks differ, so many teams re-read a small overlap window (the last few minutes) and rely on deduplication. **No `updated_since`**: fall back to a full snapshot and compare it with what you have.
+Edge cases to design for. **Updates**: a changed old record has a new `updated_at`, so it shows up again, and your load must treat it as a new version (the lab test changes order 3 to "refunded"). **Deletes**: an API based on `updated_since` usually cannot tell you that a record was deleted; look for a **soft-delete flag** (a column such as `is_deleted = true` or `deleted_at` that marks a row deleted instead of removing it) or a "deleted since" endpoint, or reconcile with an occasional full load, or use change data capture (Module 3.2). **Ties and late updates**: several records may share one timestamp, and clocks differ, so many teams re-read a small overlap window (the last few minutes) and rely on deduplication. **No `updated_since`**: fall back to a full snapshot and compare it with what you have.
 
 The checkpoint is itself state. Store it somewhere durable that survives the machine (a file in cloud storage, a table), and make it easy to inspect and to reset for a **backfill** (reloading a period on purpose).
 
@@ -303,11 +316,7 @@ next_checkpoint([{"updated_at": 5}, {"updated_at": 9}, {"updated_at": 7}], 3) ==
 next_checkpoint([], 42) == 42 ## With no new rows the checkpoint stays 42.
 next_checkpoint([{"updated_at": 2}], 10) == 10 ## It must never move backwards: old rows (2) must not lower the checkpoint of 10.
 @hint
-```python
-def next_checkpoint(rows, old):
-    newest = [r["updated_at"] for r in rows]
-    return max(newest + [old])
-```
+Collect the `"updated_at"` value from each row, include `old` as a candidate (so empty rows or older timestamps never move the checkpoint backwards), and return the largest value with `max()`.
 @solution
 def next_checkpoint(rows, old):
     newest = [r["updated_at"] for r in rows]
@@ -325,15 +334,7 @@ latest([{"id": 1, "updated_at": 5, "s": "paid"}, {"id": 1, "updated_at": 8, "s":
 latest([]) == [] ## An empty input gives an empty list.
 [r["id"] for r in latest([{"id": 3, "updated_at": 1}, {"id": 1, "updated_at": 1}])] == [1, 3] ## The result is sorted by id.
 @hint
-```python
-def latest(rows):
-    best = {}
-    for row in rows:
-        known = best.get(row["id"])
-        if known is None or row["updated_at"] > known["updated_at"]:
-            best[row["id"]] = row
-    return [best[i] for i in sorted(best)]
-```
+Keep a dictionary mapping each `"id"` to the best row seen so far. For each row, store it if its id is new or its `"updated_at"` is greater than the stored one, then return the values sorted by id.
 @solution
 def latest(rows):
     best = {}
@@ -353,7 +354,7 @@ def latest(rows):
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
 > When TestCheckpoint tests are PASSED, proceed to Lesson 5 for raw data flattening and schema drift!
 
-> 🛠 **Try it (15 min, hands on).** Write `load.py` against the practice API: read the orders with a cursor (`limit=5`) and append them to `out.jsonl`; **after** each page is written, save `{"cursor": ...}` to `checkpoint.json` (write a temporary file, then `os.replace`). When the script starts it resumes from `checkpoint.json` if there is one. Put `time.sleep(1)` after writing each page, so that you have time to interrupt.
+> 🛠 **Try it (15 min, hands on).** Write `load.py` against the practice API: read the orders with a cursor (`limit=5`) and append them to `out.jsonl`; **after** each page is written, save `{"cursor": ...}` to `checkpoint.json` (write a temporary file, then `os.replace`). When the script starts it resumes from `checkpoint.json` if there is one. Put `time.sleep(1)` **between** writing the page to `out.jsonl` and saving `checkpoint.json`, so that pressing Ctrl+C during the pause reliably catches a page that was written but not yet checkpointed.
 > 1. Run `curl localhost:8765/reset`, then start `load.py` and press Ctrl+C after about two pages. Compare `wc -l out.jsonl` with the cursor in `checkpoint.json`: why can the file hold more rows than the checkpoint says?
 > 2. Run `load.py` again to the end, then run `python3 -c "import json; ids=[json.loads(l)['id'] for l in open('out.jsonl')]; print(len(ids), len(set(ids)))"`. Make your loader deduplicate by `id` until it prints `25 25`.
 > 3. Now break it on purpose: delete `out.jsonl` and `checkpoint.json`, reset the API, and swap the order (save the checkpoint **first**, sleep, then write the page). Interrupt during the sleep, run it to the end, and run the check from step 2 again.
@@ -390,13 +391,13 @@ Good landing habits:
 > When tests show PASSED, proceed to Lesson 6 to assemble the complete incremental ingestion pipeline!
 
 > 🛠 **Try it (10 min, hands on).** With the practice API running, fetch one order with nested data: `curl -H "Authorization: Bearer learner-token" localhost:8765/orders/1`.
-> 1. Write `flatten(record)` in `flat.py`: nested objects become columns named by their path (`customer_address_city`), lists are kept as JSON text. Your code must pass these checks (`order1` is the parsed JSON of `/orders/1`):
+> 1. Write `flatten(record)` in `flat.py`: nested objects become columns named by their path (`customer_address_city`), lists are kept as JSON text (either `json.dumps(value)` or `json.dumps(value, sort_keys=True)`). Your code must pass these checks (`order1` is the parsed JSON of `/orders/1`):
 >    `flat = flatten(order1)`
 >    `assert flat["customer_address_city"] == "Jakarta"`
 >    `assert flat["customer_id"] == 7`
->    `assert flat["items"] == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]'`
+>    `assert isinstance(flat["items"], str) and json.loads(flat["items"]) == [{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]`
 >    `assert "customer" not in flat`
-> 2. Make a copy of `flat` in which `total_idr` is the text `"Rp 1.000"`. In `flat.py` also write `type_changes(old, new)`: it returns a list with one text, such as `total_idr: int -> str`, for every field that exists in both records and whose type changed (an empty list when nothing changed). Print its result for `flat` and your copy.
+> 2. Make a copy of `flat` in which `total_idr` is the text `"Rp 1.000"`. In `flat.py` also write `type_changes(old, new)`: it returns a list with one text, such as `total_idr: int -> str`, for every field that exists in both records and whose type changed (an empty list when nothing changed). Put your fetch, assertions and `print(...)` inside `if __name__ == "__main__":` so `check.py 1.6-5` can `import flat` cleanly without hitting a stopped practice API.
 >
 > **You should see:** no assertion error, and for step 2 `['total_idr: int -> str']`. That is schema drift, found in four lines of code.
 >
@@ -458,13 +459,14 @@ You can now answer: "How do you ingest from a paginated API reliably?" (cursor, 
 >    - Deduplicate by id (keeping greatest `updated_at`).
 >    - Land raw records into `landing_dir/dt=<today>/orders_<run_id>.jsonl` with audit metadata (`_run_id`, `_source`, `_ingested_at`) using atomic file writes.
 >    - Update checkpoint ONLY AFTER the data file is safely landed.
-> 2. Run the complete test suite in the terminal:
+> 2. Run the complete test suite and generate your lab proof in the terminal:
 > `pytest labs/mod-1-6/test_lab.py -v`
-> When all 37 tests show PASSED, your ingestion pipeline is enterprise ready!
+> `python3 scripts/prove.py mod-1-6`
+> When all 37 tests show PASSED, your ingestion pipeline is enterprise ready, paste the proof code into the **Proof** box on the Lab tab!
 
 > 🛠 **Try it (10 min, hands on).** Generate the KopiKu files (`python3 labs/shared/shopgen.py --out data`) and treat `data/orders.csv` as a delivery from a partner. Write all three steps in one script, `load_orders.py`.
 > 1. With the `csv` module count the rows and the distinct `order_id` values. Compare with `orders_rows`, `orders_distinct` and `orders_duplicate_rows` in `data/manifest.json`.
-> 2. Load the file into a SQLite table whose primary key is `order_id` (use `INSERT OR REPLACE`), and print the row count.
+> 2. Load the file into a SQLite table whose primary key is `order_id` (use `INSERT OR REPLACE`, SQLite's upsert command that overwrites an existing row when the primary key already exists), and print the row count.
 > 3. Run the load a second time in the same script and print the row count again.
 >
 > **You should see:** `3634 3599` in step 1 (35 duplicate rows, as the manifest says), then `3599` and `3599` in steps 2 and 3. Also compare with `wc -l data/orders.csv`: it shows 3635, because of the header line. Counting rows at every hop is the cheapest way to prove nothing was lost.
@@ -541,7 +543,7 @@ verify_signature("x", "s", "0" * 64) == False ## A wrong signature is rejected.
 verify_signature("x!", "s", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## The body was changed: rejected.
 verify_signature("x", "other", hmac.new(b"s", b"x", "sha256").hexdigest()) == False ## The wrong secret: rejected.
 @hint
-`expected = hmac.new(secret.encode(), body.encode(), "sha256").hexdigest()`, then `hmac.compare_digest(expected, signature)`.
+Encode both `secret` and `body` to UTF-8 bytes, compute the SHA-256 HMAC hex digest with `hmac.new(..., "sha256").hexdigest()`, and compare it against `signature` using `hmac.compare_digest`.
 @solution
 import hmac
 def verify_signature(body, secret, signature):
@@ -634,7 +636,7 @@ The usual compromise: let the tool do **movement** (collecting and delivering da
 :::ask Why is a change to a visual flow often hard to review in a pull request?
 @options
 visual tools never keep any history of their changes
-* the flow is stored as a large generated file, so a small change can look big
+* it is a large generated file, so diffs look huge
 reviewers are not allowed to open the canvas of a flow
 @why
 The canvas is a picture for humans, but Git sees the generated file behind it. Moving one box can rewrite many lines, so a reviewer cannot tell what really changed. That is why many teams keep tested logic in code and let the visual tool only move data.
@@ -642,9 +644,9 @@ The canvas is a picture for humans, but Git sees the generated file behind it. M
 
 :::ask A team must collect files from ten different partners (FTP, email and APIs) and drop them into one folder, with nothing complicated to compute. Which choice is most sensible?
 @options
-a visual flow tool, because ready-made connectors do exactly this job
+* a visual flow tool with ready-made connectors
 a streaming cluster, because every pipeline should be real-time
-* write ten separate custom programs, because code is always better
+write ten separate custom programs, because code is always better
 @why
 Collecting and delivering files is movement, not logic, and that is where visual tools with many connectors save time. Ten hand-written programs repeat the same work, and a streaming cluster is far more than this job needs.
 :::
@@ -657,10 +659,13 @@ Collecting and delivering files is movement, not logic, and that is where visual
 Build the core of an ingestion job against a **fake HTTP API running on your own computer** (started by the tests; no internet or account is needed): request building and authentication, retries with exponential backoff and `Retry-After`, cursor and offset pagination, an atomic checkpoint, flattening, schema-drift detection, and an incremental, idempotent load that lands JSON Lines. The tests (37) check every behaviour, including a simulated crash between writing the file and saving the checkpoint.
 
 ### @steps
+> **Already completed Practice Pauses 1–5?** You have already implemented `labs/mod-1-6/ingest_lab.py`! Jump straight to Step 6's crash-order experiment and Step 7 (`python3 scripts/prove.py mod-1-6`).
+
 1. Read `labs/mod-1-6/ingest_lab.py` and then the first 70 lines of `test_lab.py` to see the fake API (it is ordinary Python: a small HTTP server in a thread). `ApiError` is provided.
-2. Work in file order and run the tests after EACH function:
+2. Work in file order and run the tests after EACH function (install `pytest` once with `pip install -r labs/mod-1-6/requirements.txt` if needed):
 
 ```bash
+pip install -r labs/mod-1-6/requirements.txt   # once, to install pytest
 pytest labs/mod-1-6/test_lab.py -v
 pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # one group at a time
 ```
@@ -669,7 +674,7 @@ pytest labs/mod-1-6/test_lab.py -v -k "GetJson or Pagination"      # one group a
 4. **Pagination.** Implement the cursor loop first, then the offset loop. Run `fetch_all_offset` against a data set whose size is an exact multiple of the page size and count the requests.
 5. **Checkpoint, flatten, drift.** These are small and pure. For `Checkpoint.save`, explain in one sentence what could go wrong if you wrote the file directly.
 6. **The incremental load.** Write it last. Before you run `test_a_crash_before_the_checkpoint_is_repaired_by_rerunning`, explain why your order of steps makes it pass. Then deliberately swap steps 5 and 6 and watch which test fails.
-7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-1-6` to get the proof code for the **Proof** box on this lab page.
+7. **Prove your work.** With all 37 tests passing in your terminal, run `python3 scripts/prove.py mod-1-6` to generate the proof code for the **Proof** box on this lab page.
 
 ### @files
 - labs/mod-1-6/ingest_lab.py :: Your working file: implement the TODO functions and the Checkpoint class :: starter
@@ -724,7 +729,7 @@ A checkpoint may only describe data that is safely stored. Order the steps so th
 
 > `Retry-After` states how long to wait. Hammering makes the problem worse and can get a client banned.
 
-### Which of these HTTP errors should a client NOT retry?
+### Which of these failures should a client NOT retry?
 - [ ] 503 Service Unavailable, because the server is overloaded and may be able to answer a little later
 - [ ] 500 Internal Server Error, since a temporary fault on the server often disappears on the next try
 - [ ] A connection timeout, because the network or server may have been briefly unavailable
@@ -734,7 +739,7 @@ A checkpoint may only describe data that is safely stored. Order the steps so th
 
 ### Why does exponential backoff wait 1, 2, 4, 8 seconds instead of a fixed second each time?
 - [ ] A doubling wait uses less memory in the client program than a wait of the same length every time
-- [x] A struggling server gets more time to recover, and many clients do not all retry at the same moment
+- [x] A struggling server gets more time to recover, and backoff with jitter keeps clients from colliding
 - [ ] The HTTP standard requires that the waits are powers of two, and servers reject other waiting times
 - [ ] It guarantees that the request succeeds on the fourth attempt, so no further retries are ever needed
 
@@ -746,7 +751,7 @@ A checkpoint may only describe data that is safely stored. Order the steps so th
 - [ ] The server closes the connection, because a client may not read a feed while rows arrive
 - [ ] The next page comes back empty, because new records make the earlier offsets invalid for all clients
 
-> Inserts shift later offsets. In the lab's example 25 orders were fetched as 28 rows. Cursor (keyset) pagination avoids this.
+> Inserts shift later offsets. In Lesson 3's example 25 original orders were fetched as 28 rows (with 3 duplicates). Cursor (keyset) pagination avoids this.
 
 ### What is the correct order for one incremental run?
 - [ ] Save the new checkpoint, then fetch the data, then write it, so the next run starts as early as possible

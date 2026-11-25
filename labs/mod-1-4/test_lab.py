@@ -1,4 +1,4 @@
-"""Tests for Lab 1.4 (star schema).   python labs/mod-1-4/test_lab.py -v     Standard library only."""
+"""Tests for Lab 1.4 (star schema).   python3 labs/mod-1-4/test_lab.py -v     Standard library only."""
 import sqlite3
 import sys
 import unittest

@@ -14,7 +14,7 @@ why: Many courses show you def and for for ten minutes and rush on. You copy the
 - Read a CSV file with `with open` and the csv module, and explain what `import` and `if __name__ == "__main__"` do
 
 ## @prereq
-None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You only need a way to run Python: the browser preview in the lab works first; Module 0.1 then teaches the proper setup on your own computer.
+None. You do not need to have written code before, and it does not matter if earlier courses left you confused. You can start right now with zero installs using the in-lesson drills and the **Browser preview** in the lab; once Module 0.1 (or Start here) sets up your local terminal and virtual environment, you will run the tests and `prove.py` on your own computer to lock in your proof code.
 
 > [!IMPORTANT]
 > **Short version:** the lab has two parts. **Part A** is plain Python (after Lessons 1 to 4), **Part B** is functions (after Lesson 5). Do not read the whole chapter first: go back and forth between a lesson and its Practice Pause. The full "how to work on the lab" guide appears at the end of Lesson 1, exactly where you first need it.
@@ -184,7 +184,7 @@ row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
 row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
 ```
 
-Look at the quotes: `"150000"` is text (`str`), not a number. Now your manager asks three simple questions, and the text gives three wrong answers **without any error**:
+(Each `{...}` is a **dictionary**, a labelled row where `row1["total_idr"]` pulls out the value `"150000"`; Lesson 2 covers dictionaries in full.) Look at the quotes: `"150000"` is text (`str`), not a number. Now your manager asks three simple questions, and the text gives three wrong answers **without any error**:
 
 | The question | What you write | What Python answers | Why |
 |---|---|---|---|
@@ -344,7 +344,7 @@ Together, `f"Rp {amount:,}".replace(",", ".")` writes `1250000` as `Rp 1.250.000
 > 💡 **Practice Pause 1 (Part A, Step 1):**
 > Open Part A of the lab: the file `labs/mod-0-0/practice.py` in your editor, or the **Part A** tab of the Browser preview on the Lab tab. Read the top of the file once, then find **Step 1**. It gives you `amount`, `row1` and `row2`, and two variables to fill in: replace each `None` with your own code.
 > 1. `formatted`: the amount written as text with dots, `Rp 1.250.000` (the f-string and `.replace` above).
-> 2. `two_totals`: the two totals in `row1` and `row2` added as **numbers**. Look back at the three wrong answers in the table: these totals are text, so convert them first.
+> 2. `two_totals`: the two totals in `row1` and `row2` added as **numbers** (pull each total out with `row1["total_idr"]` and `row2["total_idr"]`). Look back at the three wrong answers in the table: these totals are text, so convert them first.
 > Run the file to see your values: `python3 labs/mod-0-0/practice.py`. Then check Step 1: press **Run tests** in the preview, or in the terminal (after the one-time setup on the lab page):
 > `pytest labs/mod-0-0/test_practice.py -k Step1 -v`
 > You should see `Rp 1.250.000` and `240000`, and three passed checks. A check that fails says which variable is wrong, what it should be and what it is: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` just means you have not replaced the `None` yet. Then go on to Lesson 2.
@@ -489,7 +489,7 @@ print(len(statuses), statuses.count("paid"))
 :::
 
 :::drill python In total, and of one kind
-`statuses` holds the status of four orders. Make `all_orders` the number of orders, and `paid_orders` the number of orders whose status is `"paid"`.
+`statuses` holds the status of five orders. Make `all_orders` the number of orders, and `paid_orders` the number of orders whose status is `"paid"`.
 @starter
 statuses = ["paid", "cancelled", "paid", "shipped", "paid"]
 all_orders = None
@@ -616,7 +616,7 @@ unique_ids = sorted(set(ids))
 
 ### A real file: a list of dictionaries
 
-A real data file is therefore usually **a list of dictionaries**: the list is the file, each dictionary is a row, the keys are the column names. Here are three products (every value is text, as it comes out of a CSV file, a plain-text table that Lesson 7 teaches you to read) and four questions with their answers:
+A real data file is therefore usually **a list of dictionaries**: the list is the file, each dictionary is a row, the keys are the column names. Here are three products (every value is text, as it comes out of a CSV file, a plain-text table that Lesson 7 teaches you to read) and three questions with their answers:
 
 ```python
 products = [
@@ -826,6 +826,8 @@ else:
     print("unknown status: send it to quarantine")
 ```
 
+(Notice `or` on the `elif` line: it means "either one is true", the next section covers `and`, `or`, and `not` in full.)
+
 :::drill python Three paths
 Set `action` by the `status`: `"paid"` gives `"count it"`; `"cancelled"` or `"refunded"` give `"skip it"`; anything else gives `"check it"`.
 @starter
@@ -852,7 +854,7 @@ else:
 
 ### and, or, not
 
-Combine questions with `and` (both must be true), `or` (at least one) and `not` (turns the answer around). `status in {"cancelled", "refunded"}` is a short way to write several `or`.
+Combine questions with `and` (both must be true), `or` (at least one) and `not` (turns the answer around). `status in {"cancelled", "refunded"}` (braces with values and no colons make a **set** from Lesson 2) is a short way to write several `or`.
 
 :::drill python Both must be true
 An order can be shipped when it is paid **and** there is stock. Make `can_ship` `True` only when `paid` is `True` and `stock` is above 0.
@@ -876,7 +878,7 @@ can_ship = paid and stock > 0
 
 ### What counts as false: truthiness
 
-In an `if`, some values count as **false** without being `False`: `0`, `""` (empty text), `None`, `[]` (empty list), `{}`. Everything else counts as true. So `if not rows:` means "if there are no rows". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value (a free order). When zero is legal, ask the exact question: `total is not None`.
+In an `if`, some values count as **false** without being `False`: `0`, `""` (empty text), `None`, `[]` (empty list), `{}`. Everything else counts as true. So `if not rows:` means "if there are no rows". Be careful, though: `if total:` is also false for a total of `0`, which may be a perfectly valid value (a free order). When zero is legal, ask the exact question: `total is not None` (for `None`, Python always uses `is None` / `is not None` rather than `==` / `!=`, because there is only one `None` value).
 
 :::ask What will this print?
 ```python
@@ -1243,6 +1245,8 @@ unique_ids = sorted(seen)
 print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 ```
 
+Inside a loop, pair each `start` from `range(0, len(items), batch_size)` with the dynamic slice `items[start:start + batch_size]`, for example, when `start` is `3` and `batch_size` is `3`, that takes `items[3:6]`.
+
 :::drill python Where each piece starts
 `items` has 10 items. A piece is 3 items long. Make `starts` the list of positions where each piece starts: `[0, 3, 6, 9]`. Use `range` with `len(items)`.
 @starter
@@ -1302,9 +1306,12 @@ texts = ["7", "3", "12"]
 ints = [int(text) for text in texts]
 :::
 
-### Stretch (optional): ranking with sorted() and a key
+### Ranking with sorted() and a key
 
-This one is a stretch. If it feels like too much today, press **Show the solution** and move on: Module 1.2 teaches `lambda` step by step. In data pipelines you often rank things (the customers who spent the most). `sorted(data, key=...)` takes a `key`: a small function that tells Python what to rank by. A one-line function written with `lambda` is often used: `lambda pair: pair[1]` means "given a pair, use its second item". To rank from biggest to smallest, add `reverse=True`. To break ties, let the key return a **tuple**: Python compares the first item first and looks at the second only when the first is equal. A minus sign in front of a number turns "biggest first" into "smallest first": `key=lambda pair: (-pair[1], pair[0])` ranks by total, biggest first, and for the same total by the smaller id first.
+In data pipelines you often rank things (the customers who spent the most, you will use this for `top_customers` in the lab). `sorted(data, key=...)` takes a `key`: a small rule that tells Python what to sort by. A one-line function written with `lambda` is a handy way to write that rule (after Lesson 5 you can also write a normal `def` helper function and pass its name as `key=...`):
+
+- `lambda pair: pair[1]` means: *"given one `pair` like `(7, 100)`, hand back its second item (`100`)"*, `sorted()` calls this on every item and sorts by the results.
+- `key=lambda pair: (-pair[1], pair[0])` returns a **tuple**: Python sorts by `-pair[1]` first (the minus sign puts the biggest total first, since `-250 < -100`) and uses `pair[0]` (smaller id first) only to break ties.
 
 :::drill python Rank by total
 `pairs` holds `(customer_id, total)` tuples. Make `ranked` the pairs sorted by total, **biggest first**; when two totals are equal, the smaller customer id comes first.
@@ -1381,7 +1388,7 @@ Look at the loop that sums totals. If you need the same sum in five places, you 
 
 ### def: give some lines a name
 
-`def` means "define". The indented lines under it are the **body**. Defining a function does **not** run it, it only describes it. To run the body you **call** the function by writing its name followed by brackets:
+`def` means "define". The indented lines under it are the **body**. Defining a function does **not** run it, it only describes it. To run the body you **call** the function by writing its name followed by parentheses ():
 
 ```python
 def say_hello():
@@ -1430,7 +1437,7 @@ show_paid()
 
 ### Parameters: give the function an input
 
-Between the brackets you list **parameters**: names for the inputs. When you call the function, the value you pass (the **argument**) is attached to the parameter name for the duration of the call.
+Between the parentheses () you list **parameters**: names for the inputs. When you call the function, the value you pass (the **argument**) is attached to the parameter name for the duration of the call.
 
 ```python
 def show_total(total):
@@ -1465,6 +1472,21 @@ show_label("Kopi")
 ### return: hand the answer back
 
 `print` only **shows** something on the screen; the program cannot use it afterwards. `return` **hands a value back** to the code that called the function, so that it can store it, compare it or pass it on. A function that prints but does not return gives `None` to the caller. Pipelines run without a screen, so functions must **return** their results.
+
+A function can also return **two values at once** (as a tuple from Lesson 2) separated by a comma, and the caller unpacks both:
+
+```python
+def split_non_negative(numbers):
+    valid, invalid = [], []
+    for n in numbers:
+        if n >= 0:
+            valid.append(n)
+        else:
+            invalid.append(n)
+    return valid, invalid
+
+good, bad = split_non_negative([10, -5, 20])   # good is [10, 20], bad is [-5]
+```
 
 :::trace return hands a value back
 @code
@@ -1625,7 +1647,7 @@ print(label)
 @options
 `Rp 500`, the function made it
 `None`, the function returned nothing
-* an error: `label` exists only inside the function
+* an error: `label` is local
 @why
 `label` was created **inside** `make_label`, and it disappears when the function ends. The last line looks for `label` outside and Python stops with `NameError: name 'label' is not defined`. To get the value out, the function must `return` it.
 :::
@@ -1664,7 +1686,7 @@ print(add(2))
 6 | The second call: `box` is not given, so it is the **same** list as before (same label), which already holds 1.
 :::
 
-The fix: use `None` as the default and create a new list inside: `if box is None: box = []`. The chaos scenario of this module shows what the bug does to a real pipeline, and the lab has a test for it.
+The fix: use `None` as the default and create a new list inside: `if box is None: box = []`. Even better, when a caller passes their own list, `box.append(item)` would change their original list too, returning `box + [item]` builds a **new** list instead (for example, `["a", "b"] + ["c"]` gives `["a", "b", "c"]` while leaving the caller's list untouched). The chaos scenario of this module shows what the bug does to a real pipeline, and the lab has a test for both.
 
 :::drill python Fix the shared list
 `add` has the trap. Fix it so every call without a second argument starts with a **fresh** empty list: `add(1)` gives `[1]` and then `add(2)` gives `[2]`.
@@ -1673,7 +1695,7 @@ def add(item, box=[]):
     box.append(item)
     return box
 
-# write your solution below this line
+# fix the bug in the code above
 @check
 add(1) == [1] ## add(1) should give back [1].
 add(2) == [2] ## add(2) should give back [2], not [1, 2]: every call without a list must start fresh.
@@ -1700,7 +1722,7 @@ def add(item, box=None):
 > 🛠 **Try it (8 min, in a file `fn.py`).** Predict each output in your head first, then run it.
 > 1. Write `def show_square(n): print(n * n)` and `def give_square(n): return n * n` (each on its own lines as usual). Run `a = show_square(4)` and `b = give_square(4)`, then `print(a, b)`.
 > 2. Write `def add(item, box=[]): box.append(item); return box` (on proper lines) and run `print(add(1))`, `print(add(2))`, `print(add(3))`. Then fix it so that every call without a second argument starts with a fresh empty list.
-> 3. Write `total(orders)` that adds up `int(order["total_idr"])` over a list of order dicts, with no `print` inside. Check it with `total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350` and `total([]) == 0`.
+> 3. Write `total(orders)` that adds up `int(order["total_idr"])` over a list of order dicts, with no `print` inside. Check it with `print(total([{"total_idr": "100"}, {"total_idr": "250"}]) == 350)` and `print(total([]) == 0)`.
 >
 > **You should see:** `16` printed by step 1, then `None 16` (`print` shows, `return` hands back); the buggy `add` prints `[1]`, `[1, 2]`, `[1, 2, 3]` and your fixed one `[1]`, `[2]`, `[3]`; both checks of step 3 are `True`.
 
@@ -1840,7 +1862,7 @@ def to_number(text):
     except Exception:
         return 0
 
-# write your solution below this line
+# fix the bug in the code above
 @check
 to_number("abc") == 0 ## to_number("abc") should still give back 0.
 raises_error(TypeError, to_number, None) ## to_number(None) should raise a TypeError (not hide it as 0). Catch only ValueError.
@@ -1917,7 +1939,7 @@ for text in rows:
 > 💡 **Practice Pause 6 (Part B):**
 > Apply pure functions, error handling, and avoiding the mutable default bug:
 > 1. Implement `safe_int(text, default=None)` with a `try / except ValueError` block.
-> 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`.
+> 2. Implement `add_to_batch(order, batch=None)` using `if batch is None: batch = []`, and return a **new** list with `batch + [order]` so you never modify the list the caller passed in.
 > 3. Implement `split_valid(orders)` using your `safe_int` function.
 > Click **Run tests**; all three groups should show ✓ (terminal route):
 > `pytest labs/mod-0-0/test_lab.py -k "TestSafeInt or TestAddToBatch or TestSplitValid" -v`
@@ -1957,7 +1979,7 @@ with open("note.txt", encoding="utf-8") as f:
 
 ### A CSV file: rows as dictionaries
 
-A CSV file is text with one row per line and commas between the values; the first line holds the column names. The `csv` module reads it. `csv.DictReader(f)` turns each row into a dictionary, using the header line as keys, so you get exactly the **list of dictionaries** of Lesson 2. `newline=""` is what the csv module wants so that line breaks inside quoted values survive. All values are text; converting them is your job.
+A CSV file is text with one row per line and commas between the values; the first line holds the column names. The `csv` module reads it. `csv.DictReader(f)` turns each row into a dictionary, using the header line as keys, so you get exactly the **list of dictionaries** of Lesson 2. `newline=""` is what the csv module wants so that line breaks inside quoted values survive. All values are text; converting them is your job. (`import csv` at the top loads Python's built-in CSV toolbox, the `import` section below explains how imports work.)
 
 :::trace From a CSV file to a list of dictionaries
 @file drinks.csv
@@ -2134,7 +2156,7 @@ On import, `__name__` is `"shop"`, not `"__main__"`, so `main()` is **not** call
 
 ### Paths: where is the file?
 
-Use `pathlib.Path("data") / "orders.csv"` instead of gluing strings. A **relative** path is relative to the folder you started Python in, which is the usual reason for the error below.
+After `import pathlib`, use `pathlib.Path("data") / "orders.csv"` instead of gluing strings. A **relative** path is relative to the folder you started Python in, which is the usual reason for the error below.
 
 :::ask What happens when the file is not there?
 ```python
@@ -2215,7 +2237,7 @@ total = 0
 for price in prices:
     total = total + price
 
-# write your solution below this line
+# fix the bug in the code above
 @check
 total == 43000 ## `total` should be 43000.
 type(total) is int ## `total` should be a number (int).
@@ -2234,7 +2256,7 @@ This should print the numbers 1 to 5, but it prints 0 to 4. Fix it, without writ
 for n in range(5):
     print(n)
 
-# write your solution below this line
+# fix the bug in the code above
 @check
 out == "1\n2\n3\n4\n5" ## It should print 1, 2, 3, 4 and 5, each on its own line.
 has_node("For") ## Keep the for loop.
@@ -2251,7 +2273,7 @@ for n in range(1, 6):
 def add_fee(price):
     price + 500
 
-# write your solution below this line
+# fix the bug in the code above
 @check
 add_fee(1000) == 1500 ## add_fee(1000) should give back 1500.
 add_fee(0) == 500 ## add_fee(0) should give back 500.
@@ -2316,8 +2338,8 @@ Two parts, on KopiKu order data. **Part A** (after Lessons 1 to 4) is plain Pyth
 
 **Where to do it: choose one of two routes.**
 
-- **Route A, the browser preview** (nothing to install): the editor box further down this page has a **Part A / Part B** switch. **Run tests** runs the part you are on, and the list under the button shows each group of checks (one group per step or function) as ✓ or ✗. A preview pass does not count: you do the lab again in your own terminal.
-- **Route B, your own terminal** (recommended if you did Start here): this is how you will work for the rest of the course, and the run counts. Set it up once, in the terminal:
+- **Route A, the browser preview** (zero installs, start here if you have not set up a terminal yet): the editor box further down this page has a **Part A / Part B** switch. **Run tests** runs the part you are on, and the list under the button shows each group of checks (one group per step or function) as ✓ or ✗. You can finish all of Module 0.0's practice here first; once Module 0.1 sets up your local terminal and `venv`, you re-run the lab and `prove.py` locally to lock in your proof code (a preview pass alone does not generate a proof code).
+- **Route B, your own terminal** (recommended if you already did Start here or Module 0.1): this is how you will work for the rest of the course, and running `prove.py` here locks in your proof code. Set it up once, in the terminal:
 
 ```bash
 cd ~/projects/DECourse                     # your course folder
@@ -2364,8 +2386,8 @@ Lessons 1 to 4 end with Part A steps, without functions. From Lesson 5 on, each 
 | 4 | `total_revenue` | sum of the totals that are not cancelled | revenue is the number Finance checks you against: text to number, and the right filter |
 | 4 | `batches` | cut a list into chunks of `size` | send data to an API or a database in pieces, not one huge request (Module 1.6) |
 | 4 | `top_customers` | the `n` customers who spent most | every "top 10" report |
-| 6 | `safe_int` | text to number, or a default when impossible | convert dirty values without crashing the run |
 | 5 | `add_to_batch` | add to a list without the "mutable default" trap | this exact bug makes yesterday's data leak into today's run (see the Chaos tab) |
+| 6 | `safe_int` | text to number, or a default when impossible | convert dirty values without crashing the run |
 | 6 | `split_valid` | separate good rows from bad ones | bad rows are set aside and reported, never silently dropped (Module 1.2) |
 | 7 | `read_orders` | read a CSV file into a list of dicts | every pipeline starts by reading a file |
 
@@ -2482,7 +2504,7 @@ A default value is created once. A function must give the same result for the sa
 - [ ] The second call returns ["b"], since every call starts with a brand new empty list
 - [ ] Python reports an error on the second call because the default list was already used once
 - [ ] Each call changes a copy, so the results ["a"] and ["b"] never influence each other
-- [x] The second call returns "a", "b", because the default list is created once and shared
+- [x] The second call returns ["a", "b"], because the default list is created once and shared
 
 > A default value is created when `def` runs, not at each call. Use `batch=None` and create the list inside the function.
 

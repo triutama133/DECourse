@@ -33,7 +33,7 @@ A **table format** solves all of these with one idea: **define the table not as 
 
 The main open formats are **Apache Iceberg**, **Delta Lake** and **Apache Hudi**. They are not storage formats (the data is still Parquet) and not engines: Spark, Trino, Flink, DuckDB, Snowflake, BigQuery and others read and write them. Together with an engine and a catalog they make a **lakehouse**: the cheap storage of a lake with the reliability of a warehouse.
 
-> 🛠 **Try it (10 min, Python).** Load `data/orders.csv` and cut it into five chunks of 727 rows (`df.iloc[i*727:(i+1)*727]`). Write them as `lake/orders/part-0.parquet` to `part-4.parquet`, but make the job die with `raise RuntimeError("job killed")` just before it writes the fourth file. Now read the folder with `pd.read_parquet("lake/orders")` and compare the row count with 3634. Then repair the writer so a reader can never see half a table: write into `lake/orders.tmp` and only `os.rename` it to `lake/orders` after all five files exist. Crash it again in a fresh folder and check what a reader finds. Delete `lake/` when you are done.
+> 🛠 **Try it (10 min, Python with `pandas` and `pyarrow`).** Import `os` and `import pandas as pd`, create the target folder with `os.makedirs("lake/orders", exist_ok=True)`, load `data/orders.csv` with `pd.read_csv("data/orders.csv")`, and cut it into five chunks of 727 rows (`df.iloc[i*727:(i+1)*727]`). Write them as `lake/orders/part-0.parquet` to `part-4.parquet`, but make the job die with `raise RuntimeError("job killed")` just before it writes the fourth file. Now read the folder with `pd.read_parquet("lake/orders")` and compare the row count with 3634. Then repair the writer so a reader can never see half a table: write into `lake/orders.tmp` and only `os.rename` it to `lake/orders` after all five files exist. Crash it again in a fresh folder and check what a reader finds. Delete `lake/` when you are done.
 >
 > **You should see:** the broken writer leaves `lake/orders` with 3 files and the reader returns `2181` rows out of 3634 with **no error at all**. With the temp-folder-then-rename writer, `lake/orders` does not exist after the crash, so the reader fails loudly with `FileNotFoundError` instead of silently returning partial data, and the leftover `orders.tmp` is easy to find and clean up. Table formats (next lessons) do the same trick with a metadata file instead of a folder rename.
 
@@ -41,7 +41,7 @@ The main open formats are **Apache Iceberg**, **Delta Lake** and **Apache Hudi**
 @options
 * 60% of the data, with no sign it is incomplete
 an error that blocks every reader for now
-nothing, because partial writes roll back
+nothing at all, because partial writes roll back
 @why
 A folder has no transactions. Half the files are simply there, and nothing marks the table as incomplete. A table format fixes this by publishing a change only when its metadata commit succeeds.
 :::
@@ -58,6 +58,8 @@ catalog                 "table shop.orders -> current metadata file"      (one a
             └─ manifest (*.avro)        a list of data files with per-file stats and partition values
                  └─ data file (*.parquet)
 ```
+
+(Manifest lists and manifests are stored in **Apache Avro** (`.avro`), a compact binary row format that embeds its own schema.)
 
 A real table from the lab, after two appends. The metadata file records the schema with **numeric column ids**, the partition spec, and a list of snapshots:
 
@@ -94,11 +96,11 @@ Notice that **nothing is ever modified in place**. A write adds new data files, 
 
 > 💡 **Practice Pause: Creating Iceberg Table & Inspecting Metadata Layout**
 > 1. Open `labs/mod-2-2/lakehouse.py` in your text editor (VS Code / Cursor). Do not execute python source files directly in bash without an interpreter.
-> 2. Locate function `create_orders_table(catalog)`. Create namespace `shop` and table `shop.orders` with a five-column schema (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) using explicit `NestedField` ids, and a `PartitionSpec` with `DayTransform` on `order_ts` (named `order_day`).
-> 3. Implement `append_batch(table, rows)` to append data as a single new snapshot, and `layout(table)` to count `.metadata.json` files, manifest lists (`snap-*.avro`), manifests (`*.avro`), and data parquet files on disk.
+> 2. Locate function `create_orders_table(catalog)`. Create namespace `shop` and table `shop.orders` with a five-column schema (`order_id`, `customer_id`, `order_ts`, `status`, `total_idr`) using explicit `NestedField` ids (with `order_id` marked `required=True`), and a `PartitionSpec` with `DayTransform` on `order_ts` (named `order_day`).
+> 3. Implement `append_batch(table, rows)` to append data as a single new snapshot, and `layout(table)` to count `.metadata.json` files, manifest lists (`snap-*.avro`), the other manifest `*.avro` files in `metadata/`, and data parquet files on disk.
 > 4. Open your terminal and test the Iceberg table setup:
-> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_each_append_is_one_snapshot or test_data_is_partitioned or test_layout"`
-> 5. Ensure all 4 tests pass (`4 passed`). Observe how the `metadata/` and `data/` directories are laid out in your local warehouse.
+> `pytest labs/mod-2-2/test_lab.py -v -k "test_table_definition or test_data_is_partitioned or test_layout"`
+> 5. Ensure all 3 tests pass (`3 passed`). Observe how the `metadata/` and `data/` directories are laid out in your local warehouse.
 
 :::ask In Iceberg's metadata tree, what makes a commit atomic?
 @options
@@ -124,7 +126,7 @@ Practical points:
 
 :::ask Two writers commit to the same Iceberg table at the same moment. What keeps the table consistent?
 @options
-* an atomic pointer swap, then the loser retries
+* atomic pointer swap; the loser retries
 a lock held by the first writer all job long
 the data files merge automatically
 @why
@@ -134,9 +136,9 @@ Iceberg uses **optimistic concurrency**: writers build their files without locki
 > 💡 **Practice Pause: Snapshot Operations & Optimistic Concurrency Control**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, locate function `snapshot_ops(table)`.
 > 2. Retrieve the table's snapshot history (`table.snapshots()`) and return the list of operation names that created each snapshot (`s.summary.operation.value`, e.g. `['append', 'append', ...]`).
-> 3. Run the unit test in your terminal to verify that two concurrent writers are resolved cleanly by OCC:
-> `pytest labs/mod-2-2/test_lab.py -v -k "test_a_writer_with_a_stale_view_still_commits"`
-> 4. Ensure the test passes (`1 passed`). Notice the log message showing PyIceberg automatically retrying the commit when a concurrent update occurs.
+> 3. Run the snapshot and concurrency tests in your terminal (passing `--log-cli-level=INFO` so PyIceberg's retry log message is printed):
+> `pytest labs/mod-2-2/test_lab.py -v --log-cli-level=INFO -k "test_each_append_is_one_snapshot or test_a_writer_with_a_stale_view_still_commits"`
+> 4. Ensure both tests pass (`2 passed`). Notice the INFO log message showing PyIceberg automatically retrying the commit when a concurrent update occurs.
 
 ## @lesson Time travel, deletes and why data does not vanish
 Because every commit creates a snapshot and old snapshots are kept, you get **time travel** for free: read the table as of a snapshot id or a timestamp. In the lab, after the table received appends of 3, 2 and 2 rows, reading snapshot 0 returns 3 rows and snapshot 2 returns 7. This supports debugging ("what did the table look like when the dashboard broke?"), reproducing a model's training data, auditing, and **rollback** (point the table back at an earlier snapshot after a bad load).
@@ -154,9 +156,9 @@ That last fact has a serious consequence. **A delete in a table format hides row
 
 :::ask You run a `DELETE` on an Iceberg table. Are the old rows gone from storage immediately?
 @options
-yes: the data files are erased at once
-only if the table happens to be small
-* no: old files stay until the snapshots expire
+yes: the old data files are erased immediately
+only if the table happens to be relatively small
+* no: files stay until snapshots expire
 @why
 Time travel works because old snapshots still point to old files. A delete writes a new snapshot (and delete files or rewritten files); space is reclaimed only when snapshots **expire**. This is also why "deleted" personal data needs a real expiry and cleanup step.
 :::
@@ -237,7 +239,7 @@ How do the two compare?
 | Strengths | Engine neutrality, hidden partitioning, scale of metadata | Deep Spark and Databricks integration, simple log model |
 | Typical home | Multi-engine platforms (Trino, Flink, Snowflake, Spark) | Databricks and Spark-centred platforms |
 
-The formats have been converging, and tools exist to expose one format's tables to readers of another. For a first project, choose by your ecosystem: **Delta** if you live on Databricks, **Iceberg** if you want maximum engine and vendor neutrality. **Hudi** is the third option, strong for incremental processing and upserts. Everything in this module (snapshots, atomic commits, field ids, pruning, maintenance) applies to all three.
+The formats have been converging, and tools exist to expose one format's tables to readers of another. For a first project, choose by your ecosystem: **Delta** if you live on Databricks, **Iceberg** if you want maximum engine and vendor neutrality. **Hudi** is the third option, strong for incremental processing and upserts. Everything in this module (snapshots, atomic commits, pruning, maintenance, and field ids where column mapping is enabled) applies to all three.
 
 :::advanced Delta Lake 3 features you will meet in production
 **Modern Delta Lake 3.0+ & Databricks Features You Will Meet in Production:**
@@ -246,6 +248,17 @@ The formats have been converging, and tools exist to expose one format's tables 
 3. **Change Data Feed (`delta.enableChangeDataFeed = true`):** Exposes row-level changes (`_change_type` = `insert`, `update_preimage`, `update_postimage`, `delete`) between any two table versions so downstream Silver/Gold tables can process only the changed rows instead of re-scanning the entire Bronze table.
 4. **Delta Universal Format (UniForm):** Automatically generates **Apache Iceberg metadata** alongside every `_delta_log` commit so external Iceberg readers (Snowflake, BigQuery, Trino, DuckDB) can query a Databricks Delta table directly with zero data duplication.
 :::
+
+In Python, the **`deltalake`** library (backed by Rust's `delta-rs`) exposes these operations without needing Spark:
+
+```python
+from deltalake import DeltaTable, write_deltalake
+
+write_deltalake(path, first_batch, mode="overwrite")   # version 0 (use mode="append" for later batches)
+dt = DeltaTable(path)                                  # current table; dt.version() returns latest version
+dt.delete("order_id = 4")                              # row-level delete (creates a new version)
+old_rows = DeltaTable(path, version=0).to_pyarrow_table().num_rows   # time travel to an older version
+```
 
 > 💡 **Practice Pause: Managing Delta Lake Transaction Logs**
 > 1. In your text editor in `labs/mod-2-2/lakehouse.py`, navigate to Part B (Delta Lake).
@@ -285,7 +298,7 @@ replay([{"add": ["a"]}, {"remove": ["a"], "add": ["c"]}]) == ["c"] ## A rewrite:
 replay([]) == [] ## An empty log is an empty table.
 replay([{"add": ["x", "y"]}, {"remove": ["x"]}]) == ["y"] ## A commit may have only a remove.
 @hint
-Keep a `set`. For each commit: `live -= set(commit.get("remove", []))`, then `live |= set(commit.get("add", []))`.
+Maintain a `set` of currently active filenames. Loop through the commits in order: remove any filenames listed under `"remove"` first (defaulting to an empty list if absent), then add any filenames listed under `"add"`, and return the sorted result.
 @solution
 def replay(log):
     live = set()
@@ -312,7 +325,9 @@ Tables are not "create and forget". Every commit adds files, and without care a 
 > 1. Once all Iceberg and Delta Lake functions in `labs/mod-2-2/lakehouse.py` are implemented, run the complete unit test suite from your terminal:
 > `pytest labs/mod-2-2 -v`
 > 2. Ensure all 12 tests pass cleanly (`12 passed`).
-> 3. Congratulations! You have proven firsthand how ACID transactions, time travel, schema evolution, and transaction logs operate on disk across both leading open table formats.
+> 3. Generate your completion proof code by running:
+> `python3 scripts/prove.py mod-2-2`
+> 4. Congratulations! You have proven firsthand how ACID transactions, time travel, schema evolution, and transaction logs operate on disk across both leading open table formats.
 
 :::ask A streaming job appends a small file to an Iceberg table every minute. After a month queries are slow. Which maintenance task helps most?
 @options
@@ -327,6 +342,8 @@ Thousands of small files make planning and scanning slow (the small-files proble
 Create an Iceberg table, make it change over time, and prove the format's promises with tests: snapshots, time travel, deletes that keep history, schema evolution that rewrites no data, and a metadata layout you verify on disk. Then do the same observations for Delta Lake's transaction log.
 
 ### @steps
+> **Already completed Practice Pauses 1–6?** Your `labs/mod-2-2/lakehouse.py` is already implemented and passing all 12 tests! You can jump straight to the hands-on explorations in Steps 7–8 and **@verify** (`python3 scripts/prove.py mod-2-2`) below.
+
 1. Install the requirements and run the tests to see them fail:
 
 ```bash
@@ -356,6 +373,7 @@ pytest labs/mod-2-2 -v
 ### @verify
 ```bash
 pytest labs/mod-2-2 -v
+python3 scripts/prove.py mod-2-2
 ```
 
 Known-good run: `LAB_DIR=reference pytest labs/mod-2-2 -v`. Note: writing to a day-partitioned Iceberg table needs the `pyiceberg-core` extra; the requirements file includes it.

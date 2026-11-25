@@ -41,7 +41,7 @@ Dua ekosistem orkestrator yang paling dominan di industri adalah **Apache Airflo
 :::drill python Task mana yang jalan lebih dulu?
 Tulis `run_order(deps)`: `deps` memetakan tiap task ke daftar task yang dibutuhkannya lebih dulu, misalnya `{"load": ["extract"], "extract": []}`. Kembalikan daftar semua task dalam urutan jalan yang valid. Jika beberapa task siap bersamaan, ambil menurut urutan abjad.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("run_order") ## Definisikan run_order(deps).
@@ -78,18 +78,25 @@ Kosakata penting lainnya dalam dunia orkestrasi:
 Aturan emas komunikasi antar-langkah: **alirkan referensi metadata, jangan alirkan payload data utuh**. Output task yang dikirim via metadata store orkestrator (seperti XCom di Airflow) hanya ditujukan untuk nilai kecil (file path, nama partisi, jumlah baris yang diproses). Payload data berukuran besar harus selalu ditulis ke storage persistensi (tabel staging, file Parquet, cloud bucket), dan langkah downstream berikutnya akan membaca data langsung dari storage tersebut.
 
 > 💡 **Jeda Praktik 1 (Mendefinisikan Resource & Partisi Harian):**
-> 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-4/orchestration.py` (ingat: jangan mengeksekusi file `.py` langsung di terminal bash tanpa interpreter atau argumen).
-> 2. Deklarasikan class resource `Paths(ConfigurableResource)` dengan atribut string `data_dir` dan `warehouse_dir`.
-> 3. Buat definisi partisi harian `daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")` (catatan: `end_date` bersifat eksklusif sehingga partisi mencakup 30 hari Januari 2026).
-> 4. Jalankan pengujian di terminal:
+> *Catatan persiapan & jembatan:* Dari folder kursus dengan venv aktif, instal dependensi terlebih dahulu (`python -m pip install -r labs/mod-2-4/requirements.txt`). Pelajaran 5 menjelaskan resource dan asset Dagster secara lengkap, jadi Anda boleh menunggu hingga Pelajaran 5 untuk memulai lab atau langsung mengikuti sintaks awal di bawah ini sekarang.
+> 1. Buka teks editor Anda (VS Code / Cursor), buka file `labs/mod-2-4/orchestration.py`, lalu hapus baris awal `raise NotImplementedError(...)` (ingat: jangan mengeksekusi file `.py` langsung di terminal bash tanpa interpreter atau argumen).
+> 2. Definisikan resource `Paths` dan partisi harian `daily` selama 30 hari (`end_date` bersifat eksklusif, mencakup 2026-01-01 hingga 2026-01-30):
+> ```python
+> from dagster import ConfigurableResource, DailyPartitionsDefinition
+> class Paths(ConfigurableResource):
+>     data_dir: str
+>     warehouse_dir: str
+> daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")
+> ```
+> 3. Jalankan pengujian di terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
-> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi 30 partisi dari 2026-01-01 hingga 2026-01-30.
+> 4. **Indikator Sukses:** Tes lulus, mengonfirmasi tepat 30 partisi dari 2026-01-01 hingga 2026-01-30.
 
 :::drill python Interval data dari satu run harian
 Pipeline harian memproses hari **sebelumnya**. Tulis `interval_for(run_date)`: `run_date` adalah string seperti `"2026-01-06"`. Kembalikan tuple `(start, end)` berupa string: awal hari sebelumnya dan awal `run_date` itu sendiri.
 @starter
 from datetime import date, timedelta
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("interval_for") ## Definisikan interval_for(run_date).
@@ -97,7 +104,7 @@ interval_for("2026-01-06") == ("2026-01-05", "2026-01-06") ## Run tanggal 6 Janu
 interval_for("2026-03-01") == ("2026-02-28", "2026-03-01") ## Melewati pergantian bulan dengan benar.
 interval_for("2026-01-01") == ("2025-12-31", "2026-01-01") ## Dan pergantian tahun.
 @hint
-`end = date.fromisoformat(run_date)`, `start = end - timedelta(days=1)`, lalu `.isoformat()` keduanya.
+Ubah `run_date` menjadi objek `date` dengan `date.fromisoformat`, kurangi satu hari memakai `timedelta`, lalu format kedua tanggal kembali ke string ISO.
 @solution
 from datetime import date, timedelta
 def interval_for(run_date):
@@ -132,7 +139,7 @@ Job yang idempoten meninggalkan hasil yang sama baik dijalankan sekali maupun li
 
 > 💡 **Jeda Praktik 2 (Asset Terpartisi & Operasi Atomic Write):**
 > 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
-> 2. Implementasikan fungsi `@asset(partitions_def=daily, ...)` untuk `daily_orders(context: AssetExecutionContext, paths: Paths)`: baca file `orders.csv`, saring baris yang tanggalnya cocok dengan `context.partition_key`, bersihkan total Rupiah dan status transaksi, serta tulis baris yang diurutkan ke file output JSON (`date=<day>/orders.ndjson`).
+> 2. Impor `asset`, `AssetExecutionContext`, dan `MaterializeResult` dari `dagster`, lalu implementasikan `@asset(partitions_def=daily, ...)` untuk `daily_orders(context: AssetExecutionContext, paths: Paths)`: baca file `orders.csv`, saring baris yang tanggalnya cocok dengan `context.partition_key`, bersihkan total Rupiah dan status transaksi, serta tulis baris yang diurutkan ke `daily_orders/date=<day>/orders.ndjson`.
 > 3. Terapkan pola penulisan atomik: tulis ke file temporary terlebih dahulu, lalu timpa file target (`os.replace`) agar eksekusi ulang menghasilkan file yang identik.
 > 4. Uji sifat idempotensi di terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
@@ -201,9 +208,9 @@ Banyak organisasi memilih menggunakan managed service Airflow di cloud (seperti 
 
 > 🛠 **Coba sendiri (5 menit, pena dan kertas — pemeriksaan desain DAG).** Perhatikan `@dag` Airflow di atas. Mengapa pembacaan file atau query database harus berada *di dalam* `@task def extract()`, bukan di tingkat atas file di luar `@task`? Dan jika Anda menjalankan backfill `2026-01-01` sampai `2026-01-07`, nilai tanggal apa yang wajib dipakai `extract()` dan `load()` alih-alih `datetime.now()`?
 
-:::ask Di Airflow kamu menetapkan `retries=3` pada task yang menambahkan baris ke sebuah tabel. Apa yang harus benar agar retry aman?
+:::ask Di Airflow Anda menetapkan `retries=3` pada task yang menambahkan baris ke sebuah tabel. Apa yang harus benar agar retry aman?
 @options
-* task idempoten: dua kali memberi hasil yang sama
+* task bersifat idempoten saat diulang
 scheduler di-restart di antara tiap percobaan
 task selalu berjalan di worker yang sama
 @why
@@ -253,16 +260,16 @@ Dagster juga memiliki integrasi native yang luar biasa dengan dbt (setiap model 
 > 3. Pastikan kode Anda melempar error eksplisit jika path input data tidak ditemukan (jangan mengembalikan list kosong atau pura-pura sukses): periksa keberadaan direktori/file dan biarkan `FileNotFoundError` terangkat.
 > 4. Uji perilaku penanganan kegagalan di terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
-> 5. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi pipeline gagal secara eksplisit saat input hilang dan otomatis mencoba ulang saat terjadi kegagalan sementara.
+> 5. **Indikator Sukses:** Tes berstatus `PASSED`, mengonfirmasi kegagalan eksplisit saat input hilang dan bahwa konfigurasi `RetryPolicy` (`max_retries >= 1`) terpasang pada `daily_orders`.
 
 > 💡 **Jeda Praktik 4 (Asset Checks & Schedule Berbasis Zona Waktu):**
 > 1. Buka file `labs/mod-2-4/orchestration.py` di teks editor Anda.
 > 2. Implementasikan asset `daily_revenue` (agregasi order non-cancelled/refunded) dan `revenue_report` (agregasi seluruh hari menggunakan `AllPartitionMapping`).
-> 3. Pasang dua asset check: `daily_orders_has_unique_ids` dan `revenue_is_never_negative`.
-> 4. Konfigurasikan jadwal harian `daily_schedule` dengan cron `0 2 * * *` dan timezone `Asia/Jakarta`, lalu daftarkan semuanya ke dalam objek `defs = Definitions(...)`.
-> 5. Uji asset check dan schedule di terminal:
->    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
-> 6. **Indikator Sukses:** Tes berstatus `PASSED` mengonfirmasi integrasi asset check dan spesifikasi schedule 02:00 WIB berjalan sempurna.
+> 3. Tambahkan dua fungsi `@asset_check` yang mengembalikan `AssetCheckResult`: `daily_orders_has_unique_ids` (menerima `context: AssetCheckExecutionContext` dan `paths: Paths`) serta `revenue_is_never_negative`.
+> 4. Definisikan `daily_job = define_asset_job("daily_kopiku_job", selection=[daily_orders, daily_revenue])` dan `daily_schedule` dengan `name="daily_kopiku_schedule"`, cron `0 2 * * *`, dan timezone `Asia/Jakarta`, lalu daftarkan semuanya ke dalam `defs = Definitions(...)`.
+> 5. Verifikasi seluruh asset, check, dan definisi schedule di terminal:
+>    `pytest labs/mod-2-4 -v`
+> 6. **Indikator Sukses:** Seluruh 10 tes berstatus `PASSED`, memverifikasi `daily_orders`, `daily_revenue`, `revenue_report`, kedua asset check (`daily_orders_has_unique_ids` dan `revenue_is_never_negative`), serta definisi `daily_kopiku_schedule`.
 
 :::ask Apa beda pertanyaan awal Dagster dibanding Airflow?
 @options
@@ -337,7 +344,7 @@ Mulai dengan ringkasan biasa dari run-run terbaru:
 :::drill python Ringkas run-run terbaru
 Tulis `summarize_runs(runs)`: `runs` adalah list dictionary seperti `{"ok": True, "seconds": 12}`. Kembalikan dictionary dengan `runs` (berapa banyak), `failures` (berapa yang `ok`-nya false), `failure_rate` (kegagalan dibagi jumlah run, `0` bila tak ada run), dan `avg_seconds` (rata-rata `seconds`, `0` bila tak ada run).
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("summarize_runs") ## Definisikan summarize_runs(runs).
@@ -363,7 +370,7 @@ def summarize_runs(runs):
 @options
 jumlah kegagalan, karena run ditandai sukses
 tingkat log, karena baris INFO selalu ditulis
-* volume: baris yang dimuat, dibandingkan dengan jumlah yang biasa
+* volume: baris yang dimuat dibanding normalnya
 @why
 Tidak ada yang gagal, jadi jumlah kegagalan tetap nol dan log tampak normal. Hanya metrik tentang datanya (baris yang ditulis, dibandingkan dengan malam yang normal) yang menunjukkan bahwa run itu tidak mengerjakan apa-apa. Itulah mengapa Anda mengawasi volume selain keberhasilan.
 :::
@@ -376,7 +383,7 @@ Run yang memakan 100 detik padahal biasanya 11 adalah gejala: data lebih banyak,
 Tulis `is_slow(seconds, history, factor)`: `history` adalah list durasi sebelumnya. Kembalikan `True` bila `seconds` **lebih dari** `factor` kali **median** history, selain itu `False`. Dengan history kosong kembalikan `False` (tak ada yang dibandingkan). Modul `statistics` punya `median`.
 @starter
 import statistics
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("is_slow") ## Definisikan is_slow(seconds, history, factor).
@@ -386,7 +393,7 @@ is_slow(33, [10, 12, 11], 3) == False ## Tepat 3 × 11 tidak lebih dari itu.
 is_slow(5, [], 2) == False ## Tanpa history: tak ada yang dibandingkan.
 is_slow(100, [10, 10, 10, 1000], 3) == True ## Satu run aneh 1000 tidak boleh menyembunyikan perlambatan: mediannya tetap 10.
 @hint
-`seconds > factor * statistics.median(history)`, setelah memeriksa `history` kosong.
+Kembalikan `False` lebih awal jika `history` kosong; jika tidak, hitung nilai tengah dengan `statistics.median` lalu periksa apakah `seconds` benar-benar lebih besar dari `factor` kali median tersebut.
 @solution
 import statistics
 def is_slow(seconds, history, factor):
@@ -420,7 +427,7 @@ for ok in results:
 
 :::ask Scheduler Anda memanggil Anda setiap kali sebuah task gagal sekali, padahal retry memperbaiki 9 dari 10 kegagalan. Apa perubahan terbaik?
 @options
-* beri alert hanya bila task masih gagal setelah retry, atau gagal beberapa kali berturut-turut
+* beri alert hanya bila tetap gagal setelah retry
 bisukan semua alert di malam hari, agar Anda bisa tidur
 naikkan retry menjadi dua puluh, supaya tak pernah memberi alert lagi
 @why
@@ -430,7 +437,7 @@ Alert harus berarti seseorang perlu bertindak. Satu kegagalan yang diperbaiki re
 :::drill python Alert setelah N kegagalan
 Tulis `alert_after(results, n)`: `results` adalah list boolean, yang tertua dulu, dengan `True` berarti run sukses. Kembalikan `True` hanya bila ada setidaknya `n` hasil dan **`n` hasil terakhir semuanya kegagalan**.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("alert_after") ## Definisikan alert_after(results, n).
@@ -440,7 +447,7 @@ alert_after([False, False], 3) == False ## Hasil kurang dari tiga sejauh ini.
 alert_after([], 1) == False ## Tidak ada run sama sekali.
 alert_after([True, False], 1) == True ## n = 1: run terakhir gagal.
 @hint
-`len(results) >= n and not any(results[-n:])`
+Pastikan dulu `results` memiliki minimal `n` entri, lalu ambil irisan `n` elemen terakhir dan periksa bahwa tidak ada satu pun yang bernilai `True`.
 @solution
 def alert_after(results, n):
     return len(results) >= n and not any(results[-n:])
@@ -460,7 +467,7 @@ Airflow dan Dagster menampilkan riwayat run di layar mereka sendiri, dan Airflow
 :::drill python Tulis satu baris metrik
 Tulis `metric_line(name, value, labels)`: kembalikan teks satu metrik. Dengan label bentuknya `name{key="value",key2="value2"} angka`, dengan label **diurutkan menurut key**. Tanpa label cukup `name angka`. `metric_line("rows_loaded", 3617, {"job": "orders"})` adalah `rows_loaded{job="orders"} 3617`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("metric_line") ## Definisikan metric_line(name, value, labels).
@@ -469,7 +476,7 @@ metric_line("up", 1, {}) == "up 1" ## Tanpa label: tanpa kurung kurawal.
 metric_line("duration_seconds", 0.42, {"job": "orders", "env": "prod"}) == 'duration_seconds{env="prod",job="orders"} 0.42' ## Dua label, diurutkan menurut key.
 metric_line("x", 2, {"b": "1", "a": "2", "c": "3"}) == 'x{a="2",b="1",c="3"} 2' ## Label sebanyak apa pun.
 @hint
-`",".join(f'{k}="{labels[k]}"' for k in sorted(labels))` membangun bagian di dalam kurung.
+Tangani dict `labels` kosong sebagai string dua bagian biasa; jika tidak kosong, urutkan key-nya, format tiap pasangan menjadi `key="value"`, gabungkan dengan koma, lalu bungkus dengan `{...}` (menggandakan kurung kurawal di dalam f-string).
 @solution
 def metric_line(name, value, labels):
     if not labels:
@@ -531,15 +538,15 @@ volumes:
 
 Perhatikan `condition: service_healthy`: `depends_on` biasa hanya menunggu proses container menyala, bukan menunggu PostgreSQL selesai menginisialisasi disk dan siap menerima koneksi TCP!
 
-**2. Panduan 6 Langkah Aman Backfill Produksi.** Cepat atau lambat, perubahan rumus bisnis atau perbaikan bug penguraian mengharuskan Anda melakukan **backfill data historis 12 bulan** pada tabel berukuran multi-terabyte. Menjalankan backfill tanpa pembatas di produksi dapat merobohkan database sumber, memicu tagihan warehouse yang tidak direncanakan, mengunci dashboard BI, dan mengirim ulang email pemasaran Reverse ETL untuk setiap pesanan historis. Ikuti 6 langkah ini setiap kali melakukan backfill:
+**2. Panduan 6 Langkah Aman Backfill Produksi.** Cepat atau lambat, perubahan rumus bisnis atau perbaikan bug penguraian mengharuskan Anda melakukan **backfill data historis 12 bulan** pada tabel berukuran multi-terabyte. Menjalankan backfill tanpa pembatas di produksi dapat merobohkan database sumber, memicu tagihan warehouse yang tidak direncanakan, mengunci dashboard BI, dan mengirim ulang email pemasaran Reverse ETL (mendorong metrik warehouse kembali ke CRM dan aplikasi operasional) untuk setiap pesanan historis. Ikuti 6 langkah ini setiap kali melakukan backfill:
 
 | Langkah | Tindakan | Mengapa Mencegah Insiden Produksi |
 |---|---|---|
 | **1. Bisukan Efek Samping Hilir** | Matikan sementara **sinkronisasi Reverse ETL, webhook Slack/email, dan auto-retraining ML** yang terhubung ke tabel target. | Mencegah terkirimnya ulang pesan CRM "Selamat datang VIP!" untuk pesanan tahun 2025. |
 | **2. Dry-Run & Estimasi Biaya pada 1 Partisi** | Jalankan backfill untuk satu tanggal logis (`--start 2026-01-01 --end 2026-01-01`) lalu kalikan byte yang dipindai & durasi dengan 365. | Menangkap bug full-table scan tersembunyi sebelum dikalikan 365×. |
 | **3. Batasi Konkurensi (`max_active_runs`)** | Atur `max_active_runs=2` atau `max_concurrency=4` di Airflow/Dagster/Kestra. | Mencegah 365 worker paralel membanjiri database OLTP sumber atau slot warehouse. |
-| **4. Gunakan Batch Rentang Partisi daripada 365 Run Harian Terpisah** | Di cloud warehouse (`BigQuery / Snowflake / Databricks`), proses per rentang bulan atau gunakan `dbt microbatch` / penggantian partisi. | 12 run bulanan membayar biaya tetap sebuah query (perencanaan, membaca metadata, tagihan minimum) 12 kali, bukan 365 kali. |
-| **5. Bangun di Tabel Staging/Clone Dulu (Blue-Green Swap)** | Pada tabel Gold kritis, buat zero-copy clone (`CREATE TABLE fct_orders_backfill CLONE fct_orders`), jalankan backfill di sana, uji dengan tes, lalu `ALTER TABLE ... SWAP WITH`. | Dashboard BI eksekutif tidak pernah melihat tabel setengah kosong selama proses backfill 4 jam. |
+| **4. Gunakan Batch Rentang Partisi daripada 365 Run Harian Terpisah** | Di cloud warehouse (`BigQuery / Snowflake / Databricks`), proses per rentang bulan atau gunakan `dbt microbatch` (mode inkremental terpartisi milik dbt) / penggantian partisi. | 12 run bulanan membayar biaya tetap sebuah query (perencanaan, membaca metadata, tagihan minimum) 12 kali, bukan 365 kali. |
+| **5. Bangun di Tabel Staging/Clone Dulu (Blue-Green Swap)** | Pada tabel Gold kritis, buat zero-copy clone (salinan tabel warehouse instan berbasis metadata saja: `CREATE TABLE fct_orders_backfill CLONE fct_orders`), jalankan backfill di sana, uji dengan tes, lalu tukar secara atomik ke tabel produksi dengan `ALTER TABLE ... SWAP WITH` (blue-green swap). | Dashboard BI eksekutif tidak pernah melihat tabel setengah kosong selama proses backfill 4 jam. |
 | **6. Rekonsiliasi Total & Aktifkan Kembali Sinkronisasi Hilir** | Bandingkan jumlah baris dan total metrik (`SUM(net_revenue_idr)`) sebelum vs. sesudah, majukan watermark Reverse ETL agar baris lama tidak dikirim ulang, lalu aktifkan kembali job hilir. | Membuktikan backfill menuntaskan masalah tanpa efek samping liar. |
 
 > 🛠 **Coba sendiri (15 menit, Python dengan DuckDB).** Muat `data/orders.csv` dengan `read_csv(..., all_varchar=true)`, simpan baris yang `total_idr`-nya hanya angka dan `order_ts`-nya lolos `TRY_CAST(order_ts AS TIMESTAMP)`. Buat dua tabel kosong `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11, dan 12 ke keduanya, satu hari setiap kali, dengan menghitung pesanan yang tidak dibatalkan (bandingkan `lower(trim(status))`: file-nya menulisnya dengan tiga cara): ke tabel pertama dengan `INSERT` biasa, ke tabel kedua dengan `DELETE` hari itu lalu `INSERT`, dalam satu transaksi. Jalankan seluruh backfill untuk kedua kalinya, seperti setelah crash, dan cetak jumlah baris dan total pendapatan kedua tabel setelah setiap run.
@@ -559,7 +566,9 @@ Kontainer yang sudah start belum tentu layanan yang siap. Tambahkan healthcheck 
 Bangun pipeline pemrosesan data harian KopiKu sebagai rangkaian asset terkelola di Dagster: lakukan pembersihan data transaksi per partisi harian, hitung ringkasan pendapatan harian, buat laporan agregasi seluruh hari, pasang asset checks untuk menjamin kualitas data, tetapkan kebijakan retry, dan pasang penjadwalan berbasis zona waktu Asia/Jakarta. Suite pengujian akan mengeksekusi pipeline Anda menggunakan engine orkestrasi nyata terhadap direktori filesystem temporary.
 
 ### @steps
-1. Instal dependensi dan buat data transaksi awal, lalu pelajari suite pengujian terlebih dahulu:
+> **Sudah menyelesaikan Jeda Praktik 1–5?** Asset, check, dan schedule Dagster Anda sudah selesai dibangun dan terverifikasi, langsung lompat ke Langkah 6 untuk menjelajahi Dagster UI atau Langkah 7 untuk tantangan lanjutan.
+
+1. Di terminal, masuk ke folder kursus dan aktifkan venv Anda (`cd ~/projects/DECourse`, lalu `source venv/bin/activate`). Instal dependensi, buat data transaksi awal, lalu pelajari suite pengujian terlebih dahulu:
 
 ```bash
 python -m pip install -r labs/mod-2-4/requirements.txt
@@ -568,7 +577,7 @@ pytest labs/mod-2-4 -v          # pengujian akan gagal sampai Anda mengimplement
 ```
 
 2. Buka file starter `labs/mod-2-4/orchestration.py`. Baca docstring modul yang menjadi spesifikasi teknis lengkap: pembuatan resource `Paths`, definisi partisi harian `daily` dari rentang 2026-01-01 hingga 2026-01-30, tiga asset data, dua asset checks, satu job, satu schedule, dan sebuah objek `Definitions`.
-3. Implementasikan resource `Paths` (sebagai subclass `ConfigurableResource`) dan partisi `daily`. Lanjutkan dengan mengimplementasikan asset `daily_orders`: untuk setiap kunci tanggal partisi, baca file `orders.csv`, terapkan aturan pembersihan data dari modul sebelumnya, dan **timpa** file partisi harian target secara atomik. Jalankan `pytest labs/mod-2-4 -k TestDailyOrders` secara bertahap.
+3. Implementasikan resource `Paths` (sebagai subclass `ConfigurableResource`) dan partisi `daily`. Lanjutkan dengan mengimplementasikan asset `daily_orders`: untuk setiap kunci tanggal partisi, baca file `orders.csv`, terapkan aturan pembersihan data dari modul sebelumnya, dan **timpa** file partisi harian target secara atomik. Jalankan `pytest labs/mod-2-4 -k "TestDailyOrders and not unique_ids"` secara bertahap (check `unique_ids` baru dibuat di Langkah 4).
 4. Implementasikan asset `daily_revenue` (bergantung pada partisi yang bersesuaian di `daily_orders`) dan asset `revenue_report` (bergantung pada seluruh partisi: gunakan `AssetDep` dengan mapping `AllPartitionMapping`). Lanjutkan dengan mengimplementasikan kedua fungsi asset checks, definisi job, dan schedule. Ingat bahwa fungsi berdekorator `@asset_check` menerima argumen `AssetCheckExecutionContext`.
 5. Jalankan seluruh rangkaian unit test. Perhatikan secara seksama pengujian idempotensi dan backfill: pengujian ini mengeksekusi ulang partisi yang sama berkali-kali dan membandingkan integritas output akhir.
 6. Jalankan antarmuka grafis Dagster secara lokal:
@@ -592,7 +601,7 @@ dagster dev -f labs/mod-2-4/orchestration.py
 ### @files
 - labs/mod-2-4/orchestration.py :: File kerja utama: deklarasi definisi Dagster yang harus dibangun :: starter
 - labs/mod-2-4/test_lab.py :: Suite pengujian otomatis (mengeksekusi pipeline langsung menggunakan engine Dagster) :: test
-- labs/mod-2-4/requirements.txt :: Konfigurasi dependensi dagster dan pytest :: config
+- labs/mod-2-4/requirements.txt :: Konfigurasi dependensi dagster, dagster-webserver, dan pytest :: config
 - labs/mod-2-4/reference/orchestration.py :: Referensi solusi lengkap (jadikan pembanding setelah mencoba mandiri!) :: reference
 
 ### @deliverables
@@ -687,7 +696,7 @@ Operasi backfill melipatgandakan beban infrastruktur pipeline Anda sebesar jumla
 - [ ] Notifikasi saat suatu task melempar exception error yang tercatat di dalam log worker
 - [ ] Notifikasi saat tagihan biaya data warehouse bulanan melonjak lebih dari sepuluh persen dalam sebulan
 - [x] Notifikasi saat run terjadwal tidak terpicu atau terlambat, karena tanpa kabar sering dikira sukses
-- [ ] Notifikasi saat seorang insinyur melakukan merge commit kode baru ke repository repositori pipeline
+- [ ] Notifikasi saat seorang insinyur melakukan merge commit kode baru ke repositori pipeline
 
 > Kegagalan task sangat mudah terdeteksi dari log error; namun ketiadaan eksekusi sama sekali (missing runs) kerap tidak disadari karena tidak memicu pesan error. Pantau ketiadaan run dan keterlambatan penyelesaian data (freshness dan SLA breaches) berdampingan dengan pemantauan error.
 

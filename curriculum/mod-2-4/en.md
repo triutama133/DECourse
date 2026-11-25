@@ -78,12 +78,19 @@ Other vocabulary:
 Pass **references, not data**, between steps. Task outputs travel through the orchestrator's metadata store (Airflow's XCom); that is for small values such as a file path or a row count. Large data goes through storage (a table, a Parquet folder) and the next step reads it from there.
 
 > 💡 **Practice Pause 1 (Defining Resources & Daily Partitions):**
-> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-4/orchestration.py` (do not run `.py` files directly in bash without arguments or interpreters).
-> 2. Define the resource class `Paths(ConfigurableResource)` with string attributes `data_dir` and `warehouse_dir`.
-> 3. Create the daily partitions definition: `daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")` (note: `end_date` is exclusive, covering 30 days of January 2026).
-> 4. Run the partition test in terminal:
+> *Setup & bridge note:* From the course folder with your venv active, install dependencies first (`python -m pip install -r labs/mod-2-4/requirements.txt`). Lesson 5 explains Dagster assets and resources in full, so you can either wait until Lesson 5 to start the lab or follow the starter syntax below right now.
+> 1. In your text editor (VS Code / Cursor), open `labs/mod-2-4/orchestration.py` and remove the starter `raise NotImplementedError(...)` line (do not run `.py` files directly in bash without arguments or interpreters).
+> 2. Define the `Paths` resource and the 30-day `daily` partition definition (`end_date` is exclusive, covering 2026-01-01 through 2026-01-30):
+> ```python
+> from dagster import ConfigurableResource, DailyPartitionsDefinition
+> class Paths(ConfigurableResource):
+>     data_dir: str
+>     warehouse_dir: str
+> daily = DailyPartitionsDefinition(start_date="2026-01-01", end_date="2026-01-31")
+> ```
+> 3. Run the partition test in terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k test_partitions_are_the_30_days_of_january -v`
-> 5. **Success Indicator:** The test passes, confirming exactly 30 partitions from 2026-01-01 through 2026-01-30.
+> 4. **Success Indicator:** The test passes, confirming exactly 30 partitions from 2026-01-01 through 2026-01-30.
 
 :::drill python The data interval of a daily run
 A daily pipeline processes the **previous** day. Write `interval_for(run_date)`: `run_date` is a string like `"2026-01-06"`. Return a tuple `(start, end)` of strings: the start of the day before and the start of `run_date` itself.
@@ -97,7 +104,7 @@ interval_for("2026-01-06") == ("2026-01-05", "2026-01-06") ## The run on 6 Janua
 interval_for("2026-03-01") == ("2026-02-28", "2026-03-01") ## It crosses month ends correctly.
 interval_for("2026-01-01") == ("2025-12-31", "2026-01-01") ## And year ends.
 @hint
-`end = date.fromisoformat(run_date)`, `start = end - timedelta(days=1)`, then `.isoformat()` both.
+Parse `run_date` into a `date` object with `date.fromisoformat`, subtract one day using `timedelta`, and format both dates back to ISO strings.
 @solution
 from datetime import date, timedelta
 def interval_for(run_date):
@@ -132,7 +139,7 @@ An idempotent job leaves the same result whether it runs once or five times. App
 
 > 💡 **Practice Pause 2 (Partitioned Assets & Atomic Writes):**
 > 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
-> 2. Implement `@asset(partitions_def=daily, ...)` for `daily_orders(context: AssetExecutionContext, paths: Paths)`: read `orders.csv`, filter rows matching `context.partition_key`, clean totals and status, and write sorted rows to `date=<day>/orders.ndjson`.
+> 2. Import `asset`, `AssetExecutionContext`, and `MaterializeResult` from `dagster`, then implement `@asset(partitions_def=daily, ...)` for `daily_orders(context: AssetExecutionContext, paths: Paths)`: read `orders.csv`, filter rows matching `context.partition_key`, clean totals and status, and write sorted rows to `daily_orders/date=<day>/orders.ndjson`.
 > 3. Use an atomic write pattern: write to a temporary file first, then atomically replace the target file (`os.replace`) so reruns remain completely idempotent.
 > 4. Test idempotency in terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_one_partition or test_running_the_same_partition" -v`
@@ -203,7 +210,7 @@ Many teams run Airflow as a managed service (Amazon MWAA, Google Cloud Composer,
 
 :::ask In Airflow you set `retries=3` on a task that appends rows to a table. What must be true for retries to be safe?
 @options
-* the task is idempotent: twice gives the same result
+* the task is idempotent on reruns
 the scheduler is restarted between each attempt
 the task runs on the same worker every time
 @why
@@ -253,16 +260,16 @@ Dagster integrates with dbt (every dbt model becomes an asset in the same graph)
 > 3. Ensure your asset raises an explicit error when input data is missing (do not return an empty list or pretend to succeed): verify directory/file existence and let `FileNotFoundError` propagate.
 > 4. Test failure behavior in terminal:
 >    `pytest labs/mod-2-4/test_lab.py -k "test_a_missing_input or test_the_daily_asset_retries" -v`
-> 5. **Success Indicator:** Tests report `PASSED`, verifying explicit failures on missing inputs and automated retries on transient errors.
+> 5. **Success Indicator:** Tests report `PASSED`, verifying explicit failures on missing inputs and that the `RetryPolicy` configuration (`max_retries >= 1`) is attached to `daily_orders`.
 
 > 💡 **Practice Pause 4 (Asset Checks & Timezone-Aware Schedules):**
 > 1. Open `labs/mod-2-4/orchestration.py` in your text editor.
 > 2. Implement `daily_revenue` (aggregating non-cancelled/refunded orders) and `revenue_report` (aggregating all days via `AllPartitionMapping`).
-> 3. Add two asset checks: `daily_orders_has_unique_ids` and `revenue_is_never_negative`.
-> 4. Configure `daily_schedule` with cron `0 2 * * *` and timezone `Asia/Jakarta`, then register everything in `defs = Definitions(...)`.
-> 5. Test checks and schedules in terminal:
->    `pytest labs/mod-2-4/test_lab.py -k "test_the_unique_ids_check or test_the_schedule" -v`
-> 6. **Success Indicator:** Tests report `PASSED`, confirming asset checks and schedule definitions.
+> 3. Add two `@asset_check` functions returning `AssetCheckResult`: `daily_orders_has_unique_ids` (taking `context: AssetCheckExecutionContext` and `paths: Paths`) and `revenue_is_never_negative`.
+> 4. Define `daily_job = define_asset_job("daily_kopiku_job", selection=[daily_orders, daily_revenue])` and `daily_schedule` with `name="daily_kopiku_schedule"`, cron `0 2 * * *`, and timezone `Asia/Jakarta`, then register everything in `defs = Definitions(...)`.
+> 5. Verify all assets, checks, and schedule definitions in terminal:
+>    `pytest labs/mod-2-4 -v`
+> 6. **Success Indicator:** All 10 tests report `PASSED`, verifying `daily_orders`, `daily_revenue`, `revenue_report`, both asset checks (`daily_orders_has_unique_ids` and `revenue_is_never_negative`), and the `daily_kopiku_schedule` definition.
 
 :::ask How does Dagster's starting question differ from Airflow's?
 @options
@@ -386,7 +393,7 @@ is_slow(33, [10, 12, 11], 3) == False ## Exactly 3 × 11 is not more than that.
 is_slow(5, [], 2) == False ## No history: nothing to compare with.
 is_slow(100, [10, 10, 10, 1000], 3) == True ## One freak run of 1000 must not hide the slowdown: the median is still 10.
 @hint
-`seconds > factor * statistics.median(history)`, after a check for an empty `history`.
+Return `False` early when `history` is empty; otherwise compute the middle value with `statistics.median` and check whether `seconds` strictly exceeds `factor` times that median.
 @solution
 import statistics
 def is_slow(seconds, history, factor):
@@ -420,7 +427,7 @@ for ok in results:
 
 :::ask Your scheduler pages you every time a task fails once, but its retries fix 9 failures out of 10. What is the best change?
 @options
-* alert only when the task still fails after its retries, or fails several times in a row
+* alert only if the task still fails after retries
 mute every alert during the night, so you can sleep
 raise the retries to twenty, so that it never alerts again
 @why
@@ -440,7 +447,7 @@ alert_after([False, False], 3) == False ## Fewer than three results so far.
 alert_after([], 1) == False ## No runs at all.
 alert_after([True, False], 1) == True ## n = 1: the last run failed.
 @hint
-`len(results) >= n and not any(results[-n:])`
+First check that `results` has at least `n` entries, then slice the last `n` elements and verify that none of them is `True`.
 @solution
 def alert_after(results, n):
     return len(results) >= n and not any(results[-n:])
@@ -469,7 +476,7 @@ metric_line("up", 1, {}) == "up 1" ## No labels: no curly brackets.
 metric_line("duration_seconds", 0.42, {"job": "orders", "env": "prod"}) == 'duration_seconds{env="prod",job="orders"} 0.42' ## Two labels, sorted by key.
 metric_line("x", 2, {"b": "1", "a": "2", "c": "3"}) == 'x{a="2",b="1",c="3"} 2' ## Any number of labels.
 @hint
-`",".join(f'{k}="{labels[k]}"' for k in sorted(labels))` builds the part inside the brackets.
+Handle an empty `labels` dict as a plain two-part string; otherwise sort the keys, format each pair as `key="value"`, join them with commas, and wrap them in `{...}` (doubling braces inside an f-string).
 @solution
 def metric_line(name, value, labels):
     if not labels:
@@ -531,15 +538,15 @@ volumes:
 
 Notice `condition: service_healthy`: `depends_on` alone only waits for the container process to start, not for PostgreSQL to finish initializing and accept TCP connections!
 
-**2. The 6-Step Safe Production Backfill Runbook.** Sooner or later, a business logic change or fixed parsing bug requires you to **backfill 12 months of historical data** across a multi-terabyte table. Running an unthrottled backfill in production can crash the source database, run up an unplanned warehouse bill, lock BI dashboards, and re-send Reverse ETL marketing emails for every historical order. Follow this 6-step runbook every time:
+**2. The 6-Step Safe Production Backfill Runbook.** Sooner or later, a business logic change or fixed parsing bug requires you to **backfill 12 months of historical data** across a multi-terabyte table. Running an unthrottled backfill in production can crash the source database, run up an unplanned warehouse bill, lock BI dashboards, and re-send Reverse ETL (pushing warehouse metrics back to CRM and operational apps) marketing emails for every historical order. Follow this 6-step runbook every time:
 
 | Step | Action | Why It Prevents a Production Incident |
 |---|---|---|
 | **1. Mute Downstream Side-Effects** | Disable or pause **Reverse ETL syncs, Slack/email webhook triggers, and ML auto-retraining** connected to the target table. | Prevents re-sending "Welcome VIP!" CRM messages for orders from 2025. |
 | **2. Dry-Run & Estimate Cost on 1 Partition** | Run the backfill for a single logical date (`--start 2026-01-01 --end 2026-01-01`) and multiply bytes scanned & runtime by 365. | Catches a hidden full-table scan before multiplying it 365×. |
 | **3. Cap Concurrency (`max_active_runs`)** | Set `max_active_runs=2` or `max_concurrency=4` in Airflow/Dagster/Kestra. | Prevents 365 parallel workers from saturating the source OLTP database or warehouse slot pool. |
-| **4. Prefer Chunked Partition Batches Over 365 Single-Day Runs** | In cloud warehouses (`BigQuery / Snowflake / Databricks`), process monthly ranges or use `dbt microbatch` / partition replacement. | 12 monthly runs pay the fixed cost of a query (planning, reading metadata, minimum billing) 12 times instead of 365. |
-| **5. Build into a Staging/Clone Table First (Blue-Green Swap)** | On critical Gold tables, zero-copy clone (`CREATE TABLE fct_orders_backfill CLONE fct_orders`), run the backfill there, verify tests, then `ALTER TABLE ... SWAP WITH`. | Downstream BI dashboards never see a half-empty or inconsistent table during a 4-hour backfill. |
+| **4. Prefer Chunked Partition Batches Over 365 Single-Day Runs** | In cloud warehouses (`BigQuery / Snowflake / Databricks`), process monthly ranges or use `dbt microbatch` (dbt's partitioned incremental mode) / partition replacement. | 12 monthly runs pay the fixed cost of a query (planning, reading metadata, minimum billing) 12 times instead of 365. |
+| **5. Build into a Staging/Clone Table First (Blue-Green Swap)** | On critical Gold tables, create a zero-copy clone (an instant metadata-only warehouse table copy: `CREATE TABLE fct_orders_backfill CLONE fct_orders`), run the backfill there, verify tests, then swap atomically with `ALTER TABLE ... SWAP WITH` (a blue-green swap). | Downstream BI dashboards never see a half-empty or inconsistent table during a 4-hour backfill. |
 | **6. Reconcile Totals & Re-Enable Downstream Syncs** | Compare row counts and invariant sums (`SUM(net_revenue_idr)`) before and after, advance the Reverse ETL watermark so historical rows aren't re-sent, and unpause downstream jobs. | Proves the backfill solved the issue with zero unintended side effects. |
 
 > 🛠 **Try it (15 min, Python with DuckDB).** Load `data/orders.csv` with `read_csv(..., all_varchar=true)`, keeping rows whose `total_idr` is all digits and whose `order_ts` survives `TRY_CAST(order_ts AS TIMESTAMP)`. Create two empty tables `(order_date DATE, orders BIGINT, revenue_idr BIGINT)`. "Backfill" 2026-01-10, 11 and 12 into both, one day at a time, counting the orders that are not cancelled (compare `lower(trim(status))`: the file spells it three ways): into the first with a plain `INSERT`, into the second with `DELETE` of that day and then `INSERT`, in one transaction. Run the whole backfill a second time, as you would after a crash, and print the row count and total revenue of both tables after each run.
@@ -559,7 +566,9 @@ A started container is not a ready service. Add a healthcheck to Postgres and us
 Build the KopiKu daily pipeline as Dagster assets: clean orders per day, compute daily revenue, a report over all days, checks, a retry policy, and a Jakarta-time schedule. The tests exercise it with the real orchestration engine against temporary folders.
 
 ### @steps
-1. Install and generate the data, then read the tests first:
+> **Already finished Practice Pauses 1–5?** Your Dagster assets, checks, and schedule are already built and verified, jump straight to Step 6 to explore the Dagster UI or Step 7 for stretch goals.
+
+1. In the terminal, go to the course folder and activate your venv (`cd ~/projects/DECourse`, then `source venv/bin/activate`). Install dependencies, generate the data, and read the tests first:
 
 ```bash
 python -m pip install -r labs/mod-2-4/requirements.txt
@@ -568,7 +577,7 @@ pytest labs/mod-2-4 -v          # fails until you implement the definitions
 ```
 
 2. Open `labs/mod-2-4/orchestration.py`. The docstring is the specification: a `Paths` resource, a daily partition definition from 2026-01-01 to 2026-01-30, three assets, two checks, a job, a schedule and a `Definitions` object.
-3. Implement `Paths` (a `ConfigurableResource`) and `daily`. Then `daily_orders`: for the partition's day, read `orders.csv`, apply the cleaning rules from the earlier modules, and **replace** the day's file atomically. Run `pytest labs/mod-2-4 -k TestDailyOrders` as you go.
+3. Implement `Paths` (a `ConfigurableResource`) and `daily`. Then `daily_orders`: for the partition's day, read `orders.csv`, apply the cleaning rules from the earlier modules, and **replace** the day's file atomically. Run `pytest labs/mod-2-4 -k "TestDailyOrders and not unique_ids"` as you go (the `unique_ids` check comes in Step 4).
 4. Implement `daily_revenue` (depends on the same partition of `daily_orders`) and `revenue_report` (depends on all partitions: use `AssetDep` with `AllPartitionMapping`). Then the two checks, the job and the schedule. Remember that `@asset_check` functions take an `AssetCheckExecutionContext`.
 5. Run the whole suite. Pay attention to the idempotency and backfill tests: they re-run partitions and compare outputs.
 6. Look at it for real:
@@ -592,7 +601,7 @@ dagster dev -f labs/mod-2-4/orchestration.py
 ### @files
 - labs/mod-2-4/orchestration.py :: Your working file: the Dagster definitions to build :: starter
 - labs/mod-2-4/test_lab.py :: The tests (they execute your pipeline with Dagster) :: test
-- labs/mod-2-4/requirements.txt :: dagster and pytest :: config
+- labs/mod-2-4/requirements.txt :: dagster, dagster-webserver, and pytest :: config
 - labs/mod-2-4/reference/orchestration.py :: One possible solution (try first!) :: reference
 
 ### @deliverables

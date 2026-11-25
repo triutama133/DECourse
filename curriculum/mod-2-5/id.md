@@ -34,7 +34,7 @@ Mengapa standarisasi dimensi ini sangat krusial? Bagi seorang data analyst atau 
 
 Dari mana asal rusaknya data? Sebagian besar masalah data berasal dari **perubahan di sistem hulu (upstream)** dan bukan dari bug kode pipeline Anda: tim backend merevisi format kolom tanpa pemberitahuan, deployment rilis baru menyisipkan bug transaksional, mitra payment gateway terlambat mengirim batch file, atau definisi bisnis yang berbeda antar divisi. Seorang data engineer tidak bisa menghentikan seluruh perubahan di dunia, tetapi ia bisa memastikan seluruh anomali menjadi **terlihat seketika, terdeteksi sedini mungkin, dan memiliki kepemilikan yang jelas**.
 
-> 🛠 **Coba sendiri (15 menit, Python).** Jalankan satu pemeriksaan per dimensi pada `data/orders.csv` dan `data/customers.csv`. Baca semuanya sebagai teks (`csv.DictReader`), karena membiarkan pandas menebak tipe akan menyembunyikan sebagian masalahnya. Hitung: baris dengan `order_id` kosong (kelengkapan); baris yang `status`-nya bukan persis salah satu dari `delivered`, `shipped`, `paid`, `cancelled`, `refunded`, baris yang `total_idr`-nya bukan bilangan bulat tidak negatif biasa (`re.fullmatch(r"\d+", value)`), dan baris yang `order_ts`-nya tidak bisa di-parse dengan `datetime.strptime(..., "%Y-%m-%dT%H:%M:%S")` (validitas); salinan tambahan sebuah `order_id` (keunikan); pesanan yang `customer_id`-nya tidak ada di file pelanggan (integritas); dan `order_ts` valid yang paling baru (ketepatan waktu). Cetak satu baris per pemeriksaan.
+> 🛠 **Coba sendiri (15 menit, Python).** Buat dataset sampel terlebih dahulu jika Anda belum memiliki folder `data/` (`python3 labs/shared/shopgen.py --out data`), lalu jalankan satu pemeriksaan per dimensi pada `data/orders.csv` dan `data/customers.csv`. Baca semuanya sebagai teks (`csv.DictReader`), karena membiarkan pandas menebak tipe akan menyembunyikan sebagian masalahnya. Hitung: baris dengan `order_id` kosong (kelengkapan); baris yang `status`-nya bukan persis salah satu dari `delivered`, `shipped`, `paid`, `cancelled`, `refunded`, baris yang `total_idr`-nya bukan bilangan bulat tidak negatif biasa (`re.fullmatch(r"\d+", value)`), dan baris yang `order_ts`-nya tidak bisa di-parse dengan `datetime.strptime(..., "%Y-%m-%dT%H:%M:%S")` (validitas); salinan tambahan sebuah `order_id` (keunikan); pesanan yang `customer_id`-nya tidak ada di file pelanggan (integritas); dan `order_ts` valid yang paling baru (ketepatan waktu). Cetak satu baris per pemeriksaan.
 >
 > **Seharusnya Anda melihat:** `0` id kosong; `112` status buruk, `54` total buruk, `41` timestamp buruk; `35` salinan tambahan sebuah order id; `16` pesanan dengan pelanggan yang tidak dikenal; pesanan terbaru `2026-01-30T23:59:00`. Dimensi mana yang akan Anda lupakan seandainya tabel di atas tidak mencantumkannya?
 
@@ -120,14 +120,15 @@ Data contract bukan alat untuk saling melempar kesalahan, melainkan sarana untuk
 > 💡 **Jeda Praktik 1 (Mendefinisikan Data Contract YAML):**
 > 1. Buka teks editor Anda (VS Code / Cursor), lalu buka file `labs/mod-2-5/contracts/orders.yaml` (ingat: jangan mengeksekusi file `.yaml` langsung di bash terminal).
 > 2. Lengkapi spesifikasi kontrak: tetapkan `name: orders`, `version: 1.0.0`, `owner: checkout-team`, dan deklarasikan 6 field (`order_id`, `customer_id`, `order_ts`, `status`, `payment_method`, `total_idr`) beserta batasan nilai dan SLA (`freshness_hours: 24`, `max_reject_rate: 0.10`).
-> 3. Uji keabsahan kontrak data di terminal:
+> 3. Buka `labs/mod-2-5/quality.py` dan implementasikan `load_contract(path)` satu baris (`return yaml.safe_load(Path(path).read_text())`) agar fixture pengujian dapat memuat file YAML Anda.
+> 4. Uji keabsahan kontrak data di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestContractFile -v`
-> 4. **Indikator Sukses:** Seluruh tes `TestContractFile` berstatus `PASSED` membuktikan kontrak valid dan lengkap.
+> 5. **Indikator Sukses:** Seluruh tes `TestContractFile` berstatus `PASSED` membuktikan kontrak valid dan lengkap.
 
 :::drill python Periksa baris terhadap kontrak
 Sebuah kontrak menyebut field mana yang wajib dan tipe tiap field. Tulis `violations(row, contract)`: `contract` memetakan nama field ke tipe (misalnya `{"id": int, "email": str}`). Kembalikan daftar terurut nama field yang **tidak ada** di `row` atau **bertipe salah**. Baris yang patuh kontrak menghasilkan `[]`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("violations") ## Definisikan violations(row, contract).
@@ -136,7 +137,7 @@ violations({"id": "1", "email": "a@b.c"}, {"id": int, "email": str}) == ["id"] #
 violations({"id": 1}, {"id": int, "email": str}) == ["email"] ## email tidak ada.
 violations({}, {"b": int, "a": str}) == ["a", "b"] ## Semua tidak ada; daftar terurut.
 @hint
-Untuk tiap `name, kind` di kontrak: itu pelanggaran jika `name not in row` atau `not isinstance(row[name], kind)`. Kembalikan `sorted(...)`.
+Iterasi setiap nama field dan tipe yang diharapkan dalam kontrak. Kumpulkan nama field tersebut bila key tidak ada di baris atau nilainya gagal pemeriksaan `isinstance`, lalu kembalikan daftar nama tersebut secara terurut alfabetis.
 @solution
 def violations(row, contract):
     bad = []
@@ -182,7 +183,7 @@ Ketat di pintu tidak berarti membuang seluruh batch atau menyembunyikan masalah.
 
 > 💡 **Jeda Praktik 2 (Membangun Ingestion Gate & Karantina):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
-> 2. Implementasikan fungsi `load_contract(path)` dan `validate_rows(rows, contract)`: periksa secara ketat aturan field (missing, wrong type, minimum, allowed, duplicate) dan masukkan baris bermasalah ke list `quarantined` beserta daftar errornya.
+> 2. Implementasikan fungsi `validate_rows(rows, contract)` (`load_contract(path)` sudah selesai di Jeda Praktik 1): periksa secara ketat aturan field (missing, wrong type, minimum, allowed, duplicate) dan masukkan baris bermasalah ke list `quarantined` beserta daftar errornya.
 > 3. Uji validasi baris di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestValidateRows -v`
 > 4. **Indikator Sukses:** Sebanyak 13 tes berstatus `PASSED`, memverifikasi bahwa 3.394 baris valid diterima dan 240 baris cacat dikarantina dengan pesan error yang presisi.
@@ -198,7 +199,7 @@ Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per sa
 4. **Distribusi (Distribution Shift)**: apakah *konten proporsional* di dalam kolom mengalami pergeseran drastis? Misalnya proporsi status pesanan, rasio nilai NULL pada kolom tertentu, atau rentang nilai numerik. Mendeteksi bug halus di mana nilai fallback darurat membanjiri sebuah kolom.
 5. **Data Lineage**: memetakan asal-usul tabel dan job hulu yang memberi makan tabel ini, serta laporan hilir apa saja yang bergantung padanya. Lineage menjadi fondasi agar 4 pilar di atas dapat ditindaklanjuti secara efektif.
 
-**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation: median dari `|x - median|`)**. Contoh kecil pada `[10, 12, 14]`: median adalah `12`, jarak masing-masing ke `12` adalah `[2, 0, 2]`, jadi `MAD = 2` — bahkan jika satu hari melonjak menjadi `1000`, median dan MAD dari `[10, 12, 14, 1000]` hampir tidak bergeser (`13` dan `1`), sedangkan standar deviasinya meledak!
+**Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation: median dari `|x - median|`)**. Contoh kecil pada `[10, 12, 14]`: median adalah `12`, jarak masing-masing ke `12` adalah `[2, 0, 2]`, jadi `MAD = 2`, bahkan jika satu hari melonjak menjadi `1000`, median dan MAD dari `[10, 12, 14, 1000]` hampir tidak bergeser (`13` dan `2`, dengan MAD sama sekali tidak berubah di `2`), sedangkan standar deviasinya meledak!
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 membuat skala MAD setara dengan standar deviasi normal
@@ -215,7 +216,7 @@ Panduan praktis lapangan:
 
 > 💡 **Jeda Praktik 3 (Pemeriksaan Statistik Monitoring Dataset):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
-> 2. Implementasikan fungsi pembantu monitoring: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `daily_counts(rows)` (hitung jumlah baris per awalan tanggal `YYYY-MM-DD`, terurut tanggal), `volume_anomaly(history, today, k=3.0)` menggunakan Median dan MAD dengan ambang batas bawah, serta `distribution_shift(before, after)` menggunakan rumus Total Variation Distance.
+> 2. Implementasikan fungsi pembantu monitoring: `check_schema(header, contract)`, `check_freshness(latest, now, max_age_hours)`, `volume_anomaly(history, today, k=3.0)` menggunakan Median dan MAD dengan ambang batas bawah, serta `distribution_shift(before, after)` menggunakan rumus Total Variation Distance (catatan: `daily_counts(rows)` sudah disediakan di `quality.py`).
 > 3. Uji seluruh fungsi monitoring di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestSmallChecks -v`
 > 4. **Indikator Sukses:** Seluruh 6 tes `TestSmallChecks` berstatus `PASSED` mengonfirmasi keandalan deteksi statistik terhadap drift dan anomali.
@@ -224,7 +225,7 @@ Panduan praktis lapangan:
 Tulis `is_stale(latest, now, max_hours)`: `latest` dan `now` adalah objek `datetime`, `max_hours` sebuah angka. Kembalikan `True` jika data terbaru **lebih dari** `max_hours` jam umurnya, selain itu `False`.
 @starter
 from datetime import datetime
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("is_stale") ## Definisikan is_stale(latest, now, max_hours).
@@ -232,7 +233,7 @@ is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 8), 24) == True ## Umur 2
 is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 5), 24) == False ## Umur 23 jam, aman.
 is_stale(datetime(2026, 1, 5, 6), datetime(2026, 1, 6, 6), 24) == False ## Tepat 24 jam bukan lebih dari 24.
 @hint
-`(now - latest).total_seconds() / 3600 > max_hours`
+Kurangi `now` dengan `latest` untuk mendapatkan `timedelta`, ubah total detiknya menjadi jam dengan membagi 3600, lalu bandingkan secara ketat (`>`) dengan `max_hours`.
 @solution
 from datetime import datetime
 def is_stale(latest, now, max_hours):
@@ -243,7 +244,7 @@ def is_stale(latest, now, max_hours):
 Tulis `volume_ok(today, history, tolerance)`: `history` adalah daftar jumlah baris harian sebelumnya. Kembalikan `True` jika `today` berada dalam `tolerance` (pecahan seperti `0.5`) dari **median** riwayat, selain itu `False`. Pakai median, bukan rata-rata: satu gangguan di masa lalu tidak boleh menyembunyikan penurunan yang nyata.
 @starter
 import statistics
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("volume_ok") ## Definisikan volume_ok(today, history, tolerance).
@@ -252,7 +253,7 @@ volume_ok(3000, [29000, 30000, 31000], 0.5) == False ## Sepersepuluh normal: jau
 volume_ok(3000, [29000, 30000, 31000, 100, 28000], 0.5) == False ## Satu gangguan lama (100) tidak boleh menyeret median turun.
 volume_ok(15000, [30000, 30000, 30000], 0.5) == True ## Tepat setengah adalah tepi pita, masih ok.
 @hint
-`m = statistics.median(history)`, lalu `abs(today - m) <= tolerance * m`.
+Hitung median dari `history` menggunakan modul `statistics`, lalu periksa apakah jarak absolut antara `today` dan median tersebut paling besar `tolerance` dikali median.
 @solution
 import statistics
 def volume_ok(today, history, tolerance):
@@ -303,7 +304,7 @@ Tiga kebiasaan yang mempermudah penanganan insiden: miliki dokumen **runbook** u
 
 > 💡 **Jeda Praktik 4 (Orkestrasi Quality Gate & Penanganan Insiden):**
 > 1. Buka file `labs/mod-2-5/quality.py` di teks editor Anda.
-> 2. Implementasikan fungsi `run_gate(data_dir, contract_path, now, out_dir)`: baca `<data_dir>/orders.csv`, jalankan evaluasi berjenjang (skema, validasi baris, kesegaran data, dan volume), tulis `orders_valid.ndjson` serta `quarantine.ndjson` ke `out_dir`, dan kembalikan ringkasan status (`pass`, `warn`, atau `fail`).
+> 2. Implementasikan fungsi `run_gate(data_dir, contract_path, now, out_dir)`: baca `<data_dir>/orders.csv`, jalankan evaluasi berjenjang (skema, validasi baris, kesegaran data, dan volume, sertakan key `"day"` dan `"count"` bersama hasil `volume_anomaly(...)` di dalam `report["checks"]["volume"]`), tulis `orders_valid.ndjson` serta `quarantine.ndjson` ke `out_dir`, dan kembalikan ringkasan status (`pass`, `warn`, atau `fail`).
 > 3. Uji perilaku orkestrasi di terminal:
 >    `pytest labs/mod-2-5/test_lab.py -k TestRunGate -v`
 > 4. **Indikator Sukses:** Seluruh 5 tes `TestRunGate` berstatus `PASSED` membuktikan gerbang menghentikan proses saat skema berubah atau reject rate melampaui SLA.
@@ -314,7 +315,7 @@ minta pengguna berhenti melaporkan masalah
 * celah deteksi: tambah pengecekan yang menangkapnya
 matikan dasbor selamanya agar aman
 @why
-Seberapa sering pengguna menemukan masalah sebelum kamu adalah ukuran deteksimu. Setiap insiden seperti itu harus berakhir dengan pengecekan atau monitor baru, agar kegagalan sama tertangkap otomatis lain kali.
+Seberapa sering pengguna menemukan masalah sebelum Anda adalah ukuran deteksi Anda. Setiap insiden seperti itu harus berakhir dengan pengecekan atau monitor baru, agar kegagalan sama tertangkap otomatis lain kali.
 :::
 
 ## @part Metadata, privasi, dan master data
@@ -330,7 +331,7 @@ Bab 2 dan 10 *Fundamentals of Data Engineering* memperlakukan keamanan dan data 
 - metadata *operasional*: kapan job berjalan, berapa baris, berapa yang ditolak, berapa lama;
 - metadata *referensi*: daftar kode bersama seperti kode negara, mata uang, atau cost centre.
 
-**2. Data pribadi: pseudonimkan dengan rahasia.** Email, nomor telepon, dan nomor identitas tidak boleh tersimpan sebagai teks biasa di platform analitik, tempat setiap query analis bisa melihatnya. Menggantinya dengan hash membuatnya tetap bisa di-join: email yang sama selalu menghasilkan token yang sama. Tetapi `sha256(phone)` biasa bukanlah perlindungan. Nomor ponsel dengan awalan yang diketahui, misalnya 0812 diikuti delapan digit, hanya punya 100 juta kemungkinan, dan meng-hash semuanya memakan waktu sekitar dua menit dengan Python biasa di satu core laptop (diukur untuk pelajaran ini); setelah itu, setiap nomor yang "terlindungi" bisa dicari. Campurkan kunci rahasia yang hanya diketahui pipeline, disimpan di secret store, tidak pernah di dalam kode. Di produksi pakai HMAC (`hmac.new(key, email.encode(), "sha256")`), cara standar untuk meng-hash dengan kunci. Latihan di bawah memakai `sha256(salt + ":" + email)` yang lebih sederhana agar pemeriksa bisa menghitungnya ulang. Tampilkan hanya yang dibutuhkan orang, misalnya empat digit terakhir nomor telepon. Dan ingat bahwa mengenkripsi disk tidak menghentikan siapa pun yang diizinkan meng-query tabel: siapa boleh melihat baris dan kolom mana adalah kontrol tersendiri (row- dan column-level security).
+**2. Data pribadi: pseudonimkan dengan rahasia.** Email, nomor telepon, dan nomor identitas tidak boleh tersimpan sebagai teks biasa di platform analitik, tempat setiap query analis bisa melihatnya. Menggantinya dengan hash membuatnya tetap bisa di-join: email yang sama selalu menghasilkan token yang sama. Tetapi `sha256(phone)` biasa bukanlah perlindungan. Nomor ponsel dengan awalan yang diketahui, misalnya 0812 diikuti delapan digit, hanya punya 100 juta kemungkinan, dan meng-hash semuanya memakan waktu sekitar dua menit dengan Python biasa di satu core laptop (diukur untuk pelajaran ini); setelah itu, setiap nomor yang "terlindungi" bisa dicari. Campurkan kunci rahasia yang hanya diketahui pipeline, disimpan di secret store, tidak pernah di dalam kode. Di produksi pakai HMAC (`hmac.new(key.encode(), email.encode(), "sha256")`), cara standar untuk meng-hash dengan kunci. Latihan di bawah memakai `sha256(salt + ":" + email)` yang lebih sederhana agar pemeriksa bisa menghitungnya ulang. Tampilkan hanya yang dibutuhkan orang, misalnya empat digit terakhir nomor telepon. Dan ingat bahwa mengenkripsi disk tidak menghentikan siapa pun yang diizinkan meng-query tabel: siapa boleh melihat baris dan kolom mana adalah kontrol tersendiri (row- dan column-level security).
 
 **3. Penghapusan dan master data.**
 - *Hak untuk dilupakan.* GDPR (dan UU PDP) membolehkan seseorang meminta datanya dihapus. Batas waktu GDPR adalah satu bulan. Orang itu harus hilang dari tabel-tabel yang menyimpannya, dan Anda menyimpan catatan *record sumber mana* yang Anda hapus, tanpa menyimpan data pribadi yang diminta untuk dihapus.
@@ -348,7 +349,7 @@ def mask_phone(phone):
     return f"***-***-{digits[-4:]}" if len(digits) >= 4 else "***-***-****"
 ```
 
-> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Di `privacy_gate.py`, tulis `process_privacy_and_mdm(records, erasure_emails, salt)`. Setiap record punya `source_id`, `email`, `phone`, `city`, `tier`, dan `updated_at`. Kembalikan `{"golden_records": [...], "erased_audit": [...]}`:
+> 🛠 **Coba sendiri (20 menit, di terminal Anda sendiri).** Simpan di `~/practice/privacy_gate.py`, lalu tulis `process_privacy_and_mdm(records, erasure_emails, salt)`. Setiap record punya `source_id`, `email`, `phone`, `city`, `tier`, dan `updated_at`. Kembalikan `{"golden_records": [...], "erased_audit": [...]}`:
 > setiap golden record punya tepat key `pii_token, phone_masked, city, tier, updated_at, source_ids`, dengan token dan masking dibuat seperti kode di atas; golden record diurutkan berdasarkan `pii_token`, dan `source_ids` adalah list terurut tanpa duplikat; `erased_audit` adalah list terurut `source_id` yang Anda hapus.
 > Putuskan sendiri: saat dua email milik orang yang sama, apa arti "sama"; kota, tier, dan nomor telepon dari record mana yang bertahan; dan apa yang tidak boleh pernah muncul di output.
 > **Periksa:** `python3 labs/tryit/check.py 2.5-1 ~/practice` (buntu? tambahkan `--hint 1`, lalu 2 dan 3)
@@ -357,17 +358,17 @@ def mask_phone(phone):
 Tulis `pseudonymise(value, secret)`: keduanya string. Kembalikan HMAC-SHA256 heksadesimal dari value, berkunci secret (`hmac.new(key, message, "sha256").hexdigest()`; ubah kedua string ke byte UTF-8). Value dan secret yang sama harus selalu menghasilkan keluaran sama, dan secret berbeda menghasilkan keluaran berbeda.
 @starter
 import hmac
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("pseudonymise") ## Definisikan pseudonymise(value, secret).
-pseudonymise("a@b.c", "s1") == pseudonymise("a@b.c", "s1") ## Masukan sama, keluaran sama: kamu tetap bisa melakukan join.
+pseudonymise("a@b.c", "s1") == pseudonymise("a@b.c", "s1") ## Masukan sama, keluaran sama: Anda tetap bisa melakukan join.
 pseudonymise("a@b.c", "s1") != pseudonymise("a@b.c", "s2") ## Secret berbeda menghasilkan token berbeda.
 pseudonymise("a@b.c", "s1") != pseudonymise("x@y.z", "s1") ## Orang berbeda menghasilkan token berbeda.
 len(pseudonymise("a@b.c", "s1")) == 64 ## SHA-256 dalam heksa adalah 64 karakter.
 "a@b.c" not in pseudonymise("a@b.c", "s1") ## Nilai aslinya tidak terlihat.
 @hint
-`hmac.new(secret.encode(), value.encode(), "sha256").hexdigest()`
+Ubah `secret` dan `value` menjadi byte UTF-8, berikan keduanya bersama `"sha256"` ke `hmac.new(...)`, lalu panggil `.hexdigest()` pada hasilnya.
 @solution
 import hmac
 def pseudonymise(value, secret):
@@ -389,7 +390,7 @@ Komunikasi bukan tambahan pelengkap dalam pekerjaan ini. "Komunikasi" atau "stak
 
 **Design doc** menyatakan apa yang akan Anda bangun dan, sama pentingnya, apa yang Anda tolak dan mengapa. Alternatif yang ditolak adalah hal pertama yang diperiksa reviewer, karena itu menunjukkan Anda memahami masalahnya, bukan sekadar meraih alat pertama yang Anda kenal. Tulis sebelum mengoding: mengubah satu paragraf butuh beberapa menit, mengubah pipeline butuh berminggu-minggu.
 
-**Kabar insiden** dikirim lebih awal dan diulang pada waktu yang tetap, bahkan ketika belum ada yang baru: apa yang salah, laporan dan tabel mana yang terdampak, apa yang sebaiknya dilakukan orang sementara itu, dan kapan kabar berikutnya. Pelajaran 7 menjelaskan alasannya: kepercayaan bertahan dari bug yang diumumkan, bukan dari bug yang ketahuan sendiri.
+**Kabar insiden** dikirim lebih awal dan diulang pada waktu yang tetap, bahkan ketika belum ada yang baru: apa yang salah, laporan dan tabel mana yang terdampak, apa yang sebaiknya dilakukan orang sementara itu, dan **ETA** (*estimated time of arrival*, perkiraan waktu perbaikan atau kabar berikutnya). Pelajaran 7 menjelaskan alasannya: kepercayaan bertahan dari bug yang diumumkan, bukan dari bug yang ketahuan sendiri.
 
 **Post-mortem** bersifat **blameless** (tanpa menyalahkan). "Kesalahan manusia" tidak pernah menjadi akar masalah: itu justru awal pertanyaan "apa yang membuat kesalahan satu orang bisa sampai ke laporan yang diterbitkan?" Engineer yang disalahkan akan menyembunyikan kesalahan berikutnya; tim yang bertanya apa yang diizinkan sistem akan memperbaiki sistemnya. Setiap tindak lanjut punya pemilik dan tanggal, atau ia tidak akan terjadi.
 
@@ -402,13 +403,13 @@ Kursus menyediakan template (bahasa Inggris dan Indonesia) di `labs/shared/writi
 :::ask Pembuka pembaruan insiden mana yang paling berguna bagi manajer yang hanya membaca baris pertama?
 @options
 sejarah bagaimana pipeline pertama kali dibangun
-permintaan maaf dan daftar alat yang sudah dicoba
-* dampak dan keputusan: 'Pendapatan rendah 8%; selesai 14.00'
+permintaan maaf dan daftar semua alat yang sudah dicoba
+* dampak dan ETA: 'Pendapatan 8% turun; beres 14.00'
 @why
 Taruh jawaban di depan, dengan angka: apa yang terdampak, seberapa besar, dan apa langkah berikutnya. Detail dan cerita penyelidikan bisa menyusul di bawah untuk pembaca yang menginginkannya.
 :::
 
-## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan depresiasi skema tanpa downtime
+## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan deprekasi skema tanpa downtime
 
 Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah—bisa tolong cek?"*
 
@@ -420,11 +421,11 @@ Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingku
 | **Lompatan 2** | **Lapisan Metrik Gold / Semantik** (`mart_daily_revenue`) | Bandingkan `SUM(net_revenue_idr)` dan `COUNT(*)` terhadap `COUNT(DISTINCT order_id)` di tabel Gold pada tanggal tersebut. | Penyimpangan rumus: mart Gold mengurangi `discount_idr` dua kali, atau tidak sengaja menghitung `status = 'pending'`. |
 | **Lompatan 3** | **Join Silver & Riwayat SCD2** (`int_orders_enriched`) | Periksa apakah `COUNT(*)` setelah men-join `stg_orders` ke `dim_customers` atau `dim_stores` lebih besar daripada `COUNT(*)` di `stg_orders`. | **Join Fan-Out (1:N)** karena `dim_customers` memiliki baris aktif ganda (`is_current = TRUE` rusak) atau batas waktu SCD2 point-in-time hilang. |
 | **Lompatan 4** | **Watermark Inkremental & Batas Zona Waktu** (`stg_orders`) | Periksa `MIN(order_ts)`, `MAX(order_ts)`, dan `MAX(ingested_at)` untuk partisi kemarin. | **Pergeseran zona waktu (`UTC` vs `Asia/Jakarta UTC+7`)** memotong 7 jam terakhir transaksi malam, atau watermark tanpa jendela lihat-balik membuang pesanan yang datang terlambat. |
-| **Lompatan 5** | **Pendaratan Mentah Bronze & Karantina DLQ** (`raw_orders`, `dlq.jsonl`) | Periksa rasio penolakan file karantina kemarin dan lag API/CDC hulu. | Tim aplikasi checkout mengubah nama field `"total_idr"` menjadi `"amount_idr"`, sehingga 12% pesanan dari versi aplikasi mobile baru masuk ke Dead-Letter Quarantine. |
+| **Lompatan 5** | **Pendaratan Mentah Bronze & Dead-Letter Quarantine (DLQ)** (`raw_orders`, `dlq.jsonl`) | Periksa rasio penolakan file karantina kemarin dan lag API/CDC hulu. | Tim aplikasi checkout mengubah nama field `"total_idr"` menjadi `"amount_idr"`, sehingga 12% pesanan dari versi aplikasi mobile baru masuk ke Dead-Letter Quarantine. |
 
-**2. Depresiasi Skema Tanpa Downtime (*Expand → Migrate → Contract*).** Saat Anda harus mengganti nama atau tipe data sebuah kolom (misalnya mengganti float `total_amount` menjadi integer `total_idr`) pada tabel yang dipakai oleh 15 analis dan 8 dashboard, **jangan pernah menghapus atau mengubah nama kolom tersebut dalam satu commit tunggal**. Gunakan protokol 3 fase **Expand → Migrate → Contract**:
+**2. Deprekasi Skema Tanpa Downtime (*Expand → Migrate → Contract*).** Saat Anda harus mengganti nama atau tipe data sebuah kolom (misalnya mengganti float `total_amount` menjadi integer `total_idr`) pada tabel yang dipakai oleh 15 analis dan 8 dashboard, **jangan pernah menghapus atau mengubah nama kolom tersebut dalam satu commit tunggal**. Gunakan protokol 3 fase **Expand → Migrate → Contract**:
 1. **Fase 1 — Expand (Perluas):** Tambahkan kolom baru `total_idr` berdampingan dengan kolom lama `total_amount` (keduanya diisi di dalam model). Umumkan masa transisi 14 hari di kanal `#data-announcements`.
-2. **Fase 2 — Migrate (Migrasi):** Audit log query (`INFORMATION_SCHEMA.JOBS_BY_USER`) dan dbt exposures untuk menemukan setiap dashboard atau skrip hilir yang masih membaca `total_amount`, lalu arahkan ke `total_idr`.
+2. **Fase 2, Migrate (Migrasi):** Audit log query (seperti `INFORMATION_SCHEMA.JOBS_BY_USER`, view sistem riwayat query di BigQuery yang dibahas di Modul 2.6) dan **dbt exposures** (deklarasi YAML di dbt untuk mencatat dashboard hilir) untuk menemukan setiap dashboard atau skrip hilir yang masih membaca `total_amount`, lalu arahkan ke `total_idr`.
 3. **Fase 3 — Contract (Susutkan):** Hanya setelah log query menunjukkan **nol pembacaan** pada `total_amount` selama 7 hari berturut-turut, hapus kolom `total_amount` dari model.
 
 > 🛠 **Coba sendiri (15 menit, SQL pada `warehouse.db` Lab 1.4 Anda).** Bagian Keuangan bilang "pendapatan per kota saat ini" terlalu tinggi. Query seorang rekan mengambil `customer_id` setiap baris lewat `customer_sk`, lalu menjoin `dim_customer` untuk kedua kalinya pada `customer_id` untuk membaca kotanya, dan lupa `is_current = 1`. Telusuri hop 3: hitung baris dan jumlahkan `line_total_idr` dari `fact_order_items` saja, lalu lewat join rekan tadi, lalu dengan tambahan `is_current = 1`. Cari tahu berapa pelanggan yang membuat selisihnya.
@@ -440,7 +441,7 @@ minta tim sumber menyatakan ulang bulan lalu
 Jangan menebak atau menjalankan ulang secara acak. Mulai dari gejala yang terlihat dan telusuri mundur lewat mart, model staging, dan tabel mentah; langkah pertama yang keluarannya sudah salah adalah tempat kesalahan masuk.
 :::
 
-:::ask Kamu harus mengganti kolom float `total_amount` dengan integer `total_idr` tanpa merusak dasbor mana pun. Urutan mana yang aman?
+:::ask Anda harus mengganti kolom float `total_amount` dengan integer `total_idr` tanpa merusak dasbor mana pun. Urutan mana yang aman?
 @options
 hapus kolom lama dulu agar tak ada yang memakai
 * expand, migrasi pembaca, lalu contract
@@ -492,7 +493,7 @@ Kombinasi kolom biasa bisa unik bagi satu orang, dan menggabungkannya dengan dat
 
 Sebagian besar pipeline yang gagal di dunia kerja bukan rusak karena salah ketik sintaks, melainkan karena data engineer langsung menulis SQL atau Python sebelum menyepakati arti bisnis data tersebut bersama stakeholder. Ketika VP Operations mengirim pesan Slack, *"Bisa buatkan tabel layanan pelanggan dan retensi hari Jumat ini?"*, langsung membuka editor kode tanpa klarifikasi hampir pasti berujung pada bongkar-pasang ulang.
 
-Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.2, Pelajaran 3).
+Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.2, Pelajaran 4).
 
 | Dokumen | Pertanyaan yang Dijawab | Contoh Nyata di KopiKu |
 |---|---|---|
@@ -511,7 +512,7 @@ Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan si
 >
 > **Seharusnya Anda melihat:** minimal tiga ambiguitas. Yang biasa muncul: apa arti "terbaik" (belanja kotor, pendapatan bersih setelah diskon dan refund, atau seberapa sering memesan), dalam rentang waktu apa (seumur hidup, 90 hari terakhir, bulan ini), dan pada grain apa (satu baris per pelanggan, atau satu baris per pelanggan per bulan). Jawaban yang baik juga menanyakan status mana yang dihitung sebagai pendapatan dan apa yang akan *dilakukan* Marketing dengan daftar itu: kampanye win-back butuh pelanggan yang berbeda dari hadiah VIP.
 
-:::ask Seorang pemangku kepentingan meminta 'pelanggan aktif'. Apa yang sebaiknya kamu lakukan sebelum menulis SQL apa pun?
+:::ask Seorang pemangku kepentingan meminta 'pelanggan aktif'. Apa yang sebaiknya Anda lakukan sebelum menulis SQL apa pun?
 @options
 * sepakati definisi tepat: periode apa, event apa
 bangun dengan definisi paling umum lalu lanjut
@@ -524,6 +525,8 @@ Kebanyakan angka salah adalah ketidakcocokan definisi, bukan kesalahan kode. Men
 Tulis spesifikasi data contract resmi untuk feed transaksi pesanan KopiKu dan implementasikan quality gate Python yang menegakkannya secara ketat: validasi integritas baris data dengan isolasi karantina, deteksi pergeseran skema (schema drift), pemantauan kesegaran data (freshness), pemantauan volume anomali berbasis Median-dan-MAD, serta kalkulasi pergeseran distribusi (Total Variation Distance). Sebanyak 26 pengujian otomatis akan memverifikasi setiap fungsi dan menguji keandalan gerbang Anda terhadap variasi data yang sengaja dirusak.
 
 ### @steps
+> 💡 **Sudah menyelesaikan Jeda Praktik 1–4?** Kontrak dan fungsi gate Anda di `labs/mod-2-5/` sudah siap, langsung lompat ke **Langkah 6 / Jeda Praktik 5** di bawah untuk menjalankan seluruh rangkaian pengujian dan menghasilkan token bukti Anda.
+
 1. Instal dependensi dan buat data simulasi awal, lalu baca spesifikasi pengujian terlebih dahulu untuk memahami ekspektasi perilakunya:
 
 ```bash
@@ -535,14 +538,15 @@ pytest labs/mod-2-5 -v          # pengujian akan gagal pada awalnya
 2. **Tulis Data Contract.** Buka file `labs/mod-2-5/contracts/orders.yaml`. Header file telah mencantumkan enam kolom dan aturan validasinya; lengkapi blok `fields:` dan blok `sla:`. Aturan yang salah atau terlewat akan memicu kegagalan pada unit test, jadikan pesan test sebagai panduan perbaikan.
 3. Buka `labs/mod-2-5/quality.py` dan implementasikan fungsi `load_contract` serta `validate_rows`. Terapkan validasi secara ketat. Kembalikan seluruh error pada setiap baris sesuai format pesan yang ditentukan pada docstring, pertahankan urutan data input, dan pastikan baris yang ditolak tidak menghanguskan keunikan primary key.
 4. Implementasikan fungsi-fungsi pengecekan modular: `check_schema`, `check_freshness`, `volume_anomaly` (menggunakan rumus Median dan MAD beserta nilai batas bawahnya), serta `distribution_shift` (Total Variation Distance).
-5. Implementasikan fungsi orkestrasi gerbang `run_gate`, yang menjalankan pengecekan secara berurutan (skema, kontrak baris, freshness, volume), menghasilkan output file `orders_valid.ndjson` dan `quarantine.ndjson`, serta mengembalikan laporan evaluasi berstatus `pass`, `warn`, atau `fail`. Hentikan eksekusi segera pada kegagalan pertama.
+5. Implementasikan fungsi orkestrasi gerbang `run_gate`, yang menjalankan pengecekan secara berurutan (skema, kontrak baris, freshness, volume, pastikan `report["checks"]["volume"]` menyertakan `"day"` dan `"count"` bersama key dari `volume_anomaly`), menghasilkan output file `orders_valid.ndjson` dan `quarantine.ndjson`, serta mengembalikan laporan evaluasi berstatus `pass`, `warn`, atau `fail`. Hentikan eksekusi segera pada kegagalan pertama.
 6. Jalankan rangkaian pengujian otomatis. Kemudian **eksekusi quality gate Anda terhadap data transaksi nyata**, baca file laporannya, dan amati beberapa baris pertama file karantina beserta statistik alasan penolakannya.
 
-> 💡 **Jeda Praktik 5 (Verifikasi Menyeluruh & Inspeksi Karantina):**
+> 💡 **Jeda Praktik 5 (Verifikasi Menyeluruh & Token Bukti):**
 > 1. Jalankan seluruh suite pengujian otomatis di terminal:
 >    `pytest labs/mod-2-5 -v`
-> 2. Amati hasil evaluasi: 26 tes berhasil diverifikasi dalam waktu sekitar 1 detik.
-> 3. **Indikator Sukses:** Seluruh 26 pengujian di `test_lab.py` berstatus `PASSED` (100% lulus).
+> 2. Hasilkan token bukti verifikasi kelulusan Anda:
+>    `python3 scripts/prove.py mod-2-5`
+> 3. **Indikator Sukses:** Seluruh 26 pengujian di `test_lab.py` berstatus `PASSED` (100% lulus dalam sekitar 1 detik) dan token bukti tercetak di terminal.
 
 7. Lakukan eksperimen mandiri dengan merusak file data dan perhatikan respons sistem: ubah nama satu kolom, hapus 40% data pada hari terakhir, ganti 25% nilai total menjadi format teks `Rp ...`, dan majukan waktu `now` sebanyak tiga hari. Untuk setiap skenario, evaluasi apakah pesan status yang dihasilkan memberi instruksi yang jelas bagi engineer on-call.
 8. Tantangan lanjutan (stretch goals): tambahkan pengecekan rasio nilai NULL per kolom; bandingkan volume hari terakhir terhadap hari yang sama pada minggu sebelumnya; tulis ulang spesifikasi kontrak ke format Open Data Contract Standard; tambahkan argumen CLI `--now` beserta kode exit (0 pass, 1 warn, 2 fail) agar gate dapat diintegrasikan ke dalam orkestrator seperti Airflow atau Dagster.
@@ -563,6 +567,7 @@ pytest labs/mod-2-5 -v          # pengujian akan gagal pada awalnya
 ### @verify
 ```bash
 pytest labs/mod-2-5 -v
+python3 scripts/prove.py mod-2-5
 ```
 
 Verifikasi terhadap solusi referensi: `LAB_DIR=reference pytest labs/mod-2-5 -v`.

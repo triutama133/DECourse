@@ -55,16 +55,16 @@ def main(root):
     # --- history ---
     msgs = [m for m in git(root, "log", "--format=%s").stdout.splitlines() if m.strip()]
     check("at least 3 commits", len(msgs) >= 3, "commit in small steps: setup, script, requirements")
-    check("commit messages are not all identical", len(set(msgs)) == len(msgs) and len(msgs) > 0, "describe each change differently")
+    check("every commit message is unique", len(set(msgs)) == len(msgs) and len(msgs) > 0, "describe each change differently")
     check("commit messages are descriptive (>= 10 characters)", bool(msgs) and all(len(m) >= 10 for m in msgs), "e.g. 'Add script that counts orders by status'")
 
     # --- no secrets in history ---
-    patch = git(root, "log", "-p", "--all").stdout
+    patch = git(root, "log", "-p", "--all", "--", ".", ":!.env.example").stdout
     leaked = re.search(r"(AKIA[0-9A-Z]{12,}|secret[_-]?key\s*=\s*\S+|password\s*=\s*\S+|api[_-]?key\s*=\s*\S+)", patch, re.I)
     check("no secrets in git history", not leaked, "a secret was committed. Rotate it, then remove it from history")
 
     # --- requirements ---
-    check("requirements.txt exists and is committed", "requirements.txt" in tracked, "python -m pip freeze > requirements.txt; git add requirements.txt")
+    check("requirements.txt exists and is committed", "requirements.txt" in tracked, 'python -m pip freeze > requirements.txt && git add requirements.txt && git commit -m "Add requirements.txt"')
 
     # --- the script ---
     script = root / "summarize.py"

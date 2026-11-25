@@ -3,8 +3,8 @@
 
 Copy this file into your workspace folder (e.g. ~/seismic) and build it there:
     python pipeline.py ingest --api-url URL --output-dir OUT --state-file OUT/state.json
-    python pipeline.py backfill --api-url URL --output-dir OUT --start YYYY-MM-DD --end YYYY-MM-DD
-    python pipeline.py status --output-dir OUT --state-file OUT/state.json
+    python pipeline.py backfill --api-url URL --output-dir OUT --state-file OUT/state.json --start YYYY-MM-DD --end YYYY-MM-DD
+    python pipeline.py status --output-dir OUT --state-file OUT/state.json  # optional status subcommand
 
 Check your work after every step:
     python3 labs/mod-4-2/check.py ~/seismic --step 1
@@ -54,7 +54,7 @@ def run_backfill(args):
 
 
 def run_status(args):
-    # TODO: Print current state and record counts
+    # TODO (optional): Print current state and record counts
     print("not implemented yet: status", file=sys.stderr)
     sys.exit(1)
 

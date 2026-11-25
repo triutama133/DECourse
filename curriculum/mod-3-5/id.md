@@ -13,7 +13,7 @@ why: Banyak tutorial pemula hanya memanggil API embedding satu kali terhadap kum
 - Mengevaluasi performa pencarian retrieval menggunakan dataset pertanyaan berlabel (metrik hit rate dan MRR), serta mengidentifikasi risiko perubahan model, filtering, dan kontrol akses
 
 ## @prereq
-Modul 1.3 (PostgreSQL, indeks B-Tree, query EXPLAIN), Modul 2.5 (kualitas data dan contracts), serta Modul 3.2 (streaming dan change data capture sebagai konteks sinkronisasi data). Lab modul ini membutuhkan instalasi pustaka via `pip install -r labs/mod-3-5/requirements.txt` dan menggunakan embedded PostgreSQL yang telah terintegrasi dengan ekstensi pgvector. Pengujian berjalan 100% lokal tanpa panggilan jaringan eksternal, tanpa GPU, serta tanpa memerlukan API key berbayar.
+Modul 1.3 (PostgreSQL, indeks B-Tree, query EXPLAIN), Modul 2.5 (kualitas data dan contracts), serta Modul 3.2 (streaming dan change data capture sebagai konteks sinkronisasi data). Lab modul ini membutuhkan instalasi pustaka via `pip install -r labs/mod-3-5/requirements.txt` dan menggunakan embedded PostgreSQL (`pgserver`) yang telah terintegrasi dengan ekstensi pgvector. Pada Python 3.14 `pip` melewati `pgserver` (belum ada build 3.14), jadi jalankan container Docker `pgvector/pgvector:pg16` dan set `DATABASE_URL` seperti di `@verify` di bawah. Pengujian berjalan 100% lokal tanpa panggilan jaringan eksternal, tanpa GPU, serta tanpa memerlukan API key berbayar.
 
 ## @part Dari dokumen ke vektor
 
@@ -44,7 +44,7 @@ Seluruh prinsip rekayasa data yang telah Anda pelajari tetap berlaku mutlak: ide
 :::ask Chatbot RAG memberi jawaban salah tentang kebijakan refund. Modelnya baik-baik saja. Ke mana insinyur data harus melihat lebih dulu?
 @options
 model lebih besar dengan lebih banyak parameter
-* pipeline offline: ekstraksi, chunking, kesegaran
+* pipeline ekstraksi dan chunking offline
 warna dan font dari jendela chat
 @why
 Kebanyakan kegagalan RAG di produksi berasal dari bagian offline: tabel rusak yang diekstrak menjadi tak bermakna, chunk yang kehilangan konteks, atau indeks yang masih menyimpan kebijakan tahun lalu.
@@ -102,7 +102,7 @@ Sebuah vektor 1.536 dimensi yang disimpan sebagai bilangan float 4-byte memakan 
 Tulis `cosine(a, b)`: `a` dan `b` adalah daftar angka dengan panjang sama. Kembalikan cosine similarity: hasil kali titik dibagi hasil kali panjang (norma) kedua vektor. Vektor yang searah menghasilkan 1, yang tegak lurus 0, yang berlawanan −1.
 @starter
 import math
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("cosine") ## Definisikan cosine(a, b).
@@ -111,7 +111,7 @@ abs(cosine([1, 0], [0, 1])) < 1e-9 ## Tegak lurus: 0.
 abs(cosine([1, 0], [-1, 0]) + 1) < 1e-9 ## Berlawanan: −1.
 abs(cosine([1, 1], [5, 5]) - 1) < 1e-9 ## Panjang tidak penting, hanya arah.
 @hint
-`dot = sum(x * y for x, y in zip(a, b))`, `norm_a = math.sqrt(sum(x * x for x in a))`, sama untuk b, lalu `dot / (norm_a * norm_b)`.
+Hitung dot product dengan menjumlahkan hasil kali tiap pasangan elemen (`zip`), hitung panjang masing-masing vektor (`math.sqrt` dari jumlah kuadrat elemennya), lalu bagi dot product dengan hasil kali kedua panjang tersebut.
 @solution
 import math
 def cosine(a, b):
@@ -137,7 +137,7 @@ Jangan pernah berasumsi bahwa pemotongan teks selalu lebih unggul secara otomati
 
 Setiap potongan teks wajib disimpan berdampingan dengan kolom-kolom metadata: ID dokumen sumber, nomor urut posisi dalam dokumen, kategori bisnis, bahasa, tanggal pembaruan, tim pemilik dokumen, label hak akses keamanan (Access Control List / ACL), dan identitas versi model embedding yang menghasilkan vektor tersebut. Metadata menjadi fondasi untuk **Pencarian Terfilter (Filtered Search)** (contoh: "hanya cari dokumen dengan kategori *menu*"), sitasi sumber jawaban ke pengguna ("Sumber: Gerai Kemang - Jam Operasional"), verifikasi kesegaran dokumen, serta penegakan izin otorisasi pengguna. Informasi metadata wajib mengalir bersama chunk sejak awal pembuatan karena hampir mustahil untuk direkonstruksi kembali di kemudian hari.
 
-Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor perkiraan (ANN) terlebih dahulu lalu melakukan pemfilteran metadata setelahnya (*post-filtering*), filter kategori yang ketat dapat membuang sebagian besar kandidat hasil pencarian dan mengembalikan hasil yang **kurang dari nilai k yang diminta** atau bahkan menghasilkan daftar kosong. Query pencarian di lab modul ini menyatukan filter metadata langsung di dalam klausa `WHERE` pada query SQL yang sama dengan perhitungan jarak vektor. Ujilah selalu query terfilter Anda terhadap kategori yang memiliki populasi data langka.
+Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor perkiraan (ANN) terlebih dahulu lalu melakukan pemfilteran metadata setelahnya (*post-filtering*), filter kategori yang ketat dapat membuang sebagian besar kandidat hasil pencarian dan mengembalikan hasil yang **kurang dari nilai k yang diminta** atau bahkan menghasilkan daftar kosong. Query pencarian di lab modul ini menyatukan filter metadata langsung di dalam klausa `WHERE` pada query SQL yang sama dengan perhitungan jarak vektor; dengan indeks vektor perkiraan (Pelajaran 4), PostgreSQL tetap mungkin memerlukan pencarian lebih luas untuk filter langka (pgvector versi terbaru mendukung pengaturan *iterative scan*). Ujilah selalu query terfilter Anda terhadap kategori yang memiliki populasi data langka.
 
 > 💡 **Jeda Praktik 2 (Pemotongan Dokumen Berbasis Struktur & Konteks):**
 > 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
@@ -149,7 +149,7 @@ Jebakan dalam Filtering Vektor: Jika sebuah sistem menjalankan pencarian vektor 
 :::drill python Potong teks menjadi chunk yang saling tumpang tindih
 Tulis `chunk_words(text, size, overlap)`: pecah teks menjadi kata, lalu kembalikan daftar chunk (masing-masing string kata yang digabung satu spasi). Setiap chunk berisi hingga `size` kata, dan tiap chunk mulai `size - overlap` kata setelah chunk sebelumnya. Berhenti saat sebuah chunk mencapai akhir teks. Teks kosong menghasilkan `[]`.
 @starter
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("chunk_words") ## Definisikan chunk_words(text, size, overlap).
@@ -158,7 +158,7 @@ chunk_words("a b c d", 4, 0) == ["a b c d"] ## Seluruh teks muat dalam satu chun
 chunk_words("a b c d e", 2, 0) == ["a b", "c d", "e"] ## Tanpa overlap: pemotongan biasa, chunk terakhir lebih pendek.
 chunk_words("", 3, 1) == [] ## Tidak ada yang di-chunk.
 @hint
-`words = text.split()`; `step = size - overlap`; ulangi `start` pada `range(0, len(words), step)`, ambil `words[start:start + size]`, dan berhenti setelah chunk yang mencapai akhir.
+Pecah teks menjadi daftar kata, geser indeks awal sebesar `size - overlap` setiap iterasi, gabungkan irisan hingga `size` kata dengan spasi, lalu hentikan loop begitu sebuah irisan mencapai atau melewati akhir daftar kata.
 @solution
 def chunk_words(text, size, overlap):
     words = text.split()
@@ -174,7 +174,7 @@ def chunk_words(text, size, overlap):
 ## @part Menyimpan, memperbarui, dan mengevaluasi
 
 ## @lesson Vector storage dan pencarian perkiraan (ANN)
-Mencari tetangga terdekat secara eksak (Exact K-Nearest Neighbor / KNN) mengharuskan sistem menghitung jarak kosinus antara vektor pertanyaan terhadap *seluruh* vektor yang ada di tabel: metode ini sangat sederhana, selalu menghasilkan jawaban akurat 100%, namun kompleksitas biayanya tumbuh linier seiring volume data ($O(N)$). Pada skala 20.000 vektor 64 dimensi di lab, pencarian eksak membutuhkan waktu 5 milidetik per query; namun pada skala 20 juta vektor, pencarian eksak akan memakan waktu beberapa detik. Indeks **Approximate Nearest Neighbor (ANN)** menyelesaikan tantangan skalabilitas ini dengan memangkas waktu pencarian secara drastis melalui kompromi kecil: menerima kemungkinan kecil terlewatnya segelintir tetangga terdekat yang sebenarnya.
+Mencari tetangga terdekat secara eksak (Exact K-Nearest Neighbor / KNN) mengharuskan sistem menghitung jarak kosinus antara vektor pertanyaan terhadap *seluruh* vektor yang ada di tabel: metode ini sangat sederhana, selalu menghasilkan jawaban akurat 100%, namun kompleksitas biayanya tumbuh linier seiring volume data (`O(N)`). Pada skala 20.000 vektor 64 dimensi di lab, pencarian eksak membutuhkan waktu 5 milidetik per query; namun pada skala 20 juta vektor, pencarian eksak akan memakan waktu beberapa detik. Indeks **Approximate Nearest Neighbor (ANN)** menyelesaikan tantangan skalabilitas ini dengan memangkas waktu pencarian secara drastis melalui kompromi kecil: menerima kemungkinan kecil terlewatnya segelintir tetangga terdekat yang sebenarnya.
 
 Algoritma **HNSW (Hierarchical Navigable Small World)** adalah algoritma indeks ANN yang paling dominan di industri. HNSW membangun struktur graf multi-layer yang terinspirasi dari fenomena "enam derajat pemisahan": setiap vektor dihubungkan dengan vektor-vektor tetangganya, layer atas memiliki sedikit link dengan lompatan jarak jauh (expressway), dan layer terbawah memuat seluruh vektor secara lengkap. Saat query tiba, pencarian dimulai dari layer teratas, menelusuri graf secara greedy mendekati target, lalu turun lapis demi lapis ke bawah. Tiga parameter utama yang mengendalikannya:
 
@@ -209,7 +209,7 @@ Vector database terdedikasi (seperti Qdrant, Weaviate, Milvus, atau Pinecone) me
 > 💡 **Jeda Praktik 3 (Indeks Graf HNSW & Metrik Recall ANN):**
 > 1. Buka file `labs/mod-3-5/rag.py` di teks editor Anda.
 > 2. Implementasikan fungsi `recall_at_k(approx_ids, exact_ids)`, `create_hnsw_index(conn, table, m, ef_construction)`, dan `ann_top_k(conn, table, vec, k, ef_search)` dengan parameter dinamis `SET LOCAL hnsw.ef_search`.
-> 3. Jalankan pengujian di terminal:
+> 3. Jalankan pengujian di terminal (pada Python 3.14 `pgserver` dilewati, jadi jalankan container Docker `pgvector/pgvector:pg16` dan export `DATABASE_URL` seperti di `@verify` terlebih dahulu):
 >    `pytest labs/mod-3-5/test_rag.py -k "TestRecall or TestApproximateSearch" -v`
 > 4. **Indikator Sukses:** Sebanyak 8 pengujian berstatus `PASSED`, memvalidasi perhitungan fraksi recall eksak serta pembuatan dan penelusuran graf HNSW di PostgreSQL pgvector.
 
@@ -261,7 +261,7 @@ Sebuah representasi vektor hanya memiliki makna jika dipadukan dengan model embe
 Embedding adalah panggilan yang mahal, jadi hanya embed chunk yang baru. Tulis `to_embed(stored_hashes, chunks)`: `stored_hashes` adalah himpunan hash yang sudah di-embed, `chunks` adalah daftar teks chunk terbaru sebuah dokumen. Hash sebuah chunk adalah `hashlib.sha256(" ".join(chunk.split()).encode()).hexdigest()`, jadi spasi berlebih tidak mengubahnya. Kembalikan daftar teks chunk yang hash-nya **tidak** ada di `stored_hashes`, berurutan.
 @starter
 import hashlib
-# tulis fungsimu di bawah baris ini
+# tulis fungsi Anda di bawah baris ini
 
 @check
 defines("to_embed") ## Definisikan to_embed(stored_hashes, chunks).
@@ -285,12 +285,12 @@ def to_embed(stored_hashes, chunks):
 ## @lesson Evaluasi metrik dan pengoperasian pipeline data RAG
 Anda tidak dapat menilai apakah sistem retrieval bekerja dengan baik hanya dengan membaca respon kalimat chatbot yang terdengar sopan dan lancar. Bangun **dataset evaluasi resmi (evaluation set)**: kumpulan ratusan pertanyaan nyata atau representatif yang masing-masing telah dipasangkan dengan dokumen (atau potongan teks) yang menjadi kunci jawaban benarnya. Dataset praktikum lab menghasilkan 116 pasangan pertanyaan dan jawaban berlabel. Dua metrik evaluasi retrieval yang menjadi standar industri:
 
-- **Hit Rate @ k**: persentase proporsi pertanyaan di mana dokumen jawaban yang benar berhasil masuk ke dalam daftar $k$ hasil pencarian teratas.
+- **Hit Rate @ k**: persentase proporsi pertanyaan di mana dokumen jawaban yang benar berhasil masuk ke dalam daftar `k` hasil pencarian teratas.
 - **MRR (Mean Reciprocal Rank)**: nilai rata-rata dari kebalikan peringkat dokumen yang benar (`1 / rank`), yang memberikan bobot skor tertinggi jika dokumen yang tepat berada di peringkat pertama.
 
-Pada basis data pengetahuan lab: sistem mencapai Hit Rate 63% pada $k=1$, Hit Rate 98% pada $k=5$, dan skor MRR sebesar 0,80. Gunakan rangkaian evaluasi ini sebagai **regression test otomatis** di dalam pipeline CI/CD di setiap ada perubahan pada strategi pemotongan chunk, pembaruan versi model embedding, penyesuaian parameter indeks HNSW, atau perubahan data: jika skor hit rate mengalami penurunan, deployment kode baru wajib dibatalkan otomatis.
+Pada basis data pengetahuan lab: sistem mencapai Hit Rate 63% pada `k=1`, Hit Rate 98% pada `k=5`, dan skor MRR sebesar 0,80. Hashing embedder tidak memahami parafrasa, jadi angka ini menggambarkan model pengganti, bukan model embedding sesungguhnya, nilai model produksi Anda dengan cara yang sama pada pertanyaan nyata Anda.
 
-Gunakan evaluasi sebagai **regression test**, di CI dan setiap kali chunking, model, pengaturan indeks, atau data berubah: jika hit rate turun, perubahan itu tidak boleh dirilis. Ini setara RAG dari tes yang Anda tulis di setiap modul sebelumnya. (Mengevaluasi *jawaban* yang dihasilkan adalah lapisan kedua: apakah jawaban setia pada teks yang diambil, apakah sitasinya benar, apakah model menolak menjawab saat tidak ada yang relevan. Biasanya dilakukan dengan contoh berlabel dan LLM sebagai juri, tetapi retrieval harus benar lebih dulu.)
+Gunakan rangkaian evaluasi ini sebagai **regression test otomatis** di CI dan setiap kali chunking, model, pengaturan indeks, atau data berubah: jika hit rate turun, perubahan itu tidak boleh dirilis. Ini setara RAG dari tes yang Anda tulis di setiap modul sebelumnya. (Mengevaluasi *jawaban* yang dihasilkan adalah lapisan kedua: apakah jawaban setia pada teks yang diambil, apakah sitasinya benar, apakah model menolak menjawab saat tidak ada yang relevan. Biasanya dilakukan dengan contoh berlabel dan LLM sebagai juri, tetapi retrieval harus benar lebih dulu.)
 
 ### Panduan Operasional Sistem Produksi
 
@@ -333,6 +333,8 @@ filter hanya membuat pencarian lebih cepat, tidak lebih
 Begitu teks ada di prompt, model bisa mengulanginya. Satu-satunya tempat aman menegakkan akses adalah **sebelum** hasil retrieval meninggalkan lapisan data, dengan metadata filter diterapkan di dalam pencarian sehingga top-k dipilih di antara chunk yang diizinkan.
 :::
 
+*(Pemanasan di browser pada list dictionary di memori, terpisah dari fungsi PostgreSQL `search(conn, ...)` di `labs/mod-3-5/rag.py` di bawah.)*
+
 :::drill python Filter dulu, lalu ranking
 Tulis `search(chunks, user_groups, k)`: `chunks` adalah dict dengan `"id"`, `"group"`, dan `"score"`. Simpan hanya chunk yang `"group"`-nya ada di `user_groups`, **lalu** kembalikan id dari `k` skor tertinggi, yang terbaik dulu.
 @starter
@@ -344,12 +346,7 @@ search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "s
 search([{"id": "b1", "group": "B", "score": 0.95}, {"id": "a1", "group": "A", "score": 0.8}, {"id": "a2", "group": "A", "score": 0.7}], ["A", "B"], 2) == ["b1", "a1"] ## Dengan kedua grup diizinkan, top 2 adalah b1 dan a1.
 search([{"id": "b1", "group": "B", "score": 0.95}], ["A"], 3) == [] ## Tidak ada yang diizinkan: hasil kosong, tidak pernah chunk terlarang.
 @hint
-```python
-def search(chunks, user_groups, k):
-    allowed = [c for c in chunks if c["group"] in user_groups]
-    best = sorted(allowed, key=lambda c: -c["score"])[:k]
-    return [c["id"] for c in best]
-```
+Saring dulu daftar `chunks` agar hanya menyisakan item yang `"group"`-nya ada di `user_groups`. Setelah itu urutkan chunk yang diizinkan berdasarkan `"score"` dari terbesar ke terkecil, ambil `k` elemen pertama, lalu kembalikan daftar nilai `"id"`-nya.
 @solution
 def search(chunks, user_groups, k):
     allowed = [c for c in chunks if c["group"] in user_groups]
@@ -452,7 +449,9 @@ FROM ML.PREDICT(
 Bangun separuh arsitektur offline dari sistem RAG untuk pusat bantuan pelanggan KopiKu: mengelola 116 dokumen panduan bisnis (jam operasional gerai, metode pembayaran, aturan parkir, daftar menu, informasi alergen, dan kebijakan refund) serta mengevaluasi 116 pertanyaan pengguna dengan jawaban berlabel. Anda akan mengimplementasikan fungsi pemotongan teks (chunking), komputasi embeddings, content hashing, sinkronisasi inkremental yang atomik, pencarian terfilter, evaluasi metrik akurasi, serta pembuatan indeks HNSW di pgvector. Rangkaian 43 pengujian otomatis akan memverifikasi setiap fungsionalitas dan membuktikan sifat idempotensi serta isolasi versi model.
 
 ### @steps
-1. Instal pustaka dependensi dan jalankan pengujian awal (instance embedded PostgreSQL lokal dengan ekstensi pgvector akan menyala secara otomatis; eksekusi pertama membutuhkan waktu beberapa detik untuk inisialisasi):
+> **Sudah menyelesaikan Jeda Praktik 1–5?** Fungsi Anda di `labs/mod-3-5/rag.py` sudah selesai ditulis, Anda bisa langsung lanjut ke Langkah 7 (eksperimen) dan Jeda Praktik 6 (`pytest` + `prove.py`).
+
+1. Instal pustaka dependensi dan jalankan pengujian awal (pada Python 3.10–3.13 instance embedded PostgreSQL lokal dengan ekstensi pgvector menyala otomatis; pada Python 3.14 `pip` melewati `pgserver`, jadi jalankan container Docker `pgvector/pgvector:pg16` dan set `DATABASE_URL` seperti di `@verify` di bawah, hentikan container Postgres lama yang memakai port 5432 terlebih dahulu jika perlu):
 
 ```bash
 python -m pip install -r labs/mod-3-5/requirements.txt
@@ -462,7 +461,7 @@ pytest labs/mod-3-5 -v        # seluruh pengujian akan gagal pada awalnya
 2. Pelajari file generator data `labs/shared/kbgen.py` dan kerangka kode yang telah disediakan di `labs/mod-3-5/rag.py` (definisi skema tabel, fungsi `tokens`, dan `vec_literal`). Perhatikan bahwa primary key tabel didefinisikan sebagai kombinasi `(doc_id, content_hash)`.
 3. Implementasikan fungsi-fungsi murni terlebih dahulu sesuai urutan: `chunk_text`, `embed`, `content_hash`, dan `recall_at_k`. Jalankan pengujian parsial via `pytest labs/mod-3-5 -k "Chunking or Embed or Hash or Recall"`. Gunakan docstring sebagai spesifikasi teknis dan perhatikan penanganan kasus-kasus batas (edge cases).
 4. Implementasikan fungsi `sync_document` dan `delete_document`. Mulai dari skenario normal, lalu lengkapi dengan penanganan transaksi atomik agar pengujian skenario kegagalan lulus sempurna. Jalankan pengujian via `pytest labs/mod-3-5 -k Sync`.
-5. Implementasikan fungsi `search` dan `evaluate`. Cetak 3 hasil pencarian teratas untuk pertanyaan riil seperti "apakah saya bisa menggunakan dua voucher dalam satu pesanan?" dan amati skor kemiripan jarak vektornya.
+5. Implementasikan fungsi `search` dan `evaluate`. Cetak 3 hasil pencarian teratas untuk pertanyaan berbahasa Inggris seperti `"can I use two vouchers on one order"` (karena dokumen `kbgen.py` berbahasa Inggris dan hashing embedder mencocokkan kata secara leksikal) lalu amati skor kemiripan jarak vektornya.
 6. Implementasikan fungsi `create_hnsw_index` dan `ann_top_k`, lalu jalankan pengujian via `pytest labs/mod-3-5 -k Approximate`. Verifikasi penggunaan indeks menggunakan perintah query `EXPLAIN` di sesi shell Python.
 7. Lakukan eksperimen mandiri menggunakan kode Anda: (a) sinkronkan seluruh dokumen sebanyak dua kali berturut-turut dan buktikan jumlah pemanggilan embedding pada putaran kedua bernilai 0; (b) ubah parameter `max_words` pada chunking dan amati pergeseran metrik `hit_rate`; (c) hapus filter `WHERE model = ...` pada query pencarian, sinkronkan separuh dokumen dengan `model="v2"` dan amati bagaimana hit rate anjlok menjadi 50%; (d) variasikan parameter `m`, `ef_construction`, dan `ef_search` lalu petakan grafik hubungan recall vs waktu eksekusi di komputer Anda.
 
@@ -488,6 +487,7 @@ pytest labs/mod-3-5 -v        # seluruh pengujian akan gagal pada awalnya
 ### @verify
 ```bash
 pytest labs/mod-3-5 -v
+python3 scripts/prove.py mod-3-5
 ```
 
 Verifikasi terhadap kode referensi: jalankan dengan prefix `LAB_DIR=reference pytest labs/mod-3-5 -v`. Jika ingin menggunakan instance PostgreSQL mandiri (dengan ekstensi pgvector aktif), arahkan variabel `DATABASE_URL` ke database pengujian Anda. Di Python 3.14 `pip` melewati `pgserver` (belum ada build untuk 3.14), jadi jalankan PostgreSQL di Docker: `docker run -d --name kopiku-pg -e POSTGRES_PASSWORD=dev -p 5432:5432 pgvector/pgvector:pg16 -c wal_level=logical`, lalu `docker exec kopiku-pg psql -U postgres -c "CREATE DATABASE lab35"` dan `export DATABASE_URL=postgresql://postgres:dev@localhost:5432/lab35`. Satu container itu melayani Modul 1.3, 3.2, dan 3.5 (ada pgvector dan logical decoding); diukur di Python 3.14, referensinya lulus 43 tes dengan cara ini.
@@ -560,7 +560,7 @@ Sebuah vektor hanya bermakna jika dipadukan dengan model yang memproduksinya. Se
 - [x] Pencarian perkiraan mengambil kandidat terdekat terlebih dahulu, lalu filter kategori membuang sebagian besar kandidat itu
 - [ ] Operator jarak cosine distance secara otomatis membatasi hasil pencarian maksimum dua baris saat filter kategori diterapkan
 
-> Melakukan post-filtering terhadap daftar kandidat tetangga terdekat yang terbatas dapat menyisakan hasil yang lebih sedikit dari nilai $k$. Ujilah selalu filter Anda terhadap nilai kategori yang langka, perlebar batas pencarian, atau manfaatkan fitur iterative scan di pgvector.
+> Melakukan post-filtering terhadap daftar kandidat tetangga terdekat yang terbatas dapat menyisakan hasil yang lebih sedikit dari nilai `k`. Ujilah selalu filter Anda terhadap nilai kategori yang langka, perlebar batas pencarian, atau manfaatkan fitur iterative scan di pgvector.
 
 ### Seorang pelanggan mengajukan permohonan resmi untuk menghapus seluruh data pribadinya. Tindakan apa yang wajib diambil pada indeks RAG?
 - [ ] Tidak perlu melakukan apa pun, karena vektor hanyalah deretan angka numerik yang tidak dapat dikembalikan menjadi teks asli

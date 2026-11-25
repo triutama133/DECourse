@@ -312,11 +312,19 @@ def ex_1_6_5(ctx):
     def err(name):
         return res[name][1] if res[name][0] == "err" else ""
 
+    def _json_eq(raw, expected):
+        if not isinstance(raw, str):
+            return False
+        try:
+            return json.loads(raw) == expected
+        except ValueError:
+            return False
+
     flat = get("order1") or {}
     ctx.check(get("order1") is not None, "flatten(order1) runs without an error", err("order1"))
     ctx.check(flat.get("customer_address_city") == "Jakarta", 'flat["customer_address_city"] == "Jakarta"', "nested objects become columns named by their path, joined with _")
     ctx.check(flat.get("customer_id") == 7, 'flat["customer_id"] == 7')
-    ctx.check(flat.get("items") == '[{"sku": "A1", "qty": 2}, {"sku": "B2", "qty": 1}]', 'flat["items"] is the list kept as JSON text', f"you have: {flat.get('items')!r}")
+    ctx.check(_json_eq(flat.get("items"), ORDER1["items"]), 'flat["items"] is the list kept as JSON text', f"you have: {flat.get('items')!r}")
     ctx.check("customer" not in flat, '"customer" is not a column any more')
     ctx.check(not res["mutated"], "flatten() leaves the record you gave it unchanged")
     ctx.check(get("deep") == {"a_b_c": 1, "d": "[1, 2]", "e": None, "f": "x"}, "works for other records too (deeper nesting, None, plain values)", f"for a nested record you returned: {get('deep')}")

@@ -472,6 +472,9 @@ def step5(ws, lab, ctx):
     print("\n== Step 5: a late file and a broken delivery")
     if not prepare(lab, ctx):
         return
+    if "many" not in ctx:
+        # Standalone --step 5: seed GOOD_DAYS into the private warehouse so the 6-day mart check matches --step all.
+        run_days(lab, ctx, "seed", GOOD_DAYS)
     name = f"jobs_{LATE_DAY}.jsonl"
     shutil.move(str(lab.inbox / name), str(lab.held / name))
     watcher = LateFile(lab, name)

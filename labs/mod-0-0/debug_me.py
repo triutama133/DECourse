@@ -9,9 +9,11 @@ When you are done, write one sentence per bug: what was the clue that led you to
 
 def average_total(orders):
     """Average of the order totals as a number; None when there are no orders. Totals are text like "150000"."""
+    if not orders:
+        return None
     total = 0
     for order in orders:
-        total += order["total_idr"]
+        total = total + order["total_idr"]
     return total / len(orders)
 
 
@@ -26,7 +28,10 @@ def paid_ids(orders):
 
 def first_word(text):
     """The first word of a sentence; an empty string for blank text."""
-    return text.split()[1]
+    words = text.split()  # .split() breaks text on spaces into a list of words
+    if not words:
+        return ""
+    return words[1]
 
 
 # ------------------------------------------------------------------ the checks (you do not need to edit anything below)

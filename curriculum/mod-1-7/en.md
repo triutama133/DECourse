@@ -34,7 +34,7 @@ Two ideas help you reason about the trade. The **CAP theorem** says that when a 
 
 ACID (atomic, consistent, isolated, durable transactions) is the relational promise. Some NoSQL systems relax it (sometimes jokingly called BASE: basically available, soft state, eventually consistent), and many have since added limited transactions. Always read what a specific product guarantees.
 
-> 🛠 **Try it (5 min, pen and paper).** For each need name the family (relational, key-value, document, wide-column, graph, search or time-series) and the pressure it answers: (a) "is this login session still valid?" in under a millisecond; (b) a product catalogue where every category has different attributes; (c) 5 million sensor readings per hour, queried by time range; (d) friends of friends who bought this; (e) free-text search with ranking; (f) invoices that must never be inconsistent.
+> 🛠 **Try it (5 min, pen and paper, intuition warm-up).** Guess first using your intuition, then read *Compare*, Lessons 2–5 teach each family in detail. For each need, name the family, relational (SQL tables), key-value (fast lookup by key), document (nested JSON), wide-column (partitioned high-write tables), graph (connected nodes/edges), search (full-text ranking), or time-series (timestamped metrics), and the pressure it answers: (a) "is this login session still valid?" in under a millisecond; (b) a product catalogue where every category has different attributes; (c) 5 million sensor readings per hour, queried by time range; (d) friends of friends who bought this; (e) free-text search with ranking; (f) invoices that must never be inconsistent.
 >
 > *Compare:* (a) key-value (latency), (b) document (shape of data), (c) time-series or wide-column (write volume), (d) graph, (e) search engine, (f) relational (correctness). Then write one sentence on what you give up when you leave SQL for (a).
 
@@ -55,7 +55,7 @@ A key-value store is a giant dictionary: you **set** a value under a **key** and
 Two features define how key-value stores are used:
 
 - **TTL (time to live).** A key can expire automatically after a number of seconds. Sessions, one-time passwords and cached results use this. The lab's `KeyValueStore` expires a key when `clock() >= set_time + ttl`; the clock is injected so tests do not need to sleep.
-- **Eviction.** Memory is finite. When the store is full it must remove something; **LRU** (least recently used) removes the key that has been untouched the longest. Python's `collections.OrderedDict` remembers insertion order in a doubly linked list: `od.move_to_end(key)` moves a touched key to the "most recent" end in O(1), and `od.popitem(last=False)` evicts the oldest key from the front (`del` removes any key).
+- **Eviction.** Memory is finite. When the store is full it must remove something; **LRU** (least recently used) removes the key that has been untouched the longest. Python's `collections.OrderedDict` remembers insertion order: `od.move_to_end(key)` moves a touched key to the "most recent" end in O(1) (constant time, explained below), and `od.popitem(last=False)` evicts the oldest key from the front (`del` removes any key).
 
 **What it is for:** caching the result of an expensive query, sessions, rate limiting (count requests per user per minute), counters, leaderboards, feature flags, queues of small jobs. **What it is not for:** asking "all customers in Jakarta who spent over 1 million", because the only way in is the key. If you need to find data by something other than its key, you must maintain extra keys yourself, and at that point another family is probably a better fit.
 
@@ -139,13 +139,7 @@ defines("put") ## Define put(cache, key, value, capacity).
 (lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "c", 3, 2), list(c))[-1] == ["b", "c"])(OrderedDict()) ## After a, b, c with capacity 2, the oldest key (a) is evicted: ["b", "c"].
 (lambda c: (put(c, "a", 1, 2), put(c, "b", 2, 2), put(c, "a", 9, 2), put(c, "c", 3, 2), list(c), c["a"])[-2:] == (["a", "c"], 9))(OrderedDict()) ## Writing "a" again makes it recent: after a, b, a(9), c the keys are ["a", "c"] and a holds 9.
 @hint
-```python
-def put(cache, key, value, capacity):
-    cache[key] = value
-    cache.move_to_end(key)
-    if len(cache) > capacity:
-        cache.popitem(last=False)
-```
+Assign the key's value in `cache`, then move that key to the most-recently-used end of the `OrderedDict`. If the cache now holds more than `capacity` entries, pop one item from the oldest (front) end.
 @solution
 from collections import OrderedDict
 
@@ -175,7 +169,7 @@ The whole order, with its lines, is **one document**: you read and write it in o
 
 The database has **no enforced schema by default**; the structure is whatever the application wrote. This is **schema on read**, the same idea as Hive (Module 3.0). It is fast to start and dangerous later: a field spelled two ways, a number stored as text in some documents, a field missing in old ones. Validation rules exist, but you must turn them on.
 
-You query with a document-shaped language: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (the lab's `DocumentStore.find` supports dotted paths and the operators `$gt $gte $lt $lte $ne $in`). **Indexes** matter exactly as in SQL: without one, a query **scans every document**. In the lab, finding one user among 10,000 documents scans **10,000** documents without an index, and **10** with one. An aggregation pipeline (filter, group, sort, project in stages) covers analytics-style questions, and since version 4.0 MongoDB supports multi-document transactions, though the design goal remains keeping related data in one document.
+You query with a document-shaped language: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (the lab's `DocumentStore.find` supports dotted paths and the operators `$gt $gte $lt $lte $ne $in`). **Indexes** matter exactly as in SQL: without one, a query **scans every document**. Finding one user among 10,000 documents scans **10,000** documents without an index versus only the matching documents (e.g., **10**) with one; the lab's `TestDocumentStore` checks this directly on a 4-document fixture (`last_scanned` drops from **4** to **1**). An aggregation pipeline (filter, group, sort, project in stages) covers analytics-style questions, and since version 4.0 MongoDB supports multi-document transactions, though the design goal remains keeping related data in one document.
 
 **What it is for:** content, catalogues, user profiles, anything nested and evolving, where an application reads whole objects. **Pitfalls:** unbounded arrays inside documents, no joins (so repeated data must be updated in many places), and schema drift.
 
@@ -187,7 +181,7 @@ You query with a document-shaped language: `{"customer.city": "Jakarta", "total"
 > 3. Implement `create_index(field)` and ensure `last_scanned` accurately tracks the number of documents inspected (only the indexed subset, not the full collection).
 > 4. Run the document unit tests in your terminal:
 > `pytest labs/mod-1-7/test_lab.py -v -k TestDocumentStore`
-> 5. Ensure all 9 tests pass (`9 passed`). Notice how secondary indexing reduces the scan count from thousands of documents down to only the matching hits.
+> 5. Ensure all 9 tests pass (`9 passed`). Notice how secondary indexing cuts `last_scanned` from every document in the fixture (4) down to only the matching hit (1), the same jump that scales from 10,000 documents down to a handful in production.
 
 :::ask An order and its line items are always read together. In a document database, how should you store them?
 @options
@@ -206,7 +200,7 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable and HBase are built to spread data over 
 
 The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders of one customer form one partition, sorted by time, so "the last 10 orders of customer 7" or "orders of customer 7 in January" is a fast read of **one** sorted slice. Asking for "all orders in January for every customer" has no efficient answer, and the lab refuses a query without the partition key. This is **query-first modelling**: in a relational database you design tables from the data and write any query later; here you **list the queries first**, then design one table per query, repeating (denormalising) data as needed. It is the biggest mental shift.
 
-**How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. The lab measures it on 10,000 keys going from 4 to 5 nodes: **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. In Python, `zlib.crc32(text.encode())` turns any string deterministically into a 32-bit integer (`0` to `2**32 - 1`), and Python's built-in `bisect.bisect_left(positions, target)` finds the first position `>= target` in a sorted list using binary search in O(log n) — wrapping back to index `0` if `target` is past the largest position. Adding a node takes over only its share: the lab's `HashRing` moves **19.9%** of the keys, about one fifth, and every moved key goes to the new node. Virtual nodes matter for balance: with one position per node the three nodes of the lab held 0.2%, 99.4% and 0.4% of the keys; with 200 positions each they held 28%, 33% and 39%.
+**How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. Measuring on 10,000 keys going from 4 to 5 nodes, **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. In Python, `zlib.crc32(text.encode())` turns any string deterministically into a 32-bit integer (`0` to `2**32 - 1`), and Python's built-in `bisect` module (`bisect` or `bisect_left` on a sorted list of `(position, node)` tuples) finds the first position `>= target` using binary search in O(log n) (halving the remaining list each step, about 10 steps for 1,000 entries), wrapping back to index `0` if `target` is past the largest position. Adding a node takes over only its share: on those 10,000 keys `HashRing` moves **19.9%**, about one fifth, and every moved key goes to the new node (and `test_lab.py` checks on 3,000 keys that movement stays within 10%–32%). Virtual nodes matter for balance: with one position per node three nodes held 0.2%, 99.4% and 0.4% of 10,000 keys; with 200 positions each they held 28%, 33% and 39%.
 
 ### See it: why modulo placement is a trap
 
@@ -222,7 +216,7 @@ print(len(moved), "of", len(keys), "keys moved")
 @notes
 2 | Placement with 3 nodes: the node number is `hash % 3`.
 3 | The same keys with 4 nodes: `hash % 4`. Compare the two dictionaries on the right.
-4 | Only the keys whose node number stayed the same do not move. Most of them did.
+4 | Only the keys whose node number stayed the same do not move. Half of them (3 of 6) moved here; with real hashes, ~75% move.
 5 | Moving that many keys means copying that much data between machines. Consistent hashing moves only about 1/N of them.
 :::
 
@@ -256,7 +250,7 @@ With `N` replicas, a write acknowledged by `W` of them, and a read that asks `R`
 @options
 yes, one replica is plenty for a quorum
 only if the clocks are accurate enough
-* no: a read can hit a replica the write missed
+* no: a read can hit a stale replica
 @why
 The write may have reached replica A; the read may ask replica B, which has not heard of it yet. With W = 2 and R = 2 any two replicas overlap in at least one, so a read always meets a replica holding the latest write.
 :::
@@ -274,7 +268,7 @@ quorum_ok(5, 3, 3) is True ## N=5, W=3, R=3: True.
 quorum_ok(3, 3, 1) is True ## Writing to all 3 means even a single read sees it: True.
 quorum_ok(5, 2, 3) is False ## 2 + 3 is not greater than 5: False.
 @hint
-`return r + w > n`
+Think about overlap: if a write touches `w` replicas out of `n` and a read contacts `r` replicas out of `n`, when must the two subsets share at least one replica? Compare their combined count with `n`.
 @solution
 def quorum_ok(n, w, r):
     return r + w > n
@@ -282,7 +276,7 @@ def quorum_ok(n, w, r):
 
 > 💡 **Practice Pause: Quorum Replication & Wide-Column Table**
 > 1. In your text editor in `labs/mod-1-7/nosql_lab.py`, navigate to Section 4 (`quorum_overlaps`, `ReplicaSet`) and Section 5 (`WideColumnTable`).
-> 2. Implement `quorum_overlaps(n, r, w)` using the condition `r + w > n`, and class `ReplicaSet` to simulate versioned writes and reads when specific replica nodes are down.
+> 2. Implement `quorum_overlaps(n, r, w)` using the condition `r + w > n`, and class `ReplicaSet` (storing its per-node `(version, value)` list in `self.replicas`) to simulate versioned writes and reads when specific replica nodes are down.
 > 3. Implement class `WideColumnTable`: group rows by `partition_key`, order them by `clustering_key`, support upserts on identical primary keys, and reject queries without a partition key (`ValueError`).
 > 4. Run the quorum and wide-column test suites in your terminal:
 > `pytest labs/mod-1-7/test_lab.py -v -k "TestQuorum or TestWideColumnTable"`
@@ -303,13 +297,13 @@ The lesson to keep: a database family is a set of **optimisations for an access 
 
 > 🛠 **Try it (12 min, Python).**
 > 1. Build an **inverted index** for the six KopiKu product names (`Gayo Medium 250g`, `Toraja Dark 250g`, `Kintamani Light 250g`, `Flores Medium 250g`, `Mandheling Dark 250g`, `Java Preanger Light 250g`): a dict from each lower-case word to the set of positions of the names that contain it. Search for `dark`, then for `dark` and `250g` together.
-> 2. Build a friends dict (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) and write a breadth-first search that returns the shortest path from `budi` to `rina`.
+> 2. Build a friends dict (`budi: siti, agus`; `siti: budi, dewi`; `agus: budi`; `dewi: siti, rina`; `rina: dewi`) and write a **breadth-first search**, keep a queue of paths starting at `[["budi"]]` and a `visited` set, pop from the front, and enqueue each unvisited neighbor layer by layer until you reach `"rina"`, to return the shortest path from `budi` to `rina`.
 >
 > **You should see:** `dark` giving positions `[1, 4]` (Toraja Dark and Mandheling Dark), `dark` and `250g` together giving the same two, and the path `['budi', 'siti', 'dewi', 'rina']`. You built, in about 15 lines, the core of a search engine and of a graph traversal.
 
 :::ask Which question is a graph database built for?
 @options
-* friends of friends of friends: hop by hop
+* friends of friends: hop by hop
 the total sales of each month for the last year
 the exact text of one saved web page
 @why
@@ -336,7 +330,7 @@ Companies use several at once (**polyglot persistence**): PostgreSQL for orders,
 
 1. **Never run analytics on an operational store.** A scan over a production MongoDB or Cassandra competes with customers and often fails on timeouts. Copy the data to an analytical store.
 2. **Extract incrementally.** Use the system's change feed: MongoDB change streams, DynamoDB Streams, Cassandra CDC, or Debezium connectors (Module 3.2). Fall back to full exports to object storage for small or rarely changing data.
-3. **Flatten and type.** Convert documents into tables as in lesson 3, decide how to handle missing and polymorphic fields, and record the schema you assumed.
+3. **Flatten and type.** Convert documents into tables as in lesson 3, decide how to handle missing and **polymorphic fields** (a field whose type changes from row to row, e.g., a string in one document and a list in another), and record the schema you assumed.
 4. **Mind consistency.** Reading from a replica can return old data, and a snapshot taken while writes continue may be inconsistent across partitions. Record when and from where you read.
 5. **Respect the access pattern.** If you must query by an attribute the store does not index, ask the application team to add an index or a derived table, instead of scanning.
 
@@ -349,38 +343,49 @@ You can now answer the usual questions: "Why not MongoDB for everything?" (no jo
 > 3. Generate your verification proof code for the learning portal by running:
 > `python3 scripts/prove.py mod-1-7`
 
-:::drill python Will a read see the latest write?
-A key is stored on `n` replicas. A write waits for `w` of them; a read asks `r` of them. The read is guaranteed to overlap the latest write only when `r + w > n`. Write `reads_see_latest(n, r, w)`: return `True` or `False`.
+:::drill python Flatten a nested order document into table rows
+To load nested JSON documents into a warehouse table, you flatten nested objects into columns and explode arrays into one row per item. Write `flatten_order(doc)`: `doc` is a dictionary with `"_id"`, an optional `"customer"` dictionary (which may contain `"city"`), and an `"items"` list of `{"sku": ..., "qty": ...}` dictionaries. Return a list of flat dictionaries `{"order_id": ..., "customer_city": ..., "sku": ..., "qty": ...}`, one per item. If `"customer"` or `"city"` is missing, use `"unknown"` for `customer_city`.
 @starter
 # write your function below this line
 
 @check
-defines("reads_see_latest") ## Define reads_see_latest(n, r, w).
-reads_see_latest(3, 2, 2) == True ## 2 + 2 > 3: the read and the write must share a replica.
-reads_see_latest(3, 1, 1) == False ## 1 + 1 is not more than 3: the read can miss the write.
-reads_see_latest(5, 3, 3) == True ## 6 > 5.
-reads_see_latest(3, 1, 3) == True ## Writing to all replicas: any single read is safe.
+defines("flatten_order") ## Define flatten_order(doc).
+flatten_order({"_id": "1001", "customer": {"city": "Jakarta"}, "items": [{"sku": "KS-1", "qty": 2}, {"sku": "ES-9", "qty": 1}]}) == [{"order_id": "1001", "customer_city": "Jakarta", "sku": "KS-1", "qty": 2}, {"order_id": "1001", "customer_city": "Jakarta", "sku": "ES-9", "qty": 1}] ## One flat row per item, carrying order_id and customer_city.
+flatten_order({"_id": "1002", "items": [{"sku": "BL-3", "qty": 4}]}) == [{"order_id": "1002", "customer_city": "unknown", "sku": "BL-3", "qty": 4}] ## Missing customer object falls back to "unknown" for customer_city.
+flatten_order({"_id": "1003", "customer": {"name": "Budi"}, "items": [{"sku": "KS-1", "qty": 1}]}) == [{"order_id": "1003", "customer_city": "unknown", "sku": "KS-1", "qty": 1}] ## Missing city inside customer also falls back to "unknown".
+flatten_order({"_id": "1004", "customer": {"city": "Bandung"}, "items": []}) == [] ## An empty items list returns an empty list of rows.
 @hint
-`return r + w > n`
+Read `customer_city` safely with `.get(...)` so a missing `"customer"` dict or missing `"city"` key defaults to `"unknown"`. Then loop over `doc.get("items", [])` and append one flat dictionary per item with `order_id`, `customer_city`, `sku`, and `qty`.
 @solution
-def reads_see_latest(n, r, w):
-    return r + w > n
+def flatten_order(doc):
+    city = doc.get("customer", {}).get("city", "unknown")
+    rows = []
+    for item in doc.get("items", []):
+        rows.append({
+            "order_id": doc["_id"],
+            "customer_city": city,
+            "sku": item["sku"],
+            "qty": item["qty"],
+        })
+    return rows
 :::
 
 :::ask Analysts want to run big reports on the production MongoDB that serves the app. What should the data engineer do?
 @options
-let them run the reports directly at night
-* copy the data to an analytical store via change feed
+let them run the reports directly overnight
+* copy to an analytics store via change feed
 give them the root password to be quick
 @why
 A scan over a production operational store competes with customers and often times out. Extract incrementally from the system's change feed and let analysts query a copy.
 :::
 
 ## @lab Lab: five database ideas in plain Python
-Build five small, deterministic models: a **key-value store** with TTL and LRU eviction, a **document store** with queries and indexes, a **consistent-hashing ring**, **quorum replication**, and a **wide-column table**. The tests (36) check each behaviour the lessons describe, including the numbers: the index that cuts a scan from 10,000 documents to 10, modulo hashing that moves 79.5% of the keys against 19.9% for the ring, and the quorum rule.
+Build five small, deterministic models: a **key-value store** with TTL and LRU eviction, a **document store** with queries and indexes, a **consistent-hashing ring**, **quorum replication**, and a **wide-column table**. The tests (36) check each behaviour the lessons describe: an index that cuts `last_scanned` from all 4 fixture documents down to 1 (the same mechanism that scales from 10,000 documents down to ~10), consistent hashing over 3,000 keys where adding a 5th node moves 10%–32% of keys (compared with ~79.5% for modulo hashing on 10,000 keys), and the quorum rules.
 
 ### @steps
-1. Read `labs/mod-1-7/nosql_lab.py` from top to bottom. Each class docstring is the specification, with the lesson that explains it.
+> **Already completed the Practice Pauses in Lessons 2–6?** Your `labs/mod-1-7/nosql_lab.py` is already implemented! You can jump straight to the reflection exercises in steps 3–6 and run `python3 scripts/prove.py mod-1-7` in step 7.
+
+1. Activate your virtual environment (Module 0.1), install the lab requirements (`pip install -r labs/mod-1-7/requirements.txt`), and read `labs/mod-1-7/nosql_lab.py` from top to bottom. Each class docstring is the specification, with the lesson that explains it.
 2. Work in file order and run the tests after EACH class:
 
 ```bash
@@ -390,12 +395,12 @@ pytest labs/mod-1-7/test_lab.py -v -k TestKeyValueStore       # one group at a t
 
 3. **Key-value first.** Predict, before you run, what `keys()` returns after `set a, set b, get a, set c` with `max_items=2`. Then write the class and check.
 4. **Documents.** Build `insert` and a plain `find`; then operators; then the index. Print `last_scanned` before and after `create_index` and write down the difference.
-5. **The ring and the quorum.** After `HashRing` passes, measure for yourself how many of 10,000 keys move with `zlib.crc32(key) % n` when n goes from 4 to 5, and compare with your ring. For `ReplicaSet`, fill in a table of (R, W) pairs for N = 3 and mark which can return stale data; check it with your code.
+5. **The ring and the quorum.** After `HashRing` passes, measure for yourself how many of 10,000 keys move with `zlib.crc32(key.encode()) % n` when n goes from 4 to 5, and compare with your ring. For `ReplicaSet`, fill in a table of (R, W) pairs for N = 3 and mark which can return stale data; check it with your code.
 6. **Wide-column.** Predict what `query` does with a missing partition key and why a real system refuses it.
 7. **Do it for real.** Write the code again in your own virtual environment **without copying**, and run `python3 scripts/prove.py mod-1-7` to get the proof code for the **Proof** box on this lab page.
 
 ### @files
-- labs/mod-1-7/nosql_lab.py :: Your working file: implement the five TODO classes :: starter
+- labs/mod-1-7/nosql_lab.py :: Your working file: implement the five TODO classes and one TODO function :: starter
 - labs/mod-1-7/test_lab.py :: The 36 tests that check your work :: test
 - labs/mod-1-7/requirements.txt :: pytest :: config
 - labs/mod-1-7/reference/nosql_lab.py :: One possible solution (try first!) :: reference
@@ -447,10 +452,10 @@ Design the partition key for the write pattern as well as the read pattern. The 
 ### Why does an index make a document query much faster?
 - [ ] It copies the whole collection to memory so that every query can run without touching the disk at all
 - [ ] It removes duplicate documents from the collection so that fewer documents have to be compared
-- [x] It lets the database jump straight to the matching documents instead of scanning all of them now
+- [x] It lets the database jump straight to the matching documents instead of scanning all of them
 - [ ] It converts every document to a table row, so that the database can use an ordinary SQL join
 
-> In the lab, finding one user among 10,000 documents scanned 10,000 documents without an index and 10 with one.
+> An index lets the database look up only matching entries: on 10,000 documents that cuts a scan from 10,000 down to only the matches (and `TestDocumentStore` verifies the exact same jump from 4 scanned documents down to 1).
 
 ### What does the CAP theorem say about a network partition?
 - [ ] A system can only be partitioned when it uses a relational database with strict transactions
@@ -474,7 +479,7 @@ Design the partition key for the write pattern as well as the read pattern. The 
 - [x] Adding or removing a node moves only a small share of the keys, instead of nearly all of them
 - [ ] It removes the need for replication, because every key is automatically stored on every node
 
-> In the lab, going from 4 to 5 nodes moved 79.5% of 10,000 keys with modulo hashing and 19.9% with the ring. Virtual nodes keep the balance even.
+> Measuring on 10,000 keys going from 4 to 5 nodes moved 79.5% with modulo hashing and 19.9% with the ring (and `TestHashRing` checks on 3,000 keys that movement stays within 10%–32%). Virtual nodes keep the balance even.
 
 ### What does "query-first modelling" mean for a wide-column database such as Cassandra?
 - [ ] You write the application's queries only after the tables exist, because the database will adapt to them
