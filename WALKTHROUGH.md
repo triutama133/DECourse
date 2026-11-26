@@ -26,12 +26,15 @@ Setiap modul di DataForge memiliki 4 komponen yang wajib Anda selesaikan secara 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   1. LESSONS    │ ──> │  2. HANDS-ON    │ ──> │ 3. CHAOS        │ ──> │    4. QUIZ      │
 │  (Teori & Fondasi)│     │     LAB         │     │    SCENARIO     │     │  (Passing 80%)  │
-│  ~2.500 kata    │     │(Starter vs Test)│     │ (Insiden Nyata) │     │  8 Soal Analisis│
+│  Langkah kecil  │     │(Starter vs Test)│     │ (Insiden Nyata) │     │ 8-13 Soal Kuis  │
 └─────────────────┘     └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 ### Langkah 1: Pelajari Lessons (Teori & Arsitektur)
-- Buka tab **Lessons** di web app (`http://localhost:3000`).
+- Jika baru mulai, buka halaman **Mulai di sini** dulu: ia menuntun Anda dari nol sampai lab pertama yang berjalan di komputer Anda sendiri.
+- Buka tab **Lessons** di web app (`http://localhost:3000`). Setiap materi dipecah menjadi layar-layar kecil (satu ide per layar) dengan pertanyaan *tebak dulu*, latihan kecil yang bisa dijalankan di halaman, dan animasi *lihat kode berjalan*. Itu pemanasan; latihan sungguhan tetap di terminal Anda sendiri.
+- Bertemu kata yang belum dikenal? Klik kata tebal di dalam materi, atau buka **Istilah** (glosarium, 294 istilah dalam bahasa sehari-hari) di bilah atas. Tekan **Ctrl+K** untuk mencari di seluruh materi.
+- Buntu memahami satu bagian? Nyalakan **🎓 Tutor** (opsional, lihat bagian 4): model AI kecil yang berjalan offline di komputer Anda dan menjawab dari isi materi, sambil menunjukkan materi mana yang dipakai. Jika tutor dan materi berbeda, percayai materi.
 - Anda bisa memilih bahasa pengantar (**ID** untuk Bahasa Indonesia atau **EN** untuk Bahasa Inggris) menggunakan tombol switch di navigasi atas.
 - *Tips untuk remote job*: Mulailah membaca dalam Bahasa Indonesia untuk pemahaman konsep awal, lalu baca ulang versi Inggris agar Anda terbiasa dengan terminologi teknis global yang akan dipakai saat wawancara kerja.
 
@@ -70,8 +73,8 @@ Semua lab berada di folder `labs/mod-X-Y/`. Setiap lab memiliki:
 - Ini adalah materi emas untuk menjawab pertanyaan wawancara kerja teknis bertipe: *"Ceritakan pengalaman ketika sistem data Anda mengalami kegagalan dan bagaimana Anda menanganinya."*
 
 ### Langkah 4: Kerjakan Kuis Evaluasi
-- 8 sampai 10 pertanyaan skenario per modul.
-- Ambang batas kelulusan adalah **80%** (minimal 7 dari 8 benar).
+- 8 sampai 13 pertanyaan skenario per modul.
+- Ambang batas kelulusan adalah **80%** (dibulatkan ke atas: 7 dari 8, 8 dari 10, 11 dari 13).
 - Soal-soal tidak menguji hafalan sintaks, melainkan pemahaman konsep dan penalaran arsitektural.
 
 ---
@@ -121,23 +124,23 @@ LEVEL 4: Capstone (Minggu 59-70)
 
 ## 3. Fitur Pendukung Karir di DataForge
 
-Selain kurikulum, aplikasi web lokal DataForge menyediakan 5 modul persiapan karir di bilah navigasi:
+Selain kurikulum, aplikasi web lokal DataForge menyediakan alat latihan dan persiapan karir di bilah navigasi:
 
-1. **SQL Sandbox (`#/playground`)**:
-   - Engine SQLite berbasis WebAssembly yang berjalan langsung di browser tanpa instalasi database eksternal.
-   - Dilengkapi dataset riil *KopiKu* dan tantangan interaktif berjenjang dengan auto-grader.
-2. **Interview Simulator (`#/interview`)**:
-   - Latihan wawancara terstruktur mencakup:
-     - *System Design*: Desain ingestion pipeline 50 juta event/hari.
-     - *Live SQL*: Soal analitik window functions dan self-joins.
-     - *Incident Drill*: Skenario simulasi on-call darurat produksi.
-3. **Portfolio Blueprints (`#/portfolio`)**:
+1. **Lab Latihan (`#/playground`)**:
+   - **SQL Sandbox**: engine SQLite berbasis WebAssembly yang berjalan langsung di browser tanpa instalasi database eksternal, dengan dataset riil *KopiKu* dan 59 tantangan yang diperiksa otomatis (dialek SQLite: tanpa `QUALIFY`, pakai `julianday()` / `strftime()` untuk tanggal).
+   - **Lab Python**: 51 tantangan kecil dengan pemeriksaan otomatis, dari dasar sampai pola data nyata dan tujuh mini-proyek. Fitur **pemanasan berjarak** mengembalikan tantangan yang sudah Anda selesaikan beberapa hari lalu dan meminta Anda menulis ulang dari file kosong, supaya jari Anda hafal.
+   - Saat pemeriksaan Python gagal, pesan error dijelaskan dalam bahasa sehari-hari.
+2. **Simulator Kerja (`#/job-sim`)**:
+   - Simulasi karir berbasis cerita di 4 perusahaan (lowongan, pitch recruiter, hari pertama, misi di Slack dan terminal). Misinya dikerjakan di komputer Anda sendiri dan diperiksa oleh `python3 scripts/job_sim.py`.
+3. **Simulasi Interview (`#/interview`)**:
+   - Panel wawancara 3 ronde (SQL whiteboard, diagram arsitektur, alert insiden, pertanyaan lanjutan, scorecard komite) ditambah 7 latihan, termasuk *Live SQL* dengan data yang sengaja dibuat sulit.
+4. **Portfolio Blueprints (`#/portfolio`)**:
    - 4 rancangan proyek capstone siap bangun lengkap dengan Architectural Decision Records (ADR) dan poin pembelaan wawancara (*interview defense notes*).
-4. **ATS Resume Builder (`#/cv-builder`)**:
+5. **ATS Resume Builder (`#/cv-builder`)**:
    - Generator resume berstandar format pencari kerja global dengan penilaian skor ATS berbasis kata kunci metrik rekayasa data.
-5. **Remote Career Playbook (`#/remote-playbook`)**:
+6. **Remote Career Playbook (`#/remote-playbook`)**:
    - Panduan taktis menembus pasar kerja global: strategi pencarian lowongan remote US/Eropa, negosiasi gaji mata uang asing (USD/EUR), serta kiat komunikasi asinkron bahasa Inggris.
-6. **Dashboard Kesiapan Kerja & Evaluasi Skill (`#/readiness`)**:
+7. **Dashboard Kesiapan Kerja & Evaluasi Skill (`#/readiness`)**:
    - Laporan menyeluruh tingkat kesiapan karir real-time (0–100%) berdasarkan gabungan modul kurikulum, tantangan SQL yang diselesaikan, dan aset karir.
    - Evaluasi 6 domain kompetensi rekayasa data (SQL, Production Python, Lakehouse, dbt & Dagster, Distributed Streaming Spark/Kafka, Cloud Ops & AI).
    - Checklist kualifikasi pelamar kerja otomatis dan rencana aksi prioritas langkah berikutnya.
@@ -149,13 +152,21 @@ Selain kurikulum, aplikasi web lokal DataForge menyediakan 5 modul persiapan kar
 
 ### Menjalankan Platform Web
 ```bash
-# Opsi 1 (Node.js):
+# Opsi 1 (Node.js; wajib jika ingin memakai tombol Tutor AI):
 npm start
 
 # Opsi 2 (Python murni):
-python3 app/server.js   # atau: python3 server.py
+python3 server.py
 ```
-Buka browser di `http://localhost:3000`.
+Buka browser di `http://localhost:3000`. Gunakan server; membuka `index.html` langsung tidak akan memuat mesin SQL.
+
+Pertama kali, buat data contoh KopiKu dan periksa komputer Anda:
+```bash
+python3 labs/shared/shopgen.py --out data   # membuat data contoh; sekaligus membuktikan Python berjalan
+python3 scripts/doctor.py                   # memeriksa folder, Python, Git, venv dan data; mencetak perbaikan untuk yang kurang
+python3 scripts/doctor.py mod-2-3           # sama, plus paket, alat (Java, Docker, Terraform) dan variabel lingkungan modul itu
+```
+`doctor.py` hanya memeriksa dan tidak mengubah apa pun.
 
 ### Menyiapkan Lingkungan Python untuk Lab
 Buat virtual environment terisolasi untuk mengerjakan lab:
@@ -182,14 +193,27 @@ docker compose up -d postgres redpanda connect redpanda-console
 ```
 *(Catatan: Lab dasar dan unit test standar dirancang tetap dapat lulus tanpa Docker jika laptop Anda memiliki keterbatasan resource RAM).*
 
+### Tutor AI Offline (Opsional)
+Model AI kecil yang berjalan di komputer Anda sendiri dan menjawab dari isi kursus, dalam bahasa Indonesia atau Inggris. Ia pembantu saat Anda buntu, bukan pengganti materi, dan **mati secara bawaan**. Setelah unduhan satu kali, tidak ada data yang keluar dari komputer Anda.
+
+1. Jalankan kursus dengan `npm start`, lalu klik **🎓 Tutor** di bilah atas.
+2. **Pasang Ollama sekali per komputer** (program gratis yang menjalankan model): Windows dan macOS lewat penginstal di https://ollama.com/download; Linux dengan `curl -fsSL https://ollama.com/install.sh | sh`. Tutup dan buka lagi terminal, lalu jalankan ulang kursus.
+3. **Unduh model sekali** (sekitar 2 GB, perlu internet): klik **Download model** di panel tutor, atau jalankan `ollama pull qwen2.5:3b`.
+
+Setelah itu, mengklik **Tutor** menyalakan model (titik hijau = siap), dan **Matikan tutor** di panel membebaskan memori. Menutup kursus juga mematikannya. Butuh sekitar 4 GB RAM kosong dan 2 GB disk, tanpa kartu grafis; jawaban memakan sekitar 5 sampai 25 detik di laptop biasa.
+
+Pindah ke komputer lain? Model tidak ikut di repositori (ada di `.gitignore`), jadi unduh sekali lagi di sana. Jalankan `python3 scripts/tutor.py --check`: ia mencetak apa yang sudah terpasang dan perintah tepat untuk yang kurang, sampai tertulis "Ready". Model kecil masih bisa keliru: jika tutor dan materi berbeda, percayai materi. Detail lengkap ada di [README](README.md).
+
 ---
 
 ## 5. Rencana Jadwal Belajar yang Disarankan
 
 | Jalur | Komitmen Waktu | Estimasi Durasi | Target Capaian |
 |---|---|---|---|
-| **Standar (Disarankan)** | 10–12 jam / minggu | ~40 minggu (10 bulan) | Penguasaan menyeluruh, menyelesaikan semua 27 lab, membangun 2 proyek portofolio penuh. |
-| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~20 minggu (5 bulan) | Fokus penuh, sekitar 1 modul per minggu. Butuh disiplin tinggi; jangan melewatkan lab dan kode bukti. |
+| **Standar (Disarankan)** | 10–12 jam / minggu | ~70 minggu (sesuai roadmap di atas) | Penguasaan menyeluruh, menyelesaikan semua 27 lab, membangun 2 proyek portofolio penuh. |
+| **Intensif (Fast-Track)** | 20–25 jam / minggu | ~35 minggu (perkiraan, sekitar setengahnya) | Fokus penuh, sekitar 1 modul per 1 sampai 2 minggu. Butuh disiplin tinggi; jangan melewatkan lab dan kode bukti. |
+
+*Perkiraan waktu bergantung pada pengalaman Anda; pelajaran bertanda opsional boleh dilewati pada putaran pertama.*
 
 ### Aturan Emas Belajar:
 1. **Jangan copy-paste membabi buta**: Ketik kode sendiri agar memori motorik tangan dan logika terbentuk.

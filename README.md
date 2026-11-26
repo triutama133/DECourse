@@ -67,13 +67,14 @@ Open http://localhost:3000. Use the server; opening `index.html` directly will n
 
 | Part | What you get |
 |---|---|
-| **Curriculum** | 5 levels, 27 modules and 212 lessons, about 70 weeks at the suggested pace. Each module has 5 to 12 short lessons (16 of them marked optional for a first pass), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and a 6 to 13 question quiz with explanations (80% to pass). |
+| **Curriculum** | 5 levels, 27 modules and 214 lessons, about 70 weeks at the suggested pace. Each module has 5 to 12 short lessons (18 of them marked optional for a first pass), a runnable **lab with automated tests**, a **chaos scenario** (a realistic production failure, its cause and its fix) and an 8 to 13 question quiz with explanations (80% to pass). Lessons open as small screens (one idea each) with predict questions, drills you can run in the page and "watch it run" animations; every drill ends with a box that sends you to do it on your own computer. A failing Python check explains the error in plain words. |
 | **Labs** | Every lab lives in [labs/](labs/), has a starter that fails its tests and a reference solution that passes them. Run `python3 scripts/verify_labs.py` to re-prove it. |
 | **Python Lab** | 51 Python challenges in six levels (basics, collections, functions and errors, data patterns, objects and recursion, and seven small mini-projects), each checked automatically in the browser, in English and Indonesian. A spaced **warm-up** brings back challenges you solved days ago and asks you to rebuild them from an empty file, for muscle memory. Source: `curriculum/python-challenges/`; `node scripts/build-challenges.js` generates the app data. It sits beside the SQL Sandbox under *Practice Lab*. |
-| **Glossary** | 293 terms in plain words (English and Indonesian), each linked to the lesson that teaches it. Open it from the header, from Ctrl+K, or by clicking a bold term inside a lesson. `node scripts/test_glossary.js` checks every entry against its lesson. |
+| **Glossary** | 294 terms in plain words (English and Indonesian), each linked to the lesson that teaches it. Open it from the header, from Ctrl+K, or by clicking a bold term inside a lesson. `node scripts/test_glossary.js` checks every entry against its lesson. |
 | **SQL Sandbox** | A real SQLite engine in the browser (sql.js, vendored in `app/vendor/`), several datasets (including the KopiKu coffee-shop data used by the labs) and 59 challenges whose results are checked against a reference query (`node scripts/verify_sandbox.js` runs every solution on the same engine). SQLite dialect: no `QUALIFY`, use `julianday()`/`strftime()` for dates. |
 | **Job Career Mode** | Story-driven job simulator across 4 companies (board postings, recruiter pitches, Day-1 onboarding, slack/terminal missions) verified against local `scripts/job_sim.py` gates. |
 | **Interview Sim** | Interactive 3-round **Panel Loop Simulator** (SQL whiteboards, architecture diagrams, incident alerts, follow-up probes, Hiring Committee scorecard) plus 7 practice drills including live SQLite WASM execution & hostile-data grading in SQL Arena. |
+| **AI tutor (optional)** | An offline helper that answers from the lessons themselves, in English or Indonesian, and shows the lessons it used. Off by default; see *Ask the course offline* above. |
 | **Portfolio** | Capstone blueprints with an ADR and interview-defense notes each. These are plans to build yourself, not finished projects. |
 | **Resume builder** | Editor, live preview, print to PDF. The "ATS score" is a keyword and number-counting heuristic, not a real ATS result. |
 | **Job Readiness Dashboard** | Overall readiness score, 6 competency domain matrices, hiring checklist, next action steps, and exportable PDF report. |
@@ -117,18 +118,38 @@ app/                 static web app (no build step)
   index.html  css/style.css
   js/app.js          UI and hash routing (#/curriculum/mod-1-3/lab)
   js/curriculum-data.js  GENERATED from curriculum/ and labs/ (do not edit by hand)
-  js/*-data.js       interview, portfolio, resume, remote-career content (ID/EN)
+  js/*-data.js       interview, portfolio, resume, remote-career content (ID/EN); glossary-data.js is the hand-written glossary
   js/playground.js   SQL sandbox datasets, challenges, checker
+  js/tutor.js        the optional offline tutor (search + chat panel)
   vendor/sqljs/      SQLite compiled to WebAssembly (MIT)
-  server.js          static server with path-traversal protection
-curriculum/          the course source: levels.json and <module>/en.md (+ id.md)
+  vendor/pyodide/    Python compiled to WebAssembly (labs preview, drills, Python Lab)
+  server.js          static server with path-traversal protection; also starts/stops the tutor's model
+curriculum/          the course source: levels.json and <module>/en.md (+ id.md), python-challenges/
 labs/                one folder per module, plus shared/ (data generators and test helpers)
-scripts/             build-curriculum.js, verify_labs.py and authoring helpers
+scripts/             build-curriculum.js, verify_labs.py, doctor.py, prove.py, tutor.py, the other checks and authoring helpers
 docker-compose.yml   optional local lab stack
-server.py            Python alternative to server.js
+server.py            Python alternative to server.js (no tutor switch; the tutor needs npm start)
+.github/workflows/   CI: runs every check below on each push
 ```
 
-Editing the course: change `curriculum/<module>/en.md` or a lab file, run `node scripts/build-curriculum.js` (add `--check` to validate without writing), and reload the app.
+Editing the course: change `curriculum/<module>/en.md` (and `id.md`, keep the two in step) or a lab file, run `node scripts/build-curriculum.js` (add `--check` to validate without writing), and reload the app. The generated files `app/js/curriculum-data.js`, `browser-labs-data.js` and `proof-data.js` are committed; CI fails if they are out of date.
+
+## Run all the checks
+
+The same checks CI runs (see [.github/workflows/ci.yml](.github/workflows/ci.yml)). Run the ones that match what you changed:
+
+| You changed | Run |
+|---|---|
+| A lesson, quiz or glossary entry | `node scripts/build-curriculum.js --check` · `node scripts/test_steps.js` · `node scripts/test_glossary.js` |
+| A drill or a Python/SQL example in a lesson | `node scripts/verify_drills.js` · `node scripts/verify_sql_drills.js` · `node scripts/verify_lesson_pads.js` |
+| A lab, a starter or its tests | `python3 scripts/verify_labs.py mod-X-Y` · `python3 scripts/test_proof.py` · `python3 scripts/test_tryit.py` |
+| The browser lab preview | `node scripts/verify_browser_labs.js` |
+| The SQL Sandbox or the Python Lab | `node scripts/verify_sandbox.js` · `node scripts/build-challenges.js --check` |
+| Job simulator, interview, portfolio | `python3 scripts/job_sim.py --self-test` · `node scripts/verify_simulators.js` · `python3 scripts/verify_portfolio.py self-test` |
+| The tutor | `node scripts/test_tutor_js.js` · `python3 scripts/tutor.py --self-test` |
+| The setup checker | `python3 scripts/doctor.py --self-test` |
+
+One thing no script can check is whether a quiz answer is *right* (only that the quiz is well formed). When you edit a quiz, read the marked answer against the lesson.
 
 ## License
 

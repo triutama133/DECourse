@@ -13,7 +13,7 @@ python3 scripts/test_proof.py                # lab proof codes end to end (needs
 
 ## Language status
 
-English is the source of truth and both English and Indonesian (`id.md`) are complete for all modules except the Level 4 capstone (4.1), which is English-only until its Indonesian version is written. `node scripts/build-curriculum.js` checks that both maintain identical structure (same number of lessons, steps, files, deliverables, quiz questions and options, correct answers and code fences). If you change an English file, update `id.md` too.
+English is the source of truth. All 27 modules are complete in both English and Indonesian (`id.md`). `node scripts/build-curriculum.js` checks that both maintain identical structure (same number of lessons, steps, files, deliverables, quiz questions and options, correct answers and code fences). If you change an English file, update `id.md` too.
 
 ## File format of a module
 
@@ -31,7 +31,9 @@ why: What the usual tutorials get wrong; why this module exists.
 ## @prereq
 One short paragraph.
 
-## @lesson Title of a lesson          (5 to 7 of these; the lesson text is normal Markdown)
+## @part Title of a group           (optional; groups the lessons that follow it, display only)
+## @lesson Title of a lesson          (5 to 12 of these; the lesson text is normal Markdown)
+## @lesson Title of a lesson {optional}   (a beginner may skip it on the first pass; shown as a badge)
 ...
 
 ## @lab Title of the lab
@@ -75,7 +77,7 @@ Rules for authors:
 - **The first law:** the learner does it on their own computer. Pair interactive blocks with a terminal step; every passed drill already shows "Now do it on your own computer", and from Level 1 on it says the drill is a warm-up, not the proof.
 - **Both languages.** English and Indonesian must have the same blocks in the same order; code, checks, SQL and trace code are identical, only the words change (the build checks this).
 - **Verify by running.** `node scripts/verify_drills.js` (every solution passes, every starter fails, every trace note is on a line that runs) and `node scripts/verify_sql_drills.js` (the same for SQL, plus a wrong query is rejected and every animation stage runs). Both run in CI.
-- **Questions:** spread the right answer over the three positions and keep the options similar in length (`node scripts/asklen.js` reports both; today the right answer is the unique longest option in about 55% of the questions, with small margins, so write new ones with distractors of the same length).
+- **Questions:** spread the right answer over the three positions and keep the options similar in length (`node scripts/asklen.js` reports both; today the right answer sits evenly in the three positions and is the unique longest option in about 30% of the predict questions, so keep writing distractors of the same length).
 
 ## Python challenges
 
@@ -83,11 +85,12 @@ Rules for authors:
 
 ## Standards for a module
 
-- **Lessons**: 1,500 to 2,800 words in total, at least five lessons. Explain the *why* before the *how*, include at least one measured number or worked example from the lab, and be honest about trade-offs. Say "check current prices" instead of quoting prices that change.
+- **Lessons**: at least five per module (modules run from about 4,000 to 15,000 words in total, so keep each lesson to one idea that fits a few small screens). Explain the *why* before the *how*, include at least one measured number or worked example from the lab, and be honest about trade-offs. Say "check current prices" instead of quoting prices that change.
 - **Lab**: a learner-edited file at the lab root, a `reference/` solution, and tests that use `labs/shared/labtools.py` so that `LAB_DIR=reference` runs them against the solution. The starter must fail, the reference must pass; `scripts/verify_labs.py` checks both. Prefer real tools over mocks and deterministic data (see `labs/shared/`).
 - **Chaos scenario**: a realistic production failure with a cause that the lab demonstrates, and a fix with several concrete steps.
-- **Quiz**: eight questions, four options each, with an explanation. The correct option must not be systematically the longest or the shortest: distractors should be plausible and similar in length. Run `quizlen.py`. The app shuffles the options.
+- **Quiz**: at least eight questions (the modules have 8 to 13), four options each, with an explanation. The correct option must not be systematically the longest or the shortest: distractors should be plausible and similar in length. Run `quizlen.py`. The app shuffles the options.
 - **Teach before use**: a term a learner has not met must not appear unexplained. Add the term to `app/js/glossary-data.js` (both languages, plain words, the lesson that teaches it). The app then shows a box at the top of any lesson that uses a word before its teaching lesson, and makes the word clickable. The first time a word is needed in Level 0, also give it a short plain gloss in the sentence itself. `node scripts/test_glossary.js` checks that every glossary term really appears in the lesson it points to.
+- **Right answers are not machine-checked.** The build only proves a quiz is well formed (four options, one marked). Whether the marked answer is *correct* is a human check: read each marked answer against its lesson, in both languages, whenever you edit or add a question.
 - **Facts**: any claim about a tool's behaviour must be something you ran. If you could not run it, do not state it as fact.
 
 ## Lab proof codes
