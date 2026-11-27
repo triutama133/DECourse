@@ -18,7 +18,7 @@ The site opens on a **Start here** page that walks you from zero to your first r
 git clone https://github.com/triutama133/DECourse.git && cd DECourse
 python3 labs/shared/shopgen.py --out data     # creates the KopiKu sample data; proves Python works
 python3 scripts/doctor.py                     # checks folder, Python, Git, venv and data; prints the fix for anything missing
-python3 server.py                             # then open http://localhost:3000
+python3 server.py                             # or npm start; then open http://localhost:3000
 ```
 
 **Stuck on setup?** `python3 scripts/doctor.py mod-2-3` (any module) also checks that module's packages, tools (Java, Docker, Terraform) and environment variables (`DATABASE_URL`, `KOPIKU_DB`), and that your venv still works after a Python upgrade. It only looks; it changes nothing.
@@ -35,7 +35,7 @@ No Git? Download the ZIP of this repository instead. Prefer not to install anyth
 
 A small AI model that runs on your own computer and answers from the course itself, in English or Indonesian. It is a helper for when you are stuck, not a replacement for the lessons: it shows the lessons it used so you can read the real text, and it says so when the course does not cover your question. After the one-time download nothing leaves your computer. It is **off by default** and you can turn it on and off at any time.
 
-**Turn it on and off in the course (easiest):** start the course with `npm start`, then click **🎓 Tutor** in the top bar. The first time it walks you through two steps:
+**Turn it on and off in the course (easiest):** start the course with `npm start` or `python3 server.py`, then click **🎓 Tutor** in the top bar. The first time it walks you through two steps:
 
 1. **Install Ollama once per computer** (the free program that runs the model). Windows and macOS: the installer from https://ollama.com/download. Linux: `curl -fsSL https://ollama.com/install.sh | sh`. Then close and reopen your terminal and start the course again.
 2. **Download the model once** (about 2 GB, needs internet): click **Download model** in the tutor panel, or run `ollama pull qwen2.5:3b`.
@@ -128,7 +128,7 @@ curriculum/          the course source: levels.json and <module>/en.md (+ id.md)
 labs/                one folder per module, plus shared/ (data generators and test helpers)
 scripts/             build-curriculum.js, verify_labs.py, doctor.py, prove.py, tutor.py, the other checks and authoring helpers
 docker-compose.yml   optional local lab stack
-server.py            Python alternative to server.js (no tutor switch; the tutor needs npm start)
+server.py            Python alternative to server.js (also supports the Tutor switch)
 .github/workflows/   CI: runs every check below on each push
 ```
 

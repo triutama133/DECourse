@@ -152,7 +152,7 @@ Selain kurikulum, aplikasi web lokal DataForge menyediakan alat latihan dan pers
 
 ### Menjalankan Platform Web
 ```bash
-# Opsi 1 (Node.js; wajib jika ingin memakai tombol Tutor AI):
+# Opsi 1 (Node.js):
 npm start
 
 # Opsi 2 (Python murni):
@@ -196,7 +196,7 @@ docker compose up -d postgres redpanda connect redpanda-console
 ### Tutor AI Offline (Opsional)
 Model AI kecil yang berjalan di komputer Anda sendiri dan menjawab dari isi kursus, dalam bahasa Indonesia atau Inggris. Ia pembantu saat Anda buntu, bukan pengganti materi, dan **mati secara bawaan**. Setelah unduhan satu kali, tidak ada data yang keluar dari komputer Anda.
 
-1. Jalankan kursus dengan `npm start`, lalu klik **🎓 Tutor** di bilah atas.
+1. Jalankan kursus dengan `npm start` atau `python3 server.py`, lalu klik **🎓 Tutor** di bilah atas.
 2. **Pasang Ollama sekali per komputer** (program gratis yang menjalankan model): Windows dan macOS lewat penginstal di https://ollama.com/download; Linux dengan `curl -fsSL https://ollama.com/install.sh | sh`. Tutup dan buka lagi terminal, lalu jalankan ulang kursus.
 3. **Unduh model sekali** (sekitar 2 GB, perlu internet): klik **Download model** di panel tutor, atau jalankan `ollama pull qwen2.5:3b`.
 

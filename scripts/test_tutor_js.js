@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Tests the in-app tutor without a real model:
 //  1. the search (app/js/tutor.js) finds the right lessons in English and Indonesian, and keeps solutions out of the text;
-//  2. the app server's start / stop / status endpoints, against a fake `ollama` program: they start it once, stop only the
-//     process the app started, and refuse pages that are not on this computer.
+//  2. the start / stop / status endpoints of BOTH course servers (app/server.js and server.py), against a fake `ollama`
+//     program: they start it once, stop only the process the app started, and refuse pages that are not on this computer.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -67,7 +67,8 @@ const call = (port, method, url, headers = {}) => new Promise((res, rej) => {
 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function serverTests() {
+async function serverTests(label, cmd, args) {
+  const fail = (m) => bad.push(`[${label}] ${m}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "df-tutor-"));
   const fake = path.join(dir, "fake-ollama");
   fs.writeFileSync(fake, `#!/usr/bin/env node
@@ -79,7 +80,7 @@ if (process.argv[2] === "serve") {
 }
 `, { mode: 0o755 });
   const appPort = await freePort(), fakePort = await freePort();
-  const srv = spawn(process.execPath, [path.join(ROOT, "app/server.js")], {
+  const srv = spawn(cmd, args, {
     env: { ...process.env, PORT: String(appPort), OLLAMA_BIN: fake, OLLAMA_HOST: `127.0.0.1:${fakePort}` }, stdio: "ignore",
   });
   try {
@@ -117,7 +118,7 @@ if (process.argv[2] === "serve") {
 
   // not installed: the page must get a clear answer, not a hang
   const p2 = await freePort(), f2 = await freePort();
-  const srv2 = spawn(process.execPath, [path.join(ROOT, "app/server.js")], { env: { ...process.env, PORT: String(p2), OLLAMA_BIN: path.join(dir, "does-not-exist"), OLLAMA_HOST: `127.0.0.1:${f2}` }, stdio: "ignore" });
+  const srv2 = spawn(cmd, args, { env: { ...process.env, PORT: String(p2), OLLAMA_BIN: path.join(dir, "does-not-exist"), OLLAMA_HOST: `127.0.0.1:${f2}` }, stdio: "ignore" });
   try {
     for (let i = 0; i < 40; i++) { try { await call(p2, "GET", "/api/tutor/status"); break; } catch { await sleep(100); } }
     const r = await call(p2, "POST", "/api/tutor/start");
@@ -126,8 +127,11 @@ if (process.argv[2] === "serve") {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-serverTests().then(() => {
+(async () => {
+  await serverTests("app/server.js", process.execPath, [path.join(ROOT, "app/server.js")]);
+  await serverTests("server.py", "python3", [path.join(ROOT, "server.py")]);
+})().then(() => {
   bad.forEach((b) => console.log("FAIL", b));
-  if (!bad.length) console.log(`tutor tests passed: ${nEn} English + ${nId} Indonesian passages, ${cases.length} searches, start/stop/refuse/not-installed`);
+  if (!bad.length) console.log(`tutor tests passed: ${nEn} English + ${nId} Indonesian passages, ${cases.length} searches, start/stop/refuse/not-installed on both servers`);
   process.exit(bad.length ? 1 : 0);
 }).catch((e) => { console.log("FAIL", e.stack || e); process.exit(1); });

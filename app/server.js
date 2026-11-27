@@ -24,9 +24,18 @@ const MIME_TYPES = {
 
 // ---- Optional offline AI tutor: the page cannot start programs, so these three endpoints start and stop `ollama serve`.
 // Only this app's own child process is ever stopped. Only same-machine pages may call them.
-const OLLAMA_BIN = process.env.OLLAMA_BIN || 'ollama';
+const OLLAMA_BIN = process.env.OLLAMA_BIN || resolveOllamaBin();
 const OLLAMA_HOST = (process.env.OLLAMA_HOST || '127.0.0.1:11434').replace(/^https?:\/\//, '');
 let tutorChild = null;
+
+function resolveOllamaBin() {
+  if (!spawnSync('ollama', ['--version'], { timeout: 3000 }).error) return 'ollama';
+  const home = process.env.HOME || '';
+  for (const candidate of [path.join(home, '.local/bin/ollama'), '/usr/local/bin/ollama']) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+  return 'ollama';
+}
 
 function sameMachine(req) {
   const host = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
