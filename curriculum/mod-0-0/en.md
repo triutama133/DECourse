@@ -266,6 +266,26 @@ print(missing_total == 0)
 >
 > **You should see:** `'15000090000'`, `True` and `['150000', '25000', '90000']` with text; `240000`, `False` and `[25000, 90000, 150000]` with numbers. If one of your predictions was wrong, that is the lesson: write down in one sentence why.
 
+### Pulling one value out of a row
+
+In the row above, `row1["total_idr"]` means "from the row `row1`, give me the value with the label `total_idr`". The label goes in square brackets, inside quotes. The value that comes out is still text, so it needs `int(...)` before you can add to it. Try it on another row:
+
+:::drill python Pull a value out of a row
+`row` is one order, written as a dictionary. Make `total_number` the order's total **as a number** (90000), read from the label `"total_idr"`.
+@starter
+row = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+total_number = None
+@check
+total_number == 90000 ## `total_number` should be the number 90000.
+type(total_number) is int ## `total_number` should be a number, not text: wrap the value in int(...).
+uses("row") ## Read the value out of `row`, do not type 90000 again.
+@hint
+`row["total_idr"]` gives the text `"90000"`. Put int(...) around it to get the number.
+@solution
+row = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+total_number = int(row["total_idr"])
+:::
+
 ### Writing a number as text: f-strings
 
 Reports show `Rp 1.250.000`, not `1250000`. Three small tools do it, one at a time. First, an **f-string** puts values inside text: write `f` before the opening quote and put the value in braces:
@@ -2333,6 +2353,12 @@ The labs grow from here: in Module 1.2 the same ideas become a real pipeline tha
 
 ## @lab Lab: from plain code to eleven small functions on KopiKu orders
 Two parts, on KopiKu order data. **Part A** (after Lessons 1 to 4) is plain Python with no functions: you fill in twelve variables. **Part B** (after Lessons 5 to 7) turns the same ideas into eleven small functions.
+
+> [!IMPORTANT]
+> **The short version, in three steps.**
+> 1. After each of Lessons 1 to 4, open Part A (the file `practice.py`, or the **Part A** tab of the preview below) and replace the `None` of that lesson's step with your own code.
+> 2. After Lessons 5 to 7, do the same for the functions of Part B (the file `basics.py`, or the **Part B** tab).
+> 3. Press **Run tests** (or type the `pytest` line in your terminal). Every ✗ tells you what is wrong: fix one thing, run again. The longer text below explains each part; read it once now, and come back to it when something is unclear.
 
 **What a lab is.** Each part is a file you edit and a file of **tests** that checks it. In Part A, `practice.py` gives you data and twelve variables set to `None`; you replace each `None` with your own code, and `test_practice.py` runs your file, with several different data sets in place of the given one, and checks each variable. In Part B, `basics.py` holds eleven functions whose inside is empty (each one only says `raise NotImplementedError`), and `test_lab.py` calls each function with examples, for example "`format_rupiah(1250000)` must give `"Rp 1.250.000"`". A check is ✓ when your code gives the expected answer, and ✗ when it gives something else or crashes. You are done when all 46 pass: 15 in Part A and 31 in Part B.
 

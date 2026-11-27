@@ -258,6 +258,7 @@ def repeated_ids(rows):
 > `grep -c "Rp " data/orders.csv` (totals written as formatted text)
 > `grep -c ",-" data/orders.csv` (negative/corrupted totals)
 > `cat data/manifest.json` (JSON is structured key-value text explained in the next lesson; `manifest.json` lists every anomaly planted by the generator)
+> **You should see:** `37` for the `Rp ` count and `17` for the `,-` count. `manifest.json` lists exactly what the generator planted (for example `"formatted_total": 37` and `"negative_total": 17`), so you can check what you found against it.
 > You are now looking directly at what real data engineers deal with every day. Proceed to Lesson 7 below.
 
 ## @lesson The formats you will meet
@@ -366,6 +367,7 @@ Two habits will help more than any tool:
 > Once all 8 tests are GREEN, run the pipeline against the real dataset and generate your proof code:
 > `python labs/mod-0-2/pipeline.py data/orders.csv`
 > `python scripts/prove.py mod-0-2`
+> **You should see:** `3634 rows in, 3582 clean, 52 rejected` (the 52 are 35 duplicates and 17 negative totals), then the first days of revenue, starting with `2026-01-01 Rp 36,725,000`. That first number is the same one `manifest.json` lists for 2026-01-01.
 > Congratulations! You have built your first defensive data cleaning pipeline!
 
 ## @lab Lab: clean the KopiKu orders file

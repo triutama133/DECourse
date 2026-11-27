@@ -132,6 +132,7 @@ Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` 
 > Ketik `ls -la data` untuk melihat daftar file transaksi KopiKu.
 > Ketik `head -5 data/orders.csv` untuk mengintip 5 baris pertama pesanan.
 > Ketik `wc -l data/orders.csv` untuk menghitung total baris file.
+> **Seharusnya Anda melihat:** path lengkap folder kursus Anda untuk `pwd`; tujuh file data (`orders.csv`, `customers.csv`, dan lima lainnya) untuk `ls -la data`; satu baris judul kolom (`order_id,customer_id,order_ts,status,payment_method,total_idr`) dan empat pesanan untuk `head -5`; dan `3635 data/orders.csv` untuk `wc -l` (baris judul ditambah 3.634 pesanan).
 > Setelah melihat data tampil di terminal Anda, lanjut ke Pelajaran 2 di bawah.
 
 ## @lesson Path, file, dan lingkungan
@@ -203,6 +204,7 @@ hapus file itu lalu unduh salinan baru
 > Ketik `echo $PATH` untuk melihat daftar folder program yang dicari shell.
 > Ketik `which python3` untuk mengetahui path absolut interpreter Python sistem Anda.
 > Ketik `ls -l data/orders.csv` untuk melihat hak akses izin (permission) file tersebut.
+> **Seharusnya Anda melihat:** path seperti `/home/namaanda` (di macOS `/Users/namaanda`) untuk `$HOME`; daftar panjang folder yang dipisah `:` untuk `$PATH`; path seperti `/usr/bin/python3` untuk `which python3`; dan satu baris yang diawali `-rw` (Anda boleh membaca dan menulis file itu) untuk `ls -l`.
 > Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Pelajaran 3 di bawah.
 
 ## @lesson Redirect dan pipe: alat kecil yang disambung
@@ -272,7 +274,7 @@ print(counts)
 
 Bacalah dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (statusnya), `tail -n +2` melewati baris header, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung rangkaian nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di depan. Lima alat kecil menggantikan satu program, dan tidak ada yang dimuat ke memori sekaligus, jadi ia bekerja pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini secara mendalam.
 
-Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang baik untuk *melihat data sebelum Anda menulis kode untuknya* — Modul 0.2 menangani pembersihan status ini dengan benar.
+Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang baik untuk *melihat data sebelum Anda menulis kode untuknya* — Modul 0.2 menunjukkan di bagian mana dari sebuah pipeline pembersihan ini seharusnya dilakukan.
 
 ### Menulis ke file
 
@@ -291,6 +293,7 @@ Setiap program punya tiga aliran standar: input (`stdin`), output (`stdout`), da
 > Mari buktikan kekuatan pipe langsung di terminal tanpa menulis program Python:
 > Jalankan perintah berikut di root folder kursus:
 > `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
+> **Seharusnya Anda melihat:** `2080 delivered` paling atas, lalu `555 shipped`, `367 paid`, `352 cancelled` dan `168 refunded`, dan di bawahnya kata yang sama dengan huruf besar berbeda (`34 DELIVERED`, `34 Delivered`, dan beberapa lagi). Campuran ejaan itu adalah data berantakan yang nyata: modul-modul berikutnya mengajarkan di mana memperbaikinya.
 > Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
 
 ## @part Lingkungan Python dan Git
@@ -391,6 +394,7 @@ keduanya
 > 2. Buat virtual environment terisolasi: `python3 -m venv venv`
 > 3. Aktifkan environment: `source venv/bin/activate`
 > 4. Verifikasi: `which python` (pastikan outputnya menunjuk ke `~/kopiku/venv/bin/python`).
+> **Seharusnya Anda melihat:** prompt sekarang diawali `(venv)`, dan `which python` mencetak path yang berakhir dengan `kopiku/venv/bin/python`.
 > Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Pelajaran 5 untuk menyiapkan Git.
 
 ## @lesson Git: jaring pengaman untuk semua yang Anda tulis

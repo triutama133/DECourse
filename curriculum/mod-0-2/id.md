@@ -258,6 +258,7 @@ def repeated_ids(rows):
 > `grep -c "Rp " data/orders.csv` (total yang ditulis format teks)
 > `grep -c ",-" data/orders.csv` (total bernilai minus/rusak)
 > `cat data/manifest.json` (JSON adalah teks kunci-nilai terstruktur yang dijelaskan di pelajaran berikut; `manifest.json` mencatat semua anomali yang ditanam generator)
+> **Seharusnya Anda melihat:** `37` untuk hitungan `Rp ` dan `17` untuk hitungan `,-`. `manifest.json` mencatat persis apa yang ditanam generator (misalnya `"formatted_total": 37` dan `"negative_total": 17`), jadi Anda bisa mencocokkan temuan Anda dengannya.
 > Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 7 di bawah.
 
 ## @lesson Format data yang akan Anda temui
@@ -366,6 +367,7 @@ Dua kebiasaan akan membantu lebih daripada alat apa pun:
 > Setelah semua 8 tes HIJAU, jalankan pipeline pada data riil lalu buat kode bukti Anda:
 > `python labs/mod-0-2/pipeline.py data/orders.csv`
 > `python scripts/prove.py mod-0-2`
+> **Seharusnya Anda melihat:** `3634 rows in, 3582 clean, 52 rejected` (52 itu terdiri dari 35 duplikat dan 17 total negatif), lalu pendapatan beberapa hari pertama, diawali `2026-01-01 Rp 36,725,000`. Angka pertama itu sama dengan yang dicatat `manifest.json` untuk 2026-01-01.
 > Selamat! Anda telah membangun pipeline pembersihan data defensif pertama Anda!
 
 ## @lab Lab: bersihkan file pesanan KopiKu

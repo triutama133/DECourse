@@ -266,6 +266,26 @@ print(missing_total == 0)
 >
 > **Seharusnya Anda melihat:** `'15000090000'`, `True`, dan `['150000', '25000', '90000']` dengan teks; `240000`, `False`, dan `[25000, 90000, 150000]` dengan angka. Jika salah satu tebakan Anda keliru, itulah pelajarannya: tulis dalam satu kalimat mengapa.
 
+### Mengambil satu nilai dari sebuah baris
+
+Pada baris di atas, `row1["total_idr"]` artinya "dari baris `row1`, berikan nilai yang berlabel `total_idr`". Labelnya ditulis di dalam kurung siku, di dalam tanda kutip. Nilai yang keluar masih berupa teks, jadi perlu `int(...)` sebelum bisa dijumlahkan. Coba pada baris lain:
+
+:::drill python Ambil satu nilai dari sebuah baris
+`row` adalah satu pesanan, ditulis sebagai dictionary. Buat `total_number` berisi total pesanan itu **sebagai angka** (90000), dibaca dari label `"total_idr"`.
+@starter
+row = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+total_number = None
+@check
+total_number == 90000 ## `total_number` harus berupa angka 90000.
+type(total_number) is int ## `total_number` harus berupa angka, bukan teks: bungkus nilainya dengan int(...).
+uses("row") ## Baca nilainya dari `row`, jangan ketik 90000 lagi.
+@hint
+`row["total_idr"]` memberi teks `"90000"`. Bungkus dengan int(...) untuk mendapatkan angkanya.
+@solution
+row = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
+total_number = int(row["total_idr"])
+:::
+
 ### Menulis angka sebagai teks: f-string
 
 Laporan menampilkan `Rp 1.250.000`, bukan `1250000`. Tiga alat kecil melakukannya, satu per satu. Pertama, **f-string** menaruh nilai di dalam teks: tulis `f` sebelum tanda kutip pembuka dan taruh nilainya di dalam kurung kurawal:
@@ -2333,6 +2353,12 @@ Lab berkembang dari sini: di Modul 1.2 gagasan yang sama menjadi pipeline sunggu
 
 ## @lab Lab: dari kode biasa ke sebelas fungsi kecil pada pesanan KopiKu
 Dua bagian, pada data pesanan KopiKu. **Bagian A** (setelah Pelajaran 1 sampai 4) adalah Python biasa tanpa fungsi: Anda mengisi dua belas variabel. **Bagian B** (setelah Pelajaran 5 sampai 7) mengubah gagasan yang sama menjadi sebelas fungsi kecil.
+
+> [!IMPORTANT]
+> **Versi singkat, dalam tiga langkah.**
+> 1. Setelah setiap Pelajaran 1 sampai 4, buka Bagian A (file `practice.py`, atau tab **Bagian A** pada pratinjau di bawah) dan ganti `None` pada langkah pelajaran itu dengan kode Anda sendiri.
+> 2. Setelah Pelajaran 5 sampai 7, lakukan hal yang sama untuk fungsi-fungsi Bagian B (file `basics.py`, atau tab **Bagian B**).
+> 3. Tekan **Run tests** (atau ketik baris `pytest` di terminal Anda). Setiap ✗ memberi tahu apa yang salah: perbaiki satu hal, jalankan lagi. Teks yang lebih panjang di bawah menjelaskan tiap bagian; baca sekali sekarang, dan kembali ke sana saat ada yang kurang jelas.
 
 **Apa itu lab.** Setiap bagian adalah file yang Anda edit dan file **tes** yang memeriksanya. Di Bagian A, `practice.py` memberi Anda data dan dua belas variabel yang diisi `None`; Anda mengganti setiap `None` dengan kode Anda sendiri, dan `test_practice.py` menjalankan file Anda, dengan beberapa kumpulan data berbeda menggantikan yang diberikan, lalu memeriksa setiap variabel. Di Bagian B, `basics.py` berisi sebelas fungsi yang isinya kosong (masing-masing hanya berisi `raise NotImplementedError`), dan `test_lab.py` memanggil setiap fungsi dengan contoh, misalnya "`format_rupiah(1250000)` harus menghasilkan `"Rp 1.250.000"`". Sebuah pemeriksaan ✓ jika kode Anda memberi jawaban yang diharapkan, dan ✗ jika memberi jawaban lain atau crash. Anda selesai ketika ke-46 lulus: 15 di Bagian A dan 31 di Bagian B.
 

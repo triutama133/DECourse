@@ -132,6 +132,7 @@ There is no recycle bin in the shell. Looking at **exactly the same path** with 
 > Type `ls -la data` to list KopiKu's transaction files.
 > Type `head -5 data/orders.csv` to inspect the first 5 order rows.
 > Type `wc -l data/orders.csv` to count the total lines.
+> **You should see:** the full path of your course folder for `pwd`; the seven data files (`orders.csv`, `customers.csv` and five more) for `ls -la data`; a header line (`order_id,customer_id,order_ts,status,payment_method,total_idr`) and four orders for `head -5`; and `3635 data/orders.csv` for `wc -l` (the header plus 3,634 orders).
 > Once you see the output stream in your terminal, proceed to Lesson 2 below.
 
 ## @lesson Paths, files and the environment
@@ -203,6 +204,7 @@ delete the file and download a fresh copy
 > Type `echo $PATH` to see where your shell looks for executables.
 > Type `which python3` to find the absolute path of your system's Python interpreter.
 > Type `ls -l data/orders.csv` to view the file's permission flags.
+> **You should see:** a path such as `/home/yourname` (on macOS `/Users/yourname`) for `$HOME`; a long list of folders separated by `:` for `$PATH`; a path such as `/usr/bin/python3` for `which python3`; and a line that starts with `-rw` (you may read and write the file) for `ls -l`.
 > You now understand how the shell resolves paths and tools. Proceed to Lesson 3.
 
 ## @lesson Redirects and pipes: small tools, joined together
@@ -272,7 +274,7 @@ print(counts)
 
 Read it left to right: `cut` takes the 4th comma-separated column (the status), `tail -n +2` skips the header line, `sort` groups equal values together, `uniq -c` counts runs of equal values, and the last `sort -rn` puts the biggest count first. Five tiny tools replaced a program, and nothing was loaded into memory at once, so it works on a file far bigger than your RAM. Module 1.1 develops this skill in depth.
 
-Notice the output also reveals messy real-world data: you will see `paid`, `PAID` and `Paid` counted as separate groups. The terminal is a good place to *look at data before you write code for it* — Module 0.2 tackles cleaning these statuses properly.
+Notice the output also reveals messy real-world data: you will see `paid`, `PAID` and `Paid` counted as separate groups. The terminal is a good place to *look at data before you write code for it* — Module 0.2 shows where in a pipeline this cleaning belongs.
 
 ### Writing to a file
 
@@ -291,6 +293,7 @@ Every program has three standard streams: input (`stdin`), output (`stdout`) and
 > Prove the power of pipes directly in your terminal without writing a Python script:
 > Run this pipeline from the course root:
 > `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
+> **You should see:** `2080 delivered` first, then `555 shipped`, `367 paid`, `352 cancelled` and `168 refunded`, and further down the same words in other capital letters (`34 DELIVERED`, `34 Delivered`, and a few more). That mix of spellings is real messy data: the next modules teach you where to fix it.
 > Notice how you aggregated thousands of KopiKu transaction rows into status counts in milliseconds! Proceed to Lesson 4 to isolate your Python environment.
 
 ## @part Python environments and Git
@@ -389,6 +392,7 @@ both of them
 > 2. Create an isolated virtual environment: `python3 -m venv venv`
 > 3. Activate the environment: `source venv/bin/activate`
 > 4. Verify: `which python` (ensure it points to `~/kopiku/venv/bin/python`).
+> **You should see:** the prompt now starts with `(venv)`, and `which python` prints a path that ends in `kopiku/venv/bin/python`.
 > Keep it activated! Proceed to Lesson 5 to set up Git.
 
 ## @lesson Git: a safety net for everything you write
