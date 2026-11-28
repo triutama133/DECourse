@@ -89,7 +89,7 @@ Kosakata penting lainnya dalam dunia orkestrasi:
 Aturan emas komunikasi antar-langkah: **alirkan referensi metadata, jangan alirkan payload data utuh**. Output task yang dikirim via metadata store orkestrator (seperti XCom di Airflow) hanya ditujukan untuk nilai kecil (file path, nama partisi, jumlah baris yang diproses). Payload data berukuran besar harus selalu ditulis ke storage persistensi (tabel staging, file Parquet, cloud bucket), dan langkah downstream berikutnya akan membaca data langsung dari storage tersebut.
 
 > 💡 **Jeda Praktik 1 (Mendefinisikan Resource & Partisi Harian):**
-> *Catatan persiapan & jembatan:* Dari folder kursus dengan venv aktif, instal dependensi terlebih dahulu (`python -m pip install -r labs/mod-2-4/requirements.txt`). Pelajaran 5 menjelaskan resource dan asset Dagster secara lengkap, jadi Anda boleh menunggu hingga Pelajaran 5 untuk memulai lab atau langsung mengikuti sintaks awal di bawah ini sekarang.
+> *Catatan persiapan & jembatan:* Dari folder kursus dengan venv aktif, instal dependensi terlebih dahulu (`python -m pip install -r labs/mod-2-4/requirements.txt`). Materi 5 menjelaskan resource dan asset Dagster secara lengkap, jadi Anda boleh menunggu hingga Materi 5 untuk memulai lab atau langsung mengikuti sintaks awal di bawah ini sekarang.
 > 1. Buka teks editor Anda (VS Code / Cursor), buka file `labs/mod-2-4/orchestration.py`, lalu hapus baris awal `raise NotImplementedError(...)` (ingat: jangan mengeksekusi file `.py` langsung di terminal bash tanpa interpreter atau argumen).
 > 2. Definisikan resource `Paths` dan partisi harian `daily` selama 30 hari (`end_date` bersifat eksklusif, mencakup 2026-01-01 hingga 2026-01-30):
 > ```python

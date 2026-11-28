@@ -31,7 +31,7 @@ def run(input_path, output_path):              # tepi: membaca, menulis, mencata
         ...
 ```
 
-(Label `: str` dan `-> int | None` pada `parse_total` adalah *type hint*, artinya ia menerima teks dan mengembalikan integer atau `None`. Anda akan mempelajarinya secara utuh di **Pelajaran 2**; Anda belum perlu menulisnya pada latihan pelajaran ini.)
+(Label `: str` dan `-> int | None` pada `parse_total` adalah *type hint*, artinya ia menerima teks dan mengembalikan integer atau `None`. Anda akan mempelajarinya secara utuh di **Materi 2**; Anda belum perlu menulisnya pada latihan pelajaran ini.)
 
 Tata letak yang wajar untuk job kecil:
 
@@ -51,7 +51,7 @@ Untuk lab modul ini semuanya ada dalam satu file agar mudah dibaca, tetapi *pemi
 
 **Konfigurasi** (path, ambang batas, hostname) datang dari argumen atau environment variable, tidak pernah di-hardcode; **rahasia** hanya dari environment (Modul 0.1).
 
-**Tiga potong sintaks Python baru mulai dari sini: class, type hint, dan decorator.** Anda baru saja melihat sekilas type hint di atas, dan ketiganya muncul di sisa modul ini, jadi mereka punya pelajaran singkat sendiri tepat setelah ini (**Pelajaran 2**). Anda belum perlu menulis salah satunya pada latihan pelajaran ini.
+**Tiga potong sintaks Python baru mulai dari sini: class, type hint, dan decorator.** Anda baru saja melihat sekilas type hint di atas, dan ketiganya muncul di sisa modul ini, jadi mereka punya pelajaran singkat sendiri tepat setelah ini (**Materi 2**). Anda belum perlu menulis salah satunya pada latihan pelajaran ini.
 
 > 🛠 **Coba sendiri (12 menit, di `etl_try.py`).** Tulis fungsi **murni** `parse_total(raw)` yang mengembalikan int, atau `None` jika teksnya bukan bilangan bulat yang tidak negatif (ia juga harus mengerti gaya `Rp 150.000`). Fungsi itu harus lulus:
 > `assert parse_total("150000") == 150000`
@@ -95,8 +95,8 @@ tepi adalah satu-satunya tempat Python mengizinkan I/O
 Fungsi murni menerima nilai dan mengembalikan nilai tanpa menyentuh hal lain, jadi tes hanyalah panggilan dan pemeriksaan. Membaca file, memanggil API, dan menulis database tetap di lapisan luar yang tipis.
 :::
 
-## @lesson Class, type hint, dan decorator: tiga hal yang dibaca di Pelajaran 4
-Di Pelajaran 4 Anda akan bertemu kode seperti `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)`, dan `@field_validator("status")`. Semuanya tampak aneh sampai Anda tahu tiga ide kecil: **class**, **type hint**, dan **decorator**. Masing-masing hanya beberapa baris. Anda tidak perlu menjadi ahli: Anda perlu bisa membacanya, dan menulis bentuk sederhananya sendiri.
+## @lesson Class, type hint, dan decorator: tiga hal yang dibaca di Materi 4
+Di Materi 4 Anda akan bertemu kode seperti `class OrderRow(BaseModel):`, `order_id: int = Field(gt=0)`, dan `@field_validator("status")`. Semuanya tampak aneh sampai Anda tahu tiga ide kecil: **class**, **type hint**, dan **decorator**. Masing-masing hanya beberapa baris. Anda tidak perlu menjadi ahli: Anda perlu bisa membacanya, dan menulis bentuk sederhananya sendiri.
 
 ### Class: cetak biru untuk sesuatu yang punya data dan tindakan
 
@@ -191,7 +191,7 @@ def add_tax(price: int, rate: float = 0.11) -> int:
 
 `price: int` berarti "price seharusnya bilangan bulat"; `-> int` berarti "fungsi ini mengembalikan bilangan bulat". Hint lain yang akan Anda lihat: `list[str]` (list berisi teks), `dict[str, int]` (kunci teks, nilai bilangan bulat), `int | None` (bilangan bulat atau tidak ada) dan `Literal["paid", "shipped"]` (hanya salah satu nilai persis ini).
 
-Fakta terpenting: **Python sendiri tidak memeriksa hint.** `add_tax("abc")` tetap berjalan dan gagal belakangan dengan cara yang jelek. Hint dibaca editor dan library seperti Pydantic, yang *memang* memeriksa data terhadapnya. Itulah seluruh ide Pelajaran 4.
+Fakta terpenting: **Python sendiri tidak memeriksa hint.** `add_tax("abc")` tetap berjalan dan gagal belakangan dengan cara yang jelek. Hint dibaca editor dan library seperti Pydantic, yang *memang* memeriksa data terhadapnya. Itulah seluruh ide Materi 4.
 
 :::ask Apa yang terjadi bila Anda menjalankan `def f(x: int): return x` lalu memanggil `f("hello")`?
 @options
@@ -333,7 +333,7 @@ def twice(fn):
     return wrapper
 :::
 
-### Sekarang baca kode dari Pelajaran 4
+### Sekarang baca kode dari Materi 4
 
 Anda sudah bisa membaca setiap baris contoh ini:
 
@@ -652,7 +652,7 @@ def extract_codes(text):
 > 2. Lengkapi kelas `OrderRow` dan fungsi `validate(row: dict)`. Tambahkan validator untuk membersihkan teks Rupiah (`"Rp 1.250.000"` -> `1250000`), normalisasi status lowercase/strip, serta dukung format tanggal ISO dan `DD/MM/YYYY`.
 > 3. Uji model Anda di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestOrderRow -v`
-> Ketika semua tes `TestOrderRow` berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Pelajaran 5 tentang streaming generator.
+> Ketika semua tes `TestOrderRow` berstatus PASSED, fondasi validasi Anda sudah kokoh! Lanjut ke Materi 5 tentang streaming generator.
 
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
@@ -779,7 +779,7 @@ list(good_totals([{"total": "100"}, {"total": "x"}, {"total": "250"}])) == [100,
 list(good_totals([])) == [] ## Input kosong tidak memberi apa-apa.
 has_node("Try") ## Pakai try / except ValueError.
 @hint
-Lakukan loop pada `rows` dan bungkus konversi `row["total"]` dengan `int(...)` di dalam blok `try`; `yield` angkanya jika berhasil dan tangkap `ValueError` untuk melewati baris yang rusak. (Melewati itu boleh **di sini** karena ini latihan; di pipeline sungguhan baris buruk masuk karantina, seperti yang ditunjukkan Pelajaran 6.)
+Lakukan loop pada `rows` dan bungkus konversi `row["total"]` dengan `int(...)` di dalam blok `try`; `yield` angkanya jika berhasil dan tangkap `ValueError` untuk melewati baris yang rusak. (Melewati itu boleh **di sini** karena ini latihan; di pipeline sungguhan baris buruk masuk karantina, seperti yang ditunjukkan Materi 6.)
 @solution
 def good_totals(rows):
     for row in rows:
@@ -795,7 +795,7 @@ def good_totals(rows):
 > 2. Terapkan generator lazy menggunakan `with open(path, newline="", encoding="utf-8") as f:` dan `csv.DictReader(f)` bersama `yield from` (jangan pernah mengubahnya menjadi `list(csv.DictReader(f))`).
 > 3. Uji sifat evaluasi malas (lazy) generator di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k test_read_orders_is_a_lazy_generator -v`
-> (Tes `TestStreaming` lainnya, `test_memory_stays_flat_on_a_big_file`, memanggil `etl.run()` dan akan lulus tepat setelah Jeda Praktik 3 mengimplementasikan `run()`.) Jika `test_read_orders_is_a_lazy_generator` PASSED, generator Anda siap! Lanjut ke Pelajaran 6 tentang retry dan idempotensi.
+> (Tes `TestStreaming` lainnya, `test_memory_stays_flat_on_a_big_file`, memanggil `etl.run()` dan akan lulus tepat setelah Jeda Praktik 3 mengimplementasikan `run()`.) Jika `test_read_orders_is_a_lazy_generator` PASSED, generator Anda siap! Lanjut ke Materi 6 tentang retry dan idempotensi.
 
 ## @part Membuatnya andal
 
@@ -941,7 +941,7 @@ def retry(fn, attempts=3):
 > 2. Gunakan penulisan atomik (tulis ke file sementara `.tmp` lalu tukar dengan `os.replace`), lacak duplikat `order_id` menggunakan set, kirim data bersih ke `output_path` (format NDJSON dengan kunci terurut), dan kirim baris gagal ke `quarantine_path` mencatat alasan penolakannya.
 > 3. Uji pipeline di terminal:
 > `pytest labs/mod-1-2/test_lab.py -k TestRun -v`
-> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Pelajaran 7 & 8 untuk logging (`TestLogging`) dan testing.
+> Jika semua tes TestRun PASSED, pipeline Anda sudah idempoten dan toleran terhadap data buruk! Lanjut ke Materi 7 & 8 untuk logging (`TestLogging`) dan testing.
 
 ## @lesson Logging dan ringkasan eksekusi
 `print` untuk skrip; **`logging`** untuk job. Ia menambah stempel waktu, tingkat keparahan, dan perutean (ke file, ke konsol, ke pengumpul), dan membiarkan siapa pun yang menjalankan job memilih seberapa banyak yang ingin dilihat tanpa mengubah kode.
@@ -960,7 +960,7 @@ Tingkat dalam praktik: `DEBUG` (detail untuk pengembang), `INFO` (tonggak normal
 
 Baris log tunggal yang paling berguna di pipeline mana pun adalah **ringkasan eksekusi**: berapa baris dibaca, berapa valid, berapa ditolak dan mengapa, berapa lama. Itu monitoring pertama dan termurah Anda: perubahan mendadak angka-angka itu antar malam sering menjadi tanda pertama masalah di hulu, itulah sebabnya lab meminta Anda mencatatnya dan exit code mencerminkan tingkat penolakan.
 
-> 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri Pelajaran 1 (`etl_try.py`): panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
+> 🛠 **Coba sendiri (12 menit, Python).** Kembangkan `run` dari Coba sendiri Materi 1 (`etl_try.py`): panggil `logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")` satu kali, di titik masuk program, dan log ringkasan run sebagai satu baris INFO berisi `read`, `valid`, `duplicates`, dan `invalid`. Hitung sebuah baris sebagai tidak valid jika `total_idr`-nya bukan angka biasa (jadi `Rp 150.000` dan angka negatif tidak valid di sini), dan sebagai duplikat jika ia valid dan `order_id`-nya sudah pernah terlihat. Jika porsi yang tidak valid di atas 1%, log sebuah ERROR dan keluar dengan `sys.exit(1)`.
 >
 > **Seharusnya Anda melihat:** baris seperti `2026-.. INFO read=3634 valid=3545 duplicates=35 invalid=54`, lalu sebuah ERROR (54 dari 3.634 kira-kira 1,5%) dan `echo $?` mencetak `1`. Run yang sama dengan `print` tidak punya waktu, tidak punya level, dan tidak bisa difilter atau dijadikan peringatan. Di lab Anda, periksa baris log ringkasan dengan `pytest labs/mod-1-2/test_lab.py -k TestLogging -v`.
 
@@ -1057,7 +1057,7 @@ Selalu teruskan `argv` ke `parser.parse_args(argv)`. Ketika `argv` bernilai `Non
 > 3. Jalankan skrip pada data KopiKu dan buat kode bukti lab Anda:
 > `python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.ndjson`
 > `python3 scripts/prove.py mod-1-2`
-> Ketika seluruh 28 tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Pelajaran 9 untuk memilih perkakas yang tepat.
+> Ketika seluruh 28 tes berwarna HIJAU (PASSED), Anda telah menuntaskan job ETL Python defensif kelas enterprise! Lanjut ke Materi 9 untuk memilih perkakas yang tepat.
 
 :::ask Anda punya satu aturan untuk diuji (total bisa 'Rp 1.250.000' atau '150000') dengan banyak contoh masukan. Fitur pytest mana yang cocok?
 @options
@@ -1073,7 +1073,7 @@ tes yang berulang sampai akhirnya berhasil lolos
 
 **Otomatisasi pemeriksaan yang membosankan.** Formatter dan linter (`ruff` melakukan keduanya) mengakhiri debat gaya dan menangkap kesalahan nyata (variabel tak terpakai, nama tak terdefinisi). Pemeriksa tipe (`mypy`, `pyright`) menangkap bug salah tipe. Jalankan bersama tes Anda di CI, dan opsional di setiap commit dengan `pre-commit`.
 
-**Performa dalam satu paragraf.** CPython menjalankan satu thread bytecode Python sekali waktu (**GIL**), sehingga thread membantu untuk pekerjaan *menunggu* (banyak panggilan jaringan, pembacaan disk) tetapi tidak untuk pekerjaan berat CPU; untuk itu pakai banyak proses (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) atau, lebih baik, engine tervektorisasi. Ukur sebelum mengoptimalkan: bagian yang lambat jarang berada di tempat yang Anda tebak. Pakai `tracemalloc` (Pelajaran 5) untuk RAM, `timeit` untuk satu fungsi, dan `python3 -m cProfile -s cumtime job.py` di terminal untuk mengurutkan tiap fungsi berdasarkan total waktu CPU sebelum mengubah kode apa pun.
+**Performa dalam satu paragraf.** CPython menjalankan satu thread bytecode Python sekali waktu (**GIL**), sehingga thread membantu untuk pekerjaan *menunggu* (banyak panggilan jaringan, pembacaan disk) tetapi tidak untuk pekerjaan berat CPU; untuk itu pakai banyak proses (`multiprocessing`, `concurrent.futures.ProcessPoolExecutor`) atau, lebih baik, engine tervektorisasi. Ukur sebelum mengoptimalkan: bagian yang lambat jarang berada di tempat yang Anda tebak. Pakai `tracemalloc` (Materi 5) untuk RAM, `timeit` untuk satu fungsi, dan `python3 -m cProfile -s cumtime job.py` di terminal untuk mengurutkan tiap fungsi berdasarkan total waktu CPU sebelum mengubah kode apa pun.
 
 **Memilih alat yang tepat.** Python biasa sangat baik untuk perekat: memanggil API, memvalidasi record, memindah dan membentuk ulang data berukuran sedang, mengorkestrasi alat lain. Untuk **agregasi berat, join, dan analitik pada data besar**, engine SQL (DuckDB, Modul 2.1; warehouse, Modul 2.6) dan engine dataframe (Polars, Spark) jauh lebih cepat dan memakai memori jauh lebih baik daripada loop tulisan tangan. Data engineer yang baik menulis validasi dan perpipaan di Python dan mendorong komputasi berat ke engine yang dibangun untuknya.
 

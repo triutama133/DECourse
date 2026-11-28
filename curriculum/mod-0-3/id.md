@@ -303,7 +303,7 @@ SELECT DISTINCT payment_method FROM orders;
 > Kerjakan tantangan `-- k-1`: tulis query untuk mengembalikan kolom `name` dan `tier` dari tabel `customers` yang berdomisili di Jakarta (`WHERE city = 'Jakarta'`).
 > Uji query Anda di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Jika k-1 mencetak PASS, selamat! Anda telah menulis query pertama Anda. Lanjut ke Pelajaran 3 untuk mengenal jebakan NULL.
+> Jika k-1 mencetak PASS, selamat! Anda telah menulis query pertama Anda. Lanjut ke Materi 3 untuk mengenal jebakan NULL.
 
 ## @lesson NULL: nilai yang bukan nilai
 `NULL` berarti **tidak diketahui atau hilang**. Ia bukan nol dan bukan string kosong, dan perilakunya berbeda dari segala hal lain. Ini sumber terbesar kesalahan diam-diam bagi pemula, jadi luangkan waktu di sini. Dua dari sepuluh pelanggan KopiKu tidak punya kota.
@@ -417,7 +417,7 @@ SELECT name, COALESCE(city, 'Unknown') AS city FROM customers;
 - **Aritmetika menyebarkan NULL.** `price - discount` adalah NULL kalau `discount` NULL, sehingga total seluruh baris menghilang.
 - **`NOT IN` dengan NULL di dalam daftar tidak mengembalikan apa pun.** `x NOT IN (1, NULL)` tidak pernah benar, karena perbandingan dengan NULL adalah UNKNOWN untuk setiap baris. Ini bug produksi klasik ketika daftarnya datang dari subquery yang kebetulan berisi NULL.
 
-Pada pertanyaan di bawah, `(SELECT city FROM ...)` adalah **subquery**, query di dalam tanda kurung yang mengirimkan daftar kotanya ke `NOT IN` (subquery dibahas tuntas di Pelajaran 8).
+Pada pertanyaan di bawah, `(SELECT city FROM ...)` adalah **subquery**, query di dalam tanda kurung yang mengirimkan daftar kotanya ke `NOT IN` (subquery dibahas tuntas di Materi 8).
 
 :::ask Apa yang dikembalikan query ini?
 ```sql
@@ -439,7 +439,7 @@ Satu pelanggan Silver tidak punya kota, jadi daftar di `NOT IN` berisi NULL, dan
 > Tulis query untuk mengambil nama semua pelanggan yang kotanya BUKAN Jakarta (`city <> 'Jakarta'`), tetapi INGAT menyertakan pelanggan yang kotanya tidak diketahui: tambahkan `OR city IS NULL`.
 > Uji di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Pastikan k-4 mencetak PASS (menghasilkan 7 pelanggan, bukan 5!). Lanjut ke Pelajaran 4 di bawah.
+> Pastikan k-4 mencetak PASS (menghasilkan 7 pelanggan, bukan 5!). Lanjut ke Materi 4 di bawah.
 
 ## @part Menghitung
 
@@ -557,7 +557,7 @@ Tampilkan `name` setiap produk dan harganya dalam ribuan rupiah, satu desimal, s
 SELECT name, ROUND(price_idr / 1000.0, 1) AS price_k FROM products;
 :::
 
-KopiKu punya 2 pesanan batal dari 18. Di SQLite perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan yang salah `0`, dan `SUM(...)` menjumlahkan angka 1 dan 0 tersebut lintas baris (kita membahas `SUM` dan agregasi secara penuh di Pelajaran 5), jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). `SUM(status = 'cancelled') / COUNT(*)` menghasilkan **0** (pembagian bilangan bulat!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` menghasilkan **`11.1`**.
+KopiKu punya 2 pesanan batal dari 18. Di SQLite perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan yang salah `0`, dan `SUM(...)` menjumlahkan angka 1 dan 0 tersebut lintas baris (kita membahas `SUM` dan agregasi secara penuh di Materi 5), jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Materi 8 menunjukkan `CASE WHEN` yang portabel). `SUM(status = 'cancelled') / COUNT(*)` menghasilkan **0** (pembagian bilangan bulat!); `ROUND(100.0 * SUM(status = 'cancelled') / COUNT(*), 1)` menghasilkan **`11.1`**.
 
 :::drill sql Sebuah persentase
 Berapa persen dari semua pesanan yang `'cancelled'`? Tampilkan satu angka, dibulatkan satu desimal, sebagai `pct`.
@@ -624,7 +624,7 @@ Dua jebakan, keduanya diperiksa pada SQLite, PostgreSQL, dan DuckDB. Pertama, `'
 **Satu aturan performa** yang dijelaskan Modul 1.3 dengan EXPLAIN: jangan membungkus kolom ber-indeks dengan fungsi di dalam `WHERE`. Pada tabel dengan indeks di `ts`, `WHERE strftime('%Y-%m', ts) = '2026-01'` membuat SQLite **memindai seluruh tabel**, dan rentang yang setara `ts >= '2026-01-01' AND ts < '2026-02-01'` **mencari lewat indeks**.
 :::
 
-> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama) dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini (simpan **k-17** untuk setelah Pelajaran 5 membahas `GROUP BY`). Catatan: SQLite menganggap perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan salah bernilai `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Pelajaran 8 menunjukkan `CASE WHEN` yang portabel). Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
+> 🛠 **Coba sendiri (10 menit, SQL Sandbox).** Selesaikan tantangan KopiKu **k-16** (nama depan dan panjang nama) dan **k-18** (tingkat pembatalan) dengan fungsi-fungsi dari pelajaran ini (simpan **k-17** untuk setelah Materi 5 membahas `GROUP BY`). Catatan: SQLite menganggap perbandingan benar seperti `status = 'cancelled'` bernilai `1` dan salah bernilai `0`, jadi `SUM(status = 'cancelled')` menghitung baris yang dibatalkan (Materi 8 menunjukkan `CASE WHEN` yang portabel). Sebelum menjalankan k-18, tebak jawabannya dengan tangan, lalu coba `SUM(status = 'cancelled') / COUNT(*)` tanpa `100.0` dan lihat apa yang dilakukan pembagian bilangan bulat.
 >
 > **Seharusnya Anda melihat:** sandbox menyatakan Benar untuk setiap tantangan; percobaan k-18 yang salah menampilkan `0`, yang benar `11.1`.
 
@@ -808,7 +808,7 @@ Waspadai juga pembagian bilangan bulat di sini: tulis `100.0 * part / total` unt
 > (Tantangan sandbox opsional setelah mengenal `GROUP BY`: **k-17**, kota yang tidak diketahui dengan `COALESCE`.)
 > Uji kedua query ini di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Jika k-2 dan k-3 PASS, Anda telah menguasai agregasi data! Lanjut ke Pelajaran 6 tentang Join (tempat Anda juga akan mengerjakan `-- k-7`, yang menggabungkan `JOIN` dengan `HAVING`).
+> Jika k-2 dan k-3 PASS, Anda telah menguasai agregasi data! Lanjut ke Materi 6 tentang Join (tempat Anda juga akan mengerjakan `-- k-7`, yang menggabungkan `JOIN` dengan `HAVING`).
 
 ## @part Menggabungkan data
 
@@ -990,7 +990,7 @@ SELECT COALESCE(c.city, 'Unknown') AS city, SUM(i.qty * i.unit_price_idr) AS rev
 > 4. `-- k-8`: hitung total ongkir pesanan delivered tanpa terkena fan-out (jumlahkan kolom dari tabel `orders` saja!).
 > Uji di terminal:
 > `python3 labs/mod-0-3/check.py`
-> Pastikan k-5, k-6, k-7, dan k-8 mencetak PASS! Lanjut ke Pelajaran 7 di bawah.
+> Pastikan k-5, k-6, k-7, dan k-8 mencetak PASS! Lanjut ke Materi 7 di bawah.
 
 ## @lesson Cara lain menggabungkan data: self-join, CROSS JOIN, dan operasi himpunan
 Join menaruh tabel **berdampingan**: ia menambah kolom. Tiga alat lagi melengkapi gambarannya: tabel yang digabung dengan dirinya sendiri, setiap baris dipasangkan dengan setiap baris, dan **menumpuk** hasil satu di atas yang lain.
@@ -1246,7 +1246,7 @@ Pilih CTE daripada subquery bersarang dalam: lebih mudah dibaca, di-debug (pilih
 > Sekarang uji seluruh 10 jawaban Anda dan buat kode bukti penyelesaian di terminal:
 > `python3 labs/mod-0-3/check.py`
 > `python3 scripts/prove.py mod-0-3`
-> Jika skor Anda `10/10 answers correct`, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Pelajaran 9 untuk DML & Transaksi.
+> Jika skor Anda `10/10 answers correct`, seluruh fondasi SQL analitik Anda telah terbukti sempurna! Lanjut ke Materi 9 untuk DML & Transaksi.
 
 ## @part Mengubah dan mendefinisikan tabel
 

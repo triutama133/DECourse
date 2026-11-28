@@ -94,7 +94,7 @@ CREATE TABLE analytics.fct_orders (
 CLUSTER BY (order_date, status);
 
 -- 3. Amazon Redshift: SORTKEY mengurutkan baris di disk agar zone map memangkas rentang
---    (Pelajaran 3 menambahkan gaya distribusi agar join tetap co-located antar node)
+--    (Materi 3 menambahkan gaya distribusi agar join tetap co-located antar node)
 CREATE TABLE analytics.fct_orders (
   order_id      VARCHAR(64)   ENCODE zstd,
   customer_id   VARCHAR(64)   ENCODE zstd,
@@ -192,7 +192,7 @@ Distribusi KEY mengirim baris dengan customer_id sama ke node yang sama, sehingg
 
 Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 membahas model anggaran cloud dan guardrail FinOps secara lengkap nanti).
 
-**Berbasis pemindaian** (BigQuery on-demand): Anda membayar per **byte yang diproses** setiap query, beberapa dolar per terabyte (cek harga terkini). `query_cost(bytes_billed, price_per_tb)` di lab adalah rumus itu. Semua dalam pelajaran 2 karenanya adalah uang: partition pruning dan pemilihan kolom memangkas byte secara langsung. Sebuah query bisa **diperkirakan sebelum dijalankan** (dry run BigQuery melaporkan byte-nya), dan batas keras bisa dipasang pada byte maksimum yang ditagih sebuah query sehingga kesalahan gagal, bukan menagih.
+**Berbasis pemindaian** (BigQuery on-demand): Anda membayar per **byte yang diproses** setiap query, beberapa dolar per terabyte (cek harga terkini). `query_cost(bytes_billed, price_per_tb)` di lab adalah rumus itu. Semua dalam materi 2 karenanya adalah uang: partition pruning dan pemilihan kolom memangkas byte secara langsung. Sebuah query bisa **diperkirakan sebelum dijalankan** (dry run BigQuery melaporkan byte-nya), dan batas keras bisa dipasang pada byte maksimum yang ditagih sebuah query sehingga kesalahan gagal, bukan menagih.
 
 **Berbasis waktu** (Snowflake, Redshift, BigQuery dengan kapasitas cadangan): Anda membayar komputasi **selama ia menyala**, berapa pun yang dipindainya. Di sini penghematan dari pruning adalah *waktu*: query yang lebih cepat menahan warehouse lebih sebentar dan membiarkannya suspend lebih cepat.
 
@@ -458,7 +458,7 @@ def make_reverse_etl_key(customer_id, sync_date, net_ltv_idr):
 | Pengguna sekaligus | puluhan | beberapa orang, banyak pemeriksaan otomatis | ratusan sampai ribuan, sering di menit yang sama |
 | Biaya sebuah kesalahan | keputusan yang salah di kemudian hari | kehabisan stok atau fraud yang terlewat | pelanggan lain melihat data Anda: kebocoran data |
 
-Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu set tabel melayani banyak pelanggan (tenant), jadi isolasinya harus ditegakkan oleh sistem, bukan oleh setiap developer yang harus ingat menulis `WHERE`. Ambil tenant dari sesi login, jangan pernah dari nilai yang bisa diubah pengguna di URL, dan biarkan database yang menegakkannya dengan **row-level security** (PostgreSQL), **row access policy** (Snowflake), atau **row-level security** di BigQuery (pelajaran 6). Kecepatan datang dari mengerjakan pekerjaan berat sebelum pelanggan datang: tabel pra-agregasi per tenant dan hari atau bulan yang dibangun pipeline, atau engine penyajian seperti ClickHouse, Druid, atau Pinot (poin 4 di atas).
+Analitik tertanam adalah yang paling sulit. Ia bersifat **multi-tenant**: satu set tabel melayani banyak pelanggan (tenant), jadi isolasinya harus ditegakkan oleh sistem, bukan oleh setiap developer yang harus ingat menulis `WHERE`. Ambil tenant dari sesi login, jangan pernah dari nilai yang bisa diubah pengguna di URL, dan biarkan database yang menegakkannya dengan **row-level security** (PostgreSQL), **row access policy** (Snowflake), atau **row-level security** di BigQuery (materi 6). Kecepatan datang dari mengerjakan pekerjaan berat sebelum pelanggan datang: tabel pra-agregasi per tenant dan hari atau bulan yang dibangun pipeline, atau engine penyajian seperti ClickHouse, Druid, atau Pinot (poin 4 di atas).
 
 > 🛠 **Coba sendiri (15 menit, Python).** Dengan DuckDB dan `SET threads = 1`, buat 5.000.000 pesanan untuk 2.000 tenant: `SELECT range AS order_id, range % 2000 AS customer_id, DATE '2025-01-01' + CAST((range // 2000) % 700 AS INTEGER) AS order_date, 10000 + (range * 37) % 500000 AS total_idr FROM range(5000000)`. Bangun tabel `monthly` berisi pendapatan per pelanggan dan bulan. Lalu ukur waktu query dashboard sebuah tenant, "pendapatan per bulan untuk pelanggan ?", sebanyak 100 kali untuk pelanggan acak, sekali pada pesanan mentah dan sekali pada `monthly`, lalu bandingkan mediannya. Pastikan keduanya memberi baris yang sama. Terakhir, buang `WHERE customer_id = ?` dan hitung berapa nilai `customer_id` berbeda yang kemudian dibaca query itu.
 >
@@ -591,7 +591,7 @@ bq query --use_legacy_sql=false --dry_run \
   'SELECT * FROM `bigquery-public-data.usa_names.usa_1910_current`'
 ```
 
-- **Mengapa angkanya berbeda:** `usa_1910_current` memiliki 5 kolom (`state`, `gender`, `year`, `name`, `number`). BigQuery menyimpan setiap kolom secara terpisah dan hanya menagih kolom yang dibaca query (pelajaran 2), jadi query satu kolom melaporkan byte yang jauh lebih sedikit daripada `SELECT *`. Tebak rasionya, lalu catat kedua angkanya: kursus akan menambahkan nilai terukur di sini setelah dijalankan pada akun sungguhan.
+- **Mengapa angkanya berbeda:** `usa_1910_current` memiliki 5 kolom (`state`, `gender`, `year`, `name`, `number`). BigQuery menyimpan setiap kolom secara terpisah dan hanya menagih kolom yang dibaca query (materi 2), jadi query satu kolom melaporkan byte yang jauh lebih sedikit daripada `SELECT *`. Tebak rasionya, lalu catat kedua angkanya: kursus akan menambahkan nilai terukur di sini setelah dijalankan pada akun sungguhan.
 
 **3. Pasang Guardrail Batas Byte & Audit `INFORMATION_SCHEMA.JOBS_BY_USER`.**
 
@@ -626,7 +626,7 @@ CREATE OR REPLACE WAREHOUSE kopiku_etl_wh
 
 > 🛠 **Coba sendiri (15 menit, terminal, opsional jika Anda memasang `bq`).** Jalankan kedua perintah `--dry_run` di atas pada `usa_1910_current`, lalu jalankan query `WHERE state = "CA"` dua kali berturut-turut dan periksa `INFORMATION_SCHEMA.JOBS_BY_USER`.
 >
-> **Seharusnya Anda melihat:** setiap dry run mencetak byte yang akan diproses, dan `SELECT *` beberapa kali lipat query satu kolom. Eksekusi sungguhan pertama query `CA` menunjukkan `cache_hit = false`; eksekusi kedua yang identik dijawab dari result cache, dengan `cache_hit = true` dan `total_bytes_billed = 0` (`ResultCache` dari pelajaran 4, di warehouse sungguhan). Catat jumlah byte dan waktu Anda; belum ada nilai terukur yang dicantumkan di sini.
+> **Seharusnya Anda melihat:** setiap dry run mencetak byte yang akan diproses, dan `SELECT *` beberapa kali lipat query satu kolom. Eksekusi sungguhan pertama query `CA` menunjukkan `cache_hit = false`; eksekusi kedua yang identik dijawab dari result cache, dengan `cache_hit = true` dan `total_bytes_billed = 0` (`ResultCache` dari materi 4, di warehouse sungguhan). Catat jumlah byte dan waktu Anda; belum ada nilai terukur yang dicantumkan di sini.
 
 ## @lesson Konektor Python ke warehouse, hierarki peran RBAC, mart rollup BI, serta tabel eksternal vs. native {optional}
 
@@ -737,7 +737,7 @@ Microsoft menerbitkan rencana migrasi dan *Fabric Migration Assistant* untuk mem
 - **Parameter dan variabel**: tanggal, path, dan nama environment, hal-hal yang berubah antar-run.
 - **Jadwal**: paket SSIS biasanya di-deploy ke katalog SSIS (`SSISDB`) dan dijalankan oleh job **SQL Server Agent**; periksa riwayat Agent sebelum mengubah apa pun.
 
-Paket SSIS adalah file `.dtsx`, yaitu XML: Anda bisa mencarinya dengan `grep` untuk nama tabel dan SQL, dan membandingkan dua versinya di Git. Untuk memigrasikannya, lakukan seperti pola strangler fig di Pelajaran 7: bangun ulang satu output setiap kali, jalankan yang lama dan yang baru berdampingan, bandingkan jumlah baris dan totalnya, dan pindah hanya ketika keduanya cocok. Konektor terkelola (Fivetran, Airbyte, copy activity Data Factory) hanya mengerjakan bagian *extract dan load*: transformasinya pindah ke SQL atau dbt.
+Paket SSIS adalah file `.dtsx`, yaitu XML: Anda bisa mencarinya dengan `grep` untuk nama tabel dan SQL, dan membandingkan dua versinya di Git. Untuk memigrasikannya, lakukan seperti pola strangler fig di Materi 7: bangun ulang satu output setiap kali, jalankan yang lama dan yang baru berdampingan, bandingkan jumlah baris dan totalnya, dan pindah hanya ketika keduanya cocok. Konektor terkelola (Fivetran, Airbyte, copy activity Data Factory) hanya mengerjakan bagian *extract dan load*: transformasinya pindah ke SQL atau dbt.
 
 > 🛠 **Coba sendiri (25 menit, SQL Server di Docker dari Modul 1.3).** Tutorial Microsoft *Incrementally copy a table using Azure portal* membangun pola ADF yang paling umum: dua activity **Lookup** membaca watermark lama (dari `watermarktable`) dan yang baru (`MAX(LastModifytime)` dari sumber), activity **Copy** menyalin baris dengan `LastModifytime > lama AND <= baru`, dan activity **Stored Procedure**, `usp_write_watermark`, menyimpan watermark baru. Buat `data_source_table` dari tutorial itu (5 orang, diubah 2017-09-01 sampai 2017-09-05), `watermarktable`-nya (mulai 2010-01-01), dan `usp_write_watermark` di database `kopiku` Anda. Lalu tulis `usp_run_pipeline @run_no` yang menjalankan keempat activity secara berurutan, menyalin ke tabel `sink_copy` yang mencatat `run_no`. Jalankan; tambahkan baris 6 (2017-09-06 02:23) dan 7 (2017-09-07 09:01) dari tutorial dan jalankan lagi; jalankan sekali lagi tanpa perubahan. Terakhir, sisipkan baris 8 dengan `LastModifytime` 2017-09-06 23:00, seolah-olah tertahan di suatu tempat, dan jalankan untuk keempat kalinya. Bandingkan baris di sumber dengan baris yang tersalin.
 >

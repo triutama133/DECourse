@@ -72,7 +72,7 @@ Hirarki pembagian kerja di Spark dibagi ke dalam lapisan-lapisan yang wajib Anda
 
 Sebagai contoh: sebuah DataFrame dengan 200 partisi yang dieksekusi di atas klaster dengan total 50 CPU cores akan menjalankan 50 task secara simultan, diselesaikan dalam empat "gelombang (waves)" eksekusi. Oleh karena itu, **jumlah dan ukuran partisi** adalah kenop kontrol paling vital di Spark: partisi yang terlalu sedikit membuat CPU cores menganggur tanpa pekerjaan, partisi yang terlalu banyak menghabiskan waktu sia-sia untuk overhead penjadwalan ribuan task mini, dan sedikit partisi berukuran raksasa (data skew) akan membuat seluruh klaster lumpuh menunggu satu worker lambat. Ukuran partisi yang sehat di lingkungan produksi berada di rentang **100 MB hingga 200 MB**.
 
-Cara kerja kode PySpark: Anda menulis ekspresi DataFrame atau query SQL di Python; instruksi tersebut langsung diterjemahkan menjadi rencana eksekusi JVM; task kemudian dieksekusi oleh engine JVM di dalam executor. Pustaka **PySpark** hanyalah lapisan tipis wrapper: operasi DataFrame standar tidak pernah mengeksekusi runtime Python terhadap baris data, itulah sebabnya performanya setara dengan Java murni. Kode Python baru benar-benar dieksekusi di executor saat Anda mendaftarkan fungsi kustom Python **UDF (User-Defined Function: dibahas di Pelajaran 7)**, yang membawa penalti serialisasi sangat berat.
+Cara kerja kode PySpark: Anda menulis ekspresi DataFrame atau query SQL di Python; instruksi tersebut langsung diterjemahkan menjadi rencana eksekusi JVM; task kemudian dieksekusi oleh engine JVM di dalam executor. Pustaka **PySpark** hanyalah lapisan tipis wrapper: operasi DataFrame standar tidak pernah mengeksekusi runtime Python terhadap baris data, itulah sebabnya performanya setara dengan Java murni. Kode Python baru benar-benar dieksekusi di executor saat Anda mendaftarkan fungsi kustom Python **UDF (User-Defined Function: dibahas di Materi 7)**, yang membawa penalti serialisasi sangat berat.
 
 > 🛠 **Coba sendiri (15 menit, Python).** Modelkan job dua stage dengan tangan: total `total_idr` per `payment_method` dari `data/orders.csv` (ambil hanya baris yang totalnya berupa digit semua, 3.580 baris). **Stage 1:** bagi barisnya menjadi 8 partisi dengan `rows[i::8]`; setiap task menghitung jumlah sebagian per metode pembayaran untuk partisinya sendiri. **Shuffle:** kirim setiap jumlah sebagian ke salah satu dari 4 partisi reduce yang dipilih dengan `zlib.crc32(key.encode()) % 4`. **Stage 2:** setiap dari 4 task reduce menjumlahkan jumlah sebagian yang diterimanya. Hitung task di setiap stage dan record yang melewati shuffle, lalu bandingkan hasilnya dengan `groupby` pandas.
 >
@@ -180,7 +180,7 @@ Baik Anda menulis query menggunakan DataFrame API maupun Spark SQL murni, seluru
 
 Keahlian membaca physical plan adalah kompetensi wajib data engineer senior: gunakan perintah `df.explain("formatted")` dan cermati (a) **tipe strategi join**, (b) node **Exchange** dan skema partisi hash-nya, (c) apakah **filter dan seleksi kolom didorong langsung ke dalam scan storage** (pushdown), serta (d) **jumlah partisi eksekusi**. Tab SQL pada antarmuka web Spark UI menampilkan diagram visual yang sama lengkap dengan jumlah baris nyata dan durasi waktu eksekusi setiap operator.
 
-**Catatan singkat sintaks Scala Spark:** Karena Spark sendiri ditulis dalam Scala, Anda akan sering membaca kode DataFrame Scala berdampingan dengan PySpark (Pelajaran 9 opsional membahas Scala dan Java secara lengkap). Waspadai satu jebakan umum: kesetaraan kolom di Scala memakai `===` (dan `=!=`), bukan `==`, menulis `orders.filter($"status" == "paid")` menghasilkan `Boolean` Scala biasa, bukan ekspresi `Column`, sehingga gagal dikompilasi.
+**Catatan singkat sintaks Scala Spark:** Karena Spark sendiri ditulis dalam Scala, Anda akan sering membaca kode DataFrame Scala berdampingan dengan PySpark (Materi 9 opsional membahas Scala dan Java secara lengkap). Waspadai satu jebakan umum: kesetaraan kolom di Scala memakai `===` (dan `=!=`), bukan `==`, menulis `orders.filter($"status" == "paid")` menghasilkan `Boolean` Scala biasa, bukan ekspresi `Column`, sehingga gagal dikompilasi.
 
 > 🛠 **Coba sendiri (10 menit, Python).** DuckDB punya optimizer dengan gagasan pushdown yang sama. Simpan `orders.parquet` seperti di Modul 2.1 dan jalankan `duckdb.sql("EXPLAIN SELECT payment_method, count(*) FROM 'orders.parquet' WHERE status = 'delivered' GROUP BY payment_method")`, lalu cetak teks rencananya (`.fetchall()[0][1]`). Lalu jelaskan `SELECT * FROM 'orders.parquet'`. Temukan node scan di keduanya dan baca `Projections` dan `Filters`-nya.
 >
@@ -575,7 +575,7 @@ revenue = (orders
 | `&&`, `\|\|`, `!` | `&`, `\|`, `~` | Python butuh kurung di setiap kondisi; Scala tidak. |
 | `.as("name")` | `.alias("name")` | Pada Dataset, `.as[Long]` (kurung siku) berbeda: ia mengubah tipe. |
 | `.desc` | `.desc()` | Scala membolehkan pemanggilan method tanpa argumen tanpa kurung. |
-| `o => o.totalIdr` | `lambda o: o.totalIdr` | Lambda Scala pada Dataset bertipe tidak terbaca oleh optimiser, sama seperti UDF Python (Pelajaran 7). |
+| `o => o.totalIdr` | `lambda o: o.totalIdr` | Lambda Scala pada Dataset bertipe tidak terbaca oleh optimiser, sama seperti UDF Python (Materi 7). |
 | `Dataset[Row]` = `DataFrame` | `DataFrame` | Python hanya punya versi tanpa tipe. |
 
 **Java** memakai API yang sama dengan lebih banyak kata: `Dataset<Row> df = spark.read().parquet(path);`, `col("status").notEqual("cancelled")`, dan `functions.sum("totalIdr")`. Nama method-nya sama; tanda bacanya yang berubah.
@@ -635,8 +635,8 @@ pytest labs/mod-3-1 -v       # seluruh pengujian akan gagal pada awalnya (membut
 - labs/mod-3-1/test_lab.py :: Suite pengujian otomatis (membangun dataset skew dan memverifikasi plan) :: test
 - labs/mod-3-1/requirements.txt :: Dependensi pyspark dan pytest :: config
 - labs/mod-3-1/reference/spark_lab.py :: Referensi solusi lengkap (jadikan pembanding setelah mencoba mandiri!) :: reference
-- labs/mod-3-1/scala/revenue_job.scala :: Contoh job Spark Scala untuk Pelajaran 9 opsional :: data
-- labs/mod-3-1/scala/typo_job.scala :: Job Scala Pelajaran 9 opsional dengan typo nama kolom untuk membaca stack trace JVM :: data
+- labs/mod-3-1/scala/revenue_job.scala :: Contoh job Spark Scala untuk Materi 9 opsional :: data
+- labs/mod-3-1/scala/typo_job.scala :: Job Scala Materi 9 opsional dengan typo nama kolom untuk membaca stack trace JVM :: data
 
 ### @deliverables
 - Seluruh 12 skenario pengujian di `test_lab.py` lulus dengan sukses

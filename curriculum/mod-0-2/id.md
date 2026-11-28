@@ -286,7 +286,7 @@ def repeated_ids(rows):
 > `grep -c ",-" data/orders.csv` (total bernilai minus/rusak)
 > `cat data/manifest.json` (JSON adalah teks kunci-nilai terstruktur yang dijelaskan di pelajaran berikut; `manifest.json` mencatat semua anomali yang ditanam generator)
 > **Seharusnya Anda melihat:** `37` untuk hitungan `Rp ` dan `17` untuk hitungan `,-`. `manifest.json` mencatat persis apa yang ditanam generator (misalnya `"formatted_total": 37` dan `"negative_total": 17`), jadi Anda bisa mencocokkan temuan Anda dengannya.
-> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Pelajaran 7 di bawah.
+> Anda sekarang melihat langsung apa yang dihadapi seorang data engineer di dunia nyata. Lanjut ke Materi 7 di bawah.
 
 ## @lesson Format data yang akan Anda temui
 Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-jam.
@@ -377,7 +377,7 @@ def parse_day(raw):
 > 2. Kerjakan `parse_ts(raw)`: coba kedua pola `datetime.strptime` di atas dan kembalikan teks ISO `"YYYY-MM-DDTHH:MM:SS"` atau `None`.
 > Uji kedua parser di terminal:
 > `pytest labs/mod-0-2/test_lab.py -v -k TestParsers`
-> Jika kedua tes parser PASSED, lanjut ke Pelajaran 8 dan Jeda Praktik 3 di bawah untuk menyelesaikan `clean_orders` dan `daily_revenue`.
+> Jika kedua tes parser PASSED, lanjut ke Materi 8 dan Jeda Praktik 3 di bawah untuk menyelesaikan `clean_orders` dan `daily_revenue`.
 
 ## @lesson Cara kerja kursus ini, dan data KopiKu
 Setiap modul punya empat bagian, dan sebaiknya dikerjakan berurutan:

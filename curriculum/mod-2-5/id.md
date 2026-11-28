@@ -417,7 +417,7 @@ Komunikasi bukan tambahan pelengkap dalam pekerjaan ini. "Komunikasi" atau "stak
 
 **Design doc** menyatakan apa yang akan Anda bangun dan, sama pentingnya, apa yang Anda tolak dan mengapa. Alternatif yang ditolak adalah hal pertama yang diperiksa reviewer, karena itu menunjukkan Anda memahami masalahnya, bukan sekadar meraih alat pertama yang Anda kenal. Tulis sebelum mengoding: mengubah satu paragraf butuh beberapa menit, mengubah pipeline butuh berminggu-minggu.
 
-**Kabar insiden** dikirim lebih awal dan diulang pada waktu yang tetap, bahkan ketika belum ada yang baru: apa yang salah, laporan dan tabel mana yang terdampak, apa yang sebaiknya dilakukan orang sementara itu, dan **ETA** (*estimated time of arrival*, perkiraan waktu perbaikan atau kabar berikutnya). Pelajaran 7 menjelaskan alasannya: kepercayaan bertahan dari bug yang diumumkan, bukan dari bug yang ketahuan sendiri.
+**Kabar insiden** dikirim lebih awal dan diulang pada waktu yang tetap, bahkan ketika belum ada yang baru: apa yang salah, laporan dan tabel mana yang terdampak, apa yang sebaiknya dilakukan orang sementara itu, dan **ETA** (*estimated time of arrival*, perkiraan waktu perbaikan atau kabar berikutnya). Materi 7 menjelaskan alasannya: kepercayaan bertahan dari bug yang diumumkan, bukan dari bug yang ketahuan sendiri.
 
 **Post-mortem** bersifat **blameless** (tanpa menyalahkan). "Kesalahan manusia" tidak pernah menjadi akar masalah: itu justru awal pertanyaan "apa yang membuat kesalahan satu orang bisa sampai ke laporan yang diterbitkan?" Engineer yang disalahkan akan menyembunyikan kesalahan berikutnya; tim yang bertanya apa yang diizinkan sistem akan memperbaiki sistemnya. Setiap tindak lanjut punya pemilik dan tanggal, atau ia tidak akan terjadi.
 
@@ -480,7 +480,7 @@ Expand, migrate, contract menjaga kedua kolom tetap hidup selama pemindahan, seh
 ## @part Etika dan produk data
 
 ## @lesson Etika data, re-identifikasi, dan data sebagai produk
-*Fundamentals of Data Engineering* menaruh **etika dan privasi** di bawah data management, undercurrent di setiap tahap: pertanyaannya bukan hanya "bolehkah menurut hukum?" tetapi "pantaskah, dan apa yang bisa salah bagi orang-orang di dalam data ini?" Pelajaran 8 membahas sisi hukumnya (pseudonimisasi, penghapusan menurut GDPR dan UU PDP Indonesia). Pelajaran ini membahas tiga hal yang tidak dikerjakan hukum untuk Anda.
+*Fundamentals of Data Engineering* menaruh **etika dan privasi** di bawah data management, undercurrent di setiap tahap: pertanyaannya bukan hanya "bolehkah menurut hukum?" tetapi "pantaskah, dan apa yang bisa salah bagi orang-orang di dalam data ini?" Materi 8 membahas sisi hukumnya (pseudonimisasi, penghapusan menurut GDPR dan UU PDP Indonesia). Pelajaran ini membahas tiga hal yang tidak dikerjakan hukum untuk Anda.
 
 :::talk Tanpa nama, jadi tidak ada yang bisa menemukannya?
 @teacher Anda membagikan tabel pelanggan dengan nama dan email dihapus. Isinya hanya `city`, `tier`, dan `signup_date` yang persis. Pada data nyata 1.000 pelanggan, 846 di antaranya adalah satu-satunya orang dengan kombinasi ketiga nilai itu. Seorang tetangga tahu Anda tinggal di Bandung, anggota Gold, dan mendaftar pada 14 Januari.
@@ -503,8 +503,8 @@ Ini keputusan engineering sama banyaknya dengan keputusan hukum: kolom yang Anda
 
 **3. Data sebagai produk.** Data mesh (Modul 2.6) menyerahkan kepemilikan data kepada tim domain, dan salah satu prinsipnya adalah *data as a product*: perlakukan dataset yang diterbitkan sebagai **produk data**, sesuatu yang punya pengguna, pemilik, dan janji, seperti produk lainnya. Sebuah tabel menjadi produk ketika ia punya:
 - **pemilik** yang menjawab pertanyaan dan memperbaikinya;
-- **kontrak**: skema, grain, arti setiap kolom, dan apa yang tidak akan pernah berubah tanpa pemberitahuan (Pelajaran 3 modul ini);
-- **service level**: seberapa segar dan paling lambat kapan (Pelajaran 6 modul ini);
+- **kontrak**: skema, grain, arti setiap kolom, dan apa yang tidak akan pernah berubah tanpa pemberitahuan (Materi 3 modul ini);
+- **service level**: seberapa segar dan paling lambat kapan (Materi 6 modul ini);
 - **dokumentasi** dan tempat di katalog, agar orang bisa menemukannya tanpa bertanya kepada Anda;
 - **konsumen** yang diketahui, agar perubahan bisa diumumkan kepada orang yang terdampak.
 
@@ -529,7 +529,7 @@ Kombinasi kolom biasa bisa unik bagi satu orang, dan menggabungkannya dengan dat
 
 Sebagian besar pipeline yang gagal di dunia kerja bukan rusak karena salah ketik sintaks, melainkan karena data engineer langsung menulis SQL atau Python sebelum menyepakati arti bisnis data tersebut bersama stakeholder. Ketika VP Operations mengirim pesan Slack, *"Bisa buatkan tabel layanan pelanggan dan retensi hari Jumat ini?"*, langsung membuka editor kode tanpa klarifikasi hampir pasti berujung pada bongkar-pasang ulang.
 
-Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.2, Pelajaran 4).
+Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan singkat**, disepakati bersama orang yang meminta, sebelum satu tabel pun dibuat. *Fundamentals of Data Engineering* menaruh gagasan yang sama di awal siklus hidup: cari tahu dulu siapa stakeholder-nya dan apa yang akan mereka lakukan dengan data itu (Modul 0.2, Materi 4).
 
 | Dokumen | Pertanyaan yang Dijawab | Contoh Nyata di KopiKu |
 |---|---|---|

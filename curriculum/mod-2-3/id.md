@@ -51,7 +51,7 @@ select
 from {{ ref('stg_customers') }}
 ```
 
-Sintaks kurung kurawal ganda `{{ ... }}` adalah **Jinja**, bahasa templating yang dievaluasi oleh dbt sebelum SQL dikirim ke engine. Ada dua bentuk kurung Jinja yang dipakai di model dbt: `{{ ... }}` menghitung lalu mencetak ekspresi ke dalam SQL (seperti `{{ ref('stg_customers') }}` atau `{{ source(...) }}`), sedangkan `{% ... %}` menjalankan alur kontrol template seperti `{% if is_incremental() %}` (Pelajaran 5). Pemanggilan `ref('stg_customers')` menjalankan dua fungsi krusial: pertama, menerjemahkan nama tabel menjadi nama fisik yang sesuai dengan lingkungan saat ini (`dev_alice.stg_customers` atau `analytics.stg_customers`), dan kedua, mencatat dependensi ke dalam DAG sehingga dbt menjamin model `stg_customers` selesai dibangun sebelum `dim_customers` mulai dieksekusi.
+Sintaks kurung kurawal ganda `{{ ... }}` adalah **Jinja**, bahasa templating yang dievaluasi oleh dbt sebelum SQL dikirim ke engine. Ada dua bentuk kurung Jinja yang dipakai di model dbt: `{{ ... }}` menghitung lalu mencetak ekspresi ke dalam SQL (seperti `{{ ref('stg_customers') }}` atau `{{ source(...) }}`), sedangkan `{% ... %}` menjalankan alur kontrol template seperti `{% if is_incremental() %}` (Materi 5). Pemanggilan `ref('stg_customers')` menjalankan dua fungsi krusial: pertama, menerjemahkan nama tabel menjadi nama fisik yang sesuai dengan lingkungan saat ini (`dev_alice.stg_customers` atau `analytics.stg_customers`), dan kedua, mencatat dependensi ke dalam DAG sehingga dbt menjamin model `stg_customers` selesai dibangun sebelum `dim_customers` mulai dieksekusi.
 
 > 🛠 **Coba sendiri (10 menit, Python).** Tulis empat "model" sebagai string SQL di sebuah dict Python: `stg_orders` (`select * from raw.orders`), `stg_customers` (`select * from raw.customers`), `fct_orders` (join dari `{{ ref('stg_orders') }}` dan `{{ ref('stg_customers') }}`), dan `mart_daily` (sebuah `group by` atas `{{ ref('fct_orders') }}`). Ambil dependensi setiap model dengan `re.findall(r"ref\('(\w+)'\)", sql)`, cetak dict dependensinya, dan cetak urutan build dengan `list(graphlib.TopologicalSorter(graph).static_order())`. Lalu tambahkan `{{ ref('mart_daily') }}` di dalam `stg_customers` dan jalankan lagi.
 >
@@ -207,7 +207,7 @@ incremental
 
 > 💡 **Jeda Praktik 2 (Membangun Model Staging & Mart Inti):**
 > 1. Buka teks editor Anda (VS Code / Cursor), lalu buka dan implementasikan keempat model staging di `labs/mod-2-3/kopiku_dbt/models/staging/`: `stg_orders.sql`, `stg_customers.sql`, `stg_order_items.sql`, dan `stg_products.sql` (ikuti komentar `-- TODO` di tiap file; gunakan CTE `ranked` dengan `row_number() over (partition by ... order by _loaded_at desc)` untuk `stg_orders` dan `stg_customers`, dan jangan mengeksekusi file `.sql` langsung di bash terminal).
-> 2. Implementasikan dua model mart non-inkremental di `labs/mod-2-3/kopiku_dbt/models/marts/`: `dim_customers.sql` dan `fct_order_items.sql` (biarkan `fct_daily_revenue.sql` untuk Pelajaran 5).
+> 2. Implementasikan dua model mart non-inkremental di `labs/mod-2-3/kopiku_dbt/models/marts/`: `dim_customers.sql` dan `fct_order_items.sql` (biarkan `fct_daily_revenue.sql` untuk Materi 5).
 > 3. Jalankan kompilasi dan materialisasi lapisan staging beserta kedua mart tersebut:
 >    `dbt run --exclude fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
 > 4. **Indikator Sukses:** Log dbt menampilkan status `OK` untuk keempat view staging (`main.stg_orders`, `main.stg_customers`, `main.stg_order_items`, `main.stg_products`) dan kedua tabel mart (`main.dim_customers`, `main.fct_order_items`) tanpa syntax error.
@@ -427,7 +427,7 @@ SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loade
 > 3. Deklarasikan `ref('stg_orders')` dan `ref('fct_order_items')` di luar blok `{% if is_incremental() %}` lalu saring tanggal yang terdampak oleh `_loaded_at > (select max(max_loaded_at) from {{ this }})` (bukan memfilter `order_date`).
 > 4. Uji eksekusi awal di terminal (dengan model staging, `dim_customers`, dan `fct_order_items` sudah terbangun):
 >    `dbt run --select +fct_daily_revenue --project-dir labs/mod-2-3/kopiku_dbt --profiles-dir labs/mod-2-3/kopiku_dbt`
-> 5. **Indikator Sukses:** `OK created sql incremental model main.fct_daily_revenue`. Perintah itu memilih model tersebut beserta semua yang menjadi dependensinya. Setelah Anda menambahkan snapshot di Pelajaran 6 dan seluruh 13 tes `pytest` lulus, catat bukti penyelesaian Anda dengan `python3 scripts/prove.py mod-2-3`.
+> 5. **Indikator Sukses:** `OK created sql incremental model main.fct_daily_revenue`. Perintah itu memilih model tersebut beserta semua yang menjadi dependensinya. Setelah Anda menambahkan snapshot di Materi 6 dan seluruh 13 tes `pytest` lulus, catat bukti penyelesaian Anda dengan `python3 scripts/prove.py mod-2-3`.
 
 ## @lesson Snapshots, macros, dan integrasi CI/CD
 :::talk Dua putaran di antara dua snapshot

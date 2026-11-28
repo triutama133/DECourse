@@ -162,7 +162,7 @@ Pengujian late-event di lab modul ini menunjukkan sisi sebaliknya: setelah windo
 
 ### Lihat sendiri: watermark menentukan apa yang terlalu terlambat
 
-`watermark = waktu event terbaru yang sudah terlihat, dikurangi delay watermark` (sering disebut *allowed lateness* dalam contoh sederhana; perhatikan bahwa delay `withWatermark` di Spark mengendalikan kapan window ditutup dan datanya dibuang, sedangkan Apache Flink memiliki pengaturan *allowed lateness* terpisah untuk memperbarui window yang sudah dipancarkan, yang dibahas di Pelajaran 4). Event yang lebih lama dari watermark dianggap terlambat. Perhatikan ia bergerak (batas keterlambatan 5):
+`watermark = waktu event terbaru yang sudah terlihat, dikurangi delay watermark` (sering disebut *allowed lateness* dalam contoh sederhana; perhatikan bahwa delay `withWatermark` di Spark mengendalikan kapan window ditutup dan datanya dibuang, sedangkan Apache Flink memiliki pengaturan *allowed lateness* terpisah untuk memperbarui window yang sudah dipancarkan, yang dibahas di Materi 4). Event yang lebih lama dari watermark dianggap terlambat. Perhatikan ia bergerak (batas keterlambatan 5):
 
 :::trace Watermark bergerak, event terlambat dialihkan
 @code

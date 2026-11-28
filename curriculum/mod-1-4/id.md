@@ -56,7 +56,7 @@ Perancangan star schema selalu dilakukan melalui empat langkah berurutan. Melewa
 
 Tingkat konseptual adalah tempat kesalahan mahal ditangkap dengan murah: "bisakah satu pesanan milik dua pelanggan?" adalah obrolan dua menit di papan tulis, dan migrasi dua minggu setelah tabelnya ada. Empat langkah di atas (proses, grain, dimensi, fakta) adalah desain logis untuk analitik; satu model logis lalu bisa punya beberapa versi fisik, satu per engine.
 
-Tingkat fisik berbeda antar-engine lebih jauh daripada yang dikira kebanyakan orang. Database aplikasi seperti SQLite atau PostgreSQL **menegakkan** kunci: baris yang salah ditolak. Cloud warehouse umumnya **tidak**: di tabel standar Snowflake, `PRIMARY KEY`, `FOREIGN KEY`, dan `UNIQUE` berstatus "optional, not enforced" (hanya `NOT NULL` dan `CHECK` yang ditegakkan), dan dokumentasi BigQuery memperingatkan bahwa "key constraints aren't enforced" dan query atas tabel yang constraint-nya dilanggar "might return incorrect results", karena optimizer memercayai kunci yang Anda deklarasikan. Di warehouse, tes di pelajaran 6 mengerjakan tugas yang di aplikasi dikerjakan constraint.
+Tingkat fisik berbeda antar-engine lebih jauh daripada yang dikira kebanyakan orang. Database aplikasi seperti SQLite atau PostgreSQL **menegakkan** kunci: baris yang salah ditolak. Cloud warehouse umumnya **tidak**: di tabel standar Snowflake, `PRIMARY KEY`, `FOREIGN KEY`, dan `UNIQUE` berstatus "optional, not enforced" (hanya `NOT NULL` dan `CHECK` yang ditegakkan), dan dokumentasi BigQuery memperingatkan bahwa "key constraints aren't enforced" dan query atas tabel yang constraint-nya dilanggar "might return incorrect results", karena optimizer memercayai kunci yang Anda deklarasikan. Di warehouse, tes di materi 6 mengerjakan tugas yang di aplikasi dikerjakan constraint.
 
 > 🛠 **Coba sendiri (15 menit, Python).** Ubah model logis di atas menjadi model fisik di SQLite dengan `sqlite3`: tabel `customers`, `products`, `orders`, dan `order_items`, dengan primary key, foreign key (`REFERENCES`), `NOT NULL`, dan `CHECK (qty > 0)`. Jalankan `PRAGMA foreign_keys = ON` lebih dulu. Masukkan 11 baris ini satu per satu dan tangkap `sqlite3.IntegrityError`: customers `(1,'Ani','Bandung','Gold')` dan `(2,'Budi','Surabaya','Bronze')`; products `(10,'Gayo')` dan `(11,'Toraja')`; orders `(100,1)`, `(101,2)`, `(102,99)`; order items `(100,10,2)`, `(100,11,1)`, `(100,10,1)`, `(101,11,-1)`. Hitung baris yang tersimpan. Lalu jalankan lagi tanpa `PRAGMA`, dan sekali lagi tanpa constraint sama sekali.
 >
@@ -185,7 +185,7 @@ tabelnya menjadi star schema yang benar
 Masalah satu tabel besar sebagai **satu-satunya** model bukan ukurannya: ia menyembunyikan grain, membuat pembaruan mahal, dan mengundang setiap tim mendefinisikan sesuatu secara berbeda. Bangun ia **dari** star sebagai lapisan kemudahan, bukan sebagai penggantinya.
 :::
 
-Di warehouse, setiap baris dimensi biasanya diberi id integer buatan warehouse yang disebut **surrogate key** (misalnya `product_sk`), sambil tetap menyimpan id asli dari sistem sumber (**natural key**, misalnya `product_id`) sebagai kolom biasa, Pelajaran 4 menjelaskan alasannya secara rinci.
+Di warehouse, setiap baris dimensi biasanya diberi id integer buatan warehouse yang disebut **surrogate key** (misalnya `product_sk`), sambil tetap menyimpan id asli dari sistem sumber (**natural key**, misalnya `product_id`) sebagai kolom biasa, Materi 4 menjelaskan alasannya secara rinci.
 
 :::drill sql Dimensi produk dengan surrogate key
 Bangun dimensi produk kecil: `product_sk` (surrogate key: 1, 2, 3... menurut urutan `product_id`), `product_id` (natural key, disimpan sebagai kolom biasa), dan `name`.
@@ -208,7 +208,7 @@ SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name F
 > 2. Selesaikan tantangan `d-4`: Bangkitkan 7 hari kalender tanpa celah mulai `2026-01-01` menggunakan `WITH RECURSIVE`. Hitung `date_key` integer (YYYYMMDD), `full_date`, `day_name` (nama hari dalam bahasa Inggris: `Sunday`–`Saturday`), dan flag `is_weekend` (1 untuk Sabtu dan Minggu).
 > 3. Uji di terminal:
 > `python3 labs/mod-1-4/check.py`
-> Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Pelajaran 4 & 5 tentang kunci dan dimensi Slowly Changing Dimensions (SCD).
+> Ketika tantangan d-4 lulus (PASS), Anda telah memahami cara membuat kalender analitik! Lanjut ke Materi 4 & 5 tentang kunci dan dimensi Slowly Changing Dimensions (SCD).
 
 ## @lesson Pengelolaan kunci: surrogate key dan anggota unknown
 **Natural key (business key)** berasal langsung dari sistem sumber (`customer_id`, `product_id`). **Surrogate key** adalah bilangan bulat (integer) tanpa makna bisnis yang diterbitkan sendiri oleh gudang data (`customer_sk`). Tabel fakta wajib melakukan join ke dimensi menggunakan surrogate key. Alasannya sangat mendasar:
@@ -398,7 +398,7 @@ SELECT tier FROM dim_customer WHERE customer_id = 1 AND '2026-01-15 00:00:00' >=
 >    - `d-3`: Agregasikan total omset per tier pelanggan saat transaksi dan pastikan tidak terjadi duplikasi baris fan-out.
 > 2. Uji di terminal:
 > `python3 labs/mod-1-4/check.py`
-> Ketika semua 4 tantangan `d-1` sampai `d-4` berstatus PASS (4/4 correct), pemahaman SCD Anda sudah solid! Lanjut ke Pelajaran 6 untuk pengujian dan perakitan skema bintang.
+> Ketika semua 4 tantangan `d-1` sampai `d-4` berstatus PASS (4/4 correct), pemahaman SCD Anda sudah solid! Lanjut ke Materi 6 untuk pengujian dan perakitan skema bintang.
 
 ## @lesson Menjamin keandalan model: pengujian, alat, dan implementasi modern
 Model data adalah kode program dan wajib memiliki rangkaian pengujian otomatis (automated testing). Kumpulan pengujian minimum yang wajib diterapkan (dan seluruhnya diuji dalam lab ini):
@@ -432,7 +432,7 @@ Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh 
 > 3. Tulis DDL & DML untuk 4 tabel: `dim_date` (tanpa celah), `dim_product` (surrogate key), `dim_customer` (SCD Tipe 2 dengan anggota unknown `customer_sk = -1`), dan `fact_order_items` (grain item pesanan dengan as-of join).
 > 4. Uji seluruh integritas skema bintang di terminal:
 > `python3 labs/mod-1-4/test_lab.py -v`
-> 5. Karena `test_lab.py` berjalan di `:memory:`, tulis tabel `dim_*` dan `fact_order_items` yang sesungguhnya ke file `warehouse.db` di disk (diperlukan untuk query interaktif atau Metabase di Pelajaran 8):
+> 5. Karena `test_lab.py` berjalan di `:memory:`, tulis tabel `dim_*` dan `fact_order_items` yang sesungguhnya ke file `warehouse.db` di disk (diperlukan untuk query interaktif atau Metabase di Materi 8):
 > `python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"` (atau `sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql`)
 > Ketika ke-13 unit test berakhir dengan `ok` dan baris terakhir berbunyi `OK`, star schema KopiKu Anda telah memenuhi standar enterprise!
 
@@ -526,7 +526,7 @@ Alat-alat itu berbeda di layarnya, bukan di langkah-langkah ini. Pelajari langka
 
 **Tiga aturan yang menjaga angka dashboard tetap benar.** Ketiganya langsung dari modul ini, dan itulah yang akan ditanyakan kepada Anda ketika sebuah angka tampak salah:
 1. **Agregasikan pada grain yang tepat.** Tabel fakta berisi satu baris per *baris* pesanan. "Rata-rata nilai pesanan" adalah total pendapatan dibagi jumlah *pesanan*; merata-ratakan total per baris memberi rata-rata per *baris*, angka yang berbeda dan lebih kecil.
-2. **Pakai riwayat yang disimpan model.** Pendapatan per tier pelanggan harus memakai tier *pada saat pembelian* (kunci SCD Type 2 di tabel fakta, pelajaran 5), bukan tier pelanggan saat ini.
+2. **Pakai riwayat yang disimpan model.** Pendapatan per tier pelanggan harus memakai tier *pada saat pembelian* (kunci SCD Type 2 di tabel fakta, materi 5), bukan tier pelanggan saat ini.
 3. **Rekonsiliasi.** Setiap angka di dashboard harus sama dengan query SQL yang bisa Anda jalankan sendiri. Jika berbeda, salah satunya keliru, dan Anda perlu tahu yang mana sebelum orang lain tahu.
 
 Dua kebiasaan lagi: tampilkan kapan data terakhir diperbarui, dan jangan pernah membandingkan hari, minggu, atau bulan yang belum selesai dengan yang sudah selesai.
@@ -611,7 +611,7 @@ python3 -m sqlite3 warehouse.db "select name from sqlite_master where type = 'ta
 python3 labs/mod-1-4/test_lab.py -v
 ```
 
-7. Isi `warehouse.db` di disk. Karena `test_lab.py` berjalan di `:memory:`, jalankan skrip `warehouse.sql` Anda terhadap `warehouse.db` agar tabel `dim_*` dan `fact_order_items` yang sesungguhnya tersimpan (diperlukan untuk query interaktif atau Metabase di Pelajaran 8):
+7. Isi `warehouse.db` di disk. Karena `test_lab.py` berjalan di `:memory:`, jalankan skrip `warehouse.sql` Anda terhadap `warehouse.db` agar tabel `dim_*` dan `fact_order_items` yang sesungguhnya tersimpan (diperlukan untuk query interaktif atau Metabase di Materi 8):
 
 ```bash
 python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"
@@ -751,7 +751,7 @@ Tentukan secara sadar untuk setiap atribut dimensi apakah histori masa lalunya b
 - [ ] Ia hanya salah jika ada pesanan yang batal, karena AVG diam-diam melewati setiap baris yang dibatalkan
 - [ ] AVG tidak bisa dipakai untuk uang dalam rupiah, sehingga database membulatkan jawabannya
 
-> Rata-rata nilai pesanan adalah total pendapatan dibagi jumlah pesanan yang berbeda. Pada warehouse KopiKu, AVG atas baris memberi 169.700 dibanding 337.457 per pesanan (pelajaran 8).
+> Rata-rata nilai pesanan adalah total pendapatan dibagi jumlah pesanan yang berbeda. Pada warehouse KopiKu, AVG atas baris memberi 169.700 dibanding 337.457 per pesanan (materi 8).
 
 ## @resources
 - [Kimball Group: dimensional modeling techniques](https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/dimensional-modeling-techniques/)

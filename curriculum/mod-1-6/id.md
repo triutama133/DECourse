@@ -115,7 +115,7 @@ except urllib.error.URLError as e:                   # masalah koneksi atau time
 > 2. Implementasikan fungsi `build_request(url, token, params=None)`: buang parameter bernilai None, urutkan nama parameter dengan `urllib.parse.urlencode` (agar URL selalu konsisten), dan pasang header `Authorization: Bearer <token>` serta `Accept: application/json`.
 > 3. Uji di terminal (jika `pytest` belum terpasang, jalankan `pip install -r labs/mod-1-6/requirements.txt` sekali):
 > `pytest labs/mod-1-6/test_lab.py -k TestBuildRequest -v`
-> Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Pelajaran 3 untuk menangani pagination dan retry jaringan!
+> Ketika tes TestBuildRequest berstatus PASSED, lanjut ke Materi 3 untuk menangani pagination dan retry jaringan!
 
 > 🛠 **Coba sendiri (10 menit, praktik langsung).** Jalankan API latihan di terminal kedua dan biarkan menyala: `python3 labs/mod-1-6/fakeapi.py` (isinya 25 pesanan; tokennya `learner-token`; docstring file itu mendaftar endpoint-nya).
 > 1. Di terminal pertama: `curl -i "localhost:8765/orders?limit=3"`. Status apa yang Anda dapat, dan mengapa?
@@ -178,7 +178,7 @@ Di lab Anda menguji semua ini terhadap **server HTTP sungguhan yang berjalan di 
 >    - `fetch_all_offset(...)`: loop pagination offset sampai jumlah record halaman < limit.
 > 2. Uji di terminal:
 > `pytest labs/mod-1-6/test_lab.py -k "TestBackoff or TestGetJson or TestPagination" -v`
-> Ketika tes PASSED, lanjut ke Pelajaran 4 untuk mekanisme checkpoint pemuatan bertahap!
+> Ketika tes PASSED, lanjut ke Materi 4 untuk mekanisme checkpoint pemuatan bertahap!
 
 > 🛠 **Coba sendiri (15 menit, praktik langsung).** Biarkan API latihan tetap menyala. Mulai setiap langkah dari keadaan bersih dengan `curl localhost:8765/reset`.
 > 1. *Halaman offset bergeser.* Baca halaman 1 dengan `curl -H "Authorization: Bearer learner-token" "localhost:8765/orders_offset?limit=10&offset=0"`. Sekarang biarkan 3 pesanan baru datang (`http://localhost:8765/arrive?n=3`, header yang sama). Baca halaman 2 dengan `offset=10`. Id mana di halaman 2 yang sudah ada di halaman 1?
@@ -384,7 +384,7 @@ def latest(rows):
 >    - `save(value)`: tulis `{"value": value}` ke file temporary di folder yang sama lalu tukar atomik dengan `os.replace()` agar crash tidak pernah merusak state.
 > 2. Uji di terminal:
 > `pytest labs/mod-1-6/test_lab.py -k TestCheckpoint -v`
-> Ketika tes TestCheckpoint PASSED, lanjut ke Pelajaran 5 untuk perataan skema data mentah dan schema drift!
+> Ketika tes TestCheckpoint PASSED, lanjut ke Materi 5 untuk perataan skema data mentah dan schema drift!
 
 > 🛠 **Coba sendiri (15 menit, praktik langsung).** Tulis `load.py` untuk API latihan: baca pesanan dengan cursor (`limit=5`) dan tambahkan ke `out.jsonl`; **setelah** setiap halaman ditulis, simpan `{"cursor": ...}` ke `checkpoint.json` (tulis file sementara, lalu `os.replace`). Saat skrip mulai, ia melanjutkan dari `checkpoint.json` jika file itu ada. Taruh `time.sleep(1)` **di antara** menulis halaman ke `out.jsonl` dan menyimpan `checkpoint.json`, agar menekan Ctrl+C saat jeda secara konsisten menangkap halaman yang sudah tertulis tetapi belum di-checkpoint.
 > 1. Jalankan `curl localhost:8765/reset`, lalu mulai `load.py` dan tekan Ctrl+C setelah kira-kira dua halaman. Bandingkan `wc -l out.jsonl` dengan cursor di `checkpoint.json`: mengapa file bisa berisi lebih banyak baris daripada yang dikatakan checkpoint?
@@ -419,7 +419,7 @@ Kebiasaan landing yang baik:
 >    - `detect_schema_drift(expected, records)`: bandingkan record masuk terhadap skema ekspektasi dan laporkan kolom baru (`new_columns`), kolom hilang (`missing_columns`), serta anomali perubahan tipe data (`type_changes`).
 > 2. Uji di terminal:
 > `pytest labs/mod-1-6/test_lab.py -k "TestFlatten or TestSchemaDrift" -v`
-> Ketika tes PASSED, lanjut ke Pelajaran 6 untuk merangkai pipeline ingestion inkremental penuh!
+> Ketika tes PASSED, lanjut ke Materi 6 untuk merangkai pipeline ingestion inkremental penuh!
 
 > 🛠 **Coba sendiri (10 menit, praktik langsung).** Dengan API latihan menyala, ambil satu pesanan yang datanya bersarang: `curl -H "Authorization: Bearer learner-token" localhost:8765/orders/1`.
 > 1. Tulis `flatten(record)` di `flat.py`: objek bersarang menjadi kolom yang dinamai menurut jalurnya (`customer_address_city`), list disimpan sebagai teks JSON (boleh memakai `json.dumps(value)` maupun `json.dumps(value, sort_keys=True)`). Kode Anda harus lulus pemeriksaan ini (`order1` adalah JSON dari `/orders/1` yang sudah di-parse):
@@ -588,7 +588,7 @@ Bab 7 *Fundamentals of Data Engineering* mendaftar cara-cara data sampai ke sebu
 
 **1. Koneksi database langsung: ODBC dan JDBC.** Saat Anda membaca database sumber dengan `psycopg` atau SQLAlchemy, sebuah **driver** mengubah query Anda menjadi protokol jaringan database itu. **ODBC** (untuk C dan sebagian besar bahasa) dan **JDBC** (untuk Java, dan karena itu untuk Spark) adalah antarmuka driver standar: `spark.read.jdbc(...)` milik Spark, Power BI, SSIS, dan Data Factory semuanya terhubung lewat keduanya. Aturannya sama dengan API: baca dari **replica**, bukan primary yang melayani pelanggan; tarik per halaman atau per rentang, bukan satu `SELECT *` raksasa; dan untuk apa pun yang besar atau sering, pilih change data capture (Modul 3.2) daripada pembacaan penuh berulang.
 
-**2. File drop lewat SFTP.** Banyak mitra masih mengirim file setiap malam ke server **SFTP** (transfer file lewat SSH): rekening koran bank, daftar harga pemasok, laporan settlement penyedia pembayaran. Mitra menulis file-nya, Anda mengambilnya. Jebakannya sama dengan Pelajaran 6 modul ini, ditambah tiga milik sendiri: tunggu sampai file lengkap (mitra sering mengunggah `x.csv.tmp` lalu me-rename-nya, atau mengirim file penanda `.done`), jangan pernah memproses file yang sama dua kali (simpan daftar nama dan checksum yang sudah diproses), dan ketahui siapa yang harus dihubungi ketika file tidak datang. Autentikasi dengan SSH key, bukan password.
+**2. File drop lewat SFTP.** Banyak mitra masih mengirim file setiap malam ke server **SFTP** (transfer file lewat SSH): rekening koran bank, daftar harga pemasok, laporan settlement penyedia pembayaran. Mitra menulis file-nya, Anda mengambilnya. Jebakannya sama dengan Materi 6 modul ini, ditambah tiga milik sendiri: tunggu sampai file lengkap (mitra sering mengunggah `x.csv.tmp` lalu me-rename-nya, atau mengirim file penanda `.done`), jangan pernah memproses file yang sama dua kali (simpan daftar nama dan checksum yang sudah diproses), dan ketahui siapa yang harus dihubungi ketika file tidak datang. Autentikasi dengan SSH key, bukan password.
 
 **3. EDI: dokumen bisnis antarperusahaan.** **Electronic Data Interchange** adalah cara perusahaan besar bertukar purchase order, invoice, dan pemberitahuan pengiriman jauh sebelum ada API. File EDI adalah teks yang terdiri dari **segmen** yang diakhiri `~`, dengan **elemen** yang dipisahkan `*`. Dalam standar AS ANSI X12, purchase order adalah transaction set **850**: `BEG` memuat nomor dan tanggal pesanan, setiap `PO1` adalah satu baris (jumlah, satuan, harga, kode produk), `CTT` menyatakan berapa barisnya, dan `SE` menyatakan berapa segmen dokumen itu. Kedua hitungan itu adalah checksum milik file itu sendiri: parser yang tidak membandingkannya akan memuat pesanan yang terpotong tanpa sadar. (Eropa dan sebagian besar Asia memakai UN/EDIFACT, dengan nama segmen yang berbeda dan gagasan yang sama.)
 
@@ -781,7 +781,7 @@ Checkpoint hanya boleh menggambarkan data yang sudah tersimpan dengan aman. Atur
 - [ ] Server menutup koneksi, karena klien tidak boleh membaca feed saat baris sedang ditambahkan
 - [ ] Halaman berikutnya kosong, karena record baru membuat offset sebelumnya tidak valid bagi semua klien
 
-> Penyisipan menggeser offset berikutnya. Pada contoh Pelajaran 3, 25 pesanan asli terambil sebagai 28 baris (dengan 3 duplikat). Pagination cursor (keyset) menghindarinya.
+> Penyisipan menggeser offset berikutnya. Pada contoh Materi 3, 25 pesanan asli terambil sebagai 28 baris (dengan 3 duplikat). Pagination cursor (keyset) menghindarinya.
 
 ### Apa urutan yang benar untuk satu putaran inkremental?
 - [ ] Simpan checkpoint baru, lalu ambil data, lalu tulis, agar putaran berikutnya mulai secepat mungkin

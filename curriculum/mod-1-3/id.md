@@ -149,7 +149,7 @@ SELECT order_id, customer_id, COUNT(*) OVER (PARTITION BY customer_id) AS custom
 >    - `w-7`: Bagi seluruh pesanan menjadi 4 kuartil seimbang (`NTILE(4) OVER (ORDER BY order_total, order_id)`).
 > 3. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
-> Ketika w-4, w-5, dan w-7 berstatus PASS, lanjut ke Pelajaran 2 untuk memahami frame dan running total!
+> Ketika w-4, w-5, dan w-7 berstatus PASS, lanjut ke Materi 2 untuk memahami frame dan running total!
 
 ## @lesson Frame, total berjalan, dan jebakan frame bawaan
 Untuk agregat yang dipakai sebagai window function (`SUM`, `AVG`, `COUNT`, `MIN`, `MAX`), **frame** menyatakan baris mana yang disertakan. Bentuknya:
@@ -255,7 +255,7 @@ SELECT store, day, AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWE
 >    - `w-6`: Rata-rata bergerak 7 hari per toko (`AVG(revenue) OVER (PARTITION BY store ORDER BY day ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`).
 > 2. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
-> Ketika w-1 dan w-6 PASS, lanjut ke Pelajaran 3 untuk melihat data tetangga dengan LAG/LEAD!
+> Ketika w-1 dan w-6 PASS, lanjut ke Materi 3 untuk melihat data tetangga dengan LAG/LEAD!
 
 ## @lesson Melihat ke samping: LAG, LEAD, terbaru-per-kunci, dan top-N
 `LAG(x, n)` mengembalikan nilai dari `n` baris sebelumnya dalam partisi, `LEAD(x, n)` dari `n` baris sesudahnya; keduanya mengembalikan NULL di tepi (atau nilai bawaan yang Anda berikan). Keduanya menjawab "dibanding baris sebelumnya":
@@ -347,7 +347,7 @@ WITH ranked AS (SELECT roast, name, ROW_NUMBER() OVER (PARTITION BY roast ORDER 
 >    - `w-3`: Hitung jeda hari sejak pesanan sebelumnya menggunakan `LAG(order_date)` dan selisih `julianday`.
 > 2. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
-> Ketika w-2 dan w-3 PASS, Anda telah menguasai pola deduplikasi inti data engineering! Lanjut ke Pelajaran 4 tentang gaps & islands.
+> Ketika w-2 dan w-3 PASS, Anda telah menguasai pola deduplikasi inti data engineering! Lanjut ke Materi 4 tentang gaps & islands.
 
 ## @lesson Gaps, islands, dan sesi
 Dua masalah klasik menunjukkan bagaimana window function digabungkan.
@@ -482,7 +482,7 @@ WITH flagged AS (SELECT user_id, login_date, CASE WHEN LAG(login_date) OVER (PAR
 >    - `ch-4`: Analisis sesi klik web (sessionization) dengan menandai jarak > 30 menit lewat `LAG` lalu akumulasikan session ID dengan `SUM()`.
 > 2. Uji di terminal:
 > `python3 labs/mod-1-3/check.py`
-> Ketika ch-3 dan ch-4 PASS, lanjut ke Pelajaran 5 untuk menelusuri hierarki dengan CTE rekursif!
+> Ketika ch-3 dan ch-4 PASS, lanjut ke Materi 5 untuk menelusuri hierarki dengan CTE rekursif!
 
 ## @lesson CTE rekursif: hierarki dan urutan
 Sebagian data berupa pohon atau graf: pohon kategori, bagan organisasi, bill of materials. Kedalamannya tidak diketahui, sehingga self-join dalam jumlah tetap tidak bisa menelusurinya. **CTE rekursif** bisa:
@@ -581,7 +581,7 @@ WITH RECURSIVE sub AS (SELECT id FROM categories WHERE id = 3 UNION ALL SELECT c
 >    - `w-8`: Bangun pohon kategori produk KopiKu dengan `WITH RECURSIVE`: tentukan anchor akar (`parent_id IS NULL`), sambungkan ke node turunan, hitung kedalaman `depth`, dan rangkai string `path`.
 > 2. Uji seluruh Bagian A di terminal:
 > `python3 labs/mod-1-3/check.py`
-> Ketika Anda melihat pesan `10/10 answers correct`, Bagian A lab ini 100% tuntas! Lanjut ke Pelajaran 6 & 7 untuk membedah query plan dan index database.
+> Ketika Anda melihat pesan `10/10 answers correct`, Bagian A lab ini 100% tuntas! Lanjut ke Materi 6 & 7 untuk membedah query plan dan index database.
 
 ## @part Performa: plan dan index
 
@@ -764,7 +764,7 @@ CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 > 3. Pasang dependensi Bagian B (PostgreSQL tertanam sudah termasuk; di Python 3.14 atau jika memilih Docker, lihat alternatif Docker `DATABASE_URL` di Langkah 4 bagian Lab) lalu jalankan pengujian plan di terminal:
 > `python -m pip install -r labs/mod-1-3/explain/requirements.txt`
 > `pytest labs/mod-1-3/explain -v`
-> Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Pelajaran 8 untuk melihat ragam dialek SQL.
+> Ketika semua tes Bagian B berwarna HIJAU (PASSED), Anda telah menguasai optimasi query planner di tingkat profesional! Lanjut ke Materi 8 untuk melihat ragam dialek SQL.
 
 ## @part Dialek, subtotal, dan JSON
 
@@ -1039,7 +1039,7 @@ Microsoft meminta RAM minimal 2 GB, dan password harus minimal delapan karakter 
 
 **Collation: perbedaan yang mengubah angka diam-diam.** **Collation** menentukan cara teks dibandingkan. Default SQL Server (`SQL_Latin1_General_CP1_CI_AS`, diukur) **tidak peka huruf besar-kecil** (`CI`) dan peka aksen (`AS`), sehingga `status <> 'cancelled'` juga mengecualikan `CANCELLED` dan `Cancelled`. DuckDB, PostgreSQL, Spark, dan Snowflake membandingkan dengan peka huruf besar-kecil secara default, sehingga `WHERE` yang sama tetap menyimpan baris itu. Pada data kursus, query yang sama memberi Rp 100.360.000 di SQL Server dan Rp 101.925.000 di DuckDB untuk 10 sampai 12 Januari. Saat Anda memindahkan job SQL Server ke lakehouse, normalkan teks (`lower(trim(status))`) sebelum membandingkan, atau angka hasil migrasi tidak akan cocok dan tidak ada yang tahu sebabnya.
 
-**Stored procedure.** Procedure adalah T-SQL bernama dengan parameter, disimpan di database dan dijalankan dengan `EXEC`. Pipeline lama sering berupa rangkaian procedure yang dijadwalkan SQL Server Agent, SSIS, atau Data Factory (Pelajaran 10 Modul 2.6). Procedure pemuatan yang aman terlihat seperti ini:
+**Stored procedure.** Procedure adalah T-SQL bernama dengan parameter, disimpan di database dan dijalankan dengan `EXEC`. Pipeline lama sering berupa rangkaian procedure yang dijadwalkan SQL Server Agent, SSIS, atau Data Factory (Materi 10 Modul 2.6). Procedure pemuatan yang aman terlihat seperti ini:
 
 ```sql
 CREATE OR ALTER PROCEDURE dbo.usp_load_daily_revenue @day DATE

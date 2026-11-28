@@ -78,7 +78,7 @@ menghapus kedua file
 `mv` memindah. Ketika tujuannya nama baru di folder yang sama, "memindah" file sama dengan **mengganti namanya**. Pakai `cp` ketika Anda ingin menyimpan yang asli.
 :::
 
-> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` mencetak teks, dan `>` mengirimnya ke sebuah file, bukan ke layar; Pelajaran 3 menjelaskannya), `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt`, `c.txt`, dan `data`. Bersihkan dua file latihan itu dengan `rm a.txt c.txt` agar tidak memenuhi `~/kopiku` nanti.
+> **Di komputer Anda, sekarang:** `mkdir -p ~/kopiku/data`, `cd ~/kopiku`, `echo "hello" > a.txt` (`echo` mencetak teks, dan `>` mengirimnya ke sebuah file, bukan ke layar; Materi 3 menjelaskannya), `cp a.txt b.txt`, `mv b.txt c.txt`, lalu `ls`. Anda harus melihat `a.txt`, `c.txt`, dan `data`. Bersihkan dua file latihan itu dengan `rm a.txt c.txt` agar tidak memenuhi `~/kopiku` nanti.
 
 ### Melihat isi file
 
@@ -106,7 +106,7 @@ Jangan pernah membuka file sejuta baris di editor untuk "melihat isinya": `head`
 | `grep` | Mencari baris yang mengandung teks | `grep "cancelled" orders.csv` |
 | `wc -l` | Menghitung baris | `wc -l orders.csv` |
 
-Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka file: `grep "cancelled" orders.csv | wc -l` (simbol pipe `|`, yang dijelaskan di Pelajaran 3, mengirim baris cocok dari `grep` ke `wc -l`; `grep -c "cancelled" orders.csv` adalah pintasan bawaan untuk hitungan yang sama).
+Bersama-sama keduanya menjawab "berapa pesanan yang dibatalkan?" tanpa membuka file: `grep "cancelled" orders.csv | wc -l` (simbol pipe `|`, yang dijelaskan di Materi 3, mengirim baris cocok dari `grep` ke `wc -l`; `grep -c "cancelled" orders.csv` adalah pintasan bawaan untuk hitungan yang sama).
 
 ### Yang berbahaya: rm
 
@@ -133,7 +133,7 @@ Di shell tidak ada tempat sampah. Melihat **path yang persis sama** dengan `ls` 
 > Ketik `head -5 data/orders.csv` untuk mengintip 5 baris pertama pesanan.
 > Ketik `wc -l data/orders.csv` untuk menghitung total baris file.
 > **Seharusnya Anda melihat:** path lengkap folder kursus Anda untuk `pwd`; tujuh file data (`orders.csv`, `customers.csv`, dan lima lainnya) untuk `ls -la data`; satu baris judul kolom (`order_id,customer_id,order_ts,status,payment_method,total_idr`) dan empat pesanan untuk `head -5`; dan `3635 data/orders.csv` untuk `wc -l` (baris judul ditambah 3.634 pesanan).
-> Setelah melihat data tampil di terminal Anda, lanjut ke Pelajaran 2 di bawah.
+> Setelah melihat data tampil di terminal Anda, lanjut ke Materi 2 di bawah.
 
 ## @lesson Path, file, dan lingkungan
 Mengapa skrip berkata "file not found" padahal file-nya ada di situ? Hampir selalu karena skrip berdiri di folder yang berbeda dari dugaan Anda. Memahami **path** menghapus seluruh kelas kebingungan ini.
@@ -214,7 +214,7 @@ hapus file itu lalu unduh salinan baru
 > Ketik `which python3` untuk mengetahui path absolut interpreter Python sistem Anda.
 > Ketik `ls -l data/orders.csv` untuk melihat hak akses izin (permission) file tersebut.
 > **Seharusnya Anda melihat:** path seperti `/home/namaanda` (di macOS `/Users/namaanda`) untuk `$HOME`; daftar panjang folder yang dipisah `:` untuk `$PATH`; path seperti `/usr/bin/python3` untuk `which python3`; dan satu baris yang diawali `-rw` (Anda boleh membaca dan menulis file itu) untuk `ls -l`.
-> Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Pelajaran 3 di bawah.
+> Anda sekarang paham bagaimana shell mencari program dan mengelola path. Lanjut ke Materi 3 di bawah.
 
 ## @lesson Redirect dan pipe: alat kecil yang disambung
 Mengapa merangkai perintah? Karena perintah yang mengerjakan **satu** tugas kecil mudah dipercaya, dan sepuluh tugas kecil yang disambung bisa menjawab pertanyaan yang tidak dirancang untuk satu program mana pun. Inilah gagasan di balik hampir setiap pipeline data yang akan Anda bangun.
@@ -312,7 +312,7 @@ Setiap program punya tiga aliran standar: input (`stdin`), output (`stdout`), da
 > Jalankan perintah berikut di root folder kursus:
 > `cut -d, -f4 data/orders.csv | tail -n +2 | sort | uniq -c | sort -rn`
 > **Seharusnya Anda melihat:** `2080 delivered` paling atas, lalu `555 shipped`, `367 paid`, `352 cancelled` dan `168 refunded`, dan di bawahnya kata yang sama dengan huruf besar berbeda (`34 DELIVERED`, `34 Delivered`, dan beberapa lagi). Campuran ejaan itu adalah data berantakan yang nyata: modul-modul berikutnya mengajarkan di mana memperbaikinya.
-> Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Pelajaran 4 untuk mengisolasi lingkungan Python.
+> Perhatikan bagaimana Anda bisa meringkas ribuan data transaksi KopiKu menjadi rekap status pesanan dalam sekejap! Lanjut ke Materi 4 untuk mengisolasi lingkungan Python.
 
 ## @part Lingkungan Python dan Git
 
@@ -387,7 +387,7 @@ Tiga aturan menyelamatkan banyak sore para pemula:
 
 1. **Selalu jalankan `python -m pip`, bukan `pip` saja.** Ini menjamin paket masuk ke Python yang sedang Anda pakai.
 2. **Jangan pernah `sudo pip install`.** Itu mengubah Python sistem dan bisa merusak alat sistem operasi.
-3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** (Git dan cara commit diajarkan berikutnya di Pelajaran 5, untuk sekarang, "commit" berarti menyimpan file ke riwayat versi proyek Anda.) Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
+3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** (Git dan cara commit diajarkan berikutnya di Materi 5, untuk sekarang, "commit" berarti menyimpan file ke riwayat versi proyek Anda.) Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
 
 Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cepat dan menambahkan lock file; konsepnya identik, jadi pelajari dulu dengan `venv`.
 
@@ -422,7 +422,7 @@ keduanya
 > 3. Aktifkan environment: `source venv/bin/activate`
 > 4. Verifikasi: `which python` (pastikan outputnya menunjuk ke `~/kopiku/venv/bin/python`).
 > **Seharusnya Anda melihat:** prompt sekarang diawali `(venv)`, dan `which python` mencetak path yang berakhir dengan `kopiku/venv/bin/python`.
-> Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Pelajaran 5 untuk menyiapkan Git.
+> Jangan dinonaktifkan dulu! Biarkan aktif dan lanjut ke Materi 5 untuk menyiapkan Git.
 
 ## @lesson Git: jaring pengaman untuk semua yang Anda tulis
 Mengapa Git sebelum Anda punya sesuatu yang bisa hilang? Karena pada hari Anda menimpa skrip yang berfungsi, Anda ingin tombol yang berkata "kembali ke kemarin".
@@ -512,7 +512,7 @@ Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Com
 > `printf 'venv/\n.env\ndata/\n__pycache__/\n' > .gitignore`
 > 3. Buat commit pertama Anda:
 > `git add .gitignore && git commit -m "chore: initial commit with gitignore"`
-> 4. Periksa riwayat Anda: `git log --oneline` (Anda resmi memiliki snapshot Git pertama!). Lanjut ke Pelajaran 6.
+> 4. Periksa riwayat Anda: `git log --oneline` (Anda resmi memiliki snapshot Git pertama!). Lanjut ke Materi 6.
 
 ## @part Kebiasaan kerja yang aman
 
@@ -614,7 +614,7 @@ Jika rahasia terlanjur di-commit atau di-push: **anggap sudah dicuri**, karena b
 > Buat file contoh publik: `echo "DATABASE_URL=sqlite:///data/warehouse.db" > .env.example`
 > Simpan ke Git:
 > `git add .env.example && git commit -m "chore: add env template"`
-> Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Pelajaran 7.
+> Sekarang repositori Anda aman dari kebocoran kredensial. Lanjut ke Materi 7.
 
 ## @lesson Kebiasaan kerja yang membuat Anda lebih cepat
 Mengapa menghabiskan satu pelajaran untuk kebiasaan? Karena perbedaan dua pemula dengan keterampilan sama biasanya adalah seberapa cepat masing-masing keluar dari kebuntuan.

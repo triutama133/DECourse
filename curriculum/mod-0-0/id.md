@@ -17,7 +17,7 @@ why: Banyak kursus menunjukkan def dan for selama sepuluh menit lalu terburu-bur
 Tidak ada. Anda tidak perlu pernah menulis kode, dan tidak masalah jika kursus sebelumnya membuat Anda bingung. Anda bisa mulai sekarang juga tanpa memasang apa pun dengan latihan di pelajaran dan **Pratinjau browser** pada lab; begitu Modul 0.1 (atau Mulai di sini) menyiapkan terminal lokal dan virtual environment Anda, Anda menjalankan tes serta `prove.py` di komputer sendiri untuk mengunci kode bukti Anda.
 
 > [!IMPORTANT]
-> **Versi singkat:** lab ini punya dua bagian. **Bagian A** adalah Python biasa (setelah Pelajaran 1 sampai 4), **Bagian B** adalah fungsi (setelah Pelajaran 5). Jangan membaca seluruh bab lebih dulu: bergantianlah antara pelajaran dan Jeda Praktiknya. Panduan lengkap "cara mengerjakan lab" muncul di akhir Pelajaran 1, tepat di tempat Anda pertama kali membutuhkannya.
+> **Versi singkat:** lab ini punya dua bagian. **Bagian A** adalah Python biasa (setelah Materi 1 sampai 4), **Bagian B** adalah fungsi (setelah Materi 5). Jangan membaca seluruh bab lebih dulu: bergantianlah antara pelajaran dan Jeda Praktiknya. Panduan lengkap "cara mengerjakan lab" muncul di akhir Materi 1, tepat di tempat Anda pertama kali membutuhkannya.
 
 ## @part Dasar: nilai, koleksi, keputusan, dan perulangan
 
@@ -193,7 +193,7 @@ row1 = {"order_id": "1001", "status": "paid", "total_idr": "150000"}
 row2 = {"order_id": "1002", "status": "paid", "total_idr": "90000"}
 ```
 
-(Setiap `{...}` adalah **dictionary**, satu baris berlabel tempat `row1["total_idr"]` mengambil nilai `"150000"`; Pelajaran 2 membahas dictionary secara penuh.) Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang manajer Anda mengajukan tiga pertanyaan sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
+(Setiap `{...}` adalah **dictionary**, satu baris berlabel tempat `row1["total_idr"]` mengambil nilai `"150000"`; Materi 2 membahas dictionary secara penuh.) Lihat tanda kutipnya: `"150000"` adalah teks (`str`), bukan angka. Sekarang manajer Anda mengajukan tiga pertanyaan sederhana, dan teks itu memberi tiga jawaban salah **tanpa error apa pun**:
 
 | Pertanyaannya | Yang Anda tulis | Jawaban Python | Mengapa |
 |---|---|---|---|
@@ -366,7 +366,7 @@ Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.2
 
 > [!IMPORTANT]
 > **Cara Mengerjakan Lab (Panduan Pemula):**
-> - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Pelajaran 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Pelajaran 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
+> - **Lab ini punya dua bagian.** **Bagian A** adalah Python biasa, tanpa fungsi: setelah tiap Materi 1 sampai 4 Anda mengisi beberapa variabel di file `labs/mod-0-0/practice.py` (ganti setiap `None` dengan kode Anda sendiri). **Bagian B** dimulai setelah Materi 5, yang mengajarkan fungsi (`def`): file `labs/mod-0-0/basics.py` berisi sebelas fungsi untuk ditulis. Jangan membaca seluruh bab lebih dulu; bergantianlah antara pelajaran dan Jeda Praktiknya.
 > - **Di mana:** di **Pratinjau browser** pada tab Lab (tanpa memasang apa pun; pakai tombol Bagian A / Bagian B), atau di terminal Anda sendiri jika Anda sudah mengikuti Mulai di sini (halaman lab menunjukkan empat perintah persiapannya, sekali saja). File-filenya adalah file teks yang Anda buka di editor (VS Code, atau `code labs/mod-0-0/practice.py`), bukan perintah: mengetik nama file di terminal menghasilkan `Permission denied` atau `command not found`. Perintah `pytest ...` di bawah setiap jeda (pytest menjalankan pemeriksaan otomatis; tombol **Jalankan tes** melakukan hal yang sama) memeriksa pekerjaan Anda, dan run itulah yang dihitung.
 > - **Mencoba contoh di materi:** ketik di kotak latihan pada halaman, atau di prompt Python `>>>` terminal Anda (ketik `python3` lalu Enter; keluar dengan `exit()`). Perintah seperti `cd`, `ls`, dan `pytest` justru diketik di prompt `$` terminal, tidak pernah di `>>>`. Tidak yakin yang mana? **Mulai di sini, langkah 4** menunjukkan ketiganya.
 
@@ -376,7 +376,7 @@ Digabung, `f"Rp {amount:,}".replace(",", ".")` menulis `1250000` sebagai `Rp 1.2
 > 2. `two_totals`: dua total di `row1` dan `row2` dijumlahkan sebagai **angka** (ambil tiap total dengan `row1["total_idr"]` dan `row2["total_idr"]`). Lihat kembali tiga jawaban salah di tabel: total ini adalah teks, jadi ubah dulu.
 > Jalankan file untuk melihat nilai Anda: `python3 labs/mod-0-0/practice.py`. Lalu periksa Langkah 1: tekan **Jalankan tes** di pratinjau, atau di terminal (setelah persiapan sekali saja di halaman lab):
 > `pytest labs/mod-0-0/test_practice.py -k Step1 -v`
-> Anda seharusnya melihat `Rp 1.250.000` dan `240000`, dan tiga pemeriksaan lulus. Pemeriksaan yang gagal menyebutkan variabel mana yang salah, seharusnya berapa, dan sekarang berapa: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` hanya berarti Anda belum mengganti `None`. Lalu lanjut ke Pelajaran 2.
+> Anda seharusnya melihat `Rp 1.250.000` dan `240000`, dan tiga pemeriksaan lulus. Pemeriksaan yang gagal menyebutkan variabel mana yang salah, seharusnya berapa, dan sekarang berapa: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` hanya berarti Anda belum mengganti `None`. Lalu lanjut ke Materi 2.
 
 ## @lesson Koleksi: satu nilai tidak pernah cukup
 Satu pesanan punya beberapa fakta, dan sebuah file berisi ribuan pesanan. Python memberi Anda empat wadah: **list**, **dictionary**, **tuple**, dan **set**. Mengetahui **mengapa masing-masing ada** memberi tahu Anda mana yang dipilih. Seperti di Materi 1, setiap gagasan diikuti latihan.
@@ -901,7 +901,7 @@ else:
 
 ### and, or, not
 
-Gabungkan pertanyaan dengan `and` (keduanya harus benar), `or` (minimal satu), dan `not` (membalik jawabannya). `status in {"cancelled", "refunded"}` (kurung kurawal berisi nilai tanpa titik dua membentuk **set** dari Pelajaran 2) adalah cara singkat menulis beberapa `or`.
+Gabungkan pertanyaan dengan `and` (keduanya harus benar), `or` (minimal satu), dan `not` (membalik jawabannya). `status in {"cancelled", "refunded"}` (kurung kurawal berisi nilai tanpa titik dua membentuk **set** dari Materi 2) adalah cara singkat menulis beberapa `or`.
 
 :::drill python Keduanya harus benar
 Sebuah pesanan bisa dikirim ketika sudah dibayar **dan** ada stok. Buat `can_ship` bernilai `True` hanya ketika `paid` adalah `True` dan `stock` di atas 0.
@@ -1364,7 +1364,7 @@ ints = [int(text) for text in texts]
 
 ### Meranking dengan sorted() dan key
 
-Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak, Anda akan memakainya untuk `top_customers` di lab). `sorted(data, key=...)` menerima `key`: aturan kecil yang memberi tahu Python berdasarkan apa mengurutkan. Fungsi satu baris dengan `lambda` adalah cara praktis menulis aturan itu (setelah Pelajaran 5 Anda juga bisa menulis fungsi bantu `def` biasa lalu memberikan namanya sebagai `key=...`):
+Dalam pipeline data Anda sering meranking sesuatu (pelanggan dengan belanja terbanyak, Anda akan memakainya untuk `top_customers` di lab). `sorted(data, key=...)` menerima `key`: aturan kecil yang memberi tahu Python berdasarkan apa mengurutkan. Fungsi satu baris dengan `lambda` adalah cara praktis menulis aturan itu (setelah Materi 5 Anda juga bisa menulis fungsi bantu `def` biasa lalu memberikan namanya sebagai `key=...`):
 
 - `lambda pair: pair[1]` berarti: *"diberi satu `pair` seperti `(7, 100)`, kembalikan item keduanya (`100`)"*, `sorted()` memanggilnya untuk setiap item lalu mengurutkan menurut hasilnya.
 - `key=lambda pair: (-pair[1], pair[0])` mengembalikan **tuple**: Python mengurutkan berdasarkan `-pair[1]` lebih dulu (tanda minus menaruh total terbesar di depan, karena `-250 < -100`) dan memakai `pair[0]` (id lebih kecil dulu) hanya untuk memutus seri.
@@ -1538,7 +1538,7 @@ show_label("Kopi")
 
 `print` hanya **menampilkan** sesuatu di layar; program tidak bisa memakainya sesudahnya. `return` **menyerahkan nilai kembali** kepada kode yang memanggil fungsi, sehingga bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.
 
-Fungsi juga bisa mengembalikan **dua nilai sekaligus** (sebagai tuple dari Pelajaran 2) dipisahkan koma, lalu pemanggil membongkar keduanya:
+Fungsi juga bisa mengembalikan **dua nilai sekaligus** (sebagai tuple dari Materi 2) dipisahkan koma, lalu pemanggil membongkar keduanya:
 
 ```python
 def split_non_negative(numbers):
@@ -1809,9 +1809,9 @@ def add(item, box=None):
 > ```
 >
 > Sebuah tes memanggil `format_rupiah(1250000)` dan membandingkan apa yang Anda `return` dengan `"Rp 1.250.000"`. Lalu tambahkan `if` dari Langkah 3 untuk angka negatif.
-> Lakukan untuk `format_rupiah` (Langkah 1 dan 3), `count_by_status` (Langkah 4), `unique_customer_ids` (Langkah 2 dan 4), `average_total` (rata-rata dari Langkah 3, atas total pesanan), `total_revenue` dan `batches` (Langkah 4), serta `top_customers` (`sorted` dengan `key` dari Pelajaran 4). Di Pratinjau browser klik **Jalankan tes**; di jalur terminal, `pytest` menjalankan pemeriksaan otomatis (`-k TestFormatRupiah` menjalankan satu kelompok itu saja, `-v` mencetak nama setiap tes):
+> Lakukan untuk `format_rupiah` (Langkah 1 dan 3), `count_by_status` (Langkah 4), `unique_customer_ids` (Langkah 2 dan 4), `average_total` (rata-rata dari Langkah 3, atas total pesanan), `total_revenue` dan `batches` (Langkah 4), serta `top_customers` (`sorted` dengan `key` dari Materi 4). Di Pratinjau browser klik **Jalankan tes**; di jalur terminal, `pytest` menjalankan pemeriksaan otomatis (`-k TestFormatRupiah` menjalankan satu kelompok itu saja, `-v` mencetak nama setiap tes):
 > `pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v`
-> Lalu lanjut ke Pelajaran 6.
+> Lalu lanjut ke Materi 6.
 
 ## @lesson Saat ada yang salah: error dan try/except
 Error bukan kegagalan pembelajar; error adalah program yang memberi tahu dengan tepat apa yang tidak bisa ia lakukan. Belajarlah membacanya, dan error menjadi hal paling berguna di layar Anda.
@@ -2415,12 +2415,12 @@ Anda tidak akan mengingat semuanya setelah satu kali membaca, dan memang tidak s
 Lab berkembang dari sini: di Modul 1.2 gagasan yang sama menjadi pipeline sungguhan yang membaca file, mengonversi tipe, mengkarantina baris buruk, dan bisa dijalankan ulang dengan aman. Kalau sesuatu di modul ini masih terasa belum jelas, itu wajar setelah satu kali membaca: baca ulang materi yang Jeda Praktiknya paling sulit, dan ulangi Coba Sendirinya.
 
 ## @lab Lab: dari kode biasa ke sebelas fungsi kecil pada pesanan KopiKu
-Dua bagian, pada data pesanan KopiKu. **Bagian A** (setelah Pelajaran 1 sampai 4) adalah Python biasa tanpa fungsi: Anda mengisi dua belas variabel. **Bagian B** (setelah Pelajaran 5 sampai 7) mengubah gagasan yang sama menjadi sebelas fungsi kecil.
+Dua bagian, pada data pesanan KopiKu. **Bagian A** (setelah Materi 1 sampai 4) adalah Python biasa tanpa fungsi: Anda mengisi dua belas variabel. **Bagian B** (setelah Materi 5 sampai 7) mengubah gagasan yang sama menjadi sebelas fungsi kecil.
 
 > [!IMPORTANT]
 > **Versi singkat, dalam tiga langkah.**
-> 1. Setelah setiap Pelajaran 1 sampai 4, buka Bagian A (file `practice.py`, atau tab **Bagian A** pada pratinjau di bawah) dan ganti `None` pada langkah pelajaran itu dengan kode Anda sendiri.
-> 2. Setelah Pelajaran 5 sampai 7, lakukan hal yang sama untuk fungsi-fungsi Bagian B (file `basics.py`, atau tab **Bagian B**).
+> 1. Setelah setiap Materi 1 sampai 4, buka Bagian A (file `practice.py`, atau tab **Bagian A** pada pratinjau di bawah) dan ganti `None` pada langkah pelajaran itu dengan kode Anda sendiri.
+> 2. Setelah Materi 5 sampai 7, lakukan hal yang sama untuk fungsi-fungsi Bagian B (file `basics.py`, atau tab **Bagian B**).
 > 3. Tekan **Run tests** (atau ketik baris `pytest` di terminal Anda). Setiap ✗ memberi tahu apa yang salah: perbaiki satu hal, jalankan lagi. Teks yang lebih panjang di bawah menjelaskan tiap bagian; baca sekali sekarang, dan kembali ke sana saat ada yang kurang jelas.
 
 **Apa itu lab.** Setiap bagian adalah file yang Anda edit dan file **tes** yang memeriksanya. Di Bagian A, `practice.py` memberi Anda data dan dua belas variabel yang diisi `None`; Anda mengganti setiap `None` dengan kode Anda sendiri, dan `test_practice.py` menjalankan file Anda, dengan beberapa kumpulan data berbeda menggantikan yang diberikan, lalu memeriksa setiap variabel. Di Bagian B, `basics.py` berisi sebelas fungsi yang isinya kosong (masing-masing hanya berisi `raise NotImplementedError`), dan `test_lab.py` memanggil setiap fungsi dengan contoh, misalnya "`format_rupiah(1250000)` harus menghasilkan `"Rp 1.250.000"`". Sebuah pemeriksaan ✓ jika kode Anda memberi jawaban yang diharapkan, dan ✗ jika memberi jawaban lain atau crash. Anda selesai ketika ke-46 lulus: 15 di Bagian A dan 31 di Bagian B.
@@ -2446,7 +2446,7 @@ pytest labs/mod-0-0/test_lab.py -k TestFormatRupiah -v # Bagian B, satu fungsi
 
   Anda melihat satu baris per pemeriksaan yang diakhiri `PASSED` atau `FAILED`; di bawah kegagalan, pesannya menyebutkan apa yang salah. Di Bagian A ia menyebut nama variabelnya: `` `formatted` should be 'Rp 1.250.000' when amount is 1250000, but it is None `` (Anda belum mengganti `None`). Di Bagian B pada file yang belum disentuh isinya `E       NotImplementedError: TODO: implement format_rupiah`, yang hanya berarti Anda belum menulis fungsinya. `-k` memilih satu kelompok (pemeriksaan lain "deselected"); tanpa `-k` Anda melihat semuanya, dan baris terakhir menyebutkan, misalnya, `29 failed, 2 passed`.
 
-Pelajaran 1 sampai 4 diakhiri langkah Bagian A, tanpa fungsi. Mulai Pelajaran 5, setiap **Jeda Praktik** menyebutkan fungsi Bagian B mana yang ditulis, sebagian besar dengan mengubah kode yang sudah Anda tulis di Bagian A menjadi fungsi.
+Materi 1 sampai 4 diakhiri langkah Bagian A, tanpa fungsi. Mulai Materi 5, setiap **Jeda Praktik** menyebutkan fungsi Bagian B mana yang ditulis, sebagian besar dengan mengubah kode yang sudah Anda tulis di Bagian A menjadi fungsi.
 
 **Putarannya, untuk setiap langkah dan fungsi.**
 1. Baca deskripsinya di file: di Bagian A komentar di atas setiap variabel, di Bagian B teks di antara baris `"""`. Ia menyebutkan apa yang masuk dan apa yang harus keluar, dengan contoh.
@@ -2482,7 +2482,7 @@ Pelajaran 1 sampai 4 diakhiri langkah Bagian A, tanpa fungsi. Mulai Pelajaran 5,
 
 ### @steps
 1. Pilih jalur Anda (lihat "Di mana mengerjakannya" di atas): **Pratinjau browser** di bawah, atau file-file di VS Code dengan pemeriksaan di terminal Anda. Buka `practice.py` dan baca dari atas ke bawah sekali, tanpa menulis apa pun: data di bagian atas dan empat langkah.
-2. Ikuti Jeda Praktik. Setelah Pelajaran 1 sampai 4: Langkah 1 sampai 4 Bagian A, di `practice.py`. Setelah Pelajaran 5: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, dan `top_customers` di Bagian B (`basics.py`). Setelah Pelajaran 6: `safe_int`, `add_to_batch`, dan `split_valid`. Setelah Pelajaran 7: `read_orders`. Jalankan pemeriksaan setelah setiap langkah atau fungsi dan lihat hanya kelompoknya.
+2. Ikuti Jeda Praktik. Setelah Materi 1 sampai 4: Langkah 1 sampai 4 Bagian A, di `practice.py`. Setelah Materi 5: `format_rupiah`, `count_by_status`, `unique_customer_ids`, `average_total`, `total_revenue`, `batches`, dan `top_customers` di Bagian B (`basics.py`). Setelah Materi 6: `safe_int`, `add_to_batch`, dan `split_valid`. Setelah Materi 7: `read_orders`. Jalankan pemeriksaan setelah setiap langkah atau fungsi dan lihat hanya kelompoknya.
 3. Ragu nilai apa yang ada di kode Anda? Tambahkan `print(type(x), x)` di atas baris yang Anda ragukan lalu jalankan lagi; cetakannya muncul saat Anda menjalankan file, atau di output pratinjau. Hapus setelah selesai. (Bagian A juga mencetak semua variabelnya setiap kali Anda menjalankan `practice.py`.)
 4. Sebelum setiap run, **tebak** kelompok mana yang akan ✓. Ketika hasilnya mengejutkan, cari tahu mengapa: kejutan itulah tempat belajar terjadi.
 5. **Kerjakan yang sesungguhnya.** Di jalur terminal Anda sudah melakukannya: setelah ke-46 lulus, jalankan perintah bukti di bawah. Di jalur pratinjau, tulis kedua bagian lagi di terminal Anda sendiri, di venv Anda sendiri, **tanpa menyalin** dari pratinjau. Dari folder kursus, dengan venv aktif:
@@ -2498,7 +2498,7 @@ python3 scripts/prove.py mod-0-0                                   # setelah sem
 ### @files
 - labs/mod-0-0/practice.py :: Bagian A, file kerja Anda: Python biasa, isi kedua belas variabel :: starter
 - labs/mod-0-0/basics.py :: Bagian B, file kerja Anda: implementasikan sebelas fungsi TODO :: starter
-- labs/mod-0-0/debug_me.py :: Latihan debugging: tiga fungsi dengan satu bug masing-masing (pelajaran 8) :: config
+- labs/mod-0-0/debug_me.py :: Latihan debugging: tiga fungsi dengan satu bug masing-masing (materi 8) :: config
 - labs/mod-0-0/test_practice.py :: Ke-15 tes yang memeriksa Bagian A :: test
 - labs/mod-0-0/test_lab.py :: Ke-31 tes yang memeriksa Bagian B :: test
 - labs/mod-0-0/requirements.txt :: pytest :: config

@@ -13,7 +13,7 @@ why: Tutorial menjalankan semuanya di laptop dengan RAM 16 GB dan terminal yang 
 - Menulis Dockerfile yang cepat dibangun, berjalan sebagai pengguna non-root dan dapat direproduksi, serta mendiagnosis container yang dimatikan karena memakai terlalu banyak memori
 
 ## @prereq
-Modul 0.0 dan 0.1: dasar Python, dasar terminal, Git, dan gagasan virtual environment Python. Pasang `jq` (misalnya `brew install jq` di macOS atau `sudo apt install jq` di Debian/Ubuntu) untuk Pelajaran 3–4 dan lab, serta `pytest` (`pip install pytest`) jika Anda ingin menjalankan `scripts/prove.py`. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
+Modul 0.0 dan 0.1: dasar Python, dasar terminal, Git, dan gagasan virtual environment Python. Pasang `jq` (misalnya `brew install jq` di macOS atau `sudo apt install jq` di Debian/Ubuntu) untuk Materi 3–4 dan lab, serta `pytest` (`pip install pytest`) jika Anda ingin menjalankan `scripts/prove.py`. Docker hanya dibutuhkan untuk bagian runtime opsional di lab; pemeriksaan otomatisnya tidak memerlukannya.
 
 ## @part Alat shell dan skrip
 
@@ -26,7 +26,7 @@ Setiap proses berakhir dengan **exit code**, angka 0 sampai 255. Menurut konvens
 grep -q "paid" data/orders.csv ; echo $?     # 0 bila ditemukan, 1 bila tidak, 2 bila error
 ```
 
-Exit code adalah cara scheduler (seperti **cron**, dibahas di Pelajaran 5), sistem **CI** (Continuous Integration, yang menjalankan pemeriksaan otomatis atas kode Anda), dan container memutuskan apakah job Anda berhasil. Skrip yang mencetak "ERROR" tetapi tetap keluar dengan 0 berbohong kepada semua sistem di sekitarnya. Dua operator memakai exit code secara langsung: `a && b` menjalankan `b` hanya jika `a` sukses, dan `a || b` menjalankan `b` hanya jika `a` gagal.
+Exit code adalah cara scheduler (seperti **cron**, dibahas di Materi 5), sistem **CI** (Continuous Integration, yang menjalankan pemeriksaan otomatis atas kode Anda), dan container memutuskan apakah job Anda berhasil. Skrip yang mencetak "ERROR" tetapi tetap keluar dengan 0 berbohong kepada semua sistem di sekitarnya. Dua operator memakai exit code secara langsung: `a && b` menjalankan `b` hanya jika `a` sukses, dan `a || b` menjalankan `b` hanya jika `a` gagal.
 
 :::ask Apa yang dicetak ini jika `data/orders.csv` TIDAK mengandung kata `zzzz`?
 ```bash
@@ -50,7 +50,7 @@ Kode yang akan Anda temui lebih dulu:
 | 127 | Perintah tidak ditemukan |
 
 :::advanced Nanti saja: kode lain dan perintah untuk memantau serta menghentikan program
-Anda tidak membutuhkannya hari ini. Pelajaran 7 memakai kode 137 lagi, lengkap dengan ceritanya.
+Anda tidak membutuhkannya hari ini. Materi 7 memakai kode 137 lagi, lengkap dengan ceritanya.
 
 | Kode | Arti |
 |---|---|
@@ -61,7 +61,7 @@ Anda tidak membutuhkannya hari ini. Pelajaran 7 memakai kode 137 lagi, lengkap d
 Perintah proses yang berguna: `ps aux` (daftar proses), `top` atau `htop` (tampilan langsung CPU dan memori), `kill <pid>` (kirim SIGTERM), `kill -9 <pid>` (SIGKILL, tidak bisa ditangkap, pakai sebagai pilihan terakhir), dan `Ctrl+C` (kirim SIGINT ke proses latar depan).
 :::
 
-> 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus (jalankan `python3 labs/shared/shopgen.py --out data` lebih dulu jika `data/orders.csv` belum ada), jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash` (memberi tahu sistem untuk menjalankannya dengan Bash), `set -e` (berhenti pada perintah pertama yang gagal, keduanya dibahas tuntas di Pelajaran 4), `echo start`, `false`, `echo never printed`; jalankan `bash job.sh` dan periksa `echo $?`. Setelah selesai, bersihkan dengan `rm job.sh`.
+> 🛠 **Coba sendiri (8 menit, terminal).** Dari folder kursus (jalankan `python3 labs/shared/shopgen.py --out data` lebih dulu jika `data/orders.csv` belum ada), jalankan setiap perintah lalu `echo $?`: `grep -q delivered data/orders.csv`, `grep -q zzzz data/orders.csv`, `grep -q x /no/such/file`, `false`, `bash -c 'exit 7'`. Lalu simpan skrip `job.sh` berisi baris `#!/bin/bash` (memberi tahu sistem untuk menjalankannya dengan Bash), `set -e` (berhenti pada perintah pertama yang gagal, keduanya dibahas tuntas di Materi 4), `echo start`, `false`, `echo never printed`; jalankan `bash job.sh` dan periksa `echo $?`. Setelah selesai, bersihkan dengan `rm job.sh`.
 >
 > **Seharusnya Anda melihat:** `0`, `1`, `2`, `1`, `7`; dan untuk skripnya `start` lalu exit code `1`. Hapus `set -e` dan jalankan lagi: baris terakhir kini ikut tercetak, dan exit code-nya menjadi `0`, sebuah kebohongan kepada setiap scheduler.
 
@@ -132,7 +132,7 @@ Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `re
 > 2. Intip 3 baris pertama event NDJSON: `head -3 data/events.ndjson`
 > 3. Hitung total baris log event: `wc -l data/events.ndjson`
 > 4. Hitung event bertipe purchase: `grep -c "purchase" data/events.ndjson`
-> **Seharusnya Anda melihat:** tiga baris JSON yang panjang (yang ketiga terpotong di tengah: baris rusak yang sengaja ditanam data), lalu `90900 data/events.ndjson`, lalu `15079`. Data Anda sudah siap! Lanjut ke Pelajaran 3 untuk membedah data JSON dengan `jq`.
+> **Seharusnya Anda melihat:** tiga baris JSON yang panjang (yang ketiga terpotong di tengah: baris rusak yang sengaja ditanam data), lalu `90900 data/events.ndjson`, lalu `15079`. Data Anda sudah siap! Lanjut ke Materi 3 untuk membedah data JSON dengan `jq`.
 
 :::drill python Jebakan uniq
 Perintah shell `uniq -c` hanya menggabungkan duplikat yang **bertetangga**. Tulis `uniq_c(lines)`: kembalikan daftar pasangan `(count, line)`, tiap pasangan adalah deretan baris identik yang berdampingan.
@@ -196,7 +196,7 @@ Kapan berhenti memakai alat shell? Ketika logikanya butuh percabangan, state, re
 > 1. Dua baris yang bersih: `head -2 data/events.ndjson | jq -c '{event_id, event_type}'`
 > 2. Lima baris, seperti cara yang biasanya Anda coba pertama: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
 > 3. Parsing yang tahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
-> **Seharusnya Anda melihat:** langkah 1 mencetak `{"event_id":"e00085531","event_type":"page_view"}` dan satu baris pendek lagi. Langkah 2 mencetak dua baris yang sama, lalu berhenti dengan `jq: parse error`: baris ketiga file itu terpotong di tengah (Anda sudah melihatnya di Jeda 1), dan `jq` biasa menyerah pada baris rusak pertama. Langkah 3 melewati baris itu dan mencetak tiga objek JSON lengkap, diawali `e00085531`, `e00017290`, dan `e00061551`. Baris rusak dilewati tanpa crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
+> **Seharusnya Anda melihat:** langkah 1 mencetak `{"event_id":"e00085531","event_type":"page_view"}` dan satu baris pendek lagi. Langkah 2 mencetak dua baris yang sama, lalu berhenti dengan `jq: parse error`: baris ketiga file itu terpotong di tengah (Anda sudah melihatnya di Jeda 1), dan `jq` biasa menyerah pada baris rusak pertama. Langkah 3 melewati baris itu dan mencetak tiga objek JSON lengkap, diawali `e00085531`, `e00017290`, dan `e00061551`. Baris rusak dilewati tanpa crash! Lanjut ke Materi 4 untuk menulis skrip yang aman.
 
 Di modul `json` Python, `json.loads(line)` mengurai satu string JSON dan melempar `json.JSONDecodeError` jika barisnya rusak. Karena JSON yang valid juga bisa berupa angka, string, atau list, periksa `isinstance(obj, dict)` bila Anda hanya menginginkan objek JSON.
 
@@ -296,7 +296,7 @@ Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `she
 > 2. Terapkan mode ketat `set -euo pipefail`, validasi argumen input `$1`, bersihkan file sementara dengan `mktemp` dan `trap`, lalu bangun pipeline ringkasan metrik menggunakan `jq`, `sort -u`, dan `wc -l`.
 > 3. Uji pekerjaan Anda di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
-> Setiap tes mencetak satu baris yang berakhir dengan `ok` atau `FAIL`, dan baris terakhir berbunyi `OK` bila kelima tes lulus. Di awal beberapa sudah berbunyi `ok` (skrip yang tidak berbuat apa-apa pun tetap gagal dengan keras tanpa argumen), jadi Anda baru selesai ketika seluruh keluaran berakhir dengan `OK`. Maka skrip stream Unix profesional Anda sudah jadi! Lanjut ke Pelajaran 5 tentang Cron.
+> Setiap tes mencetak satu baris yang berakhir dengan `ok` atau `FAIL`, dan baris terakhir berbunyi `OK` bila kelima tes lulus. Di awal beberapa sudah berbunyi `ok` (skrip yang tidak berbuat apa-apa pun tetap gagal dengan keras tanpa argumen), jadi Anda baru selesai ketika seluruh keluaran berakhir dengan `OK`. Maka skrip stream Unix profesional Anda sudah jadi! Lanjut ke Materi 5 tentang Cron.
 
 ## @part Menjalankan job: cron, container, dan batas
 
@@ -412,7 +412,7 @@ Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar 
 > 3. Pastikan `.dockerignore` mengecualikan folder `venv/`, `data/`, `.git/`, dan `.env`.
 > 4. Uji di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
-> Jika kedelapan tes Dockerfile berakhir dengan `ok` dan baris terakhir berbunyi `OK`, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
+> Jika kedelapan tes Dockerfile berakhir dengan `ok` dan baris terakhir berbunyi `OK`, container Anda sudah siap kirim ke produksi! Lanjut ke Materi 7 untuk memahami batas memori & exit code 137.
 
 :::ask Anda memulai tiga container dari image yang sama. Berapa image yang ada?
 @options

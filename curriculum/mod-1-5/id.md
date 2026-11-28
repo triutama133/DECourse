@@ -36,9 +36,9 @@ Jika Anda sudah tahu SQL, Anda sudah tahu sebagian besar gagasannya, hanya penul
 | `ORDER BY x DESC` | `df.sort_values("x", ascending=False)` |
 | `ROW_NUMBER() OVER (PARTITION BY k ...)` | `df.groupby("k").cumcount() + 1` |
 
-Model mental yang paling penting: **pandas bekerja pada seluruh kolom sekaligus.** `df["quantity"] * df["unit_price_idr"]` mengalikan sejuta pasang dalam satu panggilan, di kode yang sudah dikompilasi. Hampir tidak pernah Anda menulis loop `for` atas baris. Kita akan mengukur seberapa besar bedanya di pelajaran 3.
+Model mental yang paling penting: **pandas bekerja pada seluruh kolom sekaligus.** `df["quantity"] * df["unit_price_idr"]` mengalikan sejuta pasang dalam satu panggilan, di kode yang sudah dikompilasi. Hampir tidak pernah Anda menulis loop `for` atas baris. Kita akan mengukur seberapa besar bedanya di materi 3.
 
-**Kapan pandas adalah alat yang tepat?** Pakai ketika data muat di memori satu mesin (pelajaran 6 menunjukkan cara memperkirakannya), ketika Anda mengeksplorasi, membersihkan, atau membentuk ulang file, ketika Anda menulis transformasi kecil dalam Python, dan ketika Anda perlu menguji logika dengan cepat. Pilih **SQL di warehouse atau DuckDB** ketika data sudah ada di sana, karena mesinnya hanya membaca yang dibutuhkan dan Anda tidak menyalin data keluar. Pilih **Spark** (Modul 3.1) ketika satu mesin tidak cukup. Data engineer memakai ketiganya; pandas adalah alat paling tajam untuk melihat file baru pertama kali dan untuk langkah kecil di antaranya.
+**Kapan pandas adalah alat yang tepat?** Pakai ketika data muat di memori satu mesin (materi 6 menunjukkan cara memperkirakannya), ketika Anda mengeksplorasi, membersihkan, atau membentuk ulang file, ketika Anda menulis transformasi kecil dalam Python, dan ketika Anda perlu menguji logika dengan cepat. Pilih **SQL di warehouse atau DuckDB** ketika data sudah ada di sana, karena mesinnya hanya membaca yang dibutuhkan dan Anda tidak menyalin data keluar. Pilih **Spark** (Modul 3.1) ketika satu mesin tidak cukup. Data engineer memakai ketiganya; pandas adalah alat paling tajam untuk melihat file baru pertama kali dan untuk langkah kecil di antaranya.
 
 Dua kebiasaan untuk dimulai. Pertama, **lihat sebelum mengubah**: `df.head()`, `df.dtypes`, `df.shape`, `df.isna().sum()`, `df["country"].value_counts()`. Kedua, **jangan mengedit di tempat tanpa alasan**: bangun frame baru dari yang lama (`assign`, `rename`, `dropna`), yang juga membuat fungsi Anda mudah diuji, seperti di lab.
 
@@ -118,7 +118,7 @@ Sebagian besar agregasi pandas **melewati** `NaN`: rata-ratanya (1 + 3) / 2 = 2.
 > 3. Implementasikan fungsi `data_quality_report(df)` yang menghitung jumlah total baris, jumlah null per kolom, dan jumlah id pesanan duplikat.
 > 4. Uji di terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestLoad or TestQualityReport" -v`
-> Ketika tes PASSED, lanjut ke Pelajaran 3 untuk pembersihan data secara vektor!
+> Ketika tes PASSED, lanjut ke Materi 3 untuk pembersihan data secara vektor!
 
 ## @lesson Membersihkan dengan operasi seluruh kolom
 Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bentuk vektornya:
@@ -231,7 +231,7 @@ Operasi seluruh kolom (vectorised) berjalan di kode yang dikompilasi. Kursus men
 >    - `add_revenue(df)`: tambahkan kolom `revenue_idr = quantity * unit_price_idr` pada salinan DataFrame.
 > 2. Uji di terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestClean or TestPaidAndRevenue" -v`
-> Ketika tes PASSED, lanjut ke Pelajaran 4 untuk agregasi, pivot, dan ranking!
+> Ketika tes PASSED, lanjut ke Materi 4 untuk agregasi, pivot, dan ranking!
 
 ## @part Menggabungkan dan membesarkan skala
 
@@ -317,7 +317,7 @@ Periksa agregat Anda terhadap perhitungan independen. Tes lab menghitung ulang s
 >    - `add_customer_history(df)`: hitung urutan pesanan per pelanggan (`cumcount() + 1`), total berjalan kumulatif (`cumsum()`), dan selisih hari (`diff().dt.days`).
 > 2. Uji di terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestAggregate or TestPivot or TestTopN or TestWindow" -v`
-> Ketika tes PASSED, lanjut ke Pelajaran 5 tentang penggabungan tabel defensif!
+> Ketika tes PASSED, lanjut ke Materi 5 tentang penggabungan tabel defensif!
 
 :::drill python Total per kelompok
 Inilah yang dilakukan `groupby(...).sum()`. Tulis `group_sum(rows, key, value)`: `rows` adalah daftar dictionary; kembalikan dictionary yang memetakan tiap nilai field `key` ke **jumlah** field `value` atas barisnya.
@@ -370,7 +370,7 @@ Kebiasaan join lain:
 
 - **Temukan baris yang tidak cocok (anti-join).** Pesanan kita menyebut 20 id pelanggan yang tidak ada di daftar pelanggan (`00201` sampai `00220`). `set(orders["customer_id"]) - set(customers["customer_id"])` menemukannya; atau `merge(..., how="left", indicator=True)` menambah kolom `_merge` yang menampilkan baris `left_only`. Data yatim (orphan) adalah temuan kualitas data untuk dilaporkan, bukan untuk disembunyikan.
 - **Isi dengan sengaja.** Setelah join, pesanan tanpa pelanggan punya `NaN` di `tier`. Di lab mereka menjadi `"unknown"`, kategori yang terlihat, alih-alih diam-diam hilang dari `groupby` berikutnya (yang melewati kunci kosong).
-- **Tipe kunci sama di kedua sisi.** Masalah int versus teks dari pelajaran 2 muncul di sini sebagai error; dengan dua kolom teks yang berbeda spasi atau huruf besar-kecil ia muncul sebagai *nol kecocokan* tanpa error. Periksa tingkat kecocokan segera setelah join.
+- **Tipe kunci sama di kedua sisi.** Masalah int versus teks dari materi 2 muncul di sini sebagai error; dengan dua kolom teks yang berbeda spasi atau huruf besar-kecil ia muncul sebagai *nol kecocokan* tanpa error. Periksa tingkat kecocokan segera setelah join.
 - **Nama kolom berbeda**: `left_on="cust"`, `right_on="customer_id"`. **Nama sama untuk kolom lain** mendapat akhiran `_x`/`_y`: pilih akhiran eksplisit dengan `suffixes=`.
 - **`concat`** menumpuk tabel dengan kolom sama (beberapa file harian menjadi satu). Pastikan kolomnya sejajar dan reset index.
 
@@ -392,7 +392,7 @@ Ini jebakan fan-out dari SQL. Kursus mengukur 2.187 baris dan pendapatan 14,1% t
 >    - `orphan_customer_ids(orders, customers)`: temukan id pelanggan yang ada di tabel orders tetapi tidak terdaftar di customers (anti-join).
 > 2. Uji di terminal:
 > `pytest labs/mod-1-5/test_lab.py -k "TestJoin" -v`
-> Ketika tes PASSED, integritas join Anda terjamin aman! Lanjut ke Pelajaran 6 untuk optimasi memori dan format Parquet.
+> Ketika tes PASSED, integritas join Anda terjamin aman! Lanjut ke Materi 6 untuk optimasi memori dan format Parquet.
 
 :::drill python Berapa baris setelah join?
 Inner join menghasilkan satu baris keluaran untuk **setiap pasangan yang cocok**. Tulis `rows_after_join(left_keys, right_keys)`: keduanya adalah daftar kunci (satu kunci per baris). Kembalikan berapa baris yang dihasilkan inner join pada kunci itu.
@@ -437,7 +437,7 @@ total = pd.concat(parts).groupby(level=0).sum()
 
 Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum. Rata-rata adalah `sum / count` dari jumlah gabungan, bukan rata-rata dari rata-rata. **Waspadai apa pun yang butuh seluruh file.** Deduplikasi tiap chunk secara terpisah melewatkan duplikat yang jatuh di chunk berbeda. Pada ekspor kita baris yang diulang berdekatan, jadi chunk 100 baris hanya melewatkan 1 dari 80 duplikat, tetapi jika eksporter mengulang berjam-jam kemudian, jaraknya jauh dan mereka akan lolos. Median, rank global, dan join dua file besar tidak bisa dilakukan per chunk; saat itulah Anda pindah ke database, DuckDB, atau Spark.
 
-**Pakai Parquet, bukan CSV, untuk data yang Anda simpan.** CSV adalah teks: ia menyimpan `2026-01-15` sebagai sepuluh karakter, tidak punya tipe (pelajaran 2 ada karena itu), dan harus dibaca dari byte pertama sampai terakhir. **Parquet** adalah format biner, **kolumnar**, terkompresi (Modul 2.1) yang menyimpan tipe. Pada sejuta baris yang sama file Parquet berukuran **9,1 MB dibanding 47,7 MB** untuk CSV, sekitar **5 kali lebih kecil**, dan membaca hanya dua kolom memakan **0,03 detik dibanding 0,27** untuk CSV (`usecols` tetap harus memindai seluruh file teks). `df.to_parquet("orders.parquet", index=False)` menulisnya dan `pd.read_parquet(path, columns=[...])` hanya membaca kolom yang diminta. Antar langkah pipeline, serahkan Parquet, bukan CSV.
+**Pakai Parquet, bukan CSV, untuk data yang Anda simpan.** CSV adalah teks: ia menyimpan `2026-01-15` sebagai sepuluh karakter, tidak punya tipe (materi 2 ada karena itu), dan harus dibaca dari byte pertama sampai terakhir. **Parquet** adalah format biner, **kolumnar**, terkompresi (Modul 2.1) yang menyimpan tipe. Pada sejuta baris yang sama file Parquet berukuran **9,1 MB dibanding 47,7 MB** untuk CSV, sekitar **5 kali lebih kecil**, dan membaca hanya dua kolom memakan **0,03 detik dibanding 0,27** untuk CSV (`usecols` tetap harus memindai seluruh file teks). `df.to_parquet("orders.parquet", index=False)` menulisnya dan `pd.read_parquet(path, columns=[...])` hanya membaca kolom yang diminta. Antar langkah pipeline, serahkan Parquet, bukan CSV.
 
 **Menguji kode data.** Lab memperlihatkan kebiasaannya: tiap fungsi kecil dan murni, menerima frame dan mengembalikan frame, dan punya tes dari beberapa baris yang jawabannya bisa Anda hitung dengan tangan, ditambah satu tes pada file realistis terhadap jawaban yang dihitung secara independen. Ketika sebuah fungsi bisa diuji dengan lima baris, ia cukup sederhana untuk dipercaya.
 

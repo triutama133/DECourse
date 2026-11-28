@@ -97,7 +97,7 @@ File asli tidak memiliki baris duplikat identik, namun sistem upstream mitra dap
 
 > 💡 **Jeda Praktik 1 (Langkah 1: Profiling Data Mentah & Pembuatan profile.json):**
 > 1. Buat file `profile.json` di folder workspace Anda (`~/taxi/profile.json`) menggunakan teks editor.
-> 2. Hitung 9 metrik statistik langsung dari file mentah Parquet menggunakan query DuckDB: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, dan `cash_trips_with_tip`. (Lihat Pelajaran 3 untuk sintaks DuckDB dan Langkah 2 pada bagian Lab di bawah untuk definisi batas persis seperti `total_amount <= 0`, `>= 2024-02-01`, dan `payment_type = 2 AND tip_amount > 0`.)
+> 2. Hitung 9 metrik statistik langsung dari file mentah Parquet menggunakan query DuckDB: `rows_total`, `pickup_outside_month`, `dropoff_not_after_pickup`, `null_passenger_count`, `non_positive_total`, `distance_over_100`, `distinct_pickup_zones`, `busiest_pickup_zone_id`, dan `cash_trips_with_tip`. (Lihat Materi 3 untuk sintaks DuckDB dan Langkah 2 pada bagian Lab di bawah untuk definisi batas persis seperti `total_amount <= 0`, `>= 2024-02-01`, dan `payment_type = 2 AND tip_amount > 0`.)
 > 3. Jalankan pemeriksaan langkah 1 di terminal:
 >    `python3 labs/mod-4-1/check.py ~/taxi --step 1`
 > 4. **Indikator Sukses:** Seluruh 9 metrik berstatus `PASS`, membuktikan pemahaman profiling data mentah Anda cocok 100% dengan standar referensi.
@@ -160,7 +160,7 @@ Pola-pola SQL yang Anda butuhkan:
 - **Durasi waktu dan kalender tanggal:** `date_diff('second', start, end) / 60.0` untuk durasi menit, `isodow(date)` untuk hari dalam sepekan (Sabtu bernilai 6), dan `unnest(generate_series(DATE '2024-01-30', DATE '2024-02-02', INTERVAL 1 DAY))` untuk deret tanggal harian.
 - **Membaca CSV lengkap dengan header:** `read_csv('labs/mod-4-1/data/taxi_zone_lookup.csv', header = true)`.
 
-Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `sys.exit(2)` untuk menolak pengiriman data yang gagal uji kualitas, `print(json.dumps(...), file=sys.stderr)` untuk mencetak alasan kegagalan, serta `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) untuk penukaran folder sementara di Pelajaran 5.
+Kebutuhan Python sangat ringkas: modul `argparse` untuk menerima argumen CLI, `sys.exit(2)` untuk menolak pengiriman data yang gagal uji kualitas, `print(json.dumps(...), file=sys.stderr)` untuk mencetak alasan kegagalan, serta `pathlib`/`shutil` (`mkdir`, `rename`, `rmtree`) untuk penukaran folder sementara di Materi 5.
 
 **Rutinitas debugging untuk pipeline data produksi**:
 
@@ -321,7 +321,7 @@ Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data
 
 **Rekonsiliasi angka di setiap lapisan.** Bandingkan metrik dengan lapisan sebelumnya di setiap tahap: `rows_in - duplicates = clean + rejected`, tabel fakta memiliki jumlah baris yang cocok dengan file data bersih, dan total revenue di mart cocok dengan total revenue data bersih. Operasi join yang menggandakan baris (jebakan fan-out dari Modul 0.3) akan menggelembungkan tabel fakta dan merusak angka omset tanpa memicu error exception apapun.
 
-**Bekerja dalam tahapan kecil yang terverifikasi.** Buka file Parquet dan database `warehouse.duckdb` melalui terminal DuckDB atau notebook di setiap langkah. Cetak jumlah barisnya. Cocokkan dengan target jumlah di Pelajaran 3 dan 4 (`~2,93 juta` bersih, `~1,2%` ditolak). File `profile.json` yang Anda buat di langkah 1 bukan sekadar tugas administratif: file tersebut adalah tabel kebenaran yang akan terus Anda jadikan patokan rekonsiliasi.
+**Bekerja dalam tahapan kecil yang terverifikasi.** Buka file Parquet dan database `warehouse.duckdb` melalui terminal DuckDB atau notebook di setiap langkah. Cetak jumlah barisnya. Cocokkan dengan target jumlah di Materi 3 dan 4 (`~2,93 juta` bersih, `~1,2%` ditolak). File `profile.json` yang Anda buat di langkah 1 bukan sekadar tugas administratif: file tersebut adalah tabel kebenaran yang akan terus Anda jadikan patokan rekonsiliasi.
 
 > 💡 **Jeda Praktik 3 (Langkah 3: Pemodelan Skema Bintang di DuckDB):**
 > 1. Buka file `pipeline.py` di workspace Anda menggunakan teks editor.

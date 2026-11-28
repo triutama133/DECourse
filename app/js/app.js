@@ -655,7 +655,7 @@ class DataForgeApp {
         `This capstone is built step by step. ${C("check.py <folder> --step N")} checks step N and prints ${C("PASS")}/${C("FAIL")} per check, plus a summary. ${C("--hint 1")} to ${C("--hint 3")} give hints of increasing detail; try for at least 30 minutes before you ask.`)
     }[kind];
     const partA = mod.id === "mod-0-0" ? `<p>${this.l(
-      `Lab ini punya dua bagian. <strong>Bagian A</strong> (Pelajaran 1–4) tidak memakai fungsi: Anda mengganti setiap ${C("None")} di ${C("practice.py")} dengan kode biasa, dan tesnya menjalankan file Anda lalu memeriksa nilai variabelnya. <strong>Bagian B</strong> (mulai Pelajaran 5) adalah fungsi di ${C("basics.py")}.`,
+      `Lab ini punya dua bagian. <strong>Bagian A</strong> (Materi 1–4) tidak memakai fungsi: Anda mengganti setiap ${C("None")} di ${C("practice.py")} dengan kode biasa, dan tesnya menjalankan file Anda lalu memeriksa nilai variabelnya. <strong>Bagian B</strong> (mulai Materi 5) adalah fungsi di ${C("basics.py")}.`,
       `This lab has two parts. <strong>Part A</strong> (Lessons 1–4) uses no functions: you replace each ${C("None")} in ${C("practice.py")} with plain code, and the tests run your file and check the values of its variables. <strong>Part B</strong> (from Lesson 5) is the functions in ${C("basics.py")}.`)}</p>` : "";
     const extra = partA + (alsoPytest ? `<p>${this.l(`Modul ini juga punya bagian Python dengan tes ${C("pytest")}; langkah lab di bawah menyebutkan keduanya.`, `This module also has a Python part checked with ${C("pytest")}; the lab steps below cover both.`)}</p>` : "");
     const read = kind === "pytest" || kind === "dbt" ? this.l(
@@ -1420,8 +1420,8 @@ class DataForgeApp {
         <div id="bl-ref">${this.blReferenceHtml(modId)}</div>`;
     const switchHtml = hasParts ? `
         <div class="bl-parts" role="tablist" aria-label="${this.l("Bagian lab", "Lab part")}">
-          <button role="tab" aria-selected="${part === "a"}" class="${part === "a" ? "active" : ""}" onclick="app.setBlPart('${realModId}','a')">${this.l("Bagian A: kode biasa (Pelajaran 1–4)", "Part A: plain code (Lessons 1–4)")}</button>
-          <button role="tab" aria-selected="${part === "b"}" class="${part === "b" ? "active" : ""}" onclick="app.setBlPart('${realModId}','b')">${this.l("Bagian B: fungsi (mulai Pelajaran 5)", "Part B: functions (from Lesson 5)")}</button>
+          <button role="tab" aria-selected="${part === "a"}" class="${part === "a" ? "active" : ""}" onclick="app.setBlPart('${realModId}','a')">${this.l("Bagian A: kode biasa (Materi 1–4)", "Part A: plain code (Lessons 1–4)")}</button>
+          <button role="tab" aria-selected="${part === "b"}" class="${part === "b" ? "active" : ""}" onclick="app.setBlPart('${realModId}','b')">${this.l("Bagian B: fungsi (mulai Materi 5)", "Part B: functions (from Lesson 5)")}</button>
         </div>` : "";
     return `
       <div class="card browser-lab stack-sm" id="browser-lab">
@@ -1432,7 +1432,7 @@ class DataForgeApp {
         ${switchHtml}
         ${needLesson5Intro ? `
           <div class="callout">
-            <p class="small"><strong>🪜 ${this.l("Bagian B memakai fungsi (<code>def</code>), yang diajarkan Pelajaran 5.", "Part B uses functions (<code>def</code>), which Lesson 5 teaches.")}</strong> ${this.l("Kerjakan Bagian A dulu (Pelajaran 1–4): kode biasa, tanpa fungsi.", "Do Part A first (Lessons 1–4): plain code, no functions.")}</p>
+            <p class="small"><strong>🪜 ${this.l("Bagian B memakai fungsi (<code>def</code>), yang diajarkan Materi 5.", "Part B uses functions (<code>def</code>), which Lesson 5 teaches.")}</strong> ${this.l("Kerjakan Bagian A dulu (Materi 1–4): kode biasa, tanpa fungsi.", "Do Part A first (Lessons 1–4): plain code, no functions.")}</p>
             <button class="btn btn-sm btn-primary" onclick="app.setBlPart('${realModId}','a')">${this.l("Ke Bagian A", "Go to Part A")}</button>
           </div>
           <details class="fold-callout"><summary class="label">${this.l("Lihat Bagian B sekarang (berisi fungsi def)", "Look at Part B now (contains def functions)")}</summary><div class="stack-sm" style="margin-top:8px">${editorBlock}</div></details>`
