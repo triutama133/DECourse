@@ -19,7 +19,7 @@ Modul 1.2 (idempotensi), Modul 2.2 (open table formats), dan Modul 2.4 (orkestra
 
 ## @part Dasar Kafka
 
-## @lesson The log: mengapa sistem streaming ada
+## @lesson Log: mengapa sistem streaming ada
 Sampai tahap ini, data dalam kurikulum dipindahkan secara **batch**: sebuah batch job terjadwal menyalin rekaman transaksi kemarin malam. Namun kebutuhan bisnis modern sering kali menuntut latensi yang jauh berbeda: deteksi penipuan finansial dalam hitungan milidetik, dashboard operasional toko yang memperbarui angka saat pesanan tiba, indeks pencarian Elasticsearch yang mengikuti perubahan database produk seketika, serta puluhan tim analitik berbeda yang ingin membaca aliran data transaksi tanpa membebani database operasional. Untuk kebutuhan inilah sistem bertukar data dalam bentuk aliran **events** secara kontinu.
 
 Pondasi utama dari Apache Kafka (dan Redpanda, yang mengimplementasikan protokol Kafka murni menggunakan C++) berpusat pada struktur data yang sangat sederhana namun revolusioner: **The Log**, yaitu **urutan rekaman data yang bersifat append-only, terurut (ordered), dan persisten (durable)**. Producer menambahkan rekaman baru hanya di ujung akhir log; consumer membaca dari posisi mana pun yang diinginkan dan mengingat posisinya sendiri. Rekaman data **tidak dihapus saat dibaca**; rekaman tersebut tetap tersimpan aman di disk hingga batas aturan retensi (retention policy) membersihkannya.

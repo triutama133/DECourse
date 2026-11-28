@@ -436,7 +436,7 @@ permintaan maaf dan daftar semua alat yang sudah dicoba
 Taruh jawaban di depan, dengan angka: apa yang terdampak, seberapa besar, dan apa langkah berikutnya. Detail dan cerita penyelidikan bisa menyusul di bawah untuk pembaca yang menginginkannya.
 :::
 
-## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan deprekasi skema tanpa downtime
+## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan penghentian bertahap skema tanpa downtime
 
 Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah, bisa tolong cek?"*
 

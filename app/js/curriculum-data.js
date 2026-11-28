@@ -8772,7 +8772,7 @@ window.CURRICULUM_DATA = [
      },
      {
       "title": {
-       "id": "Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan deprekasi skema tanpa downtime",
+       "id": "Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan penghentian bertahap skema tanpa downtime",
        "en": "Day-1 brownfield survival: the 5-step wrong-number root-cause trace and zero-downtime schema deprecation"
       },
       "body": {
@@ -11101,7 +11101,7 @@ window.CURRICULUM_DATA = [
     "lessons": [
      {
       "title": {
-       "id": "The log: mengapa sistem streaming ada",
+       "id": "Log: mengapa sistem streaming ada",
        "en": "The log: why streaming exists"
       },
       "body": {
