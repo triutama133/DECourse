@@ -114,6 +114,15 @@ Semua file satu snapshot tidak bisa diubah dan ditulis lebih dulu. Commit adalah
 ## @lesson Mekanisme Commit, transaksi ACID, dan penulis konkuren
 Setiap modifikasi pada tabel Iceberg dieksekusi melalui prosedur **commit**: (1) tulis file-file data Parquet yang baru, (2) tulis file manifest baru, manifest list baru, dan file `metadata.json` baru, (3) minta katalog metadata untuk **menukar pointer tabel secara atomik (atomic swap)** dari file metadata lama ke file metadata baru, *namun hanya jika pointer katalog saat itu masih sama dengan versi saat proses dimulai*. Langkah 1 dan 2 tidak terlihat oleh pembaca (hanya file yatim tanpa referensi). Langkah 3 adalah satu operasi atomik tunggal (compare-and-swap di katalog). Hasilnya, pembaca hanya akan melihat versi lama yang utuh atau versi baru yang utuh, tidak pernah separuh versi. Pipeline yang mengalami crash di langkah 1 hanya meninggalkan file tanpa referensi yang tidak berbahaya, bukan tabel yang rusak. Inilah prinsip **Atomisitas (Atomicity)**.
 
+:::talk Dua penulis sekaligus
+@teacher Pekerjaan A dan B sama-sama membaca tabel Iceberg pada snapshot 7 dan masing-masing bersiap menambahkan datanya sendiri. A melakukan commit lebih dulu, membuat snapshot 8. Lalu B mencoba commit penambahannya di atas snapshot 7.
+@ask Apa yang terjadi pada pekerjaan B?
+@choice B menimpa A, karena penulis terakhir selalu menang | Kalau itu terjadi, data A hilang diam-diam, persis hal yang dirancang untuk dicegah oleh format tabel. Coba lagi.
+@choice * Commit B ditolak, B melihat snapshot 8 yang baru dan mencoba lagi | Betul. Commit adalah compare-and-swap: "arahkan tabel ke snapshot baruku, hanya jika ia masih menunjuk ke snapshot 7". Ia sudah tidak menunjuk ke sana, jadi B menyegarkan dan mengulang, dan kedua penambahan selamat.
+@choice Keduanya commit sekaligus, dan tabel sekarang punya dua versi | Sebuah tabel punya tepat satu snapshot saat ini pada setiap saat. Coba lagi.
+@teacher Itulah optimistic concurrency: jangan mengunci, cukup periksa di saat terakhir apakah ada yang sudah mendahului.
+:::
+
 Pendekatan ini menerapkan **Optimistic Concurrency Control (OCC)** (bayangkan seperti `git push` ketimbang mengunci satu file bersama: tiap orang bekerja di salinannya sendiri, lalu katalog mengecek saat commit apakah ada orang lain yang push duluan): proses penulisan tidak mengambil distributed lock; mereka bekerja dengan asumsi tidak ada pihak lain yang mengubah tabel, dan memverifikasinya di langkah commit. Jika dua pipeline penulisan mulai bekerja dari snapshot yang sama dan pipeline pertama berhasil commit, maka operasi compare-and-swap pipeline kedua akan gagal. Langkah berikutnya bergantung pada apakah kedua perubahan tersebut saling *berkonflik*. Pada pengujian lab, pipeline kedua yang memegang metadata lama mencoba melakukan operasi append setelah pipeline pertama commit; PyIceberg mencatat log `Commit failed due to a concurrent update, retrying` dan **berhasil commit pada percobaan ulang**, karena dua operasi append menulis file-file independen yang tidak saling berbenturan, sehingga pipeline kedua dapat me-refresh metadata acuan dan mengulang komit di atas versi terbaru. Sebaliknya, jika dua pipeline mencoba **menghapus atau menimpa baris yang sama**, atau satu pipeline menimpa partisi yang baru saja ditambahkan oleh pipeline lain, kedua operasi tersebut bertentangan dan commit kedua akan gagal dengan error yang harus ditangani engineer.
 
 Bagi proses pembacaan (reader), jaminan yang diberikan adalah **Snapshot Isolation**: query dimulai dari satu snapshot tertentu dan melihat data yang konsisten dari snapshot tersebut sepanjang masa hidup query, bahkan saat puluhan pipeline penulisan melakukan commit baru. Pembaca tidak pernah memblokir penulis, dan pembaca tidak pernah melihat hasil pemuatan separuh jalan. Sifat **Durability** dijamin oleh ketahanan media cloud storage; **Consistency** ditegakkan oleh skema tabel dan protokol commit.
@@ -142,6 +151,15 @@ Iceberg memakai **optimistic concurrency**: writer membangun file mereka tanpa l
 
 ## @lesson Time travel, penghapusan baris, dan alasan data tidak langsung musnah
 Karena setiap commit menghasilkan snapshot baru dan snapshot lama tetap disimpan, Anda mendapatkan kapabilitas **Time Travel** secara cuma-cuma: membaca kondisi tabel pada snapshot id atau timestamp tertentu di masa lalu. Pada lab praktis, setelah tabel menerima penambahan data berturut-turut sebanyak 3, 2, dan 2 baris, membaca snapshot 0 menghasilkan 3 baris dan membaca snapshot 2 menghasilkan 7 baris. Fitur ini sangat berharga untuk debugging insiden ("seperti apa kondisi data saat dashboard eksekutif rusak tadi malam?"), mereproduksi dataset pelatihan model machine learning, audit regulasi, dan melakukan **rollback instan** jika ada pemuatan batch yang rusak.
+
+:::talk Sudah dihapus, tetapi masih ada
+@teacher Seorang pelanggan meminta Anda menghapus data pribadinya. Anda menjalankan `DELETE FROM orders WHERE customer_id = 4242` pada tabel Iceberg, dan sebuah count memastikan baris-barisnya sudah hilang. Seorang rekan lalu menjalankan query time-travel pada snapshot minggu lalu.
+@ask Apakah datanya muncul?
+@choice Tidak: DELETE menghapus baris dari setiap snapshot | Sebuah snapshot adalah tampilan beku tabel pada satu saat. Delete yang baru tidak mengubah snapshot lama. Coba lagi.
+@choice * Ya: snapshot lama masih menunjuk ke file lama, yang masih menyimpan barisnya | Betul. Delete membuat snapshot baru tanpa barisnya, tetapi snapshot minggu lalu beserta file-nya masih ada sampai Anda menghapus kedaluwarsa snapshot dan membersihkan file yatim.
+@choice Hanya kalau query time-travel memakai cache | Tidak ada cache di sini: begitulah cara kerja snapshot. Coba lagi.
+@teacher Time travel dan penghapusan sungguhan saling berlawanan. Untuk permintaan privasi, hapus, lalu kedaluwarsakan snapshot lama dan bersihkan file data yatim, dan catat kapan Anda melakukannya.
+:::
 
 Operasi manipulasi baris individual (**Row-Level Changes** seperti `DELETE`, `UPDATE`, `MERGE`) adalah keunggulan utama format tabel dibanding folder Parquet biasa. Saat 1 dari 100.000 baris di dalam file immutable berubah, pilihannya adalah mencetak ulang seluruh halaman tanpa baris itu (Copy-on-Write) atau menempelkan catatan kecil bertuliskan "abaikan baris 42" (Merge-on-Read):
 
@@ -174,6 +192,15 @@ Time travel bekerja karena snapshot lama masih menunjuk ke file lama. Delete men
 ## @part Evolusi, Delta Lake, dan operasional
 
 ## @lesson Evolusi skema, evolusi partisi, dan hidden partitioning
+:::talk Mengganti nama kolom di tabel raksasa
+@teacher Sebuah tabel Iceberg menyimpan 3 TB data pesanan dalam ribuan file Parquet. Seseorang memutuskan bahwa kolom `status` sebaiknya bernama `order_status`.
+@ask Apa yang harus terjadi pada file data?
+@choice Semuanya harus ditulis ulang dengan nama kolom yang baru | Itu yang terjadi pada file Parquet biasa yang dicocokkan menurut nama kolom. Iceberg melacak setiap kolom dengan field id. Coba lagi.
+@choice File diganti namanya satu per satu, memakan beberapa jam | File tidak disentuh sama sekali. Coba lagi.
+@choice * Tidak ada: hanya metadata tabel yang berubah, karena kolom dilacak dengan id | Betul. File data tetap memegang field id 3, dan metadata baru berkata bahwa id 3 sekarang bernama `order_status`. Perubahan itu selesai sekejap, berapa pun ukuran tabelnya.
+@teacher Karena itu format tabel bisa mengembangkan skema dengan aman: makna sebuah kolom ada di metadata, bukan di file.
+:::
+
 **Evolusi Skema (Schema Evolution).** Iceberg mengidentifikasi setiap kolom menggunakan **numeric field id** permanen yang tidak pernah berubah, bukan berdasarkan nama teks atau posisi urutan kolom. Field ID ini tercatat di metadata (`{"id": 4, "name": "status"}`) dan di dalam setiap file Parquet data. Konsekuensinya sangat revolusioner dan terbukti pada pengujian lab:
 
 - **Mengubah Nama Kolom (Rename):** hanya file metadata yang diperbarui; ID 4 sekarang bernama `order_status`; file data Parquet lama tetap memegang field ID 4, dan query yang memanggil nama baru tetap membacanya dengan sempurna.

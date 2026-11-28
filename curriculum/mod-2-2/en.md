@@ -114,6 +114,15 @@ All the files of a snapshot are immutable and written first. The commit is the s
 ## @lesson Commits, ACID and concurrent writers
 A change to an Iceberg table is a **commit**: (1) write the new data files, (2) write new manifests, a manifest list and a new `metadata.json`, (3) ask the catalog to **atomically swap the table's pointer** from the old metadata file to the new one, *but only if the pointer still equals what you started from*. Steps 1 and 2 are invisible to readers (they are just unreferenced files). Step 3 is a single atomic operation, a compare-and-swap in the catalog. So a reader either sees the old complete version or the new complete version, never half of one. A job that dies at step 1 leaves harmless orphan files, not a half-written table. That is **atomicity**.
 
+:::talk Two writers at once
+@teacher Jobs A and B both read the Iceberg table at snapshot 7 and each prepare to append their own new data. Job A commits first, creating snapshot 8. Then job B tries to commit its append on top of snapshot 7.
+@ask What happens to job B?
+@choice B overwrites A, because the last writer always wins | If that happened, A's data would silently be lost, which is exactly what the table format is designed to prevent. Try again.
+@choice * B's commit is rejected, B looks at the new snapshot 8 and tries again | Yes. The commit is a compare-and-swap: "make the table point to my new snapshot, only if it still points at snapshot 7". It no longer does, so B refreshes and retries, and both appends survive.
+@choice Both commit at once, and the table now has two versions | A table has exactly one current snapshot at any moment. Try again.
+@teacher That is optimistic concurrency: do not lock, just check at the last moment whether anyone got there first.
+:::
+
 This is **optimistic concurrency control** (think of `git push` instead of locking a shared file: everyone edits freely on their own copy, and the catalog checks at commit time whether someone else pushed first): writers do not take locks; they do their work assuming nobody else changed the table, and verify at the commit. If two writers start from the same snapshot and one commits first, the second one's compare-and-swap fails. What happens next depends on whether the two changes *conflict*. In the lab, a second writer holding a stale view of the table tried to append after the first had committed; PyIceberg logged `Commit failed due to a concurrent update, retrying` and **succeeded on the retry**, because two appends add independent files and do not conflict, so the writer can refresh the base metadata and replay its change on top. Both appends ended up in the table. By contrast, two jobs that **delete or overwrite the same rows**, or one that overwrites a partition another just appended to, cannot both be right, and the later commit fails with an error that you must handle (reload and retry the logic, or serialise those jobs).
 
 What readers get is **snapshot isolation**: a query starts from one snapshot and sees exactly that version of the table for its whole life, even while writers commit new ones. Readers never block writers and never see partial results. **Durability** comes from the object store; **consistency** from the schema and the commit protocol.
@@ -142,6 +151,15 @@ Iceberg uses **optimistic concurrency**: writers build their files without locki
 
 ## @lesson Time travel, deletes and why data does not vanish
 Because every commit creates a snapshot and old snapshots are kept, you get **time travel** for free: read the table as of a snapshot id or a timestamp. In the lab, after the table received appends of 3, 2 and 2 rows, reading snapshot 0 returns 3 rows and snapshot 2 returns 7. This supports debugging ("what did the table look like when the dashboard broke?"), reproducing a model's training data, auditing, and **rollback** (point the table back at an earlier snapshot after a bad load).
+
+:::talk Deleted, but still there
+@teacher A customer asks you to delete her personal data. You run `DELETE FROM orders WHERE customer_id = 4242` on the Iceberg table, and a count confirms that her rows are gone. A colleague then runs a time-travel query on last week's snapshot.
+@ask Does her data show up?
+@choice No: DELETE removes the rows from every snapshot | A snapshot is a frozen view of the table at one moment. A new delete does not edit old snapshots. Try again.
+@choice * Yes: old snapshots still point at the old files, which still hold her rows | Yes. The delete created a new snapshot without her rows, but last week's snapshot and its files are still there until you expire them and remove the orphaned files.
+@choice Only if the time-travel query uses a cache | There is no cache involved: it is how snapshots work. Try again.
+@teacher Time travel and real deletion pull in opposite directions. For privacy requests, delete, then expire the old snapshots and remove the orphaned data files, and keep a record of when you did it.
+:::
 
 **Row-level changes** (`DELETE`, `UPDATE`, `MERGE`) are the capability that plain Parquet lacks. When one order out of 100,000 changes inside an immutable file, you either reprint the whole page without that row (Copy-on-Write) or stick a tiny sticky-note next to it saying "skip row 42" (Merge-on-Read):
 
@@ -174,6 +192,15 @@ Time travel works because old snapshots still point to old files. A delete write
 ## @part Evolution, Delta Lake and operations
 
 ## @lesson Schema evolution, partition evolution and hidden partitioning
+:::talk Renaming a column in a huge table
+@teacher An Iceberg table holds 3 TB of order data in thousands of Parquet files. Someone decides that the column `status` should be called `order_status`.
+@ask What has to happen to the data files?
+@choice All of them must be rewritten with the new column name | That is what happens with plain Parquet files matched by column name. Iceberg tracks every column by a field id instead. Try again.
+@choice The files are renamed one by one, which takes a few hours | Files are not touched at all. Try again.
+@choice * Nothing: only the table's metadata changes, because columns are tracked by id | Yes. The data files still hold field id 3, and the new metadata says that id 3 is now called `order_status`. The change takes a moment, whatever the table size.
+@teacher That is why a table format can evolve a schema safely: the meaning of a column lives in the metadata, not in the file.
+:::
+
 **Schema evolution.** Iceberg identifies every column by a permanent **numeric field id**, not by its name or its position. The ids are in the metadata (`{"id": 4, "name": "status"}`) and in each Parquet file. Consequences, all demonstrated in the lab's tests:
 
 - **Rename** a column and only the metadata changes: id 4 is now called `order_status`; old files still hold field 4, and queries on the new name read them correctly.
