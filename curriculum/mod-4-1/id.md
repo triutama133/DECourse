@@ -199,6 +199,15 @@ Ekspresi CASE mengembalikan hasil WHEN pertama yang benar dan tidak lanjut. Begi
 ## @lesson Kontrak teknis
 Bagian ini adalah spesifikasi teknis formal. Baca secara menyeluruh sebelum memulai step 2; skrip pemeriksa mengikuti kontrak ini secara persis.
 
+:::talk Jumlah penumpang yang NULL
+@teacher Ribuan perjalanan taksi di file itu punya `passenger_count` kosong. Kontrak Anda harus memutuskan apa yang dilakukan langkah pembersihan terhadapnya. Seorang rekan menyarankan: "isi dengan 1, nilai paling umum, agar tidak ada yang kosong".
+@ask Apa isi kontraknya?
+@choice Isi dengan 1: tabel yang lengkap lebih mudah dipakai | Tabelnya tampak lengkap, tetapi angka 1 itu karangan: tidak ada yang mengukurnya, dan setiap rata-rata penumpang akan diam-diam salah. Coba lagi.
+@choice * Pertahankan barisnya dan pertahankan NULL-nya: angka karangan adalah fakta yang tidak pernah diukur siapa pun | Betul. NULL dengan jujur berkata "tidak diketahui", dan perjalanan itu tetap sah untuk tarif dan jarak. Pengguna hilir bisa memutuskan apa yang dilakukan dengan penumpang yang tidak diketahui.
+@choice Buang semua perjalanan itu: baris dengan nilai hilang adalah baris buruk | Perjalanan itu adalah perjalanan yang sah untuk uang dan jarak. Membuangnya akan menghilangkan pendapatan dari total. Coba lagi.
+@teacher "Jangan menebak dan jangan membuang diam-diam" dari Modul 0.2 lagi: biarkan yang tidak diketahui tetap tidak diketahui, dan dokumentasikan keputusannya di kontrak.
+:::
+
 **Antarmuka Baris Perintah (CLI).** `python pipeline.py --trips TRIPS.parquet --zones ZONES.csv --out OUT`. Skrip membaca file pengiriman dengan 19 kolom mentah dan menulis seluruh berkas luaran ke dalam folder `OUT`.
 
 **Kode Keluar (Exit Codes).** `0`: pengiriman data berhasil diproses. `2`: **gerbang kualitas (quality gate)** menolak pengiriman data; dalam kondisi ini, **tidak boleh ada perubahan satu byte pun di dalam folder OUT**. Kode keluar lainnya menandakan pipeline mengalami crash/error tak terduga.
@@ -283,6 +292,15 @@ Kiriman yang ditolak tidak boleh mengubah apa pun. Hitung dulu semua yang dibutu
 
 ## @lesson Merancang agar pipeline bertahan di produksi
 Langkah 5 pada skrip pemeriksa adalah titik di mana sebagian besar pipeline data gagal, oleh karena itu rancanglah ketahanan ini sejak awal arsitektur.
+
+:::talk Pengiriman yang sama, dua kali
+@teacher Penjadwal menyala dua kali karena kesalahan, dan pipeline Anda menerima file Januari yang sama dua kali berturut-turut. Tidak ada yang menyadarinya sampai hari Senin.
+@ask Rancangan mana yang menghasilkan warehouse yang sama dengan satu kali pengiriman?
+@choice Menambahkan baris dari setiap pengiriman ke keluaran | Maka setiap perjalanan ada dua kali, dan setiap total di warehouse berlipat dua. Coba lagi.
+@choice * Membangun ulang keluaran dari pengiriman dan membuang baris yang identik, sehingga putaran yang diulang tidak mengubah apa pun | Betul. Inilah idempotensi: menjalankan masukan yang sama lagi menghasilkan hasil yang sama, sehingga retry atau penyalaan ganda tidak berbahaya.
+@choice Menolak setiap pengiriman kedua dalam sehari | Itu juga akan menolak file koreksi yang sah. Pipeline harus aman diulang, bukan curiga pada pengulangan. Coba lagi.
+@teacher Anggap setiap pekerjaan suatu hari akan berjalan dua kali, dan rancang agar itu tidak masalah.
+:::
 
 **Idempoten.** Menjalankan pipeline dua kali pada file pengiriman yang sama harus menghasilkan status warehouse yang identik seperti saat dijalankan satu kali. Pendekatan paling bersih adalah **membangun ulang luaran dari nol untuk setiap pengiriman** (alih-alih melakukan append pada data yang sudah ada): luaran adalah fungsi murni dari data masukan. Ini adalah penerapan prinsip Modul 1.2 pada berkas penyimpanan. Baris yang muncul ganda di dalam satu file ditangani oleh aturan deduplikasi; dan dengan `trip_id` yang deterministik, data tidak akan pernah masuk ganda ke tabel fakta.
 

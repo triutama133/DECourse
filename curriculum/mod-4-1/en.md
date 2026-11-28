@@ -199,6 +199,15 @@ A CASE expression returns the result of the first WHEN that is true and goes no 
 ## @lesson The contract
 This lesson is the specification. Read it fully before step 2; the checker follows it to the letter.
 
+:::talk A NULL passenger count
+@teacher Thousands of taxi trips in the file have an empty `passenger_count`. Your contract has to decide what the cleaning step does with them. A colleague suggests: "fill in 1, the most common value, so that nothing is missing".
+@ask What does the contract say?
+@choice Fill in 1: a complete table is easier to use | The table looks complete, but the 1 is invented: nobody measured it, and every average of passengers would be quietly wrong. Try again.
+@choice * Keep the rows and keep the NULL: an invented number would be a fact that nobody measured | Yes. NULL honestly says "unknown", and the trip is still valid for fares and distances. Downstream users can decide what to do with unknown passengers.
+@choice Drop all those trips: a row with a missing value is a bad row | The trip is a perfectly good trip for money and distance. Dropping it would lose revenue from the totals. Try again.
+@teacher "Never guess and never drop silently" from Module 0.2 again: keep the unknown as unknown, and document the decision in the contract.
+:::
+
 **Command line.** `python pipeline.py --trips TRIPS.parquet --zones ZONES.csv --out OUT`. It reads a delivery with the 19 raw columns and writes everything below into the folder `OUT`.
 
 **Exit codes.** `0`: the delivery was processed. `2`: a **quality gate** refused the delivery; in that case **nothing in OUT may change** (not one byte). Anything else means the pipeline crashed.
@@ -283,6 +292,15 @@ A refused delivery must change nothing. Compute everything the decision needs fi
 
 ## @lesson Designing it so that it survives
 The checker's step 5 is where most real pipelines fail, so design for it from the beginning instead of patching it on.
+
+:::talk The same delivery, twice
+@teacher The scheduler fires twice by mistake, and your pipeline receives the same January file two times in a row. Nobody notices until Monday.
+@ask Which design gives the same warehouse as one single delivery?
+@choice Append the rows of each delivery to the output | Then every trip exists twice, and every total in the warehouse doubles. Try again.
+@choice * Rebuild the output from the delivery and drop identical rows, so a repeated run changes nothing | Yes. This is idempotency: running the same input again leaves the same result, so a retry or a double firing is harmless.
+@choice Refuse every second delivery of the day | That would also refuse a legitimate correction file. The pipeline should be safe to repeat, not suspicious of repeats. Try again.
+@teacher Assume every job will run twice someday, and design so that it does not matter.
+:::
 
 **Idempotent.** Running the same delivery twice must give the same result as running it once. The simplest way is to **rebuild the whole output from the input every time** (instead of appending to what is there): the output is a pure function of the delivery. This is Module 1.2 applied to files. Rows that appear twice inside one delivery are handled by the de-duplication rule; with a stable `trip_id` they also cannot enter the fact table twice.
 
