@@ -20,6 +20,15 @@ Modul 1.1 (Linux, Docker, skrip automasi), Modul 2.2 (arsitektur lakehouse dan o
 ## @lesson Mengapa Infrastructure as Code
 Bayangkan sebuah bucket object storage tempat seluruh pipeline analitik perusahaan menulis data transaksi setiap hari. Seseorang membuatnya delapan bulan lalu melalui antarmuka web AWS console. Konfigurasi enkripsi apa yang sebenarnya aktif di sana? Siapa saja pengguna atau service account yang memiliki izin membaca? Mengapa salinan bucket di lingkungan staging berperilaku berbeda dengan lingkungan produksi? Tidak ada seorang pun di tim yang dapat menjawabnya dengan pasti, karena kebenaran arsitektur hanya tersimpan di halaman web dan ingatan manusia yang fana.
 
+:::talk Terapkan dua kali
+@teacher Anda menggambarkan sebuah bucket penyimpanan dalam kode Terraform dan menjalankan `terraform apply`. Bucket itu dibuat. Lalu, tanpa mengubah apa pun, Anda menjalankan `terraform apply` lagi.
+@ask Apa yang terjadi pada kali kedua?
+@choice Ia membuat bucket kedua dengan nama yang sama | Nama bucket itu unik, dan yang lebih penting Terraform membandingkan apa yang Anda gambarkan dengan apa yang ada. Coba lagi.
+@choice Ia gagal, karena bucket sudah ada | Ia tidak gagal: ia melihat bucket sudah sesuai gambaran. Coba lagi.
+@choice * Tidak ada: ia membandingkan kode dengan kenyataan, tidak menemukan perbedaan, dan tidak mengubah apa pun | Betul. Anda menggambarkan keadaan akhir, dan alatnya menyusun langkah-langkahnya. Menjalankannya dua kali aman, yaitu sifat idempotensi dari Modul 2.4, kini diterapkan pada infrastruktur.
+@teacher Itu juga alasan `terraform plan` berguna: ia menunjukkan perbedaan sebelum apa pun berubah, dan baris yang dibaca dua kali adalah setiap `destroy`.
+:::
+
 **Infrastructure as Code (IaC)** mendeskripsikan seluruh topologi infrastruktur komputasi dan penyimpanan ke dalam file teks deklaratif yang disimpan rapi di dalam Git. Pendekatan ini menghadirkan disiplin rekayasa perangkat lunak modern ke dunia infrastruktur data:
 
 - **Dapat Ditinjau (Reviewable).** Setiap perubahan hak akses atau penambahan resource baru diajukan melalui Pull Request (PR) yang wajib dibaca dan disetujui rekan kerja sebelum dieksekusi secara fisik.
@@ -129,6 +138,15 @@ Pipeline Anda berjalan di mesin-mesin di cloud. Ia membaca dari database, menuli
 | daftar penjaga di sebuah pintu | **security group** | aturan tentang siapa boleh mengetuk pintu yang mana |
 
 ### Alamat: IP dan CIDR dalam dua menit
+
+:::talk Berapa alamat dalam sebuah /20?
+@teacher Jaringan cloud Anda adalah `10.0.0.0/16`. Anda ingin memotongnya menjadi subnet yang lebih kecil berukuran `/20`. Sebuah alamat IP punya 32 bit, dan angka setelah garis miring menyatakan berapa di antaranya yang tetap. Sisanya bebas dipakai untuk menghitung.
+@ask Berapa alamat yang dimuat satu subnet `/20`?
+@choice 20, karena angka setelah garis miring | Angka setelah garis miring menghitung bit yang TETAP, bukan jumlah alamat. Coba lagi.
+@choice * 4.096: 32 - 20 = 12 bit bebas, dan 2 pangkat 12 adalah 4.096 | Betul. Dan AWS menyimpan 5 alamat setiap subnet untuk dirinya sendiri, sehingga 4.091 yang bisa dipakai. Sebuah `/16` memuat 16 subnet seperti itu.
+@choice 65.536, ukuran seluruh `/16` | Itu seluruh jaringan. Sebuah `/20` adalah irisannya: 16 irisan muat dalam satu `/16`. Coba lagi.
+@teacher Angka setelah garis miring yang lebih kecil berarti jaringan yang lebih besar. Ukur subnet dengan ruang untuk tumbuh, karena mengubah rentang subnet nanti memaksa penggantian.
+:::
 
 Setiap komputer di jaringan punya **alamat IP**: empat angka dari 0 sampai 255 yang dipisah titik, seperti `10.0.37.5`. Ia bekerja seperti alamat jalan. **Blok CIDR** menyebut sekaligus seluruh *rentang* alamat, misalnya `10.0.0.0/16`.
 
@@ -386,6 +404,15 @@ Gateway endpoint menambahkan rute ke S3 tanpa mengirim lalu lintas lewat NAT gat
 > 4. **Indikator Sukses:** Sebanyak 14 pengujian berstatus `PASSED` dalam hitungan milidetik murni Python, memvalidasi kalkulasi tagihan uptime warehouse dan alokasi biaya per tim.
 
 ## @lesson Guardrails, anggaran biaya, dan prakiraan pembengkakan
+:::talk Query yang berjalan semalaman
+@teacher Seorang analis memulai query raksasa pukul 18:00 lalu pulang. Query itu berjalan di warehouse besar, ditagih per detik, sampai pukul 05:00 pagi berikutnya. Tagihan untuk satu query itu mengejutkan. Tidak ada yang mengawasi.
+@ask Kontrol mana yang akan menghentikannya secara otomatis, dengan biaya terendah?
+@choice * Statement timeout pada warehouse, ditambah alert anggaran yang membangunkan seseorang saat pengeluaran tak biasa | Betul. Timeout mematikan query yang berjalan terlalu lama tanpa perlu manusia, dan alert menangkap pengeluaran aneh lebih awal. Keduanya hampir tidak berbiaya.
+@choice Warehouse yang lebih besar, agar query selesai lebih cepat | Warehouse yang lebih besar lebih mahal per detik dan bisa membuat query liar lebih mahal. Coba lagi.
+@choice Email mingguan yang mengingatkan tim agar berhati-hati | Pengingat tidak menghentikan query pada pukul 02:00. Kontrol harus bekerja tanpa orang. Coba lagi.
+@teacher Guardrail adalah batas yang bekerja saat Anda tidur: timeout, anggaran, alert, dan kuota, dipasang sebelum insiden, bukan sesudahnya.
+:::
+
 Anda tidak bisa mengandalkan kehati-hatian manusia pada pukul 22:30 di Jumat malam. Sistem pembatas kendali biaya (**guardrails**) harus bekerja secara otomatis:
 
 **Pencegahan (Preventive Controls):**

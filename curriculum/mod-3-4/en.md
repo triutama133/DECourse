@@ -20,6 +20,15 @@ Modules 1.1 (Linux, Docker, scripting), 2.2 (the lakehouse and object storage) a
 ## @lesson Why infrastructure as code
 Picture the bucket where your pipeline writes its data. Someone created it in the cloud console eight months ago. Which encryption settings does it have? Who can read it? Why does the staging copy behave differently? Nobody can say for sure, because the truth lives in a web page and in somebody's memory.
 
+:::talk Apply it twice
+@teacher You describe a storage bucket in Terraform code and run `terraform apply`. It creates the bucket. Then, without changing anything, you run `terraform apply` again.
+@ask What happens the second time?
+@choice It creates a second bucket with the same name | A bucket name is unique, and more importantly Terraform compares what you described with what exists. Try again.
+@choice It fails, because the bucket already exists | It does not fail: it sees the bucket is already as described. Try again.
+@choice * Nothing: it compares the code with reality, finds no difference, and changes nothing | Yes. You describe the end state, and the tool works out the steps. Running it twice is safe, which is the property of idempotency from Module 2.4, now applied to infrastructure.
+@teacher That is also why `terraform plan` is useful: it shows the difference before anything changes, and the line to read twice is every `destroy`.
+:::
+
 **Infrastructure as code (IaC)** describes infrastructure in text files kept in Git. The consequences are the same ones you already enjoy for application code:
 
 - **Reviewable.** A change to a permission is a pull request that a colleague reads before it happens.
@@ -129,6 +138,15 @@ Your pipelines run on machines in the cloud. They read from a database, write to
 | the guard's list at a door | **security group** | rules saying who may knock on which door |
 
 ### Addresses: IP and CIDR in two minutes
+
+:::talk How many addresses in a /20?
+@teacher Your cloud network is `10.0.0.0/16`. You want to cut it into smaller subnets of the size `/20`. An IP address has 32 bits, and the number after the slash says how many of them are fixed. The rest are free to count with.
+@ask How many addresses does one `/20` subnet hold?
+@choice 20, because of the number after the slash | The number after the slash counts the FIXED bits, not the addresses. Try again.
+@choice * 4,096: 32 - 20 = 12 free bits, and 2 to the power 12 is 4,096 | Yes. And AWS keeps 5 addresses of every subnet for itself, so 4,091 are usable. A `/16` holds 16 such subnets.
+@choice 65,536, the size of the whole `/16` | That is the whole network. A `/20` is a slice of it: 16 slices fit in a `/16`. Try again.
+@teacher Smaller number after the slash means a bigger network. Size subnets with room to grow, because changing a subnet's range later forces replacement.
+:::
 
 Every computer on a network has an **IP address**: four numbers from 0 to 255 separated by dots, like `10.0.37.5`. It works like a street address. A **CIDR block** names a whole *range* of addresses at once, for example `10.0.0.0/16`.
 
@@ -387,6 +405,15 @@ A gateway endpoint adds a route to S3 without sending the traffic through the NA
 > 4. **Success Indicator:** All 14 tests report `PASSED` in milliseconds in pure Python, validating warehouse uptime billing and team cost allocation.
 
 ## @lesson Guardrails, budgets and forecasts
+:::talk The query that ran all night
+@teacher An analyst starts a huge query at 18:00 and goes home. It runs on a large warehouse, billed per second, until 05:00 the next morning. The bill for that one query is a shock. Nobody was watching.
+@ask Which control would have stopped it automatically, at the lowest cost?
+@choice * A statement timeout on the warehouse, plus a budget alert that pages someone when spend is unusual | Yes. A timeout kills any query that runs too long, with no human needed, and the alert catches strange spending early. Both cost almost nothing.
+@choice A bigger warehouse, so the query finishes faster | A bigger warehouse costs more per second and can make a runaway query more expensive. Try again.
+@choice A weekly email reminding the team to be careful | Reminders do not stop a query at 02:00. Controls must act without a person. Try again.
+@teacher Guardrails are limits that work while you sleep: timeouts, budgets, alerts and quotas, set before the incident, not after.
+:::
+
 You cannot rely on people to be careful at 22:30 on a Friday. Controls must be automatic.
 
 **Prevent.**
