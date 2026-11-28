@@ -226,7 +226,7 @@ Row-level checks see one row at a time. **Dataset-level monitoring** looks at th
 @teacher For checks that must stay sensible after a bad day, use statistics that outliers cannot stretch.
 :::
 
-**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2`, even if a wild day had `1000`, the median and MAD of `[10, 12, 14, 1000]` stay almost unchanged (`13` and `2`, with MAD completely unchanged at `2`), whereas the standard deviation explodes!
+**Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2`. Now add a wild day of `1000`: the median and MAD of `[10, 12, 14, 1000]` are `13` and `2`, almost unchanged, whereas the standard deviation explodes!
 
 ```text
 spread = max(1.4826 * MAD, 5% of median, 1)     # 1.4826 makes MAD comparable to a standard deviation

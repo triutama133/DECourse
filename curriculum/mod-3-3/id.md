@@ -301,7 +301,7 @@ Watermark adalah yang memberi tahu Spark bahwa sebuah window tidak akan menerima
 
 Pilihlah berdasarkan toleransi latensi bisnis dan kompetensi teknis tim. Untuk mayoritas kebutuhan analitik di mana latensi data "dalam kurun waktu 1 menit" sudah memuaskan dan tim telah menguasai Spark, Structured Streaming adalah pilihan yang sangat pragmatis; sedangkan untuk kebutuhan deteksi kecurangan transaksi finansial berlatensi milidetik atau alur logika berbasis timer yang kompleks, Apache Flink adalah spesialis tak tertandingi. Pustaka *Kafka Streams* menjadi alternatif ringan ketiga jika Anda ingin memproses stream langsung di dalam microservice JVM tanpa perlu mengelola klaster komputasi terpisah.
 
-**Membaca Data dari Apache Kafka menggunakan Structured Streaming** (terverifikasi pada broker nyata; tambahkan konektor Kafka yang sesuai dengan versi Spark dan Scala Anda, misalnya `--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0`):
+**Membaca Data dari Apache Kafka menggunakan Structured Streaming** (terverifikasi pada broker nyata; tambahkan konektor Kafka yang cocok dengan versi Spark Anda, yang bisa dilihat lewat `pip show pyspark`: untuk Spark 4.3.0 itu `--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.3.0`):
 
 ```python
 schema = StructType([

@@ -74,6 +74,8 @@ def run_order(deps):
 
 The concept that trips up newcomers is the **data interval** (Airflow) or **partition** (Dagster). A daily pipeline scheduled at 02:00 on 6 January is not "doing 6 January's work". It is processing **5 January's data**, because 5 January only finished at midnight. Orchestrators model this explicitly: every run is tied to the interval of data it covers (`2026-01-05`), exposed to your code as the **logical date** (Airflow's `ds`) or the **partition key** (Dagster's `context.partition_key`). Your code must read data **for that interval**, never for "now". If a run is retried tomorrow, or backfilled next month, it must produce the same result for 5 January. Using the wall clock (`datetime.now()`, `current_date`) inside a task silently breaks this.
 
+One Airflow 3 detail to know: a plain cron string such as `schedule="0 2 * * *"` gives the 02:00 run *the moment it starts* as its logical date, with no earlier interval. If you want the run at 02:00 on the 6th to cover 5 January, use `CronDataIntervalTimetable("0 2 * * *", timezone="Asia/Jakarta")` (from `airflow.timetables.interval`), or subtract one day in one single place in your code. Checked with Airflow 3.1.8. Either way the rule is the same: use the date the run hands you, and decide in one place which day it means.
+
 Other vocabulary:
 
 - **Task / op / asset**: a unit of work. **Dependencies** between them form the DAG.
@@ -168,7 +170,7 @@ An idempotent job leaves the same result whether it runs once or five times. App
 @teacher Use the interval the orchestrator hands you (its logical date), never the clock. Then a retry or a backfill loads exactly the day it was meant to.
 :::
 
-A complete DAG using the TaskFlow API (verified to run with Airflow 3.3):
+A complete DAG using the TaskFlow API (verified to run with Airflow 3.1.8, using `airflow dags test`):
 
 ```python
 from datetime import timedelta

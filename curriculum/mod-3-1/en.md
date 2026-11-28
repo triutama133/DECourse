@@ -454,7 +454,7 @@ On Databricks, pipelines follow the **Medallion Architecture** (the same raw →
 
 **Why Auto Loader (`cloudFiles`) beats raw `spark.read.parquet("s3://...")`:**
 When an S3 bucket accumulates 2 million JSON or CSV files over a year, running `spark.read.json("s3://bucket/events/*")` forces Spark to run an expensive S3 `LIST` operation over all 2 million files on every run. Databricks **Auto Loader (`cloudFiles`)** solves this:
-1. It uses cloud event notifications (SNS/SQS on AWS, Event Grid on Azure, Pub/Sub on GCP) or incremental directory listing backed by a **RocksDB checkpoint** so it discovers only *newly arrived* files in `O(1)` time.
+1. It uses cloud event notifications (SNS/SQS on AWS, Event Grid on Azure, Pub/Sub on GCP) or incremental directory listing backed by a **RocksDB checkpoint** so it discovers only *newly arrived* files, without listing all the old ones again.
 2. It evolves schemas automatically and routes unexpected or malformed JSON fields into a **`_rescued_data`** column instead of crashing the nightly job at 3 AM!
 
 ```python
@@ -482,7 +482,7 @@ bronze_stream = (
 )
 ```
 
-> **FinOps Rule for Streaming vs. Batch:** Notice `.trigger(availableNow=True)`! Instead of keeping a 24/7 streaming cluster awake all night waiting for files, `availableNow=True` spins up an ephemeral job cluster every 15 or 60 minutes, processes every new file since the last RocksDB checkpoint with full streaming guarantees, and terminates the cluster immediately.
+> **FinOps Rule for Streaming vs. Batch:** Notice `.trigger(availableNow=True)`! Instead of keeping a 24/7 streaming cluster awake all night waiting for files, a scheduled job (every 15 or 60 minutes) starts an ephemeral job cluster, `availableNow=True` processes every new file since the last RocksDB checkpoint with full streaming guarantees, and the cluster terminates as soon as it finishes.
 
 ### 3. Lakeflow Declarative Pipelines (Delta Live Tables) & Quality Expectations
 Just as Module 2.5 taught you to quarantine bad records at the ingestion gate, Databricks provides **Lakeflow Declarative Pipelines (Delta Live Tables / DLT)** where you declare data quality rules (**Expectations**) directly on streaming tables and materialized views:

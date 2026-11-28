@@ -300,7 +300,7 @@ SELECTION: col("event_type") == "purchase"
 
 Three of seven columns, and the filter inside the scan. (`pl.read_parquet` is the *eager* version: it loads everything first and forfeits these optimisations; prefer `scan_*` for files.) Polars runs on all cores by default and has a streaming mode for larger-than-memory work.
 
-**What about pandas?** pandas is everywhere and perfect for small data, exploration and the ecosystem (plotting, scikit-learn). Its costs appear at scale: it loads whole tables into memory, uses Python objects for strings (which is expensive), and mostly runs on one core. Measured on the same illustrative 5-million-row, 7-column benchmark table from Lesson 1 (separate from the smaller 1-million-row test table in `test_lab.py`), each in a fresh process (for the pandas runs, peak memory includes the roughly 100 to 150 MB baseline of importing Python with `pandas` and `pyarrow`; standalone `duckdb` has a smaller import footprint):
+**What about pandas?** pandas is everywhere and perfect for small data, exploration and the ecosystem (plotting, scikit-learn). Its costs appear at scale: it loads whole tables into memory, older versions keep strings as Python objects (expensive; pandas 3 stores text more compactly), and mostly runs on one core. Measured on the same illustrative 5-million-row, 7-column benchmark table from Lesson 1 (separate from the smaller 1-million-row test table in `test_lab.py`), each in a fresh process (for the pandas runs, peak memory includes the roughly 100 to 150 MB baseline of importing Python with `pandas` and `pyarrow`; standalone `duckdb` has a smaller import footprint):
 
 | Task: sum of `amount` by `event_type` | Time | Peak memory |
 |---|---|---|

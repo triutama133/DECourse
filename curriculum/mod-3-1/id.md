@@ -454,7 +454,7 @@ Di Databricks, pipeline disusun mengikuti **Arsitektur Medallion** (pola lapisan
 
 **Mengapa Auto Loader (`cloudFiles`) jauh lebih unggul daripada `spark.read.parquet("s3://...")` biasa:**
 Saat sebuah bucket S3 menampung 2 juta file JSON atau CSV setelah berjalan setahun, memanggil `spark.read.json("s3://bucket/events/*")` memaksa Spark melakukan operasi `LIST` direktori S3 atas 2 juta file tersebut di setiap eksekusi. **Databricks Auto Loader (`cloudFiles`)** menyelesaikannya dengan:
-1. Menggunakan notifikasi event cloud (SNS/SQS di AWS, Event Grid di Azure, Pub/Sub di GCP) atau incremental listing yang dicatat di dalam **checkpoint RocksDB**, sehingga hanya menemukan *file yang baru mendarat* dalam waktu `O(1)`.
+1. Menggunakan notifikasi event cloud (SNS/SQS di AWS, Event Grid di Azure, Pub/Sub di GCP) atau incremental listing yang dicatat di dalam **checkpoint RocksDB**, sehingga hanya menemukan *file yang baru mendarat*, tanpa mendaftar ulang semua file lama.
 2. Mendukung evolusi skema otomatis dan menampung field JSON yang rusak atau berubah tipe ke dalam kolom khusus **`_rescued_data`** alih-alih membuat pipeline malam Anda mati total pada jam 3 pagi!
 
 ```python
@@ -482,7 +482,7 @@ bronze_stream = (
 )
 ```
 
-> **Aturan FinOps Streaming vs. Batch:** Perhatikan `.trigger(availableNow=True)`! Daripada membiarkan klaster streaming menyala 24 jam penuh menunggu file, `availableNow=True` menyalakan klaster job sementara setiap 15 atau 60 menit, memproses seluruh file baru sejak checkpoint RocksDB terakhir dengan jaminan tepat-satu-kali (exactly-once), lalu langsung mematikan klaster begitu selesai.
+> **Aturan FinOps Streaming vs. Batch:** Perhatikan `.trigger(availableNow=True)`! Daripada membiarkan klaster streaming menyala 24 jam penuh menunggu file, sebuah job terjadwal (setiap 15 atau 60 menit) menyalakan klaster job sementara, `availableNow=True` memproses seluruh file baru sejak checkpoint RocksDB terakhir dengan jaminan tepat-satu-kali (exactly-once), lalu klaster langsung mati begitu selesai.
 
 ### 3. Lakeflow Declarative Pipelines (Delta Live Tables) & Quality Expectations
 Persis seperti Modul 2.5 yang mengajarkan karantina data kotor di gerbang ingesti, Databricks menyediakan **Lakeflow Declarative Pipelines (Delta Live Tables / DLT)** di mana Anda mendeklarasikan aturan kualitas data (**Expectations**) langsung pada definisi tabel:

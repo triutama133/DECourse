@@ -74,6 +74,8 @@ Graf dependensi di orkestrator dimodelkan sebagai **DAG (Directed Acyclic Graph)
 
 Konsep yang paling sering membingungkan insinyur pemula adalah **data interval** (istilah di Airflow) atau **partition** (istilah di Dagster). Pipeline harian yang dijadwalkan berjalan pada pukul 02:00 tanggal 6 Januari **bukanlah** memproses data tanggal 6 Januari. Pipeline tersebut bertugas memproses **data tanggal 5 Januari**, karena data transaksi tanggal 5 Januari baru resmi lengkap dan ditutup saat jam menunjukkan tepat tengah malam 23:59:59. Orkestrator memodelkan prinsip ini secara eksplisit: setiap run selalu terikat pada interval data yang menjadi tanggung jawabnya (`2026-01-05`), yang diinjeksikan ke dalam kode Anda sebagai **logical date** (variabel `ds` di Airflow) atau **partition key** (`context.partition_key` di Dagster). Kode pipeline Anda wajib membaca dan memproses data **khusus untuk interval tersebut**, dan pantang membaca waktu "saat ini" (wall-clock time). Jika suatu run diulang besok, atau dilakukan backfill bulan depan, ia harus selalu menghasilkan output yang identik untuk tanggal 5 Januari. Menggunakan waktu sistem (`datetime.now()` atau fungsi database `CURRENT_DATE()`) di dalam task akan merusak konsistensi ini secara diam-diam.
 
+Satu detail Airflow 3 yang perlu Anda tahu: string cron biasa seperti `schedule="0 2 * * *"` memberi run pukul 02:00 *saat ia dimulai* sebagai logical date-nya, tanpa interval sebelumnya. Kalau Anda ingin run pukul 02:00 tanggal 6 mencakup 5 Januari, pakai `CronDataIntervalTimetable("0 2 * * *", timezone="Asia/Jakarta")` (dari `airflow.timetables.interval`), atau kurangi satu hari di satu tempat saja dalam kode Anda. Dicek dengan Airflow 3.1.8. Aturannya tetap sama: pakai tanggal yang diberikan run, dan putuskan di satu tempat hari mana yang dimaksud.
+
 Kosakata penting lainnya dalam dunia orkestrasi:
 
 - **Task / Op / Asset**: unit terkecil dari pekerjaan yang dieksekusi. Relasi antar unit ini membentuk DAG.
@@ -168,7 +170,7 @@ Job yang idempoten meninggalkan hasil yang sama baik dijalankan sekali maupun li
 @teacher Pakai interval yang diserahkan orchestrator (logical date-nya), jangan pernah jam. Maka retry atau backfill memuat persis hari yang dimaksud.
 :::
 
-Berikut adalah implementasi DAG lengkap menggunakan Airflow TaskFlow API modern (terverifikasi kompatibel dengan Airflow versi 3.3):
+Berikut adalah implementasi DAG lengkap menggunakan Airflow TaskFlow API modern (terverifikasi berjalan dengan Airflow 3.1.8, memakai `airflow dags test`):
 
 ```python
 from datetime import timedelta

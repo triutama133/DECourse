@@ -298,7 +298,7 @@ A watermark is what tells Spark that a window can no longer receive events, so i
 
 Choose by latency needs and team skills. For most analytical pipelines where "within a minute" is fine and the team already uses Spark, Structured Streaming is a pragmatic choice; for ultra-low-latency, complex stateful logic (fraud rules with timers), Flink is the specialist. Kafka Streams is a third option for processing inside ordinary JVM applications. The concepts of this module (event time, windows, watermarks, state, checkpoints) are shared by all of them.
 
-**Reading from Kafka** with Structured Streaming (verified against a real broker; add the Kafka connector matching your Spark and Scala versions, for example `--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.2.0`):
+**Reading from Kafka** with Structured Streaming (verified against a real broker; add the Kafka connector that matches your Spark version, which `pip show pyspark` tells you: for Spark 4.3.0 it is `--packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.3.0`):
 
 ```python
 schema = StructType([

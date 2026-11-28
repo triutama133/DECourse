@@ -21,7 +21,7 @@ Modul 0.0 (Python) dan Modul 2.1 (file kolumnar) membantu. Lab ini memakai Pytho
 ## @lesson Mengapa Hadoop diciptakan
 Sekitar tahun 2003, sebuah perusahaan pencarian tidak bisa menyimpan web di satu komputer. Satu mesin, sebesar apa pun, punya batas: satu disk menampung beberapa terabyte, membacanya makan waktu berjam-jam, dan mesin terbesar harganya jauh lebih dari sepuluh kali harga sepuluh mesin biasa. Ada dua cara tumbuh. **Scale up** berarti membeli mesin yang lebih besar; ia segera menabrak batas kapasitas dan biaya. **Scale out** berarti menyambung banyak mesin biasa dan membiarkan mereka berbagi pekerjaan; kapasitasnya bisa terus tumbuh tanpa batas mesin tunggal, tetapi melahirkan masalah baru.
 
-Masalah utamanya adalah kegagalan. Jika satu disk rusak sekali dalam beberapa tahun, klaster 4.000 mesin dengan masing-masing 12 disk kehilangan sebuah disk **hampir setiap hari**. Google menjelaskan jawabannya dalam dua makalah: Google File System (2003) untuk penyimpanan, dan MapReduce (2004) untuk komputasi. Doug Cutting dan rekan-rekannya membangun versi open source-nya, dan Apache **Hadoop** (sejak 2006) menjadi fondasi dekade big data pertama. Gagasan desainnya, yang akan Anda temui lagi di Spark dan Kafka, adalah: **anggap mesin pasti gagal, simpan beberapa salinan data, dan buat komputasi bisa dijalankan ulang**.
+Masalah utamanya adalah kegagalan. Bahkan jika satu disk rata-rata hanya rusak sekali dalam 100 tahun, klaster 4.000 mesin dengan masing-masing 12 disk kehilangan sebuah disk **hampir setiap hari**. Google menjelaskan jawabannya dalam dua makalah: Google File System (2003) untuk penyimpanan, dan MapReduce (2004) untuk komputasi. Doug Cutting dan rekan-rekannya membangun versi open source-nya, dan Apache **Hadoop** (sejak 2006) menjadi fondasi dekade big data pertama. Gagasan desainnya, yang akan Anda temui lagi di Spark dan Kafka, adalah: **anggap mesin pasti gagal, simpan beberapa salinan data, dan buat komputasi bisa dijalankan ulang**.
 
 Hadoop adalah keluarga empat bagian yang diikuti modul ini berurutan:
 
@@ -44,7 +44,7 @@ disk klaster murah dan rusak dalam hitungan bulan
 * dengan 48.000 disk, satu rusak tiap hari
 jaringan merusak setiap file yang dibawanya
 @why
-Jika satu disk rusak sekali dalam beberapa tahun, 48.000 disk rusak kira-kira tiap hari. Pada skala itu kegagalan itu rutin, sehingga penyimpanan harus menyimpan salinan dan job harus bisa dijalankan ulang.
+Bahkan jika satu disk rata-rata hanya rusak sekali dalam 100 tahun, 48.000 disk kehilangan sekitar satu disk tiap hari. Pada skala itu kegagalan itu rutin, sehingga penyimpanan harus menyimpan salinan dan job harus bisa dijalankan ulang.
 :::
 
 ## @lesson HDFS: sistem file yang terbuat dari banyak mesin

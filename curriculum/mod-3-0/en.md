@@ -21,7 +21,7 @@ Module 0.0 (Python) and Module 2.1 (columnar files) help. The lab is plain Pytho
 ## @lesson Why Hadoop was invented
 Around 2003 a search company could not store the web on one computer. A single machine, however large, has limits: a disk holds a few terabytes, reading it takes hours, and the biggest machines cost far more than ten times what ten ordinary ones cost. There are two ways to grow. **Scale up** means buying a bigger machine; it hits a ceiling and a price wall. **Scale out** means connecting many ordinary machines and letting them share the work; it has no ceiling, but it creates new problems.
 
-The central problem is failure. If one disk fails once every few years, a cluster of 4,000 machines with 12 disks each loses a disk **every day or so**. Google described the answer in two papers: the Google File System (2003) for storage, and MapReduce (2004) for computation. Doug Cutting and colleagues built open-source versions, and Apache **Hadoop** (from 2006) became the foundation of the first big-data decade. The design idea, which you will meet again in Spark and Kafka, is: **assume machines fail, keep several copies of data, and make computations re-runnable**.
+The central problem is failure. Even if one disk fails only once in 100 years on average, a cluster of 4,000 machines with 12 disks each loses a disk **every day or so**. Google described the answer in two papers: the Google File System (2003) for storage, and MapReduce (2004) for computation. Doug Cutting and colleagues built open-source versions, and Apache **Hadoop** (from 2006) became the foundation of the first big-data decade. The design idea, which you will meet again in Spark and Kafka, is: **assume machines fail, keep several copies of data, and make computations re-runnable**.
 
 Hadoop is a family of four parts that this module follows in order:
 
@@ -44,7 +44,7 @@ cluster disks are cheap and fail within months
 * with 48,000 disks, one fails every day
 the network corrupts every file that it carries
 @why
-If one disk fails once every few years, 48,000 disks fail about every day. At that scale failure is routine, so storage must keep copies and jobs must be re-runnable.
+Even if one disk fails only once in 100 years on average, 48,000 disks lose about one every day. At that scale failure is routine, so storage must keep copies and jobs must be re-runnable.
 :::
 
 ## @lesson HDFS: a file system made of many machines
