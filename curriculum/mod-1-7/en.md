@@ -52,6 +52,15 @@ A key-value store is a giant dictionary: you **set** a value under a **key** and
 
 **Redis** keeps data in memory and also offers data *structures* as values: strings, hashes (a small dictionary), lists, sets and **sorted sets** (a set ordered by a score, perfect for leaderboards). It can write to disk (snapshots, or an append-only log) so data survives a restart, but its strength is speed, not storage of everything forever.
 
+:::talk The cached address
+@teacher A web shop caches each customer's profile in Redis with a TTL of one hour. At 10:00 a customer changes her delivery address in the main database. At 10:10 she opens her profile page.
+@ask Which address does the page show?
+@choice The new one, because Redis always asks the main database | A cache does not ask: it answers from its own copy until the copy expires. Try again.
+@choice * The old one, until the key expires at about 11:00, unless the application deletes or updates the cached key when the address changes | Yes. A TTL is a promise that data is at most that old. For data that must change at once, update or delete the key at write time.
+@choice An error, because the two stores disagree | Nothing detects the disagreement. Try again.
+@teacher A cache trades freshness for speed: decide how stale each piece of data is allowed to be.
+:::
+
 Two features define how key-value stores are used:
 
 - **TTL (time to live).** A key can expire automatically after a number of seconds. Sessions, one-time passwords and cached results use this. The lab's `KeyValueStore` expires a key when `clock() >= set_time + ttl`; the clock is injected so tests do not need to sleep.
@@ -319,6 +328,15 @@ Some access patterns are none of the above.
 **Search engines** (Elasticsearch, OpenSearch) build an **inverted index** (word to list of documents) so they can match text, rank results by relevance and filter at speed. They are for search boxes and log exploration, not the system of record.
 
 **Time-series databases** (TimescaleDB, InfluxDB) are tuned for append-heavy data indexed by time (metrics, sensor readings), with automatic retention and downsampling. **Vector databases** store embeddings for similarity search (Module 3.5). Many of these are features of other systems: PostgreSQL does time series with extensions and vector search with pgvector.
+
+:::talk Searching words
+@teacher KopiKu has 10 million product reviews. A learner searches for the word "dark" with `WHERE review LIKE '%dark%'`. A colleague says that a search engine would be much faster.
+@ask Why is the search engine faster for this?
+@choice It has a bigger server | The speed comes from how the data is organised, not from size. Try again.
+@choice * It builds an inverted index in advance: for every word, the list of reviews that contain it, so "dark" is looked up instead of scanned for | Yes. `LIKE '%dark%'` has to read every review each time. An inverted index finds the matching reviews directly, and can rank them too.
+@choice It stores the reviews in a graph | A graph stores relationships. The trick here is an index from words to documents. Try again.
+@teacher Each database family exists because one access pattern needs a different data layout. Match the layout to the question.
+:::
 
 The lesson to keep: a database family is a set of **optimisations for an access pattern**. If you know the pattern, the family usually follows; if you do not know the pattern, start with a relational database and learn it first.
 

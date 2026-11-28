@@ -81,6 +81,15 @@ The **status code** tells you what happened, and your code must react differentl
 | 429 | **too many requests**: you are rate limited | wait, then retry (see below) |
 | 500, 502, 503, 504 | the server has a problem | wait and retry |
 
+:::talk Retry a 401?
+@teacher Your ingestion job calls an API and gets `401 Unauthorized`. The job is configured to retry failures five times with exponential backoff.
+@ask Should it retry the 401?
+@choice Yes, five times: maybe the server was busy | A busy server answers 429 or 503, not 401. A 401 means the credentials were not accepted. Try again.
+@choice * No: the same request will fail again, so stop at once with a clear error naming the credential problem | Yes. Retry transient failures (429, 5xx, timeouts). Errors that mean "your request is wrong" (400, 401, 403, 404) will not change by waiting, and retrying only delays the alarm.
+@choice Yes, but without waiting, so it is faster | Hammering a server that rejected you makes things worse. Try again.
+@teacher Retry what can get better by itself. Fail fast on what only you can fix.
+:::
+
 **Authentication** is how the API knows who you are: an **API key** in a header or **query string** (the `?key=value&...` parameters at the end of a URL), a **bearer token** (`Authorization: Bearer ...`), or **OAuth**, where you exchange credentials for a token that expires and must be refreshed. Whatever the method, **a credential is a secret**: keep it in an environment variable or a **secret manager** (a dedicated vault service such as AWS Secrets Manager or GCP Secret Manager that stores and rotates credentials), never in the code or in Git (Module 0.1), and never in logs. The lab's `build_request` puts the token in the header, builds the URL with `urllib.parse.urlencode` with parameters sorted so the URL is reproducible, and drops parameters whose value is `None`.
 
 Always set a **timeout**. Without one, a hung connection blocks your job forever. Connection problems (the server unreachable, a reset, a timeout) are different from HTTP errors: there is no status code, so you treat them like a 5xx, as something temporary.

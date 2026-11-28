@@ -248,6 +248,15 @@ df.groupby("country", as_index=False).agg(
 
 Setiap keyword menjadi kolom keluaran, didefinisikan sebagai `(kolom, fungsi)`. Perhatikan `nunique`: itu adalah `COUNT(DISTINCT order_id)`. `count` menghitung nilai yang tidak kosong dan `size` menghitung baris; keduanya berbeda ketika ada nilai kosong, jadi pilih dengan sengaja. `as_index=False` menjaga kunci kelompok sebagai kolom biasa, yang lebih mudah di-merge, diuji, dan ditulis nanti.
 
+:::talk Ke mana pelanggan tanpa kota pergi?
+@teacher Pada tabel pesanan kecil, total pendapatan adalah 250 (ribu rupiah), dan 70 di antaranya milik pelanggan yang `city`-nya hilang. Anda menjalankan `df.groupby("city")["revenue"].sum()` dan menjumlahkan hasilnya.
+@ask Total berapa yang Anda dapat, dibandingkan dengan total sebenarnya?
+@choice Total sebenarnya: setiap baris termasuk ke suatu kelompok | Nilai yang hilang bukan kelompok, menurut pandas secara bawaan. Coba lagi.
+@choice * Kurang dari total sebenarnya: secara bawaan `groupby` membuang baris yang kuncinya hilang, sehingga pendapatannya lenyap diam-diam | Betul. Pada contoh mini di pelajaran, kelompok-kelompok itu berjumlah 180, bukan 250. Berikan `dropna=False` untuk menyimpan satu kelompok bagi kota yang hilang, dan bandingkan total dengan sumber.
+@choice Error, karena `city` punya nilai hilang | Tidak ada error, dan itulah mengapa ia berbahaya. Coba lagi.
+@teacher Setelah `groupby`, jumlahkan kelompok-kelompoknya dan bandingkan dengan total seluruh tabel. Selisih berarti ada baris yang jatuh.
+:::
+
 **Pivot table** mengubah nilai satu kolom menjadi kolom: omset per bulan (baris) dan negara (kolom). `pivot_table(index=..., columns=..., values=..., aggfunc="sum", fill_value=0)` melakukannya. `fill_value=0` penting: bulan tanpa penjualan di suatu negara akan menjadi `NaN`, yang diperlakukan grafik dan penjumlahan berikutnya berbeda dari nol. Apakah "tidak ada penjualan" itu nol atau tidak diketahui? Putuskan, lalu tuliskan.
 
 ### Membongkar tabel lebar (unpivot): pd.melt()
@@ -416,6 +425,15 @@ for chunk in pd.read_csv(path, usecols=["country", "quantity", "unit_price_idr"]
     parts.append((chunk["quantity"] * chunk["unit_price_idr"]).groupby(chunk["country"]).sum())
 total = pd.concat(parts).groupby(level=0).sum()
 ```
+
+:::talk Median dari median
+@teacher Sebuah file terlalu besar, jadi Anda membacanya per potongan. Di potongan 1 nilainya 1, 2, dan 100, dan mediannya 2. Di potongan 2 nilainya 3 dan 4, dan mediannya 3,5. Anda merata-ratakan kedua median untuk mendapat median seluruh file: 2,75.
+@ask Apakah 2,75 median yang sebenarnya?
+@choice Ya: median dari median adalah median | Periksa dengan tangan: urutkan kelima nilai: 1, 2, 3, 4, 100. Yang di tengah adalah 3. Coba lagi.
+@choice * Tidak: median sebenarnya 3. Median tidak bisa digabung dari potongan, tidak seperti jumlah dan hitungan | Betul. Median sebuah potongan melupakan bagaimana nilainya dibanding potongan lain. Jumlah, hitungan, minimum, dan maksimum bisa digabung dengan aman, median butuh semua data (atau alat lain).
+@choice Cukup dekat, jadi tidak masalah | Pada data yang miring selisihnya bisa besar, dan Anda tidak akan tahu. Coba lagi.
+@teacher Sebelum memotong sebuah perhitungan, tanyakan: "bisakah hasil parsialnya digabung?" Jika tidak, pakai alat yang melihat semua data, seperti DuckDB atau Polars.
+:::
 
 Ini bekerja untuk hal yang bisa digabungkan: jumlah, hitungan, minimum, maksimum. Rata-rata adalah `sum / count` dari jumlah gabungan, bukan rata-rata dari rata-rata. **Waspadai apa pun yang butuh seluruh file.** Deduplikasi tiap chunk secara terpisah melewatkan duplikat yang jatuh di chunk berbeda. Pada ekspor kita baris yang diulang berdekatan, jadi chunk 100 baris hanya melewatkan 1 dari 80 duplikat, tetapi jika eksporter mengulang berjam-jam kemudian, jaraknya jauh dan mereka akan lolos. Median, rank global, dan join dua file besar tidak bisa dilakukan per chunk; saat itulah Anda pindah ke database, DuckDB, atau Spark.
 

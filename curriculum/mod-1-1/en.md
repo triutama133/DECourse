@@ -444,6 +444,15 @@ the script hit a normal error and returned 137
 137 = 128 + 9: the process received SIGKILL. In a container with a memory limit this is the OOM killer. A polite stop (`docker stop`) gives 143 (128 + 15, SIGTERM). The cure is to process in a stream or bounded chunks, not to load everything at once.
 :::
 
+:::talk No error message at all
+@teacher A containerised job runs for twenty minutes and then the container is simply gone. The logs end in the middle of work, with no Python traceback and no error text.
+@ask What should you look at first?
+@choice The Python code, line by line, for a syntax error | A syntax error would have been reported at the start, with a traceback. This job ran for twenty minutes. Try again.
+@choice * The exit code and `docker inspect`: code 137 with `OOMKilled: true` means the kernel killed it for using too much memory | Yes. The process had no chance to print anything, which is why there is no traceback. The fix is to process in a stream or in bounded chunks, not to hunt for a bug in a line.
+@choice The schedule expression of the job | The job did start and run. The schedule is not the problem. Try again.
+@teacher When a job vanishes without a message, think "killed from outside", and ask the system, not the code.
+:::
+
 The usual causes in data work:
 
 - **Loading everything at once**: `pandas.read_csv` on a file much larger than memory (pandas often needs several times the file size in RAM), `jq -s`, or `list(rows)` on a huge iterator.

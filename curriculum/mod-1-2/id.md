@@ -498,6 +498,15 @@ Rekursi adalah alat yang tepat untuk pohon. Untuk list datar biasa, loop `for` l
 ## @lesson Validasi di batas dengan Pydantic
 Pipeline yang paling andal tidak mempercayai masukannya. Data melintasi sebuah **batas** (file, API, antrean) dan Anda mengubahnya dari "apa pun yang dihasilkan pengirim" menjadi "nilai yang bisa diandalkan kode saya". Lakukan sekali, di pintu; semua yang setelah pintu bisa mengasumsikan data bersih.
 
+:::talk Teks yang tampak seperti angka
+@teacher Sebuah model mendeklarasikan `total_idr: int`. Baris tiba dari file CSV, tempat setiap nilai berupa teks. Satu baris berisi `"150000"`, yang lain berisi `"Rp 150.000"`.
+@ask Apa yang dilakukan Pydantic pada kedua baris itu?
+@choice Keduanya ditolak, karena berupa teks dan bukan angka | Pydantic tidak seketat itu: ia mengonversi teks yang jelas-jelas bilangan bulat. Coba lagi.
+@choice Keduanya diterima, karena Pydantic menebak maksud Anda | Ia hanya menebak bila teksnya jelas bilangan bulat. `Rp 150.000` bukan. Coba lagi.
+@choice * `"150000"` menjadi angka 150000, tetapi `"Rp 150.000"` ditolak dengan error validasi | Betul. Karena itu Anda menambah langkah pembersihan (validator `before`) untuk format berantakan yang dikenal, dan membiarkan sisanya gagal dengan keras ke karantina.
+@teacher Pydantic mengonversi yang jelas dan menolak sisanya: Anda yang memutuskan, secara eksplisit, format berantakan mana yang mau diperbaiki.
+:::
+
 **Pydantic v2** adalah pustaka standar untuk ini. Anda menggambarkan bentuknya sebagai kelas; Pydantic mengurai dan memeriksa data terhadapnya, dalam kode Rust terkompilasi, sehingga cepat.
 
 ```python
@@ -993,6 +1002,15 @@ Tes adalah cara Anda mengubah kode tanpa takut. Untuk job data, tes juga mendoku
 def test_status_is_normalised():
     assert validate({**GOOD, "status": " PAID "}).status == "paid"
 ```
+
+:::talk Tes yang tidak bisa gagal
+@teacher Seorang pembelajar menulis tes ini: `assert normalise(" PAID ") == normalise(" PAID ")`. Tes itu lulus setiap kali dijalankan, dan ia merasa cakupannya bagus.
+@ask Apa yang salah pada tes itu?
+@choice Tidak ada: tes yang lulus adalah tes yang baik | Sebuah tes hanya berharga jika ia bisa gagal ketika kodenya salah. Coba lagi.
+@choice * Ia membandingkan fungsi dengan dirinya sendiri, sehingga lulus meskipun `normalise` rusak total | Betul. Tes yang berguna menyatakan jawaban yang diharapkan: `assert normalise(" PAID ") == "paid"`. Maka bug membuatnya gagal.
+@choice Ia harus memanggil `normalise` tiga kali | Jumlah panggilan bukan masalahnya: nilai yang diharapkanlah. Coba lagi.
+@teacher Tes adalah spesifikasi: ia menyatakan jawaban yang benar, ditulis oleh Anda, bukan dihitung oleh kode yang diuji.
+:::
 
 Perhatikan bahwa `{**GOOD, "status": " PAID "}` membuat salinan dictionary dasar `GOOD` dengan kunci `"status"` diganti, sehingga tiap tes tidak pernah merusak data patokan bersama.
 

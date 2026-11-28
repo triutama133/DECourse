@@ -248,6 +248,15 @@ df.groupby("country", as_index=False).agg(
 
 Each keyword becomes an output column, defined as `(column, function)`. Notice `nunique`: it is `COUNT(DISTINCT order_id)`. `count` counts non-missing values and `size` counts rows; they differ when there are missing values, so choose on purpose. `as_index=False` keeps the group key as a normal column, which is easier to merge, test and write out later.
 
+:::talk Where do the customers without a city go?
+@teacher In a small orders table, the total revenue is 250 (thousand rupiah), and 70 of it belongs to customers whose `city` is missing. You run `df.groupby("city")["revenue"].sum()` and add up the result.
+@ask What total do you get, compared with the real total?
+@choice The real total: every row belongs to some group | A missing value is not a group, as far as pandas is concerned by default. Try again.
+@choice * Less than the real total: by default `groupby` drops the rows whose key is missing, so their revenue silently disappears | Yes. In the lesson's miniature the groups add up to 180 instead of 250. Pass `dropna=False` to keep a group for the missing city, and compare the total with the source.
+@choice An error, because `city` has missing values | There is no error, and that is exactly why it is dangerous. Try again.
+@teacher After a `groupby`, add the groups up and compare with the total of the whole table. A gap means rows fell out.
+:::
+
 **Pivot tables** turn one column's values into columns: revenue by month (rows) and country (columns). `pivot_table(index=..., columns=..., values=..., aggfunc="sum", fill_value=0)` does it. The `fill_value=0` matters: a month with no sales in a country would otherwise be `NaN`, which charts and later sums treat differently from zero. Is "no sales" a zero or an unknown? Decide, then write it down.
 
 ### Unpivoting wide tables: pd.melt()
@@ -416,6 +425,15 @@ for chunk in pd.read_csv(path, usecols=["country", "quantity", "unit_price_idr"]
     parts.append((chunk["quantity"] * chunk["unit_price_idr"]).groupby(chunk["country"]).sum())
 total = pd.concat(parts).groupby(level=0).sum()
 ```
+
+:::talk The median of medians
+@teacher A file is too big, so you read it in chunks. In chunk 1 the values are 1, 2 and 100, and its median is 2. In chunk 2 the values are 3 and 4, and its median is 3.5. You average the two medians to get the median of the whole file: 2.75.
+@ask Is 2.75 the true median?
+@choice Yes: the median of the medians is the median | Check by hand: put all five values in order: 1, 2, 3, 4, 100. The middle one is 3. Try again.
+@choice * No: the true median is 3. Medians cannot be combined from chunks, unlike sums and counts | Yes. A chunk's median forgets how its values compare with the other chunks'. Sums, counts, minimums and maximums combine safely, a median needs all the data (or another tool).
+@choice It is close enough, so it does not matter | On skewed data the gap can be large, and you would not know. Try again.
+@teacher Before you chunk a calculation, ask: "can partial results be combined?" If not, use a tool that sees all the data, such as DuckDB or Polars.
+:::
 
 This works for things you can combine: sums, counts, minimum, maximum. A mean is `sum / count` computed from the combined sums, not a mean of means. **Beware of anything that needs the whole file.** Deduplicating each chunk separately misses duplicates that land in different chunks. In our export the retried lines sit next to each other, so chunks of 100 rows missed just 1 of the 80 duplicates, but if the exporter retried hours later they would be far apart and survive. A median, a global rank and a join of two large files cannot be done chunk by chunk; that is when you move to a database, DuckDB or Spark.
 

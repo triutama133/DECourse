@@ -74,6 +74,15 @@ Sebuah pertanyaan menjadi satu tabel fakta plus beberapa dimensi, dengan definis
 ## @lesson Grain: kalimat paling krusial dalam pemodelan data
 **Grain** adalah satu kalimat tunggal yang mendefinisikan apa makna tepat dari satu baris di dalam tabel fakta. Untuk KopiKu: *"satu baris mewakili satu item dalam pesanan: satu produk, dalam satu pesanan, pada satu harga tertentu."* Segala keputusan teknis selanjutnya diturunkan dari kalimat ini.
 
+:::talk Berapa pesanan?
+@teacher Sebuah tabel fakta punya satu baris per LINI pesanan. Contoh KopiKu punya 24 lini milik 18 pesanan. Seorang analis menulis `SELECT COUNT(*) FROM fact_order_items` dan melaporkan "jumlah pesanan".
+@ask Angka apa yang ditampilkan laporan itu, dan apakah benar?
+@choice 18, jumlah pesanan | Tabel itu punya satu baris per lini, jadi `COUNT(*)` menghitung lini. Coba lagi.
+@choice * 24: ia menghitung lini, bukan pesanan, jadi laporannya salah; pakai `COUNT(DISTINCT order_id)` | Betul. Grain menyatakan apa satu baris itu, dan setiap hitungan menjawab dalam satuan baris itu. Untuk menghitung pesanan, hitung order id yang berbeda.
+@choice 42, lini ditambah pesanan | Tidak ada yang menjumlahkan keduanya. Coba lagi.
+@teacher Sebelum menghitung atau menjumlahkan apa pun, ucapkan grain-nya keras-keras: "satu baris per ...".
+:::
+
 Mengapa kita harus sangat disiplin terhadap grain?
 
 - **Grain menentukan dimensi mana saja yang boleh hadir.** Pada grain tingkat baris-item (order line), produk berhak ada di baris tersebut. Namun pada grain *tingkat pesanan* (satu baris mewakili keseluruhan transaksi checkout), produk tidak boleh diletakkan di sana karena satu pesanan bisa berisi banyak produk sekaligus. Jika Anda memaksakan dimensi yang tidak sesuai dengan grain, baris akan berlipat ganda secara tidak terkendali (jebakan fan-out dari Modul 0.3) atau dimensi tersebut menjadi ambigu.
@@ -399,6 +408,15 @@ Model data adalah kode program dan wajib memiliki rangkaian pengujian otomatis (
 - **Rekonsiliasi Angka**: `SUM(line_total_idr)` pada tabel fakta wajib identik dengan total belanja pada tabel transaksi sumber. Jika terjadi selisih, salah satu pipeline pasti mengalami kerusakan, dan Anda wajib mengetahuinya lewat unit test sebelum menjadi bahan temuan manajemen.
 - **Uji Dimensi**: surrogate key bersifat unik, rentang tanggal SCD Tipe 2 tersambung tanpa celah, dan tepat satu versi aktif (`is_current = 1`) per entitas.
 - **Verifikasi logika bisnis independen**: lab ini menghitung omset per tier saat transaksi berlangsung menggunakan kalkulasi terpisah dalam bahasa Python dan membandingkan hasilnya dengan output query SQL; dua implementasi berbeda yang menghasilkan angka identik adalah bukti keandalan arsitektur.
+
+:::talk Tes yang akan menangkapnya
+@teacher Tabel fakta baru termuat dengan baik, semua tes hijau, namun pendapatan 21% terlalu tinggi. Penyebabnya adalah join ke dimensi pelanggan yang punya beberapa versi per pelanggan. Sumbernya punya 7.123 baris pesanan; tabel faktanya punya 8.584 baris.
+@ask Tes sederhana apa yang akan menangkapnya pada hari pertama?
+@choice Tes bahwa tidak ada kolom yang berisi NULL | Tidak ada yang NULL dalam cerita ini: barisnya terduplikasi, bukan kosong. Coba lagi.
+@choice * Tes rekonsiliasi: tabel fakta harus punya jumlah baris (dan total) yang sama dengan sumbernya | Betul. Jumlah baris dan total pendapatan yang dibandingkan dengan sumber langsung mengungkap fan-out. Pasangkan dengan tes keunikan pada grain yang dinyatakan.
+@choice Tes bahwa tabel termuat dalam waktu kurang dari semenit | Kecepatan tidak memberi tahu apakah angkanya benar. Coba lagi.
+@teacher Uji apa yang dijanjikan model: satu baris per grain, dan total yang cocok dengan sumber.
+:::
 
 **Posisinya dalam modern data stack.** Dalam paradigma ELT modern (Modul 2.3), data mentah mendarat di lakehouse/warehouse, model **staging** membersihkan serta menstandardisasi skema kolom (seperti tabel `stg_` di lab), dan lapisan **marts** membangun model dimensional di atasnya: tabel berawalan `dim_*` dan `fct_*`. Fitur dbt test (`unique`, `not_null`, `relationships`) memverifikasi integritas kunci secara otomatis, dan fitur dbt `snapshot` mengelola SCD Tipe 2 tanpa perlu penulisan logika merge manual. Prinsip arsitekturalnya tetap identik apa pun alat bantu yang Anda gunakan.
 

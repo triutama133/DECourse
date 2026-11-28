@@ -180,6 +180,15 @@ Agregat atas partisi **tanpa** ORDER BY memakai seluruh partisi (total pada seti
 
 ### Lihat sendiri: total berjalan dan rata-rata bergerak
 
+:::talk Dua pesanan dengan total yang sama
+@teacher Tiga pesanan punya total 10, 10, dan 20, dan Anda menulis `SUM(total) OVER (ORDER BY total)` untuk mendapat total berjalan.
+@ask Apa yang ditampilkan dua baris pertama sebagai total berjalan?
+@choice 10 untuk yang pertama dan 20 untuk yang kedua | Itulah yang Anda harapkan baris demi baris, tetapi bukan yang dilakukan default pada nilai kembar. Coba lagi.
+@choice * 20 untuk keduanya: baris dengan nilai sama adalah "peer", dan frame bawaan menghitung semua peer bersama | Betul. Frame bawaan adalah `RANGE`, yang menyertakan setiap baris yang kembar dengan baris saat ini. Untuk total baris-demi-baris yang sebenarnya, tulis `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+@choice 10 untuk keduanya, karena baris pertama berulang | Kembaran membuat kedua baris masuk ke frame satu sama lain, jadi keduanya melihat 20. Coba lagi.
+@teacher Ketika total berjalan tampak salah hanya pada nilai kembar, curigai frame bawaan.
+:::
+
 Omset harian toko Jakarta selama dua minggu. Perhatikan dua kolom ditambahkan, masing-masing melihat sekumpulan baris yang berbeda:
 
 :::sqlsteps Frame: baris mana yang dilihat setiap baris?
@@ -831,6 +840,15 @@ FROM products
 GROUP BY GROUPING SETS ((roast), (origin), ());
 -- dark 2, light 2, medium 2  |  enam origin masing-masing 1  |  total 6   (10 baris)
 ```
+
+:::talk Kota NULL: subtotal atau tidak diketahui?
+@teacher Laporan `ROLLUP` per kota punya satu baris dengan `city` tampil NULL dan pendapatan 250.000. Dua pelanggan tidak punya kota di data. Laporan itu juga punya baris subtotal yang dibuat ROLLUP sendiri.
+@ask Bagaimana Anda tahu apakah baris NULL itu subtotal atau pelanggan tanpa kota?
+@choice Dari posisinya: subtotal selalu di akhir | Posisi bukan aturan yang bisa diandalkan, dan total keseluruhan juga ada di sana. Coba lagi.
+@choice * Dengan `GROUPING(city)`: bernilai 1 bila kota digulung menjadi subtotal dan 0 bila NULL itu data nyata | Betul. ROLLUP menandai kolom yang digulung dengan NULL, yang bertabrakan dengan NULL nyata. `GROUPING` adalah satu-satunya cara andal untuk membedakannya.
+@choice Tidak bisa dibedakan, jadi hapus dulu pelanggan tanpa kota | Menghapus data demi memperbaiki laporan akan menyembunyikan masalah sebenarnya. `GROUPING` menyelesaikannya tanpa kehilangan apa pun. Coba lagi.
+@teacher Ketika satu simbol bisa berarti dua hal, tambahkan kolom yang menyatakan yang mana.
+:::
 
 **Masalah NULL.** Baris subtotal punya NULL di kolom yang dirangkum (rolled up), tetapi data Anda juga bisa berisi NULL sungguhan. Dua pelanggan KopiKu tidak punya kota, jadi `ROLLUP (tier, city)` mengembalikan, untuk tier Bronze, dua baris yang tampak identik:
 

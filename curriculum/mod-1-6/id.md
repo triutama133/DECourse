@@ -79,6 +79,15 @@ Accept: application/json
 | 429 | **terlalu banyak permintaan**: Anda terkena rate limit | tunggu, lalu ulangi (lihat di bawah) |
 | 500, 502, 503, 504 | server bermasalah | tunggu dan ulangi |
 
+:::talk Mengulang 401?
+@teacher Pekerjaan ingestion Anda memanggil sebuah API dan mendapat `401 Unauthorized`. Pekerjaan itu dikonfigurasi mengulang kegagalan lima kali dengan exponential backoff.
+@ask Haruskah ia mengulang 401?
+@choice Ya, lima kali: mungkin server sedang sibuk | Server yang sibuk menjawab 429 atau 503, bukan 401. 401 berarti kredensial tidak diterima. Coba lagi.
+@choice * Tidak: permintaan yang sama akan gagal lagi, jadi berhenti seketika dengan error jelas yang menyebut masalah kredensial | Betul. Ulangi kegagalan sementara (429, 5xx, timeout). Error yang berarti "permintaan Anda salah" (400, 401, 403, 404) tidak akan berubah dengan menunggu, dan mengulang hanya menunda alarm.
+@choice Ya, tetapi tanpa menunggu, supaya lebih cepat | Menghujani server yang menolak Anda membuat keadaan lebih buruk. Coba lagi.
+@teacher Ulangi apa yang bisa membaik sendiri. Gagal cepat pada apa yang hanya bisa Anda perbaiki.
+:::
+
 **Autentikasi** adalah cara API tahu siapa Anda: **API key** di header atau **query string** (parameter `?kunci=nilai&...` di akhir URL), **bearer token** (`Authorization: Bearer ...`), atau **OAuth**, tempat Anda menukar kredensial dengan token yang kedaluwarsa dan harus diperbarui. Apa pun metodenya, **kredensial adalah rahasia**: simpan di variabel lingkungan atau **secret manager** (layanan brankas khusus seperti AWS Secrets Manager atau GCP Secret Manager yang menyimpan dan merotasi kredensial), jangan pernah di kode atau di Git (Modul 0.1), dan jangan di log. `build_request` di lab menaruh token di header, membangun URL dengan `urllib.parse.urlencode` dengan parameter terurut agar URL-nya bisa direproduksi, dan membuang parameter yang nilainya `None`.
 
 Selalu pasang **timeout**. Tanpanya, koneksi yang menggantung memblokir job Anda selamanya. Masalah koneksi (server tidak terjangkau, reset, timeout) berbeda dari error HTTP: tidak ada status code, jadi Anda memperlakukannya seperti 5xx, sebagai sesuatu yang sementara.

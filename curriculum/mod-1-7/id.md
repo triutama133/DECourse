@@ -52,6 +52,15 @@ Key-value store adalah dictionary raksasa: Anda **set** sebuah nilai di bawah se
 
 **Redis** menyimpan data di memori dan juga menawarkan *struktur* data sebagai nilai: string, hash (dictionary kecil), list, set, dan **sorted set** (set yang diurutkan menurut skor, sempurna untuk papan peringkat). Ia bisa menulis ke disk (snapshot, atau log append-only) agar data bertahan setelah restart, tetapi kekuatannya adalah kecepatan, bukan menyimpan segalanya selamanya.
 
+:::talk Alamat yang tersimpan di cache
+@teacher Sebuah toko web menyimpan profil setiap pelanggan di Redis dengan TTL satu jam. Pukul 10:00 seorang pelanggan mengubah alamat pengirimannya di database utama. Pukul 10:10 ia membuka halaman profilnya.
+@ask Alamat mana yang ditampilkan halaman itu?
+@choice Yang baru, karena Redis selalu bertanya ke database utama | Cache tidak bertanya: ia menjawab dari salinannya sendiri sampai salinan itu kedaluwarsa. Coba lagi.
+@choice * Yang lama, sampai key kedaluwarsa sekitar pukul 11:00, kecuali aplikasi menghapus atau memperbarui key di cache saat alamat berubah | Betul. TTL adalah janji bahwa data paling tua selama itu. Untuk data yang harus berubah seketika, perbarui atau hapus key saat penulisan.
+@choice Error, karena kedua penyimpanan tidak sepakat | Tidak ada yang mendeteksi ketidaksepakatan itu. Coba lagi.
+@teacher Cache menukar kesegaran dengan kecepatan: putuskan seberapa basi setiap data boleh.
+:::
+
 Dua fitur menentukan bagaimana key-value store dipakai:
 
 - **TTL (time to live).** Sebuah key bisa kedaluwarsa otomatis setelah sejumlah detik. Sesi, one-time password, dan hasil cache memakainya. `KeyValueStore` di lab mengedaluwarsakan key ketika `clock() >= waktu_set + ttl`; fungsi clock diteruskan sebagai argumen sehingga tes tidak perlu menunggu.
@@ -319,6 +328,15 @@ Beberapa pola akses bukan satu pun dari yang di atas.
 **Mesin pencari** (Elasticsearch, OpenSearch) membangun **inverted index** (kata ke daftar dokumen) sehingga bisa mencocokkan teks, meranking hasil menurut relevansi, dan memfilter dengan cepat. Mereka untuk kotak pencarian dan penjelajahan log, bukan sistem pencatat utama.
 
 **Database time-series** (TimescaleDB, InfluxDB) disetel untuk data yang banyak ditambah dan diindeks menurut waktu (metrik, pembacaan sensor), dengan retensi dan downsampling otomatis. **Database vektor** menyimpan embedding untuk pencarian kemiripan (Modul 3.5). Banyak dari ini adalah fitur sistem lain: PostgreSQL melakukan time series dengan ekstensi dan pencarian vektor dengan pgvector.
+
+:::talk Mencari kata
+@teacher KopiKu punya 10 juta ulasan produk. Seorang pembelajar mencari kata "dark" dengan `WHERE review LIKE '%dark%'`. Seorang rekan berkata mesin pencari akan jauh lebih cepat.
+@ask Mengapa mesin pencari lebih cepat untuk ini?
+@choice Ia punya server yang lebih besar | Kecepatannya berasal dari cara data diatur, bukan dari ukuran. Coba lagi.
+@choice * Ia membangun inverted index lebih dulu: untuk setiap kata, daftar ulasan yang memuatnya, sehingga "dark" dicari di indeks, bukan dipindai | Betul. `LIKE '%dark%'` harus membaca setiap ulasan setiap kali. Inverted index menemukan ulasan yang cocok langsung, dan bisa memeringkatnya juga.
+@choice Ia menyimpan ulasan dalam graf | Graf menyimpan hubungan. Triknya di sini adalah indeks dari kata ke dokumen. Coba lagi.
+@teacher Setiap keluarga database ada karena satu pola akses membutuhkan tata letak data yang berbeda. Cocokkan tata letak dengan pertanyaannya.
+:::
 
 Pelajaran untuk disimpan: sebuah keluarga database adalah kumpulan **optimasi untuk sebuah pola akses**. Jika Anda tahu polanya, keluarganya biasanya mengikuti; jika Anda belum tahu polanya, mulailah dengan database relasional dan pelajari polanya dulu.
 

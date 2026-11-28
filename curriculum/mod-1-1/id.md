@@ -444,6 +444,15 @@ skrip mengalami error biasa dan mengembalikan 137
 137 = 128 + 9: proses menerima SIGKILL. Dalam container dengan batas memori ini adalah OOM killer. Penghentian sopan (`docker stop`) memberi 143 (128 + 15, SIGTERM). Obatnya adalah memproses sebagai stream atau potongan terbatas, bukan memuat semuanya sekaligus.
 :::
 
+:::talk Tanpa pesan error sama sekali
+@teacher Sebuah pekerjaan dalam container berjalan dua puluh menit lalu container-nya begitu saja hilang. Lognya berhenti di tengah pekerjaan, tanpa traceback Python dan tanpa teks error.
+@ask Apa yang harus dilihat lebih dulu?
+@choice Kode Python, baris demi baris, untuk mencari syntax error | Syntax error akan dilaporkan di awal, dengan traceback. Pekerjaan ini berjalan dua puluh menit. Coba lagi.
+@choice * Exit code dan `docker inspect`: kode 137 dengan `OOMKilled: true` berarti kernel mematikannya karena memakai terlalu banyak memori | Betul. Proses itu tidak sempat mencetak apa pun, itulah mengapa tidak ada traceback. Perbaikannya adalah memproses secara stream atau dalam potongan terbatas, bukan memburu bug di satu baris.
+@choice Ekspresi jadwal pekerjaan itu | Pekerjaan itu memang mulai dan berjalan. Jadwal bukan masalahnya. Coba lagi.
+@teacher Saat pekerjaan lenyap tanpa pesan, pikirkan "dimatikan dari luar", dan tanyakan pada sistem, bukan pada kode.
+:::
+
 Penyebab yang lazim dalam kerja data:
 
 - **Memuat semuanya sekaligus**: `pandas.read_csv` pada file yang jauh lebih besar dari memori (pandas sering butuh beberapa kali ukuran file di RAM), `jq -s`, atau `list(rows)` pada iterator raksasa.

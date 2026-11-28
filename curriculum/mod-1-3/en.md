@@ -180,6 +180,15 @@ Aggregates over a partition **without** ORDER BY use the whole partition (a tota
 
 ### See it: a running total and a moving average
 
+:::talk Two orders with the same total
+@teacher Three orders have the totals 10, 10 and 20, and you write `SUM(total) OVER (ORDER BY total)` to get a running total.
+@ask What do the first two rows show as their running total?
+@choice 10 for the first and 20 for the second | That is what you would expect row by row, but it is not what the default does with ties. Try again.
+@choice * 20 for both: the rows with an equal value are "peers", and the default frame counts all peers together | Yes. The default frame is `RANGE`, which includes every row tied with the current one. To get a true row-by-row total, write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`.
+@choice 10 for both, because the first row repeats | The tie includes both rows in each other's frame, so both see 20. Try again.
+@teacher When a running total looks wrong only for tied values, suspect the default frame.
+:::
+
 Daily revenue of the Jakarta store for two weeks. Watch two columns being added, each looking at a different set of rows:
 
 :::sqlsteps Frames: which rows does each row look at?
@@ -831,6 +840,15 @@ FROM products
 GROUP BY GROUPING SETS ((roast), (origin), ());
 -- dark 2, light 2, medium 2  |  six origins with 1 each  |  the total 6   (10 rows)
 ```
+
+:::talk A NULL city: subtotal or unknown?
+@teacher A `ROLLUP` report by city has a row with `city` shown as NULL and a revenue of 250,000. Two customers have no city in the data. The report also has a subtotal row that ROLLUP builds by itself.
+@ask How can you tell whether that NULL row is a subtotal or the customers without a city?
+@choice By its position: subtotals always come last | Position is not a rule you can rely on, and the grand total sits there too. Try again.
+@choice * With `GROUPING(city)`: it is 1 where the city was rolled up into a subtotal and 0 where the NULL is real data | Yes. ROLLUP marks a rolled-up column with NULL, which collides with a real NULL. `GROUPING` is the only reliable way to tell them apart.
+@choice You cannot tell, so you must delete the customers without a city first | Deleting data to fix a report would hide the real problem. `GROUPING` solves it without losing anything. Try again.
+@teacher When one symbol can mean two things, add a column that says which it is.
+:::
 
 **The NULL problem.** A subtotal row has NULL in the rolled-up column, but your data can contain real NULLs too. Two KopiKu customers have no city, so `ROLLUP (tier, city)` returns, for the Bronze tier, two rows that look identical:
 

@@ -74,6 +74,15 @@ A question becomes a fact table plus a few dimensions, with the same definitions
 ## @lesson The grain: the most important sentence in the model
 The **grain** is a single sentence that says what one row of a fact table means. For KopiKu: *"one row per order line: one product, in one order, at one price."* Everything else follows from it.
 
+:::talk How many orders?
+@teacher A fact table has one row per order LINE. KopiKu's sample has 24 lines belonging to 18 orders. An analyst writes `SELECT COUNT(*) FROM fact_order_items` and reports "the number of orders".
+@ask What number does the report show, and is it right?
+@choice 18, the number of orders | The table has one row per line, so `COUNT(*)` counts lines. Try again.
+@choice * 24: it counts lines, not orders, so the report is wrong; use `COUNT(DISTINCT order_id)` | Yes. The grain says what one row is, and every count answers in units of that row. To count orders, count distinct order ids.
+@choice 42, lines plus orders | Nothing adds the two. Try again.
+@teacher Before you count or sum anything, say the grain out loud: "one row per ...".
+:::
+
 Why obsess over it?
 
 - **It decides which dimensions are allowed.** At the order-line grain, product belongs on the row. At an *order* grain (one row per order), product does not, because an order has several. If you let a dimension that does not match the grain in, rows multiply (the fan-out trap from Module 0.3) or the dimension becomes ambiguous.
@@ -399,6 +408,15 @@ A model is code and deserves tests. A minimum set, all of which the lab enforces
 - **Reconciliation**: `SUM(line_total_idr)` in the fact equals the same sum in the source. If the model and the source disagree, one of them is wrong, and you should find out in a test, not in a board meeting.
 - **Dimension tests**: surrogate keys unique, Type 2 ranges contiguous with exactly one current row per entity, no overlapping ranges.
 - **A business-logic check from an independent calculation**: the lab computes revenue by tier at purchase in plain Python and compares it with the SQL result; two different methods agreeing is strong evidence.
+
+:::talk The test that would have caught it
+@teacher A new fact table loads fine, every test is green, and yet revenue is 21% too high. The cause is a join to a customer dimension that has several versions per customer. The source had 7,123 order lines; the fact table has 8,584 rows.
+@ask Which simple test would have caught this on the first day?
+@choice A test that no column contains NULL | Nothing in the story is NULL: the rows are duplicated, not empty. Try again.
+@choice * A reconciliation test: the fact table must have the same number of rows (and the same total) as the source | Yes. A row count and a revenue total compared with the source expose a fan-out at once. Pair it with a uniqueness test on the declared grain.
+@choice A test that the table loads in under a minute | Speed says nothing about whether the numbers are right. Try again.
+@teacher Test what the model promises: one row per grain, and totals that match the source.
+:::
 
 **Where this lives in a modern stack.** In an ELT setup (Module 2.3), raw data lands in the warehouse, **staging** models clean and rename it (like the lab's `stg_` tables), and **marts** build the dimensional models on top: `dim_*` and `fct_*` tables. dbt's tests (`unique`, `not_null`, `relationships`) check keys and integrity, and its `snapshot` feature builds Type 2 dimensions for you. The thinking is the same whatever the tool.
 

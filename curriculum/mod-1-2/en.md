@@ -498,6 +498,15 @@ Recursion is the right tool for trees. For a plain flat list, a `for` loop is si
 ## @lesson Validate at the boundary with Pydantic
 The most reliable pipelines distrust their inputs. Data crosses a **boundary** (a file, an API, a queue) and you convert it from "whatever the sender produced" to "a value my code can rely on". Do this once, at the door; everything after the door can then assume clean data.
 
+:::talk The text that looks like a number
+@teacher A model declares `total_idr: int`. Rows arrive from a CSV file, where every value is text. One row has `"150000"`, another has `"Rp 150.000"`.
+@ask What does Pydantic do with the two rows?
+@choice Both are refused, because they are text and not numbers | Pydantic is not that strict: it converts text that clearly is a whole number. Try again.
+@choice Both are accepted, because Pydantic guesses what you mean | It guesses only when the text is clearly a whole number. `Rp 150.000` is not. Try again.
+@choice * `"150000"` becomes the number 150000, but `"Rp 150.000"` is refused with a validation error | Yes. That is why you add a cleaning step (a `before` validator) for known messy formats, and let everything else fail loudly into quarantine.
+@teacher Pydantic converts the obvious and refuses the rest: you decide, explicitly, which messy formats you are willing to repair.
+:::
+
 **Pydantic v2** is the standard library for this. You describe the shape as a class; Pydantic parses and checks data against it, in compiled Rust code, so it is fast.
 
 ```python
@@ -993,6 +1002,15 @@ Tests are how you change code without fear. For data jobs they also document, in
 def test_status_is_normalised():
     assert validate({**GOOD, "status": " PAID "}).status == "paid"
 ```
+
+:::talk A test that cannot fail
+@teacher A learner writes this test: `assert normalise(" PAID ") == normalise(" PAID ")`. It passes every time they run it, and they feel good about their coverage.
+@ask What is wrong with the test?
+@choice Nothing: a passing test is a good test | A test is only worth something if it can fail when the code is wrong. Try again.
+@choice * It compares the function with itself, so it passes even if `normalise` is completely broken | Yes. A useful test states the expected answer: `assert normalise(" PAID ") == "paid"`. Then a bug makes it fail.
+@choice It should call `normalise` three times | The number of calls is not the issue: the expected value is. Try again.
+@teacher A test is a specification: it says what the right answer is, written by you, not computed by the code under test.
+:::
 
 Notice `{**GOOD, "status": " PAID "}` creates a shallow copy of the baseline `GOOD` dictionary with `"status"` replaced, so tests never mutate shared fixtures.
 
