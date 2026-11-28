@@ -34,7 +34,7 @@ Use Spark when measurement says one machine is not enough, and then learn its in
 
 > 🛠 **Try it (10 min, Python).** You do not need Spark to feel coordination overhead. Write `work(n)` that returns `sum(i * i % 7 for i in range(n))`. Time `[work(n) for _ in range(tasks)]` in one process, then the same with `multiprocessing.Pool(4).map(work, [n] * tasks)`. Try two jobs: 4 tasks with `n = 1000`, and 8 tasks with `n = 1_500_000`. Check that both ways give the same answers. (Put the code under `if __name__ == "__main__":` and run it as a file.)
 >
-> **You should see:** for the tiny job, one process takes about 0.2 ms and the pool about 20 ms, around a hundred times *slower*; for the big job, one process takes about 780 ms and the pool about 235 ms, around three times faster with 4 workers. Starting workers and sending tasks costs a fixed amount, so parallel only wins when each task is big enough to pay for it.
+> **You should see:** for the tiny job, one process takes about 0.2 ms and the pool about 20 ms, around a hundred times *slower* (measured with Python 3.14; on Python 3.12 under Linux workers start faster and we saw only about 1.4 ms, still several times slower); for the big job, one process takes about 780 ms and the pool about 235 ms, around three times faster with 4 workers. Starting workers and sending tasks costs a fixed amount, so parallel only wins when each task is big enough to pay for it.
 
 :::ask A 5 GB CSV needs a daily group-by. A teammate suggests starting a 20-node Spark cluster. What is the best first reply?
 @options
@@ -79,6 +79,15 @@ The driver cuts a stage into one task per partition. Executors run tasks in para
 :::
 
 ## @lesson Lazy evaluation, narrow and wide transformations
+:::talk Filter or group?
+@teacher A Spark job reads orders in 200 partitions and does two steps: first `filter("amount > 10")`, then `groupBy("customer_id").sum("amount")`.
+@ask Which of the two forces rows to travel between machines?
+@choice * The `groupBy`: rows of the same customer must meet, so Spark shuffles them | Yes. A filter looks at each row on its own, in the partition where it already is. A group-by needs every row of a key in one place, and moving them is a shuffle.
+@choice The `filter`, because it removes rows | Removing rows needs no movement: each partition filters its own rows. Try again.
+@choice Both, because every step in Spark moves data | Only some steps do. Keeping the others local is what makes Spark fast. Try again.
+@teacher A shuffle starts a new stage, and stages are where jobs get slow. Count the shuffles in a plan.
+:::
+
 Spark operations come in two kinds:
 
 - **Transformations** (`filter`, `select`, `withColumn`, `join`, `groupBy`) describe a new DataFrame and run **nothing**. They build a plan.
@@ -182,6 +191,15 @@ Predicate pushdown lets the scan skip data (for example Parquet row groups) that
 ## @lesson Joins and shuffles
 A join must bring matching keys together. Spark picks from several strategies:
 
+:::talk A huge table meets a tiny one
+@teacher You join 3 million orders with a table of 1,001 products. The orders are spread over 8 executors, in many partitions.
+@ask What is the cheapest way for Spark to do the join?
+@choice Shuffle both tables so that rows with the same key meet | That works, but it moves millions of rows over the network for no good reason. Try again.
+@choice Collect the big table on one machine | The big table might not fit, and one machine would do all the work. Try again.
+@choice * Copy the tiny table to every executor and join in place (a broadcast join) | Yes. 1,001 rows are cheap to copy, and the big table is never shuffled. That is why a broadcast join is normally fastest when one side is small.
+@teacher Spark picks a broadcast join by itself when it knows that one side is small enough. Stale statistics can fool it, so check the plan.
+:::
+
 | Strategy | How it works | When |
 |---|---|---|
 | **Broadcast hash join** | The small side is sent to every executor; each partition of the big side joins locally. **No shuffle of the big side.** | One side is small (under `spark.sql.autoBroadcastJoinThreshold`, 10 MB by default) |
@@ -220,6 +238,15 @@ A broadcast join sends the small table to every executor, and the large table st
 :::
 
 ## @lesson Data skew: when one task does all the work
+:::talk The job that suddenly takes an hour
+@teacher A nightly Spark job always took 12 minutes. After a product change, 70% of the orders carry the placeholder `customer_id = 0` (customer unknown), and now the same job takes over an hour. The data volume hardly changed. The job groups and joins by `customer_id`.
+@ask What is the most likely cause?
+@choice The cluster got slower overnight | Nothing about the cluster changed. The shape of the data did. Try again.
+@choice * One partition holds 70% of the rows: key 0 lands on a single task, which does most of the work while the others finish early | Yes. This is skew: shuffling by `customer_id` sends every row with key 0 to the same task. The Spark UI shows one task far longer than the median.
+@choice Spark has a bug with the number 0 | It is the same code and the same Spark: the distribution of the keys is what changed. Try again.
+@teacher First look for skew (a few tasks much slower than the rest) before you buy a bigger cluster. A broadcast join, adaptive skew handling or salting can fix it.
+:::
+
 A shuffle sends all rows with the same key to the same partition. If the keys are **unevenly distributed** (**skew**), one partition receives far more data than the others. Stage time is set by the **slowest task**, so the whole stage waits for a straggler while the other cores sit idle. The signature symptom: a stage at "199 of 200 tasks complete" for a long time.
 
 Skew usually comes from a **hot key**. Typical culprits: a default or placeholder value (`customer_id = 0` for guest checkout, `-1`, `''`), `NULL` (all nulls hash to one partition in a group-by), a very popular product, a bot account, a country code that dominates.

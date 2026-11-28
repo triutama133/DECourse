@@ -34,7 +34,7 @@ Gunakan Spark hanya ketika hasil pengukuran metrik membuktikan bahwa satu mesin 
 
 > 🛠 **Coba sendiri (10 menit, Python).** Anda tidak butuh Spark untuk merasakan biaya koordinasi. Tulis `work(n)` yang mengembalikan `sum(i * i % 7 for i in range(n))`. Ukur waktu `[work(n) for _ in range(tasks)]` dalam satu proses, lalu hal yang sama dengan `multiprocessing.Pool(4).map(work, [n] * tasks)`. Coba dua job: 4 task dengan `n = 1000`, dan 8 task dengan `n = 1_500_000`. Pastikan kedua cara memberi jawaban yang sama. (Taruh kodenya di bawah `if __name__ == "__main__":` dan jalankan sebagai file.)
 >
-> **Seharusnya Anda melihat:** untuk job yang sangat kecil, satu proses butuh sekitar 0,2 ms dan pool sekitar 20 ms, kira-kira seratus kali *lebih lambat*; untuk job besar, satu proses butuh sekitar 780 ms dan pool sekitar 235 ms, kira-kira tiga kali lebih cepat dengan 4 worker. Menyalakan worker dan mengirim task memakan biaya tetap, jadi paralel hanya menang jika setiap task cukup besar untuk membayarnya.
+> **Seharusnya Anda melihat:** untuk job yang sangat kecil, satu proses butuh sekitar 0,2 ms dan pool sekitar 20 ms, kira-kira seratus kali *lebih lambat* (diukur dengan Python 3.14; pada Python 3.12 di Linux worker menyala lebih cepat dan kami hanya melihat sekitar 1,4 ms, tetap beberapa kali lebih lambat); untuk job besar, satu proses butuh sekitar 780 ms dan pool sekitar 235 ms, kira-kira tiga kali lebih cepat dengan 4 worker. Menyalakan worker dan mengirim task memakan biaya tetap, jadi paralel hanya menang jika setiap task cukup besar untuk membayarnya.
 
 :::ask Sebuah CSV 5 GB perlu group-by harian. Rekan menyarankan menyalakan klaster Spark 20 node. Apa balasan pertama yang terbaik?
 @options
@@ -79,6 +79,15 @@ Driver memotong sebuah stage menjadi satu task per partisi. Executor menjalankan
 :::
 
 ## @lesson Lazy evaluation, transformasi narrow dan wide
+:::talk Filter atau group?
+@teacher Sebuah pekerjaan Spark membaca pesanan dalam 200 partisi dan melakukan dua langkah: pertama `filter("amount > 10")`, lalu `groupBy("customer_id").sum("amount")`.
+@ask Mana dari keduanya yang memaksa baris berpindah antar mesin?
+@choice * `groupBy`: baris pelanggan yang sama harus bertemu, jadi Spark mengocoknya | Betul. Filter melihat setiap baris sendiri-sendiri, di partisi tempatnya berada. Group-by butuh semua baris sebuah key di satu tempat, dan memindahkannya adalah shuffle.
+@choice `filter`, karena membuang baris | Membuang baris tidak butuh perpindahan: setiap partisi memfilter barisnya sendiri. Coba lagi.
+@choice Keduanya, karena setiap langkah di Spark memindahkan data | Hanya sebagian langkah yang begitu. Menjaga yang lain tetap lokal membuat Spark cepat. Coba lagi.
+@teacher Sebuah shuffle memulai stage baru, dan stage adalah tempat pekerjaan menjadi lambat. Hitung shuffle dalam sebuah plan.
+:::
+
 Operasi komputasi di Apache Spark terbagi menjadi dua kategori fundamental:
 
 - **Transformations** (`filter`, `select`, `withColumn`, `join`, `groupBy`): mendeskripsikan DataFrame baru dan **tidak mengeksekusi komputasi apa pun**. Pemanggilan fungsi ini hanya menyusun execution plan di memori driver.
@@ -182,6 +191,15 @@ Predicate pushdown membuat scan melewati data (misalnya row group Parquet) yang 
 ## @lesson Strategi join dan biaya shuffle
 Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang memiliki nilai kunci (key) yang sama ke satu node mesin yang sama. Spark memilih salah satu strategi join berikut:
 
+:::talk Tabel raksasa bertemu tabel mungil
+@teacher Anda menggabungkan 3 juta pesanan dengan tabel 1.001 produk. Pesanan tersebar di 8 executor, dalam banyak partisi.
+@ask Apa cara termurah bagi Spark untuk melakukan join itu?
+@choice Mengocok (shuffle) kedua tabel agar baris dengan key sama bertemu | Itu berhasil, tetapi memindahkan jutaan baris lewat jaringan tanpa alasan yang baik. Coba lagi.
+@choice Mengumpulkan tabel besar di satu mesin | Tabel besar mungkin tidak muat, dan satu mesin akan mengerjakan semuanya. Coba lagi.
+@choice * Menyalin tabel mungil ke setiap executor dan menggabungkan di tempat (broadcast join) | Betul. 1.001 baris murah untuk disalin, dan tabel besar tidak pernah di-shuffle. Itulah mengapa broadcast join biasanya tercepat bila salah satu sisi kecil.
+@teacher Spark memilih broadcast join sendiri bila ia tahu salah satu sisi cukup kecil. Statistik yang basi bisa mengelabuinya, jadi periksa planmya.
+:::
+
 | Strategi Join | Cara Kerja Arsitektur | Kapan Digunakan |
 |---|---|---|
 | **Broadcast Hash Join (BHJ)** | Sisi tabel kecil disalin utuh ke seluruh executor; setiap partisi tabel besar melakukan join lokal di memori. **Nol shuffle pada tabel besar.** | Salah satu tabel berukuran kecil (di bawah threshold `spark.sql.autoBroadcastJoinThreshold`, default 10 MB) |
@@ -220,6 +238,15 @@ Broadcast join mengirim tabel kecil ke setiap executor, dan tabel besar tetap di
 :::
 
 ## @lesson Data skew: ketika satu task memikul seluruh beban komputasi
+:::talk Pekerjaan yang tiba-tiba memakan satu jam
+@teacher Sebuah pekerjaan Spark malam selalu memakan 12 menit. Setelah perubahan produk, 70% pesanan membawa placeholder `customer_id = 0` (pelanggan tidak diketahui), dan kini pekerjaan yang sama memakan lebih dari satu jam. Volume datanya hampir tidak berubah. Pekerjaan itu mengelompokkan dan menggabungkan menurut `customer_id`.
+@ask Apa penyebab yang paling mungkin?
+@choice Klasternya melambat semalam | Tidak ada yang berubah pada klaster. Bentuk datanyalah yang berubah. Coba lagi.
+@choice * Satu partisi memegang 70% baris: key 0 mendarat di satu task, yang mengerjakan sebagian besar pekerjaan sementara yang lain selesai lebih awal | Betul. Inilah skew: shuffle menurut `customer_id` mengirim setiap baris berkey 0 ke task yang sama. Spark UI menunjukkan satu task jauh lebih lama daripada median.
+@choice Spark punya bug dengan angka 0 | Kodenya sama dan Spark-nya sama: yang berubah adalah sebaran key-nya. Coba lagi.
+@teacher Cari dulu skew (beberapa task jauh lebih lambat dari yang lain) sebelum membeli klaster yang lebih besar. Broadcast join, penanganan skew adaptif, atau salting bisa memperbaikinya.
+:::
+
 Operasi shuffle memetakan seluruh baris data yang memiliki nilai hash key yang sama ke dalam satu partisi yang sama. Jika nilai key di dunia nyata **terdistribusi secara tidak merata** (**data skew**), satu partisi akan menerima volume data yang jauh lebih masif dibandingkan partisi lainnya. Karena durasi total sebuah stage ditentukan oleh **task yang paling lambat (straggler)**, maka keseluruhan stage akan tertahan menunggu satu task tersebut sementara ratusan CPU cores lainnya menganggur. Gejala klasiknya di Spark UI: indikator progres stage menunjukkan status "199 of 200 tasks complete" dan tersangkut di angka tersebut selama berjam-jam.
 
 Data skew hampir selalu disebabkan oleh keberadaan **hot key**. Penyebab paling lazim di industri: nilai default atau placeholder (`customer_id = 0` atau `-1` untuk transaksi anonim tanpa akun, string kosong `''`), nilai `NULL` (seluruh null dikelompokkan ke satu partisi dalam group-by), produk viral yang mendominasi transaksi toko, aktivitas akun bot crawling, atau kode wilayah negara tertentu yang mendominasi populasi pengguna.
