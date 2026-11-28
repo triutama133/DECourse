@@ -58,6 +58,15 @@ Pick by the question: "the top 3 *orders*" is ROW_NUMBER; "the orders with the t
 
 ### See it: GROUP BY collapses, a window keeps every row
 
+:::talk Keep the rows, or collapse them?
+@teacher KopiKu has 18 orders. The founder wants a list of every order, with the customer's total spending printed next to each order, so she can see which orders are a big part of that customer's spending.
+@ask Which tool gives you one row per order, and the customer's total next to it?
+@choice `GROUP BY customer_id` with `SUM(amount)` | `GROUP BY` collapses: you get one row per customer, and the individual orders are gone. Try again.
+@choice * `SUM(amount) OVER (PARTITION BY customer_id)` | Yes. A window function calculates across a group of rows but keeps every row, so each order is still there with the customer's total beside it.
+@choice A second query whose numbers you paste into the first by hand | It could work once, but it breaks the moment the data changes. The database can do both in one step. Try again.
+@teacher Remember the one-line difference: `GROUP BY` **collapses** the rows into one per group, a window function **keeps** every row and adds a calculation beside it.
+:::
+
 :::sqlsteps One row per customer, or one row per order?
 @data kopiku
 @stage 1. The orders: 18 rows, one per order
@@ -368,6 +377,15 @@ FROM flagged;
 
 ### See it: date minus row number
 
+:::talk What do these numbers tell you?
+@teacher A customer logged in on the 10th, 11th, 12th, 14th and 15th. Number those days 1, 2, 3, 4, 5, and subtract each number from its day: 10 - 1 = 9, 11 - 2 = 9, 12 - 3 = 9, 14 - 4 = 10, 15 - 5 = 10.
+@ask What do the results 9, 9, 9, 10, 10 tell you?
+@choice Nothing: they are just leftovers of a subtraction | Look closely: they are not random. They change exactly where something changes in the dates. Try again.
+@choice The customer logged in 9 times | The results are labels, not counts. Look at where the value changes. Try again.
+@choice * Days with the same result belong to the same streak, and the result changes when a day is skipped | Yes! Inside a streak the day and the row number both go up by one, so their difference stays put. A skipped day makes the date jump but not the row number, so the difference changes.
+@teacher That constant is the "island" marker. Group by it, and you get one row per streak: its first day, its last day and its length.
+:::
+
 For user 1 (logins on March 1, 2, 3 and 5, 6, 7, 8) the island trick turns every streak into a constant:
 
 :::sqlsteps Gaps and islands: date minus row number
@@ -605,6 +623,15 @@ Thirteen pages instead of 4,167, and 0.045 ms instead of 21 ms: nearly 500 times
 > **You should see:** `SCAN orders` for (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` for (2); `SCAN orders` again for (3), because a function on the column defeats the index (sargability); and for (4) a `SCAN` that becomes `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
 ### See it: scan, search, and the function that defeats the index
+
+:::talk Why is the index ignored?
+@teacher There is an index on `event_time`: like the index at the back of a book, it lists the times in order, so the database can jump straight to one day. One query says `WHERE event_time >= '2026-01-10' AND event_time < '2026-01-11'`. Another says `WHERE date(event_time) = '2026-01-10'`. Both return the same rows.
+@ask Which one can use the index to jump straight to the day?
+@choice * The range version, because it compares the bare column | Yes. With a function around the column, the database would have to compute `date(...)` for every row to know, which means reading the whole table. The bare column can be looked up in the sorted index.
+@choice Both, because they ask for the same rows | The rows are the same, but the work is not. The index is sorted by the raw `event_time`, not by `date(event_time)`. Try again.
+@choice Only the second, because `date()` makes the search simpler | `date()` is exactly what hides the column from the index. Try again.
+@teacher The habit: keep the column bare on one side of the comparison and put the calculation on the other side. That is what "sargable" means.
+:::
 
 The same idea in SQLite's own plan (`EXPLAIN QUERY PLAN`, last column): without an index the database scans the whole table; with one it searches.
 

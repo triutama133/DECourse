@@ -58,6 +58,15 @@ Pilih sesuai pertanyaan: "3 *pesanan* teratas" adalah ROW_NUMBER; "pesanan denga
 
 ### Lihat sendiri: GROUP BY menggabungkan, window menyimpan setiap baris
 
+:::talk Pertahankan barisnya, atau lebur?
+@teacher KopiKu punya 18 pesanan. Sang pendiri ingin daftar setiap pesanan, dengan total belanja pelanggan dicetak di sebelah tiap pesanan, supaya ia bisa melihat pesanan mana yang porsinya besar dalam belanja pelanggan itu.
+@ask Alat mana yang memberi satu baris per pesanan, dengan total pelanggan di sebelahnya?
+@choice `GROUP BY customer_id` dengan `SUM(amount)` | `GROUP BY` meleburkan: Anda mendapat satu baris per pelanggan, dan pesanan satu per satu hilang. Coba lagi.
+@choice * `SUM(amount) OVER (PARTITION BY customer_id)` | Betul. Window function menghitung lintas sekelompok baris tetapi mempertahankan setiap baris, jadi setiap pesanan tetap ada dengan total pelanggan di sampingnya.
+@choice Query kedua yang angkanya Anda tempel ke query pertama dengan tangan | Mungkin berhasil sekali, tetapi rusak begitu datanya berubah. Database bisa mengerjakan keduanya dalam satu langkah. Coba lagi.
+@teacher Ingat perbedaannya dalam satu kalimat: `GROUP BY` **meleburkan** baris menjadi satu per kelompok, window function **mempertahankan** setiap baris dan menambahkan perhitungan di sampingnya.
+:::
+
 :::sqlsteps Satu baris per pelanggan, atau satu baris per pesanan?
 @data kopiku
 @stage 1. Pesanan: 18 baris, satu per pesanan
@@ -368,6 +377,15 @@ FROM flagged;
 
 ### Lihat sendiri: tanggal dikurangi nomor baris
 
+:::talk Apa yang dikatakan angka-angka ini?
+@teacher Seorang pelanggan login pada tanggal 10, 11, 12, 14, dan 15. Beri nomor hari-hari itu 1, 2, 3, 4, 5, lalu kurangkan setiap nomor dari harinya: 10 - 1 = 9, 11 - 2 = 9, 12 - 3 = 9, 14 - 4 = 10, 15 - 5 = 10.
+@ask Apa yang dikatakan hasil 9, 9, 9, 10, 10 kepada Anda?
+@choice Tidak ada: itu hanya sisa dari pengurangan | Perhatikan baik-baik: angkanya tidak acak. Ia berubah tepat di tempat sesuatu berubah pada tanggalnya. Coba lagi.
+@choice Pelanggan itu login sebanyak 9 kali | Hasilnya adalah label, bukan hitungan. Lihat di mana nilainya berubah. Coba lagi.
+@choice * Hari dengan hasil yang sama berada dalam rangkaian yang sama, dan hasilnya berubah ketika ada hari yang terlewat | Betul! Di dalam satu rangkaian, hari dan nomor baris sama-sama naik satu, jadi selisihnya tetap. Hari yang terlewat membuat tanggal melompat tetapi nomor baris tidak, sehingga selisihnya berubah.
+@teacher Konstanta itu adalah penanda "pulau". Kelompokkan berdasarkan penanda itu, dan Anda mendapat satu baris per rangkaian: hari pertamanya, hari terakhirnya, dan panjangnya.
+:::
+
 Untuk pengguna 1 (login 1, 2, 3 dan 5, 6, 7, 8 Maret) trik island mengubah setiap rangkaian menjadi sebuah konstanta:
 
 :::sqlsteps Gaps and islands: tanggal dikurangi nomor baris
@@ -605,6 +623,15 @@ Tiga belas halaman alih-alih 4.167, dan 0,045 ms alih-alih 21 ms: hampir 500 kal
 > **Seharusnya Anda melihat:** `SCAN orders` untuk (1); `SEARCH orders USING INDEX ix_cust (customer_id=?)` untuk (2); `SCAN orders` lagi untuk (3), karena fungsi pada kolom membuat index tidak terpakai (sargability); dan untuk (4) sebuah `SCAN` yang berubah menjadi `SEARCH orders USING INDEX ix_ts (order_ts>? AND order_ts<?)`.
 
 ### Lihat sendiri: scan, search, dan fungsi yang mengalahkan index
+
+:::talk Mengapa index diabaikan?
+@teacher Ada index pada `event_time`: seperti indeks di belakang buku, ia mendaftar waktu secara berurutan, sehingga database bisa langsung melompat ke satu hari. Satu query berbunyi `WHERE event_time >= '2026-01-10' AND event_time < '2026-01-11'`. Yang lain berbunyi `WHERE date(event_time) = '2026-01-10'`. Keduanya mengembalikan baris yang sama.
+@ask Mana yang bisa memakai index untuk langsung melompat ke hari itu?
+@choice * Versi rentang, karena membandingkan kolom apa adanya | Betul. Dengan fungsi membungkus kolom, database harus menghitung `date(...)` untuk setiap baris agar tahu, yang berarti membaca seluruh tabel. Kolom apa adanya bisa dicari di index yang terurut.
+@choice Keduanya, karena meminta baris yang sama | Barisnya sama, tetapi pekerjaannya tidak. Index diurutkan menurut `event_time` mentah, bukan menurut `date(event_time)`. Coba lagi.
+@choice Hanya yang kedua, karena `date()` membuat pencarian lebih sederhana | `date()` justru yang menyembunyikan kolom dari index. Coba lagi.
+@teacher Kebiasaannya: biarkan kolom apa adanya di satu sisi perbandingan dan taruh perhitungan di sisi lain. Itulah arti "sargable".
+:::
 
 Gagasan yang sama dalam plan milik SQLite sendiri (`EXPLAIN QUERY PLAN`, kolom terakhir): tanpa index database memindai seluruh tabel; dengan index ia mencari.
 
