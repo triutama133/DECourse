@@ -520,7 +520,7 @@ A job can succeed and still deliver nothing. Alerting on the number of records a
 
 ## @lesson Webhook HMAC-SHA256 verification, differential extraction, S3 streaming, and declarative dlt {optional}
 
-*(Optional modern engineering bridge — Module 2.1 introduces S3-compatible object storage in depth, while this lesson extends your core `ingest_lab.py` skills to webhooks, snapshot deltas, and `dlt`.)*
+*(Optional modern engineering bridge: Module 2.1 introduces S3-compatible object storage in depth, while this lesson extends your core `ingest_lab.py` skills to webhooks, snapshot deltas, and `dlt`.)*
 
 In Chapter 7 (*Ingestion*) of *Fundamentals of Data Engineering* and modern cloud pipelines (such as the *DataTalksClub Data Engineering Zoomcamp* `dlt` workshops), four production ingestion patterns bridge raw HTTP mechanics and enterprise data platforms:
 
@@ -555,7 +555,7 @@ pipeline = dlt.pipeline(pipeline_name="kopiku_ingest", destination="duckdb", dat
 load_info = pipeline.run(kopiku_orders_source())
 ```
 
-> 🛠 **Try it (20 min, Python — First-Law Webhook Security & Differential Extraction Lab).** Create `~/practice/webhook_diff.py` and implement two functions:
+> 🛠 **Try it (20 min, Python: First-Law Webhook Security & Differential Extraction Lab).** Create `~/practice/webhook_diff.py` and implement two functions:
 > 1. `verify_webhook_batch(events, secret, now_ts, tolerance_sec=300)`: each event in `events` is a dict `{"event_id": str, "timestamp": int, "body": str, "signature": str}` where a valid signature is `"sha256=" + hmac_sha256(secret, f"{timestamp}.{body}")`. Using `hmac.compare_digest`, validate each event:
 >    - If `abs(now_ts - event["timestamp"]) > tolerance_sec`, append `{"event_id": ..., "reason": "stale_timestamp"}` to `rejected`.
 >    - Else if the signature does not match, append `{"event_id": ..., "reason": "invalid_signature"}` to `rejected`.

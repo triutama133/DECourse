@@ -292,7 +292,7 @@ print(counts)
 
 Read it left to right: `cut` takes the 4th comma-separated column (the status), `tail -n +2` skips the header line, `sort` groups equal values together, `uniq -c` counts runs of equal values, and the last `sort -rn` puts the biggest count first. Five tiny tools replaced a program, and nothing was loaded into memory at once, so it works on a file far bigger than your RAM. Module 1.1 develops this skill in depth.
 
-Notice the output also reveals messy real-world data: you will see `paid`, `PAID` and `Paid` counted as separate groups. The terminal is a good place to *look at data before you write code for it* — Module 0.2 shows where in a pipeline this cleaning belongs.
+Notice the output also reveals messy real-world data: you will see `paid`, `PAID` and `Paid` counted as separate groups. The terminal is a good place to *look at data before you write code for it*. Module 0.2 shows where in a pipeline this cleaning belongs.
 
 ### Writing to a file
 
@@ -638,7 +638,7 @@ Finally, **practise the loop** until it is automatic: make a small change, run i
 
 **Reading `summarize.py` before you edit it.** The starter imports two standard-library helpers already wired up for you:
 - **`argparse`**: reads the filename you type after `python3 summarize.py` (for example `data/orders.csv`) and puts it in `args.path`.
-- **`collections.Counter`**: a dictionary built specifically for counting — writing `counts[status] += 1` starts at `0` automatically without needing `counts.get(status, 0)`.
+- **`collections.Counter`**: a dictionary built specifically for counting: writing `counts[status] += 1` starts at `0` automatically without needing `counts.get(status, 0)`.
 
 > 💡 **Practice Pause 7 (Complete summarize.py & Verify Workspace):**
 > Prove that your entire workbench functions as intended:

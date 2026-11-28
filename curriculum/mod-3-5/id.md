@@ -103,7 +103,7 @@ Dot product-nya 1 × 0 + 0 × 1 = 0, jadi cosine-nya 0 dibagi panjang-panjangnya
 
 ### Pendekatan Hashing Embedder pada Lab Modul Ini
 
-Model embedding produksi umumnya membutuhkan token API berbayar atau mengunduh bobot neural network ratusan megabyte, serta dapat menghasilkan angka desimal yang sedikit bergeser antar versi platform. Agar lab modul ini dapat dijalankan sepenuhnya secara offline, instan, dan deterministik 100%, sistem praktikum menggunakan **Hashing Embedder**: setiap kata di-hash ke dalam salah satu dari 256 posisi dimensi dengan bobot tanda arah, lalu vektor frekuensi dinormalisasi ke panjang 1. Model hashing ini merepresentasikan *tumpang tindih kata (lexical overlap)* dan bukan semantik murni: kata "mobil" dan "kendaraan" dianggap tidak berhubungan oleh hash ini, sesuatu yang dipahami oleh model embedding riil. Namun selain karakteristik semantiknya, seluruh aspek arsitektur rekayasa data di modul ini bekerja secara identik: teks masuk, vektor satuan panjang tetap keluar, dan fungsi `embed` adalah satu-satunya komponen yang akan Anda ganti saat beralih ke model produksi seperti OpenAI `text-embedding-3` atau model open-source Hugging Face. Hashing embedder di lab menerima parameter nama `model` yang mengubah seed algoritma hash, sehingga dua nama model berbeda bertindak persis seperti dua embedding model terpisah yang tidak kompatibel—fondasi penting dari skenario chaos modul ini.
+Model embedding produksi umumnya membutuhkan token API berbayar atau mengunduh bobot neural network ratusan megabyte, serta dapat menghasilkan angka desimal yang sedikit bergeser antar versi platform. Agar lab modul ini dapat dijalankan sepenuhnya secara offline, instan, dan deterministik 100%, sistem praktikum menggunakan **Hashing Embedder**: setiap kata di-hash ke dalam salah satu dari 256 posisi dimensi dengan bobot tanda arah, lalu vektor frekuensi dinormalisasi ke panjang 1. Model hashing ini merepresentasikan *tumpang tindih kata (lexical overlap)* dan bukan semantik murni: kata "mobil" dan "kendaraan" dianggap tidak berhubungan oleh hash ini, sesuatu yang dipahami oleh model embedding riil. Namun selain karakteristik semantiknya, seluruh aspek arsitektur rekayasa data di modul ini bekerja secara identik: teks masuk, vektor satuan panjang tetap keluar, dan fungsi `embed` adalah satu-satunya komponen yang akan Anda ganti saat beralih ke model produksi seperti OpenAI `text-embedding-3` atau model open-source Hugging Face. Hashing embedder di lab menerima parameter nama `model` yang mengubah seed algoritma hash, sehingga dua nama model berbeda bertindak persis seperti dua embedding model terpisah yang tidak kompatibel, fondasi penting dari skenario chaos modul ini.
 
 ### Ukuran Kapasitas dan Analisis Biaya
 
@@ -140,7 +140,7 @@ def cosine(a, b):
 :::
 
 ## @lesson Chunking dan manajemen metadata
-Dalam sistem RAG, entitas yang Anda ubah menjadi vektor adalah **potongan teks (chunks)** dan bukan keseluruhan isi dokumen utuh. Menghitung embedding untuk satu buku manual setebal 40 halaman akan menghasilkan vektor rata-rata yang terlalu umum dan kehilangan fokus, dan menyematkan 40 halaman dokumen ke dalam prompt LLM hanya untuk menjawab satu pertanyaan spesifik akan membanjiri model dengan teks sampah yang bising. Di sisi lain, potongan yang terlalu kecil akan kehilangan konteks aslinya (misalnya potongan teks: "Masa berlaku promonya 30 hari" — promo produk yang mana?). Oleh karena itu, strategi chunking adalah keputusan arsitektur krusial yang berdampak langsung pada akurasi jawaban dan tagihan token.
+Dalam sistem RAG, entitas yang Anda ubah menjadi vektor adalah **potongan teks (chunks)** dan bukan keseluruhan isi dokumen utuh. Menghitung embedding untuk satu buku manual setebal 40 halaman akan menghasilkan vektor rata-rata yang terlalu umum dan kehilangan fokus, dan menyematkan 40 halaman dokumen ke dalam prompt LLM hanya untuk menjawab satu pertanyaan spesifik akan membanjiri model dengan teks sampah yang bising. Di sisi lain, potongan yang terlalu kecil akan kehilangan konteks aslinya (misalnya potongan teks: "Masa berlaku promonya 30 hari": promo produk yang mana?). Oleh karena itu, strategi chunking adalah keputusan arsitektur krusial yang berdampak langsung pada akurasi jawaban dan tagihan token.
 
 Pendekatan umum pemotongan teks:
 
@@ -480,7 +480,7 @@ FROM ML.PREDICT(
 );
 ```
 
-> 🛠 **Coba sendiri (20 menit, Python — Lab Feature Store `ASOF` Point-in-Time & Detektor Kebocoran Label).** Buat file `~/practice/feature_store.py` dan implementasikan fungsi `build_feature_store_views(prediction_requests, feature_updates)`:
+> 🛠 **Coba sendiri (20 menit, Python: Lab Feature Store `ASOF` Point-in-Time & Detektor Kebocoran Label).** Buat file `~/practice/feature_store.py` dan implementasikan fungsi `build_feature_store_views(prediction_requests, feature_updates)`:
 > - `prediction_requests`: list dict `{"request_id": str, "entity_id": str, "prediction_ts": int}`
 > - `feature_updates`: list dict `{"entity_id": str, "updated_at": int, "risk_score": int, "tx_count_24h": int}`
 > - Kembalikan sebuah dict dengan tiga kunci:

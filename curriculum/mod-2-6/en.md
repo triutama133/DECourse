@@ -137,7 +137,7 @@ A zone map is the min/max of each column in each partition. The engine compares 
 @teacher Choose the distribution key from the column you join on most. For small dimension tables, a copy on every machine solves it.
 :::
 
-**Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle** — exchanging rows by key across the cluster, which Modules 3.0 and 3.1 inspect inside MapReduce and Spark). Redshift lets you choose a **distribution style** (`DISTSTYLE KEY DISTKEY (customer_id)` in DDL) per table:
+**Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle**: exchanging rows by key across the cluster, which Modules 3.0 and 3.1 inspect inside MapReduce and Spark). Redshift lets you choose a **distribution style** (`DISTSTYLE KEY DISTKEY (customer_id)` in DDL) per table:
 
 - **KEY**: rows with the same value of a chosen column go to the same node (like the lab's `distribute(..., style="key")`).
 - **EVEN**: rows are dealt out round-robin; balanced, but joins need data movement.
@@ -151,7 +151,7 @@ The lab's `join_rows_moved` captures the rules: if both tables are distributed b
 **Sizing compute.** In Snowflake a **virtual warehouse** comes in sizes (X-Small, Small, Medium, ...); each size up doubles the machines and the credits per hour. A bigger warehouse often finishes a heavy query faster for roughly the same total cost, but gives no benefit to a query that is already small; auto-suspend (Module 3.4) keeps idle time cheap. BigQuery allocates **slots** (units of compute) per query automatically, or you reserve a fixed number. Redshift provisioned clusters are sized in nodes; Redshift Serverless scales on demand.
 
 :::advanced Reading a warehouse query profile
-**How to read a Cloud Warehouse Query Profile (The 4 Production Bottlenecks).** When a warehouse query takes 8 minutes or costs $50, do not guess—open the **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Every senior data engineer checks four numbers immediately:
+**How to read a Cloud Warehouse Query Profile (The 4 Production Bottlenecks).** When a warehouse query takes 8 minutes or costs $50, do not guess: open the **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Every senior data engineer checks four numbers immediately:
 
 | Query Profile Symptom | What You See in the Execution Graph | Root Cause | Production Fix |
 |---|---|---|---|
@@ -477,7 +477,7 @@ A big-bang rewrite has no way back and no proof. The strangler fig replaces the 
 **Google BigQuery** appears in **12.7%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20), behind Databricks (34.8%) and Snowflake (25.8%) and just ahead of Redshift (11.7%). It is still the easiest *real* warehouse to practise on, because its sandbox needs no payment card, and its design explains a lot about the others. You need to understand how its internal architecture shapes how you model tables, ingest streams, and control costs on GCP.
 
 ### 1. How BigQuery works under the hood (Colossus, Capacitor, Dremel & Dynamic Shuffle)
-Unlike Snowflake or Redshift—where you pick a cluster size (`X-Small`, `4 nodes`) and data is cached on local worker SSDs—BigQuery disaggregates **four** layers across a Google data center:
+Unlike Snowflake or Redshift, where you pick a cluster size (`X-Small`, `4 nodes`) and data is cached on local worker SSDs, BigQuery disaggregates **four** layers across a Google data center:
 
 | BigQuery Layer | Internal Google Tech | What It Does & Why It Matters to You |
 |---|---|---|
@@ -532,7 +532,7 @@ GROUP BY o.city, item.roast;
 2. **Zero grain fan-out on header queries:** Counting `COUNT(order_id)` on the table counts orders (1 row per order) without multiplying by line items.
 3. **Sub-column pruning:** Capacitor stores `items.roast`, `items.qty`, and `items.unit_idr` as separate physical sub-columns on disk. The query above never even reads `items.sku`!
 
-> 🛠 **Try it (10 min, Python with DuckDB — runs locally without a cloud account!).** DuckDB and Parquet use the exact same nested columnar representation as BigQuery Capacitor. In Python, run `import duckdb; con = duckdb.connect()` and execute:
+> 🛠 **Try it (10 min, Python with DuckDB: runs locally without a cloud account!).** DuckDB and Parquet use the exact same nested columnar representation as BigQuery Capacitor. In Python, run `import duckdb; con = duckdb.connect()` and execute:
 > `con.execute("CREATE TABLE orders_nested AS SELECT 'O-1' AS order_id, 'Jakarta' AS city, [{'sku':'GAYO','qty':2,'price':45000}, {'sku':'TORAJA','qty':1,'price':55000}] AS items UNION ALL SELECT 'O-2', 'Jakarta', [{'sku':'GAYO','qty':3,'price':45000}]")`.
 > First run `SELECT city, COUNT(order_id) AS orders FROM orders_nested GROUP BY city` (header grain). Next, unnest the array just like BigQuery: `SELECT o.city, it.sku, SUM(it.qty * it.price) AS rev FROM orders_nested o, UNNEST(o.items) AS t(it) GROUP BY o.city, it.sku ORDER BY rev DESC`.
 >

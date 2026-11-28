@@ -137,7 +137,7 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 @teacher Pilih kunci distribusi dari kolom yang paling sering Anda join. Untuk tabel dimensi kecil, salinan di setiap mesin menyelesaikannya.
 :::
 
-**Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle** — pertukaran baris berdasarkan key antar-node klaster, yang dibahas mendalam di MapReduce dan Spark pada Modul 3.0 dan 3.1). Redshift membiarkan Anda memilih **gaya distribusi** (`DISTSTYLE KEY DISTKEY (customer_id)` di DDL) per tabel:
+**Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle**: pertukaran baris berdasarkan key antar-node klaster, yang dibahas mendalam di MapReduce dan Spark pada Modul 3.0 dan 3.1). Redshift membiarkan Anda memilih **gaya distribusi** (`DISTSTYLE KEY DISTKEY (customer_id)` di DDL) per tabel:
 
 - **KEY**: baris dengan nilai kolom pilihan yang sama masuk ke node yang sama (seperti `distribute(..., style="key")` di lab).
 - **EVEN**: baris dibagikan round-robin; seimbang, tetapi join butuh perpindahan data.
@@ -151,7 +151,7 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 **Mengukur komputasi.** Di Snowflake sebuah **virtual warehouse** hadir dalam ukuran (X-Small, Small, Medium, ...); setiap naik satu ukuran menggandakan mesin dan credit per jam. Warehouse yang lebih besar sering menyelesaikan query berat lebih cepat dengan total biaya kurang lebih sama, tetapi tidak memberi manfaat bagi query yang sudah kecil; auto-suspend (Modul 3.4) menjaga waktu menganggur tetap murah. BigQuery mengalokasikan **slot** (satuan komputasi) per query secara otomatis, atau Anda mencadangkan jumlah tetap. Klaster Redshift provisioned diukur dalam node; Redshift Serverless menskala sesuai kebutuhan.
 
 :::advanced Membaca query profile warehouse
-**Cara Membaca Query Profile di Cloud Warehouse (4 Bottleneck Produksi Utama).** Saat sebuah query warehouse berjalan 8 menit atau menghabiskan $50, jangan menebak-nebak—buka **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Setiap Senior Data Engineer langsung memeriksa empat indikator ini:
+**Cara Membaca Query Profile di Cloud Warehouse (4 Bottleneck Produksi Utama).** Saat sebuah query warehouse berjalan 8 menit atau menghabiskan $50, jangan menebak-nebak: buka **Query Profile** (Snowflake *Query Profile*, BigQuery *Execution Details*, Redshift `SVL_QUERY_SUMMARY` / `EXPLAIN`). Setiap Senior Data Engineer langsung memeriksa empat indikator ini:
 
 | Gejala di Query Profile | Apa yang Terlihat di Graf Eksekusi | Akar Masalah | Solusi Produksi |
 |---|---|---|---|
@@ -477,7 +477,7 @@ Penulisan ulang besar-besaran tidak punya jalan kembali dan tidak punya bukti. S
 **Google BigQuery** muncul di **12,7%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20), di belakang Databricks (34,8%) dan Snowflake (25,8%), dan sedikit di atas Redshift (11,7%). Ia tetap warehouse *sungguhan* yang paling mudah untuk berlatih, karena sandbox-nya tidak butuh kartu pembayaran, dan desainnya menjelaskan banyak hal tentang yang lain. Anda perlu memahami bagaimana arsitektur internalnya menentukan cara Anda memodelkan tabel, memasukkan stream, dan mengendalikan biaya di GCP.
 
 ### 1. Cara kerja BigQuery di balik layar (Colossus, Capacitor, Dremel & Dynamic Shuffle)
-Berbeda dari Snowflake atau Redshift—di mana Anda memilih ukuran klaster (`X-Small`, `4 node`) dan data di-cache di SSD lokal worker—BigQuery memisahkan **empat** lapisan secara independen di seluruh pusat data Google:
+Berbeda dari Snowflake atau Redshift, di mana Anda memilih ukuran klaster (`X-Small`, `4 node`) dan data di-cache di SSD lokal worker, BigQuery memisahkan **empat** lapisan secara independen di seluruh pusat data Google:
 
 | Lapisan BigQuery | Teknologi Internal Google | Fungsi & Mengapa Penting bagi Data Engineer |
 |---|---|---|
@@ -532,7 +532,7 @@ GROUP BY o.city, item.roast;
 2. **Bebas jebakan fan-out pada query header:** Menghitung `COUNT(order_id)` langsung menghitung jumlah pesanan (1 baris per pesanan) tanpa terlipatgandakan oleh jumlah item barang.
 3. **Pemangkasan sub-kolom (Sub-column pruning):** Capacitor menyimpan `items.roast`, `items.qty`, dan `items.unit_idr` sebagai sub-kolom fisik terpisah di disk. Query di atas bahkan tidak membaca byte `items.sku`!
 
-> 🛠 **Coba sendiri (10 menit, Python dengan DuckDB — berjalan lokal tanpa akun cloud!).** DuckDB dan Parquet menggunakan representasi kolumnar bersarang yang sama persis dengan BigQuery Capacitor. Di Python, jalankan `import duckdb; con = duckdb.connect()` lalu eksekusi:
+> 🛠 **Coba sendiri (10 menit, Python dengan DuckDB: berjalan lokal tanpa akun cloud!).** DuckDB dan Parquet menggunakan representasi kolumnar bersarang yang sama persis dengan BigQuery Capacitor. Di Python, jalankan `import duckdb; con = duckdb.connect()` lalu eksekusi:
 > `con.execute("CREATE TABLE orders_nested AS SELECT 'O-1' AS order_id, 'Jakarta' AS city, [{'sku':'GAYO','qty':2,'price':45000}, {'sku':'TORAJA','qty':1,'price':55000}] AS items UNION ALL SELECT 'O-2', 'Jakarta', [{'sku':'GAYO','qty':3,'price':45000}]")`.
 > Pertama jalankan `SELECT city, COUNT(order_id) AS orders FROM orders_nested GROUP BY city` (grain pesanan). Kedua, buka array-nya persis seperti BigQuery: `SELECT o.city, it.sku, SUM(it.qty * it.price) AS rev FROM orders_nested o, UNNEST(o.items) AS t(it) GROUP BY o.city, it.sku ORDER BY rev DESC`.
 >

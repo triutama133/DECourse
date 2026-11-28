@@ -480,7 +480,7 @@ FROM ML.PREDICT(
 );
 ```
 
-> 🛠 **Try it (20 min, Python — First-Law Point-in-Time `ASOF` Feature Store & Leakage Detector Lab).** Create `~/practice/feature_store.py` and implement `build_feature_store_views(prediction_requests, feature_updates)`:
+> 🛠 **Try it (20 min, Python: First-Law Point-in-Time `ASOF` Feature Store & Leakage Detector Lab).** Create `~/practice/feature_store.py` and implement `build_feature_store_views(prediction_requests, feature_updates)`:
 > - `prediction_requests`: list of dicts `{"request_id": str, "entity_id": str, "prediction_ts": int}`
 > - `feature_updates`: list of dicts `{"entity_id": str, "updated_at": int, "risk_score": int, "tx_count_24h": int}`
 > - Return a dict with three keys:

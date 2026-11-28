@@ -148,7 +148,7 @@ A final rule: **cleaning is a function**. `clean_orders(raw) -> clean`, a pure f
 
 ### Time zones and time-series resampling
 
-**Why:** an app server logs a Jakarta checkout at `"2026-01-31 18:30:00"` in **UTC** (universal time). In **WIB (`UTC+7`, `Asia/Jakarta`)** that order happened at `"2026-02-01 01:30:00"`—**February**, not January. Treating UTC timestamps as local dates silently shifts late-night orders into the wrong month and breaks finance reconciliation.
+**Why:** an app server logs a Jakarta checkout at `"2026-01-31 18:30:00"` in **UTC** (universal time). In **WIB (`UTC+7`, `Asia/Jakarta`)** that order happened at `"2026-02-01 01:30:00"`, **February**, not January. Treating UTC timestamps as local dates silently shifts late-night orders into the wrong month and breaks finance reconciliation.
 
 Two rules prevent almost every time-zone bug:
 1. **Store timestamps in UTC internally (`utc=True`),** and convert to the business **time zone** (`dt.tz_convert("Asia/Jakarta")`) only when bucketing into business days or reporting. If an incoming timestamp has no time zone attached (**naive**), attach its known source zone first with `dt.tz_localize("UTC")` (never guess).

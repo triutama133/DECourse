@@ -477,7 +477,7 @@ python3 scripts/prove.py mod-4-2 ~/seismic
 
 ## @chaos Crash server di tengah sinkronisasi & racun koordinat
 ### @scenario
-Pada hari Sabtu pukul 03.15 UTC, server API hulu mengalami kehabisan memori saat menyajikan Halaman 4 dari pengiriman batch berkala. Di tengah pengiriman data, koneksi soket TCP terputus mendadak. Saat cron job berjalan satu jam kemudian, pipeline seorang engineer junior telah memperbarui watermark state sebelum data berhasil ditulis ke disk—akibatnya 150 rekaman gempa hilang permanen, termasuk peringatan tsunami lepas pantai.
+Pada hari Sabtu pukul 03.15 UTC, server API hulu mengalami kehabisan memori saat menyajikan Halaman 4 dari pengiriman batch berkala. Di tengah pengiriman data, koneksi soket TCP terputus mendadak. Saat cron job berjalan satu jam kemudian, pipeline seorang engineer junior telah memperbarui watermark state sebelum data berhasil ditulis ke disk, akibatnya 150 rekaman gempa hilang permanen, termasuk peringatan tsunami lepas pantai.
 
 Pada saat yang sama, stasiun sensor seismik baru di Pasifik Selatan memancarkan data dengan posisi lintang dan bujur terbalik, mengirim `[lat, lon]` alih-alih standar `[lon, lat]`. Pipeline tanpa validasi batas koordinat langsung memasukkan nilai lintang 175 derajat Selatan, merusak layer spasial GIS analitik dan mengacaukan visualisasi peta.
 

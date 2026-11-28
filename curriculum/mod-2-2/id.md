@@ -2,7 +2,7 @@
 title: Format Tabel Terbuka: Apache Iceberg dan Delta Lake
 duration: 3 minggu
 summary: Pelajari bagaimana format tabel terbuka mengubah folder berisi file Parquet biasa menjadi tabel produksi sejati dengan transaksi ACID, histori snapshot, evolusi skema tanpa rewrite, dan row-level delete, dengan memeriksa langsung pohon metadata Iceberg dan transaction log Delta Lake di disk.
-why: Banyak kursus memperlakukan data lake sebatas folder berisi file Parquet. Tanpa format tabel terbuka, Anda akan menghadapi pembacaan data parsial, konflik penulisan konkuren, mustahilnya penghapusan baris GDPR, dan kerusakan skema diam-diam—masalah nyata yang melahirkan teknologi table format.
+why: Banyak kursus memperlakukan data lake sebatas folder berisi file Parquet. Tanpa format tabel terbuka, Anda akan menghadapi pembacaan data parsial, konflik penulisan konkuren, mustahilnya penghapusan baris GDPR, dan kerusakan skema diam-diam, masalah nyata yang melahirkan teknologi table format.
 ---
 
 ## @outcomes

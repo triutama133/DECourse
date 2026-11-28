@@ -224,7 +224,7 @@ def daily_revenue(): ...
 
 Many teams run Airflow as a managed service (Amazon MWAA, Google Cloud Composer, Astronomer) rather than operating it themselves.
 
-> 🛠 **Try it (5 min, pen and paper — DAG design check).** Look at the Airflow `@dag` above. Why should `read_csv` or database queries stay *inside* `@task def extract()`, never at the top of the file outside `@task`? And if you backfill `2026-01-01` through `2026-01-07`, what value must `extract()` and `load()` use instead of `datetime.now()`?
+> 🛠 **Try it (5 min, pen and paper: DAG design check).** Look at the Airflow `@dag` above. Why should `read_csv` or database queries stay *inside* `@task def extract()`, never at the top of the file outside `@task`? And if you backfill `2026-01-01` through `2026-01-07`, what value must `extract()` and `load()` use instead of `datetime.now()`?
 
 :::ask In Airflow you set `retries=3` on a task that appends rows to a table. What must be true for retries to be safe?
 @options
@@ -245,7 +245,7 @@ A retry runs the task again, possibly after it already wrote part of its output.
 @teacher A green job does not prove a fresh table. Track the thing people actually use.
 :::
 
-**Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it (`@asset` is a Python decorator from `dagster` that registers your function in the dependency graph, and subclassing `ConfigurableResource` defines typed settings — such as `Paths` — passed automatically into asset functions for clean dependency injection). Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
+**Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it (`@asset` is a Python decorator from `dagster` that registers your function in the dependency graph, and subclassing `ConfigurableResource` defines typed settings (such as `Paths`) passed automatically into asset functions for clean dependency injection). Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
 
 The lab's pipeline, in essence:
 

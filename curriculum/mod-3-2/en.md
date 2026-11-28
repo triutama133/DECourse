@@ -227,7 +227,7 @@ Each partition has one **leader** (all reads and writes go through it) and two *
 
 > 🛠 **Try it (15 min, Python).** Model one partition with three replicas as lists: broker `A` (leader) and `B` hold messages 1 to 10, broker `C` holds only 1 to 7 and has fallen out of the in-sync set, so the ISR is `[A, B]`. All ten messages were acknowledged with `acks=all`. Kill `A`. Write `elect(isr, unclean)`: a clean election picks a surviving member of the ISR, an unclean one may pick any surviving replica (take `C`). For each, print the new leader and the acknowledged messages that are no longer on it. Then add a `produce` function that refuses writes when the ISR has fewer than `min_isr` members, and check it with `min_isr=2` and `min_isr=3` on the ISR `[A, B]`.
 >
-> **You should see:** a clean election picks `B` and loses `[]`; the unclean election picks `C` and loses `[8, 9, 10]` — acknowledged records, silently. With the ISR `[A, B]`, writes are accepted for `min_isr=2` and refused for `min_isr=3`, the `NOT_ENOUGH_REPLICAS` situation of Experiment 2.
+> **You should see:** a clean election picks `B` and loses `[]`; the unclean election picks `C` and loses `[8, 9, 10]`: acknowledged records, silently. With the ISR `[A, B]`, writes are accepted for `min_isr=2` and refused for `min_isr=3`, the `NOT_ENOUGH_REPLICAS` situation of Experiment 2.
 
 :::ask A partition has replication factor 3, `acks=all` and `min.insync.replicas=2`. Two brokers die, leaving one in the ISR. What happens to a producer's writes?
 @options
@@ -361,7 +361,7 @@ How do you get an operational database's changes into the platform? The naive wa
 @teacher That is why serious pipelines capture changes from the log, not by asking the table "what is new?".
 :::
 
-**Log-based CDC** reads the database's own record of changes instead of polling tables. PostgreSQL writes every committed mutation sequentially into its **Write-Ahead Log (WAL)** — the append-only crash-recovery journal on disk — *before* updating table data files. With `wal_level = logical`, the WAL records enough row detail for PostgreSQL **logical decoding** to stream changes cleanly using three core building blocks (`publication`, `replication slot`, and `pgoutput` binary decoder; each record carries an increasing **LSN**, or Log Sequence Number, byte address in the WAL):
+**Log-based CDC** reads the database's own record of changes instead of polling tables. PostgreSQL writes every committed mutation sequentially into its **Write-Ahead Log (WAL)** (the append-only crash-recovery journal on disk) *before* updating table data files. With `wal_level = logical`, the WAL records enough row detail for PostgreSQL **logical decoding** to stream changes cleanly using three core building blocks (`publication`, `replication slot`, and `pgoutput` binary decoder; each record carries an increasing **LSN**, or Log Sequence Number, byte address in the WAL):
 
 - A **publication** declares which tables to publish (`CREATE PUBLICATION pub FOR TABLE orders`).
 - A **replication slot** is a server-side bookmark for one consumer: PostgreSQL promises to **keep all WAL the slot has not yet confirmed** (`pg_create_logical_replication_slot('slot', 'pgoutput')`).

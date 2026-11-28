@@ -80,7 +80,7 @@ Berguna juga saat membaca file besar: `usecols=[...]` hanya memuat kolom yang di
 
 ### File Excel berantakan (.xlsx)
 
-Tim keuangan dan operasional jarang mengirim CSV yang rapi—mereka mengirim file `.xlsx` dengan judul perusahaan di tiga baris pertama, banyak tab, sel yang digabung (*merged cells*), dan baris penutup `"GRAND TOTAL"` di paling bawah. Pakai `pd.read_excel` (membutuhkan paket `openpyxl`) dengan batas yang eksplisit:
+Tim keuangan dan operasional jarang mengirim CSV yang rapi, mereka mengirim file `.xlsx` dengan judul perusahaan di tiga baris pertama, banyak tab, sel yang digabung (*merged cells*), dan baris penutup `"GRAND TOTAL"` di paling bawah. Pakai `pd.read_excel` (membutuhkan paket `openpyxl`) dengan batas yang eksplisit:
 
 ```python
 budget = pd.read_excel(
@@ -148,7 +148,7 @@ Aturan terakhir: **pembersihan adalah sebuah fungsi**. `clean_orders(raw) -> cle
 
 ### Zona waktu dan resampling deret waktu
 
-**Mengapa:** server aplikasi mencatat pesanan kopi Jakarta pada `"2026-01-31 18:30:00"` dalam **UTC** (waktu universal). Dalam **WIB (`UTC+7`, `Asia/Jakarta`)**, pesanan itu terjadi pada `"2026-02-01 01:30:00"`—**Februari**, bukan Januari. Memperlakukan timestamp UTC sebagai tanggal lokal diam-diam menggeser pesanan malam ke bulan yang salah dan merusak rekonsiliasi keuangan.
+**Mengapa:** server aplikasi mencatat pesanan kopi Jakarta pada `"2026-01-31 18:30:00"` dalam **UTC** (waktu universal). Dalam **WIB (`UTC+7`, `Asia/Jakarta`)**, pesanan itu terjadi pada `"2026-02-01 01:30:00"`, **Februari**, bukan Januari. Memperlakukan timestamp UTC sebagai tanggal lokal diam-diam menggeser pesanan malam ke bulan yang salah dan merusak rekonsiliasi keuangan.
 
 Dua aturan mencegah hampir semua bug zona waktu:
 1. **Simpan timestamp dalam UTC di dalam sistem (`utc=True`),** lalu ubah ke **zona waktu** bisnis (`dt.tz_convert("Asia/Jakarta")`) hanya saat mengelompokkan hari bisnis atau pelaporan. Jika timestamp masuk belum punya zona waktu (**naive**), pasang zona sumber aslinya dulu dengan `dt.tz_localize("UTC")` (jangan menebak).

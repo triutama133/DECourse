@@ -945,7 +945,7 @@ A plain join with json_each yields one row per array element, so an event with n
 
 ## @lesson Cost-based optimizer join operators, MVCC VACUUM, Sargable tuning, and the 7 SQL interview patterns {optional}
 
-When you inspect an `EXPLAIN ANALYZE` plan in PostgreSQL, Spark, Snowflake, or BigQuery, the **Cost-Based Optimizer (CBO)** does not just decide whether to use an index—it also chooses the physical algorithm used to join two tables:
+When you inspect an `EXPLAIN ANALYZE` plan in PostgreSQL, Spark, Snowflake, or BigQuery, the **Cost-Based Optimizer (CBO)** does not just decide whether to use an index: it also chooses the physical algorithm used to join two tables:
 
 | Physical Join Operator | How It Works Under the Hood | Complexity & Memory Profile | When the Optimizer Picks It (and When It Goes Wrong) |
 |---|---|---|---|

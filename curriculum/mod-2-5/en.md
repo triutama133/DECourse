@@ -438,7 +438,7 @@ Put the answer first, with numbers: what is affected, how much, and what happens
 
 ## @lesson Day-1 brownfield survival: the 5-step wrong-number root-cause trace and zero-downtime schema deprecation
 
-In most data engineering jobs your first 90 days are **brownfield**: you inherit hundreds of existing tables and wake up to a Slack message from Finance saying, *"Yesterday's revenue on the Executive Dashboard looks 12% too low—can you check?"*
+In most data engineering jobs your first 90 days are **brownfield**: you inherit hundreds of existing tables and wake up to a Slack message from Finance saying, *"Yesterday's revenue on the Executive Dashboard looks 12% too low, can you check?"*
 
 **1. The 5-Step Lineage Root-Cause Trace (Debugging Wrong Numbers Backwards).** Never guess or randomly re-run pipelines when a dashboard number looks wrong. Trace the lineage **backwards from the glass to the source** in five deterministic hops:
 
@@ -451,9 +451,9 @@ In most data engineering jobs your first 90 days are **brownfield**: you inherit
 | **Hop 5** | **Bronze Raw Landing & Dead-Letter Quarantine (DLQ)** (`raw_orders`, `dlq.jsonl`) | Check yesterday's quarantine rejection rate and upstream source API/CDC lag. | Upstream checkout team renamed `"total_idr"` to `"amount_idr"`, causing 12% of payloads from the new mobile app version to land in the Dead-Letter Quarantine. |
 
 **2. Zero-Downtime Schema Deprecation (*Expand → Migrate → Contract*).** When you need to rename or change the type of a column (for example, replacing float `total_amount` with integer `total_idr`) on a table queried by 15 analysts and 8 dashboards, **never drop or rename the column in one commit**. Use the 3-phase **Expand → Migrate → Contract** protocol:
-1. **Phase 1 — Expand:** Add the new column `total_idr` alongside the old `total_amount` column (both populated in the model). Announce a 14-day deprecation window in `#data-announcements`.
+1. **Phase 1: Expand:** Add the new column `total_idr` alongside the old `total_amount` column (both populated in the model). Announce a 14-day deprecation window in `#data-announcements`.
 2. **Phase 2, Migrate:** Audit query logs (such as `INFORMATION_SCHEMA.JOBS_BY_USER`, BigQuery's query-history system view covered in Module 2.6) and **dbt exposures** (YAML declarations of downstream dashboards in dbt) to find every downstream dashboard or script still referencing `total_amount`, and migrate them to `total_idr`.
-3. **Phase 3 — Contract:** Only after query logs show **zero reads** of `total_amount` for 7 consecutive days, remove `total_amount` from the model.
+3. **Phase 3: Contract:** Only after query logs show **zero reads** of `total_amount` for 7 consecutive days, remove `total_amount` from the model.
 
 > 🛠 **Try it (15 min, SQL on your Lab 1.4 `warehouse.db`).** Finance says "revenue by current city" is too high. A colleague's query gets each line's `customer_id` through `customer_sk`, then joins `dim_customer` a second time on `customer_id` to read the city, and forgot `is_current = 1`. Walk hop 3 of the trace: count the rows and sum `line_total_idr` of `fact_order_items` alone, then through the colleague's join, then with `is_current = 1` added. Find out how many customers make the difference.
 >
@@ -548,7 +548,7 @@ Good data teams start every pipeline with **three short alignment artifacts**, a
 
 **The Five-Question Intake Checklist.** Before you accept any data ticket in your first 90 days on the job, ask:
 1. **Decision:** *"If this metric goes up or down by 20% tomorrow morning, what specific action will your team take?"* (If the answer is *"nothing, it's just nice to see"*, deprioritize it.)
-2. **Grain:** *"In the final table or chart, what is one row—one order line, one order, one customer per day, or one store per month?"*
+2. **Grain:** *"In the final table or chart, what is one row: one order line, one order, one customer per day, or one store per month?"*
 3. **Inclusions & Edge Cases:** *"Do we include refunded, cancelled, or Rp 0 voucher orders? Which timezone defines the day boundary (`UTC` or `Asia/Jakarta UTC+7`)?"*
 4. **Freshness vs. Cost:** *"Is yesterday's data at 06:00 AM sufficient, or is there an automated system acting on this within 60 seconds?"*
 5. **Leading vs. Lagging:** *"Are we only measuring the autopsy at the end of the quarter (lagging), or are we tracking the operational cause today (leading)?"*

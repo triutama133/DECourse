@@ -37,7 +37,7 @@ Three benefits stack up:
 
 1. **Less I/O.** Reading 2 of 50 columns is roughly 4% of the data. In the 7-column benchmark example in Lesson 5 you will see the engine report `PROJECT 3/7 COLUMNS`: only three of seven columns are read.
 2. **Better compression.** Values of one column are the same type and often similar (`'mobile'`, `'mobile'`, `'desktop'`, ...), which compresses far better than a row mixing text, numbers and dates. Techniques such as **dictionary encoding** (store each distinct string once, then small integer codes), **run-length encoding (RLE)** (store `'mobile' x 1000` once instead of repeating `'mobile'` 1,000 times), **delta encoding** (store differences between sorted timestamps) and **bit-packing** (use only as many bits as the values need) shrink columns dramatically.
-3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute with **SIMD** instructions (Single Instruction, Multiple Data — adding 4 to 16 numbers in one CPU tick instead of one row at a time).
+3. **Faster computation.** Summing a column is a tight loop over a contiguous array of numbers, which modern CPUs execute with **SIMD** instructions (Single Instruction, Multiple Data: adding 4 to 16 numbers in one CPU tick instead of one row at a time).
 
 The trade-off is the mirror image: updating or fetching **one whole record** touches every column's data, so columnar files suit analytics and bulk loads, not frequent single-row writes. That is why you keep an OLTP database for the application (Module 0.2) and a columnar format for analysis.
 

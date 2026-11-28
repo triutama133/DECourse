@@ -479,7 +479,7 @@ python3 scripts/prove.py mod-4-2 ~/seismic
 
 ## @chaos The mid-sync server crash & poisoned coordinates
 ### @scenario
-At 03:15 UTC on a Saturday morning, an upstream API server experienced an unexpected memory exhaustion crash while streaming Page 4 of an hourly batch. Halfway through transmission, the TCP connection reset. When the ingestion cron job ran an hour later, a junior engineer's pipeline had updated its state watermark before persisting records to disk—permanently skipping 150 seismic events, including an offshore tsunami warning.
+At 03:15 UTC on a Saturday morning, an upstream API server experienced an unexpected memory exhaustion crash while streaming Page 4 of an hourly batch. Halfway through transmission, the TCP connection reset. When the ingestion cron job ran an hour later, a junior engineer's pipeline had updated its state watermark before persisting records to disk, permanently skipping 150 seismic events, including an offshore tsunami warning.
 
 Simultaneously, a newly deployed upstream seismic sensor in the South Pacific began emitting coordinates with longitude and latitude reversed, broadcasting `[lat, lon]` instead of standard `[lon, lat]`. Pipelines without explicit coordinate bounds checking inserted latitudes of 175 degrees South, corrupting spatial GIS layers and breaking downstream dashboard aggregations.
 

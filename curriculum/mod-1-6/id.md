@@ -514,7 +514,7 @@ Sebuah job bisa sukses namun tidak menghasilkan apa-apa. Alert pada jumlah recor
 
 ## @lesson Verifikasi webhook HMAC-SHA256, ekstraksi diferensial, streaming S3, dan dlt deklaratif {optional}
 
-*(Jembatan rekayasa modern opsional — Modul 2.1 membahas object storage kompatibel S3 secara mendalam, sementara pelajaran ini memperluas kemampuan dasar `ingest_lab.py` Anda ke webhook, snapshot delta, dan `dlt`.)*
+*(Jembatan rekayasa modern opsional: Modul 2.1 membahas object storage kompatibel S3 secara mendalam, sementara pelajaran ini memperluas kemampuan dasar `ingest_lab.py` Anda ke webhook, snapshot delta, dan `dlt`.)*
 
 Dalam Bab 7 (*Ingestion*) buku *Fundamentals of Data Engineering* dan pipeline cloud modern (seperti workshop `dlt` pada *DataTalksClub Data Engineering Zoomcamp*), terdapat empat pola ingestion produksi yang menjembatani mekanika HTTP mentah dengan platform data enterprise:
 
@@ -549,7 +549,7 @@ pipeline = dlt.pipeline(pipeline_name="kopiku_ingest", destination="duckdb", dat
 load_info = pipeline.run(kopiku_orders_source())
 ```
 
-> 🛠 **Coba sendiri (20 menit, Python — Lab Keamanan Webhook & Ekstraksi Diferensial).** Buat file `~/practice/webhook_diff.py` dan implementasikan dua fungsi:
+> 🛠 **Coba sendiri (20 menit, Python: Lab Keamanan Webhook & Ekstraksi Diferensial).** Buat file `~/practice/webhook_diff.py` dan implementasikan dua fungsi:
 > 1. `verify_webhook_batch(events, secret, now_ts, tolerance_sec=300)`: setiap event di `events` adalah dict `{"event_id": str, "timestamp": int, "body": str, "signature": str}` di mana tanda tangan yang valid adalah `"sha256=" + hmac_sha256(secret, f"{timestamp}.{body}")`. Menggunakan `hmac.compare_digest`, validasi setiap event:
 >    - Jika `abs(now_ts - event["timestamp"]) > tolerance_sec`, tambahkan `{"event_id": ..., "reason": "stale_timestamp"}` ke `rejected`.
 >    - Jika tanda tangan tidak cocok, tambahkan `{"event_id": ..., "reason": "invalid_signature"}` ke `rejected`.

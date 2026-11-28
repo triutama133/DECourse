@@ -487,7 +487,7 @@ A snapshot builds a Type 2 history: the previous version stays, with an end time
 On your first day joining a modern Analytics Engineering or Data Engineering team, you will rarely run `dbt build` against a small local file; you will open a 300-model dbt repository connected to **BigQuery, Snowflake, or Databricks**. Four production dbt practices prevent cloud bill explosions and broken downstream marts:
 
 **1. Cloud-Specific Incremental Strategies (`merge` vs. `insert_overwrite` vs. `delete+insert` vs. `microbatch`).**
-A naive incremental model with `incremental_strategy='merge'` and `unique_key='order_id'` forces BigQuery or Databricks to scan the **entire multi-terabyte target table** to find matching `order_id`s—so a run that changed three days of data is billed for a scan of the whole table.
+A naive incremental model with `incremental_strategy='merge'` and `unique_key='order_id'` forces BigQuery or Databricks to scan the **entire multi-terabyte target table** to find matching `order_id`s, so a run that changed three days of data is billed for a scan of the whole table.
 
 | Incremental Strategy | How dbt Compiles It | Best Warehouse & Use Case | Cost-Saving Rule |
 |---|---|---|---|

@@ -292,7 +292,7 @@ print(counts)
 
 Bacalah dari kiri ke kanan: `cut` mengambil kolom ke-4 yang dipisah koma (statusnya), `tail -n +2` melewati baris header, `sort` mengelompokkan nilai yang sama, `uniq -c` menghitung rangkaian nilai yang sama, dan `sort -rn` terakhir menaruh hitungan terbesar di depan. Lima alat kecil menggantikan satu program, dan tidak ada yang dimuat ke memori sekaligus, jadi ia bekerja pada file yang jauh lebih besar dari RAM Anda. Modul 1.1 mengembangkan keterampilan ini secara mendalam.
 
-Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang baik untuk *melihat data sebelum Anda menulis kode untuknya* — Modul 0.2 menunjukkan di bagian mana dari sebuah pipeline pembersihan ini seharusnya dilakukan.
+Perhatikan bahwa keluarannya juga mengungkap data dunia nyata yang berantakan: Anda akan melihat `paid`, `PAID`, dan `Paid` dihitung sebagai kelompok terpisah. Terminal adalah tempat yang baik untuk *melihat data sebelum Anda menulis kode untuknya*. Modul 0.2 menunjukkan di bagian mana dari sebuah pipeline pembersihan ini seharusnya dilakukan.
 
 ### Menulis ke file
 
@@ -642,7 +642,7 @@ Terakhir, **latih siklusnya** sampai otomatis: buat perubahan kecil, jalankan, l
 
 **Membaca `summarize.py` sebelum mengeditnya.** Starter sudah menyiapkan dua alat standar Python untuk Anda:
 - **`argparse`**: membaca nama file yang Anda ketik setelah `python3 summarize.py` (misalnya `data/orders.csv`) dan menyimpannya ke `args.path`.
-- **`collections.Counter`**: dictionary khusus untuk menghitung — menulis `counts[status] += 1` otomatis dimulai dari `0` tanpa perlu menulis `counts.get(status, 0)`.
+- **`collections.Counter`**: dictionary khusus untuk menghitung: menulis `counts[status] += 1` otomatis dimulai dari `0` tanpa perlu menulis `counts.get(status, 0)`.
 
 > 💡 **Jeda Praktik 7 (Lengkapi summarize.py & Validasi Workspace):**
 > Saatnya membuktikan seluruh bengkel kerja Anda berfungsi:

@@ -438,7 +438,7 @@ Taruh jawaban di depan, dengan angka: apa yang terdampak, seberapa besar, dan ap
 
 ## @lesson Bertahan di lingkungan brownfield hari pertama: 5 langkah pelacakan akar masalah angka salah dan deprekasi skema tanpa downtime
 
-Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah—bisa tolong cek?"*
+Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingkungan **brownfield**: Anda mewarisi ratusan tabel lama lalu menerima pesan Slack pukul 09:00 pagi dari tim Finance, *"Omzet kemarin di Dashboard Eksekutif tampak 12% terlalu rendah, bisa tolong cek?"*
 
 **1. Pelacakan Akar Masalah 5 Langkah Mundur (Debugging Angka Salah).** Jangan pernah menebak-nebak atau menjalankan ulang pipeline secara acak saat angka dashboard terlihat salah. Lacak silsilah data (lineage) **mundur dari layar dashboard hingga ke sumber** dalam lima lompatan deterministik:
 
@@ -451,9 +451,9 @@ Di sebagian besar pekerjaan data engineering, 90 hari pertama Anda adalah lingku
 | **Lompatan 5** | **Pendaratan Mentah Bronze & Dead-Letter Quarantine (DLQ)** (`raw_orders`, `dlq.jsonl`) | Periksa rasio penolakan file karantina kemarin dan lag API/CDC hulu. | Tim aplikasi checkout mengubah nama field `"total_idr"` menjadi `"amount_idr"`, sehingga 12% pesanan dari versi aplikasi mobile baru masuk ke Dead-Letter Quarantine. |
 
 **2. Deprekasi Skema Tanpa Downtime (*Expand → Migrate → Contract*).** Saat Anda harus mengganti nama atau tipe data sebuah kolom (misalnya mengganti float `total_amount` menjadi integer `total_idr`) pada tabel yang dipakai oleh 15 analis dan 8 dashboard, **jangan pernah menghapus atau mengubah nama kolom tersebut dalam satu commit tunggal**. Gunakan protokol 3 fase **Expand → Migrate → Contract**:
-1. **Fase 1 — Expand (Perluas):** Tambahkan kolom baru `total_idr` berdampingan dengan kolom lama `total_amount` (keduanya diisi di dalam model). Umumkan masa transisi 14 hari di kanal `#data-announcements`.
+1. **Fase 1: Expand (Perluas):** Tambahkan kolom baru `total_idr` berdampingan dengan kolom lama `total_amount` (keduanya diisi di dalam model). Umumkan masa transisi 14 hari di kanal `#data-announcements`.
 2. **Fase 2, Migrate (Migrasi):** Audit log query (seperti `INFORMATION_SCHEMA.JOBS_BY_USER`, view sistem riwayat query di BigQuery yang dibahas di Modul 2.6) dan **dbt exposures** (deklarasi YAML di dbt untuk mencatat dashboard hilir) untuk menemukan setiap dashboard atau skrip hilir yang masih membaca `total_amount`, lalu arahkan ke `total_idr`.
-3. **Fase 3 — Contract (Susutkan):** Hanya setelah log query menunjukkan **nol pembacaan** pada `total_amount` selama 7 hari berturut-turut, hapus kolom `total_amount` dari model.
+3. **Fase 3: Contract (Susutkan):** Hanya setelah log query menunjukkan **nol pembacaan** pada `total_amount` selama 7 hari berturut-turut, hapus kolom `total_amount` dari model.
 
 > 🛠 **Coba sendiri (15 menit, SQL pada `warehouse.db` Lab 1.4 Anda).** Bagian Keuangan bilang "pendapatan per kota saat ini" terlalu tinggi. Query seorang rekan mengambil `customer_id` setiap baris lewat `customer_sk`, lalu menjoin `dim_customer` untuk kedua kalinya pada `customer_id` untuk membaca kotanya, dan lupa `is_current = 1`. Telusuri hop 3: hitung baris dan jumlahkan `line_total_idr` dari `fact_order_items` saja, lalu lewat join rekan tadi, lalu dengan tambahan `is_current = 1`. Cari tahu berapa pelanggan yang membuat selisihnya.
 >
@@ -548,7 +548,7 @@ Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan si
 
 **Daftar Periksa 5 Pertanyaan Sebelum Menerima Tiket Data.** Pada 90 hari pertama Anda bekerja, tanyakan lima hal ini sebelum menulis kode:
 1. **Keputusan:** *"Jika angka metrik ini naik atau turun 20% besok pagi, tindakan spesifik apa yang akan diambil tim Anda?"* (Jika jawabannya *"tidak ada, sekadar ingin tahu"*, turunkan prioritasnya.)
-2. **Grain:** *"Di tabel atau grafik akhir nanti, satu baris mewakili apa—satu item barang, satu struk pesanan, satu pelanggan per hari, atau satu cabang per bulan?"*
+2. **Grain:** *"Di tabel atau grafik akhir nanti, satu baris mewakili apa: satu item barang, satu struk pesanan, satu pelanggan per hari, atau satu cabang per bulan?"*
 3. **Aturan Inklusi & Kasus Tepi:** *"Apakah pesanan yang direfund, dibatalkan, atau memakai voucher Rp 0 ikut dihitung? Zona waktu mana yang menjadi batas pergantian hari (`UTC` atau `Asia/Jakarta UTC+7`)?"*
 4. **Kesegaran vs. Biaya:** *"Apakah data kemarin yang siap pukul 06:00 pagi sudah cukup, atau ada sistem otomatis yang harus bereaksi dalam 60 detik?"*
 5. **Leading vs. Lagging:** *"Apakah kita hanya mencatat otopsi di akhir kuartal (lagging), atau melacak penyebab operasionalnya hari ini (leading)?"*
