@@ -39,6 +39,7 @@ Open the failed deployment → **Building** → copy the red lines and send them
 
 | What the log says | What to do |
 |---|---|
+| `No Next.js version detected` (stops after a few seconds) | The Vercel project's **Framework Preset** is set to Next.js, but this is a plain static site. `vercel.json` sets `"framework": null`, which fixes it for every deploy from this repository. For tidiness also set Project → Settings → Build & Development → **Framework Preset = Other**. A failed deployment of an older commit stays in the list marked "Stale"; only the newest one counts. |
 | `No Output Directory named "..." found` | Project → Settings → Build & Development → turn **off** the "Override" switches for Build Command and Output Directory, so `vercel.json` is used. |
 | `Error: missing from the web app: ...` | A file the site needs is not in the repository. Run `git status` and commit it. |
 | `ERROR: the Supabase URL looks wrong` | `SUPABASE_URL` must look like `https://abcdxyz.supabase.co` (no path, no spaces). |
