@@ -73,6 +73,15 @@ The log is append-only and durable; each consumer group tracks its own offset. T
 - A **producer** chooses the partition for each record. If the record has a **key**, a hash of the key decides the partition, so **all records with the same key go to the same partition, in order**. With no key, records are spread across partitions. (The hash is a client setting: the Java client defaults to *murmur2*, while librdkafka-based clients default to a CRC32-based partitioner, so the same key can land on different partitions depending on the producer library. Use one client family per topic, or set the partitioner explicitly.)
 - **Brokers** are the servers that store partitions. Each partition is **replicated**: one broker holds the **leader** (handles reads and writes) and others hold **followers** (the followers that have caught up with the leader are tracked as *in-sync replicas*, examined in detail in Lesson 3). A typical production topic uses replication factor 3.
 
+:::talk One customer, three events
+@teacher Customer 7's order produces three events: `paid`, `shipped`, `delivered`. The topic has 3 partitions. The producer sends the events without a key, so Kafka spreads them over the partitions.
+@ask What can a consumer see?
+@choice * The events can arrive out of order: "delivered" may be read before "paid", because the order is kept only inside one partition | Yes. Kafka guarantees order only within a partition. Without a key, one customer's events land in different partitions and nothing ties them together.
+@choice Always `paid`, `shipped`, `delivered`, because Kafka keeps the order of the whole topic | Kafka orders messages per partition, not across the topic. Try again.
+@choice Only the last event, because Kafka keeps just the latest message | Kafka keeps every message until retention removes it. Try again.
+@teacher Use the customer id as the message key: the same key always goes to the same partition, so each customer's events stay in order.
+:::
+
 Ordering is the property people misunderstand. Kafka guarantees order **only within a partition**. If all of customer 7's events must be processed in order, give them the same key (`customer_id`) so they share a partition; events of different customers may interleave freely, which is fine. Choose keys that match the order you need and that spread load evenly (a hot key gives you a hot partition: skew again, Module 3.1).
 
 **How many partitions?** Partitions set the maximum parallelism of a consumer group, within a group, each partition is read by at most one consumer at a time, so extra consumers sit idle (Lesson 4 explains how assignment and rebalancing work), and the throughput of a topic. Too few limits scale; too many adds overhead and, importantly, you can **increase but not decrease** a topic's partitions, and increasing changes which partition a key maps to, breaking per-key ordering for existing data. Plan with headroom (for example 6 to 30 for a moderate topic) rather than guessing small.
@@ -230,6 +239,15 @@ they succeed and are copied over later on
 - **Batching** (`linger.ms`, `batch.size`) and **compression** trade a little latency for much higher throughput.
 - **Always handle delivery callbacks.** `produce()` is asynchronous: it queues the message. A failure is reported later in the callback. Ignoring it loses data silently. Call `flush()` before exit.
 
+:::talk Ten consumers, six partitions
+@teacher A topic has 6 partitions. You start a consumer group with 10 consumers, hoping that more consumers means faster reading.
+@ask How many of the 10 consumers actually receive data?
+@choice All 10: Kafka splits the partitions into smaller pieces | A partition is the smallest unit Kafka hands out. It is never split between consumers of the same group. Try again.
+@choice * Six: each partition goes to exactly one consumer, so the other four sit idle | Yes. Inside a group, a partition has one reader at a time. The number of partitions is the ceiling on parallel reading.
+@choice Five: Kafka keeps half of the consumers in reserve | There is no such reserve rule. Try again.
+@teacher So choose the partition count with future parallelism in mind: more consumers than partitions never helps, only more partitions does.
+:::
+
 **Consumers and offsets.** A consumer reads in a loop (`poll`) and, after processing, **commits** its offsets, stored in Kafka itself. After a restart, a consumer in the same **group** resumes from the last committed offset. *When* you commit defines your delivery guarantee:
 
 | Commit timing | If the consumer crashes between processing and commit | Guarantee |
@@ -274,7 +292,7 @@ Records are bytes; you choose the format. **JSON** is easy to read and debug but
 
 > 🛠 **Try it (20 min, Python).** Encode the record `{"id": 1, "customer": "Budi", "total": 150000}` the way a registry-based Avro producer does, by hand. The rules: the message starts with a `0` byte and the schema id (1) as 4 bytes, big-endian. An Avro integer is **zig-zag** coded (`(n << 1) ^ (n >> 63)`), then written in groups of 7 bits, lowest group first, with the high bit set on every byte except the last. A string is its length written as an integer, then its UTF-8 bytes. Print the result as hex with `.hex()` and its length, and compare with the length of the same record as compact JSON (`json.dumps(rec, separators=(",", ":"))`).
 >
-> **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of JSON. Compare it with the Schema Registry wire format shown in Lesson 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
+> **You should see:** `0000000001020842756469e0a712`, which is `14` bytes, against `41` bytes of compact JSON (`json.dumps(rec, separators=(",", ":"))`; the default `json.dumps` adds spaces and gives `46`). Compare it with the Schema Registry wire format shown in Lesson 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. The record contains no field names at all: whoever reads it needs the schema, which is why the schema id travels with it.
 
 :::ask Why do teams put Avro with a schema registry on a topic instead of plain JSON?
 @options
@@ -324,6 +342,15 @@ BACKWARD compatibility means consumers with the new schema can read old data. in
 
 ## @lesson Change data capture: turning a database into a stream
 How do you get an operational database's changes into the platform? The naive way is **query-based**: every few minutes, `SELECT * FROM orders WHERE updated_at > :last_run`. Problems: it **misses deletes** (a deleted row is simply gone), it misses intermediate states (two updates between polls look like one), it needs a reliable `updated_at`, and it puts repeated load on the production database.
+
+:::talk The row that disappeared
+@teacher Every minute a job asks the orders table: "give me the rows whose `updated_at` is newer than my last check". At noon someone deletes order 2 from the table.
+@ask Does the polling job learn that order 2 was deleted?
+@choice Yes, because the deleted row's `updated_at` is the newest | A deleted row is gone: there is nothing left in the table to carry an `updated_at`. Try again.
+@choice Yes, because the database warns every client | The database does not announce changes to a client that merely asks questions. Try again.
+@choice * No: polling can only see rows that still exist, so the delete is invisible, and so are changes between two polls | Yes. Log-based change data capture reads the database's own change log instead, and that log records every insert, update and delete, in order.
+@teacher That is why serious pipelines capture changes from the log, not by asking the table "what is new?".
+:::
 
 **Log-based CDC** reads the database's own record of changes instead of polling tables. PostgreSQL writes every committed mutation sequentially into its **Write-Ahead Log (WAL)** — the append-only crash-recovery journal on disk — *before* updating table data files. With `wal_level = logical`, the WAL records enough row detail for PostgreSQL **logical decoding** to stream changes cleanly using three core building blocks (`publication`, `replication slot`, and `pgoutput` binary decoder; each record carries an increasing **LSN**, or Log Sequence Number, byte address in the WAL):
 

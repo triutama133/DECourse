@@ -73,6 +73,15 @@ Log bersifat append-only dan tahan lama; tiap consumer group melacak offsetnya s
 - **Producer** menentukan ke partisi mana sebuah pesan akan dikirim. Jika pesan menyertakan **key**, nilai hash dari key tersebut menentukan nomor partisi target, sehingga **seluruh pesan yang memiliki key yang sama dijamin mendarat di partisi yang sama, dalam urutan waktu yang sama**. Jika pesan dikirim tanpa key, pesan akan disebarkan secara merata melintasi seluruh partisi. (Fungsi hashing bergantung pada client: Java client menggunakan *murmur2*, sedangkan client berbasis librdkafka seperti pustaka Python menggunakan CRC32; gunakan keluarga client yang konsisten atau tentukan fungsi partisi secara eksplisit).
 - **Brokers** adalah server-server yang menyimpan partisi data di disk. Setiap partisi **direplikasi**: satu broker bertindak sebagai **Leader** (menangani seluruh request baca dan tulis) dan broker lainnya bertindak sebagai **Followers** (follower yang selalu menyusul leader dicatat sebagai *in-sync replicas*, dibahas rinci di Pelajaran 3). Topic produksi standar biasanya menggunakan replication factor bernilai 3.
 
+:::talk Satu pelanggan, tiga kejadian
+@teacher Pesanan pelanggan 7 menghasilkan tiga kejadian: `paid`, `shipped`, `delivered`. Topic punya 3 partisi. Producer mengirim kejadian tanpa key, sehingga Kafka menyebarkannya ke partisi-partisi.
+@ask Apa yang bisa dilihat consumer?
+@choice * Kejadian bisa tiba tidak berurutan: "delivered" bisa terbaca sebelum "paid", karena urutan hanya terjaga di dalam satu partisi | Betul. Kafka menjamin urutan hanya di dalam satu partisi. Tanpa key, kejadian satu pelanggan mendarat di partisi berbeda dan tidak ada yang mengikatnya.
+@choice Selalu `paid`, `shipped`, `delivered`, karena Kafka menjaga urutan seluruh topic | Kafka mengurutkan pesan per partisi, bukan lintas topic. Coba lagi.
+@choice Hanya kejadian terakhir, karena Kafka hanya menyimpan pesan terbaru | Kafka menyimpan setiap pesan sampai retensi menghapusnya. Coba lagi.
+@teacher Pakai id pelanggan sebagai key pesan: key yang sama selalu masuk ke partisi yang sama, sehingga kejadian tiap pelanggan tetap berurutan.
+:::
+
 Jaminan urutan adalah konsep yang paling sering disalahpahami. Kafka menjamin keterurutan data **hanya di dalam partisi yang sama (within a partition)**. Jika seluruh event transaksi milik pelanggan nomor 7 harus diproses secara berurutan, berikan key berupa `customer_id` agar seluruh event pelanggan tersebut selalu dialirkan ke satu partisi yang sama; event milik pelanggan yang berbeda dapat bercampur tanpa masalah. Pilihlah key yang selaras dengan kebutuhan urutan bisnis dan mendistribusikan volume secara merata (hot key akan menghasilkan partisi yang timpang: masalah data skew yang kita pelajari di Modul 3.1).
 
 **Berapa jumlah partisi yang ideal?** Jumlah partisi menentukan batas throughput maksimum dan batas paralelisme dari sebuah consumer group, di dalam satu group, setiap partisi hanya dibaca oleh paling banyak satu consumer pada satu waktu, sehingga consumer berlebih akan menganggur (Pelajaran 4 menjelaskan cara kerja assignment dan rebalancing). Partisi yang terlalu sedikit membatasi skalabilitas; partisi yang terlalu banyak menambah overhead memori broker. Yang terpenting: Anda **hanya dapat menambah jumlah partisi dan tidak dapat menguranginya**, dan menambah partisi akan mengubah pemetaan hash key di masa depan sehingga merusak konsistensi urutan per-key data lama. Rencanakan jumlah partisi dengan kapasitas cadangan masa depan (misalnya 6 hingga 30 partisi untuk topic berukuran sedang).
@@ -230,6 +239,15 @@ berhasil lalu disalin ulang nanti
 - **Batching dan Kompresi** (`linger.ms`, `batch.size`, algoritma `snappy`/`zstd`): menahan pengiriman sesaat untuk menggabungkan banyak pesan ke dalam satu paket jaringan, menukar sedikit latensi demi lonjakan throughput yang masif.
 - **Selalu tangani Delivery Callbacks.** Fungsi `produce()` berjalan secara asinkron: ia hanya memasukkan pesan ke dalam buffer antrean lokal. Kegagalan penulisan dilaporkan nanti melalui fungsi callback. Mengabaikan callback akan menghilangkan data secara hening. Selalu panggil `flush()` sebelum proses aplikasi berhenti.
 
+:::talk Sepuluh consumer, enam partisi
+@teacher Sebuah topic punya 6 partisi. Anda memulai consumer group dengan 10 consumer, berharap lebih banyak consumer berarti membaca lebih cepat.
+@ask Berapa dari 10 consumer itu yang benar-benar menerima data?
+@choice Semua 10: Kafka memecah partisi menjadi potongan lebih kecil | Partisi adalah unit terkecil yang dibagikan Kafka. Ia tidak pernah dibagi antara consumer dalam group yang sama. Coba lagi.
+@choice * Enam: setiap partisi diberikan ke tepat satu consumer, jadi empat lainnya menganggur | Betul. Di dalam sebuah group, satu partisi punya satu pembaca pada satu waktu. Jumlah partisi adalah batas atas pembacaan paralel.
+@choice Lima: Kafka menyimpan separuh consumer sebagai cadangan | Tidak ada aturan cadangan semacam itu. Coba lagi.
+@teacher Jadi pilih jumlah partisi dengan paralelisme masa depan dalam pikiran: consumer yang lebih banyak daripada partisi tidak pernah membantu, hanya partisi yang lebih banyak yang membantu.
+:::
+
 **Consumer dan Offset Management.** Sebuah consumer membaca pesan dalam perulangan loop (`poll`) dan setelah memproses data, ia **meng-commit** offset terbarunya ke topic internal Kafka (`__consumer_offsets`). Saat restart, consumer dalam **consumer group** yang sama akan melanjutkan pembacaan dari offset terakhir yang telah di-commit. *Kapan* Anda melakukan commit menentukan level jaminan pengiriman pesan Anda:
 
 | Waktu Commit Offset | Skenario jika Consumer Crash di Tengah Eksekusi | Jaminan Pengiriman (Guarantee) |
@@ -274,7 +292,7 @@ Pesan di Kafka pada dasarnya hanyalah deretan byte mentah; format serialisasinya
 
 > 🛠 **Coba sendiri (20 menit, Python).** Encode record `{"id": 1, "customer": "Budi", "total": 150000}` dengan cara producer Avro berbasis registry, dengan tangan. Aturannya: pesan dimulai dengan byte `0` dan schema id (1) sebagai 4 byte, big-endian. Sebuah integer Avro dikodekan **zig-zag** (`(n << 1) ^ (n >> 63)`), lalu ditulis dalam kelompok 7 bit, kelompok terendah lebih dulu, dengan bit tertinggi menyala di setiap byte kecuali yang terakhir. Sebuah string adalah panjangnya yang ditulis sebagai integer, lalu byte UTF-8-nya. Cetak hasilnya sebagai hex dengan `.hex()` beserta panjangnya, dan bandingkan dengan panjang record yang sama sebagai JSON ringkas (`json.dumps(rec, separators=(",", ":"))`).
 >
-> **Seharusnya Anda melihat:** `0000000001020842756469e0a712`, yaitu `14` byte, dibanding `41` byte JSON. Bandingkan dengan wire format Schema Registry yang ditunjukkan di Pelajaran 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. Record itu sama sekali tidak memuat nama field: siapa pun yang membacanya butuh skemanya, itulah sebabnya schema id ikut dikirim bersamanya.
+> **Seharusnya Anda melihat:** `0000000001020842756469e0a712`, yaitu `14` byte, dibanding `41` byte JSON ringkas (`json.dumps(rec, separators=(",", ":"))`; `json.dumps` bawaan menambah spasi dan menghasilkan `46`). Bandingkan dengan wire format Schema Registry yang ditunjukkan di Pelajaran 6: `00`, `00000001`, `02`, `08`, `42756469` ("Budi"), `e0a712`. Record itu sama sekali tidak memuat nama field: siapa pun yang membacanya butuh skemanya, itulah sebabnya schema id ikut dikirim bersamanya.
 
 :::ask Mengapa tim memasang Avro dengan schema registry pada topic, bukan JSON biasa?
 @options
@@ -324,6 +342,15 @@ Kompatibilitas BACKWARD berarti konsumen dengan skema baru bisa membaca data lam
 
 ## @lesson Change Data Capture: mengubah database transaksional menjadi event stream
 Bagaimana cara terbaik mengekstrak mutasi data dari database transaksional operasional ke platform analitik? Pendekatan amatir yang kerap digunakan adalah **query-based polling**: mengeksekusi query berkala setiap beberapa menit seperti `SELECT * FROM orders WHERE updated_at > :last_run`. Kelemahan fatal metode ini: ia **kehilangan operasi DELETE** (baris yang dihapus di database lenyap begitu saja tanpa jejak), melewatkan status mutasi perantara (dua kali update yang terjadi di antara siklus polling hanya terlihat sebagai satu status akhir), sangat bergantung pada kolom timestamp yang rawan tidak akurat, serta membebani CPU database produksi dengan query scanning berulang.
+
+:::talk Baris yang menghilang
+@teacher Setiap menit sebuah pekerjaan bertanya ke tabel pesanan: "beri saya baris yang `updated_at`-nya lebih baru dari pemeriksaan terakhir saya". Pada tengah hari seseorang menghapus pesanan 2 dari tabel.
+@ask Apakah pekerjaan polling itu tahu bahwa pesanan 2 dihapus?
+@choice Ya, karena `updated_at` baris yang dihapus adalah yang terbaru | Baris yang dihapus sudah tiada: tidak ada yang tersisa di tabel untuk membawa `updated_at`. Coba lagi.
+@choice Ya, karena database memperingatkan setiap klien | Database tidak mengumumkan perubahan kepada klien yang hanya mengajukan pertanyaan. Coba lagi.
+@choice * Tidak: polling hanya bisa melihat baris yang masih ada, jadi penghapusan tak terlihat, begitu pula perubahan di antara dua polling | Betul. Change data capture berbasis log justru membaca log perubahan milik database sendiri, dan log itu mencatat setiap insert, update, dan delete, secara berurutan.
+@teacher Karena itu pipeline yang serius menangkap perubahan dari log, bukan dengan bertanya ke tabel "apa yang baru?".
+:::
 
 **Log-based Change Data Capture (CDC)** membaca langsung dari catatan jurnal mutasi internal database alih-alih melakukan polling tabel. PostgreSQL menulis setiap perubahan data secara berurutan ke **Write-Ahead Log (WAL)** — jurnal pemulihan crash append-only di disk — *sebelum* mengubah file fisik tabel. Dengan parameter `wal_level = logical`, WAL mencatat detail baris yang cukup bagi **logical decoding** PostgreSQL untuk mengalirkan perubahan lewat tiga komponen utama (`publication`, `replication slot`, dan plugin dekoder biner `pgoutput`; tiap rekaman membawa **LSN**, Log Sequence Number, alamat posisi byte di dalam WAL):
 
