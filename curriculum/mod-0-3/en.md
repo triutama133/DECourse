@@ -889,6 +889,15 @@ SELECT c.name FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_
 
 ### The fan-out trap
 
+:::talk Counting the shipping fee
+@teacher An order costs Rp 10,000 to ship, and the customer bought three different products, so `order_items` has three rows for this order. Now someone joins `orders` to `order_items` and adds up `shipping_fee_idr`.
+@ask How much shipping does this one order contribute to the sum?
+@choice Rp 10,000, because the order ships once | That is the truth, but not what the join produces. After the join there is one row per item, and the fee is copied onto every row. Try again.
+@choice * Rp 30,000, because the fee is repeated on each of its three rows | Yes. The join gives one row per order line, so the per-order fee is counted three times. This is the fan-out trap.
+@choice Rp 3,333, because the fee is shared between the three items | SQL does not divide anything. It copies the value onto every row. Try again.
+@teacher The rule to keep: sum a value only at the grain where it lives. A per-order fee is summed from `orders` alone, or the finer table is aggregated first.
+:::
+
 Joining a table at one grain to a table at a finer grain **repeats** the coarse rows. `orders` has one row per order, `order_items` one per line, so joining them gives one row per *line*: 24 rows for 18 orders. Anything stored per order (like the shipping fee) is now repeated for every line.
 
 [[diagram:fanout]]
@@ -1308,6 +1317,15 @@ DELETE FROM orders WHERE status = 'cancelled';
 **Constraints** let the database reject bad data instead of storing it: `PRIMARY KEY`, `NOT NULL`, `UNIQUE`, `FOREIGN KEY`, `CHECK (qty > 0)`. A rule enforced by the database holds no matter which application writes to it; a rule that lives only in app code holds until someone writes a script.
 
 ### Transactions: all or nothing
+
+:::talk Half a money transfer
+@teacher A bank moves Rp 100 from account 1 to account 2. That is two steps: subtract 100 from account 1, then add 100 to account 2. The server crashes right between the two steps.
+@ask Without a transaction, what could the accounts look like after the crash?
+@choice * Account 1 lost Rp 100 and account 2 never received it | Yes: the money simply vanished. Two steps that must go together were allowed to stop halfway.
+@choice Both accounts are exactly as before, always | That only happens if something undoes the first step, and undoing it is exactly what a transaction does. Without one, nothing undoes it. Try again.
+@choice Account 2 received Rp 100 that account 1 never paid | The order was subtract first, then add, so the crash left the second step undone, not the first. Try again.
+@teacher A **transaction** wraps the steps in `BEGIN` and `COMMIT`, so they happen all together or not at all. If the server dies in the middle, the first step is undone.
+:::
 
 A **transaction** groups statements so that they succeed or fail *together*:
 

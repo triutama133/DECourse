@@ -168,6 +168,15 @@ Files whose names start with a dot (`.gitignore`, `.env`) are **hidden**; `ls -a
 
 ### Environment variables and PATH
 
+:::talk Which Python runs?
+@teacher The shell finds programs by searching a list of folders called `PATH`, from left to right. Imagine `PATH` is `/home/budi/venv/bin:/usr/local/bin:/usr/bin`, and a program named `python3` exists both in `/home/budi/venv/bin` and in `/usr/bin`.
+@ask You type `python3`. Which one runs?
+@choice Both run, one after the other | The shell runs one program per command. It stops at the first match. Try again.
+@choice The one in `/usr/bin`, because it is the system's own Python | That folder is searched last here. The shell does not prefer "official" programs; it only follows the order of the list. Try again.
+@choice * The one in `/home/budi/venv/bin`, because its folder comes first | Yes: the first match wins, and the search stops there. This is exactly how activating a virtual environment works: it puts its folder at the front of `PATH`.
+@teacher Remember: **the first folder in `PATH` that has the name wins.** `echo $PATH` and `which python3` show you who won on your computer.
+:::
+
 - **Environment variables** are named values every program can read, such as `HOME` or `PATH`. `echo $HOME` shows one (putting `$` in front of a variable name tells the shell to read its value). Later you will use them to pass settings and secrets to programs without writing them in code.
 - **`PATH`** is the list of folders the shell searches when you type a command name, **in order, and the first match wins**. "command not found" means the program is not installed, or not in a folder on your `PATH`.
 
@@ -453,6 +462,15 @@ A commit takes a snapshot of the **staging area**, and only `a.py` was staged. `
 
 **Branches** let you experiment without touching the main line: `git switch -c try-new-parser`, work and commit, then merge it (`git switch main && git merge try-new-parser`) or throw it away. **Remotes** such as GitHub hold a copy elsewhere: `git remote add origin <url>` and `git push -u origin main`. A pushed repository is a backup and a portfolio, but also something other people can read, which is why the next two points matter.
 
+:::talk Is a commit a backup?
+@teacher A learner finishes a lab, runs `git add` and `git commit`, and tells a friend: "my work is safe on GitHub now". Let us check that.
+@ask After `git commit` (and nothing else), where does the snapshot live?
+@choice On GitHub, because Git sends every commit automatically | Git never sends anything on its own. Sending is a separate command. Try again.
+@choice * Only on your own computer, inside the repository's history | Right. A commit is a snapshot saved in the `.git` folder on your computer. GitHub only learns about it when you run `git push`.
+@choice Nowhere yet: it is saved only when you press save in the editor | Saving in the editor writes the file. The commit is the snapshot Git took afterwards, and it already exists on your computer. Try again.
+@teacher So: **commit** saves a snapshot on your computer, **push** copies it to a remote such as GitHub. If your laptop is lost before you push, the commit is lost with it.
+:::
+
 **`.gitignore`** lists files Git must not track: `venv/`, `.env`, `__pycache__/`, large data files such as `data/`. Note: ignoring a file only affects files not yet committed. If you committed `data/` earlier, add it to `.gitignore` *and* run `git rm -r --cached data` to stop tracking it (`--cached` removes it from Git only while keeping the local files on your disk).
 
 > **Warning:** Git history is permanent by design. A file committed once lives in every clone and every old commit, even if you delete it in the next commit. This is why secrets must never be committed, even "temporarily".
@@ -480,6 +498,15 @@ Deleting a file in a later commit only removes it from the latest snapshot. The 
 
 ## @lesson Secrets and configuration
 Why not just write the password in the code? Because code gets shared, copied and pushed, so a secret in code is a secret everywhere the code goes.
+
+:::talk Who can read your code?
+@teacher You are proud of your first project and push it to a public GitHub repository for your portfolio. In the code there is one line: `db_password = "kopiku123"`.
+@ask Who can read that password?
+@choice Only you, because it is your repository | A public repository can be read by anyone with the link, and by programs that scan GitHub all day. Try again.
+@choice The people you invite, and nobody else | That is what a private repository does. This one is public. Try again.
+@choice * Anyone, including bots that scan every public push within minutes | Yes. That is why a secret never belongs inside code: code gets shared, copied and pushed.
+@teacher The habit: keep secrets outside the code, in environment variables or in a `.env` file that Git ignores, and keep your code free of anything you would not say out loud in a crowded room.
+:::
 
 A **secret** is anything that grants access: passwords, API keys, tokens, private keys, database connection strings with passwords. A **configuration** is a setting that differs between environments (the database host in development vs production). Both belong *outside* your code.
 

@@ -168,6 +168,15 @@ File yang namanya diawali titik (`.gitignore`, `.env`) **tersembunyi**; `ls -a` 
 
 ### Environment variable dan PATH
 
+:::talk Python mana yang berjalan?
+@teacher Shell mencari program dengan menelusuri daftar folder bernama `PATH`, dari kiri ke kanan. Bayangkan `PATH` berisi `/home/budi/venv/bin:/usr/local/bin:/usr/bin`, dan sebuah program bernama `python3` ada di `/home/budi/venv/bin` maupun di `/usr/bin`.
+@ask Anda mengetik `python3`. Yang mana yang berjalan?
+@choice Keduanya berjalan, satu demi satu | Shell menjalankan satu program per perintah. Ia berhenti pada kecocokan pertama. Coba lagi.
+@choice Yang ada di `/usr/bin`, karena itu Python milik sistem | Folder itu dicari paling akhir di sini. Shell tidak mengutamakan program "resmi"; ia hanya mengikuti urutan daftar. Coba lagi.
+@choice * Yang ada di `/home/budi/venv/bin`, karena foldernya berada paling depan | Betul: kecocokan pertama menang, dan pencarian berhenti di situ. Begitulah cara kerja pengaktifan virtual environment: ia menaruh foldernya di depan `PATH`.
+@teacher Ingat: **folder pertama di `PATH` yang punya nama itu yang menang.** `echo $PATH` dan `which python3` menunjukkan siapa yang menang di komputer Anda.
+:::
+
 - **Environment variable** adalah nilai bernama yang bisa dibaca setiap program, seperti `HOME` atau `PATH`. `echo $HOME` menampilkan salah satunya (menaruh `$` di depan nama variabel menyuruh shell membaca nilainya). Nanti Anda akan memakainya untuk mengoper pengaturan dan secret ke program tanpa menuliskannya di kode.
 - **`PATH`** adalah daftar folder yang dicari shell ketika Anda mengetik nama perintah, **berurutan, dan yang pertama cocok menang**. "command not found" berarti programnya tidak terpasang, atau tidak ada di folder pada `PATH` Anda.
 
@@ -455,6 +464,15 @@ Commit mengambil snapshot dari **staging area**, dan hanya `a.py` yang di-stage.
 
 **Branch** memungkinkan Anda bereksperimen tanpa menyentuh jalur utama: `git switch -c coba-parser-baru`, bekerja dan commit, lalu gabungkan (`git switch main && git merge coba-parser-baru`) atau buang. **Remote** seperti GitHub menyimpan salinan di tempat lain: `git remote add origin <url>` dan `git push -u origin main`. Repositori yang di-push adalah cadangan dan portofolio, tetapi juga sesuatu yang bisa dibaca orang lain, itulah mengapa dua poin berikutnya penting.
 
+:::talk Apakah commit itu cadangan?
+@teacher Seorang pembelajar menyelesaikan lab, menjalankan `git add` dan `git commit`, lalu berkata kepada temannya: "kerjaku sudah aman di GitHub". Mari kita periksa.
+@ask Setelah `git commit` (dan tidak ada yang lain), di mana snapshot itu berada?
+@choice Di GitHub, karena Git mengirim setiap commit secara otomatis | Git tidak pernah mengirim apa pun sendiri. Mengirim adalah perintah yang terpisah. Coba lagi.
+@choice * Hanya di komputer Anda sendiri, di dalam riwayat repositori | Betul. Commit adalah snapshot yang disimpan di folder `.git` pada komputer Anda. GitHub baru tahu ketika Anda menjalankan `git push`.
+@choice Belum di mana-mana: baru tersimpan ketika menekan simpan di editor | Menyimpan di editor menulis file-nya. Commit adalah snapshot yang diambil Git sesudahnya, dan sudah ada di komputer Anda. Coba lagi.
+@teacher Jadi: **commit** menyimpan snapshot di komputer Anda, **push** menyalinnya ke remote seperti GitHub. Kalau laptop hilang sebelum Anda push, commit-nya ikut hilang.
+:::
+
 **`.gitignore`** mendaftar file yang tidak boleh dilacak Git: `venv/`, `.env`, `__pycache__/`, file data besar seperti `data/`. Catatan: mengabaikan file hanya berlaku untuk file yang belum di-commit. Kalau Anda sudah meng-commit `data/` sebelumnya, tambahkan ke `.gitignore` *dan* jalankan `git rm -r --cached data` untuk berhenti melacaknya (`--cached` menghapusnya dari Git saja sambil tetap menyimpan file lokal di disk Anda).
 
 > **Peringatan:** Riwayat Git permanen secara desain. File yang pernah di-commit hidup di setiap clone dan setiap commit lama, meski Anda menghapusnya di commit berikutnya. Karena itu secret tidak boleh pernah di-commit, bahkan "sementara".
@@ -482,6 +500,15 @@ Menghapus file di commit berikutnya hanya membuangnya dari snapshot terbaru. Com
 
 ## @lesson Rahasia dan konfigurasi
 Mengapa tidak menulis password langsung di kode saja? Karena kode dibagikan, disalin, dan di-push, jadi secret di dalam kode adalah secret di mana pun kode itu pergi.
+
+:::talk Siapa yang bisa membaca kode Anda?
+@teacher Anda bangga dengan proyek pertama Anda dan mengunggahnya ke repositori GitHub publik untuk portofolio. Di dalam kodenya ada satu baris: `db_password = "kopiku123"`.
+@ask Siapa yang bisa membaca kata sandi itu?
+@choice Hanya Anda, karena itu repositori Anda | Repositori publik bisa dibaca siapa pun yang punya tautannya, dan oleh program yang memindai GitHub sepanjang hari. Coba lagi.
+@choice Orang yang Anda undang, dan tidak ada yang lain | Itu yang dilakukan repositori privat. Yang ini publik. Coba lagi.
+@choice * Siapa saja, termasuk bot yang memindai setiap push publik dalam hitungan menit | Betul. Karena itu rahasia tidak pernah boleh ada di dalam kode: kode dibagikan, disalin, dan di-push.
+@teacher Kebiasaannya: simpan rahasia di luar kode, di environment variable atau file `.env` yang diabaikan Git, dan jaga kode Anda bebas dari apa pun yang tidak akan Anda ucapkan keras-keras di tengah keramaian.
+:::
 
 **Rahasia (secret)** adalah apa pun yang memberi akses: password, API key, token, private key, connection string database yang berisi password. **Konfigurasi** adalah pengaturan yang berbeda antar lingkungan (host database di development vs produksi). Keduanya harus berada *di luar* kode Anda.
 

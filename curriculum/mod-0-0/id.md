@@ -988,6 +988,15 @@ else:
 
 ### Pembagian dengan nol adalah masalah keputusan
 
+:::talk Berapa rata-rata dari ketiadaan?
+@teacher Hari yang sepi di KopiKu: tidak ada pesanan sama sekali. Laporan Anda menghitung rata-rata nilai pesanan sebagai jumlah total dibagi banyaknya pesanan.
+@ask Dengan daftar total yang kosong, apa yang sebaiknya ditampilkan laporan sebagai rata-rata?
+@choice 0, karena tidak ada yang terjual | Dugaan yang wajar, tetapi 0 berarti "rata-rata pesanan bernilai nol", sebuah klaim tentang data yang tidak ada. Laporan penuh angka nol karangan adalah cara angka yang salah menyelinap masuk. Coba lagi.
+@choice * Tidak ada nilai sama sekali: `None`, karena tidak ada rata-rata yang bisa dibicarakan | Betul. Tanpa pesanan tidak ada rata-rata, jadi jawaban yang jujur adalah "tidak ada nilai". Ungkapkan dengan `None`, bukan dengan angka karangan.
+@choice Biarkan program berhenti dengan error | Itulah yang terjadi kalau Anda lupa memikirkannya (`sum / len` membagi dengan nol). Memang terlihat jelas, tetapi seluruh pekerjaan berhenti pada hari sepi yang sangat normal. Coba lagi.
+@teacher Jadi jaga dulu kasus berbahaya itu dengan `if`: kalau daftarnya kosong beri `None`, kalau tidak, bagilah. Persis ini yang akan Anda tulis di latihan berikutnya.
+:::
+
 Rata-rata sebuah list adalah jumlahnya dibagi banyaknya angka. Python punya dua pembantu bawaan untuk itu: `sum(values)` menjumlahkan semua angka dalam list, dan `len(values)` menghitung itemnya. Untuk list **kosong** pembagiannya dengan nol dan Python berhenti dengan `ZeroDivisionError`. Rata-rata dari tidak ada apa pun bukan `0`, ia tidak ada: pakai `None`. Jaga kasus berbahaya itu lebih dulu dengan `if`.
 
 :::drill python Rata-rata dari tidak ada apa pun
@@ -1518,6 +1527,15 @@ show_label("Kopi")
 
 ### return: serahkan jawabannya kembali
 
+:::talk Diteriakkan, atau diserahkan?
+@teacher Bayangkan sebuah kafe. Pelayan bisa meneriakkan pesanan ke seluruh ruangan, atau menyerahkan cangkir yang sudah jadi kepada pelanggan. Keduanya "menampilkan" kopi, tetapi hanya satu yang benar-benar bisa dipakai pelanggan. `print` dan `return` adalah pasangan yang sama.
+@ask Fungsi Anda harus memberikan total pesanan ke langkah berikutnya dalam sebuah pipeline. Langkah itu berjalan malam hari, tanpa ada yang melihat layar. Mana yang dibutuhkan fungsi itu?
+@choice `print`, karena menampilkan total | Ia menampilkan total di layar yang tidak dilihat siapa pun, dan langkah berikutnya tidak bisa mengambilnya. Itu seperti berteriak di ruangan kosong. Coba lagi.
+@choice Keduanya sama saja dalam sebuah pipeline | Di layar Anda sendiri keduanya tampak mirip, tetapi hanya satu yang memberi nilai kepada kode yang memanggil fungsi. Coba lagi.
+@choice * `return`, karena menyerahkan nilai ke kode yang memanggil fungsi | Betul. `return` menyerahkan cangkirnya: langkah berikutnya bisa menyimpan, membandingkan, atau meneruskannya. `print` untuk manusia.
+@teacher Tips yang bisa dipakai hari ini: kalau sebuah fungsi harus memberikan sesuatu, cari `return` di baris-baris terakhirnya. Tanpa `return`, pemanggil menerima `None`.
+:::
+
 `print` hanya **menampilkan** sesuatu di layar; program tidak bisa memakainya sesudahnya. `return` **menyerahkan nilai kembali** kepada kode yang memanggil fungsi, sehingga bisa disimpan, dibandingkan, atau diteruskan. Fungsi yang mencetak tetapi tidak me-return memberi `None` kepada pemanggilnya. Pipeline berjalan tanpa layar, jadi fungsi harus **me-return** hasilnya.
 
 Fungsi juga bisa mengembalikan **dua nilai sekaligus** (sebagai tuple dari Pelajaran 2) dipisahkan koma, lalu pemanggil membongkar keduanya:
@@ -1893,6 +1911,15 @@ def to_number(text):
 :::
 
 ### Tangkap hanya yang Anda duga
+
+:::talk Pekerjaan yang menyembunyikan bug-nya sendiri
+@teacher Sebuah tim membungkus seluruh kode pemuatan dengan `try:` dan menutupnya dengan `except Exception: pass`. Suatu pagi dasbor menampilkan separuh dari pendapatan biasa, dan pekerjaannya berstatus "sukses".
+@ask Mengapa tidak ada yang bisa menemukan penyebabnya?
+@choice * `except Exception: pass` menangkap semua error dan diam saja, sehingga error yang sebenarnya lenyap | Betul. `pass` berarti "tidak melakukan apa-apa", jadi salah ketik, file yang hilang, dan baris yang rusak semuanya ditelan dalam diam. Pekerjaan itu "sukses" dengan angka yang salah.
+@choice Python menyembunyikan error dengan sendirinya kalau pekerjaannya panjang | Python tidak pernah menyembunyikan error sendiri: ia berhenti dan mencetaknya. Ada yang menyuruhnya diam. Coba lagi.
+@choice Databasenya rusak, dan tidak ada kode yang bisa menunjukkannya | Kalau itu penyebabnya, error akan muncul dan ditampilkan. Di sini error-nya ditangkap lalu dibuang. Coba lagi.
+@teacher Jadi tangkaplah error spesifik yang Anda rencanakan, seperti `except ValueError`, jaga agar blok `try` tetap kecil, dan biarkan yang lain gagal dengan keras. Crash yang terlihat lebih mudah diperbaiki daripada angka salah yang tenang.
+:::
 
 Tiga aturan yang memisahkan pipeline yang baik dari yang berbahaya:
 

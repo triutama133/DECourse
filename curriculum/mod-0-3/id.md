@@ -889,6 +889,15 @@ SELECT c.name FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_
 
 ### Jebakan fan-out
 
+:::talk Menghitung ongkos kirim
+@teacher Sebuah pesanan memakai ongkos kirim Rp 10.000, dan pelanggan membeli tiga produk berbeda, jadi `order_items` punya tiga baris untuk pesanan ini. Lalu seseorang menggabungkan `orders` dengan `order_items` dan menjumlahkan `shipping_fee_idr`.
+@ask Berapa ongkos kirim yang disumbangkan satu pesanan ini ke dalam jumlah?
+@choice Rp 10.000, karena pesanan dikirim sekali | Itu benar secara kenyataan, tetapi bukan hasil join. Setelah join ada satu baris per item, dan ongkos kirim disalin ke setiap baris. Coba lagi.
+@choice * Rp 30.000, karena ongkos kirim berulang di ketiga barisnya | Betul. Join menghasilkan satu baris per lini pesanan, sehingga ongkos per pesanan terhitung tiga kali. Inilah jebakan fan-out.
+@choice Rp 3.333, karena ongkos kirim dibagi ke tiga item | SQL tidak membagi apa pun. Ia menyalin nilainya ke setiap baris. Coba lagi.
+@teacher Aturan yang perlu diingat: jumlahkan sebuah nilai hanya pada grain tempat nilai itu berada. Ongkos per pesanan dijumlahkan dari `orders` saja, atau tabel yang lebih rinci diagregasi dulu.
+:::
+
 Menggabungkan tabel pada satu grain dengan tabel pada grain yang lebih halus **mengulang** baris pada grain lebih kasar. `orders` punya satu baris per pesanan, `order_items` satu per baris produk, jadi menggabungkannya menghasilkan satu baris per *baris produk*: 24 baris untuk 18 pesanan. Apa pun yang disimpan per pesanan (seperti ongkos kirim) sekarang diulang untuk setiap baris produk.
 
 [[diagram:fanout]]
@@ -1308,6 +1317,15 @@ DELETE FROM orders WHERE status = 'cancelled';
 **Constraint** membiarkan database menolak data buruk alih-alih menyimpannya: `PRIMARY KEY`, `NOT NULL`, `UNIQUE`, `FOREIGN KEY`, `CHECK (qty > 0)`. Aturan yang ditegakkan database berlaku apa pun aplikasi yang menulis ke dalamnya; aturan yang hanya hidup di kode aplikasi berlaku sampai seseorang menulis skrip.
 
 ### Transaksi: semua atau tidak sama sekali
+
+:::talk Setengah transfer uang
+@teacher Sebuah bank memindahkan Rp 100 dari rekening 1 ke rekening 2. Itu dua langkah: kurangi 100 dari rekening 1, lalu tambahkan 100 ke rekening 2. Server mogok tepat di antara kedua langkah.
+@ask Tanpa transaksi, bagaimana keadaan kedua rekening setelah server mogok?
+@choice * Rekening 1 kehilangan Rp 100 dan rekening 2 tidak pernah menerimanya | Betul: uangnya begitu saja lenyap. Dua langkah yang harus berjalan bersama dibiarkan berhenti di tengah.
+@choice Kedua rekening persis seperti semula, selalu | Itu hanya terjadi kalau ada yang membatalkan langkah pertama, dan membatalkan itulah yang dilakukan transaksi. Tanpa transaksi, tidak ada yang membatalkannya. Coba lagi.
+@choice Rekening 2 menerima Rp 100 yang tidak pernah dibayar rekening 1 | Urutannya kurangi dulu, baru tambah, jadi server mogok membuat langkah kedua yang belum dijalankan, bukan yang pertama. Coba lagi.
+@teacher **Transaksi** membungkus langkah-langkah itu dengan `BEGIN` dan `COMMIT`, sehingga semuanya terjadi bersama atau tidak sama sekali. Kalau server mati di tengah jalan, langkah pertama dibatalkan.
+:::
 
 **Transaksi** mengelompokkan pernyataan sehingga berhasil atau gagal *bersama-sama*:
 

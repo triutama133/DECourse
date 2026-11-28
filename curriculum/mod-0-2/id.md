@@ -35,6 +35,15 @@ Lalu pendiri toko bertanya: "Berapa pendapatan (omzet) per kota, per minggu, sel
 | Data | Kondisi terkini | Seluruh riwayat |
 | Tujuan desain | Tidak pernah kehilangan atau merusak operasi penulisan | Membaca dan mengagregasi dengan cepat |
 
+:::talk Laporan besar di database toko
+@teacher Database toko KopiKu sibuk: pelanggan menekan "Bayar" sepanjang hari, dan setiap tekanan harus selesai dalam sekejap. Saat makan siang, analis sang pendiri menjalankan laporan pendapatan dua tahun yang sangat besar langsung di database yang sama.
+@ask Apa yang Anda perkirakan terjadi di checkout selama laporan itu berjalan?
+@choice Tidak ada: database selalu bisa mengerjakan keduanya sekaligus | Database punya CPU, memori, dan disk yang terbatas. Laporan raksasa dan banyak pembayaran kecil berebut sumber daya yang sama. Coba lagi.
+@choice * Checkout melambat, dan sebagian bisa kena time out, karena keduanya berebut sumber daya yang sama | Betul. Toko kehilangan uang selagi seseorang membuat grafik. Karena itu perusahaan menyalin data ke sistem terpisah yang dibuat untuk analisis.
+@choice Laporannya lambat, tetapi pelanggan tidak pernah terpengaruh | Berlaku sebaliknya juga: laporan yang berat mengambil sumber daya yang dibutuhkan pelanggan. Coba lagi.
+@teacher Itulah seluruh alasan pekerjaan ini ada: angka yang bisa dipercaya untuk bisnis tanpa memperlambat produk. Simpan kalimat itu di kepala Anda sepanjang kursus.
+:::
+
 Kalau analis menjalankan query pendapatan dua tahun langsung di **database produksi** (database aktif yang menjalankan toko), query itu berebut CPU, memori, dan disk dengan pelanggan. Checkout melambat, kadang **timeout** (gagal karena permintaan menunggu jawaban terlalu lama), dan toko kehilangan uang selagi seseorang membuat grafik. Sebagian tim menambahkan **read replica** (salinan khusus-baca dari database produksi yang terus diperbarui untuk query) untuk meredam ini, dan itu membantu, tetapi tidak menyelesaikan masalah lain: data dibentuk untuk menulis, bukan menganalisis; ia hanya menyimpan kondisi terkini tiap baris; dan ia terpisah dari sistem pembayaran, iklan, dan event website Anda.
 
 Karena itu perusahaan menyalin data ke **sistem terpisah yang dibangun untuk analisis** (data warehouse atau **lakehouse**, yang menggabungkan penyimpanan file cloud murah dengan tabel SQL bergaya warehouse) dan menjaganya tetap mutakhir. Melakukan penyalinan itu dengan andal, setiap hari, dari puluhan sumber, dengan data yang benar dan terdokumentasi, adalah pekerjaan **data engineer**.
@@ -210,6 +219,15 @@ Dataset KopiKu yang akan Anda pakai sepanjang kursus ini sengaja dibuat sedikit 
 **5. Perubahan volume dan kecepatan.** Black Friday melipatgandakan trafik sepuluh kali, atau sebuah bug memotongnya setengah. Job yang biasanya lima menit kini lima jam, atau kehabisan memori. Akibat: dashboard terlambat, job crash, tagihan cloud yang mengejutkan. Pertahanan: ukur volume dan durasi, beri alert pada anomali, dan rancang untuk skala (Level 2 dan 3).
 
 Ada kategori keenam yang layak disebut: **kegagalan infrastruktur** (server restart di tengah job, disk penuh, kredensial kedaluwarsa). Kurang menarik, tetapi menyebabkan banyak insiden jam 3 pagi. Pertahanan untuk keenamnya sama: **validasi di batas, buat setiap langkah aman dijalankan ulang, dan amati semuanya.**
+
+:::talk Pekerjaan yang berkata "sukses"
+@teacher Sebuah pekerjaan malam melaporkan "sukses" setiap hari selama tiga minggu. Sementara itu sebuah bug parsing menulis setiap total pesanan sebagai `0`. Tidak ada yang menyadarinya.
+@ask Apa yang akan memberi tahu Anda, pada pagi yang sama, bahwa ada yang salah?
+@choice Server yang lebih cepat, supaya pekerjaannya selesai lebih awal | Kecepatan tidak mengubah apa yang ditulis pekerjaan itu. Coba lagi.
+@choice Membaca file log pekerjaan itu setiap hari | Log menceritakan apa yang dilakukan kode, dan di sini kode melakukan persis yang diperintahkan. Yang salah angkanya, bukan jalannya. Coba lagi.
+@choice * Pemeriksaan pada keluarannya, misalnya "tidak ada total yang 0 atau negatif" | Betul. "Sukses" hanya berkata bahwa kodenya berjalan. Pemeriksaan pada data berkata apakah hasilnya masuk akal. Ini kegagalan diam-diam, dan tes pada data adalah cara menangkapnya.
+@teacher Tanyakan pada diri sendiri untuk setiap pekerjaan yang Anda buat: "kalau ini salah, bagaimana saya akan tahu?" Kalau jawabannya "tidak akan tahu", tambahkan pemeriksaan.
+:::
 
 > **Peringatan:** Kegagalan paling berbahaya adalah yang *diam-diam*. Crash terlihat dan beres dalam sejam. Pipeline yang berjalan "sukses" dan menulis angka salah bisa menyesatkan keputusan berminggu-minggu. Setiap kali merancang sesuatu di kursus ini, tanyakan: "kalau ini salah, bagaimana saya akan mengetahuinya?"
 

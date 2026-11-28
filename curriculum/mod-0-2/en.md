@@ -35,6 +35,15 @@ Now the founder asks: "How much revenue did we make per city, per week, for the 
 | Data | Current state | Full history |
 | Design goal | Never lose or corrupt a write | Read and aggregate fast |
 
+:::talk A big report on the shop's database
+@teacher KopiKu's shop database is busy: customers tap "Pay" all day, and every tap must finish in a blink. At lunch time the founder's analyst runs a huge two-year revenue report directly on that same database.
+@ask What do you expect to happen at checkout while the report runs?
+@choice Nothing: a database can always do both at once | A database has limited CPU, memory and disk. A giant report and many small payments compete for the same ones. Try again.
+@choice * Checkouts get slower, and some may time out, because both fight for the same resources | Yes. The shop loses money while someone makes a chart. That is why companies copy the data into a separate system built for analysis.
+@choice The report is slow, but customers are never affected | It works the other way round too: the heavy report takes the resources the customers need. Try again.
+@teacher That is the whole reason this job exists: trustworthy numbers for the business without slowing the product. Keep that sentence in mind through the course.
+:::
+
 If an analyst runs the two-year revenue query directly on the **production database** (the live database running the shop), it competes with customers for the same CPU, memory and disk. Checkouts get slower, sometimes they **time out** (fail because the request waited too long for an answer), and the shop loses money while someone makes a chart. Some teams add a **read replica** (a read-only copy of the production database kept up to date for queries) to soften this, and that helps, but it does not fix the other problems: the data is shaped for writing, not for analysis; it only keeps the current state of each row; and it lives in a different system from your payments, your ads and your website events.
 
 So companies copy the data into a **separate system built for analysis** (a data warehouse or a **lakehouse**, which combines cheap cloud file storage with warehouse-style SQL tables) and keep it up to date. Doing that copying reliably, every day, for dozens of sources, with data that is correct and explained, is the job of the **data engineer**.
@@ -210,6 +219,15 @@ The KopiKu dataset you will use throughout this course is deliberately a little 
 **5. Volume and speed changes.** Black Friday multiplies traffic by ten, or a bug halves it. A job that took five minutes now takes five hours, or runs out of memory. Effect: late dashboards, crashed jobs, surprise cloud bills. Defence: measure volumes and durations, alert on anomalies, and design for scale (Levels 2 and 3).
 
 There is a sixth category worth naming: **infrastructure failures** (a server restarts mid-job, a disk fills, a credential expires). They are less interesting but cause many 3 a.m. incidents. The common defence for all six is the same trio: **validate at the boundary, make every step safe to re-run, and observe everything.**
+
+:::talk The job that says "success"
+@teacher A nightly job has reported "success" every day for three weeks. Meanwhile a parsing bug has been writing every order total as `0`. Nobody noticed.
+@ask What would have told you, the same morning, that something is wrong?
+@choice A faster server, so the job finishes earlier | Speed does not change what the job writes. Try again.
+@choice Reading the job's log file every day | A log says what the code did, and here the code did exactly what it was told. The numbers were wrong, not the run. Try again.
+@choice * A check on the output, such as "no total is 0 or negative" | Yes. "Success" only says the code ran. Checks on the data say whether the result is believable. This is a silent failure, and tests on data are how you catch it.
+@teacher Ask yourself about every job you build: "if this went wrong, how would I find out?" If the answer is "I would not", add a check.
+:::
 
 > **Warning:** The most dangerous failures are the *silent* ones. A crash is visible and gets fixed in an hour. A pipeline that runs "successfully" and writes wrong numbers can mislead decisions for weeks. When you design anything in this course, ask: "if this went wrong, how would I find out?"
 

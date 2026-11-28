@@ -988,6 +988,15 @@ else:
 
 ### Division by zero is a decision problem
 
+:::talk What is the average of nothing?
+@teacher It is a quiet day at KopiKu: no orders at all. Your report computes the average order value as the sum of the totals divided by how many orders there are.
+@ask With an empty list of totals, what should the report show as the average?
+@choice 0, because nothing was sold | A natural guess, but 0 would say "the average order was worth nothing", which is a claim about data that does not exist. A report full of invented zeros is how wrong numbers sneak in. Try again.
+@choice * Nothing at all: `None`, because there is no average to talk about | Yes. With no orders there is no average, so the honest answer is "no value". Say it with `None`, not with a made-up number.
+@choice Let the program crash with an error | A crash is what happens if you forget to think about it (`sum / len` divides by zero). It is loud, but it stops the whole job on a perfectly normal quiet day. Try again.
+@teacher So guard the dangerous case first with an `if`: when the list is empty give `None`, otherwise divide. You will write exactly this in the next drill.
+:::
+
 The average of a list is its sum divided by how many numbers it has. Python has two built-in helpers for that: `sum(values)` adds up all the numbers in a list, and `len(values)` counts the items. For an **empty** list the division would be by zero and Python stops with `ZeroDivisionError`. The average of nothing is not `0`, it does not exist: use `None`. Guard the dangerous case first with an `if`.
 
 :::drill python The average of nothing
@@ -1518,6 +1527,15 @@ show_label("Kopi")
 
 ### return: hand the answer back
 
+:::talk Shout it, or hand it over?
+@teacher Picture a café. A waiter can shout the order across the room, or hand the finished cup to the customer. Both "show" the coffee, but only one lets the customer actually use it. `print` and `return` are the same pair.
+@ask Your function must give an order total to the next step of a pipeline. That step runs at night, with nobody looking at a screen. Which one does the function need?
+@choice `print`, because it shows the total | It shows the total on a screen that nobody is watching, and the next step cannot pick it up. That is shouting across an empty room. Try again.
+@choice Both do the same thing in a pipeline | They look alike on your own screen, but only one gives a value to the code that called the function. Try again.
+@choice * `return`, because it hands the value to the code that called the function | Yes. `return` hands the cup over: the next step can store it, compare it or pass it on. `print` is for people.
+@teacher A tip you can use today: if a function should give something back, look for `return` in its last lines. No `return` means the caller gets `None`.
+:::
+
 `print` only **shows** something on the screen; the program cannot use it afterwards. `return` **hands a value back** to the code that called the function, so that it can store it, compare it or pass it on. A function that prints but does not return gives `None` to the caller. Pipelines run without a screen, so functions must **return** their results.
 
 A function can also return **two values at once** (as a tuple from Lesson 2) separated by a comma, and the caller unpacks both:
@@ -1893,6 +1911,15 @@ def to_number(text):
 :::
 
 ### Catch only what you expect
+
+:::talk The job that hid its own bug
+@teacher A team wraps their whole loading code in `try:` and ends it with `except Exception: pass`. One morning the dashboard shows half of the usual revenue, and the job says "success".
+@ask Why can nobody find the cause?
+@choice * The `except Exception: pass` caught every error and said nothing, so the real error vanished | Yes. `pass` means "do nothing", so a typo, a missing file and a bad row were all swallowed in silence. The job "succeeded" with wrong numbers.
+@choice Python hides errors by itself when a job is long | Python never hides an error on its own: it stops and prints it. Somebody told it to stay quiet. Try again.
+@choice The database was broken, and no code can show that | If that were it, an error would have been raised and shown. Here the error was caught and thrown away. Try again.
+@teacher So catch the specific error you plan for, like `except ValueError`, keep the `try` small, and let everything else fail loudly. A visible crash is easier to fix than a quiet wrong number.
+:::
 
 Three rules separate good pipelines from dangerous ones:
 
