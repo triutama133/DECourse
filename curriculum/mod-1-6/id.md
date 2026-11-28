@@ -130,6 +130,15 @@ berhenti pada error pertama dan buang semuanya
 > **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
 API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
 
+:::talk Feed yang bergeser di bawah kaki Anda
+@teacher Sebuah feed pesanan diurutkan dari yang terbaru. Anda membaca halaman 1 (pesanan 25 sampai 16) dengan `?offset=0&limit=10`. Selagi itu, 3 pesanan baru tiba di bagian atas feed. Lalu Anda meminta halaman 2 dengan `?offset=10&limit=10`.
+@ask Pesanan mana yang ada di halaman 2?
+@choice Pesanan 15 sampai 6, persis sepuluh berikutnya yang belum Anda lihat | Itu benar kalau tidak ada yang tiba. Tetapi tiga pesanan baru mendorong semuanya turun tiga posisi. Coba lagi.
+@choice * Pesanan 18, 17, dan 16 lagi, lalu 15 sampai 9: pesanan baru menggeser baris-barisnya | Betul. "Lewati 10 baris" berarti sepuluh baris feed seperti sekarang, dan feed-nya bergeser. Tiga pesanan terbaca dua kali, dan muatan Anda sekarang berisi duplikat.
+@choice Tidak ada: server menolak membagikan halaman selama data berubah | Server menjawab dengan senang hati dan tidak tahu apa pun tentang halaman Anda sebelumnya. Coba lagi.
+@teacher Sebuah cursor berkata "lanjutkan setelah pesanan INI", dan itu tidak bergeser saat pesanan baru tiba. Karena itu cursor lebih aman daripada offset untuk feed yang terus berubah.
+:::
+
 - **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data yang terus berubah. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman berisi 10 baris sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris terambil yang hanya mencakup 25 pesanan asli yang unik**, 3 duplikat (baris lama bergeser ke halaman berikutnya), dan 3 pesanan baru terlewat. Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.
 - **Nomor halaman** (`?page=3`): kelemahan yang sama.
 - **Pagination cursor (keyset)** (`?cursor=abc`): setiap respons memuat `next_cursor` yang menandai persis di mana melanjutkan. Membaca feed yang sama dengan cara ini memberi setiap pesanan tepat sekali, tanpa duplikat dan tanpa yang terlewat. **Pilih cursor setiap kali API menyediakannya.** `fetch_all_cursor` di lab mengikuti `next_cursor` sampai tidak ada, dan `fetch_all_offset` memperlihatkan loop offset (berhenti ketika sebuah halaman lebih pendek dari `limit`; perhatikan bahwa ketika total adalah kelipatan pas dari `limit`, Anda butuh satu permintaan tambahan untuk melihat halaman kosong).
@@ -137,6 +146,15 @@ API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **ha
 **Rate limit.** Untuk melindungi diri, API membatasi berapa banyak permintaan yang boleh Anda kirim, misalnya 100 per menit. Ketika Anda melampauinya, Anda menerima **429 Too Many Requests**, sering dengan header **`Retry-After`** yang menyatakan berapa detik harus menunggu. Respons yang sopan dan efektif adalah **menunggu selama itu persis**. Menghantam API membuat keadaan lebih buruk dan bisa membuat Anda diblokir.
 
 **Retry dengan exponential backoff.** Jaringan dan server gagal sementara, jadi ulangi error yang *sementara* (429, 5xx, masalah koneksi), dan hanya itu. Setelah tiap kegagalan tunggu lebih lama: 1 detik, lalu 2, 4, 8, 16, dibatasi pada, misalnya, 30 (`backoff_delay` di lab: `min(cap, base * 2 ** (attempt - 1))`, menghasilkan 1, 2, 4, 8, 16, 30, 30). Penggandaan memberi server yang kewalahan waktu untuk pulih; di produksi tambahkan sedikit **jitter** acak agar seribu klien yang gagal bersamaan tidak semuanya mengulang pada saat yang sama. Pasang **batas jumlah retry**, dan ketika tercapai **gagal dengan lantang** dengan error terakhir, agar orkestrator (Modul 2.4) bisa memberi alert dan menjalankan ulang nanti. Jangan pernah mengulang 400, 401, 403, atau 404: jawabannya tidak akan berubah.
+
+:::talk Timeout yang bukan kegagalan
+@teacher Pekerjaan Anda mengirim "buat pesanan #5001" ke sebuah API, lalu koneksi kena timeout. Anda tidak tahu apakah server menerima permintaan itu atau tidak. Pekerjaan itu diatur untuk mengulang.
+@ask Apa bahaya mengulang?
+@choice Tidak ada: timeout berarti permintaan pasti gagal | Timeout hanya berarti Anda tidak mendapat jawaban. Server mungkin sudah membuat pesanan, dan jawabannya hilang di jalan. Coba lagi.
+@choice Server menarik biaya untuk setiap pengulangan | Bukan itu masalahnya. Pikirkan apa yang mungkin sudah dilakukan permintaan pertama. Coba lagi.
+@choice * Permintaan pertama mungkin berhasil, sehingga pengulangan bisa membuat pesanan untuk kedua kalinya | Betul. Karena itu Anda hanya mengulang operasi yang aman diulang, atau mengirim idempotency key agar server mengenali percobaan kedua sebagai permintaan yang sama.
+@teacher Membaca data (GET) aman diulang. Membuat atau membayar tidak, kecuali API memberi cara untuk berkata "ini permintaan yang sama dengan tadi".
+:::
 
 Mengulang hanya aman untuk operasi yang **idempoten**. GET yang membaca data adalah idempoten. POST yang membuat sesuatu bisa membuatnya dua kali jika percobaan pertama berhasil tetapi responsnya hilang; panggilan seperti itu butuh idempotency key bila API menyediakannya. Ingestion kebanyakan membaca, itulah mengapa ini kasus yang ramah.
 
@@ -251,6 +269,15 @@ Kasus tepi yang perlu dirancang. **Pembaruan**: record lama yang berubah punya `
 Checkpoint sendiri adalah state. Simpan di tempat tahan lama yang bertahan lebih lama dari mesin (file di penyimpanan cloud, sebuah tabel), dan buat mudah diperiksa dan di-reset untuk **backfill** (memuat ulang suatu periode dengan sengaja).
 
 ### Lihat sendiri: mengapa urutan "tulis" dan "checkpoint" penting
+
+:::talk Checkpoint dulu, atau data dulu?
+@teacher Pekerjaan Anda memuat satu halaman pesanan setiap kali dan menyimpan penanda, yaitu checkpoint, sejauh mana ia sampai. Untuk setiap halaman ia melakukan dua hal: menulis baris ke file, dan memperbarui penanda. Listrik padam di antara kedua langkah itu, lalu Anda menjalankan ulang pekerjaannya.
+@ask Urutan mana dari kedua langkah itu yang aman?
+@choice * Tulis barisnya dulu, baru perbarui penanda | Betul. Kalau listrik padam di antaranya, penanda masih menunjuk sebelum halaman itu, jadi putaran berikutnya membaca halaman itu lagi. Anda mendapat pengulangan, dan pengulangan tidak berbahaya bila pemuatannya idempoten.
+@choice Perbarui penanda dulu, baru tulis barisnya | Maka penanda berkata "halaman selesai" padahal barisnya tidak pernah tertulis. Saat dijalankan ulang, pekerjaan melewatinya, dan halaman itu hilang selamanya. Coba lagi.
+@choice Urutannya tidak penting | Sangat penting: satu urutan menghasilkan pengulangan, yang lain menghasilkan kehilangan. Coba lagi.
+@teacher Pengulangan bisa dibersihkan, kehilangan tidak. Jadi: data dulu, penanda paling akhir.
+:::
 
 Checkpoint menyatakan sejauh mana Anda sudah sampai. Perhatikan apa yang dilakukan crash ketika checkpoint disimpan **lebih dulu**:
 

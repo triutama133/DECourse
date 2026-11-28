@@ -133,6 +133,15 @@ stop at the first error and discard everything
 > **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
 An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
 
+:::talk The feed that moves under your feet
+@teacher An orders feed is sorted newest first. You read page 1 (orders 25 down to 16) with `?offset=0&limit=10`. While you do, 3 new orders arrive at the top of the feed. Then you ask for page 2 with `?offset=10&limit=10`.
+@ask Which orders does page 2 contain?
+@choice Orders 15 down to 6, exactly the next ten you have not seen | That would be true if nothing had arrived. But the three new orders pushed everything down by three positions. Try again.
+@choice * Orders 18, 17 and 16 again, then 15 down to 9: the new orders shifted the rows | Yes. "Skip 10 rows" means ten rows of the feed as it is now, and the feed moved. Three orders were read twice, and your load now holds duplicates.
+@choice Nothing: the server refuses to hand out pages while data changes | Servers answer happily and know nothing about your earlier page. Try again.
+@teacher A cursor says "continue after THIS order", and that does not move when new orders arrive. That is why cursors are safer than offsets for a feed that keeps changing.
+:::
+
 - **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched covering only the 25 distinct original orders**, 3 duplicates (older rows slide into the next page), and the 3 new orders are missed. Deleted rows cause the opposite, skipped records. It is also slow on large offsets.
 - **Page numbers** (`?page=3`): the same weakness.
 - **Cursor (keyset) pagination** (`?cursor=abc`): each response contains a `next_cursor` that marks exactly where to continue. Reading the same feed this way gives every order once, with no duplicates and none skipped. **Prefer cursors whenever the API offers them.** The lab's `fetch_all_cursor` follows `next_cursor` until it is missing, and `fetch_all_offset` shows the offset loop (stop when a page is shorter than `limit`; note that when the total is an exact multiple of `limit` you need one extra request to see the empty page).
@@ -140,6 +149,15 @@ An API will not return a million records at once. It returns a **page** and tell
 **Rate limits.** To protect itself, an API limits how many requests you may send, for example 100 per minute. When you exceed it you receive **429 Too Many Requests**, often with a **`Retry-After`** header saying how many seconds to wait. The polite and effective response is to **wait exactly that long**. Hammering the API makes things worse and can get you banned.
 
 **Retries with exponential backoff.** Networks and servers fail temporarily, so retry the *temporary* errors (429, 5xx, connection problems), and only those. After each failure wait longer: 1 second, then 2, 4, 8, 16, capped at, say, 30 (`backoff_delay` in the lab: `min(cap, base * 2 ** (attempt - 1))`, giving 1, 2, 4, 8, 16, 30, 30). Doubling gives a struggling server time to recover; in production add a little random **jitter** so that a thousand clients that failed together do not all retry at the same instant. Put a **limit on the number of retries**, and when it is reached **fail loudly** with the last error, so that the orchestrator (Module 2.4) can alert and rerun later. Never retry 400, 401, 403 or 404: the answer will not change.
+
+:::talk The timeout that was not a failure
+@teacher Your job sends "create order #5001" to an API, and the connection times out. You cannot tell whether the server received the request or not. The job is set up to retry.
+@ask What is the danger of retrying?
+@choice There is none: a timeout means the request definitely failed | A timeout only means you did not hear back. The server may have created the order, and its answer got lost on the way. Try again.
+@choice The server charges a fee for every retry | That is not the problem. Think about what the first request may already have done. Try again.
+@choice * The first request may have worked, so the retry can create the order a second time | Yes. That is why you retry only operations that are safe to repeat, or send an idempotency key so the server recognises the second attempt as the same request.
+@teacher Reading data (a GET) is safe to repeat. Creating or paying is not, unless the API gives you a way to say "this is the same request as before".
+:::
 
 Retrying is only safe for operations that are **idempotent**. A GET that reads data is. A POST that creates something may create it twice if the first attempt succeeded but the response was lost; such calls need an idempotency key if the API offers one. Ingestion mostly reads, which is why it is the friendly case.
 
@@ -255,6 +273,15 @@ Edge cases to design for. **Updates**: a changed old record has a new `updated_a
 The checkpoint is itself state. Store it somewhere durable that survives the machine (a file in cloud storage, a table), and make it easy to inspect and to reset for a **backfill** (reloading a period on purpose).
 
 ### See it: why the order of "write" and "checkpoint" matters
+
+:::talk Checkpoint first, or data first?
+@teacher Your job loads one page of orders at a time and keeps a bookmark, the checkpoint, of how far it got. For every page it does two things: write the rows to the file, and update the bookmark. The power goes out between those two steps, and you restart the job.
+@ask Which order of the two steps is safe?
+@choice * Write the rows first, then update the bookmark | Yes. If the power fails in between, the bookmark still points before the page, so the next run reads that page again. You get a repeat, and a repeat is harmless when the load is idempotent.
+@choice Update the bookmark first, then write the rows | Then the bookmark says "page done" although the rows were never written. On restart the job skips them, and that page is lost forever. Try again.
+@choice The order does not matter | It matters a great deal: one order gives a repeat, the other gives a loss. Try again.
+@teacher A repeat can be cleaned up, a loss cannot. So: data first, bookmark last.
+:::
 
 The checkpoint says how far you got. Watch what a crash does when the checkpoint is saved **first**:
 
