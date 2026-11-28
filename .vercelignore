@@ -1,0 +1,15 @@
+# What `vercel deploy` (the command line) does not upload. A Git-connected deploy uploads the whole repository,
+# which is fine: the build only reads app/ and scripts/, and writes dist/.
+venv/
+.venv/
+node_modules/
+__pycache__/
+data/
+scratch/
+books/
+dist/
+server.py
+docker-compose.yml
+constraints-ci.txt
+labs/
+curriculum/

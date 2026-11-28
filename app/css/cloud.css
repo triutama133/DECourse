@@ -1,0 +1,25 @@
+/* Sign-in dialog and the header button of js/cloud-sync.js */
+#cloud-btn { position: relative; }
+#cloud-btn .cloud-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+#cloud-btn[data-state="ok"] .cloud-dot { background: var(--green); }
+#cloud-btn[data-state="busy"] .cloud-dot { background: var(--blue); }
+#cloud-btn[data-state="warn"] .cloud-dot { background: var(--amber); }
+.cloud-overlay { position: fixed; inset: 0; background: rgba(9, 9, 11, 0.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1000; }
+.cloud-overlay[hidden] { display: none; }
+.cloud-box { background: var(--card); color: var(--text); border: 1px solid var(--border-strong); border-radius: 12px; width: min(420px, 100%); max-height: calc(100vh - 32px); overflow: auto; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
+.cloud-body { padding: 20px; position: relative; }
+.cloud-body h2 { margin: 0 28px 8px 0; font-size: 1.15rem; }
+.cloud-close { position: absolute; top: 12px; right: 12px; }
+.cloud-form { display: grid; gap: 8px; margin-top: 10px; }
+.cloud-form label { font-size: 0.85rem; color: var(--text-muted); }
+.cloud-form input { padding: 9px 10px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--canvas); color: var(--text); font: inherit; }
+.cloud-form input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+.cloud-form .btn { margin-top: 6px; }
+.cloud-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.cloud-tabs button { background: none; border: 0; padding: 8px 10px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; font: inherit; }
+.cloud-tabs button.active { color: var(--text); border-bottom-color: var(--blue); }
+.cloud-alt { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.cloud-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.cloud-more { margin-top: 10px; }
+.cloud-note { margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: var(--blue-tint); font-size: 0.9rem; }
+.cloud-note.bad { background: var(--red-tint); color: var(--red); }

@@ -53,6 +53,9 @@ jobs:
       - name: AI tutor switch (search in both languages, start/stop, refuses other computers)
         run: node scripts/test_tutor_js.js
 
+      - name: Online account sync and the Vercel build (against a fake Supabase)
+        run: node scripts/test_cloud_sync.js
+
       - name: Verify Generated Files Are Committed
         run: |
           node scripts/build-curriculum.js

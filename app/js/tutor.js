@@ -377,7 +377,7 @@
           "<p class='muted small'>" + esc(L("Lalu tutup dan buka lagi terminal tempat Anda menjalankan kursus, jalankan ulang kursus, dan klik Tutor lagi. Cek: ", "Then close and reopen the terminal you run the course from, start the course again and click Tutor again. Check: ")) + "<code>ollama --version</code></p>" +
           "<button class='btn' id='tutor-retry'>" + esc(L("Sudah terpasang, coba lagi", "Installed, try again")) + "</button>";
       case "manual":
-        return "<p><strong>" + esc(L("Jalankan Ollama sendiri.", "Start Ollama yourself.")) + "</strong> " + esc(L("Halaman ini tidak dapat menjalankannya (kursus dibuka tanpa server aplikasinya). Di terminal lain:", "This page cannot start it (the course was opened without its app server). In another terminal:")) + "</p>" + cmd("ollama serve") +
+        return "<p><strong>" + esc(L("Jalankan Ollama sendiri.", "Start Ollama yourself.")) + "</strong> " + esc(L("Halaman ini tidak dapat menjalankannya (kursus dibuka tanpa server aplikasinya). Di terminal lain:", "This page cannot start it (the course was opened without its app server). In another terminal:")) + "</p>" + cmd(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? "ollama serve" : "OLLAMA_ORIGINS=" + location.origin + " ollama serve") +
           "<p class='muted small'>" + esc(L("Disarankan memulai kursus dengan ", "It is best to start the course with ")) + "<code>npm start</code> " + esc(L("agar tombol ini bisa menyalakannya sendiri.", "so this button can start it for you.")) + "</p>" +
           "<button class='btn' id='tutor-retry'>" + esc(L("Coba lagi", "Try again")) + "</button>";
       case "no-model":

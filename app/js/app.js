@@ -27,6 +27,7 @@ function writeStore(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) { /* storage unavailable (private mode): keep working in memory */ }
+  if (window.cloud && window.cloud.enabled) window.cloud.touch(key);   // js/cloud-sync.js: save online later
   if (STUDY_KEYS.has(key) && window.app && !window.app._importing) window.app.recordStudy();
 }
 function mod_next_exists(app, modId, idx) {

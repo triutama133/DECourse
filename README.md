@@ -61,7 +61,11 @@ On a laptop CPU an answer takes about 5 to 25 seconds. With an AMD or Intel inte
 npm start          # or: python3 server.py
 ```
 
-Open http://localhost:3000. Use the server; opening `index.html` directly will not load the SQL engine. No `npm install` is needed and nothing is fetched from a CDN. Your progress is stored in your browser only.
+Open http://localhost:3000. Use the server; opening `index.html` directly will not load the SQL engine. No `npm install` is needed and nothing is fetched from a CDN. Your progress is stored in your browser only, unless you also turn on the optional online account (next section).
+
+## Put it online (Vercel) and save progress in an account (Supabase), both optional
+
+The web app is plain static files, so it runs on Vercel for free, and an optional Supabase account saves each learner's progress online so it follows them to any device. Step by step, with what to do when a deploy fails: **[DEPLOY.md](DEPLOY.md)**. Without those settings the app behaves exactly as before.
 
 ## What is here
 
@@ -148,6 +152,7 @@ The same checks CI runs (see [.github/workflows/ci.yml](.github/workflows/ci.yml
 | Job simulator, interview, portfolio | `python3 scripts/job_sim.py --self-test` · `node scripts/verify_simulators.js` · `python3 scripts/verify_portfolio.py self-test` |
 | The tutor | `node scripts/test_tutor_js.js` · `python3 scripts/tutor.py --self-test` |
 | The setup checker | `python3 scripts/doctor.py --self-test` |
+| Online deploy and account sync | `node scripts/test_cloud_sync.js` · `DATABASE_URL=… python3 scripts/test_supabase_schema.py` |
 
 One thing no script can check is whether a quiz answer is *right* (only that the quiz is well formed). When you edit a quiz, read the marked answer against the lesson.
 

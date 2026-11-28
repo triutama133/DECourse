@@ -52,3 +52,7 @@ books/
 *.safetensors
 .ollama/
 /models/
+
+# Cloud sync settings written on your computer (see DEPLOY.md)
+app/js/cloud-config.local.js
+dist/
