@@ -62,6 +62,15 @@ Kebanyakan kegagalan RAG di produksi berasal dari bagian offline: tabel rusak ya
 ## @lesson Embeddings dan kesamaan vektor (similarity)
 **Embedding** adalah serangkaian larik angka desimal terpadu (sebuah vektor berdimensi tinggi) yang dihasilkan oleh model machine learning dari suatu potongan teks, di mana teks-teks yang memiliki kesamaan makna semantik akan menghasilkan vektor-vektor yang mengarah ke sudut orientasi yang berdekatan di ruang spasial. Model embedding di industri umumnya memiliki ratusan hingga ribuan dimensi (seperti 384, 768, 1.536, atau 3.072 dimensi). Pencarian informasi kemudian bertransformasi menjadi operasi geometri murni: ubah pertanyaan pengguna menjadi vektor, lalu temukan vektor-vektor data di database yang posisinya paling dekat dengannya.
 
+:::talk Uang kembali, refund
+@teacher Seorang pelanggan bertanya pada bot dukungan: "Bisakah uang saya dikembalikan?" Dokumen kebijakan berkata: "Refund dimungkinkan dalam 14 hari sejak pembelian." Pertanyaan dan dokumen itu tidak punya kata penting yang sama.
+@ask Pencarian mana yang menemukan dokumen itu?
+@choice Pencarian kata kunci dengan kata-kata pertanyaan | Pertanyaan berkata "uang kembali", dokumen berkata "refund": tidak ada kata penting yang cocok. Coba lagi.
+@choice * Pencarian dengan embedding: teks yang bermakna mirip punya vektor yang berdekatan, bahkan tanpa kata yang sama | Betul. Itulah alasan untuk meng-embed. Cosine similarity mengukur seberapa dekat dua vektor menunjuk, dan "uang kembali" dan "refund" menunjuk ke arah yang hampir sama.
+@choice Tidak ada yang bisa menemukannya | Embedding dibuat tepat untuk kasus ini. Coba lagi.
+@teacher Embedding mengubah makna menjadi geometri: makna yang mirip berdekatan.
+:::
+
 Metrik kedekatan yang paling standar adalah **Cosine Similarity**: nilai kosinus dari sudut antara dua vektor. Bernilai 1 untuk vektor yang searah sempurna (makna identik), 0 untuk vektor yang saling tegak lurus (tidak berhubungan), dan −1 untuk vektor yang berlawanan arah. Jika seluruh vektor dinormalisasi sehingga memiliki panjang magnitudo tepat 1, cosine similarity bernilai identik dengan operasi dot product (perkalian titik). Di PostgreSQL ekstensi pgvector menyediakan operator metrik jarak: `<=>` untuk cosine distance (`1 - similarity`), `<->` untuk Euclidean distance (L2 distance), dan `<#>` untuk negative inner product. Operator yang Anda gunakan dalam query SQL wajib selaras dengan kelas operator indeks yang dibangun di tabel.
 
 ### Vektor dengan tangan: panjang dan sudut
@@ -184,6 +193,15 @@ def chunk_words(text, size, overlap):
 
 ## @lesson Vector storage dan pencarian perkiraan (ANN)
 Mencari tetangga terdekat secara eksak (Exact K-Nearest Neighbor / KNN) mengharuskan sistem menghitung jarak kosinus antara vektor pertanyaan terhadap *seluruh* vektor yang ada di tabel: metode ini sangat sederhana, selalu menghasilkan jawaban akurat 100%, namun kompleksitas biayanya tumbuh linier seiring volume data (`O(N)`). Pada skala 20.000 vektor 64 dimensi di lab, pencarian eksak membutuhkan waktu 5 milidetik per query; namun pada skala 20 juta vektor, pencarian eksak akan memakan waktu beberapa detik. Indeks **Approximate Nearest Neighbor (ANN)** menyelesaikan tantangan skalabilitas ini dengan memangkas waktu pencarian secara drastis melalui kompromi kecil: menerima kemungkinan kecil terlewatnya segelintir tetangga terdekat yang sebenarnya.
+
+:::talk Mendekati benar
+@teacher Sebuah indeks HNSW mengembalikan lima potongan terdekat untuk sebuah pertanyaan. Pencarian eksak atas semua vektor akan mengembalikan lima yang sama, kecuali satu yang berbeda: indeks mengembalikan potongan terdekat keenam sebagai ganti yang kelima.
+@ask Apakah ini bug?
+@choice Ya: indeks pencarian harus selalu mengembalikan jawaban eksak | Pencarian eksak atas jutaan vektor terlalu lambat; indeks membeli kecepatan dengan menjadi perkiraan. Coba lagi.
+@choice * Tidak: pencarian tetangga terdekat perkiraan menukar sedikit recall dengan banyak kecepatan, dan Anda mengukur recall itu terhadap pencarian eksak | Betul. Menaikkan `ef_search` menaikkan recall dan memperlambat setiap query. Tugas data engineer adalah mengukur recall dan memilih pengaturannya, bukan mengharapkan kesempurnaan.
+@choice Ya, dan indeks harus dibangun ulang | Membangun ulang tidak akan membuat pencarian eksak: perkiraan itu memang rancangannya. Coba lagi.
+@teacher Perkiraan adalah fitur dengan tuas. Ukur recall-nya, lalu putar tuasnya dengan sengaja.
+:::
 
 Algoritma **HNSW (Hierarchical Navigable Small World)** adalah algoritma indeks ANN yang paling dominan di industri. HNSW membangun struktur graf multi-layer yang terinspirasi dari fenomena "enam derajat pemisahan": setiap vektor dihubungkan dengan vektor-vektor tetangganya, layer atas memiliki sedikit link dengan lompatan jarak jauh (expressway), dan layer terbawah memuat seluruh vektor secara lengkap. Saat query tiba, pencarian dimulai dari layer teratas, menelusuri graf secara greedy mendekati target, lalu turun lapis demi lapis ke bawah. Tiga parameter utama yang mengendalikannya:
 

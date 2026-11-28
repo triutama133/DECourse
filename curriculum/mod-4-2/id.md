@@ -176,6 +176,16 @@ State Checkpoint (state.json):
 ```
 
 ### Jebakan Penulisan Checkpoint:
+
+:::talk Checkpoint yang tertulis separuh
+@teacher Pipeline Anda menyimpan high-watermark dengan membuka `state.json` dan menulis JSON baru langsung ke dalamnya. Mesin kehilangan listrik di tengah penulisan itu.
+@ask Apa isi `state.json` ketika mesin kembali?
+@choice Watermark yang lama, karena penulisan tidak selesai | Menulis di tempat dimulai dengan mengosongkan file, jadi isi lamanya sudah hilang. Coba lagi.
+@choice * JSON yang terpotong dan rusak, sehingga putaran berikutnya bahkan tidak bisa membaca state-nya sendiri | Betul. Tulis state baru ke `state.json.tmp` dan tukar dengan `os.replace`, yang atomik: pembaca melihat seluruh file lama atau seluruh file baru, tidak pernah separuh.
+@choice Watermark yang baru, karena komputer menyelesaikan penulisan saat dihidupkan ulang | Crash meninggalkan byte apa pun yang sudah sampai ke disk. Coba lagi.
+@teacher Jangan pernah menulis satu-satunya salinan state penting di tempat. Tulis di sampingnya, lalu tukar.
+:::
+
 Pertimbangkan skenario fatal berikut:
 1. Ekstraktor mengunduh data Halaman 3.
 2. Ekstraktor menulis watermark baru ke `state.json`.
@@ -271,6 +281,16 @@ except urllib.error.HTTPError as e:
 ```
 
 ### 2. Exponential Backoff dengan Jitter:
+
+:::talk Mengapa menunggu waktu acak?
+@teacher Sebuah API mulai menjawab `429 Too Many Requests` kepada 100 worker pada saat yang sama. Semua 100 diminta mengulang setelah tepat 2 detik.
+@ask Apa yang terjadi dua detik kemudian?
+@choice API tenang kembali dan semuanya berfungsi | Ke-100 worker kembali pada detik yang sama, dan API kewalahan lagi. Coba lagi.
+@choice * Ke-100 mengulang bersamaan dan di-throttle lagi, serentak; jitter acak menyebarkan pengulangannya | Betul. Inilah thundering herd. Exponential backoff memberi server lebih banyak waktu pada setiap percobaan, dan jitter membuat klien menunggu berbeda-beda, sehingga mereka tidak bertabrakan lagi.
+@choice Hanya worker pertama yang mengulang | Setiap worker mengikuti aturan yang sama. Coba lagi.
+@teacher Backoff memberi ruang bagi server untuk pulih, dan jitter menjaga klien agar tidak tiba bersamaan.
+:::
+
 Untuk kesalahan sementara di sisi server (HTTP 500, 502, 503, 504) atau batas waktu koneksi, melakukan retry seketika (*masalah thundering herd*) justru akan merobohkan server yang sedang pulih. Sebaliknya, naikkan waktu tunggu secara eksponensial:
 ```text
 wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; dengan base = 1 detik: sekitar 1, 2, 4, 8 detik)

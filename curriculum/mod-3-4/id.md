@@ -260,6 +260,15 @@ Lab modul ini memandu Anda membangun lapisan penyimpanan lakehouse dari Modul 2.
 
 **2. Enkripsi Terkelola Mandiri (Customer-Managed KMS Encryption).** Secara default S3 menjalankan **SSE** (Server-Side Encryption, enkripsi sisi server otomatis sebelum disimpan ke disk) memakai kunci bawaan AWS. Enkripsi mengacak sebuah file sehingga tak terbaca tanpa **kunci** yang tepat, seperti gembok yang hanya dibuka satu kunci. Menggunakan kunci **KMS (Key Management Service)**, layanan yang menyimpan kunci dan mencatat setiap pemakaiannya, milik organisasi Anda sendiri menambahkan lapisan proteksi ganda: pembaca data wajib memiliki izin pada data bucket sekaligus izin dekripsi pada kunci KMS, mencatat jejak audit akses di CloudTrail, serta memungkinkan pencabutan izin secara instan dari satu titik pusat. Aktifkan fitur **rotasi kunci otomatis (key rotation)** agar risiko kebocoran kunci lama terisolasi dalam rentang waktu tertentu.
 
+:::talk Satu kunci untuk semuanya
+@teacher Untuk menghemat waktu, sebuah tim memberi role pipeline kebijakan `s3:*` pada setiap resource (`*`). Sebulan kemudian access key pipeline bocor di repositori publik.
+@ask Apa yang bisa dilakukan penyerang dengan kunci itu?
+@choice Hanya apa yang dilakukan pipeline: membaca dan menulis layer silver | Kebijakan itu tidak membatasinya sampai di situ. Coba lagi.
+@choice * Apa saja di penyimpanan akun: membaca, menimpa, dan menghapus setiap bucket, termasuk cadangan | Betul. Least privilege membatasi radius kerusakan: izinkan hanya `GetObject` dan `PutObject` pada prefix yang dibutuhkan pipeline, dan kunci yang bocor hanya bisa berbuat sedikit.
+@choice Tidak ada, karena kunci tidak bisa dipakai di luar cloud | Kunci berfungsi dari mana saja di internet. Coba lagi.
+@teacher Anggap setiap kunci suatu hari akan bocor, dan berikan hanya izin yang masih bisa Anda terima bila dipakai penyerang.
+:::
+
 **3. Hak Akses Paling Minimal (Least Privilege).** Kebijakan IAM policy mendefinisikan siapa yang boleh mengeksekusi *tindakan apa (Action)* pada *resource mana (Resource)*, dan dalam *kondisi apa (Condition)*. Kesalahan fatal yang kerap dijumpai di korporat adalah penyematan izin sapu jagat `"Action": "s3:*", "Resource": "*"` yang dibuat demi alasan "agar cepat jalan" dan tidak pernah diperbaiki. Sebuah pipeline pemrosesan data kurasi yang hanya bertugas membaca dan menulis layer silver dan gold wajib menerima izin yang presisi:
 
 | Pernyataan Izin (Statement) | Tindakan yang Diizinkan (Actions) | Target Resource |

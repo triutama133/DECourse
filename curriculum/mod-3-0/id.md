@@ -213,6 +213,15 @@ Pada Hadoop pertama, satu komponen menjalankan job MapReduce *dan* memutuskan me
 
 Bagian-bagiannya: sebuah **ResourceManager** (satu per klaster) tahu memori dan CPU yang bebas di setiap mesin dan memutuskan siapa mendapat apa. Sebuah **NodeManager** di setiap mesin meluncurkan dan mengawasi **container**, yaitu irisan memori dan CPU pada satu mesin. Setiap aplikasi punya **ApplicationMaster**: container pertama sebuah job, yang meminta container tambahan kepada ResourceManager dan menjalankan task job di dalamnya.
 
+:::talk Siapa yang memutuskan siapa mendapat mesin?
+@teacher Tiga tim berbagi satu klaster Hadoop. Pukul 09:00 satu tim mengirim pekerjaan raksasa yang meminta memori semua mesin. Dua tim lain mengirim pekerjaan kecil semenit kemudian.
+@ask Apa yang seharusnya terjadi, dan siapa yang memutuskan?
+@choice Pekerjaan pertama mengambil semuanya dan yang lain menunggu, karena ia tiba lebih dulu | Tanpa penjadwal, satu pekerjaan rakus bisa membuat semua yang lain kelaparan. Coba lagi.
+@choice * Penjadwal YARN yang memutuskan: ia membagi klaster lewat antrean dan batas, sehingga pekerjaan besar tidak bisa mengambil semuanya dan pekerjaan kecil tetap mendapat container | Betul. Itulah tujuan YARN: resource manager dan penjadwal yang memberi setiap pekerjaan container CPU dan memori menurut aturan, sehingga banyak pekerjaan bisa berbagi satu klaster.
+@choice Setiap pekerjaan memilih mesinnya sendiri | Pekerjaan tidak tahu tentang satu sama lain. Seseorang harus menengahi. Coba lagi.
+@teacher Klaster bersama butuh wasit. Penjadwal YARN adalah wasit itu.
+:::
+
 Sebuah **scheduler** menentukan urutan ketika permintaan melebihi kapasitas. Yang paling sederhana adalah FIFO: siapa datang dulu dilayani dulu, yang membuat satu job raksasa bisa menghalangi semua orang. Scheduler **Capacity** dan **Fair** membagi klaster antar tim atau job. `allocate_containers` di lab adalah scheduler FIFO first-fit mainan: ia menaruh tiap permintaan pada mesin pertama yang muat dan membiarkan sisanya **pending**. Pekerjaan pending yang menunggu sumber daya adalah tanda paling umum dari klaster yang kelebihan beban, di YARN maupun di Kubernetes.
 
 Hari ini Spark bisa berjalan di YARN (masih umum di on-premises), di Kubernetes (kini lebih umum di cloud), atau di layanan terkelola yang tidak memperlihatkan scheduler. Konsepnya sama: aplikasi meminta container dengan ukuran memori dan CPU, dan sesuatu memutuskan di mana ia berjalan. Ketika executor Spark dimatikan karena melebihi batas memorinya (Modul 3.1), itu adalah YARN atau Kubernetes yang menegakkan ukuran container.
@@ -261,6 +270,15 @@ Tiga perubahan bersama menjelaskan pergeseran itu:
 1. **Memori dan graf.** Spark menyimpan data antara di memori dan merencanakan seluruh job sebagai satu graf, bukan rantai job yang terikat disk. Untuk pekerjaan bertahap dan iteratif ia jauh lebih cepat, dan API-nya (DataFrame, SQL) jauh lebih ramah daripada MapReduce yang ditulis tangan.
 2. **Object storage.** Penyimpanan objek cloud (S3, GCS, Azure storage) menjadi murah, tahan lama, dan nyaris tak terbatas. Mereka memisahkan **penyimpanan dari komputasi**: Anda menyimpan data di S3 dengan biaya receh dan menyalakan klaster hanya selama dibutuhkan. Klaster HDFS sebaliknya membayar mesin (dan disknya) sepanjang waktu karena komputasi dan penyimpanan berada di mesin yang sama.
 3. **Layanan terkelola dan format tabel terbuka.** Mengoperasikan klaster Hadoop adalah kerja berat. Spark terkelola, warehouse, dan tabel Iceberg/Delta memindahkan pekerjaan itu ke penyedia.
+
+:::talk Apakah Hadoop sudah mati?
+@teacher Dalam sebuah wawancara seorang kandidat berkata: "Hadoop sudah mati, jadi semua yang ada di dalamnya tidak relevan, termasuk MapReduce dan HDFS."
+@ask Tanggapan mana yang paling akurat?
+@choice Setuju: tidak ada dari Hadoop yang dipakai lagi | Banyak perusahaan on-premises masih menjalankan klaster Hadoop, dan gagasannya hidup di tempat lain. Coba lagi.
+@choice * Produknya sebagian besar digantikan Spark dan penyimpanan cloud, tetapi gagasannya hidup: blok yang direplikasi, memindahkan kode ke data, shuffle, dan metastore untuk definisi tabel | Betul. Shuffle Spark adalah gagasan MapReduce yang diperbaiki, object storage memainkan peran HDFS, dan Hive Metastore masih cara banyak mesin menemukan tabelnya.
+@choice Tidak setuju: Hadoop masih pilihan terbaik untuk proyek baru | Untuk sebagian besar proyek baru, Spark, object storage, dan format lakehouse adalah pilihan yang lebih baik. Coba lagi.
+@teacher Berbicaralah dengan akurat: sebut apa yang digantikan, dan apa yang masih Anda pakai dengan nama baru.
+:::
 
 Apa yang tersisa, agar Anda bicara akurat: banyak perusahaan **on-premises** masih menjalankan HDFS dan YARN, terutama bank besar, telekomunikasi, dan platform lama; **Hive Metastore** dan folder berpartisi ala Hive ada di mana-mana; **pustaka Hadoop** (konektor S3A, pembaca Parquet dan ORC) ada di dalam Spark; dan konsepnya (blok, replikasi, shuffle, locality, scheduler) adalah kosakata sistem terdistribusi. Apakah keahlian Hadoop muncul di lowongan di pasar *Anda* adalah hal yang perlu dicek pada lowongan nyata sebelum Anda memutuskan seberapa dalam mempelajarinya.
 

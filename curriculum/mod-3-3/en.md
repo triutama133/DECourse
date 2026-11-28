@@ -119,6 +119,15 @@ A **watermark** is the stream processor's estimate of "how far event time has pr
 watermark = (newest event time seen so far) - (the delay you chose)
 ```
 
+:::talk A short or a long watermark delay?
+@teacher A window counts clicks per 5 minutes. The watermark delay says how long to wait for late events before closing a window. Team A sets 10 seconds. Team B sets 10 minutes.
+@ask What is the trade-off?
+@choice A longer delay is always better, because nothing is ever lost | A longer delay waits longer before every result, and it keeps more windows open in memory. Try again.
+@choice * A short delay gives early results but more events arrive too late and are dropped; a long delay catches more late events but delays every result and holds more state | Yes. The delay is your tolerance for lateness, bought with latency and memory. Measure how late your events really arrive, then set the delay to cover most of them.
+@choice The delay only matters for the first window | It applies to every window the job ever closes. Try again.
+@teacher There is no free setting: a watermark delay trades completeness against speed and memory.
+:::
+
 The delay is your tolerance for lateness. With `withWatermark("event_time", "2 minutes")`, if the newest event seen was 10:07, the watermark is 10:05: "I will treat everything before 10:05 as essentially complete." In append mode, **a window is emitted once the watermark passes its end**.
 
 [[diagram:watermark]]
@@ -227,8 +236,6 @@ def advance(watermark, event_time, allowed_lateness):
 ## @part State and operations
 
 ## @lesson State, checkpoints and exactly-once
-An aggregation over time must **remember** things between events: the running count for each open window. That is **state**. Two consequences:
-
 :::talk A counter for every window, forever
 @teacher A streaming job counts clicks per 5-minute window. That is 288 windows a day. The job has no watermark, so it never decides that a window is finished.
 @ask What happens to the job's memory over a year?
@@ -237,6 +244,8 @@ An aggregation over time must **remember** things between events: the running co
 @choice It stays flat, because only today's windows are kept | Only a watermark tells the job it may forget old windows. Try again.
 @teacher A watermark is not only about correctness. It is also the rule that lets the job throw old state away.
 :::
+
+An aggregation over time must **remember** things between events: the running count for each open window. That is **state**. Two consequences:
 
 **State must be bounded.** Windowed state is deleted when the watermark passes the window, which is exactly why watermarks exist. Remove the watermark and Spark must keep every window forever, since any event could still arrive. Measured on the same job, 120 micro-batches of data:
 

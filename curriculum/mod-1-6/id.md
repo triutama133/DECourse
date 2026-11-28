@@ -136,9 +136,6 @@ berhenti pada error pertama dan buang semuanya
 :::
 
 ## @lesson Membaca semua data: pagination, rate limit, dan retry
-> **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
-API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
-
 :::talk Feed yang bergeser di bawah kaki Anda
 @teacher Sebuah feed pesanan diurutkan dari yang terbaru. Anda membaca halaman 1 (pesanan 25 sampai 16) dengan `?offset=0&limit=10`. Selagi itu, 3 pesanan baru tiba di bagian atas feed. Lalu Anda meminta halaman 2 dengan `?offset=10&limit=10`.
 @ask Pesanan mana yang ada di halaman 2?
@@ -147,6 +144,9 @@ API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **ha
 @choice Tidak ada: server menolak membagikan halaman selama data berubah | Server menjawab dengan senang hati dan tidak tahu apa pun tentang halaman Anda sebelumnya. Coba lagi.
 @teacher Sebuah cursor berkata "lanjutkan setelah pesanan INI", dan itu tidak bergeser saat pesanan baru tiba. Karena itu cursor lebih aman daripada offset untuk feed yang terus berubah.
 :::
+
+> **Intinya:** Halaman offset bergeser saat data berubah (duplikat dan celah); cursor tidak. Saat mendapat 429, tunggu selama yang dikatakan `Retry-After`; saat mendapat 5xx, ulangi dengan jeda yang makin panjang dan ada batasnya; jangan pernah mengulang 4xx lainnya.
+API tidak akan mengembalikan sejuta record sekaligus. Ia mengembalikan satu **halaman** dan memberi tahu cara mendapat yang berikutnya. Ada tiga gaya:
 
 - **Pagination offset** (`?offset=20&limit=10`): sederhana, tetapi tidak aman pada data yang terus berubah. Jika record baru tiba saat Anda membaca, offset bergeser. Pada feed terbaru-dulu berisi 25 pesanan, membaca halaman berisi 10 baris sementara 3 pesanan baru tiba setelah halaman pertama menghasilkan **28 baris terambil yang hanya mencakup 25 pesanan asli yang unik**, 3 duplikat (baris lama bergeser ke halaman berikutnya), dan 3 pesanan baru terlewat. Baris yang dihapus menyebabkan kebalikannya, record terlewat. Ia juga lambat pada offset besar.
 - **Nomor halaman** (`?page=3`): kelemahan yang sama.

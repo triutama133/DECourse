@@ -133,6 +133,16 @@ Tumbling Windows (Size = 300s, Slide = 300s): Non-overlapping, contiguous fixed 
 ```
 
 ### 1. Tumbling Window Alignment:
+
+:::talk Which window is 10:07:30 in?
+@teacher Tumbling windows are 5 minutes wide, aligned to the clock: [10:00, 10:05), [10:05, 10:10) and so on. An event arrives with the event time 10:07:30.
+@ask Which window does it belong to?
+@choice [10:07, 10:12), because the window starts at the event | Windows are fixed on the clock and do not start at events. Try again.
+@choice * [10:05, 10:10): the event time rounded down to a multiple of 5 minutes gives the window start | Yes. A tumbling window's start is the timestamp divided by the window size, rounded down, times the size. Every event lands in exactly one window.
+@choice [10:00, 10:05), because 10:07 is closer to 10:00 | Rounding is always down, not to the nearest. Try again.
+@teacher Align windows to the clock with floor division, and the same event always lands in the same window, on every rerun.
+:::
+
 Tumbling windows partition time into non-overlapping, contiguous chunks. For window size `L`, an event at timestamp `t` belongs to exactly **one** window starting at:
 `t_start = floor(t / L) * L`
 `t_end = t_start + L`

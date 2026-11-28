@@ -213,6 +213,15 @@ In the first Hadoop, one component ran MapReduce jobs *and* decided which machin
 
 The pieces: a **ResourceManager** (one per cluster) knows the free memory and CPU on every machine and decides who gets what. A **NodeManager** on every machine launches and watches **containers**, a container being a slice of memory and CPU on one machine. Each application has an **ApplicationMaster**: the first container of a job, which asks the ResourceManager for more containers and runs the job's tasks inside them.
 
+:::talk Who decides who gets the machines?
+@teacher Three teams share one Hadoop cluster. At 09:00 one team submits a huge job that asks for every machine's memory. The other two teams submit small jobs a minute later.
+@ask What should happen, and who decides?
+@choice The first job takes everything and the others wait, because it arrived first | Without a scheduler, one greedy job can starve everyone else. Try again.
+@choice * YARN's scheduler decides: it shares the cluster by queues and limits, so the big job cannot take everything and the small jobs still get containers | Yes. That is the purpose of YARN: a resource manager and a scheduler that give each job containers of CPU and memory under rules, so many jobs can share one cluster.
+@choice Each job picks its own machines | Jobs do not know about each other. Someone has to arbitrate. Try again.
+@teacher A shared cluster needs a referee. YARN's scheduler is that referee.
+:::
+
 A **scheduler** decides the order when requests exceed capacity. The simplest is FIFO: first come, first served, which lets one huge job block everyone. The **Capacity** and **Fair** schedulers divide the cluster between teams or jobs. The lab's `allocate_containers` is a toy first-fit FIFO scheduler: it places each request on the first machine with room and leaves the rest **pending**. Pending work waiting for resources is the commonest sign of an overloaded cluster, in YARN just as in Kubernetes.
 
 Today Spark can run on YARN (still common on-premises), on Kubernetes (now more common in the cloud), or on managed services where you never see the scheduler. The concept is the same: an application asks for containers with a memory and CPU size, and something decides where they run. When a Spark executor is killed for exceeding its memory limit (Module 3.1), that is YARN or Kubernetes enforcing the container size.
@@ -261,6 +270,15 @@ Three changes together explained the shift:
 1. **Memory and graphs.** Spark keeps intermediate data in memory and plans the whole job as one graph, instead of a chain of disk-bound jobs. For multi-step and iterative work it is much faster, and its API (DataFrames, SQL) is far friendlier than hand-written MapReduce.
 2. **Object storage.** Cloud object stores (S3, GCS, Azure storage) became cheap, durable and effectively unlimited. They separate **storage from compute**: you keep data on S3 for pennies and start a cluster only while you need it. An HDFS cluster, by contrast, pays for machines (and their disks) around the clock because compute and storage live on the same boxes.
 3. **Managed services and open table formats.** Operating a Hadoop cluster was hard work. Managed Spark, warehouses and Iceberg/Delta tables moved that work to the provider.
+
+:::talk Is Hadoop dead?
+@teacher In an interview a candidate says: "Hadoop is dead, so everything in it is irrelevant, including MapReduce and HDFS."
+@ask What is the most accurate response?
+@choice Agree: nothing from Hadoop is used any more | Many on-premises companies still run Hadoop clusters, and its ideas live on elsewhere. Try again.
+@choice * The products are mostly replaced by Spark and cloud storage, but the ideas live on: replicated blocks, moving code to data, the shuffle and a metastore for table definitions | Yes. Spark's shuffle is MapReduce's idea improved, object storage plays HDFS's role, and the Hive Metastore is still how many engines find their tables.
+@choice Disagree: Hadoop is still the best choice for new projects | For most new projects Spark, object storage and a lakehouse format are the better choice. Try again.
+@teacher Speak accurately: say what was replaced, and what you still use under a new name.
+:::
 
 What remains, so that you speak accurately: many **on-premises** companies still run HDFS and YARN, especially large banks, telecoms and older platforms; the **Hive Metastore** and Hive-style partitioned folders are everywhere; the **Hadoop libraries** (the S3A connector, Parquet and ORC readers) sit inside Spark; and the concepts (blocks, replication, shuffle, locality, schedulers) are the vocabulary of distributed systems. Whether Hadoop skills appear in the postings of *your* market is something to check on real job posts before you decide how deep to go.
 

@@ -70,6 +70,15 @@ Anda mendapat kontrak, data nyata, dan checker. Cara membangunnya terserah Anda 
 | `fare_amount`, `extra`, `mta_tax`, `tip_amount`, `tolls_amount`, `improvement_surcharge`, `congestion_surcharge`, `Airport_fee` | Komponen rincian biaya tagihan |
 | `total_amount` | Total nominal yang dibayar penumpang (tip tunai tidak terekam di sistem) |
 
+:::talk Dua zona bernama Corona
+@teacher Di tabel zona taksi, zona 56 dan 57 sama-sama bernama "Corona". Seorang pembelajar mendefinisikan rute sebagai "nama zona jemput ditambah nama zona turun" dan mengelompokkan perjalanan dengannya.
+@ask Apa yang salah?
+@choice Tidak ada: nama sudah cukup | Dua zona berbeda dengan satu nama menjadi satu rute dalam pengelompokan. Coba lagi.
+@choice * Perjalanan antar zona yang berbeda digabung menjadi satu rute, sehingga hitungan salah; definisikan rute dengan pasangan id zona dan pakai nama hanya untuk menampilkannya | Betul. Nama adalah label dan bisa berulang, id adalah identitas. Kelompokkan menurut identitas, dan cari label di akhir.
+@choice Query gagal karena nama ganda | Ia tidak gagal: ia diam-diam menggabungkan. Coba lagi.
+@teacher Kelompokkan menurut kunci, tampilkan menurut nama.
+:::
+
 File pendukung kedua, `taxi_zone_lookup.csv`, mendeskripsikan **265 zona lokasi**: `LocationID`, `Borough`, `Zone`, `service_zone`.
 
 **Temuan anomali saat data ini di-profile** (kami sengaja tidak mencantumkan angkanya di sini: step 1 meminta Anda menemukannya sendiri, dan Anda akan menemukan hal yang sama):

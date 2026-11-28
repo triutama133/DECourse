@@ -56,8 +56,6 @@ loops give different answers from columns
 :::
 
 ## @lesson Loading a file correctly
-`pd.read_csv("orders.csv")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:
-
 :::talk What happened to 00042?
 @teacher KopiKu's customer file has an id written `00042`. A learner loads the file with `pd.read_csv("customers.csv")` and prints that customer's id.
 @ask What does pandas show for the id?
@@ -66,6 +64,8 @@ loops give different answers from columns
 @choice * `42`: pandas guessed a number, and the leading zeros are gone | Yes. A column of digits looks like numbers, so pandas stores 42. A join with a table that still has `"00042"` then finds no match, quietly.
 @teacher An id is a label, not a quantity: nobody adds two customer ids. Tell pandas so, with `dtype="string"` for the id columns.
 :::
+
+`pd.read_csv("orders.csv")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:
 
 1. **Ids are text, not numbers.** A customer id like `00042` is a label, not a quantity. Read it as a number and pandas stores `42`: the leading zeros are gone, and a join against the customer table (which has `"00042"`) fails or, worse, matches the wrong rows. In our messy orders file the first customer id read by default is `211` instead of `00211`, and merging on it raises `ValueError: You are trying to merge on int64 and str columns`. Fix: `dtype={"customer_id": "string"}`.
 2. **Missing markers.** pandas already treats an empty cell, `NA`, `N/A` and `null` as missing, but your file may use `-` or `unknown`. Tell it: `na_values=["-"]`. Otherwise one `-` turns the whole price column into text.

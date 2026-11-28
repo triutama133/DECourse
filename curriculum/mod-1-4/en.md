@@ -264,8 +264,6 @@ SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN c
 ## @part History, trust and other approaches
 
 ## @lesson Slowly changing dimensions: remembering what used to be true
-Customers move, products are renamed, tiers are re-evaluated. A dimension's attributes change **slowly** over time, and you must decide what a report about the *past* should say. That decision is the **slowly changing dimension (SCD) type**, chosen per attribute:
-
 :::talk Reports about last year
 @teacher Ani lived in Jakarta all last year and bought many coffees. In March she moves to Bandung, and the customer table is updated: her city now says Bandung.
 @ask Someone reruns last year's revenue report by city. What does it show for Ani's old orders?
@@ -274,6 +272,8 @@ Customers move, products are renamed, tiers are re-evaluated. A dimension's attr
 @choice An error, because the data changed | Nothing raises an error, and that is exactly the danger: the numbers just change. Try again.
 @teacher To keep last year true, do not overwrite. Add a **new row** for the new version, with the dates it was valid. That is a Type 2 dimension.
 :::
+
+Customers move, products are renamed, tiers are re-evaluated. A dimension's attributes change **slowly** over time, and you must decide what a report about the *past* should say. That decision is the **slowly changing dimension (SCD) type**, chosen per attribute:
 
 | Type | What happens on change | History kept? | Use for |
 |---|---|---|---|

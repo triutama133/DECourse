@@ -62,6 +62,15 @@ Most RAG failures in production come from the offline part: a broken table extra
 ## @lesson Embeddings and similarity
 An **embedding** is a list of numbers (a vector) that a model produces for a piece of text, so that texts with similar meaning get vectors that point in similar directions. Real embedding models have a few hundred to a few thousand dimensions (384, 768, 1,536, 3,072 are common). Search then becomes geometry: embed the question, find the stored vectors nearest to it.
 
+:::talk Money back, refund
+@teacher A customer asks a support bot: "Can I get my money back?" The policy document says: "Refunds are possible within 14 days of purchase." The question and the document share no important word.
+@ask Which search finds the document?
+@choice A keyword search for the words of the question | The question says "money back", the document says "refunds": no important word matches. Try again.
+@choice * A search by embeddings: texts with similar meaning have vectors that are close together, even without shared words | Yes. That is the reason to embed. Cosine similarity measures how close the two vectors point, and "money back" and "refunds" point in nearly the same direction.
+@choice Neither can find it | Embeddings were made for exactly this case. Try again.
+@teacher Embeddings turn meaning into geometry: similar meanings sit close together.
+:::
+
 The usual closeness measure is **cosine similarity**: the cosine of the angle between two vectors. It is 1 for the same direction, 0 for unrelated and −1 for opposite. If vectors are scaled to length 1 it equals the dot product, and pgvector offers it as a *distance*: `<=>` is cosine distance (1 − similarity), `<->` is Euclidean distance and `<#>` is negative inner product. The operator you query with must match the operator class of the index.
 
 ### Vectors by hand: length and angle
@@ -184,6 +193,15 @@ def chunk_words(text, size, overlap):
 
 ## @lesson Vector storage and approximate search
 Finding the exact nearest vectors means comparing the query with every stored vector: it is simple, always correct, and its cost grows linearly. At 20,000 vectors of 64 dimensions the lab's exact scan took about 5 ms per query; at 20 million vectors it takes seconds. **Approximate nearest neighbour (ANN)** indexes answer much faster by accepting that they may miss a true neighbour.
+
+:::talk Approximately right
+@teacher An HNSW index returns the five nearest chunks for a question. An exact search over all vectors would return the same five, except that one of them is different: the index returned the sixth-nearest chunk instead of the fifth.
+@ask Is this a bug?
+@choice Yes: a search index must always return the exact answer | Exact search over millions of vectors is too slow; the index buys speed by being approximate. Try again.
+@choice * No: approximate nearest-neighbour search trades a little recall for a lot of speed, and you measure that recall against exact search | Yes. Raising `ef_search` raises recall and slows each query. The job of the data engineer is to measure recall and pick the setting, not to expect perfection.
+@choice Yes, and the index must be rebuilt | Rebuilding will not make the search exact: the approximation is by design. Try again.
+@teacher Approximate is a feature with a dial. Measure the recall, then turn the dial on purpose.
+:::
 
 **HNSW** (Hierarchical Navigable Small World) is the most used. It builds a layered graph: each vector is linked to nearby vectors, upper layers have few long links and the lowest layer has all vectors. A query starts at the top, walks greedily towards the query, and drops down a layer at a time. Three settings control it:
 

@@ -169,6 +169,15 @@ This lesson is the specification. The checker follows it to the letter.
 
 **Files and environment.** Your workspace holds `jobs_pipeline.py` (the DAG; helper modules are allowed, but only as `.py` files next to it, not in sub-folders) and `profile.json`. The checker sets three environment variables; read them **inside the tasks**, when they run, not when the file is imported: `JOBS_INBOX` (folder with `jobs_YYYY-MM-DD.jsonl`), `JOBS_WAREHOUSE` (path of the DuckDB file to write), `JOBS_QUARANTINE` (folder for rejected lines). Staging files for passing data between tasks go in a sub-folder of the warehouse folder.
 
+:::talk Switching on an old DAG
+@teacher Your Airflow DAG has `start_date` three months ago and `catchup=True`. You switch it on today, on a daily schedule.
+@ask What does Airflow do immediately?
+@choice Runs only today's day | That is what `catchup=False` does. With `catchup=True` the past counts. Try again.
+@choice * Schedules a run for every day since the start date, about ninety runs at once, which can overload the source | Yes. Catching up is useful for a deliberate backfill, and dangerous as a surprise. Set `catchup=False` and backfill the days you want on purpose, in controlled batches.
+@choice Nothing, until you trigger it by hand | A schedule starts creating runs as soon as the DAG is on. Try again.
+@teacher Make the backfill a decision, not a side effect.
+:::
+
 **The DAG.** `dag_id` `jobs_pipeline`; one run per day (`@daily`); a fixed, timezone-aware `start_date` no later than 2026-03-01; `catchup` off; `max_active_runs` 1; every task with `retries` of at least 2 and a `retry_delay` of more than 0 and at most 5 seconds. Five tasks, in a chain, with exactly these ids: `extract` → `validate` → `transform` → `load` → `publish_mart`.
 
 **What each task does for the day `ds`.**
@@ -286,6 +295,15 @@ Every file name, WHERE clause and output path must be built from the run's date 
 ## @lesson The 48-hour take-home assignment blueprint and the 10-point hiring manager rubric
 
 Many data engineering hiring processes include a **take-home assignment**, often with a 48-hour window, or a review of a project repository (the *DataTalksClub Data Engineering Zoomcamp* grades its capstone projects with a peer-review rubric). Reviewers have little time for each submission, so they check production hygiene first: does it run on a fresh clone, is it tested, is it safe to run twice.
+
+:::talk What a reviewer opens first
+@teacher A hiring manager has 30 minutes for each of ten take-home submissions. They open yours, a repository with a pipeline, tests and a Dockerfile.
+@ask What do they check before anything else?
+@choice The most advanced tool in your stack | Fancy tools do not matter if the project does not run. Try again.
+@choice * Whether it runs from a fresh clone with the commands in the README, and whether the README says what you decided and why | Yes. A project that does not run, or cannot be understood in five minutes, usually ends the review. Then they look for safety on reruns, what happens to bad rows, and what a run reports.
+@choice The number of commits | A few meaningful commits help, but they do not make a project run. Try again.
+@teacher Write the README for the stranger who has thirty minutes and no way to ask you a question.
+:::
 
 Before you submit any take-home assignment or portfolio project, verify it against this **10-Point Hiring Manager & Zoomcamp Capstone Rubric** (and run `python3 scripts/verify_portfolio.py proj-1 /path/to/your/repo` locally):
 

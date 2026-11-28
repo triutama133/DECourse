@@ -183,8 +183,6 @@ A whole-column operation runs the loop inside compiled code over contiguous memo
 ## @part Tools and layout
 
 ## @lesson DuckDB: SQL on files, in your process
-**DuckDB** is an analytical database that runs **inside your Python process**, like SQLite but built for scans and aggregations (columnar, vectorised, parallel). No server, nothing to install beyond the package, and it queries files directly:
-
 :::talk A database without a server
 @teacher A learner wants to run SQL on a 2 GB Parquet file on her laptop. A colleague says: "just use DuckDB". She asks whether she must first install a database server and load the file into it.
 @ask What is the answer?
@@ -193,6 +191,8 @@ A whole-column operation runs the loop inside compiled code over contiguous memo
 @choice No, but only for files smaller than 100 MB | There is no such limit: DuckDB can spill to disk for data larger than memory. Try again.
 @teacher An embedded database is a library, not a service: the engine lives in your program.
 :::
+
+**DuckDB** is an analytical database that runs **inside your Python process**, like SQLite but built for scans and aggregations (columnar, vectorised, parallel). No server, nothing to install beyond the package, and it queries files directly:
 
 ```python
 import duckdb

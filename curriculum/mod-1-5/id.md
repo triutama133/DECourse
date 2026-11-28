@@ -56,8 +56,6 @@ loop memberi jawaban berbeda dari kolom
 :::
 
 ## @lesson Memuat file dengan benar
-`pd.read_csv("orders.csv")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:
-
 :::talk Apa yang terjadi pada 00042?
 @teacher File pelanggan KopiKu punya sebuah id yang tertulis `00042`. Seorang pembelajar memuat file itu dengan `pd.read_csv("customers.csv")` dan mencetak id pelanggan tersebut.
 @ask Apa yang ditampilkan pandas untuk id itu?
@@ -66,6 +64,8 @@ loop memberi jawaban berbeda dari kolom
 @choice * `42`: pandas menebak bilangan, dan angka nol di depan hilang | Betul. Kolom berisi angka tampak seperti bilangan, jadi pandas menyimpan 42. Join dengan tabel yang masih berisi `"00042"` lalu tidak menemukan pasangan, diam-diam.
 @teacher Id adalah label, bukan kuantitas: tidak ada yang menjumlahkan dua id pelanggan. Beri tahu pandas, dengan `dtype="string"` untuk kolom id.
 :::
+
+`pd.read_csv("orders.csv")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:
 
 1. **Id adalah teks, bukan angka.** Id pelanggan seperti `00042` adalah label, bukan kuantitas. Jika dibaca sebagai angka, pandas menyimpan `42`: angka nol di depan hilang, dan join terhadap tabel pelanggan (yang berisi `"00042"`) gagal atau, lebih buruk, cocok dengan baris yang salah. Pada file pesanan berantakan kita, id pelanggan pertama yang terbaca secara default adalah `211` alih-alih `00211`, dan merge atasnya memunculkan `ValueError: You are trying to merge on int64 and str columns`. Perbaikan: `dtype={"customer_id": "string"}`.
 2. **Penanda kosong.** pandas sudah menganggap sel kosong, `NA`, `N/A`, dan `null` sebagai kosong, tetapi file Anda mungkin memakai `-` atau `unknown`. Beri tahu: `na_values=["-"]`. Kalau tidak, satu `-` mengubah seluruh kolom harga menjadi teks.

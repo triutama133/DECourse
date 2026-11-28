@@ -264,8 +264,6 @@ SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN c
 ## @part Riwayat, kepercayaan, dan pendekatan lain
 
 ## @lesson Slowly changing dimensions: merekam kebenaran masa lalu
-Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diperbarui. Nilai atribut dalam dimensi berubah secara **perlahan (slowly)** seiring waktu, dan Anda harus memutuskan apa yang harus ditampilkan oleh laporan tentang masa lalu. Keputusan arsitektur inilah yang dinamakan tipe **Slowly Changing Dimension (SCD)**:
-
 :::talk Laporan tentang tahun lalu
 @teacher Ani tinggal di Jakarta sepanjang tahun lalu dan membeli banyak kopi. Pada bulan Maret ia pindah ke Bandung, dan tabel pelanggan diperbarui: kotanya sekarang tertulis Bandung.
 @ask Seseorang menjalankan ulang laporan pendapatan tahun lalu per kota. Apa yang ditampilkan untuk pesanan lama Ani?
@@ -274,6 +272,8 @@ Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diper
 @choice Error, karena datanya berubah | Tidak ada error, dan itulah bahayanya: angkanya begitu saja berubah. Coba lagi.
 @teacher Agar tahun lalu tetap benar, jangan menimpa. Tambahkan **baris baru** untuk versi yang baru, beserta tanggal berlakunya. Itulah dimensi Tipe 2.
 :::
+
+Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diperbarui. Nilai atribut dalam dimensi berubah secara **perlahan (slowly)** seiring waktu, dan Anda harus memutuskan apa yang harus ditampilkan oleh laporan tentang masa lalu. Keputusan arsitektur inilah yang dinamakan tipe **Slowly Changing Dimension (SCD)**:
 
 | Tipe SCD | Perilaku Saat Atribut Berubah | Histori Disimpan? | Kasus Penggunaan Ideal |
 |---|---|---|---|

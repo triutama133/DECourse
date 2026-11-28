@@ -176,6 +176,16 @@ State Checkpoint (state.json):
 ```
 
 ### The Atomic Checkpoint Write Trap:
+
+:::talk The checkpoint half written
+@teacher Your pipeline saves its high-watermark by opening `state.json` and writing the new JSON straight into it. The machine loses power in the middle of that write.
+@ask What does `state.json` contain when the machine comes back?
+@choice The old watermark, because the write did not finish | Writing in place starts by emptying the file, so the old content is already gone. Try again.
+@choice * A truncated, broken JSON, so the next run cannot even read its own state | Yes. Write the new state to `state.json.tmp` and swap it in with `os.replace`, which is atomic: readers see either the whole old file or the whole new one, never a half.
+@choice The new watermark, because the computer finishes writes on restart | A crash leaves whatever bytes had reached the disk. Try again.
+@teacher Never write the only copy of important state in place. Write beside it, then swap.
+:::
+
 Consider this disastrous sequence:
 1. Extractor downloads Page 3 of data.
 2. Extractor writes new watermark to `state.json`.
@@ -271,6 +281,16 @@ except urllib.error.HTTPError as e:
 ```
 
 ### 2. Truncated Exponential Backoff with Jitter:
+
+:::talk Why wait a random time?
+@teacher An API starts answering `429 Too Many Requests` to 100 workers at the same moment. All 100 are told to retry after exactly 2 seconds.
+@ask What happens two seconds later?
+@choice The API is calm again and everything works | All 100 workers come back at the same instant, and the API is overwhelmed again. Try again.
+@choice * All 100 retry together and get throttled again, in lockstep; random jitter spreads the retries out | Yes. This is the thundering herd. Exponential backoff gives the server more time with every attempt, and jitter makes the clients wait different amounts, so they do not collide again.
+@choice Only the first worker retries | Every worker follows the same rule. Try again.
+@teacher Backoff gives the server room to recover, and jitter keeps the clients from arriving together.
+:::
+
 For transient server errors (HTTP 500, 502, 503, 504) or network timeouts, retrying immediately (*thundering herd problem*) only overwhelms an already struggling server. Instead, increase wait time exponentially:
 ```text
 wait = base * 2 ** attempt + jitter        (attempt = 0, 1, 2, ...; with base = 1 s: about 1 s, 2 s, 4 s, 8 s)

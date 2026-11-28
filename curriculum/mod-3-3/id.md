@@ -119,6 +119,15 @@ Tiap event masuk ke size / slide sliding window, di sini 300 / 60 = 5. Window tu
 watermark = (timestamp event paling baru yang pernah terlihat) - (delay batas toleransi)
 ```
 
+:::talk Delay watermark yang pendek atau panjang?
+@teacher Sebuah window menghitung klik per 5 menit. Delay watermark menyatakan berapa lama menunggu event terlambat sebelum menutup window. Tim A mengatur 10 detik. Tim B mengatur 10 menit.
+@ask Apa pertukarannya?
+@choice Delay yang lebih panjang selalu lebih baik, karena tidak ada yang pernah hilang | Delay yang lebih panjang menunggu lebih lama sebelum setiap hasil, dan menahan lebih banyak window terbuka di memori. Coba lagi.
+@choice * Delay pendek memberi hasil lebih awal tetapi lebih banyak event tiba terlalu terlambat dan dibuang; delay panjang menangkap lebih banyak event terlambat tetapi menunda setiap hasil dan menahan lebih banyak state | Betul. Delay adalah toleransi Anda terhadap keterlambatan, dibeli dengan latensi dan memori. Ukur seberapa terlambat event Anda sebenarnya tiba, lalu atur delay agar mencakup sebagian besar.
+@choice Delay hanya penting untuk window pertama | Ia berlaku untuk setiap window yang pernah ditutup pekerjaan itu. Coba lagi.
+@teacher Tidak ada pengaturan gratis: delay watermark menukar kelengkapan dengan kecepatan dan memori.
+:::
+
 Nilai delay adalah batas toleransi keterlambatan yang Anda tentukan. Dengan konfigurasi `withWatermark("event_time", "2 minutes")`, jika event paling baru yang diterima sejauh ini bertimestamp 10:07, maka posisi watermark berada di 10:05: "Engine streaming memperlakukan seluruh event sebelum 10:05 sebagai data yang pada dasarnya sudah lengkap." Dalam mode append (`OutputMode.Append()`), **sebuah window akan dipancarkan hasilnya dan ditutup saat posisi watermark telah melampaui batas akhir (end time) window tersebut**.
 
 [[diagram:watermark]]
@@ -230,8 +239,6 @@ def advance(watermark, event_time, allowed_lateness):
 ## @part State dan operasional
 
 ## @lesson State, checkpoints, dan jaminan exactly-once
-Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedatangan event: seperti subtotal berjalan dan jumlah transaksi untuk setiap window yang masih terbuka. Memori internal ini disebut **State**. Dua implikasi arsitektural krusial:
-
 :::talk Penghitung untuk setiap window, selamanya
 @teacher Sebuah pekerjaan streaming menghitung klik per window 5 menit. Itu 288 window sehari. Pekerjaan itu tidak punya watermark, jadi ia tidak pernah memutuskan bahwa sebuah window sudah selesai.
 @ask Apa yang terjadi pada memori pekerjaan itu selama setahun?
@@ -240,6 +247,8 @@ Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedat
 @choice Tetap datar, karena hanya window hari ini yang disimpan | Hanya watermark yang memberi tahu pekerjaan bahwa ia boleh melupakan window lama. Coba lagi.
 @teacher Watermark bukan hanya soal ketepatan. Ia juga aturan yang membolehkan pekerjaan membuang state lama.
 :::
+
+Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedatangan event: seperti subtotal berjalan dan jumlah transaksi untuk setiap window yang masih terbuka. Memori internal ini disebut **State**. Dua implikasi arsitektural krusial:
 
 **State wajib memiliki batas ukuran (bounded state).** State sebuah window hanya akan dihapus dari memori saat posisi watermark telah melampaui batas akhir window tersebut—inilah tujuan utama diciptakannya konsep watermark! Jika Anda menghapus konfigurasi watermark, engine Spark terpaksa mempertahankan seluruh state window di masa lalu selamanya di dalam RAM, karena secara teori event transaksi purba bisa saja tiba sewaktu-waktu. Perbandingan nyata yang diukur pada job lab modul ini setelah memproses 120 micro-batches data:
 

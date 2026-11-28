@@ -169,6 +169,15 @@ Pelajaran ini merupakan spesifikasi formal alur kerja. Skrip pemeriksa otomatis 
 
 **File dan lingkungan kerja.** Direktori ruang kerja Anda memuat file `jobs_pipeline.py` (file utama DAG; modul pembantu diizinkan asalkan berupa file `.py` yang berada di direktori yang sama, bukan di subfolder) dan file `profile.json`. Skrip penguji menyediakan tiga variabel lingkungan; baca variabel-variabel ini **di dalam fungsi task** saat dieksekusi, bukan di level teratas file saat modul diimpor: `JOBS_INBOX` (folder penyedia file `jobs_YYYY-MM-DD.jsonl`), `JOBS_WAREHOUSE` (lokasi path file database DuckDB), dan `JOBS_QUARANTINE` (folder penampung baris data yang ditolak). File staging untuk pertukaran data antar-task dapat diletakkan di dalam subfolder dari direktori warehouse.
 
+:::talk Menyalakan DAG lama
+@teacher DAG Airflow Anda punya `start_date` tiga bulan lalu dan `catchup=True`. Anda menyalakannya hari ini, dengan jadwal harian.
+@ask Apa yang langsung dilakukan Airflow?
+@choice Hanya menjalankan hari ini | Itu yang dilakukan `catchup=False`. Dengan `catchup=True` masa lalu ikut dihitung. Coba lagi.
+@choice * Menjadwalkan satu putaran untuk setiap hari sejak tanggal mulai, sekitar sembilan puluh putaran sekaligus, yang bisa membebani sumber | Betul. Mengejar ketertinggalan berguna untuk backfill yang disengaja, dan berbahaya sebagai kejutan. Atur `catchup=False` dan backfill hari yang Anda inginkan dengan sengaja, dalam batch terkendali.
+@choice Tidak ada, sampai Anda memicunya dengan tangan | Jadwal mulai membuat putaran begitu DAG menyala. Coba lagi.
+@teacher Jadikan backfill sebuah keputusan, bukan efek samping.
+:::
+
 **Konfigurasi DAG.** Menggunakan `dag_id` bernama `jobs_pipeline`; frekuensi satu run per hari (`@daily`); konfigurasi `start_date` tetap yang timezone-aware tidak lebih lambat dari 2026-03-01; opsi `catchup=False`; konfigurasi `max_active_runs=1`; setiap task memiliki `retries` minimal 2 serta `retry_delay` lebih dari 0 dan maksimal 5 detik. Terdiri dari lima task yang terhubung dalam satu rantai dependensi sekuensial dengan ID persis seperti ini: `extract` → `validate` → `transform` → `load` → `publish_mart`.
 
 **Operasi yang dijalankan masing-masing task untuk tanggal `ds`:**
@@ -286,6 +295,15 @@ Setiap nama file, klausa WHERE, dan jalur keluaran harus dibangun dari tanggal r
 ## @lesson Cetak biru tugas teknis take-home 48 jam dan rubrik 10 poin manajer perekrutan
 
 Banyak proses rekrutmen data engineer menyertakan **tugas take-home**, sering dengan batas 48 jam, atau peninjauan repositori proyek (*DataTalksClub Data Engineering Zoomcamp* menilai proyek capstone-nya dengan rubrik peer-review). Peninjau hanya punya sedikit waktu untuk setiap kiriman, jadi mereka memeriksa kebersihan produksi lebih dulu: apakah bisa dijalankan dari clone baru, apakah ada tesnya, apakah aman dijalankan dua kali.
+
+:::talk Apa yang dibuka reviewer lebih dulu
+@teacher Seorang manajer perekrutan punya 30 menit untuk masing-masing dari sepuluh tugas take-home. Mereka membuka milik Anda, sebuah repositori dengan pipeline, tes, dan Dockerfile.
+@ask Apa yang mereka periksa sebelum yang lain?
+@choice Alat paling canggih di stack Anda | Alat mewah tidak penting bila proyeknya tidak berjalan. Coba lagi.
+@choice * Apakah ia berjalan dari clone baru dengan perintah di README, dan apakah README menjelaskan apa yang Anda putuskan dan mengapa | Betul. Proyek yang tidak berjalan, atau tidak bisa dipahami dalam lima menit, biasanya mengakhiri review. Setelah itu mereka mencari keamanan saat diulang, apa yang terjadi pada baris buruk, dan apa yang dilaporkan sebuah putaran.
+@choice Jumlah commit | Beberapa commit bermakna membantu, tetapi tidak membuat proyek berjalan. Coba lagi.
+@teacher Tulis README untuk orang asing yang punya tiga puluh menit dan tidak bisa bertanya kepada Anda.
+:::
 
 Sebelum Anda mengumpulkan tugas take-home atau proyek portofolio apa pun, periksa repositori Anda menggunakan **Rubrik 10 Poin Manajer Perekrutan & Capstone Zoomcamp** ini (serta jalankan `python3 scripts/verify_portfolio.py proj-1 /path/ke/repo/anda` di terminal):
 

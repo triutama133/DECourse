@@ -70,6 +70,15 @@ The **NYC Taxi and Limousine Commission (TLC)** publishes every yellow taxi trip
 | `fare_amount`, `extra`, `mta_tax`, `tip_amount`, `tolls_amount`, `improvement_surcharge`, `congestion_surcharge`, `Airport_fee` | the parts of the bill |
 | `total_amount` | what the passenger paid in total (tips on cash are not recorded) |
 
+:::talk Two zones called Corona
+@teacher In the taxi zone table, zones 56 and 57 are both named "Corona". A learner defines a route as "pickup zone name plus dropoff zone name" and groups trips by it.
+@ask What goes wrong?
+@choice Nothing: the names are enough | Two different zones with one name become one route in the grouping. Try again.
+@choice * Trips between different zones are merged into one route, so counts are wrong; define a route by the pair of zone ids and use the names only to display it | Yes. Names are labels and can repeat, ids are identities. Group by the identity, and look up the label at the end.
+@choice The query fails because of duplicate names | It does not fail: it quietly merges. Try again.
+@teacher Group by keys, display by names.
+:::
+
 A second file, `taxi_zone_lookup.csv`, describes the **265 zones**: `LocationID`, `Borough`, `Zone`, `service_zone`.
 
 **What we found when we profiled it** (we give no counts here on purpose: step 1 asks you to find them, and you will find the same things):

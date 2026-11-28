@@ -133,6 +133,16 @@ Tumbling Window (Size = 300s, Slide = 300s): Blok tetap, berdampingan, tanpa tum
 ```
 
 ### 1. Perataan Tumbling Window:
+
+:::talk Di window mana 10:07:30 berada?
+@teacher Window tumbling berlebar 5 menit, selaras dengan jam: [10:00, 10:05), [10:05, 10:10), dan seterusnya. Sebuah event tiba dengan event time 10:07:30.
+@ask Ke window mana ia termasuk?
+@choice [10:07, 10:12), karena window dimulai pada event | Window tetap pada jam dan tidak dimulai pada event. Coba lagi.
+@choice * [10:05, 10:10): event time dibulatkan ke bawah ke kelipatan 5 menit memberi awal window | Betul. Awal window tumbling adalah timestamp dibagi ukuran window, dibulatkan ke bawah, dikali ukuran. Setiap event mendarat di tepat satu window.
+@choice [10:00, 10:05), karena 10:07 lebih dekat ke 10:00 | Pembulatan selalu ke bawah, bukan ke yang terdekat. Coba lagi.
+@teacher Selaraskan window dengan jam memakai pembagian lantai, dan event yang sama selalu mendarat di window yang sama, pada setiap pengulangan.
+:::
+
 Tumbling window mempartisi aliran waktu menjadi blok-blok tetap yang tidak saling tumpang-tindih. Untuk ukuran window `L`, sebuah event pada timestamp `t` dimasukkan tepat ke **satu** window yang dimulai pada:
 `t_start = floor(t / L) * L`
 `t_end = t_start + L`

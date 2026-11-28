@@ -52,6 +52,15 @@ Sebuah aplikasi Apache Spark (**Spark Application**) terdiri dari komponen runti
 - **Executors**: proses worker (JVM instances) yang berjalan di mesin-mesin klaster. Setiap executor memiliki alokasi memori tertentu dan sejumlah **CPU cores**; setiap core mengeksekusi tepat satu task pada satu waktu.
 - **Cluster Manager**: komponen infrastruktur yang mengalokasikan mesin fisik ke aplikasi Spark (seperti standalone manager bawaan Spark, Apache YARN, Kubernetes, atau cloud managed control plane). Dalam **local mode** (`master("local[4]")`, seperti yang digunakan pada lab modul ini), driver dan empat worker threads berbagi satu proses JVM yang sama: lingkungan sempurna untuk pembelajaran dan pengujian otomatis tanpa biaya cloud.
 
+:::talk Driver atau executor?
+@teacher Sebuah pekerjaan Spark punya satu driver dan sepuluh executor. Di tengah pekerjaan yang panjang, satu mesin kehilangan listrik.
+@ask Apa yang terjadi jika itu sebuah executor, dan apa jika itu driver?
+@choice Dalam kedua kasus: pekerjaan mulai dari awal | Spark dibangun untuk selamat dari hilangnya sebuah executor. Coba lagi.
+@choice * Executor hilang: Spark menjalankan ulang tugasnya di tempat lain dan pekerjaan berlanjut. Driver hilang: seluruh aplikasi mati, karena driver memegang rencana dan state | Betul. Executor adalah pekerja yang bisa diganti. Driver adalah satu-satunya koordinator, jadi lindungi: jalankan di mesin yang andal dan checkpoint pekerjaan panjang.
+@choice Tidak ada yang penting: Spark terus-menerus menyimpan semuanya ke disk | Tidak: rencana driver hidup di memorinya. Coba lagi.
+@teacher Pekerja boleh gagal dan diganti. Koordinator tidak, jadi jaga tetap sehat.
+:::
+
 Hirarki pembagian kerja di Spark dibagi ke dalam lapisan-lapisan yang wajib Anda pahami saat membaca Spark UI:
 
 | Istilah | Makna Operasional |
@@ -189,8 +198,6 @@ Predicate pushdown membuat scan melewati data (misalnya row group Parquet) yang 
 ## @part Join, skew, dan tuning
 
 ## @lesson Strategi join dan biaya shuffle
-Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang memiliki nilai kunci (key) yang sama ke satu node mesin yang sama. Spark memilih salah satu strategi join berikut:
-
 :::talk Tabel raksasa bertemu tabel mungil
 @teacher Anda menggabungkan 3 juta pesanan dengan tabel 1.001 produk. Pesanan tersebar di 8 executor, dalam banyak partisi.
 @ask Apa cara termurah bagi Spark untuk melakukan join itu?
@@ -199,6 +206,8 @@ Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang me
 @choice * Menyalin tabel mungil ke setiap executor dan menggabungkan di tempat (broadcast join) | Betul. 1.001 baris murah untuk disalin, dan tabel besar tidak pernah di-shuffle. Itulah mengapa broadcast join biasanya tercepat bila salah satu sisi kecil.
 @teacher Spark memilih broadcast join sendiri bila ia tahu salah satu sisi cukup kecil. Statistik yang basi bisa mengelabuinya, jadi periksa planmya.
 :::
+
+Operasi join pada sistem terdistribusi bertugas mempertemukan baris data yang memiliki nilai kunci (key) yang sama ke satu node mesin yang sama. Spark memilih salah satu strategi join berikut:
 
 | Strategi Join | Cara Kerja Arsitektur | Kapan Digunakan |
 |---|---|---|
@@ -356,6 +365,15 @@ Waktu GC adalah waktu yang dipakai membebaskan memori alih-alih mengerjakan peke
 :::
 
 **Memori Executor JVM** dialokasikan ke dalam dua ruang utama: **Execution Memory** (digunakan untuk operasi komputasi shuffle, buffer join hash table, sorting, dan agregasi) dan **Storage Memory** (digunakan untuk menampung cache DataFrame). Kedua area ini berada di bawah model Unified Memory Management dan dapat saling meminjam ruang secara dinamis, ditambah cadangan **Overhead Memory** untuk kebutuhan internal OS, network buffer, dan runtime PySpark. Jika kebutuhan komputasi melampaui kapasitas RAM yang tersedia, Spark melakukan **spill** (menulis kelebihan data ke disk lokal—proses melambat drastis namun aplikasi tidak mati); jika disk spill pun kehabisan ruang atau alokasi kontainer terlampaui, executor akan di-kill oleh cluster manager (`OOMKilled`). Tanda-tanda di Spark UI: metrik "Spill (Memory/Disk)", jeda panjang pada Garbage Collection (GC), atau executor yang restart berulang kali. Solusi: perbesar memori per executor; naikkan jumlah partisi agar data per task lebih kecil; bereskan anomali data skew (salah satu penyebab OOM yang paling sering); dan jangan pernah memanggil `collect()` untuk dataset besar ke memori driver.
+
+:::talk Fungsi Python yang mungil
+@teacher Anda perlu menggandakan satu kolom berisi 100 juta angka di PySpark. Seorang pembelajar menulis `df.withColumn("y", col("x") * 2)`. Yang lain menulis fungsi Python `def double(x): return x * 2`, membungkusnya sebagai UDF, dan memanggilnya pada kolom itu.
+@ask Mana yang lebih cepat, dan mengapa?
+@choice UDF, karena Python lebih mudah dioptimalkan | Optimiser Spark sama sekali tidak bisa melihat ke dalam fungsi Python. Coba lagi.
+@choice * Ekspresi kolom: ia berjalan di dalam mesin Spark, sedangkan UDF mengirim setiap baris keluar ke Python dan kembali | Betul. UDF Python membayar perjalanan antara JVM dan Python untuk setiap baris (atau batch), dan ia menghalangi optimiser. Utamakan fungsi bawaan.
+@choice Sama saja: perkalian yang sama | Hitungannya sama, mesinnya tidak. Coba lagi.
+@teacher Pakai UDF hanya bila tidak ada fungsi bawaan yang bisa mengungkapkan gagasannya, dan saat itu utamakan UDF vektor (pandas).
+:::
 
 **Python UDFs adalah pembunuh performa.** Fungsi UDF kustom yang ditulis dalam bahasa Python memaksa setiap baris data diserialisasi keluar dari proses JVM, dikirim melalui IPC socket ke proses worker Python, dieksekusi baris demi baris, lalu diserialisasi kembali ke JVM. Proses ini melumpuhkan seluruh optimasi Catalyst dan Tungsten. Selalu prioritaskan fungsi bawaan PySpark (`F.when`, `F.regexp_replace`, `F.date_trunc`, `F.coalesce`, dan ratusan fungsi native lainnya) yang dieksekusi langsung di level JVM bytecode. Jika logika bisnis benar-benar mengharuskan pustaka eksternal Python (seperti model machine learning atau pustaka saintifik), gunakan **Pandas UDFs (Vectorized UDFs)** berbasis Apache Arrow yang mentransfer data dalam format columnar batch efisien.
 

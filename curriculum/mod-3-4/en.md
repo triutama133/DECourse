@@ -260,6 +260,15 @@ The lab builds the storage layer of the lakehouse from Module 2.2, with four pro
 
 **2. Encrypt, with a key you control.** Encryption scrambles a file so that it is unreadable without the right **key**, like a lock that only one key opens. S3 provides **SSE** (Server-Side Encryption) by default, encrypting bytes on disk with a key AWS manages. Using **KMS** (AWS Key Management Service) with a customer-managed key you own adds an access layer (the reader needs permission on the key as well as on the data), an audit trail of every use, and the ability to revoke access centrally. Turn on **key rotation** so that a leaked old key is limited in time.
 
+:::talk One key for everything
+@teacher To save time, a team gives the pipeline's role the policy `s3:*` on every resource (`*`). A month later the pipeline's access key leaks in a public repository.
+@ask What can an attacker do with that key?
+@choice Only what the pipeline does: read and write the silver layer | The policy does not limit it to that. Try again.
+@choice * Anything in the account's storage: read, overwrite and delete every bucket, including backups | Yes. Least privilege limits the blast radius: allow only `GetObject` and `PutObject` on the prefixes the pipeline needs, and a leaked key can do little.
+@choice Nothing, because keys cannot be used outside the cloud | Keys work from anywhere on the internet. Try again.
+@teacher Assume that every key will leak one day, and give it only the permissions you could live with an attacker using.
+:::
+
 **3. Least privilege.** An IAM policy lists who may do which *actions* on which *resources*, optionally under *conditions*. The mistake you will see in every real code base is `"Action": "s3:*", "Resource": "*"`, written once "to make it work" and never removed. A pipeline that only needs to read and write the curated layers should receive exactly that:
 
 | Statement | Actions | Resource |

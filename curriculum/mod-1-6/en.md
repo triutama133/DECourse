@@ -139,9 +139,6 @@ stop at the first error and discard everything
 
 ## @lesson Reading all the data: pagination, rate limits and retries
 
-> **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
-An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
-
 :::talk The feed that moves under your feet
 @teacher An orders feed is sorted newest first. You read page 1 (orders 25 down to 16) with `?offset=0&limit=10`. While you do, 3 new orders arrive at the top of the feed. Then you ask for page 2 with `?offset=10&limit=10`.
 @ask Which orders does page 2 contain?
@@ -150,6 +147,9 @@ An API will not return a million records at once. It returns a **page** and tell
 @choice Nothing: the server refuses to hand out pages while data changes | Servers answer happily and know nothing about your earlier page. Try again.
 @teacher A cursor says "continue after THIS order", and that does not move when new orders arrive. That is why cursors are safer than offsets for a feed that keeps changing.
 :::
+
+> **In short:** Offset pages shift when data changes (duplicates and gaps); cursors do not. On 429 wait as long as `Retry-After` says; on 5xx retry with growing waits and a limit; never retry other 4xx.
+An API will not return a million records at once. It returns a **page** and tells you how to get the next one. There are three styles:
 
 - **Offset pagination** (`?offset=20&limit=10`): simple, but unsafe on live data. If new records arrive while you read, the offsets shift. In a newest-first feed of 25 orders, reading pages of 10 while 3 new orders arrive after the first page gives **28 rows fetched covering only the 25 distinct original orders**, 3 duplicates (older rows slide into the next page), and the 3 new orders are missed. Deleted rows cause the opposite, skipped records. It is also slow on large offsets.
 - **Page numbers** (`?page=3`): the same weakness.

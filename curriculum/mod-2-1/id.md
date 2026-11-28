@@ -183,8 +183,6 @@ Operasi seluruh kolom menjalankan loop di dalam kode terkompilasi atas memori ya
 ## @part Alat dan tata letak
 
 ## @lesson DuckDB: mesin analitik SQL langsung di dalam proses aplikasi
-**DuckDB** adalah basis data analitik OLAP yang berjalan **langsung di dalam proses Python Anda** (in-process), mirip seperti SQLite namun dirancang khusus untuk pemindaian data masif dan agregasi analitik (kolumnar, tervektorisasi, paralel). Anda tidak memerlukan server database terpisah, cukup pasang library dan langsung query file di disk:
-
 :::talk Database tanpa server
 @teacher Seorang pembelajar ingin menjalankan SQL pada file Parquet 2 GB di laptopnya. Seorang rekan berkata: "pakai saja DuckDB". Ia bertanya apakah ia harus memasang server database dulu dan memuat file ke dalamnya.
 @ask Apa jawabannya?
@@ -193,6 +191,8 @@ Operasi seluruh kolom menjalankan loop di dalam kode terkompilasi atas memori ya
 @choice Tidak, tetapi hanya untuk file di bawah 100 MB | Tidak ada batas semacam itu: DuckDB bisa menumpahkan ke disk untuk data yang lebih besar dari memori. Coba lagi.
 @teacher Database tertanam adalah pustaka, bukan layanan: mesinnya hidup di dalam program Anda.
 :::
+
+**DuckDB** adalah basis data analitik OLAP yang berjalan **langsung di dalam proses Python Anda** (in-process), mirip seperti SQLite namun dirancang khusus untuk pemindaian data masif dan agregasi analitik (kolumnar, tervektorisasi, paralel). Anda tidak memerlukan server database terpisah, cukup pasang library dan langsung query file di disk:
 
 ```python
 import duckdb

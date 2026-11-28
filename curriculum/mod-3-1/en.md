@@ -52,6 +52,15 @@ A Spark **application** has these parts:
 - The **executors** are worker processes (JVMs) on cluster machines. Each has some memory and a number of **cores**; each core runs one task at a time.
 - The **cluster manager** allocates machines to the application: Spark's own standalone manager, YARN, Kubernetes, or a managed service. In **local mode** (`master("local[4]")`, as in the lab), the driver and four worker threads share one process: perfect for learning and for tests.
 
+:::talk The driver or an executor?
+@teacher A Spark job has one driver and ten executors. In the middle of a long job, one machine loses power.
+@ask What happens if it was an executor, and what if it was the driver?
+@choice Both cases: the job restarts from the beginning | Spark is built to survive losing an executor. Try again.
+@choice * An executor lost: Spark reruns its tasks elsewhere and the job continues. The driver lost: the whole application dies, because the driver holds the plan and the state | Yes. Executors are replaceable workers. The driver is the one coordinator, so protect it: run it on a reliable machine and checkpoint long jobs.
+@choice Neither matters: Spark saves everything to disk constantly | It does not: the driver's plan lives in its memory. Try again.
+@teacher Workers can fail and be replaced. The coordinator cannot, so keep it healthy.
+:::
+
 Work is divided in layers, and the vocabulary matters when you read the UI:
 
 | Term | Meaning |
@@ -189,8 +198,6 @@ Predicate pushdown lets the scan skip data (for example Parquet row groups) that
 ## @part Joins, skew and tuning
 
 ## @lesson Joins and shuffles
-A join must bring matching keys together. Spark picks from several strategies:
-
 :::talk A huge table meets a tiny one
 @teacher You join 3 million orders with a table of 1,001 products. The orders are spread over 8 executors, in many partitions.
 @ask What is the cheapest way for Spark to do the join?
@@ -199,6 +206,8 @@ A join must bring matching keys together. Spark picks from several strategies:
 @choice * Copy the tiny table to every executor and join in place (a broadcast join) | Yes. 1,001 rows are cheap to copy, and the big table is never shuffled. That is why a broadcast join is normally fastest when one side is small.
 @teacher Spark picks a broadcast join by itself when it knows that one side is small enough. Stale statistics can fool it, so check the plan.
 :::
+
+A join must bring matching keys together. Spark picks from several strategies:
 
 | Strategy | How it works | When |
 |---|---|---|
@@ -356,6 +365,15 @@ GC time is time spent freeing memory instead of doing your work. A high share po
 :::
 
 **Executor memory** is split into **execution memory** (shuffles, joins, sorts, aggregations) and **storage memory** (cached data), which share a unified region and can borrow from each other, plus **overhead** for the JVM and PySpark. When execution needs more memory than it has, Spark **spills** to disk (slow but survives); when even that fails, the executor is killed (out of memory). Signs: "Spill (memory/disk)" in the UI, long GC pauses, `OOMKilled` containers (Module 1.1). Remedies: fewer, larger-memory executors for memory-hungry tasks; more partitions (smaller per-task data); fixing skew (the real cause of most OOMs); and not collecting large results to the driver.
+
+:::talk A tiny Python function
+@teacher You need to double a column of 100 million numbers in PySpark. One learner writes `df.withColumn("y", col("x") * 2)`. Another writes a Python function `def double(x): return x * 2`, wraps it as a UDF, and calls it on the column.
+@ask Which is faster, and why?
+@choice The UDF, because Python is easier to optimise | Spark's optimiser cannot see inside a Python function at all. Try again.
+@choice * The column expression: it runs inside Spark's engine, while the UDF sends every row out to Python and back | Yes. A Python UDF pays a trip between the JVM and Python for each row (or batch), and it blocks the optimiser. Prefer built-in functions.
+@choice They are the same: it is the same multiplication | The arithmetic is the same, the machinery is not. Try again.
+@teacher Use a UDF only when no built-in function can express the idea, and then prefer a vectorised (pandas) UDF.
+:::
 
 **Python UDFs are slow.** A user-defined function written in Python forces every row to be serialised out of the JVM, processed by a Python process, and serialised back. Prefer built-in functions (`F.when`, `F.regexp_replace`, `F.date_trunc`, and hundreds more), which run inside the optimised JVM and can be pushed down. If you truly need Python logic, use a **pandas UDF** (vectorised, using Arrow to move batches) rather than a row-at-a-time UDF.
 

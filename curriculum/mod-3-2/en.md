@@ -206,6 +206,15 @@ Partition: 2  Leader: 1  Replicas: 1,2,3  Isr: 1,2,3
 
 Each partition has one **leader** (all reads and writes go through it) and two **followers** that continuously fetch from the leader to copy its log. `Replicas` lists the brokers that should hold a copy (the first is the *preferred* leader, so leaders are spread over the brokers). `Isr` lists the **in-sync replicas**: the followers that are caught up. Only an in-sync replica may become leader, which is why a new leader never lacks an acknowledged record.
 
+:::talk Is the strictest setting the best?
+@teacher A topic has 3 replicas. A learner reads that stricter is safer and sets `min.insync.replicas=3` together with `acks=all`. During a rolling restart, one broker is down for two minutes.
+@ask What happens to the producers during those two minutes?
+@choice Nothing: all writes continue as usual | With `min.insync.replicas=3`, a write needs all three replicas in sync, and one of them is down. Try again.
+@choice * Their writes are refused (`NOT_ENOUGH_REPLICAS`), because only two replicas are in sync and three are required | Yes. Stricter durability costs availability. With `min.insync.replicas=2` and `acks=all`, a write still needs two copies, and the cluster survives one broker failure.
+@choice The data is silently written to only two replicas | That is what a weaker setting would do. With 3 required, Kafka refuses instead. Try again.
+@teacher Durability and availability pull in opposite directions. Choose the setting that fits the failure you must survive.
+:::
+
 **What `acks=all` and `min.insync.replicas` mean together.** With `acks=all`, the leader answers only after **every replica currently in the ISR** has the record. `min.insync.replicas=2` adds a floor: if the ISR is smaller than 2, the leader **refuses** the write instead of accepting it with fewer copies. So `replication.factor=3`, `min.insync.replicas=2` and `acks=all` is the standard recipe: any single broker can fail without losing an acknowledged record *and* without stopping writers.
 
 **Experiment 1: crash the leader under load.** We started a producer sending 20 records per second with `acks=all` and, after about 9 seconds, killed (`docker kill`, a crash, not a clean shutdown) the broker leading partition 0. The producer received `NOT_LEADER_OR_FOLLOWER`, **retried by itself**, and finished: all 500 records were delivered, the slowest took **7.46 seconds**, and the throughput in that interval fell from 20 to 7.5 records per second. `describe` then showed the survivors as the new world: `Leader: 3, Isr: 3,1`. After the broker was restarted it rejoined every ISR (`Isr: 3,1,2`) within the 40 seconds we waited, but leadership stayed with broker 3; Kafka moves leaders back to the preferred broker later, in the background. The final offsets summed to **507 = 6 + 500 + 1** (6 initial probe records + 500 load records + 1 sentinel), exactly the records we sent: no loss and no duplicates, because the Java producer is idempotent by default when `acks=all` (since Kafka 3.0).
