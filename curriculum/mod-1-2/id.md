@@ -648,6 +648,15 @@ def extract_codes(text):
 ## @lesson Streaming: menjaga memori tetap datar
 Komputer punya memori jauh lebih sedikit daripada disk, dan container produksi sering hanya punya beberapa ratus megabyte. Job yang memuat seluruh masukan ke memori berhasil di file uji Anda dan mati di file sungguhan. Obatnya adalah memproses data sebagai **stream**: baca sedikit, tangani, tulis, lupakan.
 
+:::talk File yang lebih besar daripada container
+@teacher Container Anda diberi memori 512 MB. Seorang mitra mengirim file pesanan 5 GB, dan pekerjaan Anda dimulai dengan `rows = list(csv.DictReader(f))`.
+@ask Apa yang terjadi?
+@choice * Kernel mematikan pekerjaan itu: list-nya butuh memori jauh lebih besar daripada yang dimiliki container | Betul. Tidak ada error Python untuk dibaca, pekerjaannya begitu saja lenyap, biasanya dengan exit code 137. Datanya tidak muat di ruangan yang Anda berikan.
+@choice Tetap jalan, hanya lambat, karena Python memindahkan kelebihan data ke disk sendiri | Tidak bisa diandalkan. Container punya batas memori yang keras, dan pekerjaan yang butuh berkali-kali lipat batas itu dimatikan jauh sebelum selesai. Coba lagi.
+@choice Hanya membaca 512 MB pertama lalu lanjut | Python tidak pernah memotong data diam-diam: `list(...)` mencoba membaca semuanya. Coba lagi.
+@teacher Solusinya bukan container yang lebih besar, melainkan tidak menahan semuanya sekaligus: baca satu baris, tangani, tulis, lupakan. Itulah yang diberikan generator.
+:::
+
 Alat Python untuk ini adalah **iterator**, dan cara termudah menulisnya adalah **generator**: fungsi yang memakai `yield` (atau `yield from` untuk meneruskan tiap item dari iterable lain) alih-alih `return` sekali dengan list penuh.
 
 ```python
@@ -804,6 +813,15 @@ def retry(fn, attempts=4, base=1.0, retry_on=(ConnectionError, TimeoutError)):
 
 (Ulangi hanya operasi yang **aman diulang**. Mengulang pembayaran tanpa idempotency key menagih dua kali.)
 
+:::talk File yang sama, dua kali
+@teacher Pekerjaan malam memuat pesanan kemarin dengan **menambahkan** baris ke sebuah file. Pukul 01:07 ia gagal karena timeout jaringan, setelah menulis sebagian besar baris. Pukul 01:10 penjadwal mengulanginya, dan kali ini selesai.
+@ask Seperti apa file itu setelah pengulangan?
+@choice Setiap pesanan muncul sekali, karena pengulangan tahu apa yang sudah tertulis | Pengulangan tidak punya ingatan tentang percobaan pertama. Ia sekadar mulai dari awal. Coba lagi.
+@choice * Banyak pesanan muncul dua kali: pengulangan menulis ulang semuanya di atas percobaan pertama | Betul. Pekerjaannya "sukses", dan semua penjumlahan sekarang terlalu tinggi. Inilah pendapatan Selasa yang berlipat dua di Modul 0.2.
+@choice File-nya kosong, karena proses yang gagal menghapus apa yang ditulisnya | Proses yang gagal meninggalkan apa pun yang sudah ditulisnya. Tidak ada yang membersihkannya kecuali Anda membuatnya. Coba lagi.
+@teacher Obatnya adalah membuat menjalankan dua kali tidak berbahaya: tulis ke file sementara, dan tukar ke tempatnya hanya ketika semuanya berhasil. Maka hasilnya sama baik pekerjaan itu berjalan sekali maupun lima kali.
+:::
+
 Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalankan job dua kali harus menghasilkan hasil yang sama dengan sekali. Teknik yang bisa Anda terapkan hari ini:
 
 - **Keluaran deterministik.** Masukan sama memberi keluaran identik byte demi byte: pertahankan urutan masukan, `json.dumps(..., sort_keys=True)`, tanpa stempel waktu "sekarang" di dalam data.
@@ -813,6 +831,15 @@ Itu membawa kita ke **idempotensi**, yang diperkenalkan di Modul 0.2: menjalanka
 Ketiganya persis yang diuji Lab 1.2.
 
 ### Lihat sendiri: karantina, jangan dibuang
+
+:::talk Satu baris buruk di antara ribuan
+@teacher Pekerjaan Anda membaca 3.634 pesanan. Baris 207 bertotal `-75000`. Anda harus memutuskan apa yang dilakukan pekerjaan itu pada satu baris tersebut, dan Anda harus membelanya di depan tim keuangan.
+@ask Pilihan mana yang akan Anda bela?
+@choice Hentikan seluruh pekerjaan dengan error sampai seseorang memperbaiki barisnya | Kegagalan yang terlihat lebih baik daripada diam, tetapi satu baris buruk tidak boleh menghalangi 3.633 pesanan yang baik, dan laporan terlambat untuk semua orang. Coba lagi.
+@choice Lewati barisnya diam-diam lalu lanjut | Kehilangan diam-diam adalah yang paling berbahaya: tidak ada yang tahu sebuah baris lenyap, atau mengapa, dan pendapatan diam-diam salah. Coba lagi.
+@choice * Simpan di file karantina beserta alasannya, lalu lanjut | Betul. Baris yang baik terus mengalir, baris buruk disimpan dengan alasannya agar bisa diperiksa dan diperbaiki, dan jumlah penolakan bisa membunyikan alarm kalau tiba-tiba membesar.
+@teacher Aturannya sudah Anda temui di Modul 0.2: jangan menebak dan jangan membuang diam-diam. Pelajaran ini mengubahnya menjadi kode.
+:::
 
 Data buruk tidak diulang dan tidak dibuang: ia **disisihkan beserta alasannya**. Perhatikan tiga baris melaluinya:
 
@@ -1034,7 +1061,7 @@ tes yang berulang sampai akhirnya berhasil lolos
 
 > 🛠 **Coba sendiri (10 menit, terminal).** Di virtual environment yang baru, jalankan `pip install ruff`. Simpan `bad.py` berisi baris `import os`, `import json`, `x=1`, dan `print( x )`. Jalankan `ruff check bad.py`, lalu `ruff check --fix bad.py`, lalu `ruff format bad.py` dan lihat file-nya. Terakhir jalankan `pip freeze > requirements.txt` dan baca baris-baris pertamanya.
 >
-> **Seharusnya Anda melihat:** satu `F401` ("imported but unused") untuk `os` dan satu untuk `json`; perbaikannya menghapus kedua import itu; formatter mengubah sisanya menjadi `x = 1` dan `print(x)`; `requirements.txt` mencantumkan versi persis seperti `ruff==0.x.y`. Pemeriksaan mana yang Anda inginkan di setiap pull request?
+> **Seharusnya Anda melihat:** satu `F401` ("imported but unused") untuk `os` dan satu untuk `json` (versi ruff yang lebih baru menambahkan catatan `I001` bahwa urutan import belum alfabetis, yang tidak berbahaya); perbaikannya menghapus kedua import itu; formatter mengubah sisanya menjadi `x = 1` dan `print(x)`; `requirements.txt` mencantumkan versi persis seperti `ruff==0.x.y`. Pemeriksaan mana yang Anda inginkan di setiap pull request?
 
 :::ask `pip install pydantic` tanpa pin menarik versi mayor baru semalam dan job rusak. Apa yang mencegahnya?
 @options
@@ -1209,6 +1236,8 @@ python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.nd
 head -3 /tmp/quarantine.ndjson
 python3 scripts/prove.py mod-1-2
 ```
+
+   **Seharusnya Anda melihat** dari perintah kedua: baris log seperti `INFO read=3634 valid=3582 duplicates=35 invalid=17` dan `exit code: 0`. Lalu `wc -l /tmp/clean.ndjson` menunjukkan 3582 dan `wc -l /tmp/quarantine.ndjson` menunjukkan 52 (35 duplikat dan 17 total negatif), dan `head -3 /tmp/quarantine.ndjson` menampilkan baris berisi `raw`, `reason` (misalnya `total_idr: greater_than`), dan `row`.
 
 8. Tantangan tambahan opsional: tambahkan helper retry dan tes yang memakai `monkeypatch` untuk mensimulasikan dua kegagalan sebelum sukses; tambahkan type hint dan jalankan `mypy`.
 

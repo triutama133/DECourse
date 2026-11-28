@@ -648,6 +648,15 @@ def extract_codes(text):
 ## @lesson Streaming: keeping memory flat
 A computer has far less memory than disk, and a production container often has a few hundred megabytes. A job that loads the whole input into memory works on your test file and dies on the real one. The cure is to process data as a **stream**: read a bit, handle it, write it, forget it.
 
+:::talk A file bigger than the container
+@teacher Your container is allowed 512 MB of memory. A partner sends an orders file of 5 GB, and your job starts with `rows = list(csv.DictReader(f))`.
+@ask What happens?
+@choice * The kernel kills the job: the list needs far more memory than the container has | Yes. There is no Python error to read, the job simply disappears, usually with exit code 137. The data did not fit in the room you gave it.
+@choice It works, only slowly, because Python moves the extra data to disk by itself | Not reliably. A container has a hard memory limit, and a job that needs many times that limit is killed long before it finishes. Try again.
+@choice It reads only the first 512 MB and carries on | Python never cuts data silently: `list(...)` tries to read everything. Try again.
+@teacher The fix is not a bigger container. It is not holding everything at once: read a row, handle it, write it, forget it. That is what a generator gives you.
+:::
+
 Python's tool for this is the **iterator**, and the easiest way to write one is a **generator**: a function that uses `yield` (or `yield from` to delegate each item from another iterable) instead of `return` once with a full list.
 
 ```python
@@ -804,6 +813,15 @@ def retry(fn, attempts=4, base=1.0, retry_on=(ConnectionError, TimeoutError)):
 
 (Only retry operations that are **safe to repeat**. Retrying a payment without an idempotency key charges twice.)
 
+:::talk The same file, twice
+@teacher The nightly job loads yesterday's orders by **appending** rows to a file. At 01:07 it fails on a network timeout, after writing most of the rows. At 01:10 the scheduler retries it, and this time it finishes.
+@ask What does the file look like after the retry?
+@choice Each order appears once, because the retry knows what was already written | A retry has no memory of the first attempt. It simply starts from the beginning. Try again.
+@choice * Many orders appear twice: the retry wrote everything again on top of the first attempt | Yes. The job "succeeded", and every sum is now too high. This is exactly the Tuesday revenue that doubled in Module 0.2.
+@choice The file is empty, because a failed run deletes what it wrote | A failed run leaves whatever it had already written. Nothing cleans it up unless you build that in. Try again.
+@teacher The cure is to make running twice harmless: write to a temporary file, and swap it into place only when everything succeeded. Then the result is the same whether the job runs once or five times.
+:::
+
 That brings us to **idempotency**, introduced in Module 0.2: running the job twice must leave the same result as running it once. Techniques you can apply today:
 
 - **Deterministic output.** Same input gives byte-identical output: keep input order, `json.dumps(..., sort_keys=True)`, no timestamps of "now" inside the data.
@@ -813,6 +831,15 @@ That brings us to **idempotency**, introduced in Module 0.2: running the job twi
 These three are exactly what Lab 1.2 tests.
 
 ### See it: quarantine, do not drop
+
+:::talk One bad row among thousands
+@teacher Your job reads 3,634 orders. Row 207 has a total of `-75000`. You must decide what the job does with that one row, and you will have to defend it in front of the finance team.
+@ask Which choice would you defend?
+@choice Stop the whole job with an error until someone fixes the row | A loud failure beats silence, but one bad row should not block 3,633 good orders, and the report is late for everyone. Try again.
+@choice Skip the row silently and keep going | Silent loss is the most dangerous: nobody knows a row vanished, or why, and the revenue is quietly wrong. Try again.
+@choice * Set it aside in a quarantine file with the reason, and keep going | Yes. The good rows flow on, the bad row is kept with its reason so someone can inspect and repair it, and the number of rejects can raise an alarm if it suddenly grows.
+@teacher You met the rule in Module 0.2: never guess and never drop silently. This lesson turns it into code.
+:::
 
 Bad data is not retried and not thrown away: it is **set aside with a reason**. Watch three rows go through:
 
@@ -1034,7 +1061,7 @@ a test that loops until it finally passes
 
 > 🛠 **Try it (10 min, terminal).** In a fresh virtual environment run `pip install ruff`. Save `bad.py` with the lines `import os`, `import json`, `x=1` and `print( x )`. Run `ruff check bad.py`, then `ruff check --fix bad.py`, then `ruff format bad.py` and look at the file. Finally run `pip freeze > requirements.txt` and read its first lines.
 >
-> **You should see:** one `F401` ("imported but unused") for `os` and one for `json`; the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
+> **You should see:** one `F401` ("imported but unused") for `os` and one for `json` (newer ruff versions add an `I001` note that the imports are not in alphabetical order, which is harmless); the fix removes both imports; the formatter turns the rest into `x = 1` and `print(x)`; `requirements.txt` lists exact versions such as `ruff==0.x.y`. Which of these checks would you want on every pull request?
 
 :::ask An unpinned `pip install pydantic` pulls a new major version overnight and the job breaks. What prevents this?
 @options
@@ -1209,6 +1236,8 @@ python3 labs/mod-1-2/etl.py data/orders.csv /tmp/clean.ndjson /tmp/quarantine.nd
 head -3 /tmp/quarantine.ndjson
 python3 scripts/prove.py mod-1-2
 ```
+
+   **You should see** from the second command: a log line like `INFO read=3634 valid=3582 duplicates=35 invalid=17` and `exit code: 0`. Then `wc -l /tmp/clean.ndjson` says 3582 and `wc -l /tmp/quarantine.ndjson` says 52 (35 duplicates and 17 negative totals), and `head -3 /tmp/quarantine.ndjson` shows lines with `raw`, `reason` (for example `total_idr: greater_than`) and `row`.
 
 8. Optional stretch goals: add a retry helper and a test that uses `monkeypatch` to simulate two failures before success; add type hints and run `mypy`.
 
