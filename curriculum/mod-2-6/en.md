@@ -128,6 +128,15 @@ A zone map is the min/max of each column in each partition. The engine compares 
 ## @lesson Compute: parallel work, distribution and joins
 **MPP.** A warehouse spreads a table over many compute nodes (Redshift calls the per-node worker units **slices**), and every node scans its own part in parallel; the results are combined on a coordinator (Redshift's leader node). More nodes mean more parallelism, until something must be moved between them.
 
+:::talk Neighbours at the table
+@teacher Two huge tables, `orders` and `customers`, are spread over 10 machines. You join them on `customer_id`. If an order sits on machine 3 but its customer sits on machine 7, the database must move rows over the network before it can match them.
+@ask Which setup moves the fewest rows?
+@choice Spread both tables randomly, so the load is balanced | Random placement means most matches are on different machines, and almost everything must travel. Try again.
+@choice * Distribute both tables by `customer_id`, so matching rows already sit on the same machine | Yes. This is a co-located join: the order and its customer are neighbours, so nothing crosses the network. Network movement is usually what makes a big join slow.
+@choice Put every table on one single machine | That avoids the network but gives up the parallel power of the other nine. Try again.
+@teacher Choose the distribution key from the column you join on most. For small dimension tables, a copy on every machine solves it.
+:::
+
 **Joins are where data moves.** To join orders and customers on `customer_id`, matching rows must meet on the same node. If they sit on different nodes, one or both tables must be sent over the network (a **shuffle** — exchanging rows by key across the cluster, which Modules 3.0 and 3.1 inspect inside MapReduce and Spark). Redshift lets you choose a **distribution style** (`DISTSTYLE KEY DISTKEY (customer_id)` in DDL) per table:
 
 - **KEY**: rows with the same value of a chosen column go to the same node (like the lab's `distribute(..., style="key")`).
@@ -172,6 +181,15 @@ KEY distribution sends rows with the same customer_id to the same node, so the m
 ## @part Cost, loading and governance
 
 ## @lesson Cost: scan-based and time-based pricing
+:::talk What does SELECT * cost?
+@teacher A warehouse bills by the data a query scans: $5 per TB. Your table is 2 TB, and two of its columns, `status` and `total_idr`, make up about 9% of the bytes. A dashboard tile runs one query 96 times a day.
+@ask Compare `SELECT status, SUM(total_idr) ... GROUP BY status` with `SELECT *` over the whole table. How different is the daily cost?
+@choice About the same, because both read the same table | The table is the same, but a columnar warehouse reads only the columns you name. Try again.
+@choice * About $87 a day for the two columns, against $960 a day for `SELECT *`: more than ten times more | Yes. Two columns scan about 0.18 TB (about $0.91 per run), and `SELECT *` scans all 2 TB ($10 per run). 96 runs a day turns that into $87 against $960.
+@choice The two-column query costs more, because it has to compute a sum | Computing is cheap here. The bill follows the bytes scanned. Try again.
+@teacher Name only the columns you need. A warehouse "dry run" can tell you the bytes before you pay.
+:::
+
 Warehouses charge in two basic ways, and you must know which one you are on (Module 3.4 models full cloud budgets and FinOps guardrails later).
 
 **Scan-based** (BigQuery on-demand): you pay per **byte processed** by each query, a few dollars per terabyte (check current prices). The lab's `query_cost(bytes_billed, price_per_tb)` is that formula. Everything in lesson 2 is therefore money: partition pruning and column selection cut the bytes directly. A query can be **estimated before it runs** (BigQuery's dry run reports the bytes), and a hard limit can be set on a query's maximum bytes billed so a mistake fails instead of billing.
@@ -291,6 +309,15 @@ Warehouses are built for bulk loads of reasonably sized files (about 100 to 250 
 :::
 
 ## @lesson Concurrency, governance, and choosing
+:::talk Five queries, two slots
+@teacher A warehouse can run two queries at the same time (two slots). At 09:00 five dashboards each send a query that takes 10 seconds on its own. All five arrive together.
+@ask When does the last of the five finish?
+@choice After 10 seconds, because the warehouse is parallel | Parallel inside one query does not create more slots. Only two queries run at a time. Try again.
+@choice After 50 seconds, because the queries run one after another | Two run side by side, so it is faster than one after another. Try again.
+@choice * After 30 seconds: two finish at 10, two more at 20, and the fifth at 30 | Yes. Three waves: 2 + 2 + 1. The people whose queries wait feel a slow dashboard, although every query is fast.
+@teacher The standard cures: separate workloads onto their own compute so a heavy job cannot block a dashboard, scale out for bursts, and shorten the heavy queries.
+:::
+
 **Concurrency.** A warehouse has finite compute. When more queries arrive than it can run at once, the extra ones **queue**. The lab's `simulate_queue` shows it: five 10-second jobs on two slots finish at 10, 10, 20, 20 and 30 seconds, so the last user waits 20 seconds before the job even starts. The cures are the same everywhere: isolate workloads on separate compute (a warehouse for ETL, one for dashboards, one for analysts), use multi-cluster or auto-scaling features for bursts, and make heavy queries shorter with the layout tools above. Isolation also makes the bill attributable to a team (Module 3.4).
 
 **Governance.** Data engineers set up access, not just tables. The common pieces: **roles** with privileges granted to roles rather than to people (Snowflake's role hierarchy, BigQuery IAM, Redshift groups and roles); **column masking** and **row access policies** so that analysts see masked emails or only their region's rows; **encryption** at rest and in transit (the warehouse handles it; you manage the keys policy); and **audit logs** of who queried what. Personal data needs extra care (Modules 2.5 and 3.5, deletion requests).

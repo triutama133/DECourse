@@ -128,6 +128,15 @@ Zone map adalah min/max setiap kolom di setiap partisi. Engine membandingkan fil
 ## @lesson Komputasi: kerja paralel, distribusi, dan join
 **MPP.** Warehouse menyebar tabel ke banyak node komputasi (Redshift menyebut unit pekerja per node **slice**), dan setiap node memindai bagiannya sendiri secara paralel; hasilnya digabung di koordinator (leader node Redshift). Lebih banyak node berarti lebih banyak paralelisme, sampai ada sesuatu yang harus dipindahkan antar node.
 
+:::talk Bertetangga di meja yang sama
+@teacher Dua tabel raksasa, `orders` dan `customers`, tersebar di 10 mesin. Anda menggabungkannya lewat `customer_id`. Jika sebuah pesanan ada di mesin 3 tetapi pelanggannya di mesin 7, database harus memindahkan baris lewat jaringan sebelum bisa mencocokkannya.
+@ask Pengaturan mana yang memindahkan baris paling sedikit?
+@choice Menyebar kedua tabel secara acak, agar bebannya seimbang | Penempatan acak berarti sebagian besar pasangan berada di mesin berbeda, dan hampir semuanya harus berpindah. Coba lagi.
+@choice * Mendistribusikan kedua tabel menurut `customer_id`, sehingga baris yang cocok sudah berada di mesin yang sama | Betul. Inilah co-located join: pesanan dan pelanggannya bertetangga, jadi tidak ada yang melewati jaringan. Perpindahan lewat jaringan biasanya yang membuat join besar lambat.
+@choice Menaruh setiap tabel di satu mesin saja | Itu menghindari jaringan tetapi menyia-nyiakan tenaga paralel sembilan mesin lainnya. Coba lagi.
+@teacher Pilih kunci distribusi dari kolom yang paling sering Anda join. Untuk tabel dimensi kecil, salinan di setiap mesin menyelesaikannya.
+:::
+
 **Join adalah tempat data berpindah.** Untuk me-join pesanan dan pelanggan pada `customer_id`, baris yang cocok harus bertemu di node yang sama. Jika berada di node berbeda, satu atau kedua tabel harus dikirim lewat jaringan (**shuffle** — pertukaran baris berdasarkan key antar-node klaster, yang dibahas mendalam di MapReduce dan Spark pada Modul 3.0 dan 3.1). Redshift membiarkan Anda memilih **gaya distribusi** (`DISTSTYLE KEY DISTKEY (customer_id)` di DDL) per tabel:
 
 - **KEY**: baris dengan nilai kolom pilihan yang sama masuk ke node yang sama (seperti `distribute(..., style="key")` di lab).
@@ -172,6 +181,15 @@ Distribusi KEY mengirim baris dengan customer_id sama ke node yang sama, sehingg
 ## @part Biaya, pemuatan, dan tata kelola
 
 ## @lesson Biaya: harga berbasis pemindaian dan berbasis waktu
+:::talk Berapa biaya SELECT *?
+@teacher Sebuah warehouse menagih menurut data yang dipindai query: $5 per TB. Tabel Anda 2 TB, dan dua kolomnya, `status` dan `total_idr`, membentuk sekitar 9% dari byte. Sebuah tile dasbor menjalankan satu query 96 kali sehari.
+@ask Bandingkan `SELECT status, SUM(total_idr) ... GROUP BY status` dengan `SELECT *` atas seluruh tabel. Seberapa beda biaya hariannya?
+@choice Hampir sama, karena keduanya membaca tabel yang sama | Tabelnya sama, tetapi warehouse kolumnar hanya membaca kolom yang Anda sebut. Coba lagi.
+@choice * Sekitar $87 sehari untuk dua kolom, melawan $960 sehari untuk `SELECT *`: lebih dari sepuluh kali lipat | Betul. Dua kolom memindai sekitar 0,18 TB (sekitar $0,91 per putaran), dan `SELECT *` memindai seluruh 2 TB ($10 per putaran). 96 putaran sehari mengubahnya menjadi $87 melawan $960.
+@choice Query dua kolom lebih mahal, karena harus menghitung jumlah | Menghitung di sini murah. Tagihan mengikuti byte yang dipindai. Coba lagi.
+@teacher Sebut hanya kolom yang Anda butuhkan. "Dry run" warehouse bisa memberi tahu byte-nya sebelum Anda membayar.
+:::
+
 Warehouse menagih dengan dua cara dasar, dan Anda harus tahu mana yang Anda pakai (Modul 3.4 membahas model anggaran cloud dan guardrail FinOps secara lengkap nanti).
 
 **Berbasis pemindaian** (BigQuery on-demand): Anda membayar per **byte yang diproses** setiap query, beberapa dolar per terabyte (cek harga terkini). `query_cost(bytes_billed, price_per_tb)` di lab adalah rumus itu. Semua dalam pelajaran 2 karenanya adalah uang: partition pruning dan pemilihan kolom memangkas byte secara langsung. Sebuah query bisa **diperkirakan sebelum dijalankan** (dry run BigQuery melaporkan byte-nya), dan batas keras bisa dipasang pada byte maksimum yang ditagih sebuah query sehingga kesalahan gagal, bukan menagih.
@@ -291,6 +309,15 @@ Warehouse dibangun untuk bulk load file berukuran wajar (sekitar 100 sampai 250 
 :::
 
 ## @lesson Konkurensi, tata kelola, dan memilih
+:::talk Lima query, dua slot
+@teacher Sebuah warehouse bisa menjalankan dua query bersamaan (dua slot). Pukul 09:00 lima dasbor masing-masing mengirim query yang memakan 10 detik bila berjalan sendiri. Kelimanya tiba bersamaan.
+@ask Kapan yang terakhir dari kelimanya selesai?
+@choice Setelah 10 detik, karena warehouse itu paralel | Paralel di dalam satu query tidak menciptakan slot lebih banyak. Hanya dua query berjalan sekaligus. Coba lagi.
+@choice Setelah 50 detik, karena query berjalan satu demi satu | Dua berjalan berdampingan, jadi lebih cepat daripada satu demi satu. Coba lagi.
+@choice * Setelah 30 detik: dua selesai pada detik 10, dua lagi pada detik 20, dan yang kelima pada detik 30 | Betul. Tiga gelombang: 2 + 2 + 1. Orang yang querynya menunggu merasakan dasbor yang lambat, padahal setiap query cepat.
+@teacher Obat standarnya: pisahkan beban kerja ke komputasi sendiri agar pekerjaan berat tidak memblokir dasbor, perbesar skala untuk lonjakan, dan perpendek query yang berat.
+:::
+
 **Konkurensi.** Warehouse punya komputasi terbatas. Ketika query yang datang lebih banyak daripada yang bisa dijalankan sekaligus, sisanya **mengantre**. `simulate_queue` di lab memperlihatkannya: lima job 10 detik pada dua slot selesai pada detik 10, 10, 20, 20, dan 30, jadi pengguna terakhir menunggu 20 detik sebelum job-nya bahkan mulai. Obatnya sama di mana-mana: isolasi beban kerja pada komputasi terpisah (satu warehouse untuk ETL, satu untuk dashboard, satu untuk analis), pakai fitur multi-cluster atau auto-scaling untuk lonjakan, dan perpendek query berat dengan alat tata letak di atas. Isolasi juga membuat tagihan bisa dibebankan ke sebuah tim (Modul 3.4).
 
 **Tata kelola.** Data engineer mengatur akses, bukan hanya tabel. Bagian-bagian umumnya: **role** dengan hak akses yang diberikan kepada role, bukan kepada orang (hierarki role Snowflake, IAM BigQuery, grup dan role Redshift); **column masking** dan **row access policy** agar analis melihat email yang disamarkan atau hanya baris wilayahnya; **enkripsi** saat disimpan dan dikirim (warehouse menanganinya; Anda mengelola kebijakan key); dan **audit log** tentang siapa mengkueri apa. Data pribadi butuh perhatian ekstra (Modul 2.5 dan 3.5, permintaan penghapusan).
