@@ -50,6 +50,15 @@ Jika satu disk rusak sekali dalam beberapa tahun, 48.000 disk rusak kira-kira ti
 ## @lesson HDFS: sistem file yang terbuat dari banyak mesin
 Hadoop Distributed File System menyimpan file raksasa di mesin biasa. Sebuah **file** dipotong menjadi **blok** berukuran tetap (bawaannya **128 MiB**; sistem file disk biasa memakai blok 4 KiB). Setiap blok **direplikasi**: secara bawaan **tiga salinan** pada tiga mesin berbeda. Blok terakhir sebuah file sepanjang yang dibutuhkan saja (file 300 MiB menjadi blok 128, 128, dan 44 MiB; `split_into_blocks` di lab melakukan persis ini).
 
+:::talk Berapa blok yang hilang?
+@teacher Sebuah klaster 20 mesin menyimpan 1.000 blok. Setiap blok hanya hidup di SATU mesin, ditempatkan secara acak. Pada suatu malam buruk, 3 dari 20 mesin mati selamanya.
+@ask Kira-kira berapa dari 1.000 blok itu yang hilang?
+@choice Tidak ada, karena data tersebar di banyak mesin | Menyebar tidak melindungi apa pun dengan sendirinya: blok di mesin yang mati tidak punya salinan lain. Coba lagi.
+@choice * Sekitar 150, karena 3 dari 20 mesin adalah 15% dari blok | Betul. Setiap blok berada di satu mesin, dan 15% mesin mati. Dengan dua salinan di mesin berbeda Anda kehilangan sekitar 15 blok, dengan tiga sekitar satu: setiap salinan tambahan memotong kerugian sekitar sepuluh kali.
+@choice Sekitar 3, satu per mesin yang mati | Satu mesin menyimpan sekitar 50 blok, bukan satu. Coba lagi.
+@teacher Karena itu HDFS menyimpan tiga salinan setiap blok secara bawaan, di mesin dan rak yang berbeda: mesin murah mati, dan salinan menjaga data tetap hidup.
+:::
+
 Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di memori namespace (folder dan file) dan, untuk setiap file, daftar blok serta mesin mana yang menyimpan masing-masing. **DataNode** menyimpan byte yang sesungguhnya. DataNode mengirim heartbeat ke NameNode setiap beberapa detik beserta laporan blok miliknya. Jika heartbeat berhenti, NameNode menyatakan node itu mati dan memerintahkan pembuatan salinan blok-bloknya di tempat lain sampai setiap blok kembali punya tiga replika. Begitulah HDFS menyembuhkan dirinya.
 
 **Membaca** sebuah file: klien bertanya kepada NameNode "di mana blok-blok file ini?", lalu membaca setiap blok **langsung dari DataNode** (salinan terdekat). NameNode tidak pernah membawa data file, jadi ia bukan hambatan throughput. **Menulis**: klien meminta NameNode memberi DataNode untuk blok pertama, dan data mengalir lewat sebuah **pipeline** (klien ke DataNode 1, yang meneruskan ke DataNode 2, yang meneruskan ke DataNode 3).
@@ -64,6 +73,15 @@ Dua jenis mesin bekerja sama. **NameNode** adalah direktorinya: ia menyimpan di 
 > 5. Uji di terminal:
 >    `pytest labs/mod-3-0/test_lab.py -k "TestBlocks or TestReplicaPlacement or TestBlockLoss" -v`
 > 6. **Indikator Sukses:** Sebanyak 14 pengujian berstatus `PASSED`, memvalidasi pembagian blok presisi dan ketahanan data terhadap kegagalan seluruh rak.
+
+:::talk Sepuluh juta file kecil
+@teacher Satu klaster menyimpan 1 TB sebagai satu file besar. Klaster lain menyimpan 1 TB yang sama sebagai 10 juta file kecil, masing-masing sekitar 100 KB. Blok HDFS berukuran 128 MB, dan NameNode menyimpan satu catatan kecil di memorinya untuk setiap file dan setiap blok.
+@ask Klaster mana yang memberi tekanan lebih besar pada NameNode?
+@choice File besar, karena ukurannya lebih besar | Ruang disknya sama, tetapi NameNode menghitung catatan, bukan byte. Satu file besar hanya sekitar 8.000 blok. Coba lagi.
+@choice Sama saja, karena keduanya menyimpan 1 TB | Byte-nya sama, jumlah catatannya tidak. Coba lagi.
+@choice * Sepuluh juta file kecil: lebih dari seribu kali lebih banyak catatan yang harus diingat | Betul. 1 TB dalam blok 128 MB adalah sekitar 8.192 blok, melawan 10.000.000 file yang masing-masing punya blok sendiri. NameNode bisa kehabisan memori jauh sebelum disknya penuh.
+@teacher Itulah masalah file kecil. Obatnya adalah menggabungkan file kecil menjadi besar (compaction) sebelum menumpuk.
+:::
 
 **Masalah file kecil.** NameNode menyimpan satu objek di memori untuk setiap file, direktori, dan blok; aturan praktis yang sering dikutip adalah sekitar **150 byte** per objek. `metadata_objects` di lab membuat akibatnya terlihat. Satu terabyte yang disimpan sebagai file 1 GiB adalah 1.024 file dengan 8 blok masing-masing: **9.216 objek**, sekitar 1,4 MB memori NameNode. Terabyte yang sama sebagai file 1 MiB adalah **2.097.152 objek**, sekitar **300 MB**, atau 227 kali lebih banyak, untuk data yang identik. Puluhan juta file kecil bisa menghabiskan memori NameNode dan menjatuhkan seluruh klaster (lihat skenario chaos). HDFS dibuat untuk **file yang sedikit dan besar**.
 
@@ -94,6 +112,15 @@ Contoh klasiknya menghitung kata. Masukan dipecah menjadi potongan (satu per blo
 ```
 potongan input --> MAP --> pasangan (key,value) --> SHUFFLE (kelompokkan per key, kirim ke reducer) --> REDUCE --> keluaran
 ```
+
+:::talk Kata yang sama, reducer yang sama
+@teacher Tiga mesin masing-masing menghitung kata di bagian bukunya sendiri. Ketiganya menemukan kata "coffee": 4 kali di mesin pertama, 7 di mesin kedua, 2 di mesin ketiga. Sekarang hitungan parsial dikirim ke 2 mesin reducer untuk dijumlahkan.
+@ask Apa yang harus dijamin shuffle agar total "coffee" benar?
+@choice * Setiap pasangan dengan key "coffee" pergi ke reducer yang sama, sehingga satu mesin melihat semua hitungannya | Betul. Jika pasangannya tersebar acak, setiap reducer hanya menjumlahkan sebagian, dan "coffee" akan berakhir dengan dua total parsial. Partitioner mengirim sebuah key ke reducer yang tetap, misalnya dengan men-hash-nya.
+@choice Setiap mesin mengirim "coffee" ke reducer acak, untuk menyeimbangkan beban | Penempatan acak memecah hitungan satu kata ke beberapa reducer, sehingga tidak ada yang bisa memberi total sebenarnya. Coba lagi.
+@choice Tidak ada: langkah map sudah bisa menjumlahkan semua mesin | Sebuah mapper hanya melihat bagian bukunya sendiri. Ia tidak bisa tahu hitungan mesin lain. Coba lagi.
+@teacher Shuffle adalah jantung MapReduce yang mahal: ia memindahkan data lewat jaringan agar semua yang berkey sama bertemu di satu tempat.
+:::
 
 Reducer mana yang mendapat key mana? Sebuah **partitioner**: `hash(key) % jumlah_reducer`. Ia harus memberi jawaban yang sama di setiap mesin, jadi dipakai hash yang stabil (lab memakai **CRC32**, Cyclic Redundancy Check 32-bit, lewat `zlib.crc32` — algoritma deterministik cepat yang mengubah string byte apa pun menjadi integer tetap `0..2**32 - 1` di komputer mana pun; `hash()` bawaan Python mengacak seed antar-eksekusi dan akan mengirim key yang sama ke reducer berbeda). Semua soal ketimpangan partisi (**skew**, dibahas tuntas di Modul 3.1) bermula di sini: satu key yang sangat umum mengirim semua pasangannya ke satu reducer.
 

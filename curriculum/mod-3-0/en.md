@@ -50,6 +50,15 @@ If one disk fails once every few years, 48,000 disks fail about every day. At th
 ## @lesson HDFS: a file system made of many machines
 The Hadoop Distributed File System stores huge files on ordinary machines. A **file** is cut into **blocks** of a fixed size (the default is **128 MiB**; an ordinary disk file system uses 4 KiB blocks). Every block is **replicated**: by default **three copies** on three different machines. The last block of a file is just as long as it needs to be (a 300 MiB file becomes blocks of 128, 128 and 44 MiB; the lab's `split_into_blocks` does exactly this).
 
+:::talk How many blocks do you lose?
+@teacher A cluster of 20 machines stores 1,000 blocks. Each block lives on only ONE machine, placed at random. One bad night, 3 of the 20 machines die for good.
+@ask Roughly how many of the 1,000 blocks are lost?
+@choice None, because the data is spread over many machines | Spreading does not protect anything by itself: a block on a dead machine has no other copy. Try again.
+@choice * About 150, because 3 of 20 machines is 15% of the blocks | Yes. Each block sits on one machine, and 15% of machines died. With two copies on different machines you lose about 15 blocks, with three about one: each extra copy cuts the loss about ten times.
+@choice About 3, one per dead machine | A machine holds around 50 blocks, not one. Try again.
+@teacher That is why HDFS keeps three copies of every block by default, on different machines and racks: cheap machines die, and the copies keep the data alive.
+:::
+
 Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in memory the namespace (folders and files) and, for every file, the list of blocks and which machines hold each one. The **DataNodes** hold the actual bytes. DataNodes send the NameNode a heartbeat every few seconds and a report of their blocks. If heartbeats stop, the NameNode declares the node dead and orders copies of its blocks to be made elsewhere until every block again has three replicas. That is how HDFS heals itself.
 
 **Reading** a file: the client asks the NameNode "where are the blocks of this file?", then reads each block **directly from a DataNode** (the nearest copy). The NameNode never carries file data, so it is not a bottleneck for throughput. **Writing**: the client asks the NameNode for a DataNode for the first block, and the data flows through a **pipeline** (client to DataNode 1, which forwards to DataNode 2, which forwards to DataNode 3).
@@ -64,6 +73,15 @@ Two kinds of machine cooperate. The **NameNode** is the directory: it keeps in m
 > 5. Run the tests in terminal:
 >    `pytest labs/mod-3-0/test_lab.py -k "TestBlocks or TestReplicaPlacement or TestBlockLoss" -v`
 > 6. **Success Indicator:** All 14 tests report `PASSED`, confirming accurate block chunking and multi-rack fault tolerance.
+
+:::talk Ten million tiny files
+@teacher One cluster stores 1 TB as a single big file. Another stores the same 1 TB as 10 million small files of about 100 KB each. HDFS blocks are 128 MB, and the NameNode keeps one small record in its memory for every file and every block.
+@ask Which cluster puts more pressure on the NameNode?
+@choice The big file, because it is larger | The disk space is the same, but the NameNode counts records, not bytes. One big file is only about 8,000 blocks. Try again.
+@choice They are the same, because both hold 1 TB | The bytes are the same, the number of records is not. Try again.
+@choice * The ten million small files: more than a thousand times as many records to remember | Yes. 1 TB in 128 MB blocks is about 8,192 blocks, against 10,000,000 files each with a block of its own. The NameNode can run out of memory long before the disks fill up.
+@teacher That is the small-files problem. The cure is to merge small files into big ones (compaction) before they pile up.
+:::
 
 **The small-files problem.** The NameNode keeps one in-memory object per file, per directory and per block; a commonly quoted rule of thumb is about **150 bytes** each. The lab's `metadata_objects` makes the consequence visible. One terabyte stored as 1 GiB files is 1,024 files with 8 blocks each: **9,216 objects**, about 1.4 MB of NameNode memory. The same terabyte stored as 1 MiB files is **2,097,152 objects**, about **300 MB**, which is 227 times more, for identical data. Tens of millions of tiny files can exhaust the NameNode's memory and take down the whole cluster (see the chaos scenario). HDFS is built for **few, large files**.
 
@@ -94,6 +112,15 @@ The classic example is counting words. The input is split into pieces (one per b
 ```
 input splits --> MAP --> (key,value) pairs --> SHUFFLE (group by key, send to reducers) --> REDUCE --> output
 ```
+
+:::talk Same word, same reducer
+@teacher Three machines each count words in their own part of a book. All three found the word "coffee": 4 times on the first machine, 7 on the second, 2 on the third. Now the partial counts are sent to 2 reducer machines to be added up.
+@ask What must the shuffle guarantee for the total of "coffee" to come out right?
+@choice * Every pair with the key "coffee" goes to the same reducer, so one machine sees all of its counts | Yes. If the pairs were scattered at random, each reducer would add only some of them, and "coffee" would end up with two partial totals. The partitioner sends a key to a fixed reducer, for example by hashing it.
+@choice Each machine sends "coffee" to a random reducer, to balance the load | Random placement splits one word's counts over several reducers, so none of them can give the true total. Try again.
+@choice Nothing: the map step can already add up all machines | A mapper only sees its own part of the book. It cannot know the other machines' counts. Try again.
+@teacher The shuffle is the expensive heart of MapReduce: it moves data across the network so that everything with the same key meets in one place.
+:::
 
 Which reducer gets which key? A **partitioner**: `hash(key) % number_of_reducers`. It must give the same answer on every machine, so a stable hash is used (the lab uses **CRC32**, Cyclic Redundancy Check 32-bit, via `zlib.crc32` — a fast deterministic algorithm that turns any byte string into the same integer `0..2**32 - 1` on every computer; Python's built-in `hash()` randomises its seed between runs and would send the same key to different reducers). Everything about partition imbalance (**skew**, studied in depth in Module 3.1) starts here: one very common key sends all its pairs to a single reducer.
 
