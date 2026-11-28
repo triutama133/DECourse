@@ -58,6 +58,15 @@ No single check catches everything, so quality is built as layers, each catching
 | **4. Monitoring** | Watch the data after the fact for anomalies in freshness, volume, schema and distribution | Silent problems nobody wrote a test for | Anomaly detection, observability tools |
 | **5. Human process** | Ownership, alerts that reach someone, runbooks, post-incident review | Everything that slipped through | On-call, incident process, SLAs |
 
+:::talk What a row-by-row gate cannot see
+@teacher Your gate checks each order row on its own: the total must be a whole number and the timestamp must be real. After the gate, 3,539 orders are accepted. But 34 of them are second copies of an order id that was already accepted.
+@ask Why did the gate let the copies through?
+@choice The gate rules were set too loosely | Tightening the per-row rules would change nothing: each copy is a perfectly valid row. Try again.
+@choice * Each copy is valid on its own: only a check that compares rows, such as "order_id is unique", can see them | Yes. Some problems live between rows, not inside one. That is why quality needs several layers, and why the next layer checks uniqueness and relationships.
+@choice Duplicates cannot be detected by software | They can, with one `GROUP BY order_id HAVING COUNT(*) > 1`. You just need a check that looks at more than one row. Try again.
+@teacher Quality is a stack: strict rules at the door, then tests across rows and tables, then monitoring of whole days.
+:::
+
 Two facts to keep in mind. First, **tests catch the problems you thought of; monitoring catches the ones you did not.** A schema test cannot warn you that one third of the orders vanished because of a checkout bug; a volume monitor can. Second, **a check is only useful if it is wired to action**: a failing test that nobody sees is decoration. Decide for each check whether it should *block* (stop the pipeline so bad data does not spread), *warn* (alert and continue) or only *record*.
 
 The lab builds layers 1 to 4 in miniature, in one gate.
@@ -455,6 +464,15 @@ Expand, migrate, contract keeps both columns alive during the move, so every con
 ## @lesson Data ethics, re-identification, and data as a product
 *Fundamentals of Data Engineering* lists **ethics and privacy** under data management, an undercurrent of every stage: the question is not only "may we, by law?" but "should we, and what could go wrong for the people in this data?" Lesson 8 covered the legal side (pseudonymisation, erasure under GDPR and Indonesia's UU PDP). This lesson covers three things the law does not do for you.
 
+:::talk No names, so nobody can find her?
+@teacher You share a customer table with the names and emails removed. It keeps only `city`, `tier` and the exact `signup_date`. In the real data of 1,000 customers, 846 are the only person with their combination of those three values. A neighbour knows you live in Bandung, are a Gold member, and signed up on 14 January.
+@ask Can the neighbour find your row?
+@choice No, because the table has no names or emails | Names are not the only identifier. A rare combination of ordinary details can point at exactly one person. Try again.
+@choice Only if the neighbour is a data engineer | No special skill is needed: it is a lookup of three values. Try again.
+@choice * Yes: that combination is probably unique, so one row matches | Yes. This is re-identification: 846 of the 1,000 customers could be found this way with details a friend or neighbour already knows.
+@teacher Removing names is the start, not the end. Count how many people share each combination of the columns you release, and coarsen them (a month instead of a date) until nobody is alone.
+:::
+
 **1. Removing names does not make data anonymous.** A table without names or emails can still point at one person through **quasi-identifiers**: ordinary columns such as city, birth date, gender or signup date that are harmless alone and identifying together. Latanya Sweeney showed in 2000 that ZIP code, birth date and sex alone were enough to single out about 87% of the US population. The standard test is **k-anonymity**: every combination of quasi-identifiers in a released table must be shared by at least *k* people. Before you hand a "de-identified" extract to a partner, a vendor or a public dashboard, count the groups; if some are smaller than *k*, coarsen the columns (month instead of date, region instead of city) or drop them.
 
 **2. Ethics questions a data engineer can actually ask.**
@@ -500,6 +518,15 @@ Good data teams start every pipeline with **three short alignment artifacts**, a
 | **1. Stakeholder Requirements Spec** | Who is the decision-maker, what concrete action will they take when the number changes, and what freshness SLA do they actually need? | **Owner:** Head of Café Operations.<br/>**Action:** Reallocate morning baristas and trigger win-back vouchers when a store's repeat-order rate drops.<br/>**Freshness SLA:** Daily by `06:00 WIB` (batch ELT; a 10× more expensive Kafka stream is unnecessary). |
 | **2. Leading vs. Lagging KPI Tree** | Which metrics measure past outcomes (*lagging*) versus early warning signals we can still influence (*leading*)? | **Lagging KPI:** Monthly Customer Churn Rate (`% of customers with 0 orders in 30 days`).<br/>**Leading KPIs:** `% of orders delayed > 15 min` and `Repeat complaints within 24 hours` (they move before churn does, so the team can still act). |
 | **3. Target Table Grain & RACI Contract** | What does **one row** represent, what is the primary key, and who is **R**esponsible, **A**ccountable, **C**onsulted, and **I**nformed when upstream schemas change? | **Target Table:** `mart_daily_store_retention`<br/>**Grain:** One row per `(store_id, order_date)`.<br/>**Net Revenue Formula:** `SUM(gross_idr - discount_idr - tax_idr)` where `status IN ('paid', 'shipped', 'delivered')`. |
+
+:::talk Best customers
+@teacher The Marketing Director writes: "Can I get a table of our best customers and their revenue?" It sounds simple, and you can already see the SQL in your head.
+@ask What is the best first move?
+@choice Write the query for the top customers by total spend, and send it | You would be guessing three things: what "best" means, which period, and what counts as revenue. A wrong guess can cost a week. Try again.
+@choice Refuse until she writes a complete specification | That helps nobody: she does not know what you need to know. Ask the questions yourself. Try again.
+@choice * Ask a few short questions first: what does "best" mean, over which period, at which grain, and what will she do with the list | Yes. "Best" may mean highest spend, most orders or most recent. The answers change the query completely, and what she plans to do with the list tells you what she really needs.
+@teacher Five minutes of questions can save a week of rework. Write the answers down as the contract before you write the SQL.
+:::
 
 **The Five-Question Intake Checklist.** Before you accept any data ticket in your first 90 days on the job, ask:
 1. **Decision:** *"If this metric goes up or down by 20% tomorrow morning, what specific action will your team take?"* (If the answer is *"nothing, it's just nice to see"*, deprioritize it.)

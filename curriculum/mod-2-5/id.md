@@ -58,6 +58,15 @@ Tidak ada satu jenis assertion pun yang mampu menangkap semua ragam cacat data. 
 | **4. Observability Monitoring** | Memantau karakteristik dataset secara holistik pasca-load: anomali kesegaran waktu, lonjakan/penurunan volume, drift skema, dan pergeseran distribusi | Masalah sistemik yang tidak tertulis di dalam unit test | Deteksi anomali statistik, platform data observability |
 | **5. Human Process & Governance** | Kepemilikan dataset eksplisit, perutean alert on-call, dokumentasi runbook perbaikan, dan evaluasi pasca-insiden (post-mortem) | Masalah tersembunyi yang lolos dari seluruh filter otomatis | Tim on-call, proses eskalasi insiden, kesepakatan SLA |
 
+:::talk Yang tidak bisa dilihat gerbang baris-demi-baris
+@teacher Gerbang Anda memeriksa setiap baris pesanan sendiri-sendiri: total harus bilangan bulat dan timestamp harus nyata. Setelah gerbang, 3.539 pesanan diterima. Tetapi 34 di antaranya adalah salinan kedua dari order id yang sudah diterima.
+@ask Mengapa gerbang meloloskan salinan itu?
+@choice Aturan gerbang diatur terlalu longgar | Memperketat aturan per baris tidak mengubah apa-apa: setiap salinan adalah baris yang sah sepenuhnya. Coba lagi.
+@choice * Setiap salinan sah dengan sendirinya: hanya pemeriksaan yang membandingkan baris, seperti "order_id unik", yang bisa melihatnya | Betul. Sebagian masalah hidup di antara baris, bukan di dalam satu baris. Karena itu kualitas butuh beberapa lapisan, dan karena itu lapisan berikutnya memeriksa keunikan dan hubungan.
+@choice Duplikat tidak bisa dideteksi oleh perangkat lunak | Bisa, dengan satu `GROUP BY order_id HAVING COUNT(*) > 1`. Anda hanya butuh pemeriksaan yang melihat lebih dari satu baris. Coba lagi.
+@teacher Kualitas adalah tumpukan: aturan ketat di pintu, lalu tes lintas baris dan tabel, lalu pemantauan seluruh hari.
+:::
+
 Dua hukum fundamental yang wajib Anda pegang teguh: Pertama, **unit test menangkap masalah yang sudah Anda antisipasi di pikiran Anda; monitoring menangkap anomali yang sama sekali tidak terpikirkan sebelumnya.** Test skema kolom tidak akan pernah berbunyi jika sepertiga transaksi tiba-tiba menghilang karena bug di payment gateway; tetapi volume monitor akan langsung membunyikan alarm. Kedua, **sebuah pengecekan kualitas hanya berguna jika ia terhubung ke tindakan nyata**: test yang gagal namun diabaikan di kanal Slack hanyalah hiasan visual. Tentukan untuk setiap check: apakah ia harus *memblokir (block)* pipeline agar data busuk tidak menyebar ke dashboard, memberi *peringatan (warn)* dan lanjut jalan, atau sekadar dicatat ke dalam log audit.
 
 Dalam lab modul ini, Anda akan membangun layer 1 hingga 4 secara mandiri ke dalam sebuah arsitektur quality gate yang utuh.
@@ -455,6 +464,15 @@ Expand, migrate, contract menjaga kedua kolom tetap hidup selama pemindahan, seh
 ## @lesson Etika data, re-identifikasi, dan data sebagai produk
 *Fundamentals of Data Engineering* menaruh **etika dan privasi** di bawah data management, undercurrent di setiap tahap: pertanyaannya bukan hanya "bolehkah menurut hukum?" tetapi "pantaskah, dan apa yang bisa salah bagi orang-orang di dalam data ini?" Pelajaran 8 membahas sisi hukumnya (pseudonimisasi, penghapusan menurut GDPR dan UU PDP Indonesia). Pelajaran ini membahas tiga hal yang tidak dikerjakan hukum untuk Anda.
 
+:::talk Tanpa nama, jadi tidak ada yang bisa menemukannya?
+@teacher Anda membagikan tabel pelanggan dengan nama dan email dihapus. Isinya hanya `city`, `tier`, dan `signup_date` yang persis. Pada data nyata 1.000 pelanggan, 846 di antaranya adalah satu-satunya orang dengan kombinasi ketiga nilai itu. Seorang tetangga tahu Anda tinggal di Bandung, anggota Gold, dan mendaftar pada 14 Januari.
+@ask Apakah tetangga itu bisa menemukan baris Anda?
+@choice Tidak, karena tabelnya tidak punya nama atau email | Nama bukan satu-satunya pengenal. Kombinasi langka dari detail biasa bisa menunjuk tepat satu orang. Coba lagi.
+@choice Hanya kalau tetangga itu seorang data engineer | Tidak perlu keahlian khusus: itu hanya pencarian tiga nilai. Coba lagi.
+@choice * Ya: kombinasi itu kemungkinan unik, sehingga satu baris cocok | Betul. Inilah re-identifikasi: 846 dari 1.000 pelanggan bisa ditemukan dengan cara ini memakai detail yang sudah diketahui teman atau tetangga.
+@teacher Menghapus nama adalah awal, bukan akhir. Hitung berapa orang yang berbagi setiap kombinasi kolom yang Anda rilis, lalu kasarkan (bulan, bukan tanggal) sampai tidak ada yang sendirian.
+:::
+
 **1. Menghapus nama tidak membuat data anonim.** Tabel tanpa nama atau email tetap bisa menunjuk ke satu orang lewat **quasi-identifier**: kolom biasa seperti kota, tanggal lahir, jenis kelamin, atau tanggal daftar yang tidak berbahaya sendiri-sendiri tetapi mengidentifikasi bila digabung. Latanya Sweeney menunjukkan pada tahun 2000 bahwa kode pos, tanggal lahir, dan jenis kelamin saja sudah cukup untuk mengenali sekitar 87% penduduk AS. Uji standarnya adalah **k-anonymity**: setiap kombinasi quasi-identifier dalam tabel yang dirilis harus dimiliki oleh minimal *k* orang. Sebelum Anda menyerahkan ekstrak "tanpa identitas" ke mitra, vendor, atau dashboard publik, hitung kelompoknya; jika ada yang lebih kecil dari *k*, kasarkan kolomnya (bulan alih-alih tanggal, wilayah alih-alih kota) atau buang.
 
 **2. Pertanyaan etika yang benar-benar bisa diajukan data engineer.**
@@ -500,6 +518,15 @@ Tim data yang baik memulai setiap pipeline dengan **tiga dokumen penyelarasan si
 | **1. Spesifikasi Kebutuhan Stakeholder** | Siapa pengambil keputusannya, tindakan nyata apa yang akan diambil saat angkanya berubah, dan berapa SLA kesegaran data yang benar-benar dibutuhkan? | **Pemilik:** Head of Café Operations.<br/>**Tindakan:** Menambah jadwal barista pagi dan mengirim voucher otomatis saat rasio pembelian ulang cabang turun.<br/>**SLA Kesegaran:** Harian pukul `06:00 WIB` (batch ELT; streaming Kafka yang 10× lebih mahal tidak diperlukan). |
 | **2. Pohon KPI Leading vs. Lagging** | Metrik mana yang mengukur hasil akhir di masa lalu (*lagging*) versus sinyal peringatan dini yang masih bisa dicegah (*leading*)? | **Lagging KPI:** Rasio Churn Bulanan (`% pelanggan dengan 0 pesanan dalam 30 hari`).<br/>**Leading KPI:** `% pesanan terlambat > 15 menit` dan `Keluhan berulang dalam 24 jam` (keduanya bergerak sebelum churn terjadi, jadi tim masih sempat bertindak). |
 | **3. Kontrak Grain Tabel Target & RACI** | Apa arti **satu baris** pada tabel target, apa primary key-nya, dan siapa yang **R**esponsible, **A**ccountable, **C**onsulted, dan **I**nformed saat skema hulu berubah? | **Tabel Target:** `mart_daily_store_retention`<br/>**Grain:** Satu baris per `(store_id, order_date)`.<br/>**Rumus Omzet Bersih:** `SUM(gross_idr - discount_idr - tax_idr)` untuk `status IN ('paid', 'shipped', 'delivered')`. |
+
+:::talk Pelanggan terbaik
+@teacher Direktur Pemasaran menulis: "Bisakah saya mendapat tabel pelanggan terbaik kita beserta pendapatannya?" Kedengarannya sederhana, dan Anda sudah bisa melihat SQL-nya di kepala.
+@ask Apa langkah pertama yang terbaik?
+@choice Menulis query untuk pelanggan teratas menurut total belanja, lalu mengirimnya | Anda akan menebak tiga hal: apa arti "terbaik", periode mana, dan apa yang dihitung sebagai pendapatan. Tebakan yang salah bisa memakan seminggu. Coba lagi.
+@choice Menolak sampai ia menulis spesifikasi lengkap | Itu tidak membantu siapa pun: ia tidak tahu apa yang perlu Anda ketahui. Ajukan sendiri pertanyaannya. Coba lagi.
+@choice * Mengajukan beberapa pertanyaan singkat dulu: apa arti "terbaik", selama periode apa, pada grain apa, dan apa yang akan ia lakukan dengan daftar itu | Betul. "Terbaik" bisa berarti belanja tertinggi, pesanan terbanyak, atau paling baru. Jawabannya mengubah query sepenuhnya, dan rencananya untuk daftar itu memberi tahu apa yang sebenarnya ia butuhkan.
+@teacher Lima menit pertanyaan bisa menghemat seminggu pekerjaan ulang. Tulis jawabannya sebagai kontrak sebelum Anda menulis SQL.
+:::
 
 **Daftar Periksa 5 Pertanyaan Sebelum Menerima Tiket Data.** Pada 90 hari pertama Anda bekerja, tanyakan lima hal ini sebelum menulis kode:
 1. **Keputusan:** *"Jika angka metrik ini naik atau turun 20% besok pagi, tindakan spesifik apa yang akan diambil tim Anda?"* (Jika jawabannya *"tidak ada, sekadar ingin tahu"*, turunkan prioritasnya.)
