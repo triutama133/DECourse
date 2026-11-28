@@ -167,6 +167,15 @@ A document database stores **documents**, usually JSON (MongoDB stores a binary 
 
 The whole order, with its lines, is **one document**: you read and write it in one operation, with no join. That is the central modelling choice, **embedding versus referencing**. Embed data that is read together and belongs to the parent (order lines in an order). Reference (store an id) data that is shared or grows without limit, as with all orders of a customer, which would make a single customer document grow forever.
 
+:::talk Two names for the same thing
+@teacher A document database accepts any shape. For two years the orders documents have a field `total`. A developer, in a hurry, starts writing new documents with the field `amount` instead. The database accepts them without a word.
+@ask What happens to a report that sums `total`?
+@choice The database stops the report with an error about the unknown field | With no enforced schema, there is nothing to complain about: both shapes are valid documents. Try again.
+@choice The database converts `amount` into `total` automatically | The database does not guess that two names mean the same thing. Try again.
+@choice * It silently counts only the old documents, so revenue drops from the day the change shipped | Yes. Nothing failed, the numbers are just wrong. The schema did not disappear, it moved into every reader's head, which is why the checks of Module 1.6 on schema drift matter.
+@teacher "Schema-less" really means "schema on read": whoever reads the data must be ready for every shape it has ever had.
+:::
+
 The database has **no enforced schema by default**; the structure is whatever the application wrote. This is **schema on read**, the same idea as Hive (Module 3.0). It is fast to start and dangerous later: a field spelled two ways, a number stored as text in some documents, a field missing in old ones. Validation rules exist, but you must turn them on.
 
 You query with a document-shaped language: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (the lab's `DocumentStore.find` supports dotted paths and the operators `$gt $gte $lt $lte $ne $in`). **Indexes** matter exactly as in SQL: without one, a query **scans every document**. Finding one user among 10,000 documents scans **10,000** documents without an index versus only the matching documents (e.g., **10**) with one; the lab's `TestDocumentStore` checks this directly on a 4-document fixture (`last_scanned` drops from **4** to **1**). An aggregation pipeline (filter, group, sort, project in stages) covers analytics-style questions, and since version 4.0 MongoDB supports multi-document transactions, though the design goal remains keeping related data in one document.
@@ -203,6 +212,15 @@ The lab's `WideColumnTable("customer_id", "order_ts")` models this: all orders o
 **How partitions are placed.** The naive way is `hash(key) % number_of_nodes`, but when you add one node almost every key moves. Measuring on 10,000 keys going from 4 to 5 nodes, **modulo hashing moves 79.5% of the keys**. **Consistent hashing** puts nodes (and many *virtual* positions per node) on a ring; a key belongs to the next node clockwise. In Python, `zlib.crc32(text.encode())` turns any string deterministically into a 32-bit integer (`0` to `2**32 - 1`), and Python's built-in `bisect` module (`bisect` or `bisect_left` on a sorted list of `(position, node)` tuples) finds the first position `>= target` using binary search in O(log n) (halving the remaining list each step, about 10 steps for 1,000 entries), wrapping back to index `0` if `target` is past the largest position. Adding a node takes over only its share: on those 10,000 keys `HashRing` moves **19.9%**, about one fifth, and every moved key goes to the new node (and `test_lab.py` checks on 3,000 keys that movement stays within 10%–32%). Virtual nodes matter for balance: with one position per node three nodes held 0.2%, 99.4% and 0.4% of 10,000 keys; with 200 positions each they held 28%, 33% and 39%.
 
 ### See it: why modulo placement is a trap
+
+:::talk Adding one server
+@teacher Twelve keys, numbered 1 to 12, are spread over 3 servers with `key % 3`. Traffic grows, so you add a fourth server and the rule becomes `key % 4`. Key 1 stays on server 1, key 2 stays on server 2, and key 12 stays on server 0.
+@ask Roughly how many of the 12 keys end up on a different server?
+@choice None, because the old servers keep their keys | The rule changed from `% 3` to `% 4`, so most keys now map somewhere else. Try again.
+@choice * Nine of the twelve: almost every key moves | Yes. Only keys 1, 2 and 12 keep their server. In a real cluster that means nearly the whole data set must be copied around just because one server joined.
+@choice Three of the twelve, one quarter, to fill the new server | That would be the ideal. But the modulo rule reshuffles keys between the old servers too. Try again.
+@teacher Consistent hashing fixes this: when a server joins, it takes over only about 1/N of the keys, and everyone else keeps theirs.
+:::
 
 Six keys on 3 nodes. We add a fourth node and see where each key goes (the index stands in for the key's hash):
 
@@ -243,6 +261,15 @@ On the ring each key belongs to the next node clockwise. A new node takes over o
 **What goes wrong:** a **hot partition** (one partition key receiving most of the traffic, such as the current date) overloads one machine while the others sleep; a partition that grows without bound; and queries that need a full scan. **DynamoDB** adds managed operation and a hard limit of 400 KB per item, and you pay by capacity or by request.
 
 ### Quorum in one line
+
+:::talk Reading from one server
+@teacher Three servers each keep a copy of the data (N = 3). A write is acknowledged as soon as W servers have stored it, and a read asks R servers and takes the newest answer. Right now W = 1 and R = 1. A write lands on server A and is acknowledged. Servers B and C have not received it yet. A read arrives and asks server B.
+@ask What does the read return?
+@choice * The old value: B has not received the write, and asking one server cannot reveal that | Yes. With W + R = 2, which is not more than N = 3, a read can land on servers that never saw the write.
+@choice The new value, because the write was acknowledged | "Acknowledged" meant one server had it, not all three. B has not heard yet. Try again.
+@choice An error, because the servers disagree | Nothing notices a disagreement when only one server is asked. Try again.
+@teacher Make the sets overlap: with W = 2 and R = 2 (so W + R = 4, more than N = 3), every read asks at least one server that holds the latest write.
+:::
 
 With `N` replicas, a write acknowledged by `W` of them, and a read that asks `R` of them, a read is **guaranteed** to see the latest acknowledged write when the read set and the write set must overlap: `R + W > N`.
 

@@ -167,6 +167,15 @@ Database dokumen menyimpan **dokumen**, biasanya JSON (MongoDB menyimpan bentuk 
 
 Seluruh pesanan, beserta barisnya, adalah **satu dokumen**: Anda membaca dan menulisnya dalam satu operasi, tanpa join. Itulah pilihan pemodelan utama, **embedding versus referencing**. Embed data yang dibaca bersama dan milik induknya (baris pesanan di dalam pesanan). Referensikan (simpan sebuah id) data yang dipakai bersama atau tumbuh tanpa batas, seperti semua pesanan seorang pelanggan, yang akan membuat satu dokumen pelanggan tumbuh selamanya.
 
+:::talk Dua nama untuk hal yang sama
+@teacher Sebuah database dokumen menerima bentuk apa pun. Selama dua tahun dokumen pesanan punya field `total`. Seorang developer yang terburu-buru mulai menulis dokumen baru dengan field `amount`. Database menerimanya tanpa sepatah kata.
+@ask Apa yang terjadi pada laporan yang menjumlahkan `total`?
+@choice Database menghentikan laporan dengan error tentang field yang tidak dikenal | Tanpa skema yang ditegakkan, tidak ada yang bisa mengeluh: kedua bentuk adalah dokumen yang sah. Coba lagi.
+@choice Database mengubah `amount` menjadi `total` secara otomatis | Database tidak menebak bahwa dua nama berarti hal yang sama. Coba lagi.
+@choice * Laporan diam-diam hanya menghitung dokumen lama, sehingga pendapatan turun sejak hari perubahan itu dirilis | Betul. Tidak ada yang gagal, angkanya saja yang salah. Skema tidak hilang, ia pindah ke kepala setiap pembaca, itulah mengapa pemeriksaan schema drift di Modul 1.6 penting.
+@teacher "Tanpa skema" sebenarnya berarti "skema saat dibaca": siapa pun yang membaca data harus siap menghadapi setiap bentuk yang pernah ada.
+:::
+
 Database ini **tidak menegakkan skema secara bawaan**; strukturnya adalah apa pun yang ditulis aplikasi. Ini **schema on read**, gagasan yang sama dengan Hive (Modul 3.0). Cepat untuk memulai dan berbahaya kemudian: field yang dieja dua cara, angka yang disimpan sebagai teks di sebagian dokumen, field yang hilang di dokumen lama. Aturan validasi ada, tetapi Anda harus mengaktifkannya.
 
 Anda mengkueri dengan bahasa berbentuk dokumen: `{"customer.city": "Jakarta", "total": {"$gte": 100000}}` (`DocumentStore.find` di lab mendukung path bertitik dan operator `$gt $gte $lt $lte $ne $in`). **Index** penting persis seperti di SQL: tanpanya, sebuah query **memindai setiap dokumen**. Mencari satu pengguna di antara 10.000 dokumen memindai **10.000** dokumen tanpa index dibanding hanya dokumen yang cocok (misalnya **10**) dengan index; `TestDocumentStore` di lab memverifikasi hal ini langsung pada fixture 4 dokumen (`last_scanned` turun dari **4** menjadi **1**). Aggregation pipeline (filter, group, sort, project secara bertahap) mencakup pertanyaan bergaya analitik, dan sejak versi 4.0 MongoDB mendukung transaksi multi-dokumen, meskipun tujuan desainnya tetap menyimpan data terkait dalam satu dokumen.
@@ -203,6 +212,15 @@ Cassandra, ScyllaDB, DynamoDB, Bigtable, dan HBase dibangun untuk menyebar data 
 **Bagaimana partisi ditempatkan.** Cara naifnya `hash(key) % jumlah_node`, tetapi saat Anda menambah satu node hampir semua key berpindah. Saat diukur pada 10.000 key dari 4 ke 5 node, **modulo hashing memindahkan 79,5% key**. **Consistent hashing** menaruh node (dan banyak posisi *virtual* per node) pada sebuah cincin; sebuah key menjadi milik node berikutnya searah jarum jam. Di Python, `zlib.crc32(text.encode())` mengubah string apa pun secara deterministik menjadi integer 32-bit (`0` sampai `2**32 - 1`), dan modul bawaan Python `bisect` (`bisect` atau `bisect_left` pada list terurut berisi tuple `(position, node)`) menemukan posisi pertama `>= target` menggunakan binary search dalam O(log n) (membelah dua sisa list di tiap langkah, sekitar 10 langkah untuk 1.000 entri), lalu memutar kembali ke indeks `0` bila `target` melampaui posisi terbesar. Menambah node hanya mengambil bagiannya: pada 10.000 key tersebut `HashRing` memindahkan **19,9%**, sekitar seperlima, dan setiap key yang pindah menuju node baru (dan `test_lab.py` memverifikasi pada 3.000 key bahwa perpindahan tetap di kisaran 10%–32%). Virtual node penting untuk keseimbangan: dengan satu posisi per node, tiga node memegang 0,2%, 99,4%, dan 0,4% dari 10.000 key; dengan 200 posisi masing-masing mereka memegang 28%, 33%, dan 39%.
 
 ### Lihat sendiri: mengapa penempatan modulo adalah jebakan
+
+:::talk Menambah satu server
+@teacher Dua belas kunci, bernomor 1 sampai 12, disebar ke 3 server dengan `key % 3`. Lalu lalu lintas bertambah, sehingga Anda menambah server keempat dan aturannya menjadi `key % 4`. Kunci 1 tetap di server 1, kunci 2 tetap di server 2, dan kunci 12 tetap di server 0.
+@ask Kira-kira berapa dari 12 kunci itu yang berpindah ke server lain?
+@choice Tidak ada, karena server lama mempertahankan kuncinya | Aturannya berubah dari `% 3` menjadi `% 4`, jadi sebagian besar kunci sekarang dipetakan ke tempat lain. Coba lagi.
+@choice * Sembilan dari dua belas: hampir setiap kunci berpindah | Betul. Hanya kunci 1, 2, dan 12 yang tetap di servernya. Di klaster sungguhan itu berarti hampir seluruh data harus disalin hanya karena satu server bergabung.
+@choice Tiga dari dua belas, seperempatnya, untuk mengisi server baru | Itu yang ideal. Tetapi aturan modulo mengocok kunci di antara server lama juga. Coba lagi.
+@teacher Consistent hashing memperbaikinya: ketika sebuah server bergabung, ia hanya mengambil sekitar 1/N kunci, dan yang lain mempertahankan kuncinya.
+:::
 
 Enam key di 3 node. Kita menambah node keempat dan melihat ke mana setiap key pergi (indeks mewakili hash key):
 
@@ -243,6 +261,15 @@ Di cincin, setiap key milik node berikutnya searah jarum jam. Node baru hanya me
 **Apa yang salah:** **hot partition** (satu partition key menerima sebagian besar lalu lintas, seperti tanggal hari ini) membebani satu mesin sementara yang lain tidur; partisi yang tumbuh tanpa batas; dan query yang butuh pemindaian penuh. **DynamoDB** menambah operasi terkelola dan batas keras 400 KB per item, dan Anda membayar menurut kapasitas atau per permintaan.
 
 ### Quorum dalam satu baris
+
+:::talk Membaca dari satu server
+@teacher Tiga server masing-masing menyimpan salinan data (N = 3). Sebuah penulisan dikonfirmasi begitu W server menyimpannya, dan sebuah pembacaan bertanya ke R server lalu mengambil jawaban terbaru. Saat ini W = 1 dan R = 1. Sebuah penulisan mendarat di server A dan dikonfirmasi. Server B dan C belum menerimanya. Lalu sebuah pembacaan datang dan bertanya ke server B.
+@ask Apa yang dikembalikan pembacaan itu?
+@choice * Nilai lama: B belum menerima penulisan itu, dan bertanya ke satu server tidak bisa mengungkapkannya | Betul. Dengan W + R = 2, yang tidak lebih besar dari N = 3, sebuah pembacaan bisa mendarat di server yang tidak pernah melihat penulisan itu.
+@choice Nilai baru, karena penulisannya sudah dikonfirmasi | "Dikonfirmasi" berarti satu server sudah menyimpannya, bukan ketiganya. B belum tahu. Coba lagi.
+@choice Error, karena server-servernya tidak sepakat | Tidak ada yang menyadari ketidaksepakatan kalau hanya satu server yang ditanya. Coba lagi.
+@teacher Buat himpunannya saling tumpang tindih: dengan W = 2 dan R = 2 (jadi W + R = 4, lebih dari N = 3), setiap pembacaan bertanya ke setidaknya satu server yang memegang penulisan terbaru.
+:::
 
 Dengan `N` replika, penulisan yang diakui oleh `W` di antaranya, dan pembacaan yang bertanya ke `R` di antaranya, pembacaan **dijamin** melihat penulisan terakhir yang diakui ketika himpunan baca dan himpunan tulis harus beririsan: `R + W > N`.
 
