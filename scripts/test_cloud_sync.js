@@ -47,6 +47,12 @@ const get = (core, key) => JSON.parse(core.storage.getItem(key));
     const m = mergeSnapshots({ d: { v: "my draft", t: 8 } }, { d: { v: "other draft", t: 2 } });
     assert.strictEqual(m.d.v, "my draft");
   });
+  await t("the same data with its keys in another order is not a difference", () => {
+    const L = { k: { v: '{"a":[1],"b":2}', t: 5 } }; const R = { k: { v: '{"b":2,"a":[1]}', t: 9 } };
+    const m = mergeSnapshots(L, R);
+    assert.strictEqual(m.k.v, R.k.v);
+    assert.strictEqual(lib.stable(m), lib.stable(R));
+  });
   await t("device settings and pasted terminal text are never synced", () => {
     for (const k of ["df_theme", "df_lang", "df_sound", "df_a11y_large", "df_focus_mode", "df_tryit_paste", "df_visited", "df_tutor_model", "df__cloud_session", "other"]) assert.strictEqual(isSyncable(k), false, k);
     for (const k of ["df_lessons_done", "df_drills", "df_quiz_scores", "df_bl_mod-0-0", "df_streak"]) assert.strictEqual(isSyncable(k), true, k);
@@ -92,6 +98,19 @@ const get = (core, key) => JSON.parse(core.storage.getItem(key));
     assert.strictEqual(B.storage.getItem("df_theme"), null);
   });
 
+  await t("two devices settle: after they have exchanged progress, further syncs write nothing and change nothing", async () => {
+    const A = make(); const B = make();
+    await A.signIn("budi@x.id", "password1"); await B.signIn("budi@x.id", "password1");
+    put(A, "df_drills", { x: { passed: 1 }, y: { passed: 2 } });
+    put(B, "df_drills", { z: { passed: 3 }, y: { passed: 2 } });
+    await A.sync(); await B.sync(); await A.sync(); await B.sync();
+    const writes = () => mock.state.log.filter((l) => l.startsWith("PATCH") || l.startsWith("POST /rest")).length;
+    const before = writes();
+    const r1 = await A.sync(); const r2 = await B.sync(); const r3 = await A.sync();
+    assert.strictEqual(writes(), before, "no more writes");
+    assert.deepStrictEqual([r1.changed, r2.changed, r3.changed], [[], [], []], "no more local changes (so no needless reloads)");
+    assert.strictEqual(lib.canon(get(A, "df_drills")), lib.canon(get(B, "df_drills")));
+  });
   await t("a second sync with nothing new writes nothing", async () => {
     const A = make(); await A.signIn("budi@x.id", "password1");
     await A.sync();

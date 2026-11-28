@@ -32,7 +32,17 @@
   function isSyncable(key) { return typeof key === "string" && key.startsWith("df_") && !NOT_SYNCED.test(key); }
 
   const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-  function sameJson(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+  // The same data can be written with its keys in a different order; that is not a difference.
+  function canon(v) {
+    if (Array.isArray(v)) return "[" + v.map(canon).join(",") + "]";
+    if (isObj(v)) return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}";
+    return JSON.stringify(v);
+  }
+  function sameJson(a, b) { return canon(a) === canon(b); }
+  function sameRaw(a, b) {   // two stored strings: equal text, or equal JSON data
+    if (a === b) return true;
+    try { return sameJson(JSON.parse(a), JSON.parse(b)); } catch (e) { return false; }
+  }
 
   // ---- merge (pure) --------------------------------------------------------------------------------------------
   function mergeValue(a, b, preferA) {
@@ -66,15 +76,23 @@
       let pa; let pb; let ok = true;
       try { pa = JSON.parse(L.v); pb = JSON.parse(R.v); } catch (e) { ok = false; }
       const localNewer = (L.t || 0) > (R.t || 0);   // a tie goes to the online copy
-      if (ok) out[key] = { v: JSON.stringify(mergeValue(pa, pb, localNewer)), t };
-      else out[key] = localNewer ? { v: L.v, t } : { v: R.v, t };
+      if (ok) {
+        const merged = mergeValue(pa, pb, localNewer);
+        const cm = canon(merged);
+        // when the result is just one of the two stored texts (only the key order differed), keep that text unchanged
+        out[key] = { v: cm === canon(pb) ? R.v : cm === canon(pa) ? L.v : JSON.stringify(merged), t };
+      } else out[key] = localNewer ? { v: L.v, t } : { v: R.v, t };
     }
     return out;
   }
 
   function stable(snap) {
     const o = {};
-    Object.keys(snap || {}).sort().forEach((k) => { o[k] = { v: snap[k].v, t: snap[k].t }; });
+    Object.keys(snap || {}).sort().forEach((k) => {
+      let v = snap[k].v;
+      try { v = canon(JSON.parse(v)); } catch (e) { /* plain text */ }
+      o[k] = { v, t: snap[k].t };
+    });
     return JSON.stringify(o);
   }
 
@@ -223,7 +241,8 @@
       const changed = [];
       for (const [k, e] of Object.entries(merged)) {
         if (!isSyncable(k)) continue;
-        if (this.storage.getItem(k) !== e.v) { this.storage.setItem(k, e.v); changed.push(k); }
+        const have = this.storage.getItem(k);
+        if (have === null || !sameRaw(have, e.v)) { this.storage.setItem(k, e.v); changed.push(k); }
         times[k] = e.t;
       }
       this._saveTimes(times);
@@ -380,6 +399,7 @@
     }
     let mode = "signin";   // signin | signup | newpass
     let note = ""; let noteBad = false; let working = false;
+    let draftEmail = "";   // the dialog is redrawn after every message; the typed email must survive that
     function setNote(t, bad) { note = t; noteBad = Boolean(bad); renderDialog(); }
     function value(id) { const i = doc.getElementById(id); return i ? i.value.trim() : ""; }
 
@@ -442,7 +462,7 @@
           form.append(el("div", { class: "cloud-tabs", role: "tablist" },
             el("button", { type: "button", role: "tab", "aria-selected": String(mode === "signin"), class: mode === "signin" ? "active" : "", text: T("Masuk", "Sign in"), onclick: () => { mode = "signin"; note = ""; renderDialog(); } }),
             el("button", { type: "button", role: "tab", "aria-selected": String(mode === "signup"), class: mode === "signup" ? "active" : "", text: T("Buat akun", "Create account"), onclick: () => { mode = "signup"; note = ""; renderDialog(); } })));
-          form.append(el("label", { for: "cloud-email", text: "Email" }), el("input", { id: "cloud-email", type: "email", autocomplete: "email", inputmode: "email", required: "" }));
+          form.append(el("label", { for: "cloud-email", text: "Email" }), el("input", { id: "cloud-email", type: "email", autocomplete: "email", inputmode: "email", required: "", value: draftEmail, oninput: (e) => { draftEmail = e.target.value; } }));
         }
         form.append(el("label", { for: "cloud-pass", text: mode === "newpass" ? T("Kata sandi baru", "New password") : T("Kata sandi (min. 8 karakter)", "Password (min. 8 characters)") }),
           el("input", { id: "cloud-pass", type: "password", autocomplete: mode === "signin" ? "current-password" : "new-password", minlength: "8", required: "" }),
@@ -490,5 +510,5 @@
     win.addEventListener("pagehide", () => { if (core.status === "pending") core.sync().catch(() => {}); });
   }
 
-  return { mergeValue, mergeSnapshots, isSyncable, CloudCore, boot, stable };
+  return { mergeValue, mergeSnapshots, isSyncable, CloudCore, boot, stable, canon };
 });
