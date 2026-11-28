@@ -387,7 +387,7 @@ Tiga aturan menyelamatkan banyak sore para pemula:
 
 1. **Selalu jalankan `python -m pip`, bukan `pip` saja.** Ini menjamin paket masuk ke Python yang sedang Anda pakai.
 2. **Jangan pernah `sudo pip install`.** Itu mengubah Python sistem dan bisa merusak alat sistem operasi.
-3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** (Git dan cara commit diajarkan berikutnya di Materi 5, untuk sekarang, "commit" berarti menyimpan file ke riwayat versi proyek Anda.) Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
+3. **Commit `requirements.txt`, jangan pernah folder `venv/`.** (Git dan cara commit diajarkan berikutnya di Materi 5; untuk sekarang, "commit" berarti menyimpan file ke riwayat versi proyek Anda.) Folder itu besar, spesifik untuk mesin Anda, dan bisa dibuat ulang dengan satu perintah: `python -m pip install -r requirements.txt`.
 
 Alat yang lebih baru (`uv`, `poetry`) mengerjakan hal yang sama dengan lebih cepat dan menambahkan lock file; konsepnya identik, jadi pelajari dulu dengan `venv`.
 
