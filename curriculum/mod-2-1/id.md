@@ -185,6 +185,15 @@ Operasi seluruh kolom menjalankan loop di dalam kode terkompilasi atas memori ya
 ## @lesson DuckDB: mesin analitik SQL langsung di dalam proses aplikasi
 **DuckDB** adalah basis data analitik OLAP yang berjalan **langsung di dalam proses Python Anda** (in-process), mirip seperti SQLite namun dirancang khusus untuk pemindaian data masif dan agregasi analitik (kolumnar, tervektorisasi, paralel). Anda tidak memerlukan server database terpisah, cukup pasang library dan langsung query file di disk:
 
+:::talk Database tanpa server
+@teacher Seorang pembelajar ingin menjalankan SQL pada file Parquet 2 GB di laptopnya. Seorang rekan berkata: "pakai saja DuckDB". Ia bertanya apakah ia harus memasang server database dulu dan memuat file ke dalamnya.
+@ask Apa jawabannya?
+@choice Ya: pasang server, buat tabel, dan muat file lebih dulu | Begitulah cara kerja database klasik, tetapi DuckDB berbeda. Coba lagi.
+@choice * Tidak: DuckDB berjalan di dalam proses Python-nya dan bisa mengquery file langsung, tanpa server dan tanpa langkah memuat | Betul. `duckdb.sql("SELECT ... FROM 'orders.parquet'")` hanya membaca kolom dan row group yang dibutuhkan. Karena itu ia cocok untuk file, notebook, dan tes.
+@choice Tidak, tetapi hanya untuk file di bawah 100 MB | Tidak ada batas semacam itu: DuckDB bisa menumpahkan ke disk untuk data yang lebih besar dari memori. Coba lagi.
+@teacher Database tertanam adalah pustaka, bukan layanan: mesinnya hidup di dalam program Anda.
+:::
+
 ```python
 import duckdb
 
@@ -271,6 +280,15 @@ q = (
 print(q.explain())      # Menampilkan rencana eksekusi teroptimasi
 df = q.collect()        # Eksekusi komputasi nyata
 ```
+
+:::talk Belum ada yang berjalan
+@teacher Di Polars Anda menulis: `q = pl.scan_parquet("events.parquet").filter(pl.col("status") == "delivered").select("payment_method", "total_idr")`. File itu punya 50 kolom dan 100 juta baris. Barisnya selesai seketika.
+@ask Apakah Polars sudah membaca datanya?
+@choice Ya, tetapi sangat cepat | Pemindaian 100 juta baris tidak seketika. Coba lagi.
+@choice * Belum: `scan_parquet` bersifat lazy, jadi `q` hanya sebuah rencana, dan pembacaan terjadi pada `.collect()` | Betul. Karena belum ada yang berjalan, optimiser masih bisa mendorong filter dan dua kolom itu ke dalam scan, sehingga sebagian besar file tidak pernah dibaca.
+@choice Ia baru membaca beberapa baris pertama untuk menebak tipe | Ia membaca footer file untuk skema, bukan datanya. Coba lagi.
+@teacher Lazy berarti "gambarkan dulu, jalankan sekali": alat itu melihat seluruh pertanyaan sebelum menyentuh data.
+:::
 
 Konsep kunci di balik performa Polars adalah **lazy evaluation**. Pemanggilan `scan_parquet` beserta rantai transformasi di bawahnya hanya merumuskan sebuah *rencana (plan)* komputasi; pemanggilan `.collect()` memerintahkan query optimizer untuk menganalisis dan mengeksekusi rencana tersebut secara optimal. Optimizer menerapkan pushdown yang sama, dan `.explain()` membuktikannya:
 

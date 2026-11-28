@@ -185,6 +185,15 @@ A whole-column operation runs the loop inside compiled code over contiguous memo
 ## @lesson DuckDB: SQL on files, in your process
 **DuckDB** is an analytical database that runs **inside your Python process**, like SQLite but built for scans and aggregations (columnar, vectorised, parallel). No server, nothing to install beyond the package, and it queries files directly:
 
+:::talk A database without a server
+@teacher A learner wants to run SQL on a 2 GB Parquet file on her laptop. A colleague says: "just use DuckDB". She asks whether she must first install a database server and load the file into it.
+@ask What is the answer?
+@choice Yes: install a server, create a table and load the file first | That is how a classic database works, but DuckDB is different. Try again.
+@choice * No: DuckDB runs inside her Python process and can query the file directly, with no server and no loading step | Yes. `duckdb.sql("SELECT ... FROM 'orders.parquet'")` reads only the columns and row groups it needs. That is why it suits files, notebooks and tests.
+@choice No, but only for files smaller than 100 MB | There is no such limit: DuckDB can spill to disk for data larger than memory. Try again.
+@teacher An embedded database is a library, not a service: the engine lives in your program.
+:::
+
 ```python
 import duckdb
 
@@ -271,6 +280,15 @@ q = (
 print(q.explain())      # the optimised plan
 df = q.collect()        # run it now
 ```
+
+:::talk Nothing has run yet
+@teacher In Polars you write: `q = pl.scan_parquet("events.parquet").filter(pl.col("status") == "delivered").select("payment_method", "total_idr")`. The file has 50 columns and 100 million rows. The line finishes instantly.
+@ask Has Polars read the data yet?
+@choice Yes, but it is very fast | A scan of 100 million rows is not instant. Try again.
+@choice * No: `scan_parquet` is lazy, so `q` is only a plan, and the reading happens at `.collect()` | Yes. Because nothing ran yet, the optimiser can still push the filter and the two columns into the scan, so most of the file is never read.
+@choice It has read only the first few rows to guess the types | It reads the file's footer for the schema, not the data. Try again.
+@teacher Lazy means "describe first, run once": the tool sees the whole question before it touches the data.
+:::
 
 The key idea is **lazy evaluation**. `scan_parquet` and the chain of operations only build a *plan*; `.collect()` optimises and runs it. The optimiser applies the same pushdowns, and `explain()` shows them:
 

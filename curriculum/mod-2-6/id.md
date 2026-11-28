@@ -230,6 +230,15 @@ def query_cost(bytes_billed, price_per_tb):
 ## @lesson Memuat data: bulk, bukan baris demi baris
 Warehouse dibuat untuk **bulk load**, bukan menyisipkan satu baris pada satu waktu seperti aplikasi. Jalur standarnya: taruh file di object storage, lalu minta warehouse memuatnya: Snowflake `COPY INTO` dari sebuah **stage** (dan Snowpipe untuk pemuatan kontinu), **load job** BigQuery dari Cloud Storage, `COPY` Redshift dari S3. Mereka membaca file secara paralel, memvalidasi, mengonversi, dan menulis micro-partition.
 
+:::talk Sejuta file kecil
+@teacher Anda harus memuat 1 GB data ke warehouse. Opsi A adalah sejuta file berukuran 1 KB. Opsi B adalah lima puluh file berukuran sekitar 20 MB. Datanya identik.
+@ask Opsi mana yang memuat lebih cepat, dan mengapa?
+@choice Opsi A, karena file kecil lebih mudah dibaca | Setiap file punya biaya tetap untuk didaftar, dibuka, dan dilacak. Sejuta file membayarnya sejuta kali. Coba lagi.
+@choice * Opsi B: setiap file memakan beban tetap, dan lima puluh file besar juga bisa dimuat paralel di seluruh worker warehouse | Betul. Warehouse mengarahkan Anda ke file sekitar 100 sampai 250 MB, dan jumlah file yang sesuai dengan worker paralel, agar bebannya kecil dan setiap worker mendapat pekerjaan yang sama banyak.
+@choice Sama cepat, karena datanya sama | Byte-nya sama, tetapi sebuah pemuatan juga dibayar per file. Coba lagi.
+@teacher Pemuatan massal adalah soal file besar. Jika sumber Anda menulis file kecil, padatkan sebelum dimuat.
+:::
+
 **Ukuran file penting.** Panduan Snowflake adalah file berukuran sekitar **100 hingga 250 MB terkompresi**, karena file yang sangat kecil menambah overhead per file (masalah file kecil lagi) dan satu file raksasa tidak bisa dibaca paralel. Panduan Redshift adalah jumlah file yang merupakan **kelipatan jumlah slice**, agar setiap slice memuat pekerjaan yang sama banyak. `plan_load_files` di lab menggabungkan keduanya: untuk pemuatan 10 GiB pada klaster dengan 16 slice ia merencanakan **48 file** berukuran sekitar 213 MiB (kelipatan 16, dan di bawah 250 MiB).
 
 Praktik lain:

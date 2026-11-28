@@ -236,6 +236,15 @@ Retry menjalankan task lagi, mungkin setelah sebagian outputnya sudah tertulis. 
 :::
 
 ## @lesson Dagster: pipeline sebagai asset
+:::talk Tugas atau aset?
+@teacher Sang pendiri bertanya: "Apakah tabel pendapatan segar pagi ini?" Di alat yang berpusat pada tugas Anda bisa menjawab "apakah pekerjaan muat berhasil?". Di alat yang berpusat pada aset Anda bisa menjawab hal yang berbeda.
+@ask Apa perbedaan pertanyaan yang menjadi titik awal tiap alat?
+@choice * Alat berpusat tugas melacak langkah yang berjalan; alat berpusat aset melacak produk data (tabel, file) dan kapan masing-masing terakhir diperbarui | Betul. Yang pertama berkata "pekerjaannya hijau". Yang kedua berkata "tabel pendapatan terakhir dibangun pukul 02:10, dari pesanan yang segar". Keduanya berguna; sang pendiri menanyakan yang kedua.
+@choice Tidak ada perbedaan: keduanya hanya menjadwalkan kode | Keduanya menjadwalkan kode, tetapi apa yang mereka lacak berbeda. Coba lagi.
+@choice Alat berpusat aset tidak bisa berjalan terjadwal | Aset juga bisa punya jadwal. Coba lagi.
+@teacher Pekerjaan hijau tidak membuktikan tabel segar. Lacak hal yang benar-benar dipakai orang.
+:::
+
 **Dagster** bertolak dari paradigma yang sangat berbeda. Alih-alih bertanya "task mana yang harus berjalan dalam urutan apa?", Dagster bertanya: "**data asset apa yang seharusnya ada di sistem kita, dan apa dependensinya?**". Sebuah **asset** merepresentasikan tabel database, file data lake, atau model machine learning nyata; fungsi berdekorator `@asset` mendefinisikan komputasi logis untuk memproduksi asset tersebut (`@asset` adalah decorator Python dari `dagster` yang mendaftarkan fungsi ke dalam graf dependensi, sedangkan pewarisan `ConfigurableResource` mendefinisikan konfigurasi bertipe — seperti `Paths` — yang diinjeksikan otomatis sebagai argumen fungsi asset untuk dependency injection yang bersih). Relasi dependensi terbentuk langsung antar asset, sehingga orkestrator memahami secara tepat kapan suatu data usang (stale), asset hilir mana yang terdampak oleh perubahan hulu, dan partisi mana yang perlu dihitung ulang.
 
 Inti arsitektur pipeline pada lab praktikum modul ini dirancang sebagai berikut:

@@ -151,6 +151,15 @@ A convention that has proved itself in thousands of projects is three layers:
 
 (People map these loosely to the *medallion* names: raw is bronze, staging and intermediate are silver, marts are gold. The names matter less than keeping the layers separate and the dependencies one-directional.)
 
+:::talk View or table?
+@teacher A model `fct_orders` joins and cleans 2 TB of data. Five dashboards query it all day. It is materialised as a view, so every dashboard query runs the join again.
+@ask What is the better choice?
+@choice Keep the view: it is always up to date | It is up to date, but each query pays the full cost of the join, five dashboards over. Try again.
+@choice * Materialise it as a table: pay the build cost once per run and let the queries read ready-made rows | Yes. A table moves the cost from query time to build time. Use a view for cheap or rarely used models, a table for expensive models many people read.
+@choice Make it incremental right away | Incremental is an optimisation of a table, and it adds risk. First choose table over view. Try again.
+@teacher Choose by who pays: a view makes every reader pay, a table makes the build pay once.
+:::
+
 A **materialization** decides how a model is stored:
 
 | Materialization | Stored as | Build cost | Query cost | Use for |
@@ -421,6 +430,15 @@ SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loade
 > 5. **Success Indicator:** `OK created sql incremental model main.fct_daily_revenue`. The command selects the model and everything it depends on. Once you add the snapshot in Lesson 6 and all 13 `pytest` tests pass, record your verified completion with `python3 scripts/prove.py mod-2-3`.
 
 ## @lesson Snapshots, macros and CI
+:::talk Two runs between two snapshots
+@teacher A dbt snapshot records the history of the `customers` table. It runs once a night. During one day a customer's tier changes from Bronze to Silver in the morning and to Gold in the afternoon.
+@ask How many versions of this customer does the snapshot hold after the night run?
+@choice Three: Bronze, Silver and Gold | The snapshot only looks at the table when it runs. It cannot see changes that happened between two runs. Try again.
+@choice * Two: the old Bronze row, and one new row that says Gold; the Silver in between was never seen | Yes. A snapshot compares the table with its stored copy at each run. Changes between runs are invisible, so run it as often as the history needs to be detailed, or capture changes at the source.
+@choice One: snapshots keep only the latest version | Keeping the old versions is the whole point of a snapshot. Try again.
+@teacher A snapshot is as detailed as its schedule. For a full history, capture every change at the source.
+:::
+
 **Snapshots** capture the history of a table that is overwritten in place, producing a **Type 2 slowly changing dimension** (Module 1.4) without hand-written SQL:
 
 ```sql

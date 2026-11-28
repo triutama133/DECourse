@@ -87,6 +87,15 @@ The later a problem is found, the more tables, reports and decisions it has touc
 ## @lesson Data contracts: write the agreement down
 A **data contract** is an explicit, versioned agreement between a data **producer** (the checkout team) and its **consumers** (the data team). Without one, the producer changes a column and finds out from an angry email a week later. With one, the change is discussed before it ships.
 
+:::talk The renamed column
+@teacher The team that owns the shop database renames the column `total` to `total_amount` in a release. They did not know that your pipeline reads `total`. There is no data contract between the teams yet.
+@ask When do you find out?
+@choice Before the release, because databases warn their readers | A database does not warn downstream pipelines. Try again.
+@choice * After the release, when your job fails or fills the column with NULL: the damage comes before the conversation | Yes. A contract turns this into a conversation before the change: the producer's release is checked against the contract, a break is discussed first, and a new version is agreed.
+@choice Never: renaming columns is harmless | It breaks every consumer that uses the old name. Try again.
+@teacher A contract is a promise written down and checked by a machine, so that surprises become meetings.
+:::
+
 A contract contains:
 
 - **Schema**: field names, types, whether each is required, and constraints (minimum values, allowed values, formats, uniqueness).
@@ -207,6 +216,15 @@ Row-level checks see one row at a time. **Dataset-level monitoring** looks at th
 3. **Schema**: did the columns or types change? Catches drift before it breaks queries.
 4. **Distribution**: did the *content* shift? The share of each status, the null rate of a column, the range of a number. Catches subtle breakage such as a fallback value flooding a column.
 5. **Lineage**: which upstream tables and jobs feed this one, and what depends on it? Not a check but what makes the other four actionable (below).
+
+:::talk Mean or median?
+@teacher The daily row counts of the last six days are 100, 102, 98, 101, 5000 and 99. The 5000 was a one-off bulk reload. You want a number for "the normal level", to alert when a day is far from it.
+@ask Which statistic gives a sensible normal level?
+@choice The mean, about 917 | One huge day drags the mean far above every normal day, so a normal day of 100 would look like a collapse. Try again.
+@choice * The median, about 100.5: a single odd day does not move it | Yes. The median ignores how big the outlier is. That is why monitoring uses the median (and its cousin, MAD) instead of the mean and standard deviation.
+@choice The maximum, 5000 | The maximum is exactly the odd day. Try again.
+@teacher For checks that must stay sensible after a bad day, use statistics that outliers cannot stretch.
+:::
 
 **Volume checks need robust statistics.** The textbook approach flags a value more than 3 standard deviations from the mean. The weakness: the mean and standard deviation are themselves distorted by past outliers, so one bad day in the history widens the band until real problems pass. The robust alternative uses the **median** and the **MAD** (median absolute deviation: the median of `|x - median|`), which ignore outliers. For a tiny example `[10, 12, 14]`: median is `12`, distances from `12` are `[2, 0, 2]`, so `MAD = 2`, even if a wild day had `1000`, the median and MAD of `[10, 12, 14, 1000]` stay almost unchanged (`13` and `2`, with MAD completely unchanged at `2`), whereas the standard deviation explodes!
 

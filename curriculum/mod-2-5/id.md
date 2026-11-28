@@ -87,6 +87,15 @@ Makin lambat masalah ditemukan, makin banyak tabel, laporan, dan keputusan yang 
 ## @lesson Data contracts: tuliskan kesepakatan secara eksplisit
 **Data contract** adalah kesepakatan formal yang terikat versi antara **data producer** (misalnya tim backend checkout) dan **data consumers** (tim data platform dan analitik). Tanpa kontrak tertulis, tim backend dapat mengubah nama kolom `order_status` menjadi `status_code` sesuka hati dan baru menyadarinya seminggu kemudian saat menerima email kemarahan dari pimpinan bisnis. Dengan data contract, rencana perubahan tersebut wajib didiskusikan dan diuji otomatis di CI sebelum kode backend di-merge ke master.
 
+:::talk Kolom yang diganti nama
+@teacher Tim pemilik database toko mengganti nama kolom `total` menjadi `total_amount` dalam sebuah rilis. Mereka tidak tahu pipeline Anda membaca `total`. Belum ada kontrak data di antara kedua tim.
+@ask Kapan Anda mengetahuinya?
+@choice Sebelum rilis, karena database memperingatkan pembacanya | Database tidak memperingatkan pipeline hilir. Coba lagi.
+@choice * Setelah rilis, ketika pekerjaan Anda gagal atau mengisi kolom dengan NULL: kerusakan datang sebelum percakapan | Betul. Kontrak mengubah ini menjadi percakapan sebelum perubahan: rilis produsen diperiksa terhadap kontrak, kerusakan dibahas lebih dulu, dan versi baru disepakati.
+@choice Tidak pernah: mengganti nama kolom tidak berbahaya | Itu merusak setiap konsumen yang memakai nama lama. Coba lagi.
+@teacher Kontrak adalah janji yang ditulis dan diperiksa mesin, agar kejutan menjadi rapat.
+:::
+
 Sebuah data contract memuat komponen penting:
 
 - **Skema (Schema)**: nama-nama kolom, tipe data presisi, status wajib (required/nullable), serta batasan nilai (minimum/maximum, allowed values, regex format, dan syarat keunikan).
@@ -207,6 +216,15 @@ Pengecekan di tingkat baris (row-level checks) hanya mampu memeriksa data per sa
 3. **Skema (Schema Drift)**: apakah ada kolom yang dihapus, berganti nama, atau berubah tipe datanya? Mendeteksi perubahan skema sebelum query analitik di warehouse mengalami runtime error.
 4. **Distribusi (Distribution Shift)**: apakah *konten proporsional* di dalam kolom mengalami pergeseran drastis? Misalnya proporsi status pesanan, rasio nilai NULL pada kolom tertentu, atau rentang nilai numerik. Mendeteksi bug halus di mana nilai fallback darurat membanjiri sebuah kolom.
 5. **Data Lineage**: memetakan asal-usul tabel dan job hulu yang memberi makan tabel ini, serta laporan hilir apa saja yang bergantung padanya. Lineage menjadi fondasi agar 4 pilar di atas dapat ditindaklanjuti secara efektif.
+
+:::talk Rata-rata atau median?
+@teacher Jumlah baris harian dalam enam hari terakhir adalah 100, 102, 98, 101, 5000, dan 99. Angka 5000 itu adalah muat ulang massal sekali saja. Anda menginginkan satu angka untuk "tingkat normal", untuk memberi alert saat sebuah hari jauh darinya.
+@ask Statistik mana yang memberi tingkat normal yang masuk akal?
+@choice Rata-rata, sekitar 917 | Satu hari raksasa menyeret rata-rata jauh di atas setiap hari normal, sehingga hari normal 100 tampak seperti keruntuhan. Coba lagi.
+@choice * Median, sekitar 100,5: satu hari aneh tidak menggesernya | Betul. Median tidak peduli seberapa besar pencilannya. Itulah mengapa pemantauan memakai median (dan sepupunya, MAD) alih-alih rata-rata dan simpangan baku.
+@choice Maksimum, 5000 | Maksimum persis hari yang aneh itu. Coba lagi.
+@teacher Untuk pemeriksaan yang harus tetap masuk akal setelah satu hari buruk, pakai statistik yang tidak bisa diregangkan oleh pencilan.
+:::
 
 **Pengecekan volume membutuhkan pendekatan statistik robust.** Pendekatan buku teks pemula sering kali menggunakan aturan batas 3 kali standar deviasi dari rata-rata (rata-rata ± 3 standar deviasi). Kelemahan fatalnya: nilai mean dan standard deviation sangat rentan terdistorsi oleh data ekstrem di masa lalu (outliers), sehingga satu hari abnormal di masa lalu akan merentangkan batas toleransi menjadi terlampau lebar hingga anomali nyata di masa depan lolos tanpa terdeteksi. Alternatif yang tangguh (robust) adalah menggunakan nilai **Median** dan **MAD (Median Absolute Deviation: median dari `|x - median|`)**. Contoh kecil pada `[10, 12, 14]`: median adalah `12`, jarak masing-masing ke `12` adalah `[2, 0, 2]`, jadi `MAD = 2`, bahkan jika satu hari melonjak menjadi `1000`, median dan MAD dari `[10, 12, 14, 1000]` hampir tidak bergeser (`13` dan `2`, dengan MAD sama sekali tidak berubah di `2`), sedangkan standar deviasinya meledak!
 

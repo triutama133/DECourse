@@ -251,6 +251,15 @@ version 1: commitInfo, add                          (an append adds a file)
 version 3: commitInfo, add, remove                  (a delete REMOVES the old file and ADDS a rewritten one)
 ```
 
+:::talk A removed file that is still there
+@teacher A Delta Lake commit contains the action `remove` for a data file, because an `UPDATE` rewrote it. You look in the table's folder.
+@ask Is the removed Parquet file still on disk?
+@choice No: `remove` deletes the file immediately | `remove` is an entry in the log, not a deletion. Try again.
+@choice * Yes: the log only says that the file is no longer part of the current table, and the file stays until a `VACUUM` removes it | Yes. That is what makes time travel possible: older versions of the table still point at the old file. It is also why storage grows until you clean up.
+@choice Only if the table is small | The behaviour does not depend on the size. Try again.
+@teacher In a table format, "deleted" first means "no longer in the current version". Physical deletion is a separate, deliberate step.
+:::
+
 The current state of the table is **the result of replaying the log from the beginning**: start empty, apply each commit's `add` and `remove`; what remains is the set of live files. To keep that fast, Delta periodically writes a **checkpoint** (a Parquet snapshot of the state, by default every 10 commits), so a reader starts from the latest checkpoint plus the few later commits. A commit is atomic because creating the next numbered log file is an atomic "put if absent": if two writers try to create `...0003.json`, only one wins and the other retries. Time travel is reading the table at an earlier version (in the lab, version 2 holds 6 rows; the delete at version 3 leaves 5, and version 2 can still be read).
 
 **`VACUUM`** is Delta's physical cleanup: it deletes data files that are no longer referenced by versions within a retention period (7 days by default). Until then the data remains readable by time travel, the same trade-off as in Iceberg.

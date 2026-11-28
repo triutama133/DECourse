@@ -151,6 +151,15 @@ Konvensi arsitektur yang telah terbukti keandalannya di ribuan perusahaan teknol
 
 (Pola ini selaras dengan arsitektur *Medallion*: data mentah adalah Bronze, staging dan intermediate adalah Silver, dan marts adalah Gold. Yang terpenting adalah menjaga batas tanggung jawab tiap lapisan dan memastikan arah dependensi selalu satu arah dari hulu ke hilir.)
 
+:::talk View atau tabel?
+@teacher Sebuah model `fct_orders` menggabungkan dan membersihkan 2 TB data. Lima dasbor mengquery-nya sepanjang hari. Model itu dimaterialisasi sebagai view, sehingga setiap query dasbor menjalankan join itu lagi.
+@ask Apa pilihan yang lebih baik?
+@choice Pertahankan view: ia selalu mutakhir | Ia mutakhir, tetapi setiap query membayar biaya penuh join, lima dasbor berlipat. Coba lagi.
+@choice * Materialisasi sebagai tabel: bayar biaya pembangunan sekali per putaran dan biarkan query membaca baris yang sudah jadi | Betul. Tabel memindahkan biaya dari waktu query ke waktu build. Pakai view untuk model murah atau jarang dipakai, tabel untuk model mahal yang dibaca banyak orang.
+@choice Jadikan incremental sekarang juga | Incremental adalah optimasi sebuah tabel, dan ia menambah risiko. Pilih dulu tabel daripada view. Coba lagi.
+@teacher Pilih menurut siapa yang membayar: view membuat setiap pembaca membayar, tabel membuat build membayar sekali.
+:::
+
 Opsi **Materialisasi** menentukan bagaimana dbt menyimpan hasil query di database:
 
 | Tipe Materialisasi | Format Penyimpanan | Biaya Saat `dbt run` | Performa Query Analis | Kasus Penggunaan Ideal |
@@ -421,6 +430,15 @@ SELECT (SELECT COUNT(*) FROM raw_orders WHERE _loaded_at > (SELECT MAX(max_loade
 > 5. **Indikator Sukses:** `OK created sql incremental model main.fct_daily_revenue`. Perintah itu memilih model tersebut beserta semua yang menjadi dependensinya. Setelah Anda menambahkan snapshot di Pelajaran 6 dan seluruh 13 tes `pytest` lulus, catat bukti penyelesaian Anda dengan `python3 scripts/prove.py mod-2-3`.
 
 ## @lesson Snapshots, macros, dan integrasi CI/CD
+:::talk Dua putaran di antara dua snapshot
+@teacher Sebuah snapshot dbt mencatat riwayat tabel `customers`. Ia berjalan sekali setiap malam. Dalam satu hari, tier seorang pelanggan berubah dari Bronze ke Silver pada pagi hari dan ke Gold pada sore hari.
+@ask Berapa versi pelanggan ini yang dipegang snapshot setelah putaran malam?
+@choice Tiga: Bronze, Silver, dan Gold | Snapshot hanya melihat tabel saat ia berjalan. Ia tidak bisa melihat perubahan di antara dua putaran. Coba lagi.
+@choice * Dua: baris Bronze yang lama, dan satu baris baru yang berkata Gold; Silver di antaranya tidak pernah terlihat | Betul. Snapshot membandingkan tabel dengan salinan tersimpannya pada setiap putaran. Perubahan di antara putaran tidak terlihat, jadi jalankan sesering riwayat itu perlu rinci, atau tangkap perubahan di sumber.
+@choice Satu: snapshot hanya menyimpan versi terbaru | Menyimpan versi lama adalah inti snapshot. Coba lagi.
+@teacher Snapshot sedetail jadwalnya. Untuk riwayat penuh, tangkap setiap perubahan di sumber.
+:::
+
 **dbt Snapshots** menangkap histori perubahan dari tabel sumber yang ditimpa di tempat (in-place update), menghasilkan dimensi **Slowly Changing Dimension (SCD) Tipe 2** (Modul 1.4) secara otomatis tanpa penulisan query merge manual:
 
 ```sql

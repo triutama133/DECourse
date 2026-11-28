@@ -230,6 +230,15 @@ def query_cost(bytes_billed, price_per_tb):
 ## @lesson Loading data: bulk, not row by row
 A warehouse is built for **bulk loads**, not for inserting one row at a time as an application does. The standard path is: land files in object storage, then tell the warehouse to load them: Snowflake `COPY INTO` from a **stage** (and Snowpipe for continuous loading), BigQuery **load jobs** from Cloud Storage, Redshift `COPY` from S3. They read files in parallel, validate, convert and write micro-partitions.
 
+:::talk A million tiny files
+@teacher You must load 1 GB of data into the warehouse. Option A is one million files of 1 KB each. Option B is fifty files of about 20 MB each. The data is identical.
+@ask Which option loads faster, and why?
+@choice Option A, because small files are easier to read | Each file has a fixed cost to list, open and track. A million files pay it a million times. Try again.
+@choice * Option B: each file costs a fixed overhead, and fifty big files can also be loaded in parallel across the warehouse's workers | Yes. Warehouses guide you to files of roughly 100 to 250 MB, and a file count that matches the parallel workers, so that overhead is small and every worker has the same amount of work.
+@choice They load equally fast, because the data is the same | The bytes are the same, but a load is also paid per file. Try again.
+@teacher Bulk loading is about big files. If your source writes tiny ones, compact them before the load.
+:::
+
 **File sizing matters.** Snowflake's guidance is files of roughly **100 to 250 MB compressed**, because very small files add per-file overhead (the small-files problem again) and one huge file cannot be read in parallel. Redshift's guidance is a number of files that is a **multiple of the number of slices**, so that every slice loads the same amount of work. The lab's `plan_load_files` combines both: for a 10 GiB load on a cluster with 16 slices it plans **48 files** of about 213 MiB each (a multiple of 16, and under 250 MiB).
 
 Other practices:

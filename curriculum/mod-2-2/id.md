@@ -251,6 +251,15 @@ version 1: commitInfo, add                          (append: menambahkan file da
 version 3: commitInfo, add, remove                  (delete: menghapus file lama dan menambahkan file hasil penulisan ulang)
 ```
 
+:::talk File yang dihapus tetapi masih ada
+@teacher Sebuah commit Delta Lake berisi aksi `remove` untuk sebuah file data, karena sebuah `UPDATE` menulis ulangnya. Anda melihat ke folder tabel itu.
+@ask Apakah file Parquet yang dihapus itu masih ada di disk?
+@choice Tidak: `remove` menghapus file seketika | `remove` adalah entri di dalam log, bukan penghapusan. Coba lagi.
+@choice * Ya: log hanya berkata bahwa file itu tidak lagi bagian dari tabel saat ini, dan file tetap ada sampai `VACUUM` menghapusnya | Betul. Itulah yang memungkinkan time travel: versi tabel yang lebih lama masih menunjuk ke file lama. Itu juga mengapa penyimpanan membesar sampai Anda membersihkannya.
+@choice Hanya jika tabelnya kecil | Perilakunya tidak bergantung pada ukuran. Coba lagi.
+@teacher Dalam format tabel, "dihapus" pertama-tama berarti "tidak lagi ada di versi saat ini". Penghapusan fisik adalah langkah terpisah yang disengaja.
+:::
+
 Status aktif tabel pada saat tertentu adalah **hasil rekonsiliasi pemutaran ulang (replay) seluruh log dari awal**: mulai dari kondisi kosong, terapkan setiap aksi `add` (tambah file) dan `remove` (hapus file) dari setiap commit; kumpulan file yang tersisa adalah daftar file data yang valid saat ini. Agar proses ini tidak melambat seiring bertambahnya transaksi, Delta Lake secara berkala menerbitkan file **checkpoint** (file Parquet yang merangkum status tabel terkini, default tiap 10 commit), sehingga pembaca cukup membaca checkpoint terbaru ditambah beberapa commit sesudahnya. Commit bersifat atomik karena pembuatan file log nomor urut berikutnya menggunakan mekanisme "put if absent": jika dua proses mencoba membuat `...0003.json` bersamaan, hanya satu yang menang dan proses lainnya harus mengulang. Fitur time travel membaca data pada nomor versi log tertentu (di lab, versi 2 berisi 6 baris; operasi delete di versi 3 menyisakan 5 baris, dan versi 2 tetap dapat dibaca utuh).
 
 Perintah **`VACUUM`** adalah operasi pembersihan fisik Delta Lake: menghapus file data di storage yang sudah tidak lagi dirujuk oleh versi tabel dalam rentang batas retensi (default 7 hari). Sebelum perintah `VACUUM` dieksekusi, data yang dihapus tetap dapat dibaca melalui time travel, karakteristik yang serupa dengan Apache Iceberg.

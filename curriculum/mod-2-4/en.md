@@ -236,6 +236,15 @@ A retry runs the task again, possibly after it already wrote part of its output.
 :::
 
 ## @lesson Dagster: pipelines as assets
+:::talk Tasks or assets?
+@teacher The founder asks: "Is the revenue table fresh this morning?" In a task-centred tool you can answer "did the load job succeed?". In an asset-centred tool you can answer something different.
+@ask What is the difference in the question each tool starts from?
+@choice * A task-centred tool tracks the steps that ran; an asset-centred tool tracks the data products (tables, files) and when each was last updated | Yes. The first says "the job ran green". The second says "the revenue table was last built at 02:10, from fresh orders". Both are useful; the founder asked the second question.
+@choice There is no difference: both only schedule code | Both schedule code, but what they keep track of differs. Try again.
+@choice An asset-centred tool cannot run on a schedule | Assets can have schedules too. Try again.
+@teacher A green job does not prove a fresh table. Track the thing people actually use.
+:::
+
 **Dagster** starts from a different question. Instead of "which tasks run in what order", it asks "**which data assets should exist, and what do they depend on?**". An **asset** is a table, file or model; a function decorated with `@asset` says how to produce it (`@asset` is a Python decorator from `dagster` that registers your function in the dependency graph, and subclassing `ConfigurableResource` defines typed settings — such as `Paths` — passed automatically into asset functions for clean dependency injection). Dependencies are between assets, so the orchestrator knows what is stale, what a change affects downstream, and what to rebuild.
 
 The lab's pipeline, in essence:
