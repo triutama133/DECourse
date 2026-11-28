@@ -58,6 +58,15 @@ loops give different answers from columns
 ## @lesson Loading a file correctly
 `pd.read_csv("orders.csv")` works on a clean file and quietly damages a messy one. A file has no types; pandas **guesses**, and the guess is what causes the trouble. Four things to set yourself:
 
+:::talk What happened to 00042?
+@teacher KopiKu's customer file has an id written `00042`. A learner loads the file with `pd.read_csv("customers.csv")` and prints that customer's id.
+@ask What does pandas show for the id?
+@choice `00042`, because pandas keeps the characters exactly as written | pandas does not just copy characters. It looks at a column full of digits and guesses "these are numbers". Try again.
+@choice An error, because the id starts with zeros | There is no error, and that is the problem: nothing complains. Try again.
+@choice * `42`: pandas guessed a number, and the leading zeros are gone | Yes. A column of digits looks like numbers, so pandas stores 42. A join with a table that still has `"00042"` then finds no match, quietly.
+@teacher An id is a label, not a quantity: nobody adds two customer ids. Tell pandas so, with `dtype="string"` for the id columns.
+:::
+
 1. **Ids are text, not numbers.** A customer id like `00042` is a label, not a quantity. Read it as a number and pandas stores `42`: the leading zeros are gone, and a join against the customer table (which has `"00042"`) fails or, worse, matches the wrong rows. In our messy orders file the first customer id read by default is `211` instead of `00211`, and merging on it raises `ValueError: You are trying to merge on int64 and str columns`. Fix: `dtype={"customer_id": "string"}`.
 2. **Missing markers.** pandas already treats an empty cell, `NA`, `N/A` and `null` as missing, but your file may use `-` or `unknown`. Tell it: `na_values=["-"]`. Otherwise one `-` turns the whole price column into text.
 3. **Integers that can be missing.** A plain `int64` column cannot hold a missing value, so one empty cell silently turns the whole column into floats (`3.0`). The nullable integer type `"Int64"` (capital I) keeps integers and shows `<NA>`.
@@ -122,7 +131,16 @@ Cleaning is a short list of repeated moves. Each has a vectorised form:
 - **New columns**: `df.assign(revenue_idr=df["quantity"] * df["unit_price_idr"])`.
 - **Types**: `astype("int64")`, `pd.to_numeric(..., errors="coerce")`.
 
-**Why not `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` gives the right answer and is how many tutorials write it. We measured it on a table of **1,000,000 rows**: the column multiplication took **1.8 milliseconds**, the row-by-row `apply` took **5.7 seconds**, about **3,100 times slower**, and a plain `itertuples` loop over just 200,000 rows took 0.9 seconds. The loop runs Python code a million times; the column operation runs one compiled loop. When you feel the urge to write `apply`, search for a built-in: `.str`, `.dt`, `np.where` (after `import numpy as np`, for vectorised if-else), `clip`, `map` with a dictionary, `groupby`. The lab tests forbid `apply`, `iterrows` and `itertuples` where a vectorised answer exists, so you learn the habit.
+:::talk A million rows
+@teacher You have 1,000,000 orders and want the revenue of each line: quantity times unit price. One learner writes a loop that visits every row and multiplies. Another writes `df["quantity"] * df["unit_price_idr"]`.
+@ask Which is faster, and by roughly how much?
+@choice The loop, because it is simple and does one thing at a time | A Python loop runs one step at a time in Python, which is the slow way. Try again.
+@choice * The column version, by more than a thousand times: one compiled loop runs over the whole column | Yes. Python is called once instead of a million times. In the lesson's measurement it was milliseconds against seconds.
+@choice They are about the same, because both do the same multiplication | The arithmetic is the same, but the machinery is not. Try again.
+@teacher So in pandas, think in whole columns. When you catch yourself writing a loop over rows, or `apply` with `axis=1`, ask whether one column operation can do the job.
+:::
+
+**Why not `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` gives the right answer and is how many tutorials write it. We measured it on a table of **1,000,000 rows**: the column multiplication took **1.8 milliseconds**, the row-by-row `apply` took **5.7 seconds**, about **3,100 times slower** (your machine will measure other numbers, but the gap stays above a thousand times), and a plain `itertuples` loop over just 200,000 rows took 0.9 seconds. The loop runs Python code a million times; the column operation runs one compiled loop. When you feel the urge to write `apply`, search for a built-in: `.str`, `.dt`, `np.where` (after `import numpy as np`, for vectorised if-else), `clip`, `map` with a dictionary, `groupby`. The lab tests forbid `apply`, `iterrows` and `itertuples` where a vectorised answer exists, so you learn the habit.
 
 **Do not chain assignments.** `df[df["a"] > 1]["b"] = 9` looks like it updates rows, but the first part returns a (possibly temporary) copy, so the assignment is lost. We ran it on pandas 2.2.3 and 3.0.6: `df["b"]` stays `[0, 0, 0]` and pandas warns. Write it in one step: `df.loc[df["a"] > 1, "b"] = 9`. Better still, avoid editing and build new frames, which is also why the lab's functions return a new frame and leave their input alone (the tests check that).
 
@@ -202,7 +220,7 @@ The first part (`df[df["a"] > 1]`) returns a possibly temporary copy, so the ass
 a `for` loop over `df.iterrows()`
 * `df["quantity"] * df["unit_price"]`, a whole-column operation
 @why
-Whole-column (vectorised) operations run in compiled code. The course measured the column multiplication at 1.8 milliseconds against 5.7 seconds for the row-by-row `apply`: about 3,100 times slower.
+Whole-column (vectorised) operations run in compiled code. The course measured the column multiplication at 1.8 milliseconds against 5.7 seconds for the row-by-row `apply`: about 3,100 times slower on that machine (on a recent laptop we got about 1,400 times, so expect a gap of more than a thousand).
 :::
 
 > 💡 **Practice Pause 2 (Vectorised Cleaning Without Apply):**
@@ -323,6 +341,15 @@ count gives 10 and size gives 8
 
 ## @lesson Joining tables without multiplying rows
 `orders.merge(customers, on="customer_id", how="left")` is `LEFT JOIN`. The `how` argument selects `inner`, `left`, `right` or `outer`, exactly as in SQL (Module 0.3), and the same trap applies: **the fan-out**. If the right-hand table has the same key twice, every matching left row is repeated.
+
+:::talk The customer who appears twice
+@teacher The customers table should have one row per customer, but a bad load left 30 customers in it twice. Now you left-join 1,911 orders to that table.
+@ask What do you get?
+@choice * More rows than orders: each order of a duplicated customer appears twice, and revenue grows | Yes. No error, no warning, only a bigger revenue number. The lesson measured 1,911 orders growing to 2,187 rows.
+@choice An error, because duplicate keys are not allowed in a join | pandas does not stop you by itself. Try again.
+@choice The same 1,911 rows, because pandas removes the duplicates | pandas never removes them quietly. Try again.
+@teacher Ask pandas to check for you: `validate="m:1"` says "many orders to ONE customer" and raises an error if the customers table holds duplicates.
+:::
 
 We measured it on the cleaned orders: 1,911 orders and a customer list where 30 customers were accidentally listed twice. The left join returned **2,187 rows** instead of 1,911, and the revenue column summed to **378,380,000 instead of 331,555,000**, an overstatement of **14.1%**, with no error and a result that looks perfectly reasonable. A dashboard built on this would be wrong and nobody would see why.
 
@@ -571,10 +598,10 @@ A join is a claim about keys. Write the claim down (`validate=`), check the row 
 ### What is the main reason to prefer `df["quantity"] * df["unit_price_idr"]` over `df.apply(lambda row: ..., axis=1)`?
 - [ ] The column form uses less typing, but both forms run at exactly the same speed on every table
 - [ ] `apply` is deprecated, so it raises an error as soon as a table has more than a thousand rows
-- [x] One compiled loop runs over the whole column; it was about 3,000 times faster on a million rows
+- [x] One compiled loop runs over the whole column; it was more than a thousand times faster on a million rows
 - [ ] The column form is the only one that can handle missing values, since `apply` always fails on `NaN`
 
-> Vectorised operations run in compiled code over the whole column. A Python function called once per row is the slow path: 1.8 ms against 5.7 s on 1,000,000 rows.
+> Vectorised operations run in compiled code over the whole column. A Python function called once per row is the slow path: on the machine we measured, 1.8 ms against 5.7 s on 1,000,000 rows.
 
 ### `pd.Series([1, None, 3]).mean()` returns 2.0. Why?
 - [ ] pandas replaces the missing value with zero before averaging, which would give 1.33 instead

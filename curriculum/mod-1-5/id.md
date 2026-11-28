@@ -58,6 +58,15 @@ loop memberi jawaban berbeda dari kolom
 ## @lesson Memuat file dengan benar
 `pd.read_csv("orders.csv")` bekerja pada file bersih dan diam-diam merusak file yang berantakan. File tidak punya tipe; pandas **menebak**, dan tebakan itulah yang menimbulkan masalah. Empat hal yang harus Anda tentukan sendiri:
 
+:::talk Apa yang terjadi pada 00042?
+@teacher File pelanggan KopiKu punya sebuah id yang tertulis `00042`. Seorang pembelajar memuat file itu dengan `pd.read_csv("customers.csv")` dan mencetak id pelanggan tersebut.
+@ask Apa yang ditampilkan pandas untuk id itu?
+@choice `00042`, karena pandas mempertahankan karakternya persis seperti tertulis | pandas tidak sekadar menyalin karakter. Ia melihat kolom penuh angka dan menebak "ini bilangan". Coba lagi.
+@choice Error, karena id diawali angka nol | Tidak ada error, dan itulah masalahnya: tidak ada yang mengeluh. Coba lagi.
+@choice * `42`: pandas menebak bilangan, dan angka nol di depan hilang | Betul. Kolom berisi angka tampak seperti bilangan, jadi pandas menyimpan 42. Join dengan tabel yang masih berisi `"00042"` lalu tidak menemukan pasangan, diam-diam.
+@teacher Id adalah label, bukan kuantitas: tidak ada yang menjumlahkan dua id pelanggan. Beri tahu pandas, dengan `dtype="string"` untuk kolom id.
+:::
+
 1. **Id adalah teks, bukan angka.** Id pelanggan seperti `00042` adalah label, bukan kuantitas. Jika dibaca sebagai angka, pandas menyimpan `42`: angka nol di depan hilang, dan join terhadap tabel pelanggan (yang berisi `"00042"`) gagal atau, lebih buruk, cocok dengan baris yang salah. Pada file pesanan berantakan kita, id pelanggan pertama yang terbaca secara default adalah `211` alih-alih `00211`, dan merge atasnya memunculkan `ValueError: You are trying to merge on int64 and str columns`. Perbaikan: `dtype={"customer_id": "string"}`.
 2. **Penanda kosong.** pandas sudah menganggap sel kosong, `NA`, `N/A`, dan `null` sebagai kosong, tetapi file Anda mungkin memakai `-` atau `unknown`. Beri tahu: `na_values=["-"]`. Kalau tidak, satu `-` mengubah seluruh kolom harga menjadi teks.
 3. **Integer yang bisa kosong.** Kolom `int64` biasa tidak bisa menyimpan nilai kosong, jadi satu sel kosong diam-diam mengubah seluruh kolom menjadi float (`3.0`). Tipe integer nullable `"Int64"` (I besar) menjaga integer dan menampilkan `<NA>`.
@@ -122,7 +131,16 @@ Pembersihan adalah daftar pendek langkah yang berulang. Masing-masing punya bent
 - **Kolom baru**: `df.assign(revenue_idr=df["quantity"] * df["unit_price_idr"])`.
 - **Tipe**: `astype("int64")`, `pd.to_numeric(..., errors="coerce")`.
 
-**Mengapa bukan `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` memberi jawaban yang benar dan begitulah banyak tutorial menulisnya. Kami mengukurnya pada tabel **1.000.000 baris**: perkalian kolom memakan **1,8 milidetik**, `apply` per baris memakan **5,7 detik**, sekitar **3.100 kali lebih lambat**, dan loop `itertuples` biasa atas hanya 200.000 baris memakan 0,9 detik. Loop menjalankan kode Python sejuta kali; operasi kolom menjalankan satu loop yang sudah dikompilasi. Ketika Anda tergoda menulis `apply`, cari fungsi bawaan: `.str`, `.dt`, `np.where` (setelah `import numpy as np`, untuk if-else vektor), `clip`, `map` dengan dictionary, `groupby`. Tes lab melarang `apply`, `iterrows`, dan `itertuples` di tempat jawaban vektor tersedia, agar kebiasaan itu terbentuk.
+:::talk Sejuta baris
+@teacher Anda punya 1.000.000 pesanan dan ingin pendapatan setiap baris: jumlah dikali harga satuan. Seorang pembelajar menulis loop yang mengunjungi setiap baris lalu mengalikan. Yang lain menulis `df["quantity"] * df["unit_price_idr"]`.
+@ask Mana yang lebih cepat, dan kira-kira berapa kali lipat?
+@choice Loop, karena sederhana dan mengerjakan satu hal setiap kali | Loop Python menjalankan satu langkah setiap kali di dalam Python, itulah cara yang lambat. Coba lagi.
+@choice * Versi kolom, lebih dari seribu kali lipat: satu loop terkompilasi berjalan atas seluruh kolom | Betul. Python dipanggil sekali, bukan sejuta kali. Pada pengukuran di pelajaran, hasilnya milidetik melawan detik.
+@choice Hampir sama, karena keduanya melakukan perkalian yang sama | Hitungannya sama, tetapi mesinnya tidak. Coba lagi.
+@teacher Jadi di pandas, berpikirlah dalam kolom utuh. Saat Anda menulis loop atas baris, atau `apply` dengan `axis=1`, tanyakan apakah satu operasi kolom bisa mengerjakannya.
+:::
+
+**Mengapa bukan `apply`?** `df.apply(lambda row: row["quantity"] * row["unit_price_idr"], axis=1)` memberi jawaban yang benar dan begitulah banyak tutorial menulisnya. Kami mengukurnya pada tabel **1.000.000 baris**: perkalian kolom memakan **1,8 milidetik**, `apply` per baris memakan **5,7 detik**, sekitar **3.100 kali lebih lambat** (mesin Anda akan mengukur angka lain, tetapi selisihnya tetap di atas seribu kali), dan loop `itertuples` biasa atas hanya 200.000 baris memakan 0,9 detik. Loop menjalankan kode Python sejuta kali; operasi kolom menjalankan satu loop yang sudah dikompilasi. Ketika Anda tergoda menulis `apply`, cari fungsi bawaan: `.str`, `.dt`, `np.where` (setelah `import numpy as np`, untuk if-else vektor), `clip`, `map` dengan dictionary, `groupby`. Tes lab melarang `apply`, `iterrows`, dan `itertuples` di tempat jawaban vektor tersedia, agar kebiasaan itu terbentuk.
 
 **Jangan merantai assignment.** `df[df["a"] > 1]["b"] = 9` tampak memperbarui baris, tetapi bagian pertama mengembalikan salinan (mungkin sementara), sehingga assignment-nya hilang. Kami menjalankannya pada pandas 2.2.3 dan 3.0.6: `df["b"]` tetap `[0, 0, 0]` dan pandas memberi peringatan. Tulis dalam satu langkah: `df.loc[df["a"] > 1, "b"] = 9`. Lebih baik lagi, hindari mengedit dan bangun frame baru, itulah sebabnya fungsi di lab mengembalikan frame baru dan membiarkan inputnya (tes memeriksanya).
 
@@ -202,7 +220,7 @@ Bagian pertama (`df[df["a"] > 1]`) mengembalikan salinan yang mungkin sementara,
 loop `for` pada `df.iterrows()`
 * `df["quantity"] * df["unit_price"]`, operasi seluruh kolom
 @why
-Operasi seluruh kolom (vectorised) berjalan di kode yang dikompilasi. Kursus mengukur perkalian kolom 1,8 milidetik melawan 5,7 detik untuk `apply` baris demi baris: sekitar 3.100 kali lebih lambat.
+Operasi seluruh kolom (vectorised) berjalan di kode yang dikompilasi. Kursus mengukur perkalian kolom 1,8 milidetik melawan 5,7 detik untuk `apply` baris demi baris: sekitar 3.100 kali lebih lambat di mesin itu (di laptop terbaru kami mendapat sekitar 1.400 kali, jadi harapkan selisih lebih dari seribu kali).
 :::
 
 > 💡 **Jeda Praktik 2 (Pembersihan Vektor Tanpa Apply):**
@@ -323,6 +341,15 @@ count memberi 10 dan size memberi 8
 
 ## @lesson Menggabungkan tabel tanpa melipatgandakan baris
 `orders.merge(customers, on="customer_id", how="left")` adalah `LEFT JOIN`. Argumen `how` memilih `inner`, `left`, `right`, atau `outer`, persis seperti di SQL (Modul 0.3), dan jebakan yang sama berlaku: **fan-out**. Jika tabel kanan punya kunci yang sama dua kali, setiap baris kiri yang cocok diulang.
+
+:::talk Pelanggan yang muncul dua kali
+@teacher Tabel pelanggan seharusnya berisi satu baris per pelanggan, tetapi pemuatan yang buruk menyisakan 30 pelanggan muncul dua kali. Sekarang Anda melakukan left join 1.911 pesanan ke tabel itu.
+@ask Apa yang Anda dapatkan?
+@choice * Lebih banyak baris daripada pesanan: setiap pesanan milik pelanggan ganda muncul dua kali, dan pendapatan membesar | Betul. Tanpa error, tanpa peringatan, hanya angka pendapatan yang lebih besar. Pelajaran mengukur 1.911 pesanan menjadi 2.187 baris.
+@choice Error, karena kunci ganda tidak boleh ada dalam join | pandas tidak menghentikan Anda dengan sendirinya. Coba lagi.
+@choice Tetap 1.911 baris, karena pandas membuang duplikatnya | pandas tidak pernah membuangnya diam-diam. Coba lagi.
+@teacher Minta pandas memeriksanya untuk Anda: `validate="m:1"` berarti "banyak pesanan ke SATU pelanggan" dan memunculkan error jika tabel pelanggan berisi duplikat.
+:::
 
 Kami mengukurnya pada pesanan yang sudah bersih: 1.911 pesanan dan daftar pelanggan yang 30 pelanggannya tanpa sengaja tercantum dua kali. Left join mengembalikan **2.187 baris** alih-alih 1.911, dan kolom omset berjumlah **378.380.000 alih-alih 331.555.000**, kelebihan **14,1%**, tanpa error dan dengan hasil yang tampak sangat masuk akal. Dashboard yang dibangun di atasnya akan salah dan tak seorang pun tahu sebabnya.
 
@@ -571,10 +598,10 @@ Join adalah klaim tentang kunci. Tuliskan klaimnya (`validate=`), periksa jumlah
 ### Apa alasan utama memilih `df["quantity"] * df["unit_price_idr"]` daripada `df.apply(lambda row: ..., axis=1)`?
 - [ ] Bentuk kolom lebih sedikit diketik, tetapi kedua bentuk berjalan dengan kecepatan yang persis sama di semua tabel
 - [ ] `apply` sudah usang, sehingga ia memunculkan error begitu tabel punya lebih dari seribu baris
-- [x] Satu loop terkompilasi berjalan atas seluruh kolom; ia sekitar 3.000 kali lebih cepat pada sejuta baris
+- [x] Satu loop terkompilasi berjalan atas seluruh kolom; ia lebih dari seribu kali lebih cepat pada sejuta baris
 - [ ] Hanya bentuk kolom yang bisa menangani nilai kosong, karena `apply` selalu gagal ketika bertemu `NaN`
 
-> Operasi vektor berjalan di kode terkompilasi atas seluruh kolom. Fungsi Python yang dipanggil per baris adalah jalur lambat: 1,8 ms dibanding 5,7 detik untuk 1.000.000 baris.
+> Operasi vektor berjalan di kode terkompilasi atas seluruh kolom. Fungsi Python yang dipanggil per baris adalah jalur lambat: di mesin yang kami ukur, 1,8 ms dibanding 5,7 detik untuk 1.000.000 baris.
 
 ### `pd.Series([1, None, 3]).mean()` mengembalikan 2.0. Mengapa?
 - [ ] pandas mengganti nilai kosong dengan nol sebelum merata-ratakan, yang akan memberi 1,33 sebagai hasilnya
