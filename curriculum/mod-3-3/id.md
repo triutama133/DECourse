@@ -18,6 +18,15 @@ Modul 3.1 (dasar Apache Spark) dan Modul 3.2 (Kafka, offsets, jaminan at-least-o
 ## @part Waktu dan window
 
 ## @lesson Event time versus processing time
+:::talk Lonjakan yang tidak pernah terjadi
+@teacher Dasbor Anda menghitung event per menit menurut waktu pipeline MEMPROSESNYA. Antara menit 20 dan menit 40 pipeline mati. Ketika pulih pada menit 40, ia memproses semua event yang menunggu sekaligus. Dasbor menunjukkan lonjakan besar pada menit 40 dan tidak ada apa-apa di menit sebelumnya.
+@ask Apa yang sebenarnya terjadi pada aktivitas pelanggan?
+@choice Pelanggan sangat aktif pada menit 40 | Event-event itu terjadi selama menit 20 sampai 39. Menit 40 hanyalah saat pipeline mengejar. Coba lagi.
+@choice * Tidak ada yang luar biasa: satu event per menit sepanjang waktu. Lonjakan itu artefak dari processing time | Betul. Menurut event time, setiap menit punya jumlah event yang sama. Processing time menggambarkan pipeline Anda, event time menggambarkan apa yang terjadi di dunia.
+@choice Event dari menit 20 sampai 39 hilang | Mereka tertunda, bukan hilang: semuanya terhitung pada menit 40. Coba lagi.
+@teacher Karena itu window memakai waktu kejadian, dan karena itu mereka harus menunggu sebentar untuk event yang terlambat.
+:::
+
 Setiap event di dalam aliran data streaming memiliki dua stempel waktu (timestamps) yang sangat berbeda artinya:
 
 - **Event Time**: waktu ketika suatu peristiwa fisik nyata benar-benar terjadi di dunia nyata (contoh: pelanggan menekan tombol "Bayar" di aplikasi ponsel pada pukul 10:03:12).
@@ -50,6 +59,15 @@ Operasi agregasi matematika (seperti `count`, `sum`, `avg`) pada aliran data str
 | **Tumbling Window** | Ukuran durasi tetap (fixed size), saling berdampingan tanpa tumpang tindih (non-overlapping) | Menghitung total transaksi per blok 5 menit: `[10:00, 10:05)`, `[10:05, 10:10)` |
 | **Sliding (Hopping) Window** | Ukuran durasi tetap, saling tumpang tindih (overlapping), bergeser dengan interval slide yang lebih kecil | Rata-rata transaksi 5 menit terakhir, diperbarui setiap 1 menit sekali |
 | **Session Window** | Ukuran dinamis: kelompok aktivitas aktif yang dipisahkan oleh jeda waktu ketidakaktifan (inactivity gap) | Sesi interaksi pengguna web: sesi ditutup setelah 30 menit tanpa aktivitas klik baru |
+
+:::talk Di berapa window satu event berada?
+@teacher Sebuah window 5 menit bergeser maju 1 menit, jadi window dimulai pukul 10:00, 10:01, 10:02, dan seterusnya. Sebuah event tiba dengan waktu 10:07.
+@ask Di berapa window event ini berada?
+@choice Satu, karena sebuah event hanya punya satu waktu | Event punya satu waktu, tetapi window yang bergeser saling tumpang tindih, sehingga beberapa di antaranya mencakup waktu itu. Coba lagi.
+@choice * Lima: window yang dimulai pukul 10:03, 10:04, 10:05, 10:06, dan 10:07 | Betul. Ukuran window dibagi geseran menghasilkan jumlah window yang tumpang tindih: 5 / 1 = 5. Event dihitung di masing-masingnya.
+@choice Tujuh, karena sekarang 7 menit lewat jam | Menit event tidak menentukan jumlahnya: yang menentukan adalah ukuran window dan geserannya. Coba lagi.
+@teacher Tumbling window adalah sliding window yang geserannya sama dengan ukurannya, sehingga setiap event mendarat di tepat satu.
+:::
 
 Setiap event tunggal dipetakan ke dalam: tepat **satu** tumbling window, sebanyak `size / slide` jendela **sliding** windows (jendela 5 menit yang bergeser setiap 1 menit memetakan satu event ke dalam 5 window berbeda secara simultan), serta satu **session** window (dua sesi terpisah dapat bergabung/merge jika event terlambat tiba dan menjembatani celah di antara keduanya). Batasan window bersifat setengah terbuka (half-open interval `[start, end)`): batas awal inklusif dan batas akhir eksklusif, sehingga transaksi tepat pada pukul 10:05:00 masuk ke dalam jendela `[10:05, 10:10)`.
 
@@ -213,6 +231,15 @@ def advance(watermark, event_time, allowed_lateness):
 
 ## @lesson State, checkpoints, dan jaminan exactly-once
 Operasi agregasi berbasis waktu harus **mengingat riwayat data** di antara kedatangan event: seperti subtotal berjalan dan jumlah transaksi untuk setiap window yang masih terbuka. Memori internal ini disebut **State**. Dua implikasi arsitektural krusial:
+
+:::talk Penghitung untuk setiap window, selamanya
+@teacher Sebuah pekerjaan streaming menghitung klik per window 5 menit. Itu 288 window sehari. Pekerjaan itu tidak punya watermark, jadi ia tidak pernah memutuskan bahwa sebuah window sudah selesai.
+@ask Apa yang terjadi pada memori pekerjaan itu selama setahun?
+@choice * Ia menyimpan state untuk setiap window, selamanya, karena event apa pun mungkin masih tiba untuk window mana pun: sekitar 105.000 window setelah setahun, dan masih bertambah | Betul. Tanpa watermark tidak ada yang boleh dihapus, sehingga state hanya tumbuh sampai pekerjaan kehabisan memori. Ini salah satu alasan paling umum pekerjaan streaming mati setelah berminggu-minggu.
+@choice Tidak ada: window lama dihapus oleh garbage collector | Garbage collector hanya bisa membebaskan apa yang tidak dirujuk siapa pun. Pekerjaan itu masih membutuhkan window-window tersebut kalau-kalau ada event terlambat. Coba lagi.
+@choice Tetap datar, karena hanya window hari ini yang disimpan | Hanya watermark yang memberi tahu pekerjaan bahwa ia boleh melupakan window lama. Coba lagi.
+@teacher Watermark bukan hanya soal ketepatan. Ia juga aturan yang membolehkan pekerjaan membuang state lama.
+:::
 
 **State wajib memiliki batas ukuran (bounded state).** State sebuah window hanya akan dihapus dari memori saat posisi watermark telah melampaui batas akhir window tersebut—inilah tujuan utama diciptakannya konsep watermark! Jika Anda menghapus konfigurasi watermark, engine Spark terpaksa mempertahankan seluruh state window di masa lalu selamanya di dalam RAM, karena secara teori event transaksi purba bisa saja tiba sewaktu-waktu. Perbandingan nyata yang diukur pada job lab modul ini setelah memproses 120 micro-batches data:
 
@@ -389,7 +416,7 @@ Ketika aplikasi pengguna langsung (seperti peta harga lonjakan/surge pricing lan
 
 > 🛠 **Coba sendiri (15 menit, Python).** Simulasikan stream join impression-click tanpa Flink. Dengan `random.seed(42)`, buat 20.000 impression, satu setiap setengah detik, dan beri 10% di antaranya sebuah klik antara 1 dan 1.800 detik kemudian; urutkan semua event menurut waktu. Proses berurutan, simpan impression dalam dict, dan hitung kecocokan ketika sebuah klik menemukan impression-nya yang umurnya tidak lebih dari 30 menit. Jalankan dua kali: sekali menyimpan setiap impression selamanya, sekali lagi juga membuang impression yang lebih tua dari 30 menit sebelum setiap event (batas waktu plus watermark). Catat jumlah impression terbanyak yang ditahan di state.
 >
-> **Seharusnya Anda melihat:** kedua run mencocokkan `1999` klik yang sama. Tanpa batas, state memuncak di `20000` impression dan masih `20000` di akhir: ia terus tumbuh selama stream berjalan. Dengan batas, ia tidak pernah menahan lebih dari `3601` (impression selama 30 menit) dan berakhir di `404`. Stream sungguhan berjalan berbulan-bulan, jadi hanya versi kedua yang bertahan. Diukur dengan Python 3.14.
+> **Seharusnya Anda melihat:** kedua run mencocokkan jumlah klik yang sama (sekitar 2.000; milik kami `1999`, dan milik Anda akan sedikit berbeda, karena bergantung pada urutan Anda mengundi angka acak). Tanpa batas, state memuncak di `20000` impression dan masih `20000` di akhir: ia terus tumbuh selama stream berjalan. Dengan batas, ia tidak pernah menahan lebih dari `3601` (impression selama 30 menit, angka yang pasti: 2 per detik selama 1.800 detik, ditambah satu) dan berakhir di beberapa ratus (`404` pada run kami, tergantung event terakhir). Stream sungguhan berjalan berbulan-bulan, jadi hanya versi kedua yang bertahan. Diukur dengan Python 3.14.
 
 ## @lab Lab: memodelkan watermark, lalu memverifikasinya terhadap Spark nyata
 Lab ini terdiri dari dua bagian yang saling melengkapi: Bagian A membangun model logika windowing dan watermark dalam Python murni hingga mereproduksi tabel perilaku modul secara presisi. Bagian B membangun job nyata Apache Spark Structured Streaming yang memproses file micro-batch, membuktikan bahwa **hasil emisi window Spark identik 100% dengan prediksi model Anda**, memverifikasi pemulihan dari checkpoint, serta membuktikan pembuangan event yang benar-benar terlambat.

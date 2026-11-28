@@ -18,6 +18,15 @@ Modules 3.1 (Spark basics) and 3.2 (Kafka, offsets, at-least-once). Part A of th
 ## @part Time and windows
 
 ## @lesson Event time versus processing time
+:::talk The spike that never happened
+@teacher Your dashboard counts events per minute by the time the pipeline PROCESSED them. Between minute 20 and minute 40 the pipeline was down. When it recovered at minute 40, it processed all the waiting events at once. The dashboard shows a huge spike at minute 40 and nothing in the minutes before it.
+@ask What really happened to the customers' activity?
+@choice Customers were extremely active at minute 40 | The events happened during minutes 20 to 39. Minute 40 is only when the pipeline caught up. Try again.
+@choice * Nothing unusual: one event per minute all along. The spike is an artefact of processing time | Yes. By event time every minute has the same number of events. Processing time describes your pipeline, event time describes what happened in the world.
+@choice The events from minutes 20 to 39 were lost | They were delayed, not lost: they were all counted at minute 40. Try again.
+@teacher That is why windows use the time the event happened, and why they must wait a little for late events.
+:::
+
 Every event in a stream has two timestamps:
 
 - **Event time**: when the thing actually happened (the customer tapped "Pay" at 10:03:12).
@@ -50,6 +59,15 @@ Aggregations over an unbounded stream need a bounded group, usually a **window**
 | **Tumbling** | Fixed size, no overlap | Orders per 5-minute block: `[10:00, 10:05)`, `[10:05, 10:10)` |
 | **Sliding (hopping)** | Fixed size, overlapping, advances by a smaller slide | The last 5 minutes, updated every minute |
 | **Session** | Dynamic size: a burst of activity separated by a gap of inactivity | A user's visit: ends after 30 minutes with no event |
+
+:::talk How many windows hold one event?
+@teacher A 5-minute window slides forward by 1 minute, so windows start at 10:00, 10:01, 10:02 and so on. An event arrives with the time 10:07.
+@ask In how many windows does this one event fall?
+@choice One, because an event has only one time | The event has one time, but sliding windows overlap, so several of them cover that time. Try again.
+@choice * Five: the windows starting at 10:03, 10:04, 10:05, 10:06 and 10:07 | Yes. The window size divided by the slide gives the number of overlapping windows: 5 / 1 = 5. The event is counted in each of them.
+@choice Seven, because it is 7 minutes past the hour | The minute of the event does not decide the count: the size of the window and the slide do. Try again.
+@teacher A tumbling window is a sliding window whose slide equals its size, so each event lands in exactly one.
+:::
 
 Each event belongs to **one** tumbling window, to `size / slide` **sliding** windows (a 5-minute window sliding by 1 minute puts every event into 5 windows), and to one **session** (sessions merge when a late event bridges two of them). Windows are half-open: the start is included and the end is not, so an event at exactly 10:05:00 belongs to `[10:05, 10:10)`.
 
@@ -210,6 +228,15 @@ def advance(watermark, event_time, allowed_lateness):
 
 ## @lesson State, checkpoints and exactly-once
 An aggregation over time must **remember** things between events: the running count for each open window. That is **state**. Two consequences:
+
+:::talk A counter for every window, forever
+@teacher A streaming job counts clicks per 5-minute window. That is 288 windows a day. The job has no watermark, so it never decides that a window is finished.
+@ask What happens to the job's memory over a year?
+@choice * It keeps state for every window, forever, because any event might still arrive for any of them: about 105,000 windows after a year, and still growing | Yes. Without a watermark nothing may be deleted, so the state only grows until the job runs out of memory. This is one of the most common reasons streaming jobs die after weeks.
+@choice Nothing: old windows are deleted by the garbage collector | The garbage collector can only free what nobody refers to. The job still needs those windows in case a late event arrives. Try again.
+@choice It stays flat, because only today's windows are kept | Only a watermark tells the job it may forget old windows. Try again.
+@teacher A watermark is not only about correctness. It is also the rule that lets the job throw old state away.
+:::
 
 **State must be bounded.** Windowed state is deleted when the watermark passes the window, which is exactly why watermarks exist. Remove the watermark and Spark must keep every window forever, since any event could still arrive. Measured on the same job, 120 micro-batches of data:
 
@@ -386,7 +413,7 @@ When a user-facing product (like live surge-pricing maps or merchant analytics) 
 
 > 🛠 **Try it (15 min, Python).** Simulate an impression-click stream join without Flink. With `random.seed(42)`, make 20,000 impressions, one every half second, and give 10% of them a click between 1 and 1,800 seconds later; sort all events by time. Process them in order, keeping impressions in a dict and counting a match when a click finds its impression no more than 30 minutes old. Run it twice: once keeping every impression forever, once also dropping impressions older than 30 minutes before each event (the time bound plus a watermark). Track the largest number of impressions held in state.
 >
-> **You should see:** both runs match the same `1999` clicks. Without the bound the state peaks at `20000` impressions and is still `20000` at the end: it grows for as long as the stream runs. With the bound it never holds more than `3601` (30 minutes of impressions) and ends at `404`. A real stream runs for months, so only the second version survives. Measured with Python 3.14.
+> **You should see:** both runs match the same number of clicks (about 2,000; ours was `1999`, and yours will differ a little, because it depends on the order in which you draw the random numbers). Without the bound the state peaks at `20000` impressions and is still `20000` at the end: it grows for as long as the stream runs. With the bound it never holds more than `3601` (30 minutes of impressions, an exact number: 2 per second for 1,800 seconds, plus one) and ends at a few hundred (`404` in our run, depending on the last events). A real stream runs for months, so only the second version survives. Measured with Python 3.14.
 
 ## @lab Lab: model a watermark, then check it against real Spark
 Part A: write the windowing and watermark logic in plain Python until it reproduces the behaviour in the lesson's table. Part B: write the real Structured Streaming job that reads files as micro-batches, and verify that **Spark agrees with your model**, restarts correctly from its checkpoint, and drops a genuinely late event.
