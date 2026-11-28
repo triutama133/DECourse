@@ -255,6 +255,16 @@ const get = (core, key) => JSON.parse(core.storage.getItem(key));
     assert.ok(/window\.DF_CLOUD = null;/.test(configSource(null)));
   });
 
+  await t("config: a prefixed public name is accepted, a secret name never is, two candidates are an error", () => {
+    const anon = "h." + Buffer.from(JSON.stringify({ role: "anon" })).toString("base64url") + ".s";
+    const ok = buildConfig({ talenthub_PUBLIC_SUPABASE_URL: "https://abc.supabase.co", talenthub_PUBLIC_SUPABASE_ANON_KEY: anon, talenthub_SUPABASE_SERVICE_ROLE_KEY: "sb_secret_nope", sudo: "x" });
+    assert.deepStrictEqual(ok.config, { url: "https://abc.supabase.co", anonKey: anon });
+    const onlySecret = buildConfig({ talenthub_PUBLIC_SUPABASE_URL: "https://abc.supabase.co", talenthub_SUPABASE_SERVICE_ROLE_KEY: "sb_secret_nope" });
+    assert.strictEqual(onlySecret.ok, false);   // a URL without a public key is refused, the secret key is not used instead
+    const two = buildConfig({ a_SUPABASE_URL: "https://abc.supabase.co", b_SUPABASE_URL: "https://xyz.supabase.co", SUPABASE_ANON_KEY: anon });
+    assert.strictEqual(two.ok, false); assert.ok(/several Supabase URLs/.test(two.message));
+    assert.strictEqual(buildConfig({ SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: anon, other_SUPABASE_URL: "https://xyz.supabase.co" }).config.url, "https://abc.supabase.co", "a standard name wins over a loose one");
+  });
   await t("config: a .env file with a prefix gives only the public URL and key, never the secret key or other lines", () => {
     const envText = "sudo=hunter2\ntalenthub_PUBLIC_SUPABASE_URL=\"https://abc.supabase.co\"\ntalenthub_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xyz\ntalenthub_SUPABASE_SERVICE_ROLE_KEY=sb_secret_nope\n";
     const picked = readEnvFile(envText, "talenthub_");

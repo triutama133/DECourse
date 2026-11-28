@@ -15,6 +15,16 @@ const KEY_NAMES = ["SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEY", "NEXT_PUBLIC
 
 function firstEnv(env, names) { for (const n of names) if (env[n] && String(env[n]).trim()) return String(env[n]).trim(); return ""; }
 
+// Last resort when none of the standard names is set: accept a prefixed public name such as
+// talenthub_PUBLIC_SUPABASE_URL / talenthub_PUBLIC_SUPABASE_ANON_KEY. Only names that END in SUPABASE_URL or in
+// ANON_KEY / PUBLISHABLE_KEY count, so SERVICE_ROLE_KEY and other secrets are never picked up. Two different
+// candidates are an error, not a guess.
+function looseEnv(env, suffix) {
+  const hits = Object.keys(env).filter((n) => suffix.test(n) && String(env[n] || "").trim());
+  const values = [...new Set(hits.map((n) => String(env[n]).trim()))];
+  return { value: values.length === 1 ? values[0] : "", names: hits, ambiguous: values.length > 1 };
+}
+
 function keyRole(key) {
   if (/^sb_secret_/.test(key)) return "service_role";
   if (/^sb_publishable_/.test(key)) return "anon";
@@ -45,8 +55,11 @@ function readEnvFile(text, prefix = "") {
 
 // returns { ok, config, message }; config is null when sync should stay off
 function buildConfig(env, args = {}) {
-  const url = (args.url || firstEnv(env, URL_NAMES)).replace(/\/+$/, "");
-  const key = args.key || firstEnv(env, KEY_NAMES);
+  let url = args.url || firstEnv(env, URL_NAMES);
+  let key = args.key || firstEnv(env, KEY_NAMES);
+  if (!url) { const l = looseEnv(env, /SUPABASE_URL$/i); if (l.ambiguous) return { ok: false, config: null, message: `several Supabase URLs are set (${l.names.join(", ")}). Set SUPABASE_URL to the one to use.` }; url = l.value; }
+  if (!key) { const l = looseEnv(env, /(ANON|PUBLISHABLE)_KEY$/i); if (l.ambiguous) return { ok: false, config: null, message: `several public Supabase keys are set (${l.names.join(", ")}). Set SUPABASE_ANON_KEY to the one to use.` }; key = l.value; }
+  url = url.replace(/\/+$/, "");
   if (!url && !key) return { ok: true, config: null, message: "cloud sync is OFF (no SUPABASE_URL / SUPABASE_ANON_KEY set)" };
   if (!url || !key) return { ok: false, config: null, message: "set BOTH the Supabase URL and the anon key (one of them is missing)" };
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.(co|in)$/i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)) {

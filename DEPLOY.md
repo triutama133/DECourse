@@ -59,7 +59,10 @@ Open the failed deployment → **Building** → copy the red lines and send them
 5. **Project Settings → API** (or the **Connect** button): copy the **Project URL** and the **anon / publishable** key.
    Never use the `service_role` or `secret` key anywhere in this project.
 6. In Vercel: **Project → Settings → Environment Variables** → add `SUPABASE_URL` and `SUPABASE_ANON_KEY`
-   (all environments) → **Deployments → Redeploy**. The settings are written into the site at build time, so a redeploy is needed.
+   (tick Production **and** Preview) → **Deployments → … → Redeploy**. The settings are written into the site at build time,
+   so a redeploy is needed after any change. Other names work too if they end in `SUPABASE_URL` and `ANON_KEY` / `PUBLISHABLE_KEY`
+   (for example `NEXT_PUBLIC_SUPABASE_URL`, or `talenthub_PUBLIC_SUPABASE_URL`); a name ending in `SERVICE_ROLE_KEY` is never used.
+   To see whether it worked, open `https://your-site/js/cloud-config.js`: it should show your project, not `null`.
 7. Open the site: a **Masuk / Sign in** button appears in the top bar. Create an account, learn something, open the site
    on another device, sign in: the progress is there.
 
