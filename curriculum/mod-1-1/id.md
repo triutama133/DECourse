@@ -132,7 +132,7 @@ Pada data KopiKu ini mencetak `cancelled 362`, `delivered 2148`, `paid 374`, `re
 > 2. Intip 3 baris pertama event NDJSON: `head -3 data/events.ndjson`
 > 3. Hitung total baris log event: `wc -l data/events.ndjson`
 > 4. Hitung event bertipe purchase: `grep -c "purchase" data/events.ndjson`
-> Data Anda sudah siap! Lanjut ke Pelajaran 3 untuk membedah data JSON dengan `jq`.
+> **Seharusnya Anda melihat:** tiga baris JSON yang panjang (yang ketiga terpotong di tengah: baris rusak yang sengaja ditanam data), lalu `90900 data/events.ndjson`, lalu `15079`. Data Anda sudah siap! Lanjut ke Pelajaran 3 untuk membedah data JSON dengan `jq`.
 
 :::drill python Jebakan uniq
 Perintah shell `uniq -c` hanya menggabungkan duplikat yang **bertetangga**. Tulis `uniq_c(lines)`: kembalikan daftar pasangan `(count, line)`, tiap pasangan adalah deretan baris identik yang berdampingan.
@@ -185,17 +185,18 @@ head -2 data/events.ndjson | jq -c '{event_id, event_type}'
 jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | wc -l
 ```
 
-`fromjson` mengurai satu baris sebagai JSON; tanda `?` menahan error ketika baris rusak, sehingga baris buruk dilewati alih-alih membatalkan seluruh proses. Pada event KopiKu ini menyimpan 89.987 dari 90.900 baris (913 sisanya terpotong) dalam sekitar setengah detik di laptop.
+`fromjson` mengurai satu baris sebagai JSON; tanda `?` menahan error ketika baris rusak, sehingga baris buruk dilewati alih-alih membatalkan seluruh proses. Pada event KopiKu ini menyimpan 89.987 dari 90.900 baris (913 sisanya terpotong) dalam kurang dari satu detik di laptop.
 
 > **Peringatan:** `jq -s` ("slurp") memuat *seluruh* masukan ke memori sebagai satu array. Praktis sekaligus berbahaya: pada file besar, inilah cara persis container dimatikan. Pilih bentuk streaming (satu objek per baris) dan agregasikan dengan `sort | uniq -c`, atau pindah ke DuckDB (Modul 2.1) bila Anda butuh analitik sungguhan.
 
 Kapan berhenti memakai alat shell? Ketika logikanya butuh percabangan, state, retry, atau tes. Pipeline shell lima tahap itu menyenangkan; skrip Bash 300 baris adalah beban. Beralihlah ke Python (Modul 1.2) ketika Anda mulai butuh array berisi array atau ingin menguji logikanya dengan unit test.
 
 > 💡 **Jeda Praktik 2 (Eksperimen Parsing JSON dengan jq):**
-> Coba perkakas `jq` langsung di terminal Anda untuk mengekstrak field:
-> 1. Ambil event_id dan event_type ringkas: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
-> 2. Uji parsing defensif yang menahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
-> Perhatikan bagaimana baris buruk diabaikan tanpa membuat proses crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
+> Coba perkakas `jq` langsung di terminal Anda, dan kenali baris rusak yang sengaja ditanam data:
+> 1. Dua baris yang bersih: `head -2 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 2. Lima baris, seperti cara yang biasanya Anda coba pertama: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 3. Parsing yang tahan error: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
+> **Seharusnya Anda melihat:** langkah 1 mencetak `{"event_id":"e00085531","event_type":"page_view"}` dan satu baris pendek lagi. Langkah 2 mencetak dua baris yang sama, lalu berhenti dengan `jq: parse error`: baris ketiga file itu terpotong di tengah (Anda sudah melihatnya di Jeda 1), dan `jq` biasa menyerah pada baris rusak pertama. Langkah 3 melewati baris itu dan mencetak tiga objek JSON lengkap, diawali `e00085531`, `e00017290`, dan `e00061551`. Baris rusak dilewati tanpa crash! Lanjut ke Pelajaran 4 untuk menulis skrip yang aman.
 
 Di modul `json` Python, `json.loads(line)` mengurai satu string JSON dan melempar `json.JSONDecodeError` jika barisnya rusak. Karena JSON yang valid juga bisa berupa angka, string, atau list, periksa `isinstance(obj, dict)` bila Anda hanya menginginkan objek JSON.
 
@@ -280,13 +281,22 @@ tidak ada: shell berhenti sebelum menjalankannya
 Tanpa tanda kutip, shell memecah nilainya di spasi. Selalu tulis `"$file"`. `shellcheck` menandai persis kesalahan ini.
 :::
 
+:::talk Ke mana pesan itu pergi?
+@teacher Skrip Anda mencetak hasilnya dengan `echo "total=42"` dan kemajuannya dengan `echo "starting..." >&2`. Anda menjalankannya begini: `bash report.sh > result.txt`. Tanda `>` mengirim keluaran normal skrip ke dalam file.
+@ask Setelah selesai, apa isi `result.txt`?
+@choice Kedua baris, karena keduanya dicetak oleh skrip yang sama | Keduanya keluar dari skrip yang sama, tetapi lewat dua saluran berbeda, seperti dua pipa. `>` hanya mengambil yang normal. Coba lagi.
+@choice * Hanya `total=42`: pesan kemajuan lewat saluran error dan muncul di layar Anda | Betul. `>&2` mengirim pesan ke stderr, yang tidak ditangkap oleh `>`, sehingga file data Anda tetap bersih sementara kemajuan tetap terlihat di layar.
+@choice Hanya `starting...`, karena dicetak lebih dulu | Urutan tidak penting di sini: yang menentukan adalah saluran mana yang dipakai setiap baris. Coba lagi.
+@teacher Karena itulah skrip mencatat log ke stderr dan mencetak hasil ke stdout: pipa atau file menerima data yang bersih, dan manusia tetap melihat pesannya.
+:::
+
 > 💡 **Jeda Praktik 3 (Bangun report.sh - Bagian A):**
 > Saatnya mengerjakan Bagian A dari lab ini!
 > 1. Buka `labs/mod-1-1/report.sh` di editor teks Anda dan baca komentar header-nya, di sana tercantum 6 jenis baris keluaran `key=value` (`lines_total`, `malformed_lines`, `valid_events`, `unique_event_ids`, `distinct_users`, dan `type.<event_type>`) serta pemakaian `mktemp` dengan `trap` untuk pembersihan. Saat menjalankannya secara manual, selalu sertakan file masukan, misalnya `bash labs/mod-1-1/report.sh data/events.ndjson`.
 > 2. Terapkan mode ketat `set -euo pipefail`, validasi argumen input `$1`, bersihkan file sementara dengan `mktemp` dan `trap`, lalu bangun pipeline ringkasan metrik menggunakan `jq`, `sort -u`, dan `wc -l`.
 > 3. Uji pekerjaan Anda di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
-> Jika semua pengujian Bagian A berwarna HIJAU (PASSED), Anda telah menyelesaikan skrip stream Unix profesional! Lanjut ke Pelajaran 5 tentang Cron.
+> Setiap tes mencetak satu baris yang berakhir dengan `ok` atau `FAIL`, dan baris terakhir berbunyi `OK` bila kelima tes lulus. Di awal beberapa sudah berbunyi `ok` (skrip yang tidak berbuat apa-apa pun tetap gagal dengan keras tanpa argumen), jadi Anda baru selesai ketika seluruh keluaran berakhir dengan `OK`. Maka skrip stream Unix profesional Anda sudah jadi! Lanjut ke Pelajaran 5 tentang Cron.
 
 ## @part Menjalankan job: cron, container, dan batas
 
@@ -314,6 +324,15 @@ ekspresi jadwalnya salah
 * cron punya environment minimal: `PATH` pendek, tanpa venv
 @why
 cron tidak memuat profil shell Anda. Pakai path absolut (`/opt/kopiku/venv/bin/python`), atur variabel di dalam skrip, dan alihkan output ke log (`>> log 2>&1`) supaya Anda bisa melihat apa yang terjadi.
+:::
+
+:::talk Ketika pekerjaan lebih lama daripada jadwalnya
+@teacher Sebuah baris cron menjalankan laporan setiap 15 menit. Suatu hari database lambat, dan satu putaran memakan 20 menit.
+@ask Apa yang dilakukan cron pada menit ke-15, saat putaran pertama masih berjalan?
+@choice Ia menunggu putaran pertama selesai, baru memulai yang berikutnya | cron tidak tahu dan tidak peduli apa yang sedang dikerjakan pekerjaan Anda. Ia hanya melihat jam. Coba lagi.
+@choice Ia menghentikan putaran pertama dan memulai yang baru | cron tidak pernah mematikan pekerjaan Anda. Coba lagi.
+@choice * Ia tetap memulai salinan kedua, sehingga dua putaran bekerja bersamaan | Betul. cron hanya mengawasi jam, jadi kedua salinan bisa menulis file yang sama dan bertabrakan. Kunci seperti `flock -n` membuat salinan kedua menolak berjalan.
+@teacher cron adalah jam yang sangat sederhana: tidak menunggu, tidak mencoba ulang, tidak mengingat putaran sebelumnya. Karena itu pipeline yang lebih besar nanti pindah ke orchestrator di kursus ini.
 :::
 
 Poin terakhir itulah alasan pipeline sungguhan pindah ke **orchestrator** seperti Airflow atau Dagster (Modul 2.4), yang menambah dependensi, retry, backfill, dan UI. cron tetap alat yang tepat untuk job sederhana yang mandiri di satu mesin.
@@ -365,6 +384,15 @@ docker build -t kopiku-etl .
 docker run --rm -v "$PWD/data:/data:ro" kopiku-etl
 ```
 
+:::talk Mengapa setiap build memakan waktu berminit-menit?
+@teacher Seorang pembelajar menulis `COPY . .` lebih dulu dan `RUN pip install -r requirements.txt` sesudahnya. Ia mengubah satu baris kodenya sendiri lalu membangun ulang image.
+@ask Apa yang dilakukan Docker pada langkah `pip install`?
+@choice Melewatinya, karena requirements tidak berubah | Memang begitu, kalau sebelumnya hanya `requirements.txt` yang disalin. Tetapi `COPY . .` menyalin seluruh proyek, dan file yang diedit ikut di dalamnya, sehingga layer itu berubah. Coba lagi.
+@choice * Menjalankannya lagi dan mengunduh semua paket, karena ada langkah sebelumnya yang berubah | Betul. Docker memakai ulang sebuah layer hanya jika semua yang ada sebelumnya tidak berubah. Satu baris yang diedit di folder yang disalin merusak cache, dan semua langkah sesudahnya dibangun ulang.
+@choice Menanyakan kepada Anda apakah layer lama mau dipakai lagi | Docker tidak pernah bertanya: ia memutuskan dari apa yang berubah. Coba lagi.
+@teacher Jadi salin `requirements.txt` lebih dulu, instal, dan salin kode Anda paling akhir. Taruh yang paling jarang berubah di atas, dan build harian Anda selesai dalam hitungan detik.
+:::
+
 Mengapa setiap baris tampak seperti itu:
 
 - **`FROM python:3.12-slim`**: selalu pin tag versi. `latest` berubah sewaktu-waktu tanpa sepengetahuan Anda dan merusak reprodusibilitas. Image `slim` jauh lebih kecil daripada yang penuh; Alpine lebih kecil lagi tetapi memakai library C yang berbeda, yang sering berarti paket Python harus dikompilasi dari sumber, jadi slim adalah bawaan yang lebih aman.
@@ -384,7 +412,7 @@ Hal lain yang akan Anda pakai: **volume dan bind mount** menyimpan data di luar 
 > 3. Pastikan `.dockerignore` mengecualikan folder `venv/`, `data/`, `.git/`, dan `.env`.
 > 4. Uji di terminal:
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
-> Jika semua tes Dockerfile PASSED, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
+> Jika kedelapan tes Dockerfile berakhir dengan `ok` dan baris terakhir berbunyi `OK`, container Anda sudah siap kirim ke produksi! Lanjut ke Pelajaran 7 untuk memahami batas memori & exit code 137.
 
 :::ask Anda memulai tiga container dari image yang sama. Berapa image yang ada?
 @options
@@ -430,7 +458,7 @@ Batas terkait yang perlu dipantau: **disk** (disk penuh membuat penulisan gagal 
 > 1. Exit code 137 adalah 128 + 9, sinyal SIGKILL yang membunuh container yang melewati batas memorinya. Buktikan: `sleep 100 & kill -9 $!; wait $!; echo $?`.
 > 2. Bandingkan memori. Di Python, tulis dua fungsi yang menjumlahkan total yang valid dari `data/orders.csv` (ingat untuk membersihkan awalan `"Rp "` atau koma serta mengabaikan nilai negatif atau non-angka): satu membaca seluruh file ke list dulu (`list(csv.reader(...))`), yang lain menjumlahkan baris demi baris. Bungkus setiap pemanggilan dengan `tracemalloc` (`tracemalloc.start()` sebelumnya, `tracemalloc.get_traced_memory()[1]` sesudahnya, lalu `tracemalloc.stop()`) dan cetak puncaknya dalam KiB.
 >
-> **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dibanding sekitar 150–170 KiB untuk versi streaming (kira-kira 10× lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
+> **Seharusnya Anda melihat:** `137`, dan puncak sekitar 1.500 KiB untuk versi list dengan `csv.reader` (sekitar 2.000 KiB jika Anda memakai `DictReader`) dibanding sekitar 40 KiB untuk versi streaming, bagaimanapun cara menulisnya (kira-kira 40 kali lebih kecil di file kecil ini). Pada file seribu kali lebih besar, rasio itulah yang menentukan apakah container-nya selamat.
 
 :::ask Sebuah container yang menjalankan job pandas berhenti dengan exit code 137 tanpa pesan error Python. Apa yang paling mungkin terjadi?
 @options

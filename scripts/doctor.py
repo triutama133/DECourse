@@ -22,6 +22,7 @@ MODULE_RE = re.compile(r"^mod-[0-4]-\d$")
 
 # What each module needs beyond its requirements.txt. Kept in step with the Prerequisites line of each module.
 TOOLS = {
+    "mod-1-1": {"jq": True, "docker": "the optional Step 7 of the lab (build and run the container)"},
     "mod-3-1": {"java": 17},
     "mod-3-3": {"java": 17},                      # Part B (Spark Structured Streaming)
     "mod-3-4": {"terraform": True},
@@ -259,6 +260,13 @@ def check_packages(r, mod):
 
 def check_tools(r, mod):
     need = TOOLS.get(mod, {})
+    if need.get("jq"):
+        code, out = sh(["jq", "--version"])
+        if code == 127:
+            r.bad("jq is not installed (Lessons 3 and 4 and the lab of Module 1.1 use it)",
+                  "Debian, Ubuntu, WSL:  sudo apt install -y jq    macOS:  brew install jq")
+        else:
+            r.ok(f"{out.strip().splitlines()[0] if out.strip() else 'jq'} installed")
     if "java" in need:
         code, out = sh(["java", "-version"])
         m = re.search(r'version "(\d+)', out)
@@ -417,6 +425,15 @@ def self_test():
         os.environ.pop("KOPIKU_DB")
         if saved is not None:
             os.environ["KOPIKU_DB"] = saved
+    # a missing jq is a problem with the install command; a present one is fine
+    saved_path = os.environ.get("PATH", "")
+    os.environ["PATH"] = "/nonexistent"
+    try:
+        r = Report(lambda s: None)
+        check_tools(r, "mod-1-1")
+        assert r.problems >= 1, "a missing jq must be reported for mod-1-1"
+    finally:
+        os.environ["PATH"] = saved_path
     assert main(["mod-9-9"], out=lambda s: None) == 2 and main(["--nope"], out=lambda s: None) == 2
     print("SELF_TEST_DOCTOR_OK")
     return 0

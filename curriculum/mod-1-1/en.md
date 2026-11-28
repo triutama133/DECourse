@@ -132,7 +132,7 @@ On the KopiKu data this prints `cancelled 362`, `delivered 2148`, `paid 374`, `r
 > 2. Inspect the first 3 NDJSON event lines: `head -3 data/events.ndjson`
 > 3. Count total event log lines: `wc -l data/events.ndjson`
 > 4. Count purchase events: `grep -c "purchase" data/events.ndjson`
-> Your data is ready! Proceed to Lesson 3 to slice JSON data with `jq`.
+> **You should see:** three long JSON lines (the third is cut off in the middle: a damaged line the data planted on purpose), then `90900 data/events.ndjson`, then `15079`. Your data is ready! Proceed to Lesson 3 to slice JSON data with `jq`.
 
 :::drill python The uniq trap
 The shell command `uniq -c` collapses only **neighbouring** duplicates. Write `uniq_c(lines)`: return a list of `(count, line)` pairs, where each pair is a run of identical lines that sit next to each other.
@@ -185,17 +185,18 @@ head -2 data/events.ndjson | jq -c '{event_id, event_type}'
 jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | wc -l
 ```
 
-`fromjson` parses a line as JSON; the `?` suppresses the error when a line is broken, so the bad lines are skipped instead of aborting the whole run. On the KopiKu events this keeps 89,987 of 90,900 lines (the other 913 are truncated) in about half a second on a laptop.
+`fromjson` parses a line as JSON; the `?` suppresses the error when a line is broken, so the bad lines are skipped instead of aborting the whole run. On the KopiKu events this keeps 89,987 of 90,900 lines (the other 913 are truncated) in under a second on a laptop.
 
 > **Warning:** `jq -s` ("slurp") loads the *entire* input into memory as one array. It is convenient and dangerous: on a large file it is exactly how a container gets killed. Prefer streaming forms (one object per line) and aggregate with `sort | uniq -c`, or move to DuckDB (Module 2.1) when you need real analytics.
 
 When should you stop using shell tools? When the logic needs branching, state, retries or tests. A shell pipeline of five stages is a joy; a 300-line Bash script is a liability. Switch to Python (Module 1.2) when you reach for arrays of arrays or when you want to unit-test the logic.
 
 > 💡 **Practice Pause 2 (JSON Parsing with jq):**
-> Try `jq` directly in your terminal to extract fields:
-> 1. Extract compact event_id and event_type: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
-> 2. Test error-resilient parsing: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
-> Notice how damaged lines are skipped without crashing! Proceed to Lesson 4 to write safe shell scripts.
+> Try `jq` directly in your terminal, and meet the damaged line the data planted on purpose:
+> 1. Two clean lines: `head -2 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 2. Five lines, the way you would first try it: `head -5 data/events.ndjson | jq -c '{event_id, event_type}'`
+> 3. Error-resilient parsing: `jq -R -c 'fromjson? | select(type == "object")' data/events.ndjson | head -3`
+> **You should see:** step 1 prints `{"event_id":"e00085531","event_type":"page_view"}` and a second short line. Step 2 prints the same two lines and then stops with `jq: parse error`: the third line of the file is cut off in the middle (you saw it in Pause 1), and plain `jq` gives up on the first broken line. Step 3 skips that line and prints three complete JSON objects, starting with `e00085531`, `e00017290` and `e00061551`. Damaged lines are skipped without crashing! Proceed to Lesson 4 to write safe shell scripts.
 
 In Python's `json` module, `json.loads(line)` parses one JSON string and raises `json.JSONDecodeError` if the line is broken. Because valid JSON can also be a number, string, or list, check `isinstance(obj, dict)` when you only want JSON objects.
 
@@ -280,13 +281,22 @@ nothing: the shell stops before running it
 Unquoted, the shell splits the value at the space. Always write `"$file"`. `shellcheck` flags exactly this mistake.
 :::
 
+:::talk Where does the message go?
+@teacher Your script prints its result with `echo "total=42"` and its progress with `echo "starting..." >&2`. You run it like this: `bash report.sh > result.txt`. The `>` sends the normal output of the script into the file.
+@ask When the run is over, what is inside `result.txt`?
+@choice Both lines, because both were printed by the same script | They come out of the same script, but through two different channels, like two pipes. `>` takes only the normal one. Try again.
+@choice * Only `total=42`: the progress message went to the error channel and appeared on your screen | Yes. `>&2` sends a message to stderr, which `>` does not capture, so your data file stays clean while you still see the progress on screen.
+@choice Only `starting...`, because it was printed first | The order does not matter here: what counts is which channel each line was sent to. Try again.
+@teacher That is why scripts log to stderr and print results to stdout: a pipe or a file receives clean data, and humans still see the messages.
+:::
+
 > 💡 **Practice Pause 3 (Build report.sh - Part A):**
 > Time to build Part A of this lab!
 > 1. Open `labs/mod-1-1/report.sh` in your text editor and read its header comment, it specifies the 6 `key=value` output lines (`lines_total`, `malformed_lines`, `valid_events`, `unique_event_ids`, `distinct_users`, and `type.<event_type>`) plus using `mktemp` with `trap` for cleanup. When running it by hand, always pass an input file, e.g. `bash labs/mod-1-1/report.sh data/events.ndjson`.
 > 2. Apply strict mode `set -euo pipefail`, validate input argument `$1`, clean up any temporary file with `mktemp` and `trap`, and build the metric summary pipeline using `jq`, `sort -u`, and `wc -l`.
 > 3. Test your script in the terminal:
 > `python3 labs/mod-1-1/test_lab.py TestReportScript -v`
-> When all Part A tests are GREEN (PASSED), your professional Unix stream script is done! Proceed to Lesson 5 on Cron.
+> Every test prints a line ending in `ok` or `FAIL`, and the last line says `OK` when all five pass. At first some already say `ok` (a script that does nothing still fails loudly without an argument), so you are done only when the whole run ends with `OK`. Then your professional Unix stream script is done! Proceed to Lesson 5 on Cron.
 
 ## @part Running jobs: cron, containers and limits
 
@@ -314,6 +324,15 @@ the schedule expression is wrong
 * cron has a bare environment: short `PATH`, no venv
 @why
 cron does not load your shell profile. Use absolute paths (`/opt/kopiku/venv/bin/python`), set variables inside the script, and redirect output to a log (`>> log 2>&1`) so you can see what happened.
+:::
+
+:::talk When the job takes longer than the schedule
+@teacher A cron line runs a report every 15 minutes. One day the database is slow, and one run takes 20 minutes.
+@ask What does cron do at minute 15, while the first run is still going?
+@choice It waits until the first run finishes, then starts the next one | cron does not know or care what your job is doing. It only looks at the clock. Try again.
+@choice It stops the first run and starts a fresh one | cron never kills your job. Try again.
+@choice * It starts a second copy anyway, so two runs work at the same time | Yes. cron only watches the clock, so the two copies can write the same files and collide. A lock such as `flock -n` makes the second copy refuse to start.
+@teacher cron is a very simple clock: no waiting, no retrying, no memory of past runs. That is why bigger pipelines move to an orchestrator later in the course.
 :::
 
 That last point is why real pipelines move to an **orchestrator** such as Airflow or Dagster (Module 2.4), which add dependencies, retries, backfills and a UI. cron is still the right tool for a simple, independent job on a single machine.
@@ -365,6 +384,15 @@ docker build -t kopiku-etl .
 docker run --rm -v "$PWD/data:/data:ro" kopiku-etl
 ```
 
+:::talk Why does every build take minutes?
+@teacher A learner writes `COPY . .` first and `RUN pip install -r requirements.txt` after it. They change one line of their own code and rebuild the image.
+@ask What does Docker do with the `pip install` step?
+@choice It skips it, because the requirements did not change | It would, if only `requirements.txt` had been copied before. But `COPY . .` copied the whole project, and the edited file is part of it, so that layer changed. Try again.
+@choice * It runs it again and downloads every package, because an earlier step changed | Yes. Docker reuses a layer only if everything before it is unchanged. One edited line in the copied folder breaks the cache, and everything after it is rebuilt.
+@choice It asks you whether to reuse the old layer | Docker never asks: it decides from what changed. Try again.
+@teacher So copy `requirements.txt` first, install, and copy your code last. Put what changes least at the top, and your everyday rebuilds take seconds.
+:::
+
 Why each line looks the way it does:
 
 - **`FROM python:3.12-slim`**: always pin a version tag. `latest` changes under you and breaks reproducibility. `slim` images are much smaller than the full ones; Alpine is smaller still but uses a different C library, which often means Python packages must be compiled from source, so slim is the safer default.
@@ -384,7 +412,7 @@ Other things you will use: **volumes and bind mounts** keep data outside the con
 > 3. Verify `.dockerignore` excludes `venv/`, `data/`, `.git/`, and `.env`.
 > 4. Test in the terminal:
 > `python3 labs/mod-1-1/test_lab.py TestDockerfile -v`
-> When all Dockerfile tests show PASSED, your container is production ready! Proceed to Lesson 7 to learn about memory limits & exit code 137.
+> When all eight Dockerfile tests end in `ok` and the last line says `OK`, your container is production ready! Proceed to Lesson 7 to learn about memory limits & exit code 137.
 
 :::ask You start three containers from the same image. How many images exist?
 @options
@@ -430,7 +458,7 @@ Related limits to watch: **disk** (a full disk makes writes fail in odd ways, so
 > 1. Exit code 137 is 128 + 9, the signal SIGKILL that kills a container over its memory limit. Prove it: `sleep 100 & kill -9 $!; wait $!; echo $?`.
 > 2. Compare memory. In Python, write two functions that add up the valid totals of `data/orders.csv` (remember to strip any `"Rp "` prefix or commas and ignore negative or non-numeric totals): one first reads the whole file into a list (`list(csv.reader(...))`), the other adds row by row. Wrap each call in `tracemalloc` (`tracemalloc.start()` before, `tracemalloc.get_traced_memory()[1]` after, then `tracemalloc.stop()`) and print the peak in KiB.
 >
-> **You should see:** `137`, and a peak of about 1,500 KiB for the list version against about 150–170 KiB for the streaming one (roughly 10× less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
+> **You should see:** `137`, and a peak of about 1,500 KiB for the `csv.reader` list version (about 2,000 KiB if you used `DictReader`) against about 40 KiB for the streaming one, however you write it (roughly 40 times less on this small file). On a file a thousand times bigger, that ratio decides whether the container survives.
 
 :::ask A container running a pandas job stops with exit code 137 and no Python error message. What most likely happened?
 @options

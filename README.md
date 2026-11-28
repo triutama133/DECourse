@@ -21,7 +21,7 @@ python3 scripts/doctor.py                     # checks folder, Python, Git, venv
 python3 server.py                             # or npm start; then open http://localhost:3000
 ```
 
-**Stuck on setup?** `python3 scripts/doctor.py mod-2-3` (any module) also checks that module's packages, tools (Java, Docker, Terraform) and environment variables (`DATABASE_URL`, `KOPIKU_DB`), and that your venv still works after a Python upgrade. It only looks; it changes nothing.
+**Stuck on setup?** `python3 scripts/doctor.py mod-2-3` (any module) also checks that module's packages, tools (jq, Java, Docker, Terraform) and environment variables (`DATABASE_URL`, `KOPIKU_DB`), and that your venv still works after a Python upgrade. It only looks; it changes nothing.
 
 **Labs are verified, starters included:** `python3 scripts/verify_labs.py` proves that every reference solution passes and that every starter fails *because it is unfinished*, not because it is broken (a syntax error, an import that cannot work, a dbt compile error). Its `--self-test` checks those rules in CI.
 
