@@ -72,7 +72,7 @@ def clean_lesson_text(block):
             in_drill, skip = True, False
             out.append("Practice: " + s[len(":::drill"):].strip().split(" ", 1)[-1] if len(s) > 8 else "Practice:")
             continue
-        if s.startswith((":::trace", ":::sqlsteps", ":::advanced")):
+        if s.startswith((":::trace", ":::sqlsteps", ":::talk", ":::advanced")):
             skip = True
             continue
         if s.startswith(":::ask"):

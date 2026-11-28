@@ -31,7 +31,7 @@
     for (const line of String(body).split("\n")) {
       const s = line.trim();
       if (s.startsWith(":::drill")) { inDrill = true; skip = false; out.push("Practice: " + s.slice(8).trim().split(" ").slice(1).join(" ")); continue; }
-      if (s.startsWith(":::trace") || s.startsWith(":::sqlsteps") || s.startsWith(":::advanced")) { skip = true; continue; }
+      if (s.startsWith(":::trace") || s.startsWith(":::sqlsteps") || s.startsWith(":::talk") || s.startsWith(":::advanced")) { skip = true; continue; }
       if (s.startsWith(":::ask")) { inDrill = false; skip = false; out.push("Question: " + s.slice(6).trim()); continue; }
       if (s === ":::") { inDrill = false; skip = false; continue; }
       if (skip) continue;
@@ -434,6 +434,15 @@
       if (!S.on) return turnOn();
       S.open = !S.open; render();
       if (S.open && S.phase !== "ready" && !["checking", "starting", "pulling"].includes(S.phase)) ensure();
+    },
+    // "Ask the teacher" in a lesson: open the tutor (turning it on and walking through the setup when needed) and ask this question.
+    // When the model is not ready yet, the question waits in the input box so one press of Send asks it.
+    async askAbout(q) {
+      ensurePanel();
+      if (!S.on) await turnOn();
+      else { S.open = true; render(); if (S.phase !== "ready" && !["checking", "starting", "pulling"].includes(S.phase)) await ensure(); }
+      if (S.phase === "ready") return ask(q);
+      const i = $("tutor-input"); if (i) i.value = q;
     },
     turnOn, turnOff, core,
     _state: S,

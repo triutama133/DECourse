@@ -354,7 +354,7 @@ class DataForgeApp {
     if (this._glOrder && this._glOrder.lang === key) return this._glOrder;
     const items = [];
     for (const L of CURRICULUM_DATA) for (const m of L.modules) (m.lessons || []).forEach((ls, i) => {
-      const raw = String(this.t(ls.body) || "").replace(/```[\s\S]*?```/g, " ").replace(/^:::(?:drill|ask|trace|sqlsteps)\b[\s\S]*?^:::\s*$/gm, " ");
+      const raw = String(this.t(ls.body) || "").replace(/```[\s\S]*?```/g, " ").replace(/^:::(?:drill|ask|talk|trace|sqlsteps)\b[\s\S]*?^:::\s*$/gm, " ");
       items.push({ mod: m.id, idx: i, text: raw });
     });
     const pos = new Map(items.map((x, n) => [x.mod + ":" + x.idx, n]));
@@ -761,7 +761,7 @@ class DataForgeApp {
         while (i < lines.length && !/^:::\s*$/.test(lines[i])) blk.push(lines[i++]);
         i++;
         out.push(this.renderTrace(blk.join("\n"), ctx));
-      } else if (/^:::(drill|ask)\b/.test(line)) {
+      } else if (/^:::(drill|ask|talk)\b/.test(line)) {
         // ":::drill python Title" ... ":::": a small exercise with checks (see drill-parse.js)
         const blk = [line];
         i++;
@@ -2041,6 +2041,7 @@ class DataForgeApp {
     const key = ctx && ctx.modId != null ? `${ctx.modId}:${ctx.lessonIdx || 0}:${idx}` : `loose:${idx}`;
     this._drills[key] = d;
     d.key = key;
+    if (d.kind === "talk") return this.renderTalk(d, key);
     this.warmPython();
     const st = this.drillState(key);
     if (d.kind === "ask") return this.renderAsk(d, key, st);
@@ -2331,6 +2332,72 @@ class DataForgeApp {
   }
 
   // "What will this print?": pick an answer; the explanation follows
+  // ---------- talk: a scripted conversation with the teacher (see drill-parse.js) ----------
+  // The teacher says things and asks; the learner answers by picking a reply; a wrong pick gets a kind hint and another try.
+  // Finishing the conversation counts like finishing a drill. The progress of a half-finished talk lives in memory only.
+  talkState(d, key) {
+    this._talk = this._talk || {};
+    let t = this._talk[key];
+    if (t && t.lang === this.lang) return t;
+    t = this._talk[key] = { lang: this.lang, i: 0, log: [], wrong: {}, waiting: false, done: false };
+    this.talkAdvance(d, t);
+    if (this.drillDone(key)) {   // finished before: show the whole conversation again, with the right answers
+      while (t.waiting) { const q = d.script[t.i]; this.talkChoose(d, t, q.choices.findIndex((c) => c.correct)); }
+    }
+    return t;
+  }
+  talkAdvance(d, t) {
+    while (t.i < d.script.length) {
+      const x = d.script[t.i];
+      t.log.push({ who: "t", text: x.text });
+      if (x.type === "ask") { t.waiting = true; return; }
+      t.i++;
+    }
+    t.waiting = false;
+    t.done = true;
+  }
+  talkChoose(d, t, n) {
+    const q = d.script[t.i], c = q.choices[n];
+    t.log.push({ who: "you", text: c.text }, { who: "t", text: c.reply });
+    if (c.correct) { t.i++; t.waiting = false; this.talkAdvance(d, t); }
+    else t.wrong[`${t.i}:${n}`] = true;
+  }
+  talkBody(d, t, fresh) {
+    const from = fresh == null ? 0 : fresh;   // messages from this index fade in; the ones before it are already on screen
+    const msgs = t.log.map((m, k) => m.who === "t"
+      ? `<div class="talk-msg teacher ${k >= from ? "talk-new" : ""}"><span class="talk-avatar" aria-hidden="true">🧑‍🏫</span><div class="talk-bubble">${this.md(m.text)}</div></div>`
+      : `<div class="talk-msg you ${k >= from ? "talk-new" : ""}"><div class="talk-bubble">${this.inline(m.text)}</div></div>`).join("");
+    const q = t.waiting ? d.script[t.i] : null;
+    const choices = q
+      ? `<div class="talk-choices" role="group" aria-label="${this.l("Pilih jawaban Anda", "Choose your answer")}"><span class="talk-you-tag">${this.l("Jawaban Anda:", "Your answer:")}</span>${q.choices.map((c, n) => `<button class="btn btn-quiet talk-choice" ${t.wrong[`${t.i}:${n}`] ? "disabled" : ""} onclick="app.talkPick(this, ${n})">${this.inline(c.text)}</button>`).join("")}</div>`
+      : `<div class="talk-end">✓ ${this.l("Percakapan selesai.", "Conversation done.")}</div>`;
+    return `<div class="talk-thread" role="log" aria-live="polite">${msgs}</div>${choices}`;
+  }
+  renderTalk(d, key) {
+    const t = this.talkState(d, key);
+    const from = t.seen == null ? 0 : t.seen;   // what is already on screen does not fade in again
+    t.seen = t.log.length;
+    return `<div class="drill talk ${t.done ? "is-done" : ""}" data-key="${this.esc(key)}">
+      <div class="drill-head"><span class="drill-tag">💬 ${this.l("Ngobrol dengan guru", "Talk with the teacher")}</span> <strong>${this.inline(d.title)}</strong> ${t.done ? `<span class="chip chip-blue">✓ ${this.l("Selesai", "Done")}</span>` : ""}</div>
+      <div class="talk-body">${this.talkBody(d, t, from)}</div>
+    </div>`;
+  }
+  talkPick(btn, n) {
+    const box = this.drillBox(btn), key = box.dataset.key, d = this._drills[key], t = this._talk && this._talk[key];
+    if (!d || !t || !t.waiting) return;
+    const before = t.log.length;
+    this.talkChoose(d, t, n);
+    if (t.done) {
+      const first = !(this.drillsDone[key] && this.drillsDone[key].passed);
+      if (first) { this.drillsDone[key] = { passed: new Date().toISOString() }; writeStore("df_drills", this.drillsDone); }
+      if (first) { t.seen = before; this.drillRefreshNav(); return; }   // the Next button of the step unlocks
+    }
+    box.querySelector(".talk-body").innerHTML = this.talkBody(d, t, before);
+    t.seen = t.log.length;
+    box.classList.toggle("is-done", t.done);
+    const last = box.querySelector(".talk-thread").lastElementChild;
+    if (last && last.scrollIntoView) last.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
   renderAsk(d, key, st) {
     const done = st && (st.passed || st.revealed);
     const name = "ask-" + key.replace(/[^\w]/g, "_");
@@ -4153,7 +4220,7 @@ Hello from KopiKu</code></pre>
   }
   usesSteps(modId) {
     if (!window.LessonSteps) return false;
-    if (this.stepMode === "steps") return true;
+    if (this.stepMode === "steps" || this.stepMode === "teacher") return true;
     if (this.stepMode === "page") return false;
     return ["zero", "beginner"].includes(this.levelIdOfModule(modId));   // a beginner starts with steps; anyone can switch, and the choice is remembered
   }
@@ -4189,6 +4256,26 @@ Hello from KopiKu</code></pre>
     const put = () => { const card = document.getElementById(`lesson-${i}`) || document.querySelector(".lesson-card"); if (card) card.scrollIntoView({ block: "start", behavior: "instant" }); };
     put();
     requestAnimationFrame(put);   // once more after layout settles (fonts, folded sections)
+  }
+  // What the teacher says before each step in teacher mode (rotates, so it does not sound like a machine).
+  teacherLead(st, k, n, lessonIdx) {
+    if (st.kind === "drill" || st.kind === "turn") {
+      const turns = [["Giliran Anda! Berhentilah di sini dan coba sendiri. Saya tunggu.", "Your turn! Stop here and try it yourself. I will wait."], ["Sekarang Anda yang mencoba. Tidak apa-apa kalau salah, itu bagian dari belajar.", "Now you try. It is fine to get it wrong, that is part of learning."], ["Coba dulu, baru lanjut. Tangan Anda belajar lebih cepat dari mata.", "Try it first, then go on. Your hands learn faster than your eyes."]];
+      return this.l(...turns[k % turns.length]);
+    }
+    if (k === 0) return lessonIdx === 0 ? this.l("Halo! Kita belajar bersama, satu ide kecil setiap kali.", "Hello! We will learn this together, one small idea at a time.") : this.l("Baik, kita mulai pelajaran ini. Satu ide kecil setiap kali.", "Right, let us start this lesson. One small idea at a time.");
+    if (k === n - 1) return this.l("Ini bagian terakhir pelajaran ini.", "This is the last part of this lesson.");
+    const leads = [["Ide berikutnya.", "The next idea."], ["Lanjut ya. Baca pelan-pelan.", "Let us go on. Read it slowly."], ["Ini kelanjutannya.", "Here is what comes next."], ["Perhatikan bagian ini.", "Look at this part carefully."], ["Satu langkah lagi.", "One more step."]];
+    return this.l(...leads[k % leads.length]);
+  }
+  // "I am lost": the offline tutor opens with a question about exactly this part of the lesson.
+  askTeacher(modId, i, k) {
+    const mod = CURRICULUM_DATA.flatMap((l) => l.modules).find((m) => m.id === modId);
+    if (!mod || !mod.lessons[i]) return;
+    const st = (this.lessonSteps(mod, i, mod.lessons[i]) || [])[k];
+    const what = (st && st.title) || this.t(mod.lessons[i].title);
+    const q = this.l(`Tolong jelaskan dengan kata sederhana: ${what}`, `Please explain in simple words: ${what}`);
+    if (window.tutor && window.tutor.askAbout) window.tutor.askAbout(q);
   }
   setStepMode(mode) {
     this.stepMode = mode;
@@ -4265,6 +4352,7 @@ Hello from KopiKu</code></pre>
           : `<button class="btn btn-primary" onclick="${nextAction}">${isRead && !isLast ? "" : "✓ "}${nextLabel} →</button>`;
         const stepBody = steps ? (() => {
           const st = steps[stepK], n = steps.length;
+          const teacher = this.stepMode === "teacher";
           const turn = st.kind === "turn" || st.kind === "lab" || st.kind === "drill";
           const drillLocked = st.kind === "drill" && !this.drillDone(`${mod.id}:${i}:${st.drillStart}`);
           const dotsHtml = n <= 16 ? `<span class="step-dots">${steps.map((sx, j) => `<button class="step-dot ${j === stepK ? "current" : ""} ${j < stepK ? "past" : ""} ${sx.kind === "turn" || sx.kind === "lab" || sx.kind === "drill" ? "turn" : ""}" onclick="app.stepGo('${mod.id}', ${i}, ${j})" aria-label="${this.l("Langkah", "Step")} ${j + 1}${sx.kind === "turn" || sx.kind === "lab" || sx.kind === "drill" ? this.l(" (giliranmu)", " (your turn)") : ""}" ${j === stepK ? 'aria-current="step"' : ""}></button>`).join("")}</span>` : "";
@@ -4275,7 +4363,7 @@ Hello from KopiKu</code></pre>
             ? endButtons
             : drillLocked
               ? `<button class="btn btn-quiet" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${this.l("Lewati latihan", "Skip the drill")}</button><button class="btn btn-primary" disabled title="${this.l("Terbuka setelah semua pemeriksaan lulus, atau setelah Anda melihat jawabannya", "Unlocks when every check passes, or after you look at the solution")}">🔒 ${this.l("Selesaikan latihan untuk lanjut", "Pass the drill to continue")}</button>`
-              : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : this.l("Lanjut", "Next")} →</button>`;
+              : `<button class="btn btn-primary" onclick="app.stepGo('${mod.id}', ${i}, ${stepK + 1})">${turn ? this.l("Sudah, lanjut", "Done, next") : teacher ? "👍 " + this.l("Paham, lanjut", "Got it, go on") : this.l("Lanjut", "Next")} →</button>`;
           return `
           <div class="step-progress" role="group" aria-label="${this.l("Langkah dalam materi ini", "Steps in this lesson")}">
             <span class="step-count">${this.l("Langkah", "Step")} <strong>${stepK + 1}</strong> ${this.l("dari", "of")} ${n}</span>
@@ -4284,15 +4372,23 @@ Hello from KopiKu</code></pre>
           </div>
           <div class="step-card ${turn ? "step-turn" : ""}" key="step-${i}-${stepK}">
             ${turn ? `<div class="step-turn-tag">${st.kind === "lab" ? "🧪 " + this.l("Lab: tulis kodenya, jalankan tesnya", "Lab: write the code, run its tests") : "✋ " + this.l("Giliranmu: berhenti dan coba", "Your turn: stop and try it")}</div>` : ""}
-            ${st.kind === "lab" ? this.lessonLabHtml(mod.id, i) : this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart, drillStart: st.drillStart })}
+            ${teacher && st.kind !== "lab" && !/^:::talk\s/m.test(st.text)
+              ? `<div class="teacher-row"><span class="talk-avatar" aria-hidden="true">🧑‍🏫</span><div class="teacher-bubble"><p class="teacher-lead">${this.esc(this.teacherLead(st, stepK, n, i))}</p>${this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart, drillStart: st.drillStart })}</div></div>
+                 <div class="teacher-help"><button class="btn btn-sm btn-quiet" onclick="app.askTeacher('${mod.id}', ${i}, ${stepK})" title="${this.l("Buka tutor offline dan tanyakan bagian ini", "Open the offline tutor and ask about this part")}">🙋 ${this.l("Saya bingung: tanya guru", "I am lost: ask the teacher")}</button></div>`
+              : st.kind === "lab" ? this.lessonLabHtml(mod.id, i) : this.md(st.text, { modId: mod.id, lessonIdx: i, tryitStart: st.tryitStart, drillStart: st.drillStart })}
           </div>
           <div class="step-nav">${back}${forward}</div>`;
         })() : "";
-        const modeToggle = steps
-          ? `<button class="btn btn-sm btn-quiet" onclick="app.setStepMode('page')" title="${this.l("Tampilkan seluruh materi dalam satu halaman", "Show the whole lesson on one page")}">📖 ${this.l("Baca satu halaman", "Read as one page")}</button>`
-          : allSteps === null && window.LessonSteps && this.lessonSteps(mod, i, ls).length > 1
-            ? `<button class="btn btn-sm btn-quiet" onclick="app.setStepMode('steps')" title="${this.l("Satu ide kecil per layar", "One small idea per screen")}">🪜 ${this.l("Langkah demi langkah", "Step by step")}</button>`
-            : "";
+        const canSteps = Boolean(window.LessonSteps) && this.lessonSteps(mod, i, ls).length > 1;
+        const modeNow = !steps ? "page" : this.stepMode === "teacher" ? "teacher" : "steps";
+        const modeBtn = (m, icon, idText, enText, tipId, tipEn) => `<button class="${modeNow === m ? "active" : ""}" ${modeNow === m ? 'aria-pressed="true"' : 'aria-pressed="false"'} onclick="app.setStepMode('${m}')" title="${this.l(tipId, tipEn)}">${icon} ${this.l(idText, enText)}</button>`;
+        const modeToggle = canSteps
+          ? `<div class="mode-switch" role="group" aria-label="${this.l("Cara membaca materi", "How to read this lesson")}">
+              ${modeBtn("steps", "🪜", "Langkah", "Steps", "Satu ide kecil per layar", "One small idea per screen")}
+              ${modeBtn("teacher", "💬", "Dengan guru", "With a teacher", "Guru menjelaskan satu langkah demi satu langkah, dan Anda bisa bertanya", "A teacher walks you through it one step at a time, and you can ask questions")}
+              ${modeBtn("page", "📖", "Satu halaman", "One page", "Tampilkan seluruh materi dalam satu halaman", "Show the whole lesson on one page")}
+            </div>`
+          : "";
         return `
         <nav class="lesson-bar" aria-label="${this.l("Navigasi materi", "Lesson navigation")}">
           <button class="btn btn-sm btn-quiet" onclick="app.openModuleOverview('${mod.id}')">☰ ${this.l("Peta materi", "Lesson map")}</button>

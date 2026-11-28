@@ -83,6 +83,15 @@ price = 25000
 drink = "Kopi Susu"
 :::
 
+:::talk Apa arti = sebenarnya?
+@teacher Di sekolah, `=` berarti "sama dengan". Python memakai tanda yang sama untuk hal yang berbeda, jadi mari kita periksa dugaan Anda. Lihat baris ini: `total = total + 1000`
+@ask Dalam matematika, baris ini tidak masuk akal. Apa yang dilakukan Python dengannya?
+@choice Muncul error, karena sebuah angka tidak mungkin sama dengan dirinya sendiri ditambah 1000. | Tepat begitulah di matematika! Tetapi di Python `=` bukan pertanyaan, melainkan perintah: kerjakan sesuatu, lalu tempelkan sebuah nama. Coba jawaban lain.
+@choice * Python mengambil nilai `total` saat ini, menambahkan 1000, lalu menempelkan nama `total` pada hasilnya. | Betul! Python menghitung sisi kanan lebih dulu, baru nama di sisi kiri diarahkan ke hasilnya.
+@choice Python menambahkan 1000 ke setiap variabel di dalam program. | Belum tepat. Hanya nama di sisi kiri yang berubah; nama lain tetap dengan nilainya. Coba lagi.
+@teacher Jadi ingat: **sisi kanan dulu, baru namanya**. Kalau `total` tadinya 150000, setelah baris ini nilainya 151000.
+:::
+
 ### Sebuah nama menyimpan nilainya sampai Anda mengubahnya
 
 Karena sisi kanan dikerjakan lebih dulu, `total = total + 1000` masuk akal di Python (ambil nilai lama, tambah 1000, tempelkan nama pada nilai baru) tetapi tidak masuk akal dalam matematika.
@@ -409,6 +418,15 @@ print(products[-1])      # Teh Tarik
 print(products[0:2])     # ['Kopi Susu', 'Americano']
 ```
 
+:::talk Mengapa menghitung dimulai dari 0?
+@teacher Hampir semua pemula terkejut dengan ini: di list Python, item pertama ada di posisi **0**, bukan 1. Bayangkan posisi sebagai "berapa langkah saya berjalan dari awal?"
+@ask `products = ["Kopi Susu", "Americano", "Teh Tarik"]`. Berapa langkah Anda berjalan dari awal untuk sampai ke `"Kopi Susu"`?
+@choice 1 langkah | Belum tepat. Anda sudah berdiri di item pertama, jadi tidak perlu melangkah sama sekali. Coba lagi.
+@choice 3 langkah | Itu jumlah itemnya, bukan jarak yang Anda tempuh. Coba lagi.
+@choice * 0 langkah | Betul. Item pertama berjarak 0 langkah dari awal, yang kedua 1 langkah, yang ketiga 2 langkah. Karena itu `products[0]` adalah `"Kopi Susu"`.
+@teacher Jadi `products[1]` adalah `"Americano"` dan `products[2]` adalah `"Teh Tarik"`. Posisi terakhir selalu satu kurang dari jumlah item, itulah sebabnya Python juga membolehkan `products[-1]` untuk "yang terakhir".
+:::
+
 Tebak dulu sebelum latihan:
 
 :::ask Apa yang akan tercetak?
@@ -683,6 +701,15 @@ last_staff = int(shops[-1]["staff"])
 ### Dua nama, satu list
 
 Satu gagasan untuk dikenal sejak awal: **mutable versus immutable**. List, dictionary, dan set bisa diubah di tempat; string, angka, dan tuple tidak. Ketika dua nama menunjuk ke list yang sama, perubahan lewat satu nama terlihat lewat nama yang lain. Itulah akar bug Python yang paling terkenal, yang ditunjukkan skenario chaos modul ini.
+
+:::talk Apakah itu salinan?
+@teacher Bayangkan daftar belanja di atas kertas. Seorang teman berkata "saya simpan salinannya". Lalu Anda menulis satu item lagi di daftar Anda. Apakah daftar teman berubah? Itu tergantung: fotokopi, atau kertas yang sama persis. Python punya pertanyaan yang sama saat Anda menulis `copy = orders`.
+@ask `orders = ["x"]`, lalu `copy = orders`, lalu `copy.append("y")`. Apa yang ditampilkan `print(orders)`?
+@choice * `['x', 'y']`, karena kedua nama menunjuk ke list yang sama | Betul! `copy = orders` tidak memfotokopi apa pun: ia hanya memberi list yang sama nama kedua, sehingga perubahan lewat satu nama terlihat di nama yang lain.
+@choice `['x']`, karena `copy` adalah salinan terpisah dari list | Itu benar untuk fotokopi. Tetapi `=` tidak pernah menyalin list. Lihat animasi di bawah: kedua nama menunjuk ke satu list. Coba lagi.
+@choice Error, karena `copy` bukan list | `copy` adalah list: ia list yang sama persis dengan `orders`. Coba lagi.
+@teacher Kalau Anda benar-benar ingin salinan terpisah, Anda harus memintanya dengan sengaja, misalnya `list(orders)`. Inilah akar sebuah bug terkenal yang diperlihatkan oleh tab Chaos modul ini.
+:::
 
 Perhatikan nama kedua ditempelkan pada list yang **sama** (lihat label di sebelah nilainya):
 

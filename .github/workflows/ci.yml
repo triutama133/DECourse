@@ -44,6 +44,9 @@ jobs:
       - name: Step mode keeps every lesson whole
         run: node scripts/test_steps.js
 
+      - name: Teacher conversations are well formed and the same in both languages
+        run: node scripts/test_talk.js
+
       - name: Glossary points at real lessons that use the term
         run: node scripts/test_glossary.js
 

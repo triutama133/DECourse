@@ -31,6 +31,14 @@
  *
  *   :::sqlsteps Title     "@data kopiku", then "@stage Label", the SQL, "@say" and a sentence, once per stage
  *
+ *   :::talk Why do the quotes matter?       a scripted talk with the teacher (works in every lesson mode)
+ *   @teacher What the teacher says (one line, or continue on the next lines).
+ *   @ask The question the teacher asks?
+ *   @choice * The right answer | what the teacher says when it is picked
+ *   @choice A wrong answer | what the teacher says to this one (a kind hint; the learner may try again)
+ *   @teacher Anything more the teacher says after the right answer.
+ *   :::
+ *
  *   :::ask What will this print?
  *   Question text (may hold a code fence).
  *   @options
@@ -93,6 +101,28 @@
       }
       if (fname) files[fname] = fl.join("\n").replace(/\s+$/, "") + "\n";
       return { kind: "trace", title: trace[1], task: task.join("\n").trim(), code: code.join("\n").replace(/^\n+|\s+$/g, ""), notes, files };
+    }
+    const talk = (lines[0] || "").match(/^:::talk\s+(.+?)\s*$/);
+    if (talk) {   // a scripted conversation with the teacher: lines the teacher says, questions it asks, and a reply for every answer
+      const script = [];
+      let last = null;
+      for (let i = 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (/^:::\s*$/.test(l)) break;
+        const m = l.match(/^@(teacher|ask|choice)\s+(.+)$/);
+        if (!m) { if (last && l.trim() && last.type !== "choice") last.text += "\n" + l; continue; }   // a continuation line of the teacher's words or of a question
+        if (m[1] === "teacher") { last = { type: "say", text: m[2].trim() }; script.push(last); }
+        else if (m[1] === "ask") { last = { type: "ask", text: m[2].trim(), choices: [] }; script.push(last); }
+        else {
+          const ask = [...script].reverse().find((x) => x.type === "ask");
+          const bar = m[2].indexOf(" | ");
+          const raw = (bar < 0 ? m[2] : m[2].slice(0, bar)).trim();
+          const choice = { text: raw.startsWith("* ") ? raw.slice(2).trim() : raw, correct: raw.startsWith("* "), reply: bar < 0 ? "" : m[2].slice(bar + 3).trim() };
+          if (ask) ask.choices.push(choice);
+          last = { type: "choice" };   // only so that a stray continuation line does not attach to the wrong thing
+        }
+      }
+      return { kind: "talk", title: talk[1], script };
     }
     const ask = (lines[0] || "").match(/^:::ask\s+(.+?)\s*$/);
     const head = ask ? null : (lines[0] || "").match(/^:::drill\s+(python|sql)\s+(.+?)\s*$/);

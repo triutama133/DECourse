@@ -65,6 +65,7 @@ A lesson is normal Markdown plus a few blocks that the app turns into small inte
 
 | Block | What it is |
 |---|---|
+| `:::talk Title` + `@teacher`, `@ask`, `@choice` lines | A scripted **conversation with the teacher**: the teacher says something (`@teacher`), asks a question (`@ask`), the learner picks an answer (`@choice`), and the teacher replies to that answer. The right answer starts with `* `; each choice needs a reply after ` | ` (a kind hint for a wrong answer, which the learner may then retry). A talk begins and ends with `@teacher` words, may continue a speech on the next line, and finishing it counts like finishing a drill. |
 | `:::ask Question` + `@options` (the right one starts with `* `) + `@why` | A "what will this print?" question. After two wrong answers the explanation is shown. |
 | `:::drill python Title` + `@starter`, `@check`, `@hint`, `@solution` (+ `@file name` for sample files) | A small exercise run in the browser's Pyodide. A check line is `python expression ## message`. Helpers: `calls("len")`, `uses("x")`, `defines("f")`, `has_node("If")`, `count_nodes("Assert")`, `printed_by(fn, ...)`, `raises_error(Exc, fn, ...)`, `rerun_with("name", value)` (run the learner's code on other data), `read_file("name")`, `out`, `code`. |
 | `:::drill sql Title` + `@data kopiku`, `@starter`, `@solution`, `@hint`, optional `@check` (`/regex/ ## message`, or `!/regex/` to forbid), `@ordered`, `@names`, `@verify` | A SQL exercise on a dataset of `app/js/playground.js`. The learner's **result** is compared with the solution's, on the dataset and again on a copy with extra rows and NULLs. `@verify` is a query run after the learner's statements (INSERT, CREATE, ALTER...). |
@@ -72,6 +73,8 @@ A lesson is normal Markdown plus a few blocks that the app turns into small inte
 | `:::sqlsteps Title` + `@data`, then `@stage Label`, the SQL, `@say` and a sentence | The same SQL question one clause at a time; rows that a stage drops are struck through. |
 
 Rules for authors:
+
+- **A talk is for the idea a beginner stumbles on**, not for every paragraph: the teacher asks what the learner expects, the wrong answers are the real misconceptions (each reply names *why* it is a natural guess), and the closing words give the one sentence to remember. Put it right before the animation or drill that shows the answer, so the learner predicts first. Spread the right answer over the positions.
 
 - **Different data than the lab.** A drill teaches the idea on its own numbers; the lab asks the learner to apply it. Never put a lab answer in a lesson.
 - **The first law:** the learner does it on their own computer. Pair interactive blocks with a terminal step; every passed drill already shows "Now do it on your own computer", and from Level 1 on it says the drill is a warm-up, not the proof.

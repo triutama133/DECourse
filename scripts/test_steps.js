@@ -35,7 +35,7 @@ for (const level of levels) for (const mod of level.modules) mod.lessons.forEach
       const w = `${where} step ${k + 1}`;
       if (!s.text.trim()) fail(w, "empty");
       if ((s.text.match(/^```/gm) || []).length % 2) fail(w, "odd number of ``` lines (a fence is cut)");
-      const open = (s.text.match(/^:::(advanced\s|drill\s|ask\b|trace\s|sqlsteps\s)/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
+      const open = (s.text.match(/^:::(advanced\s|drill\s|ask\b|talk\s|trace\s|sqlsteps\s)/gm) || []).length, close = (s.text.match(/^:::\s*$/gm) || []).length;
       if (open !== close) fail(w, `fold not balanced (${open} open, ${close} close)`);
       if (s.tryitStart !== tryits) fail(w, `tryitStart ${s.tryitStart}, expected ${tryits}`);
       const boxes = (s.text.match(/^> ?(🛠|💡|\*\*(Try it|Coba sendiri|Practice Pause|Jeda Latihan))/gm) || []).length;
@@ -43,7 +43,7 @@ for (const level of levels) for (const mod of level.modules) mod.lessons.forEach
       if (s.kind === "turn" && boxes !== 1) fail(w, `a turn step must hold exactly one box, has ${boxes}`);
       if (s.kind === "read" && boxes) fail(w, "a reading step holds a Try it / Practice Pause box");
       tryits += tries;
-      const nd = (s.text.match(/^:::(drill\s|ask\b)/gm) || []).length;
+      const nd = (s.text.match(/^:::(drill\s|ask\b|talk\b)/gm) || []).length;
       if (s.drillStart !== drills) fail(w, `drillStart ${s.drillStart}, expected ${drills}`);
       if (s.kind === "drill" && nd !== 1) fail(w, `a drill step must hold exactly one drill, has ${nd}`);
       if (s.kind !== "drill" && nd) fail(w, "a step that is not a drill step holds a drill");

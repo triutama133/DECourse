@@ -1437,3 +1437,39 @@ kbd { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; 
 .tutor-steps li { margin: 4px 0; }
 .tutor-igpu { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; cursor: pointer; }
 .tutor-igpu input { width: auto; margin-top: 2px; }
+
+/* ---- Talk with the teacher: a scripted conversation (:::talk) and the teacher mode of a lesson ---- */
+.talk-thread { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.talk-msg { display: flex; gap: 8px; align-items: flex-end; max-width: 100%; }
+.talk-msg.you { justify-content: flex-end; }
+.talk-avatar { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; background: var(--blue-tint); border: 1px solid var(--border); }
+.talk-bubble { max-width: min(640px, 86%); padding: 9px 13px; border-radius: 14px; line-height: 1.55; font-size: 14.5px; overflow-wrap: anywhere; }
+.talk-bubble > :first-child { margin-top: 0; }
+.talk-bubble > :last-child { margin-bottom: 0; }
+.talk-msg.teacher .talk-bubble { background: var(--card-subtle); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.talk-msg.you .talk-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.talk-msg.you .talk-bubble code { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.talk-choices { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 2px 42px; }
+.talk-you-tag { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.talk-choice { text-align: left; white-space: normal; border: 1px solid var(--border-strong); }
+.talk-choice:disabled { opacity: 0.45; text-decoration: line-through; }
+.talk-end { margin: 4px 0 2px 42px; font-size: 13px; color: var(--green); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) {
+  .talk-new { animation: talk-in 0.28s ease-out both; }
+  @keyframes talk-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+@media (max-width: 600px) { .talk-choices, .talk-end { margin-left: 0; } .talk-bubble { max-width: 92%; } }
+
+/* teacher mode: every step of the lesson is the teacher speaking */
+.teacher-row { display: flex; gap: 10px; align-items: flex-start; }
+.teacher-row > .talk-avatar { width: 40px; height: 40px; font-size: 22px; margin-top: 2px; }
+.teacher-bubble { flex: 1 1 auto; min-width: 0; padding: 12px 16px 6px; border: 1px solid var(--border); border-radius: 4px 16px 16px 16px; background: var(--card); }
+.teacher-bubble > :first-child { margin-top: 0; }
+.teacher-lead { margin: 0 0 8px; font-weight: 600; color: var(--blue); font-size: 13.5px; }
+.teacher-help { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 4px 50px; }
+.mode-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.mode-switch button { border: 0; background: var(--card); color: var(--text-muted); font: inherit; font-size: 12.5px; padding: 5px 10px; cursor: pointer; }
+.mode-switch button + button { border-left: 1px solid var(--border); }
+.mode-switch button.active { background: var(--blue-tint); color: var(--text); font-weight: 600; }
+.mode-switch button:hover:not(.active) { color: var(--text); }
+@media (max-width: 600px) { .teacher-help { margin-left: 0; } .teacher-row > .talk-avatar { width: 32px; height: 32px; font-size: 18px; } }

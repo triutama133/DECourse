@@ -83,6 +83,15 @@ price = 25000
 drink = "Kopi Susu"
 :::
 
+:::talk What does = really mean?
+@teacher In school, `=` means "is equal to". Python uses the same sign for something different, so let us check what you think. Look at this line: `total = total + 1000`
+@ask In maths this line is nonsense. What does Python do with it?
+@choice It shows an error, because a number cannot be equal to itself plus 1000. | That is exactly what it would be in maths! But in Python `=` is not a question, it is an action: do something, then attach a name. Try another answer.
+@choice * It takes the current value of `total`, adds 1000, and attaches the name `total` to the result. | Yes! Python works out the right side first, then lets the name on the left point at the result.
+@choice It adds 1000 to every variable in the program. | Not quite. Only the name on the left changes; every other name keeps its value. Try again.
+@teacher So remember: **right side first, then the name**. If `total` was 150000 before this line, it is 151000 after it.
+:::
+
 ### A name keeps its value until you change it
 
 Because the right side is worked out first, `total = total + 1000` makes sense in Python (take the old value, add 1000, attach the name to the new value) but is nonsense in maths.
@@ -409,6 +418,15 @@ print(products[-1])      # Teh Tarik
 print(products[0:2])     # ['Kopi Susu', 'Americano']
 ```
 
+:::talk Why does counting start at 0?
+@teacher Almost every beginner is surprised by this: in a Python list the first item is at position **0**, not 1. Think of a position as "how many steps do I walk from the start?"
+@ask `products = ["Kopi Susu", "Americano", "Teh Tarik"]`. How many steps do you walk from the start to reach `"Kopi Susu"`?
+@choice 1 step | Not quite. You are already standing on the first item, so you walk no steps at all. Try again.
+@choice 3 steps | That is how many items there are, not how far you walk. Try again.
+@choice * 0 steps | Yes. The first item is 0 steps from the start, the second is 1 step away, the third is 2 steps away. That is why `products[0]` is `"Kopi Susu"`.
+@teacher So `products[1]` is `"Americano"` and `products[2]` is `"Teh Tarik"`. The last position is always one less than the number of items, which is why Python also lets you write `products[-1]` for "the last one".
+:::
+
 Predict before you drill:
 
 :::ask What will this print?
@@ -683,6 +701,15 @@ last_staff = int(shops[-1]["staff"])
 ### Two names, one list
 
 One idea to meet early: **mutable versus immutable**. Lists, dictionaries and sets can be changed in place; strings, numbers and tuples cannot. When two names point at the same list, a change through one name is visible through the other. That is the root of the most famous Python bug, which the chaos scenario of this module shows.
+
+:::talk Is it a copy?
+@teacher Imagine a paper shopping list. A friend says "I will keep a copy". Then you write one more item on your list. Does the friend's list change? It depends on whether it is a photocopy or the very same paper. Python has the same question when you write `copy = orders`.
+@ask `orders = ["x"]`, then `copy = orders`, then `copy.append("y")`. What does `print(orders)` show?
+@choice * `['x', 'y']`, because both names point at the same list | Yes! `copy = orders` does not photocopy anything: it only gives the same list a second name, so a change through one name shows up in the other.
+@choice `['x']`, because `copy` is a separate copy of the list | That would be true for a photocopy. But `=` never copies a list. Watch the animation below to see both names pointing at one list. Try again.
+@choice An error, because `copy` is not a list | `copy` is a list: it is the very same list as `orders`. Try again.
+@teacher When you really want a separate copy, you must ask for one on purpose, for example `list(orders)`. This is the root of a famous bug that the Chaos tab of this module shows.
+:::
 
 Watch a second name being attached to the **same** list (look at the label next to the value):
 
