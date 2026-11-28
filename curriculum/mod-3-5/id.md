@@ -25,6 +25,15 @@ Model bahasa berskala besar (Large Language Model / LLM) hanya mengetahui inform
  question  --> embed --> nearest chunks --> prompt --> LLM --> answer + sources   (online)
 ```
 
+:::talk Indeks yang tidak pernah mendengar tentang perubahan itu
+@teacher Sebuah bot dukungan menjawab dari indeks vektor yang dibangun Senin lalu. Pada hari Rabu kebijakan refund berubah dari 14 hari menjadi 30 hari. Tidak ada yang membangun ulang indeks. Seorang pelanggan bertanya, "Dalam berapa hari saya bisa mendapat refund?"
+@ask Apa jawaban bot itu?
+@choice 30 hari, karena bot membaca kebijakan yang hidup | Bot membaca indeks, bukan kebijakan yang hidup, dan indeks adalah salinan yang dibuat hari Senin. Coba lagi.
+@choice * 14 hari: dengan yakin, dari salinan lama, dan tidak ada yang gagal di pipeline | Betul. Indeks basi memberi jawaban salah tanpa error. Menjaga indeks sejalan dengan sumbernya adalah tugas data engineer.
+@choice Ia berkata tidak tahu | Ia menemukan potongan yang cocok, jadi ia menjawab dengannya. Coba lagi.
+@teacher RAG membuat model sama mutakhirnya dengan indeks Anda. Sinkronisasi adalah masalah pipeline data, dengan pemeriksaan kesegaran seperti yang lain.
+:::
+
 Sisi online adalah ranah kode aplikasi backend. Sisi offline adalah **pipeline rekayasa data (data pipeline)** yang memiliki karakteristik dan tantangan serupa dengan seluruh pipeline yang telah Anda bangun di kurikulum ini. Faktanya, mayoritas kegagalan sistem RAG di lingkungan produksi berakar dari masalah pada sisi offline data pipeline, dan bukan dari kecerdasan model LLM:
 
 - **Ingestion dan Pembersihan**: mengekstrak teks dari PDF, dokumen wiki, tiket pelanggan, dan web. Kesalahan parsing data mentah (tabel yang terpotong, header dan footer dokumen yang berulang) akan langsung bermuara pada jawaban halusinasi di kemudian hari.
@@ -227,6 +236,15 @@ Pendekatan naif pemula yang sering dilakukan adalah menjalankan batch job harian
 
 ### Identitas Berbasis Konten (Content-Addressed Chunks)
 
+:::talk Satu paragraf baru di bagian atas
+@teacher Sebuah dokumen 40 paragraf mendapat satu paragraf baru yang disisipkan di paling atas. Pekerjaan sinkronisasi Anda harus memperbarui indeks vektor. Setiap panggilan embedding berbiaya.
+@ask Apa cara sinkronisasi termurah yang benar?
+@choice Embed ulang seluruh dokumen, untuk berjaga-jaga | Benar tetapi boros: 39 paragraf tidak berubah, dan setiap panggilan embedding berbiaya. Coba lagi.
+@choice Beri nomor potongan menurut posisi dan embed ulang yang nomornya berubah | Menyisipkan di atas menggeser posisi setiap potongan di bawahnya, jadi Anda akan meng-embed ulang hampir semuanya. Coba lagi.
+@choice * Kenali setiap potongan dengan hash isinya, pertahankan yang tidak berubah, dan embed hanya paragraf baru: satu panggilan | Betul. Hash isi memberi tahu apa yang benar-benar berubah. Sisipan di atas menggeser posisi tetapi bukan isi, jadi hanya satu potongan yang butuh embedding baru.
+@teacher Identitas menurut isi, bukan posisi: gagasan yang sama dengan pemuatan idempoten, diterapkan pada embedding.
+:::
+
 Lab modul ini memberikan identitas unik pada setiap potongan teks: pasangan kunci **`(document_id, hash dari konten yang dinormalisasi)`**. Pada setiap siklus sinkronisasi dokumen:
 
 1. Dokumen baru dipotong menjadi potongan-potongan teks, dan setiap teks dihitung nilai hash-nya (spasi kosong dinormalisasi agar perubahan whitespace sepele tidak mengubah nilai hash).
@@ -365,6 +383,15 @@ def search(chunks, user_groups, k):
 
 ## @lesson Data latih untuk machine learning: fitur point-in-time dan kebocoran
 Machine learning atau AI muncul di **47,8%** dari 1.130 lowongan data engineering yang diukur di TalentHub (2026-07-23 sampai 2026-11-20). Data scientist memilih dan melatih model; data engineer membangun apa yang dipelajari model itu dan apa yang dibacanya di produksi. Sebuah model hanya sejujur tabel latihnya, dan cara paling umum membuatnya tidak jujur adalah kesalahan data engineering, bukan kesalahan pemodelan.
+
+:::talk 92% pada tes, buruk setelah peluncuran
+@teacher Sebuah model churn mendapat skor 92% pada set tesnya. Set tes itu dibuat dengan mengacak semua baris lalu menyisihkan 20%. Setelah peluncuran model bekerja jauh lebih buruk.
+@ask Apa penyebab data yang paling mungkin?
+@choice * Pemisahan acak membuat pelatihan melihat hari-hari yang datang setelah hari-hari tes: model belajar dari masa depan | Betul. Ini temporal leakage. Pisahkan menurut waktu: latih pada hari-hari lebih awal dan uji pada hari-hari lebih akhir, seperti cara model benar-benar akan dipakai.
+@choice Set tesnya terlalu kecil | Set tes kecil membuat skor berisik, tetapi tidak secara sistematis terlalu tinggi. Coba lagi.
+@choice Model punya terlalu sedikit fitur | Itu juga akan menurunkan skor tes. Kesenjangan tajam antara tes dan peluncuran menunjuk pada cara data dipisahkan. Coba lagi.
+@teacher Untuk setiap fitur, tanyakan: "apakah saya sudah tahu ini pada saat prediksi?" Kalau tidak, ia bocor.
+:::
 
 **Yang dipegang data engineer.** **Tabel latih** berisi satu baris per *momen prediksi* ("pelanggan 248 pada 15 Januari"), **fitur** yang diketahui pada momen itu (pesanan dalam 14 hari terakhir, tier, kota), dan **label** yang datang sesudahnya (apakah pelanggan memesan lagi dalam 7 hari?). Di sekitarnya: menjaga fitur tetap segar, menghitungnya dengan cara yang sama untuk pelatihan dan prediksi langsung, membangun ulang tabel persis yang dipakai melatih model (time travel dan snapshot, Modul 2.2), dan mengawasi drift setelah model berjalan.
 

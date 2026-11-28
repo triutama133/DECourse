@@ -25,6 +25,15 @@ A large language model (LLM) knows what was in its training data. It does not kn
  question  --> embed --> nearest chunks --> prompt --> LLM --> answer + sources   (online)
 ```
 
+:::talk The index that never heard of the change
+@teacher A support bot answers from a vector index built last Monday. On Wednesday the refund policy changes from 14 days to 30 days. Nobody rebuilds the index. A customer asks, "Within how many days can I get a refund?"
+@ask What does the bot answer?
+@choice 30 days, because the bot reads the live policy | The bot reads the index, not the live policy, and the index is a copy made on Monday. Try again.
+@choice * 14 days: confidently, from the old copy, and nothing in the pipeline failed | Yes. A stale index gives a wrong answer with no error. Keeping the index in step with its source is the data engineer's job.
+@choice It says that it does not know | It found a matching passage, so it answers with it. Try again.
+@teacher RAG makes the model exactly as current as your index. Sync is a data pipeline problem, with freshness checks like any other.
+:::
+
 The online part is application code. The offline part is a data pipeline like the ones you built in this course, with some new properties. Most RAG failures in production are caused by this part, not by the model:
 
 - **Ingest and clean**: PDFs, wikis, tickets, web pages. Extraction errors (broken tables, repeated headers and footers) become wrong answers later.
@@ -227,6 +236,15 @@ The naive pipeline re-embeds the whole collection every night. It is simple, slo
 
 ### Content-addressed chunks
 
+:::talk One new paragraph at the top
+@teacher A document of 40 paragraphs gets one new paragraph inserted at the very top. Your sync job must update the vector index. Every embedding call costs money.
+@ask What is the cheapest correct way to sync?
+@choice Re-embed the whole document, to be safe | Correct but wasteful: 39 paragraphs did not change, and each embedding call costs money. Try again.
+@choice Number the chunks by position and re-embed those whose number changed | Inserting at the top shifts the position of every chunk below it, so you would re-embed almost everything. Try again.
+@choice * Identify each chunk by a hash of its content, keep the unchanged ones, and embed only the new paragraph: one call | Yes. Content hashes tell you what really changed. The top insert shifts positions but not contents, so only one chunk needs a new embedding.
+@teacher Identity by content, not by position: it is the same idea as an idempotent load, applied to embeddings.
+:::
+
 The lab gives each chunk an identity: **(document id, hash of its normalised content)**. On every sync of a document:
 
 1. Chunk the new text and hash each chunk (whitespace changes must not change the hash).
@@ -365,6 +383,15 @@ def search(chunks, user_groups, k):
 
 ## @lesson Training data for machine learning: point-in-time features and leakage
 Machine learning or AI appears in **47.8%** of the 1,130 data engineering postings measured in TalentHub (2026-07-23 to 2026-11-20). Data scientists choose and train the models; the data engineer builds what the model learns from and what it reads in production. A model is only as honest as its training table, and the most common way to make it dishonest is a data engineering mistake, not a modelling one.
+
+:::talk 92% on the test, bad after launch
+@teacher A churn model scores 92% on its test set. The test set was made by shuffling all rows randomly and putting 20% aside. After launch the model does much worse.
+@ask What is the most likely data cause?
+@choice * Random splitting let training see days that come after the test days: the model learned from the future | Yes. This is temporal leakage. Split by time: train on earlier days and test on later days, the way the model will really be used.
+@choice The test set was too small | A small test set makes the score noisy, but not systematically too high. Try again.
+@choice The model has too few features | That would lower the test score as well. The sharp gap between test and launch points to how the data was split. Try again.
+@teacher For every feature, ask: "would I have known this at the moment of the prediction?" If not, it leaks.
+:::
 
 **What the data engineer owns.** A **training table** has one row per *prediction moment* ("customer 248 on 15 January"), the **features** known at that moment (orders in the last 14 days, tier, city), and the **label** that came after it (did the customer order again within 7 days?). Around it: keeping features fresh, computing them the same way for training and for live predictions, rebuilding the exact table a model was trained on (time travel and snapshots, Module 2.2), and watching for drift once the model is live.
 
