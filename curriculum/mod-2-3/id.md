@@ -28,6 +28,15 @@ Modul 0.2 telah memperkenalkan pendekatan **ELT**: muat data mentah ke dalam sto
 - Mendukung pemisahan **lingkungan (environments)**, sehingga kode SQL yang sama persis dapat dibangun di skema pengembang lokal, lingkungan CI GitHub Actions, maupun lingkungan produksi;
 - Mengelola seluruh kode di dalam **sistem kontrol versi Git**: ditinjau melalui pull request, berversi, dan dapat direproduksi kapan saja.
 
+:::talk Nama tabel yang ditulis tangan
+@teacher Di sebuah model, seseorang menulis `select * from analytics_prod.stg_orders`. Kemudian seorang developer membangun proyek di skemanya sendiri, `dev_ani`, untuk mencoba perubahan.
+@ask Tabel mana yang dibaca model itu pada putarannya?
+@choice * Tabel produksi `analytics_prod.stg_orders`: namanya tetap, jadi putaran ujinya membaca data asli dan ia tidak pernah menguji perubahan hulunya sendiri | Betul. Nama yang ditulis tangan mengabaikan lingkungan. dbt juga tidak tahu model ini bergantung pada `stg_orders`, sehingga bisa membangunnya dengan urutan yang salah.
+@choice `dev_ani.stg_orders` miliknya sendiri, karena dbt menulis ulang nama skema untuknya | dbt hanya menulis ulang apa yang ia pahami. Nama tabel biasa hanyalah teks. Coba lagi.
+@choice Tidak ada: dbt menolak menjalankan model dengan nama skema tetap | dbt tidak melarangnya. SQL-nya sekadar berjalan. Coba lagi.
+@teacher Dengan `{{ ref('stg_orders') }}`, dbt mengisi skema yang tepat untuk lingkungan saat ini dan mencatat bahwa model ini bergantung pada `stg_orders`. Satu kebiasaan itu memberi Anda grafiknya.
+:::
+
 Hal yang *tidak* dilakukan oleh dbt: dbt tidak mengekstrak atau memuat data dari API/database sumber (alat terpisah bertugas membawa data mentah masuk; Modul 2.4 akan mengorkestrasi keduanya) dan dbt tidak menyimpan data atau menghitung komputasi sendiri. dbt menerjemahkan kode Anda menjadi query SQL murni dan mengirimkannya ke mesin data warehouse Anda (Snowflake, BigQuery, PostgreSQL, DuckDB, dll melalui **adapter**). **dbt Core** adalah tool command-line sumber terbuka (open-source) yang kita gunakan di kursus ini; dbt Cloud menambahkan antarmuka web dan orkestrasi terkelola di atasnya.
 
 Contoh satu model dbt utuh:
@@ -221,6 +230,15 @@ models:
               config: { severity: warn }
 ```
 
+:::talk Tes hijau, angka salah
+@teacher Semua tes dbt Anda hijau: `unique` dan `not_null` pada `order_id`, `accepted_values` pada `status`. Namun sang pendiri berkata pendapatan di dasbor 12% terlalu tinggi.
+@ask Apa penjelasan yang paling mungkin?
+@choice Tes yang hijau membuktikan seluruh model benar | Tidak ada tes yang membuktikan "semuanya benar": setiap tes hanya memeriksa aturan yang dinyatakannya. Coba lagi.
+@choice * Tidak ada tes yang melihat jumlah uangnya: tes melindungi kunci dan nilai status, jadi join yang salah atau baris yang terduplikasi bisa lolos | Betul. Tambahkan tes untuk hal yang dipedulikan bisnis: pendapatan cocok dengan sumber, total tidak pernah negatif, dan jumlah baris tidak bertambah setelah join.
+@choice dbt salah menghitung barisnya | dbt menjalankan persis SQL yang Anda tulis, tidak lebih. Coba lagi.
+@teacher Tes hanya sebaik pertanyaan yang diajukannya. Setelah setiap bug, tambahkan tes yang akan menangkapnya.
+:::
+
 Tes `unique` dan `not_null` menguji integritas kunci utama; `accepted_values` memvalidasi himpunan status yang sah; `relationships` menguji integritas referensial foreign key (memastikan setiap pelanggan di tabel fakta benar-benar terdaftar di dimensi pelanggan). Secara teknis, setiap tes dbt adalah query SQL yang **mengembalikan baris-baris data yang melanggar aturan**; tes dinyatakan lolos (PASS) jika query tersebut mengembalikan 0 baris.
 
 **Singular Tests** adalah query SQL kustom Anda sendiri yang disimpan di dalam folder `tests/`, yang juga bertugas mengembalikan baris data anomali:
@@ -300,6 +318,15 @@ Tiga aturan emas yang akan Anda buktikan di lab:
 - **Buktikan dengan pengujian rekonsiliasi.** Pengujian unit test di lab membandingkan output tabel inkremental dengan hasil perhitungan kalkulasi ulang penuh dari data mentah setelah muatan kedua tiba. Selalu sertakan tes rekonsiliasi semacam ini, karena model inkremental yang salah secara logika tetap terlihat normal dan berjalan tanpa error. Jalankan `dbt run --full-refresh` secara berkala sebagai jaring pengaman produksi.
 
 ### Lihat sendiri: tanggal mana yang harus dihitung ulang?
+
+:::talk Pembaruan yang terlambat
+@teacher Sebuah model incremental hanya memuat tanggal yang lebih baru daripada tanggal terbaru yang sudah ada di tabel target. Tanggal terbaru tabel itu adalah 8 Januari. Pada 9 Januari sebuah pesanan bertanggal 5 Januari diubah menjadi `refunded` di sumbernya.
+@ask Apakah perubahan itu sampai ke model pada putaran berikutnya?
+@choice Ya: dbt memperhatikan setiap perubahan di sumber dengan sendirinya | dbt hanya menjalankan SQL yang Anda tulis. Ia tidak mengawasi perubahan di sumber. Coba lagi.
+@choice Ya, karena dbt membangun ulang seluruh tabel setiap malam | Itu benar untuk model tabel, bukan untuk incremental: tujuan incremental justru melewati baris lama. Coba lagi.
+@choice * Tidak: tanggal pesanan itu, 5 Januari, tidak lebih baru dari 8 Januari, sehingga filter melewatinya dan tabel menjadi basi | Betul. Model tidak pernah menengok ke belakang, sehingga refund terlewat dan pendapatan tetap terlalu tinggi. Perbaikan umum adalah memproses ulang jendela beberapa hari terakhir, dan sesekali merekonsiliasi dengan perhitungan ulang penuh.
+@teacher Model incremental cepat karena melewati baris lama, dan berisiko karena alasan yang sama. Putuskan dengan sengaja seberapa terlambat sebuah perubahan boleh datang.
+:::
 
 Tabel harian dibangun setelah muatan pertama. Muatan kedua sudah tiba di tabel mentah yang append-only: satu pesanan **baru**, dan sebuah **refund** untuk pesanan 25 Januari yang sudah dihitung. Perhatikan apa yang ditemukan oleh setiap jenis watermark:
 

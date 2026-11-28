@@ -28,6 +28,15 @@ Module 0.2 introduced **ELT**: load raw data into the warehouse first, then tran
 - supports **environments**, so the same code builds in a developer's schema, in CI and in production;
 - keeps everything in **Git**: reviewed, versioned, reproducible.
 
+:::talk A table name written by hand
+@teacher In a model, someone writes `select * from analytics_prod.stg_orders`. Later a developer builds the project in her own schema, `dev_ani`, to try a change.
+@ask Which table does that model read in her run?
+@choice * The production table `analytics_prod.stg_orders`: the name is fixed, so her test run reads the real data and she never tests her own upstream change | Yes. A hand-written name ignores the environment. dbt also does not know this model depends on `stg_orders`, so it may build it in the wrong order.
+@choice Her own `dev_ani.stg_orders`, because dbt rewrites schema names for her | dbt rewrites only what it understands. A plain table name is just text. Try again.
+@choice Nothing: dbt refuses to run a model with a fixed schema name | dbt does not forbid it. The SQL simply runs. Try again.
+@teacher With `{{ ref('stg_orders') }}`, dbt fills in the right schema for the current environment and records that this model depends on `stg_orders`. That one habit gives you the graph.
+:::
+
 What dbt does *not* do: extract or load data (a different tool brings raw data in; Module 2.4 orchestrates both) and it does not store or compute anything itself. It generates SQL and sends it to your warehouse (Snowflake, BigQuery, Postgres, DuckDB and more, through **adapters**). **dbt Core** is the open-source command-line tool used in this course; dbt Cloud adds a hosted service around it.
 
 A model in full:
@@ -221,6 +230,15 @@ models:
               config: { severity: warn }
 ```
 
+:::talk Green tests, wrong number
+@teacher All your dbt tests are green: `unique` and `not_null` on `order_id`, `accepted_values` on `status`. Yet the founder says revenue on the dashboard is 12% too high.
+@ask What is the most likely explanation?
+@choice A green test proves that the whole model is right | No test proves "everything is right": each test checks only the rule it states. Try again.
+@choice * No test looks at the amounts: the tests protect the keys and the status values, so a wrong join or a duplicated line can slip through | Yes. Add tests for what the business cares about: revenue reconciles with the source, totals are never negative, and the row count does not grow after a join.
+@choice dbt is miscounting the rows | dbt runs exactly the SQL you wrote, nothing more. Try again.
+@teacher Tests are only as good as the questions they ask. After every bug, add the test that would have caught it.
+:::
+
 `unique` and `not_null` check keys; `accepted_values` checks a closed set; `relationships` checks referential integrity (every fact's customer exists in the dimension). Under the hood each is a SQL query that **returns the rows that violate the rule**; the test passes when it returns none.
 
 **Singular tests** are your own SQL files in `tests/`, again returning bad rows:
@@ -300,6 +318,15 @@ Three details that the lab will teach you the hard way:
 - **Prove it.** The lab's tests compare the incrementally maintained table with a from-scratch calculation on the raw data after the second load. Any incremental model deserves exactly that test, because an incorrect incremental model looks perfectly healthy. `dbt run --full-refresh` rebuilds from scratch (use it after logic changes) and a periodic full refresh is a cheap safety net.
 
 ### See it: which dates must be recomputed?
+
+:::talk A late update
+@teacher An incremental model loads only the dates newer than the latest date already in the target table. The table's latest date is 8 January. On 9 January an order dated 5 January is changed to `refunded` in the source.
+@ask Does that change reach the model on the next run?
+@choice Yes: dbt notices every change in the source by itself | dbt only runs the SQL you wrote. It does not watch the source for changes. Try again.
+@choice Yes, because dbt rebuilds the whole table each night | That is true for a table model, not for an incremental one: the point of incremental is to skip old rows. Try again.
+@choice * No: the order's date, 5 January, is not newer than 8 January, so the filter skips it and the table goes stale | Yes. The model never looks back, so the refund is missed and revenue stays too high. A common fix is to reprocess a lookback window of recent days, and to reconcile with a full recalculation now and then.
+@teacher Incremental models are fast because they skip old rows, and risky for exactly the same reason. Decide on purpose how late a change may arrive.
+:::
 
 The daily table was built after the first load. A second load has arrived in the append-only raw table: one **new** order, and a **refund** for an order of 25 January that was already counted. Watch what each kind of watermark finds:
 
