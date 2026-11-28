@@ -70,6 +70,13 @@ node scripts/write-cloud-config.js --local --url https://abcdxyz.supabase.co --k
 npm start                                                                                         # http://localhost:3000
 ```
 
+Already have the two values in a `.env` file (for example `talenthub_PUBLIC_SUPABASE_URL` and `talenthub_PUBLIC_SUPABASE_ANON_KEY`)?
+Read just those two, and nothing else from the file:
+
+```bash
+node scripts/write-cloud-config.js --local --env-file .env --prefix talenthub_
+```
+
 No Supabase account yet? Try the whole flow against a fake one:
 
 ```bash

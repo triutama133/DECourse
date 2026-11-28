@@ -8,7 +8,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 const lib = require("../app/js/cloud-sync.js");
 const { start } = require("./mock_supabase.js");
-const { buildConfig, configSource } = require("./write-cloud-config.js");
+const { buildConfig, configSource, readEnvFile } = require("./write-cloud-config.js");
 
 const { mergeValue, mergeSnapshots, isSyncable, CloudCore } = lib;
 let passed = 0;
@@ -234,6 +234,16 @@ const get = (core, key) => JSON.parse(core.storage.getItem(key));
     assert.strictEqual(buildConfig({ NEXT_PUBLIC_SUPABASE_URL: "https://abc.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_abc" }).ok, true);
     assert.strictEqual(buildConfig({ SUPABASE_URL: "https://evil.example.com", SUPABASE_ANON_KEY: anon }).ok, false);
     assert.ok(/window\.DF_CLOUD = null;/.test(configSource(null)));
+  });
+
+  await t("config: a .env file with a prefix gives only the public URL and key, never the secret key or other lines", () => {
+    const envText = "sudo=hunter2\ntalenthub_PUBLIC_SUPABASE_URL=\"https://abc.supabase.co\"\ntalenthub_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xyz\ntalenthub_SUPABASE_SERVICE_ROLE_KEY=sb_secret_nope\n";
+    const picked = readEnvFile(envText, "talenthub_");
+    assert.ok(picked.SUPABASE_URL && picked.SUPABASE_ANON_KEY);
+    assert.ok(Object.keys(picked).every((k) => /SUPABASE_(URL|ANON_KEY|PUBLISHABLE_KEY)$/.test(k)), "only the public names: " + Object.keys(picked));
+    assert.ok(!JSON.stringify(picked).includes("hunter2") && !JSON.stringify(picked).includes("nope"));
+    assert.deepStrictEqual(buildConfig(picked).config, { url: "https://abc.supabase.co", anonKey: "sb_publishable_xyz" });
+    assert.deepStrictEqual(readEnvFile(envText, "other_"), {});
   });
 
   // ---------- the Vercel build ----------

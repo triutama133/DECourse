@@ -2,7 +2,9 @@
 // Write the small file that tells the web app which Supabase project to save progress to.
 //   Vercel:  set SUPABASE_URL and SUPABASE_ANON_KEY in the project settings; scripts/build-vercel.js calls this for you.
 //   Local:   node scripts/write-cloud-config.js --local --url https://xxxx.supabase.co --key <anon key>
-//            (or put the two names in your environment). It writes app/js/cloud-config.local.js, which git ignores.
+//            (or put the two names in your environment, or read them from a .env file:
+//             --env-file .env --prefix talenthub_  picks talenthub_PUBLIC_SUPABASE_URL and ..._ANON_KEY only).
+//            It writes app/js/cloud-config.local.js, which git ignores.
 // Only the PUBLIC key is allowed. A service_role / secret key would let anyone who opens the page read every
 // learner's data, so this script refuses it.
 const fs = require("fs");
@@ -21,6 +23,24 @@ function keyRole(key) {
     try { return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")).role || "unknown"; } catch (e) { return "unknown"; }
   }
   return "unknown";
+}
+
+// Read ONLY the Supabase URL and public key out of a .env file, optionally behind a prefix such as "talenthub_"
+// (talenthub_PUBLIC_SUPABASE_URL). Nothing else in the file is read or returned, so a service_role key or a
+// password that lives in the same file never reaches the web page.
+function readEnvFile(text, prefix = "") {
+  const all = {};
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m) all[m[1]] = m[2].replace(/^(["'])(.*)\1$/, "$2");
+  }
+  const pick = {};
+  for (const n of [...URL_NAMES, ...KEY_NAMES]) {
+    for (const cand of [prefix + n, prefix + n.replace(/^SUPABASE_/, "PUBLIC_SUPABASE_"), prefix + n.replace(/^NEXT_PUBLIC_/, "PUBLIC_")]) {
+      if (all[cand] && !(n in pick)) pick[n] = all[cand];
+    }
+  }
+  return pick;
 }
 
 // returns { ok, config, message }; config is null when sync should stay off
@@ -42,14 +62,16 @@ function configSource(config) {
     + `window.DF_CLOUD = ${config ? JSON.stringify(config) : "null"};\n`;
 }
 
-module.exports = { buildConfig, configSource, keyRole };
+module.exports = { buildConfig, configSource, keyRole, readEnvFile };
 
 if (require.main === module) {
   const a = process.argv.slice(2);
   const arg = (n) => { const i = a.indexOf(n); return i >= 0 ? a[i + 1] : undefined; };
   const local = a.includes("--local");
   const out = arg("--out") || path.join(__dirname, "..", "app", "js", local ? "cloud-config.local.js" : "cloud-config.js");
-  const r = buildConfig(process.env, { url: arg("--url"), key: arg("--key") });
+  const envFile = arg("--env-file");
+  const env = envFile ? readEnvFile(fs.readFileSync(envFile, "utf8"), arg("--prefix") || "") : process.env;
+  const r = buildConfig(env, { url: arg("--url"), key: arg("--key") });
   if (!r.ok) { console.error("ERROR: " + r.message); process.exit(1); }
   fs.writeFileSync(out, configSource(r.config));
   console.log(`${r.message}\nwrote ${path.relative(process.cwd(), out)}`);
