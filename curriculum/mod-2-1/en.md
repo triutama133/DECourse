@@ -24,6 +24,15 @@ A table is a grid. To store it in a file or in memory you must flatten it into a
 
 **Column-oriented** storage writes all the values of one column together: `(all ids) (all customers) (all statuses) (all amounts)`. Analytical questions rarely need whole records. "Total amount by status" touches **two columns** out of perhaps fifty. With a column layout the engine reads just those two columns and never touches the other 48; with a row layout it must read every byte of every row to get to them.
 
+:::talk Two columns out of fifty
+@teacher A table has 50 columns and 100 million rows. Your query needs only two of them: `status` and `total_idr`. In a row-oriented file the values of one row sit together, row after row. In a column-oriented file all the values of one column sit together.
+@ask Roughly how much of the file must be read to answer the query?
+@choice All of it in both layouts: a file is always read from start to end | That is true for a row file, where every row carries all 50 values. A column file keeps each column in its own place, so the others can stay unread. Try again.
+@choice * About 2/50 of the data in a column file, but all of it in a row file | Yes. The column layout lets the engine read only the two columns it needs, so the work, and the cloud bill, shrinks by up to 25 times here.
+@choice About half of it in both layouts | Neither layout gives "half". Try again.
+@teacher That is why analytics uses columns and an online shop uses rows: the shop reads one whole order, analytics reads a few columns of millions of orders.
+:::
+
 Three benefits stack up:
 
 1. **Less I/O.** Reading 2 of 50 columns is roughly 4% of the data. In the 7-column benchmark example in Lesson 5 you will see the engine report `PROJECT 3/7 COLUMNS`: only three of seven columns are read.
@@ -113,6 +122,15 @@ file
 > `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
 > 4. Ensure all 4 tests pass (`4 passed`). Observe how column data types are inferred automatically and ZSTD compression is applied across row groups.
 
+:::talk Skipping without reading
+@teacher A Parquet file is cut into row groups, and its footer stores the smallest and largest `order_ts` of each group. You ask for the orders of one single hour on 12 January.
+@ask When can the engine skip most of the row groups?
+@choice Never: skipping only works with a database index | Parquet has no index, but the min/max statistics do the same job when the data is in order. Try again.
+@choice Always, because the footer lists every group | The footer only says each group's smallest and largest value. If every group holds times from the whole month, none can be ruled out. Try again.
+@choice * When the file is sorted by `order_ts`, so each group covers a narrow time range | Yes. In sorted data a group's range is narrow, so the footer proves that most groups cannot contain that hour. In a randomly ordered file every group's range overlaps the hour, and nothing is skipped.
+@teacher So how you order the data when you write it decides how much a query can skip later, without any extra file or index.
+:::
+
 **Two optimisations make Parquet fast**, both visible in query plans:
 
 - **Projection pushdown (column pruning).** Read only the columns the query uses.
@@ -149,9 +167,9 @@ How does an engine compute on columns quickly? Older databases processed **one r
 
 The practical takeaway is not the mechanism but the habit: **express work as whole-column operations** (SQL, dataframe expressions) and let the engine run the loop. A Python `for` loop over rows pays interpreter overhead per value (Module 1.2); the same logic as a SQL aggregate or a Polars expression runs orders of magnitude faster.
 
-> 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query via `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchone()[0]` (in DuckDB SQL, `range(N) t(x)` is a built-in table generator producing rows `0..N-1` in column `x`, covered further in Lesson 4). Time each with `time.perf_counter()` and check that the two answers are equal.
+> 🛠 **Try it (5 min, Python).** Run `pip install duckdb`. Add up `x * 2` for every `x` from 0 to 1,999,999 where `x % 3 == 0`, twice: once with a Python `for` loop over `range(2_000_000)`, and once with a single DuckDB query via `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchall()[0][0]` (in DuckDB SQL, `range(N) t(x)` is a built-in table generator producing rows `0..N-1` in column `x`, covered further in Lesson 4). Time each with `time.perf_counter()` and check that the two answers are equal.
 >
-> **You should see:** both answers are `1333332666666`; the loop takes roughly 160 ms and DuckDB roughly 20 ms. The exact ratio depends on your machine (expect somewhere between 5 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
+> **You should see:** both answers are `1333332666666`; the loop takes roughly 90 to 160 ms and DuckDB roughly 20 ms. The first DuckDB query also pays a one-time start-up cost (about 45 ms on our laptop), so run it a second time to see its real speed. The ratio depends on your machine (expect somewhere between 2 and 15 times), but the direction never changes: the same logic as one column operation beats the row-by-row loop.
 
 :::ask A job loops over 10 million rows in a Python `for` loop to add 1 to each price. What is the better habit?
 @options
@@ -305,6 +323,15 @@ That is lazy evaluation: the chain describes work, and `.collect()` triggers it.
 :::
 
 ## @lesson Layout, types and the traps to avoid
+:::talk Partition by customer?
+@teacher An analyst reasons: "queries often filter by customer, so I will partition the dataset by day and by `customer_id`". There are 100,000 customers and 30 days of data.
+@ask What does the folder layout turn into?
+@choice * Up to three million tiny files, so listing and opening them is slow | Yes: 30 days times 100,000 customers. Each file is tiny, each open is a request, and the overhead swamps any benefit from pruning.
+@choice A handful of big files, because Parquet merges small partitions by itself | Nothing merges them for you: one folder per value means one small file per value. Try again.
+@choice Just 30 folders, because a partition is only one day | Not when you also partition by `customer_id`: every day then splits again into one folder per customer. Try again.
+@teacher Partition by a column with few distinct values that queries filter on, such as the day. For the rest, sort the data inside the files and let min/max statistics skip what is not needed.
+:::
+
 **Partitioning.** Splitting data into folders by a column's value (`month=2026-01/`) lets an engine skip entire folders when you filter on that column (partition pruning). Rules: partition on a **low-cardinality column that queries filter on** (date, region), not on ids; avoid partitions that produce tiny files (100 customers x 365 days = tens of thousands of small files); and prefer **sorting within files** for high-cardinality filters, since row group statistics handle those. Over-partitioning is the most common mistake.
 
 **Types matter.** A few that bite:

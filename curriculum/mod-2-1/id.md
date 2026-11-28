@@ -24,6 +24,15 @@ Penyimpanan **berorientasi baris (row-oriented)** menuliskan satu baris data utu
 
 Penyimpanan **berorientasi kolom (column-oriented)** menuliskan seluruh nilai dari satu kolom secara bersamaan: `(semua id) (semua pelanggan) (semua status) (semua total)`. Pertanyaan analitik bisnis hampir tidak pernah membutuhkan seluruh kolom rekaman. Pertanyaan seperti "total nominal belanja berdasarkan status pesanan" hanya menyentuh **dua kolom** dari total lima puluh kolom yang ada di tabel. Dengan format kolumnar, mesin hanya membaca dua kolom tersebut dari disk dan sama sekali tidak menyentuh 48 kolom lainnya; sebaliknya pada format baris, mesin terpaksa membaca seluruh byte dari setiap baris hanya untuk mengambil dua atribut yang dibutuhkan.
 
+:::talk Dua kolom dari lima puluh
+@teacher Sebuah tabel punya 50 kolom dan 100 juta baris. Query Anda hanya butuh dua di antaranya: `status` dan `total_idr`. Di file berorientasi baris, nilai-nilai satu baris berdekatan, baris demi baris. Di file berorientasi kolom, semua nilai satu kolom berdekatan.
+@ask Kira-kira berapa banyak dari file yang harus dibaca untuk menjawab query itu?
+@choice Semuanya di kedua tata letak: file selalu dibaca dari awal sampai akhir | Itu benar untuk file baris, di mana setiap baris membawa semua 50 nilai. File kolom menyimpan setiap kolom di tempatnya sendiri, sehingga yang lain boleh tidak dibaca. Coba lagi.
+@choice * Sekitar 2/50 dari data pada file kolom, tetapi semuanya pada file baris | Betul. Tata letak kolom memungkinkan mesin membaca hanya dua kolom yang dibutuhkan, sehingga pekerjaan, dan tagihan cloud, menyusut hingga 25 kali di sini.
+@choice Sekitar separuhnya di kedua tata letak | Tidak ada tata letak yang menghasilkan "separuh". Coba lagi.
+@teacher Karena itulah analitik memakai kolom dan toko online memakai baris: toko membaca satu pesanan utuh, analitik membaca beberapa kolom dari jutaan pesanan.
+:::
+
 Tiga keunggulan utama format kolumnar:
 
 1. **Efisiensi I/O Disk yang Ekstrem.** Membaca 2 dari 50 kolom berarti membaca hanya sekitar 4% volume data. Pada contoh benchmark 7 kolom di Pelajaran 5, Anda akan melihat laporan mesin analitik bertuliskan `PROJECT 3/7 COLUMNS`: hanya tiga dari tujuh kolom yang dimuat ke memori.
@@ -113,6 +122,15 @@ file
 > `pytest labs/mod-2-1/test_lab.py -v -k TestToParquet`
 > 4. Pastikan ke-4 pengujian lulus (`4 passed`). Amati bagaimana tipe data berhasil diinferensikan secara otomatis dan kompresi ZSTD diterapkan pada tiap row group.
 
+:::talk Melewati tanpa membaca
+@teacher Sebuah file Parquet dipotong menjadi row group, dan footer-nya menyimpan `order_ts` terkecil dan terbesar dari setiap group. Anda meminta pesanan pada satu jam saja di tanggal 12 Januari.
+@ask Kapan mesin bisa melewati sebagian besar row group?
+@choice Tidak pernah: melewati hanya bisa dengan index database | Parquet tidak punya index, tetapi statistik min/maks melakukan pekerjaan yang sama bila datanya berurutan. Coba lagi.
+@choice Selalu, karena footer mendaftar setiap group | Footer hanya menyebut nilai terkecil dan terbesar tiap group. Kalau setiap group berisi waktu dari sebulan penuh, tidak ada yang bisa dikesampingkan. Coba lagi.
+@choice * Ketika file diurutkan menurut `order_ts`, sehingga setiap group mencakup rentang waktu yang sempit | Betul. Pada data terurut rentang sebuah group sempit, jadi footer membuktikan bahwa sebagian besar group tidak mungkin berisi jam itu. Pada file berurutan acak, rentang setiap group tumpang tindih dengan jam itu, dan tidak ada yang dilewati.
+@teacher Jadi cara Anda mengurutkan data saat menulis menentukan seberapa banyak yang bisa dilewati query nanti, tanpa file atau index tambahan.
+:::
+
 **Dua optimasi kunci yang membuat query Parquet sangat kencang:**
 
 - **Projection Pushdown (Column Pruning).** Mesin analitik hanya membaca kolom-kolom yang secara eksplisit diminta oleh query dan mengabaikan sisa kolom lainnya.
@@ -149,9 +167,9 @@ Bagaimana mesin query modern menghitung data kolom secara kilat? Basis data konv
 
 Prinsip penting yang harus menjadi kebiasaan kerja Anda: **nyatakan logika transformasi sebagai operasi berbasis kolom utuh** (melalui query SQL atau ekspresi dataframe) dan biarkan mesin C++/Rust yang menjalankan loop-nya. Perulangan loop `for` Python baris demi baris membayar overhead interpreter Python yang sangat mahal pada tiap elemen (Modul 1.2); logika yang sama jika ditulis sebagai ekspresi SQL DuckDB atau Polars akan berjalan jauh lebih cepat.
 
-> 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB lewat `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchone()[0]` (di SQL DuckDB, `range(N) t(x)` adalah fungsi generator tabel bawaan yang menghasilkan baris `0..N-1` pada kolom `x`, dibahas lebih lanjut di Pelajaran 4). Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
+> 🛠 **Coba sendiri (5 menit, Python).** Jalankan `pip install duckdb`. Jumlahkan `x * 2` untuk setiap `x` dari 0 sampai 1.999.999 dengan `x % 3 == 0`, dua kali: sekali dengan loop `for` Python atas `range(2_000_000)`, dan sekali dengan satu query DuckDB lewat `duckdb.sql("SELECT sum(x * 2) FROM range(2000000) t(x) WHERE x % 3 = 0").fetchall()[0][0]` (di SQL DuckDB, `range(N) t(x)` adalah fungsi generator tabel bawaan yang menghasilkan baris `0..N-1` pada kolom `x`, dibahas lebih lanjut di Pelajaran 4). Ukur waktu masing-masing dengan `time.perf_counter()` dan pastikan kedua jawabannya sama.
 >
-> **Seharusnya Anda melihat:** kedua jawaban bernilai `1333332666666`; loop-nya butuh sekitar 160 ms dan DuckDB sekitar 20 ms. Rasio persisnya tergantung mesin Anda (harapkan antara 5 dan 15 kali), tetapi arahnya tidak pernah berubah: logika yang sama sebagai satu operasi kolom mengalahkan loop baris demi baris.
+> **Seharusnya Anda melihat:** kedua jawaban bernilai `1333332666666`; loop-nya butuh sekitar 90 sampai 160 ms dan DuckDB sekitar 20 ms. Query DuckDB yang pertama juga membayar biaya awal sekali saja (sekitar 45 ms di laptop kami), jadi jalankan untuk kedua kalinya untuk melihat kecepatan sebenarnya. Rasionya tergantung mesin Anda (harapkan antara 2 dan 15 kali), tetapi arahnya tidak pernah berubah: logika yang sama sebagai satu operasi kolom mengalahkan loop baris demi baris.
 
 :::ask Sebuah job melakukan `for` loop Python atas 10 juta baris untuk menambah 1 pada tiap harga. Kebiasaan mana yang lebih baik?
 @options
@@ -305,6 +323,15 @@ Itulah lazy evaluation: rantai itu mendeskripsikan kerja, dan `.collect()` memic
 :::
 
 ## @lesson Tata letak partisi, tipe data, dan jebakan umum
+:::talk Partisi per pelanggan?
+@teacher Seorang analis beralasan: "query sering memfilter menurut pelanggan, jadi saya akan mempartisi dataset menurut hari dan menurut `customer_id`". Ada 100.000 pelanggan dan data 30 hari.
+@ask Menjadi apa tata letak foldernya?
+@choice * Hingga tiga juta file kecil, sehingga mendaftar dan membukanya lambat | Betul: 30 hari kali 100.000 pelanggan. Setiap file kecil, setiap pembukaan adalah satu permintaan, dan beban tambahannya menelan manfaat pemangkasan.
+@choice Segelintir file besar, karena Parquet menggabungkan partisi kecil dengan sendirinya | Tidak ada yang menggabungkannya untuk Anda: satu folder per nilai berarti satu file kecil per nilai. Coba lagi.
+@choice Hanya 30 folder, karena partisi hanyalah satu hari | Tidak bila Anda juga mempartisi menurut `customer_id`: setiap hari terpecah lagi menjadi satu folder per pelanggan. Coba lagi.
+@teacher Partisi menurut kolom dengan sedikit nilai berbeda yang sering difilter query, seperti hari. Untuk sisanya, urutkan data di dalam file dan biarkan statistik min/maks melewati yang tidak perlu.
+:::
+
 **Partisi Direktori (Partitioning).** Membagi data ke dalam sub-folder berdasarkan nilai kolom tertentu (`month=2026-01/`) memungkinkan mesin query melewati seluruh folder yang tidak relevan saat ada filter pada kolom tersebut (partition pruning). Panduan praktis: partisi data hanya pada **kolom ber-kardinalitas rendah yang rutin difilter** (seperti tanggal atau wilayah), jangan pernah partisi pada ID transaksi; hindari pembagian partisi yang melahirkan ribuan file mini (100 pelanggan × 365 hari = puluhan ribu file kecil); dan prioritaskan **pengurutan data di dalam file** untuk kolom ber-kardinalitas tinggi karena statistik row group Parquet dapat menanganinya dengan sangat efisien. Partisi berlebihan (*over-partitioning*) adalah kesalahan paling umum data engineer pemula.
 
 **Disiplin Tipe Data:**
