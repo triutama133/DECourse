@@ -209,7 +209,25 @@ A missing file may just be late. Raising makes Airflow retry after the delay, an
 :::
 
 ## @lesson Designing it so that it survives
+:::talk Monday's run, Wednesday's execution
+@teacher The run for the logical date 2 March fails at night because the delivery file was late. Nobody notices until 9 March, when you clear the failed run so that Airflow executes it again.
+@ask Which file should `extract` read now?
+@choice The file of 9 March, because that is today | The run belongs to 2 March, whatever the clock says. Reading today's file would load the wrong day under 2 March's name. Try again.
+@choice * The file of 2 March, taken from the run's logical date (`ds`), because the run belongs to that day | Yes. Everything is a function of the logical date, never of the clock. That is what lets you re-run or backfill any past day and get the right data.
+@choice The newest file in the folder | "Newest" depends on when you ask, so a rerun would give a different result. Try again.
+@teacher Ask the run which day it is for. Never ask the clock.
+:::
+
 **Everything is a function of the date.** If a task asks "what is today?" instead of "which day is this run for?", rerunning an old day gives a wrong answer. Every file name, every `WHERE`, every output path in this pipeline is built from `ds`.
+
+:::talk A crash after 1,000 rows
+@teacher Your Airflow task inserts the day's orders into a table, one transaction per row. It writes 1,000 of 3,000 rows and the worker dies. Airflow retries the task, as configured.
+@ask What should the task do to make the retry safe?
+@choice Insert all 3,000 rows again | Then the first 1,000 rows exist twice, and every total for that day is wrong. Try again.
+@choice * Delete that date's rows and insert them again, all in one transaction | Yes. Whatever state the previous attempt left, the result of the retry is the same: exactly the day's rows once. This is "replace, never append".
+@choice Skip the task: part of the data is better than none | A silent partial day looks complete in every report. Try again.
+@teacher A retry is only safe when running the task twice leaves the same result as running it once.
+:::
 
 **Replace, never append.** The classic Airflow bug: a task appends its rows, a retry runs it again, and the rows exist twice. The remedy is the idempotence of Module 1.2 applied to a date partition: inside one transaction, *delete the rows of this date, then insert them*. Run it once or five times, the table is the same. Do it in a transaction so that a crash between the delete and the insert leaves yesterday's content, not a hole. The mart is rebuilt completely from the tables instead of being added to, for the same reason. A rerun in the middle of a backfill, or starting with 4 March before 3 March, then cannot make the numbers wrong.
 

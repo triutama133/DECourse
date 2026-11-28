@@ -209,7 +209,25 @@ File yang hilang mungkin hanya terlambat. Melempar membuat Airflow mencoba ulang
 :::
 
 ## @lesson Merancang pipeline agar tahan banting
+:::talk Putaran hari Senin, eksekusi hari Rabu
+@teacher Putaran untuk logical date 2 Maret gagal pada malam hari karena file kiriman terlambat. Tidak ada yang menyadarinya sampai 9 Maret, ketika Anda mengosongkan putaran yang gagal agar Airflow menjalankannya lagi.
+@ask File mana yang sekarang harus dibaca `extract`?
+@choice File tanggal 9 Maret, karena itu hari ini | Putaran itu milik 2 Maret, apa pun kata jam. Membaca file hari ini akan memuat hari yang salah dengan nama 2 Maret. Coba lagi.
+@choice * File tanggal 2 Maret, diambil dari logical date putaran itu (`ds`), karena putaran itu milik hari tersebut | Betul. Segala sesuatu adalah fungsi dari logical date, bukan dari jam. Itulah yang membuat Anda bisa menjalankan ulang atau backfill hari mana pun di masa lalu dan mendapat data yang benar.
+@choice File terbaru di folder | "Terbaru" bergantung pada kapan Anda bertanya, jadi pengulangan akan memberi hasil berbeda. Coba lagi.
+@teacher Tanyakan kepada putaran itu hari apa ia dimaksudkan. Jangan pernah bertanya pada jam.
+:::
+
 **Seluruh operasi merupakan fungsi deterministik dari tanggal.** Jika sebuah task menanyakan "hari apa sekarang?" alih-alih "tanggal berapa run ini ditujukan?", menjalankan ulang jadwal masa lalu akan menghasilkan data yang salah. Setiap nama file, filter `WHERE`, dan path output di pipeline ini wajib dibangun berdasarkan parameter `ds`.
+
+:::talk Crash setelah 1.000 baris
+@teacher Tugas Airflow Anda memasukkan pesanan hari itu ke sebuah tabel, satu transaksi per baris. Ia menulis 1.000 dari 3.000 baris lalu worker mati. Airflow mengulang tugas itu, sesuai konfigurasi.
+@ask Apa yang harus dilakukan tugas itu agar pengulangan aman?
+@choice Memasukkan lagi seluruh 3.000 baris | Maka 1.000 baris pertama ada dua kali, dan setiap total hari itu salah. Coba lagi.
+@choice * Menghapus baris tanggal itu lalu memasukkannya lagi, semuanya dalam satu transaksi | Betul. Apa pun keadaan yang ditinggalkan percobaan sebelumnya, hasil pengulangan sama: tepat baris hari itu, sekali. Inilah "gantikan, jangan pernah menambah".
+@choice Melewati tugas itu: sebagian data lebih baik daripada tidak ada | Hari yang parsial secara diam-diam tampak lengkap di setiap laporan. Coba lagi.
+@teacher Pengulangan hanya aman bila menjalankan tugas dua kali menghasilkan hasil yang sama dengan sekali.
+:::
 
 **Gantikan data lama, jangan pernah menambah secara membabi buta (replace, never append).** Bug paling klasik di Airflow: task menyisipkan baris dengan append, task mengalami timeout lalu di-retry, dan seluruh baris data masuk dua kali lipat. Solusinya adalah menerapkan prinsip idempotensi dari Modul 1.2 pada partisi tanggal: di dalam satu transaksi database, *hapus baris data untuk tanggal tersebut, lalu sisipkan data yang baru*. Dijalankan satu kali maupun lima kali berturut-turut, isi tabel akan tetap sama persis. Eksekusi ini wajib dibungkus dalam satu transaksi agar kegagalan di tengah proses tidak meninggalkan kondisi tabel yang kosong atau terpotong. Tabel mart juga dibangun ulang secara total dari tabel fakta, bukan ditambahkan secara inkremental, dengan alasan ketahanan yang sama. Menjalankan ulang pipeline di tengah proses backfill, atau mengeksekusi tanggal 4 Maret mendahului 3 Maret, tidak akan pernah merusak akurasi data.
 
