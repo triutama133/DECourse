@@ -137,6 +137,15 @@ SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GR
 ## @lesson Dimensions: descriptive context
 A dimension row describes one member (one product, one customer, one day) with many attributes you group, filter and label by: `roast_level`, `origin`, `tier`, `city`. Good dimensions are wide and denormalised on purpose, because you want one join, not a chain.
 
+:::talk Fact or dimension?
+@teacher A warehouse has two kinds of tables. A **dimension** describes things: who, what, where, when. A **fact** records events and the numbers you add up: each sale, each click. Take one KopiKu order line: product Gayo, bought by Ani from Bandung on 12 January, quantity 2, line total Rp 90,000.
+@ask Which of these belongs in the fact table as a measure?
+@choice The customer's city, Bandung | The city describes the customer: it belongs in the customer dimension, once, not repeated on every line. Try again.
+@choice * The line total, Rp 90,000 | Yes. It is a number you add up across many lines, which is what a measure is. The who, what and when become keys that point at dimensions.
+@choice The product name, Gayo | The name describes the product, so it lives in the product dimension. Try again.
+@teacher A quick test: "can I sum or average it?" Then it is a measure for the fact table. "Does it describe something?" Then it is an attribute for a dimension.
+:::
+
 Some dimension patterns you will meet:
 
 - **Date dimension.** A real table with one row per calendar day (and sometimes per time of day) with year, month, day name, week, quarter, `is_weekend`, holiday flags. Generating it from the calendar (not from your data) means days with no sales still exist, and every report shares one definition of "week" and "fiscal quarter". It is the one dimension nearly every fact table has.
@@ -201,6 +210,15 @@ SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name F
 
 Keep the natural key in the dimension as an ordinary column too, so you can trace a row back to its source.
 
+:::talk A customer who is not there yet
+@teacher At 09:00 a customer pays for an order. Her customer record loads into the warehouse only at 10:00, but the order line loads at 09:30. So the line arrives, and its customer does not exist in the customer dimension yet.
+@ask What is the best thing to do with that line?
+@choice Drop it until the customer arrives, then load it again | The revenue disappears from every report in between, and somebody has to remember to load it later. Try again.
+@choice Store NULL in the customer key | A NULL key disappears from every inner join, so the revenue vanishes quietly all the same. Try again.
+@choice * Point it at an "unknown" customer row, and correct the key when the real customer arrives | Yes. The line stays joinable, the totals stay right, and the gap is visible: you can count how many lines still say "unknown".
+@teacher The unknown member is a real row in the dimension, usually with the key -1. A fact row always has something to point at.
+:::
+
 **Every fact row must point at a real dimension row.** Real data does not cooperate: an order arrives for a customer who is not in the customer extract yet (a *late-arriving* dimension), a product is deleted at the source, a value is missing. A NULL foreign key is poison: in an inner join the fact row silently vanishes and totals go down. The standard fix is the **unknown member**: a special dimension row with a reserved key (here `customer_sk = -1`, `city = 'Unknown'`) that facts point to when the real row cannot be found. Totals stay correct, the unknowns are visible (and countable, so you can alert on them), and when the real dimension row arrives later you can repair the facts.
 
 In the lab's data, 32 order lines belong to customers who do not exist in the customer table. With an unknown member they appear as the "Unknown" tier with revenue of Rp 5,965,000; without it, that revenue would silently disappear from every report grouped by tier.
@@ -238,6 +256,15 @@ SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN c
 
 ## @lesson Slowly changing dimensions: remembering what used to be true
 Customers move, products are renamed, tiers are re-evaluated. A dimension's attributes change **slowly** over time, and you must decide what a report about the *past* should say. That decision is the **slowly changing dimension (SCD) type**, chosen per attribute:
+
+:::talk Reports about last year
+@teacher Ani lived in Jakarta all last year and bought many coffees. In March she moves to Bandung, and the customer table is updated: her city now says Bandung.
+@ask Someone reruns last year's revenue report by city. What does it show for Ani's old orders?
+@choice * Bandung: the update overwrote Jakarta, so history is rewritten | Yes. Overwriting keeps only the latest truth, so last year's report quietly changes after the move. Jakarta's revenue shrinks, and nobody did anything wrong in the report.
+@choice Jakarta, because the orders remember where she lived | The order rows only point at "customer 7". The city lives in the customer table, and that table now says Bandung. Try again.
+@choice An error, because the data changed | Nothing raises an error, and that is exactly the danger: the numbers just change. Try again.
+@teacher To keep last year true, do not overwrite. Add a **new row** for the new version, with the dates it was valid. That is a Type 2 dimension.
+:::
 
 | Type | What happens on change | History kept? | Use for |
 |---|---|---|---|
@@ -389,7 +416,7 @@ Common mistakes to avoid: mixing grains; putting descriptive text in the fact ta
 > `python3 labs/mod-1-4/test_lab.py -v`
 > 5. Because `test_lab.py` runs in `:memory:`, write the real `dim_*` and `fact_order_items` tables into `warehouse.db` on disk (needed for querying or Metabase in Lesson 8):
 > `python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"` (or `sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql`)
-> When all 13 unit tests show PASSED (OK), your KopiKu star schema meets enterprise standards!
+> When all 13 unit tests end in `ok` and the last line says `OK`, your KopiKu star schema meets enterprise standards!
 
 :::ask A grain test on a fact table whose grain is 'one row per order line' checks what?
 @options

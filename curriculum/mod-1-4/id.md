@@ -137,6 +137,15 @@ SELECT COUNT(*) AS violations FROM (SELECT order_id, line_no FROM order_items GR
 ## @lesson Tabel dimensi: konteks deskriptif pelaporan
 Satu baris dimensi mendeskripsikan satu entitas spesifik (satu produk, satu pelanggan, satu tanggal kalender) dengan deretan atribut rinci yang dipakai untuk pengelompokan dan pemfilteran: `roast_level`, `origin`, `tier`, `city`. Dimensi yang dirancang dengan baik sengaja dibuat lebar dan tidak dinormalisasi (denormalized), karena dalam analitik kita menginginkan satu kali join langsung, bukan rantai join berjenjang.
 
+:::talk Fakta atau dimensi?
+@teacher Sebuah warehouse punya dua jenis tabel. **Dimensi** menggambarkan sesuatu: siapa, apa, di mana, kapan. **Fakta** mencatat kejadian dan angka yang Anda jumlahkan: setiap penjualan, setiap klik. Ambil satu baris pesanan KopiKu: produk Gayo, dibeli Ani dari Bandung pada 12 Januari, jumlah 2, total baris Rp 90.000.
+@ask Mana yang termasuk ke tabel fakta sebagai ukuran (measure)?
+@choice Kota pelanggan, Bandung | Kota menggambarkan pelanggan: ia masuk ke dimensi pelanggan, sekali saja, bukan diulang di setiap baris. Coba lagi.
+@choice * Total baris, Rp 90.000 | Betul. Itu angka yang Anda jumlahkan dari banyak baris, dan itulah ukuran. Siapa, apa, dan kapan menjadi kunci yang menunjuk ke dimensi.
+@choice Nama produk, Gayo | Nama menggambarkan produk, jadi ia tinggal di dimensi produk. Coba lagi.
+@teacher Uji cepat: "bisakah saya menjumlahkan atau merata-ratakannya?" Berarti itu ukuran untuk tabel fakta. "Apakah ini menggambarkan sesuatu?" Berarti itu atribut untuk dimensi.
+:::
+
 Pola-pola dimensi standar yang akan selalu Anda temui di industri:
 
 - **Dimensi Tanggal (Date Dimension).** Tabel fisik nyata dengan satu baris per hari kalender (lengkap dengan tahun, bulan, nama hari, nomor minggu, kuartal, flag akhir pekan, flag hari libur nasional). Dibuat langsung dari kalender (bukan diekstrak dari transaksi yang ada), sehingga hari-hari tanpa penjualan tetap terdaftar di laporan, dan seluruh perusahaan memiliki definisi yang seragam mengenai batas kuartal fiskal. Hampir setiap tabel fakta selalu terhubung ke dimensi ini.
@@ -201,6 +210,15 @@ SELECT ROW_NUMBER() OVER (ORDER BY product_id) AS product_sk, product_id, name F
 
 Selalu pertahankan natural key asli di dalam tabel dimensi sebagai kolom biasa, sehingga silsilah data (data lineage) tetap dapat dilacak balik ke aplikasi asal.
 
+:::talk Pelanggan yang belum ada
+@teacher Pukul 09:00 seorang pelanggan membayar sebuah pesanan. Catatan pelanggannya baru dimuat ke warehouse pukul 10:00, tetapi baris pesanan dimuat pukul 09:30. Jadi baris itu tiba, dan pelanggannya belum ada di dimensi pelanggan.
+@ask Apa yang terbaik dilakukan terhadap baris itu?
+@choice Membuangnya sampai pelanggan tiba, lalu memuatnya lagi | Pendapatannya hilang dari setiap laporan di antara waktu itu, dan seseorang harus ingat memuatnya nanti. Coba lagi.
+@choice Menyimpan NULL di kunci pelanggan | Kunci NULL lenyap dari setiap inner join, sehingga pendapatannya tetap hilang diam-diam. Coba lagi.
+@choice * Menunjuknya ke baris pelanggan "unknown", lalu memperbaiki kuncinya ketika pelanggan sebenarnya tiba | Betul. Barisnya tetap bisa di-join, total tetap benar, dan celahnya terlihat: Anda bisa menghitung berapa baris yang masih bertuliskan "unknown".
+@teacher Anggota unknown adalah baris nyata di dimensi, biasanya dengan kunci -1. Baris fakta selalu punya sesuatu untuk ditunjuk.
+:::
+
 **Setiap baris fakta wajib merujuk ke baris dimensi yang nyata.** Namun data dunia nyata tidak pernah ideal: transaksi pesanan tiba untuk pelanggan yang belum terdaftar di snapshot pelanggan hari itu (*late-arriving dimension*), produk dihapus di sistem sumber, atau kolom bernilai NULL. Nilai foreign key NULL adalah racun: pada operasi INNER JOIN baris fakta akan hilang tanpa peringatan dan angka omset dashboard langsung menyusut. Solusi standar industri adalah **anggota unknown (unknown member)**: baris khusus di tabel dimensi dengan nomor kunci khusus (misalnya `customer_sk = -1`, `city = 'Unknown'`) tempat tabel fakta merujuk ketika entitas aslinya tidak ditemukan. Total omset tetap akurat 100%, data yang tidak dikenal terlihat jelas di laporan (dan dapat dihitung untuk memicu peringatan otomatis tim engineering), dan ketika data dimensi susulan tiba, kunci fakta dapat diperbaiki.
 
 Pada data lab KopiKu, terdapat 32 baris pesanan milik pelanggan yang tidak terdaftar di tabel pelanggan sumber. Dengan anggota unknown, transaksi tersebut tercatat rapi di bawah kategori tier "Unknown" dengan nilai omset Rp 5.965.000; tanpa pola ini, omset tersebut akan lenyap diam-diam dari setiap query pelaporan per tier pelanggan.
@@ -238,6 +256,15 @@ SELECT o.order_id, COALESCE(c.name, 'Unknown') AS name FROM orders o LEFT JOIN c
 
 ## @lesson Slowly changing dimensions: merekam kebenaran masa lalu
 Pelanggan berpindah domisili, produk berganti nama kemasan, tier loyalitas diperbarui. Nilai atribut dalam dimensi berubah secara **perlahan (slowly)** seiring waktu, dan Anda harus memutuskan apa yang harus ditampilkan oleh laporan tentang masa lalu. Keputusan arsitektur inilah yang dinamakan tipe **Slowly Changing Dimension (SCD)**:
+
+:::talk Laporan tentang tahun lalu
+@teacher Ani tinggal di Jakarta sepanjang tahun lalu dan membeli banyak kopi. Pada bulan Maret ia pindah ke Bandung, dan tabel pelanggan diperbarui: kotanya sekarang tertulis Bandung.
+@ask Seseorang menjalankan ulang laporan pendapatan tahun lalu per kota. Apa yang ditampilkan untuk pesanan lama Ani?
+@choice * Bandung: pembaruan menimpa Jakarta, sehingga sejarah ditulis ulang | Betul. Menimpa hanya menyimpan kebenaran terbaru, jadi laporan tahun lalu diam-diam berubah setelah kepindahan. Pendapatan Jakarta menyusut, dan tidak ada yang salah pada laporannya.
+@choice Jakarta, karena pesanan mengingat di mana ia tinggal | Baris pesanan hanya menunjuk ke "pelanggan 7". Kota ada di tabel pelanggan, dan tabel itu sekarang menulis Bandung. Coba lagi.
+@choice Error, karena datanya berubah | Tidak ada error, dan itulah bahayanya: angkanya begitu saja berubah. Coba lagi.
+@teacher Agar tahun lalu tetap benar, jangan menimpa. Tambahkan **baris baru** untuk versi yang baru, beserta tanggal berlakunya. Itulah dimensi Tipe 2.
+:::
 
 | Tipe SCD | Perilaku Saat Atribut Berubah | Histori Disimpan? | Kasus Penggunaan Ideal |
 |---|---|---|---|
@@ -389,7 +416,7 @@ Kesalahan umum yang wajib dihindari: mencampur aduk grain yang berbeda; menaruh 
 > `python3 labs/mod-1-4/test_lab.py -v`
 > 5. Karena `test_lab.py` berjalan di `:memory:`, tulis tabel `dim_*` dan `fact_order_items` yang sesungguhnya ke file `warehouse.db` di disk (diperlukan untuk query interaktif atau Metabase di Pelajaran 8):
 > `python3 -c "import sqlite3; sqlite3.connect('warehouse.db').executescript(open('labs/mod-1-4/warehouse.sql').read())"` (atau `sqlite3 warehouse.db < labs/mod-1-4/warehouse.sql`)
-> Ketika ke-13 unit test berstatus PASSED (OK), star schema KopiKu Anda telah memenuhi standar enterprise!
+> Ketika ke-13 unit test berakhir dengan `ok` dan baris terakhir berbunyi `OK`, star schema KopiKu Anda telah memenuhi standar enterprise!
 
 :::ask Tes grain pada tabel fakta ber-grain 'satu baris per item pesanan' memeriksa apa?
 @options
