@@ -120,7 +120,7 @@ Two traps. First, `uniq` only collapses *neighbouring* duplicates, so you almost
 awk -F, 'NR > 1 { n[tolower($4)]++ } END { for (s in n) print s, n[s] }' data/orders.csv | sort
 ```
 
-On the KopiKu data this prints `cancelled 362`, `delivered 2148`, `paid 374`, `refunded 174`, `shipped 576`. Notice it counts the duplicate rows too, so it differs from the de-duplicated counts in Module 0.1; you must decide whether duplicates matter before trusting any count.
+On the KopiKu data this prints `cancelled 362`, `delivered 2148`, `paid 374`, `refunded 174`, `shipped 576`. Notice it counts the duplicate rows too (Module 0.2 found 35 repeated order ids), so these are not counts of unique orders; you must decide whether duplicates matter before trusting any count.
 
 > **Warning:** `awk -F,` and `cut -d,` split on every comma, so they break on CSV values like `"Santoso, Budi"`. They are fine for simple, known files. For real CSV with quoted fields use Python's `csv` module, `csvkit` or Miller (`mlr`).
 

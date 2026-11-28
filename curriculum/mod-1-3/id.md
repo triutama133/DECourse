@@ -771,7 +771,7 @@ CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 ## @lesson Satu pertanyaan, banyak dialek: SQLite, PostgreSQL, DuckDB, dan warehouse
 SQL adalah standar, tetapi setiap engine berbicara dalam dialeknya sendiri, dan dalam data engineering Anda akan bertemu beberapa: SQLite di sandbox, PostgreSQL di database aplikasi, DuckDB di laptop, BigQuery atau Snowflake di warehouse (Modul 2.6), Spark SQL di lakehouse. Standar mendefinisikan inti (SELECT, join, GROUP BY, window function, CTE), dan setiap engine menambah fungsi, tipe, dan aturan di sekelilingnya. Perbedaan datang dalam dua jenis, dan jenis kedua adalah yang berbahaya.
 
-**Perbedaan yang gagal dengan keras.** Query error, Anda mencari tahu, Anda memperbaikinya. Kami menjalankan pernyataan yang sama di SQLite 3.45, PostgreSQL 16, dan DuckDB 1.5:
+**Perbedaan yang gagal dengan keras.** Query error, Anda mencari tahu, Anda memperbaikinya. Kami menjalankan pernyataan yang sama di SQLite 3.45, PostgreSQL 16, dan DuckDB 1.5 (dicek ulang di 2.0.1):
 
 | Tugas | SQLite | PostgreSQL | DuckDB |
 |---|---|---|---|
@@ -913,7 +913,7 @@ SELECT payload ->> '$.user.id' AS user_id, json_group_array(event_id) AS event_i
 SELECT json_object('event', event_id, 'user', payload ->> '$.user.id') FROM events WHERE event_id = 1;   -- {"event":1,"user":7}
 ```
 
-**Dialek.** Kami menjalankan pertanyaan yang sama di SQLite 3.39 (sandbox), PostgreSQL 16 (kolom `jsonb`), dan DuckDB 1.5:
+**Dialek.** Kami menjalankan pertanyaan yang sama di SQLite 3.39 (sandbox), PostgreSQL 16 (kolom `jsonb`), dan DuckDB 1.5 (dicek ulang di 2.0.1):
 
 | Tugas | SQLite | PostgreSQL | DuckDB |
 |---|---|---|---|

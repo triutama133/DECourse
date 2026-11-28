@@ -771,7 +771,7 @@ CREATE INDEX ix_cust_date ON orders(customer_id, order_date);
 ## @lesson One question, many dialects: SQLite, PostgreSQL, DuckDB and the warehouses
 SQL is a standard, but every engine speaks its own dialect, and in data engineering you will meet several: SQLite in the sandbox, PostgreSQL in application databases, DuckDB on a laptop, BigQuery or Snowflake in the warehouse (Module 2.6), Spark SQL in the lakehouse. The standard defines a core (SELECT, joins, GROUP BY, window functions, CTEs), and each engine adds functions, types and rules around it. Differences come in two kinds, and the second kind is the dangerous one.
 
-**Differences that fail loudly.** The query errors out, you look it up, you fix it. We ran the same statements on SQLite 3.45, PostgreSQL 16 and DuckDB 1.5:
+**Differences that fail loudly.** The query errors out, you look it up, you fix it. We ran the same statements on SQLite 3.45, PostgreSQL 16 and DuckDB 1.5 (rechecked on 2.0.1):
 
 | Task | SQLite | PostgreSQL | DuckDB |
 |---|---|---|---|
@@ -913,7 +913,7 @@ SELECT payload ->> '$.user.id' AS user_id, json_group_array(event_id) AS event_i
 SELECT json_object('event', event_id, 'user', payload ->> '$.user.id') FROM events WHERE event_id = 1;   -- {"event":1,"user":7}
 ```
 
-**Dialects.** We ran the same questions on SQLite 3.39 (the sandbox), PostgreSQL 16 (`jsonb` column) and DuckDB 1.5:
+**Dialects.** We ran the same questions on SQLite 3.39 (the sandbox), PostgreSQL 16 (`jsonb` column) and DuckDB 1.5 (rechecked on 2.0.1):
 
 | Task | SQLite | PostgreSQL | DuckDB |
 |---|---|---|---|

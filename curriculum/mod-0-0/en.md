@@ -873,7 +873,7 @@ else:
     print("unknown status: send it to quarantine")
 ```
 
-(Notice `or` on the `elif` line: it means "either one is true", the next section covers `and`, `or`, and `not` in full.)
+(Notice `or` on the `elif` line: it means "either one is true". The next section covers `and`, `or`, and `not` in full.)
 
 :::drill python Three paths
 Set `action` by the `status`: `"paid"` gives `"count it"`; `"cancelled"` or `"refunded"` give `"skip it"`; anything else gives `"check it"`.
@@ -1301,7 +1301,7 @@ unique_ids = sorted(seen)
 print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 ```
 
-Inside a loop, pair each `start` from `range(0, len(items), batch_size)` with the dynamic slice `items[start:start + batch_size]`, for example, when `start` is `3` and `batch_size` is `3`, that takes `items[3:6]`.
+Inside a loop, pair each `start` from `range(0, len(items), batch_size)` with the dynamic slice `items[start:start + batch_size]`. For example, when `start` is `3` and `batch_size` is `3`, that takes `items[3:6]`.
 
 :::drill python Where each piece starts
 `items` has 10 items. A piece is 3 items long. Make `starts` the list of positions where each piece starts: `[0, 3, 6, 9]`. Use `range` with `len(items)`.
@@ -1366,7 +1366,7 @@ ints = [int(text) for text in texts]
 
 In data pipelines you often rank things (the customers who spent the most, you will use this for `top_customers` in the lab). `sorted(data, key=...)` takes a `key`: a small rule that tells Python what to sort by. A one-line function written with `lambda` is a handy way to write that rule (after Lesson 5 you can also write a normal `def` helper function and pass its name as `key=...`):
 
-- `lambda pair: pair[1]` means: *"given one `pair` like `(7, 100)`, hand back its second item (`100`)"*, `sorted()` calls this on every item and sorts by the results.
+- `lambda pair: pair[1]` means: *"given one `pair` like `(7, 100)`, hand back its second item (`100`)"*, `sorted()` calls this rule on every item and sorts by the results.
 - `key=lambda pair: (-pair[1], pair[0])` returns a **tuple**: Python sorts by `-pair[1]` first (the minus sign puts the biggest total first, since `-250 < -100`) and uses `pair[0]` (smaller id first) only to break ties.
 
 :::drill python Rank by total
@@ -1751,7 +1751,7 @@ print(add(2))
 6 | The second call: `box` is not given, so it is the **same** list as before (same label), which already holds 1.
 :::
 
-The fix: use `None` as the default and create a new list inside: `if box is None: box = []`. Even better, when a caller passes their own list, `box.append(item)` would change their original list too, returning `box + [item]` builds a **new** list instead (for example, `["a", "b"] + ["c"]` gives `["a", "b", "c"]` while leaving the caller's list untouched). The chaos scenario of this module shows what the bug does to a real pipeline, and the lab has a test for both.
+The fix: use `None` as the default and create a new list inside: `if box is None: box = []`. Even better: when a caller passes their own list, `box.append(item)` would change their original list too, while returning `box + [item]` builds a **new** list instead (for example, `["a", "b"] + ["c"]` gives `["a", "b", "c"]` while leaving the caller's list untouched). The chaos scenario of this module shows what the bug does to a real pipeline, and the lab has a test for both.
 
 :::drill python Fix the shared list
 `add` has the trap. Fix it so every call without a second argument starts with a **fresh** empty list: `add(1)` gives `[1]` and then `add(2)` gives `[2]`.

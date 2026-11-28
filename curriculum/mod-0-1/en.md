@@ -195,7 +195,7 @@ The shell looks for the name in every folder of `PATH`, in order. "command not f
 
 **Text encoding and line endings** cause quiet bugs. Text files are bytes (a **byte** is the smallest piece a computer stores; one plain letter is one byte) interpreted through an encoding, the rule that says which byte means which character; use **UTF-8** everywhere and say so when opening files in code. Windows and Linux end lines differently (`\r\n` vs `\n`); a CSV created on Windows may leave an invisible `\r` at the end of the last column, which breaks comparisons that "look" identical.
 
-**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them as letters (`-rwxr-xr-x`: `r` is read, `w` is write, `x` is run; three groups of three, for the owner, the group and everyone else). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file. You may also see people prefix commands with `sudo`, it runs a command as `root` (the system administrator, with unrestricted power to change or delete anything).
+**Permissions.** Files have read, write and execute permissions for owner, group and others. `ls -l` shows them as letters (`-rwxr-xr-x`: `r` is read, `w` is write, `x` is run; three groups of three, for the owner, the group and everyone else). `chmod +x script.sh` lets you run a script directly. You will mainly meet permissions as "Permission denied", which means the user running the command is not allowed that action on that file. You may also see people prefix commands with `sudo`, which runs a command as `root` (the system administrator, with unrestricted power to change or delete anything).
 
 :::ask You get `Permission denied` running a script you just downloaded. What is the right first move?
 @options
@@ -387,7 +387,7 @@ Three rules save most beginners' afternoons:
 
 1. **Always run `python -m pip`, not bare `pip`.** It guarantees the package goes to the same Python you are using.
 2. **Never use `sudo pip install`.** It modifies the system Python and can break the operating system's tools.
-3. **Commit `requirements.txt`, never the `venv/` folder.** (Git and committing are taught next in Lesson 5, for now, "commit" means saving a file into your project's version history.) The folder is large, specific to your machine, and recreated in one command: `python -m pip install -r requirements.txt`.
+3. **Commit `requirements.txt`, never the `venv/` folder.** (Git and committing are taught next in Lesson 5; for now, "commit" means saving a file into your project's version history.) The folder is large, specific to your machine, and recreated in one command: `python -m pip install -r requirements.txt`.
 
 Newer tools (`uv`, `poetry`) do the same job faster and add lock files; the concept is identical, so learn it with `venv` first.
 
