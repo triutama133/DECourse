@@ -728,6 +728,15 @@ SELECT COUNT(*) AS customers, COUNT(city) AS with_city, COUNT(DISTINCT city) AS 
 
 ### WHERE atau HAVING?
 
+:::talk Mengapa WHERE tidak bisa menghitung?
+@teacher Seorang pembelajar ingin pelanggan dengan setidaknya dua pesanan terkirim dan menulis `SELECT customer_id FROM orders WHERE COUNT(*) >= 2 GROUP BY customer_id`.
+@ask Apa kata database?
+@choice Ia mengembalikan pelanggan yang benar | Query itu ditolak. Coba lagi.
+@choice * Ia menolak: `WHERE` berjalan sebelum kelompok ada, jadi belum ada hitungan untuk dibandingkan | Betul. `WHERE` menyaring baris lebih dulu. Hitungan baru ada setelah `GROUP BY`, jadi kondisi pada hitungan masuk ke `HAVING`.
+@choice Ia mengembalikan setiap pelanggan, karena `COUNT(*)` selalu minimal satu | Database bahkan tidak sampai ke sana: ia menolak memakai agregat di dalam `WHERE`. Coba lagi.
+@teacher Kaidah praktis: saring baris dengan `WHERE`, saring kelompok dengan `HAVING`.
+:::
+
 `WHERE` menyaring *baris sebelum* pengelompokan; `HAVING` menyaring *kelompok setelah* agregasi. Ikuti satu pertanyaan melalui semua langkahnya: pelanggan dengan setidaknya dua pesanan delivered.
 
 :::sqlsteps WHERE dulu, HAVING sesudahnya
@@ -1115,6 +1124,15 @@ SELECT city FROM customers WHERE tier = 'Bronze' AND city IS NOT NULL EXCEPT SEL
 Tiga alat melengkapi kotak perkakas sehari-hari: **CASE** (if/else di dalam query), **subquery** (query di dalam query lain), dan **CTE** (langkah yang diberi nama, supaya query panjang terbaca dari atas ke bawah).
 
 ### CASE: if / else
+
+:::talk WHEN mana yang menang?
+@teacher Sebuah query memberi label produk dengan `CASE WHEN price_idr < 95000 THEN 'regular' WHEN price_idr < 80000 THEN 'cheap' ELSE 'premium' END`. Sebuah produk berharga 70.000.
+@ask Label apa yang ia dapat?
+@choice `cheap`, karena 70.000 di bawah 80.000 | SQL tidak mencari yang paling cocok: ia mengambil `WHEN` pertama yang benar. Coba lagi.
+@choice * `regular`: 70.000 di bawah 95.000, yang diperiksa lebih dulu, jadi `WHEN` kedua tidak pernah dicapai | Betul. `CASE` berhenti pada kondisi pertama yang benar, seperti `if / elif`. Taruh kondisi yang paling sempit di depan, jadi `cheap` mendahului `regular`.
+@choice `premium`, karena harganya rendah | `ELSE` hanya jalan ketika tidak ada `WHEN` yang benar, dan di sini yang pertama benar. Coba lagi.
+@teacher Urutan penting dalam `CASE`: tulis kondisi dari yang paling spesifik ke yang paling umum.
+:::
 
 **CASE** adalah if/else-nya SQL, dipakai untuk membuat kategori. `WHEN` pertama yang benar menang, seperti `if / elif / else` di Python:
 

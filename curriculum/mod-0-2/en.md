@@ -194,6 +194,15 @@ Follow a single KopiKu order, #4821, from the customer's phone to the CEO's dash
 5. **Serving.** Dashboards, analysts' notebooks, machine learning models and sometimes the product itself read the modeled tables.
 6. **Operations.** Throughout, schedulers run the jobs in order, tests check the data, and monitoring tells you when something is late or wrong. This is the part tutorials skip and companies pay for.
 
+:::talk Batch or streaming?
+@teacher KopiKu has two needs. The founder wants a weekly revenue report every Monday. The payment team wants to block a stolen card while the customer is still standing at the checkout.
+@ask Which of the two truly needs streaming?
+@choice The weekly report, because revenue is important | Importance is not the point: a Monday report can wait for a nightly job. Try again.
+@choice * The stolen-card check: a decision must be made within seconds of the event | Yes. Streaming handles each event within seconds and costs more to build and run. The weekly report is better served by a simple batch job.
+@choice Both, because all data should be real-time | Streaming is more complex and more expensive, so use it only when a decision truly needs fresh data. Try again.
+@teacher Ask "what decision depends on this, and how fast must it be made?" before choosing batch or streaming.
+:::
+
 Two vocabulary points you will meet constantly:
 
 - **Batch vs streaming.** Batch means processing data in chunks on a schedule (every hour, every night). Streaming means processing each event within seconds of it happening. Most data work is batch. Streaming is more complex and more expensive; use it only when a business decision really needs fresh data (fraud checks, live inventory).
@@ -281,6 +290,15 @@ def repeated_ids(rows):
 
 ## @lesson The formats you will meet
 Data arrives in a handful of file formats. Knowing their traps saves hours.
+
+:::talk A comma in a name
+@teacher A customer file has this line: `"Santoso, Budi",150000`. The name is in quotes because it contains a comma. A learner reads each line with `line.split(",")`.
+@ask How many pieces does the learner get?
+@choice Two: the name and the total | That is what the line means, but `split` does not know about quotes. Try again.
+@choice * Three: `"Santoso`, ` Budi"` and `150000`, because `split` cuts at every comma, even inside quotes | Yes. Everything after the name shifts one column to the right, and nothing crashes. A real CSV parser follows the quoting rules.
+@choice One: the whole line | `split(",")` cuts at each comma it finds. Try again.
+@teacher Use Python's `csv` module for CSV files, never `split(",")`.
+:::
 
 **CSV** (comma-separated values) is the most common exchange format and the least reliable. It has no types: every value is text, so `007` and `7` and `"7"` are indistinguishable until you decide. It has no standard for dates, decimal separators, quoting or encoding; a customer name containing a comma or a line break breaks naive parsing. Always use a real CSV parser (Python's `csv` module), never `line.split(",")`, and always state the encoding (usually UTF-8).
 

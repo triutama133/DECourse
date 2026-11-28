@@ -2140,6 +2140,15 @@ for row in rows:
 
 ### Menulis file
 
+:::talk Saya hanya ingin menambah satu baris
+@teacher `report.txt` sudah berisi laporan kemarin, 200 baris. Seorang pembelajar membukanya dengan `open("report.txt", "w")` dan menulis satu baris baru, berencana menaruhnya di akhir.
+@ask Apa isi `report.txt` sesudahnya?
+@choice 201 baris: 200 yang lama ditambah yang baru | `"w"` tidak menambah: ia mengosongkan file pada saat dibuka. Coba lagi.
+@choice * Hanya baris baru: membuka dengan `"w"` mengosongkan file lebih dulu | Betul. `"w"` berarti "tulis dari nol". Untuk menambah di akhir Anda membuka dengan `"a"` (append).
+@choice Error, karena file sudah ada | Tidak ada error: `"w"` dengan senang hati mengganti file yang sudah ada. Itulah yang membuatnya berbahaya. Coba lagi.
+@teacher Sebelum mengetik `"w"`, tanyakan pada diri sendiri: "apakah saya keberatan kehilangan yang sudah ada?"
+:::
+
 Buka dengan `"w"` untuk **menulis**. Hati-hati: `"w"` mengosongkan file lebih dulu. `f.write(text)` memasukkan teksnya; tambahkan `\n` untuk pemisah baris.
 
 :::drill python Tulis sebuah laporan

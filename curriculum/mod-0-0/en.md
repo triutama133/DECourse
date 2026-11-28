@@ -2140,6 +2140,15 @@ for row in rows:
 
 ### Writing a file
 
+:::talk I only wanted to add one line
+@teacher `report.txt` already holds yesterday's report, 200 lines. A learner opens it with `open("report.txt", "w")` and writes one new line, planning to put it at the end.
+@ask What does `report.txt` contain afterwards?
+@choice 201 lines: the old 200 plus the new one | `"w"` does not add: it empties the file at the moment it is opened. Try again.
+@choice * Only the new line: opening with `"w"` emptied the file first | Yes. `"w"` means "write from scratch". To add to the end you open with `"a"` (append).
+@choice An error, because the file already exists | There is no error: `"w"` happily replaces an existing file. That is what makes it dangerous. Try again.
+@teacher Before you type `"w"`, ask yourself: "do I mind losing what is already there?"
+:::
+
 Open with `"w"` to **write**. Careful: `"w"` empties the file first. `f.write(text)` puts the text in; add `\n` for a line break.
 
 :::drill python Write a report

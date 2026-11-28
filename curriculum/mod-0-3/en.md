@@ -728,6 +728,15 @@ SELECT COUNT(*) AS customers, COUNT(city) AS with_city, COUNT(DISTINCT city) AS 
 
 ### WHERE or HAVING?
 
+:::talk Why can't WHERE count?
+@teacher A learner wants the customers with at least two delivered orders and writes `SELECT customer_id FROM orders WHERE COUNT(*) >= 2 GROUP BY customer_id`.
+@ask What does the database say?
+@choice It returns the right customers | The query is refused. Try again.
+@choice * It refuses: `WHERE` runs before the groups exist, so there is no count to compare yet | Yes. `WHERE` filters rows first. Counts only exist after `GROUP BY`, so a condition on a count belongs in `HAVING`.
+@choice It returns every customer, because `COUNT(*)` is always at least one | The database does not even get that far: it refuses to use an aggregate inside `WHERE`. Try again.
+@teacher Rule of thumb: filter rows with `WHERE`, filter groups with `HAVING`.
+:::
+
 `WHERE` filters *rows before* grouping; `HAVING` filters *groups after* aggregation. Follow one question through all the steps: customers with at least two delivered orders.
 
 :::sqlsteps WHERE first, HAVING after
@@ -1115,6 +1124,15 @@ SELECT city FROM customers WHERE tier = 'Bronze' AND city IS NOT NULL EXCEPT SEL
 Three tools finish the everyday toolbox: **CASE** (if/else inside a query), the **subquery** (a query inside another), and the **CTE** (a named step, so a long query reads from top to bottom).
 
 ### CASE: if / else
+
+:::talk Which WHEN wins?
+@teacher A query labels products with `CASE WHEN price_idr < 95000 THEN 'regular' WHEN price_idr < 80000 THEN 'cheap' ELSE 'premium' END`. A product costs 70,000.
+@ask What label does it get?
+@choice `cheap`, because 70,000 is below 80,000 | SQL does not look for the best match: it takes the first `WHEN` that is true. Try again.
+@choice * `regular`: 70,000 is below 95,000, which is checked first, so the second `WHEN` is never reached | Yes. `CASE` stops at the first true condition, like `if / elif`. Put the narrowest condition first, so `cheap` comes before `regular`.
+@choice `premium`, because the price is low | `ELSE` only runs when no `WHEN` is true, and here the first one is. Try again.
+@teacher Order matters in `CASE`: write the conditions from the most specific to the most general.
+:::
 
 **CASE** is SQL's if/else, used to create categories. The first `WHEN` that is true wins, like `if / elif / else` in Python:
 

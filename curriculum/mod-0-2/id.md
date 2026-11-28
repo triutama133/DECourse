@@ -194,6 +194,15 @@ Ikuti satu pesanan KopiKu, #4821, dari HP pelanggan sampai dashboard CEO. Setiap
 5. **Penyajian.** Dashboard, notebook analis, model machine learning, dan kadang produk itu sendiri membaca tabel terstruktur.
 6. **Operasi.** Sepanjang jalan, scheduler menjalankan job sesuai urutan, tes memeriksa data, dan monitoring memberi tahu bila ada yang terlambat atau salah. Inilah bagian yang dilewati tutorial dan dibayar perusahaan.
 
+:::talk Batch atau streaming?
+@teacher KopiKu punya dua kebutuhan. Sang pendiri menginginkan laporan pendapatan mingguan setiap hari Senin. Tim pembayaran ingin memblokir kartu curian selagi pelanggan masih berdiri di kasir.
+@ask Mana dari keduanya yang benar-benar butuh streaming?
+@choice Laporan mingguan, karena pendapatan itu penting | Penting bukan intinya: laporan hari Senin bisa menunggu pekerjaan malam. Coba lagi.
+@choice * Pemeriksaan kartu curian: keputusan harus diambil dalam hitungan detik setelah kejadian | Betul. Streaming menangani setiap kejadian dalam hitungan detik dan lebih mahal untuk dibangun dan dijalankan. Laporan mingguan lebih cocok dengan pekerjaan batch sederhana.
+@choice Keduanya, karena semua data harus real-time | Streaming lebih kompleks dan lebih mahal, jadi pakai hanya ketika sebuah keputusan benar-benar butuh data segar. Coba lagi.
+@teacher Tanyakan "keputusan apa yang bergantung pada ini, dan seberapa cepat harus diambil?" sebelum memilih batch atau streaming.
+:::
+
 Dua istilah yang akan sering Anda temui:
 
 - **Batch vs streaming.** Batch berarti memproses data dalam potongan menurut jadwal (tiap jam, tiap malam). Streaming berarti memproses setiap event dalam hitungan detik setelah terjadi. Sebagian besar pekerjaan data adalah batch. Streaming lebih rumit dan lebih mahal; pakai hanya jika sebuah keputusan bisnis benar-benar butuh data segar (deteksi fraud, stok langsung).
@@ -281,6 +290,15 @@ def repeated_ids(rows):
 
 ## @lesson Format data yang akan Anda temui
 Data datang dalam beberapa format file. Mengetahui jebakannya menghemat berjam-jam.
+
+:::talk Koma di dalam sebuah nama
+@teacher Sebuah file pelanggan punya baris ini: `"Santoso, Budi",150000`. Namanya diberi tanda kutip karena mengandung koma. Seorang pembelajar membaca setiap baris dengan `line.split(",")`.
+@ask Berapa potongan yang didapat pembelajar itu?
+@choice Dua: nama dan total | Itu arti barisnya, tetapi `split` tidak tahu tentang tanda kutip. Coba lagi.
+@choice * Tiga: `"Santoso`, ` Budi"` dan `150000`, karena `split` memotong di setiap koma, bahkan di dalam tanda kutip | Betul. Semua yang ada setelah nama bergeser satu kolom ke kanan, dan tidak ada yang crash. Parser CSV sungguhan mengikuti aturan tanda kutip.
+@choice Satu: seluruh baris | `split(",")` memotong di setiap koma yang ditemukannya. Coba lagi.
+@teacher Pakai modul `csv` Python untuk file CSV, jangan pernah `split(",")`.
+:::
 
 **CSV** (comma-separated values) adalah format pertukaran paling umum dan paling tidak andal. Ia tidak punya tipe: semua nilai adalah teks, sehingga `007`, `7`, dan `"7"` tidak bisa dibedakan sampai Anda memutuskan. Ia tidak punya standar untuk tanggal, pemisah desimal, tanda kutip, atau encoding; nama pelanggan yang mengandung koma atau baris baru merusak parsing yang naif. Selalu pakai parser CSV yang benar (modul `csv` Python), jangan pernah `line.split(",")`, dan selalu tentukan encoding (biasanya UTF-8).
 

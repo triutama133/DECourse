@@ -221,6 +221,15 @@ Mengapa merangkai perintah? Karena perintah yang mengerjakan **satu** tugas keci
 
 ### Dua simbol yang menyambung
 
+:::talk Pipa atau panah?
+@teacher Anda menjalankan `sort orders.csv | head -3 > top.txt`. Pipa `|` menyerahkan keluaran ke perintah berikutnya, dan panah `>` mengirim keluaran ke dalam file.
+@ask Di mana tiga baris itu berakhir?
+@choice Di layar, karena `head` selalu mencetak ke layar | Di sini panah mengalihkan apa yang dicetak `head`, jadi tidak ada yang tersisa untuk layar. Coba lagi.
+@choice * Di `top.txt`: `sort` memberi makan `head` lewat pipa, dan keluaran `head` masuk ke file | Betul. Bacalah dari kiri ke kanan: setiap `|` menghubungkan dua perintah, dan `>` di akhir menangkap keluaran terakhir. Layar Anda tetap kosong.
+@choice Di kedua tempat sekaligus | Satu keluaran pergi ke satu tempat. Untuk juga melihatnya Anda menambah `tee`. Coba lagi.
+@teacher Pipa: perintah ke perintah. Panah: perintah ke file.
+:::
+
 Gagasan paling kuat di terminal adalah perintah mengerjakan satu tugas kecil, dan Anda menyambungnya.
 
 - `|` (pipe) mengirim keluaran satu perintah ke perintah berikutnya.
@@ -315,6 +324,15 @@ Periksa yang Anda punya: `python3 --version`. Untuk kursus ini pakai Python 3.10
 **Pengguna Ubuntu, Debian, dan WSL2:** sistem ini membawa Python tanpa alat venv. Pasang sekali dengan `sudo apt install -y python3-venv python3-pip`; tanpanya, baris `python3 -m venv` di bawah berhenti dengan pesan `ensurepip is not available` (diukur pada Ubuntu 24.04 yang baru dipasang).
 
 Masalah intinya: paket Python dipasang di satu tempat, sedangkan proyek berbeda butuh versi berbeda. Proyek A butuh `pandas 1.5`, proyek B butuh `pandas 2.2`. Kalau semuanya dipasang global, cepat atau lambat satu proyek merusak yang lain, atau merusak alat Python bawaan sistem operasi Anda. Solusinya adalah **virtual environment**: folder privat dengan Python dan paketnya sendiri, per proyek.
+
+:::talk Terminal kedua
+@teacher Di terminal 1 Anda menjalankan `source venv/bin/activate`, dan prompt diawali `(venv)`. Lalu Anda membuka jendela terminal yang benar-benar baru, terminal 2, dan mengetik `python -m pip install requests`.
+@ask Di mana `requests` terpasang?
+@choice Di venv proyek, karena baru saja diaktifkan | Venv yang aktif milik jendela terminal tempat Anda mengaktifkannya. Jendela baru dimulai tanpa venv. Coba lagi.
+@choice * Bukan di venv: terminal 2 tidak punya `(venv)`, jadi ia memakai Python sistem, yang bahkan bisa menolak dengan `externally-managed-environment` | Betul. Aktivasi hanya mengubah PATH satu terminal, seperti yang Anda lihat sebelumnya di modul ini. Cari `(venv)` di prompt sebelum memasang apa pun.
+@choice Di kedua terminal, karena berada di komputer yang sama | Setiap terminal punya lingkungannya sendiri. Coba lagi.
+@teacher Terminal baru, aktivasi baru: `cd` ke proyek lalu jalankan `source venv/bin/activate` lagi.
+:::
 
 Inilah seluruh gagasannya dalam beberapa baris. Shell mencari perintah di folder-folder `PATH`, berurutan, dan **yang pertama cocok menang**. Mengaktifkan virtual environment menaruh foldernya **di depan**:
 

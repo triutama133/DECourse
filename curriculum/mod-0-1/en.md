@@ -221,6 +221,15 @@ Why chain commands at all? Because a command that does **one** small job is easy
 
 ### Two symbols do the connecting
 
+:::talk A pipe or an arrow?
+@teacher You run `sort orders.csv | head -3 > top.txt`. The pipe `|` hands output to the next command, and the arrow `>` sends output into a file.
+@ask Where do the three lines end up?
+@choice On the screen, because `head` always prints to the screen | Here the arrow redirects what `head` prints, so nothing is left for the screen. Try again.
+@choice * In `top.txt`: `sort` feeds `head` through the pipe, and `head`'s output goes into the file | Yes. Read it left to right: each `|` connects two commands, and `>` at the end captures the last output. Your screen stays empty.
+@choice In both places at once | One output goes to one place. To also see it you would add `tee`. Try again.
+@teacher Pipe: command to command. Arrow: command to file.
+:::
+
 The most powerful idea in the terminal is that commands do one small job, and you connect them.
 
 - `|` (pipe) sends the output of one command into the next.
@@ -315,6 +324,15 @@ Check what you have: `python3 --version`. For this course use Python 3.10 or new
 **Ubuntu, Debian and WSL2 users:** these systems ship Python without the venv tool. Install it once with `sudo apt install -y python3-venv python3-pip`; without it, the `python3 -m venv` line below stops with the message `ensurepip is not available` (measured on a fresh Ubuntu 24.04).
 
 The central problem: Python packages are installed into one place, and different projects need different versions. Project A needs `pandas 1.5`, project B needs `pandas 2.2`. Install everything globally and one project eventually breaks the other, or breaks your operating system's own Python tools. The fix is a **virtual environment**: a private folder with its own Python and its own packages, per project.
+
+:::talk The second terminal
+@teacher In terminal 1 you ran `source venv/bin/activate`, and the prompt starts with `(venv)`. Then you open a brand-new terminal window, terminal 2, and type `python -m pip install requests`.
+@ask Where does `requests` get installed?
+@choice Into the project's venv, because it was activated a moment ago | An activated venv belongs to the terminal window where you activated it. A new window starts without it. Try again.
+@choice * Not into the venv: terminal 2 has no `(venv)`, so it uses the system Python, which may even refuse with `externally-managed-environment` | Yes. Activation changes the PATH of one terminal only, as you saw earlier in this module. Look for `(venv)` in the prompt before you install anything.
+@choice Into both terminals, because they share the same computer | Each terminal has its own environment. Try again.
+@teacher New terminal, new activation: `cd` into the project and run `source venv/bin/activate` again.
+:::
 
 Here is the whole idea in a few lines. The shell looks for a command in the folders of `PATH`, in order, and the **first match wins**. Activating a virtual environment puts its folder **in front**:
 
