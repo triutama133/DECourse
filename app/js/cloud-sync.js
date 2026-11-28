@@ -360,19 +360,22 @@
     }
 
     // After the first sign-in the page re-reads storage once, so the lesson map shows the restored progress.
-    function reloadOnce() {
+    function reloadOnce(afterReload) {
       let last = 0;
       try { last = Number(win.sessionStorage.getItem("df__cloud_reload") || 0); } catch (e) { /* ignore */ }
       if (Date.now() - last < 30000) return false;
-      try { win.sessionStorage.setItem("df__cloud_reload", String(Date.now())); } catch (e) { return false; }
+      try {
+        win.sessionStorage.setItem("df__cloud_reload", String(Date.now()));
+        if (afterReload) win.sessionStorage.setItem("df__cloud_msg", afterReload);   // shown once the page is back
+      } catch (e) { return false; }
       win.location.reload();
       return true;
     }
-    async function syncNow(announce) {
+    async function syncNow(announce, afterReload) {
       try {
         const r = await core.sync();
         if (r.changed.length) {
-          if (!reloadOnce()) toast(T("Progres dari akun Anda masuk. Muat ulang halaman untuk melihatnya.", "Progress from your account arrived. Reload the page to see it."));
+          if (!reloadOnce(afterReload)) toast(T("Progres dari akun Anda masuk. Muat ulang halaman untuk melihatnya.", "Progress from your account arrived. Reload the page to see it."));
         } else if (announce) toast(T("Progres tersimpan online ✓", "Progress saved online ✓"));
       } catch (e) { if (announce) toast(friendly(e)); }
     }
@@ -414,7 +417,7 @@
       const email = value("cloud-email"); const pw = doc.getElementById("cloud-pass") ? doc.getElementById("cloud-pass").value : "";
       if (mode === "newpass") {
         if (pw.length < 8) return setNote(T("Kata sandi minimal 8 karakter.", "The password needs at least 8 characters."), true);
-        return run(async () => { await core.updatePassword(pw); mode = "signin"; setNote(T("Kata sandi diganti ✓", "Password changed ✓"), false); syncNow(false); });
+        return run(async () => { await core.updatePassword(pw); mode = "signin"; setNote(T("Kata sandi diganti ✓", "Password changed ✓"), false); syncNow(false, T("Kata sandi diganti ✓", "Password changed ✓")); });
       }
       if (!/^\S+@\S+\.\S+$/.test(email)) return setNote(T("Isi alamat email yang benar.", "Enter a valid email address."), true);
       if (pw.length < 8) return setNote(T("Kata sandi minimal 8 karakter.", "The password needs at least 8 characters."), true);
@@ -438,7 +441,7 @@
       const body = dlg.querySelector(".cloud-body");
       body.replaceChildren();
       const close = el("button", { class: "icon-btn cloud-close", type: "button", "aria-label": T("Tutup", "Close"), text: "✕", onclick: closeDialog });
-      body.append(close, el("h2", { id: "cloud-title", text: core.signedIn ? T("Akun Anda", "Your account") : (mode === "newpass" ? T("Kata sandi baru", "New password") : T("Simpan progres online", "Save your progress online")) }));
+      body.append(close, el("h2", { id: "cloud-title", text: mode === "newpass" ? T("Kata sandi baru", "New password") : core.signedIn ? T("Akun Anda", "Your account") : T("Simpan progres online", "Save your progress online") }));
 
       if (core.signedIn && mode !== "newpass") {
         const st = core.status;
@@ -497,15 +500,16 @@
       tools.insertBefore(btn, tools.querySelector(".settings") || null);
       paintButton();
       new win.MutationObserver(paintButton).observe(doc.documentElement, { attributes: true, attributeFilter: ["lang"] });
+      try { const m = win.sessionStorage.getItem("df__cloud_msg"); if (m) { win.sessionStorage.removeItem("df__cloud_msg"); toast(m); } } catch (e) { /* ignore */ }
       if (recovery) { mode = "newpass"; openDialog(); }
-      if (core.signedIn) syncNow(false);
+      if (core.signedIn && !recovery) syncNow(false);   // after a reset link: set the new password first, a sync may reload the page
     }
     if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", mount); else mount();
 
     // Coming back to the tab: pick up what another device saved.
     let lastCheck = Date.now();
     doc.addEventListener("visibilitychange", () => {
-      if (doc.visibilityState === "visible" && core.signedIn && Date.now() - lastCheck > 60000) { lastCheck = Date.now(); syncNow(false); }
+      if (doc.visibilityState === "visible" && core.signedIn && mode !== "newpass" && Date.now() - lastCheck > 60000) { lastCheck = Date.now(); syncNow(false); }
     });
     win.addEventListener("pagehide", () => { if (core.status === "pending") core.sync().catch(() => {}); });
   }
