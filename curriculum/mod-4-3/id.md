@@ -192,6 +192,15 @@ Sebuah metrik baru bermakna bersama irisan waktunya. Menyimpan kedua ujung membu
 Jika kita mengelompokkan data berdasarkan event time, muncul dilema arsitektur kritis: **berapa lama engine streaming harus menunggu sebelum menyatakan sebuah window selesai dan memancarkan hasilnya?**
 Jika modem kendaraan baru terhubung kembali tiga hari kemudian, apakah kita harus membiarkan seluruh window masa lalu tetap terbuka di memori? Tentu tidak. Mempertahankan jutaan window terbuka di memori RAM akan memicu crash Out Of Memory (OOM).
 
+:::talk Tidak berurutan, atau terlambat?
+@teacher Window berlebar 5 menit. Watermark ada di 10:05, jadi window [10:00, 10:05) sudah tertutup dan [10:05, 10:10) masih terbuka. Dua event tiba sekarang: satu dengan event time 10:06, satu dengan event time 10:02.
+@ask Mana yang terlambat, dan apa yang terjadi padanya?
+@choice Keduanya terlambat, karena keduanya tiba setelah watermark | Event 10:06 tidak lebih lama dari watermark: ia termasuk window yang masih terbuka. Coba lagi.
+@choice * Event 10:02: window-nya sudah tertutup, jadi ia terlambat dan masuk ke dead-letter queue data terlambat | Betul. Event 10:06 hanya tidak berurutan dan dihitung seperti biasa. Hanya event untuk window yang sudah ditutup yang terlambat.
+@choice Tidak ada: dalam event time tidak ada yang pernah terlambat | Watermark justru yang menentukan kapan sebuah window ditutup. Coba lagi.
+@teacher Tidak berurutan itu normal dan ditangani dengan menunggu. Terlambat adalah keputusan yang Anda ambil saat menutup window, jadi biarkan event terlambat tetap terlihat di dead-letter queue.
+:::
+
 Di sinilah konsep **watermark** hadir (pertama kali diformalkan oleh Tyler Akidau dkk. dalam model Google MillWheel dan Apache Beam).
 
 ```
@@ -291,6 +300,15 @@ W = max(W_sebelumnya, t_event - D), jadi kandidat yang lebih kecil tidak menguba
 
 ## @lesson Consumer offset, checkpointing & idempotensi analitik
 Engine streaming beroperasi terus-menerus tanpa henti. Gangguan perangkat keras, restart kontainer, dan pembaruan sistem operasi adalah keniscayaan di lingkungan produksi. Engine yang tangguh harus mampu bertahan dari crash dengan semantik **exactly-once processing** di lapisan database.
+
+:::talk Menyimpan posisi saja tidak cukup
+@teacher Pemroses stream Anda menjumlahkan perjalanan per window 5 menit di memori, dan menyimpan posisinya dalam stream, yaitu offset, setiap menit. Pukul 10:03 ia mogok di tengah window [10:00, 10:05) lalu dijalankan ulang.
+@ask Apa yang harus sudah disimpan checkpoint, selain offset?
+@choice Tidak ada lagi: event bisa dibaca ulang saja | Pembacaan dimulai lagi di offset yang tersimpan, jadi event sebelumnya tidak dibaca ulang, dan bagiannya dalam total window itu hilang. Coba lagi.
+@choice Waktu jam dinding saat mogok | Waktu mogok tidak memberi tahu apa yang sudah terhitung. Coba lagi.
+@choice * Total parsial window yang ada di memori, disimpan bersama offset | Betul. Posisi dan jumlah parsial harus disimpan sebagai satu kesatuan. Kalau tidak, window mulai dari tengah dan memancarkan total yang tidak lengkap.
+@teacher Checkpoint adalah potret dari semua yang dibutuhkan pekerjaan untuk melanjutkan seolah tidak ada yang terjadi: di mana ia berada, dan apa yang sudah dihitungnya.
+:::
 
 ```
 Aliran Data Masuk (JSONL / Kafka)

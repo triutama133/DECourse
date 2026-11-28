@@ -192,6 +192,15 @@ A metric is only meaningful with its time slice. Storing both ends makes each ro
 If we aggregate by event time, a critical dilemma arises: **how long must the stream processor wait before declaring a window complete and emitting its metrics?**
 If a taxi's cellular modem reconnects three days late, can we keep all past windows open indefinitely? No. Keeping millions of historical windows open in memory would exhaust RAM (Out Of Memory crash).
 
+:::talk Out of order, or late?
+@teacher Windows are 5 minutes wide. The watermark is at 10:05, so the window [10:00, 10:05) is closed and [10:05, 10:10) is open. Two events arrive now: one with the event time 10:06, one with the event time 10:02.
+@ask Which one is late, and what happens to it?
+@choice Both are late, because both arrive after the watermark | The 10:06 event is not older than the watermark: it belongs in a window that is still open. Try again.
+@choice * The 10:02 event: its window is already closed, so it is late and goes to the late-data dead-letter queue | Yes. The 10:06 event is merely out of order and is counted normally. Only an event for a window that has already been closed is late.
+@choice Neither: in event time nothing is ever late | The watermark is exactly what defines when a window is closed. Try again.
+@teacher Out of order is normal and handled by waiting. Late is the decision you made when you closed the window, so keep late events visible in a dead-letter queue.
+:::
+
 Enter **watermarks** (conceptualized by Tyler Akidau et al. in the Google MillWheel and Apache Beam models).
 
 ```
@@ -292,6 +301,15 @@ W = max(W_previous, t_event - D), so a smaller candidate changes nothing. If the
 
 ## @lesson Consumer offsets, checkpointing & analytical idempotency
 Streaming engines run continuously for months. Hardware failures, operating system kernel updates, and container restarts are guaranteed occurrences. A robust engine must survive crashes with **exactly-once processing semantics** at the storage layer.
+
+:::talk Saving the position is not enough
+@teacher Your stream processor adds up trips per 5-minute window in memory, and saves its position in the stream, the offset, every minute. At 10:03 it crashes in the middle of the window [10:00, 10:05) and restarts.
+@ask What must the checkpoint have saved, besides the offset?
+@choice Nothing else: the events can simply be read again | Reading starts again at the saved offset, so events before it are not re-read, and their share of the window's total is gone. Try again.
+@choice The wall-clock time of the crash | The time of the crash says nothing about what was already counted. Try again.
+@choice * The partial window totals held in memory, saved together with the offset | Yes. Position and partial sums must be saved as one unit. Otherwise the window restarts from the middle and emits an incomplete total.
+@teacher A checkpoint is a snapshot of everything the job needs to continue as if nothing happened: where it was, and what it had counted so far.
+:::
 
 ```
 Incoming Stream (JSONL / Kafka)
