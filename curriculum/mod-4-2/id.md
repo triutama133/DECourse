@@ -93,6 +93,16 @@ GeoJSON Feature Collection
 ```
 
 ### Jebakan Data Ilmiah di Dunia Nyata:
+
+:::talk Lintang dulu, atau bujur dulu?
+@teacher Sebuah gempa di Jakarta tiba sebagai titik GeoJSON: `[106.8, -6.2, 10.0]`. Semua orang yang membaca peta berkata "lintang, bujur", sehingga seorang rekan baru menyimpan angka pertama sebagai lintang.
+@ask Apa yang salah?
+@choice Tidak ada: kedua urutan menggambarkan tempat yang sama | Tidak: menukarnya menaruh titik di lintang 106,8, yang tidak ada, dan di tempat lain di Bumi itu adalah tempat yang berbeda. Coba lagi.
+@choice * GeoJSON memakai [bujur, lintang, ketinggian]: pertukaran membuat lintang 106,8, di luar rentang sah -90 sampai 90 | Betul. Validasi batas koordinat di pintu: lintang di luar -90 sampai 90 adalah bukti pertukaran, dan barisnya masuk karantina.
+@choice Ketinggian terbaca sebagai lintang | Ketinggian adalah nilai ketiga. Dua yang pertamalah yang tertukar. Coba lagi.
+@teacher Kedua pasangan itu berbeda menurut konvensi (peta berkata lintang dulu, GeoJSON berkata bujur dulu). Saat dua konvensi bertemu, tambahkan pemeriksaan batas dan sebuah tes.
+:::
+
 1. **Urutan Koordinat yang Terbalik:** Dalam bahasa lisan, orang biasa menyebut "Latitude, Longitude" (Lintang, Bujur). Namun dalam standar formal GeoJSON (RFC 7946), koordinat selalu diurutkan sebagai `[longitude, latitude, elevation/depth]`.
    - `coordinates[0]` adalah **Longitude / Bujur** (rentang valid: -180,0 sampai 180,0)
    - `coordinates[1]` adalah **Latitude / Lintang** (rentang valid: -90,0 sampai 90,0)
@@ -319,6 +329,15 @@ Tanpa jitter, klien yang gagal bersama akan mencoba ulang bersama dan menghantam
 :::
 
 ## @lesson Dead-Letter Queue (DLQ) & Backfill Historis
+:::talk Backfill dan watermark
+@teacher Pipeline gempa Anda mengingat sebuah high-watermark: waktu kejadian terbaru yang telah dimuat. Seseorang menemukan celah pada data tahun lalu dan memulai backfill yang memuat ulang bulan Maret tahun lalu. Ia berjalan satu jam lalu selesai.
+@ask Apa yang harus dilakukan backfill terhadap watermark produksi?
+@choice Memundurkannya ke Maret, karena itulah data terbaru yang dimuatnya | Maka putaran inkremental besok akan mulai dari Maret lalu dan memuat ulang setahun data. Coba lagi.
+@choice * Membiarkannya: backfill memperbaiki masa lalu, ia tidak boleh mengubah titik lanjut pipeline yang hidup | Betul. Putaran inkremental terus memajukan watermark. Backfill adalah pekerjaan terpisah dan terbatas atas rentang di masa lalu, dan ia tidak boleh mengganggu state pipeline yang hidup.
+@choice Memindahkannya ke akhir rentang backfill | Itu masih di masa lalu. Pipeline yang hidup akan melewati semua yang ada setelah Maret. Coba lagi.
+@teacher Dua jenis putaran, dua jenis state: putaran inkremental memiliki watermark, dan backfill tidak pernah menyentuhnya.
+:::
+
 Di lingkungan produksi, skema data hulu dapat berubah dan sensor di lapangan dapat rusak. Jika 1 rekaman dari 10.000 memuat `latitude = 999.0` atau kehilangan ID, apa yang harus dilakukan pipeline Anda?
 - **Opsi A (Batalkan seluruh batch):** Seluruh pipeline mati. Dashboard operasional tidak diperbarui selama 48 jam sampai ada engineer yang memperbaikinya. (Tidak dapat diterima).
 - **Opsi B (Buang baris rusak diam-diam):** Data hilang tanpa jejak audit. Saat auditor menanyakan hilangnya rekaman penting, tidak ada bukti yang tertinggal. (Sangat berbahaya).

@@ -93,6 +93,16 @@ GeoJSON Feature Collection
 ```
 
 ### The Pitfalls of Real Scientific APIs:
+
+:::talk Latitude first, or longitude first?
+@teacher An earthquake in Jakarta arrives as a GeoJSON point: `[106.8, -6.2, 10.0]`. Everyone who reads maps says "latitude, longitude", so a new colleague stores the first number as latitude.
+@ask What goes wrong?
+@choice Nothing: both orders describe the same place | They do not: swapping puts the point at latitude 106.8, which does not exist, and anywhere else on Earth it is a different place. Try again.
+@choice * GeoJSON uses [longitude, latitude, elevation]: the swap makes a latitude of 106.8, outside the valid range of -90 to 90 | Yes. Validate coordinate bounds at the door: a latitude outside -90 to 90 is proof of a swap, and the row belongs in quarantine.
+@choice The elevation is read as the latitude | Elevation is the third value. The first two are the ones swapped. Try again.
+@teacher The two pairs differ by convention (maps say latitude first, GeoJSON says longitude first). When two conventions meet, add a bounds check and a test.
+:::
+
 1. **The Coordinate Order Inversion:** In geographic mathematics, people say "Latitude, Longitude". But in GeoJSON (RFC 7946), coordinates are strictly `[longitude, latitude, elevation/depth]`.
    - `coordinates[0]` is **Longitude** (valid range: -180.0 to 180.0)
    - `coordinates[1]` is **Latitude** (valid range: -90.0 to 90.0)
@@ -319,6 +329,15 @@ Without jitter, clients that failed together retry together and hit the server i
 :::
 
 ## @lesson The Dead-Letter Queue (DLQ) & Historical Backfills
+:::talk A backfill and the watermark
+@teacher Your earthquake pipeline remembers a high-watermark: the newest event time it has loaded. Someone finds a gap in last year's data and starts a backfill that reloads March of last year. It runs for an hour and finishes.
+@ask What should the backfill do to the production watermark?
+@choice Move it back to March, because that is the latest data it loaded | Then tomorrow's incremental run would start from last March and reload a year of data. Try again.
+@choice * Leave it untouched: a backfill repairs the past, it must not change where the live pipeline continues | Yes. The incremental run keeps advancing the watermark. A backfill is a separate, bounded job over a past range, and it must not disturb the state of the live one.
+@choice Move it to the end of the backfill's range | That is still in the past. It would make the live pipeline skip everything after March. Try again.
+@teacher Two kinds of run, two kinds of state: incremental runs own the watermark, and backfills never touch it.
+:::
+
 In production, upstream schemas mutate and sensor data gets corrupted. If 1 record out of 10,000 contains `latitude = 999.0` or missing event IDs, what should your pipeline do?
 - **Option A (Fail the entire batch):** The pipeline crashes. Business dashboards go stale for 48 hours until an on-call engineer wakes up. (Unacceptable).
 - **Option B (Silently drop the bad record):** Data vanishes with zero paper trail. When auditors ask why revenue or telemetry is missing, nobody knows. (Dangerous).
