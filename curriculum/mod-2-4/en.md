@@ -63,6 +63,15 @@ def run_order(deps):
 ## @lesson Core concepts: runs, intervals and partitions
 **A DAG** (directed acyclic graph) is the graph of steps: nodes are tasks or assets, arrows are "runs after" or "depends on", and **acyclic** means no loops, so there is always a valid order.
 
+:::talk Which day does the 02:00 run process?
+@teacher A daily job is scheduled for 02:00 every night. The run that starts at 02:00 on 6 January is about to process "the day's orders".
+@ask Which day's orders should it process?
+@choice 6 January, because that is the date on the calendar when it runs | At 02:00 on 6 January almost nobody has ordered yet: the day has only just begun. Try again.
+@choice * 5 January: the interval that ended at midnight, just before the run | Yes. An orchestrator runs after an interval has ended, and hands the task that interval's start and end. The run on the 6th processes the 5th.
+@choice Both days, to be safe | Processing both would count 5 January twice when the next run does it again. Try again.
+@teacher The date a run belongs to is the interval it covers, not the moment it happens to start. That is what makes retries and backfills reproduce the same result.
+:::
+
 The concept that trips up newcomers is the **data interval** (Airflow) or **partition** (Dagster). A daily pipeline scheduled at 02:00 on 6 January is not "doing 6 January's work". It is processing **5 January's data**, because 5 January only finished at midnight. Orchestrators model this explicitly: every run is tied to the interval of data it covers (`2026-01-05`), exposed to your code as the **logical date** (Airflow's `ds`) or the **partition key** (Dagster's `context.partition_key`). Your code must read data **for that interval**, never for "now". If a run is retried tomorrow, or backfilled next month, it must produce the same result for 5 January. Using the wall clock (`datetime.now()`, `current_date`) inside a task silently breaks this.
 
 Other vocabulary:
@@ -149,6 +158,15 @@ An idempotent job leaves the same result whether it runs once or five times. App
 
 ## @lesson Airflow: DAGs of tasks
 **Apache Airflow** defines pipelines as Python files. Its components: a **scheduler** that decides what runs and when, a **DAG processor** that parses your files, **workers** (via an *executor*, local, Celery or Kubernetes) that run tasks, a **metadata database** with the state of everything, and an **API server and UI** to view and trigger runs.
+
+:::talk The task that asks the clock
+@teacher A daily task picks the day to load with `datetime.now()`. It works fine every night. On 9 January you start a backfill to reload 1 January through 7 January.
+@ask Which days does the backfill actually load?
+@choice * Today's date, over and over: the task asks the clock, not the interval it was given | Yes. Every backfilled run asks `now()`, gets 9 January and loads the same day seven times, while 1 to 7 January stay missing.
+@choice 1 to 7 January, because the scheduler passes those dates | The scheduler does pass the interval, but this task ignores it and asks the clock. Try again.
+@choice It fails, because `datetime.now()` is not allowed in a task | Python allows it, and that is the problem. Try again.
+@teacher Use the interval the orchestrator hands you (its logical date), never the clock. Then a retry or a backfill loads exactly the day it was meant to.
+:::
 
 A complete DAG using the TaskFlow API (verified to run with Airflow 3.3):
 
@@ -403,6 +421,15 @@ def is_slow(seconds, history, factor):
 :::
 
 ### Alerts that people still trust
+
+:::talk Silence looks like success
+@teacher Your alerts fire whenever a job fails. Last Friday night the server that runs the scheduler was shut down by mistake. The weekend jobs never ran. On Monday the finance team asks why the numbers stopped on Friday.
+@ask Why did no alert fire?
+@choice The alert system was broken | Probably it was fine: it only reacts to failures. Try again.
+@choice The jobs failed quietly and the alert missed them | The jobs did not fail: they never started, so there was no failure to report. Try again.
+@choice * Nothing failed: a job that never runs reports no error, so the silence looked like success | Yes. You need an alert for the missing run, for example "no successful run in the last 26 hours". It watches for the absence of good news.
+@teacher Alert on failure, but also on lateness and on silence.
+:::
 
 An alert should mean "a person must act". Two habits keep it that way. First, alert on **symptoms that matter** (no fresh data, three failures in a row), not on every small event. Second, give the job its retries first: a task that fails once and succeeds on the retry is not an emergency. An alert that fires every night for nothing teaches everyone to ignore it. This is called **alert fatigue**, and it is how real incidents get missed.
 

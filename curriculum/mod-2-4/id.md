@@ -63,6 +63,15 @@ def run_order(deps):
 ## @lesson Konsep inti: runs, intervals, dan partitions
 Graf dependensi di orkestrator dimodelkan sebagai **DAG (Directed Acyclic Graph)**: node melambangkan task atau asset data, tanda panah melambangkan "berjalan setelah" atau "bergantung pada", dan sifat **acyclic** memastikan tidak ada lingkaran setan/rekursi tak berujung (no circular dependencies), sehingga urutan eksekusi selalu deterministik.
 
+:::talk Hari mana yang diproses putaran pukul 02:00?
+@teacher Sebuah pekerjaan harian dijadwalkan pukul 02:00 setiap malam. Putaran yang mulai pukul 02:00 pada 6 Januari akan memproses "pesanan hari itu".
+@ask Pesanan hari mana yang seharusnya diproses?
+@choice 6 Januari, karena itu tanggal di kalender saat ia berjalan | Pukul 02:00 pada 6 Januari hampir tidak ada yang sudah memesan: harinya baru saja dimulai. Coba lagi.
+@choice * 5 Januari: interval yang berakhir tengah malam, tepat sebelum putaran | Betul. Orchestrator berjalan setelah sebuah interval berakhir, dan menyerahkan awal dan akhir interval itu kepada tugas. Putaran tanggal 6 memproses tanggal 5.
+@choice Keduanya, untuk berjaga-jaga | Memproses keduanya akan menghitung 5 Januari dua kali ketika putaran berikutnya mengerjakannya lagi. Coba lagi.
+@teacher Tanggal tempat sebuah putaran berada adalah interval yang dicakupnya, bukan saat ia kebetulan mulai. Itulah yang membuat retry dan backfill menghasilkan hasil yang sama.
+:::
+
 Konsep yang paling sering membingungkan insinyur pemula adalah **data interval** (istilah di Airflow) atau **partition** (istilah di Dagster). Pipeline harian yang dijadwalkan berjalan pada pukul 02:00 tanggal 6 Januari **bukanlah** memproses data tanggal 6 Januari. Pipeline tersebut bertugas memproses **data tanggal 5 Januari**, karena data transaksi tanggal 5 Januari baru resmi lengkap dan ditutup saat jam menunjukkan tepat tengah malam 23:59:59. Orkestrator memodelkan prinsip ini secara eksplisit: setiap run selalu terikat pada interval data yang menjadi tanggung jawabnya (`2026-01-05`), yang diinjeksikan ke dalam kode Anda sebagai **logical date** (variabel `ds` di Airflow) atau **partition key** (`context.partition_key` di Dagster). Kode pipeline Anda wajib membaca dan memproses data **khusus untuk interval tersebut**, dan pantang membaca waktu "saat ini" (wall-clock time). Jika suatu run diulang besok, atau dilakukan backfill bulan depan, ia harus selalu menghasilkan output yang identik untuk tanggal 5 Januari. Menggunakan waktu sistem (`datetime.now()` atau fungsi database `CURRENT_DATE()`) di dalam task akan merusak konsistensi ini secara diam-diam.
 
 Kosakata penting lainnya dalam dunia orkestrasi:
@@ -149,6 +158,15 @@ Job yang idempoten meninggalkan hasil yang sama baik dijalankan sekali maupun li
 
 ## @lesson Airflow: DAG berbasis task
 **Apache Airflow** mendefinisikan seluruh pipeline data menggunakan kode Python murni. Arsitektur komponen utamanya meliputi: **scheduler** yang memantau jadwal dan memutuskan kapan task harus jalan, **DAG processor** yang membaca dan mem-parsing file kode Python, **workers** (dijalankan via executor: LocalExecutor, CeleryExecutor, atau KubernetesExecutor) yang mengeksekusi instruksi task, **metadata database** (biasanya PostgreSQL) yang menyimpan state seluruh run dan task, serta **API server dan web UI** tempat insinyur memantau log dan memicu eksekusi.
+
+:::talk Tugas yang bertanya pada jam
+@teacher Sebuah tugas harian memilih hari yang dimuat dengan `datetime.now()`. Ia berjalan baik setiap malam. Pada 9 Januari Anda memulai backfill untuk memuat ulang 1 sampai 7 Januari.
+@ask Hari apa saja yang sebenarnya dimuat backfill itu?
+@choice * Tanggal hari ini, berulang-ulang: tugas bertanya pada jam, bukan pada interval yang diberikan kepadanya | Betul. Setiap putaran backfill menanyakan `now()`, mendapat 9 Januari, dan memuat hari yang sama tujuh kali, sementara 1 sampai 7 Januari tetap hilang.
+@choice 1 sampai 7 Januari, karena penjadwal menyerahkan tanggal-tanggal itu | Penjadwal memang menyerahkan interval, tetapi tugas ini mengabaikannya dan bertanya pada jam. Coba lagi.
+@choice Gagal, karena `datetime.now()` tidak diizinkan di dalam tugas | Python mengizinkannya, dan itulah masalahnya. Coba lagi.
+@teacher Pakai interval yang diserahkan orchestrator (logical date-nya), jangan pernah jam. Maka retry atau backfill memuat persis hari yang dimaksud.
+:::
 
 Berikut adalah implementasi DAG lengkap menggunakan Airflow TaskFlow API modern (terverifikasi kompatibel dengan Airflow versi 3.3):
 
@@ -403,6 +421,15 @@ def is_slow(seconds, history, factor):
 :::
 
 ### Alert yang tetap dipercaya orang
+
+:::talk Diam terlihat seperti sukses
+@teacher Alert Anda berbunyi setiap kali sebuah pekerjaan gagal. Jumat malam lalu server yang menjalankan penjadwal dimatikan karena kesalahan. Pekerjaan akhir pekan tidak pernah berjalan. Pada hari Senin tim keuangan bertanya mengapa angkanya berhenti di hari Jumat.
+@ask Mengapa tidak ada alert yang berbunyi?
+@choice Sistem alert-nya rusak | Mungkin baik-baik saja: ia hanya bereaksi pada kegagalan. Coba lagi.
+@choice Pekerjaannya gagal diam-diam dan alert terlewat | Pekerjaannya tidak gagal: ia tidak pernah mulai, jadi tidak ada kegagalan untuk dilaporkan. Coba lagi.
+@choice * Tidak ada yang gagal: pekerjaan yang tidak pernah berjalan tidak melaporkan error, sehingga diam terlihat seperti sukses | Betul. Anda butuh alert untuk putaran yang hilang, misalnya "tidak ada putaran sukses dalam 26 jam terakhir". Ia mengawasi ketiadaan kabar baik.
+@teacher Beri alert saat gagal, tetapi juga saat terlambat dan saat sunyi.
+:::
 
 Alert harus berarti "seseorang harus bertindak". Dua kebiasaan menjaganya tetap begitu. Pertama, beri alert untuk **gejala yang penting** (tak ada data segar, tiga kegagalan berturut-turut), bukan untuk setiap kejadian kecil. Kedua, beri job retry-nya dulu: task yang gagal sekali lalu berhasil pada retry bukan keadaan darurat. Alert yang berbunyi tiap malam tanpa sebab mengajari semua orang untuk mengabaikannya. Ini disebut **alert fatigue**, dan begitulah insiden nyata terlewat.
 
