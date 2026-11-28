@@ -873,7 +873,7 @@ else:
     print("status tidak dikenal: kirim ke karantina")
 ```
 
-(Perhatikan `or` di baris `elif`: artinya "salah satu benar", bagian berikutnya membahas `and`, `or`, dan `not` secara penuh.)
+(Perhatikan `or` di baris `elif`: artinya "salah satu benar". Bagian berikutnya membahas `and`, `or`, dan `not` secara penuh.)
 
 :::drill python Tiga jalur
 Tentukan `action` dari `status`: `"paid"` menghasilkan `"count it"`; `"cancelled"` atau `"refunded"` menghasilkan `"skip it"`; selain itu menghasilkan `"check it"`.
@@ -1301,7 +1301,7 @@ unique_ids = sorted(seen)
 print(list(range(0, 10, 3)))    # [0, 3, 6, 9]
 ```
 
-Di dalam loop, pasangkan setiap `start` dari `range(0, len(items), batch_size)` dengan irisan dinamis `items[start:start + batch_size]`, misalnya, saat `start` bernilai `3` dan `batch_size` bernilai `3`, itu mengambil `items[3:6]`.
+Di dalam loop, pasangkan setiap `start` dari `range(0, len(items), batch_size)` dengan irisan dinamis `items[start:start + batch_size]`. Misalnya, saat `start` bernilai `3` dan `batch_size` bernilai `3`, itu mengambil `items[3:6]`.
 
 :::drill python Dari mana setiap bagian mulai
 `items` punya 10 item. Satu bagian panjangnya 3 item. Buat `starts` berisi list posisi tempat setiap bagian dimulai: `[0, 3, 6, 9]`. Pakai `range` dengan `len(items)`.
@@ -1751,7 +1751,7 @@ print(add(2))
 6 | Panggilan kedua: `box` tidak diberikan, jadi ia adalah list yang **sama** seperti sebelumnya (label sama), yang sudah berisi 1.
 :::
 
-Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box is None: box = []`. Lebih baik lagi, saat pemanggil memberikan list sendiri, `box.append(item)` ikut mengubah list asli mereka, mengembalikan `box + [item]` membuat list **baru** sebagai gantinya (misalnya, `["a", "b"] + ["c"]` menghasilkan `["a", "b", "c"]` tanpa menyentuh list milik pemanggil). Skenario chaos modul ini menunjukkan apa yang dilakukan bug ini pada pipeline sungguhan, dan lab punya tes untuk keduanya.
+Perbaikannya: pakai `None` sebagai default dan buat list baru di dalam: `if box is None: box = []`. Lebih baik lagi: saat pemanggil memberikan list sendiri, `box.append(item)` ikut mengubah list asli mereka, sedangkan mengembalikan `box + [item]` membuat list **baru** sebagai gantinya (misalnya, `["a", "b"] + ["c"]` menghasilkan `["a", "b", "c"]` tanpa menyentuh list milik pemanggil). Skenario chaos modul ini menunjukkan apa yang dilakukan bug ini pada pipeline sungguhan, dan lab punya tes untuk keduanya.
 
 :::drill python Perbaiki list yang dipakai bersama
 `add` punya jebakannya. Perbaiki supaya setiap panggilan tanpa argumen kedua mulai dengan list kosong yang **baru**: `add(1)` menghasilkan `[1]` lalu `add(2)` menghasilkan `[2]`.

@@ -202,7 +202,7 @@ Atau kebalikannya:
 2. **Perbarui nilai watermark di memori hanya setelah penulisan data berhasil.**
 3. **Tulis berkas `state.json` melalui pola atomic rename:**
    ```python
-   tmp_file = state_path.with_suffix(".json.tmp")
+   tmp_file = state_path.with_name(state_path.name + ".tmp")  # state.json.tmp
    tmp_file.write_text(json.dumps(state_data))
    os.replace(tmp_file, state_path)  # Operasi atomik pada filesystem POSIX
    ```
@@ -272,7 +272,7 @@ Ketika API membatasi panggilan Anda, server REST standar mengembalikan status HT
 ```python
 try:
     with urllib.request.urlopen(url, timeout=15) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+        payload = json.loads(resp.read().decode("utf-8"))
 except urllib.error.HTTPError as e:
     if e.code == 429:
         retry_after = e.headers.get("Retry-After")
